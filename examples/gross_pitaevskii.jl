@@ -57,8 +57,9 @@ scfres.energies
 # We use the opportunity to explore some of DFTK internals.
 #
 # Extract the converged density and the obtained wave function:
-ρ = real(scfres.ρ)[:, 1, 1, 1]  # converged density, first spin component
-ψ_fourier = scfres.ψ[1][:, 1];    # first k-point, all G components, first eigenvector
+ρ = real(scfres.ρ)[:, 1, 1, 1]     # converged density, first spin component
+ψ_fourier = scfres.ψ[1][1, :, 1]   # first k-point, first (and only) component,
+                                   #   all G components, first eigenvector
 
 # Transform the wave function to real space and fix the phase:
 ψ = ifft(basis, basis.kpoints[1], ψ_fourier)[:, 1, 1]
@@ -85,7 +86,7 @@ plot!(p, x, ρ, label="ρ")
 # of a particular state (ψ, occupation).
 # The density ρ associated to this state is precomputed
 # and passed to the routine as an optimization.
-E, ham = energy_hamiltonian(basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
+E, ham = energy_hamiltonian(scfres.ψ, scfres.occupation; ρ=scfres.ρ)
 @assert E.total == scfres.energies.total
 
 # Now the Hamiltonian contains all the blocks corresponding to ``k``-points. Here, we just
@@ -93,7 +94,7 @@ E, ham = energy_hamiltonian(basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
 H = ham.blocks[1];
 
 # `H` can be used as a linear operator (efficiently using FFTs), or converted to a dense matrix:
-ψ11 = scfres.ψ[1][:, 1] # first k-point, first eigenvector
+ψ11 = scfres.ψ[1][1, :, 1]  # first k-point, first component, first eigenvector
 Hmat = Array(H)  # This is now just a plain Julia matrix,
 ##                  which we can compute and store in this simple 1D example
 @assert norm(Hmat * ψ11 - H * ψ11) < 1e-10

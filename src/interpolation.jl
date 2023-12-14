@@ -83,24 +83,26 @@ end
 Interpolate some data from one ``k``-point to another. The interpolation is fast, but not
 necessarily exact. Intended only to construct guesses for iterative solvers.
 """
-function interpolate_kpoint(data_in::AbstractVecOrMat,
+function interpolate_kpoint(data_in::AbstractArray3,
                             basis_in::PlaneWaveBasis,  kpoint_in::Kpoint,
                             basis_out::PlaneWaveBasis, kpoint_out::Kpoint)
     # TODO merge with transfer_blochwave_kpt
     if kpoint_in == kpoint_out
         return copy(data_in)
     end
-    @assert length(G_vectors(basis_in, kpoint_in)) == size(data_in, 1)
+    n_components = basis_in.model.n_components
+    @assert n_components == basis_out.model.n_components == size(data_in, 1)
+    @assert length(G_vectors(basis_in, kpoint_in)) == size(data_in, 2)
 
-    n_bands  = size(data_in, 2)
+    n_bands  = size(data_in, 3)
     n_Gk_out = length(G_vectors(basis_out, kpoint_out))
-    data_out = similar(data_in, n_Gk_out, n_bands) .= 0
+    data_out = similar(data_in, n_components, n_Gk_out, n_bands) .= 0
     # TODO: use a map, or this will not be GPU compatible (scalar indexing)
-    for iin = 1:size(data_in, 1)
+    for iin = 1:size(data_in, 2)
         idx_fft = kpoint_in.mapping[iin]
         idx_fft in keys(kpoint_out.mapping_inv) || continue
         iout = kpoint_out.mapping_inv[idx_fft]
-        data_out[iout, :] = data_in[iin, :]
+        data_out[:, iout, :] = data_in[:, iin, :]
     end
     ortho_qr(data_out)  # Re-orthogonalize and renormalize
 end

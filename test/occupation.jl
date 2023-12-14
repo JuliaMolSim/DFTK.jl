@@ -210,8 +210,7 @@ end
         smearing isa Smearing.None && continue
         occupation, εF = DFTK.compute_occupation(scfres.basis, scfres.eigenvalues, alg;
                                                  smearing, temperature)
-        ρ = DFTK.compute_density(scfres.basis, scfres.ψ, scfres.occupation;
-                                 scfres.occupation_threshold)
+        ρ = DFTK.compute_density(scfres.ψ, scfres.occupation; scfres.occupation_threshold)
         atol = scfres.occupation_threshold
         @test DFTK.weighted_ksum(basis, sum.(occupation)) ≈ model.n_electrons atol=atol
         @test sum(ρ) * scfres.basis.dvol ≈ model.n_electrons atol=atol

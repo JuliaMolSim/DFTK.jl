@@ -25,10 +25,10 @@ end
     TermEwald(energy, forces, η)
 end
 
-function ene_ops(term::TermEwald, basis::PlaneWaveBasis, ψ, occupation; kwargs...)
-    (; E=term.energy, ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
+function ene_ops(term::TermEwald, ψ::BlochWaves, occupation; kwargs...)
+    (; E=term.energy, ops=[NoopOperator(ψ.basis, kpt) for kpt in ψ.basis.kpoints])
 end
-compute_forces(term::TermEwald, ::PlaneWaveBasis, ψ, occupation; kwargs...) = term.forces
+compute_forces(term::TermEwald, ::BlochWaves, occupation; kwargs...) = term.forces
 
 """
 Standard computation of energy and forces.

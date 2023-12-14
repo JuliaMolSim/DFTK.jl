@@ -34,8 +34,9 @@ function kinetic_energy(kin::Kinetic, Ecut, q)
     kinetic_energy(kin.blowup, kin.scaling_factor, Ecut, q)
 end
 
-@timing "ene_ops: kinetic" function ene_ops(term::TermKinetic, basis::PlaneWaveBasis{T},
-                                            ψ, occupation; kwargs...) where {T}
+@timing "ene_ops: kinetic" function ene_ops(term::TermKinetic, ψ::BlochWaves{T}, occupation;
+                                            kwargs...) where {T}
+    basis = ψ.basis
     ops = [FourierMultiplication(basis, kpoint, term.kinetic_energies[ik])
            for (ik, kpoint) in enumerate(basis.kpoints)]
     if isnothing(ψ) || isnothing(occupation)
@@ -45,10 +46,10 @@ end
 
     E = zero(T)
     for (ik, ψk) in enumerate(ψ)
-        for iband = 1:size(ψk, 2)
-            ψnk = @views ψk[:, iband]
+        for iband = 1:size(ψk, 3), σ = 1:size(ψk, 1)
+            ψσkn = @views ψk[σ, :, iband]
             E += (basis.kweights[ik] * occupation[ik][iband]
-                  * real(dot(ψnk, Diagonal(term.kinetic_energies[ik]), ψnk)))
+                    * real(dot(ψσkn, Diagonal(term.kinetic_energies[ik]), ψσkn)))
         end
     end
     E = mpi_sum(E, basis.comm_kpts)

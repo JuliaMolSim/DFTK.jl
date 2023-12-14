@@ -72,6 +72,10 @@ export compute_fft_size
 export G_vectors, G_vectors_cart, r_vectors, r_vectors_cart
 export Gplusk_vectors, Gplusk_vectors_cart
 export Kpoint
+export BlochWaves, view_component, nest, denest
+export blochwave_as_matrix
+export blochwave_as_tensor
+export blochwaves_as_matrices
 export ifft
 export irfft
 export ifft!
@@ -83,6 +87,7 @@ include("Model.jl")
 include("structure.jl")
 include("bzmesh.jl")
 include("PlaneWaveBasis.jl")
+include("Psi.jl")
 include("fft.jl")
 include("orbitals.jl")
 include("input_output.jl")

@@ -216,7 +216,7 @@ Apply a symmetry operation to eigenvectors `ψk` at a given `kpoint` to obtain a
 equivalent point in [-0.5, 0.5)^3 and associated eigenvectors (expressed in the
 basis of the new ``k``-point).
 """
-function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
+function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractArray)
     S, τ = symop.S, symop.τ
     isone(symop) && return kpoint, ψk
 
@@ -248,11 +248,13 @@ function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
     invS = Mat3{Int}(inv(S))
     Gs_full = [G + kshift for G in G_vectors(basis, Skpoint)]
     ψSk = zero(ψk)
-    for iband = 1:size(ψk, 2)
+    for iband = 1:size(ψk, 3)
         for (ig, G_full) in enumerate(Gs_full)
             igired = index_G_vectors(basis, kpoint, invS * G_full)
             @assert igired !== nothing
-            ψSk[ig, iband] = cis2pi(-dot(G_full, τ)) * ψk[igired, iband]
+            for σ = 1:basis.model.n_components
+                ψSk[σ, ig, iband] = cis2pi(-dot(G_full, τ)) * ψk[σ, igired, iband]
+            end
         end
     end
 
@@ -413,6 +415,8 @@ function unfold_array_(basis_irred, basis_unfolded, data, is_ψ)
         error("Brillouin zone symmetry unfolding not supported with MPI yet")
     end
     data_unfolded = similar(data, length(basis_unfolded.kpoints))
+    n_components = basis_unfolded.model.n_components
+    @assert n_components == basis_irred.model.n_components
     for ik_unfolded = 1:length(basis_unfolded.kpoints)
         kpt_unfolded = basis_unfolded.kpoints[ik_unfolded]
         ik_irred, symop = unfold_mapping(basis_irred, kpt_unfolded)
@@ -420,15 +424,19 @@ function unfold_array_(basis_irred, basis_unfolded, data, is_ψ)
             # transform ψ_k from data into ψ_Sk in data_unfolded
             kunfold_coord = kpt_unfolded.coordinate
             @assert normalize_kpoint_coordinate(kunfold_coord) ≈ kunfold_coord
-            _, ψSk = apply_symop(symop, basis_irred,
-                                  basis_irred.kpoints[ik_irred], data[ik_irred])
+            ψSk = apply_symop(symop, basis_irred, basis_irred.kpoints[ik_irred],
+                              data[ik_irred])[2]
             data_unfolded[ik_unfolded] = ψSk
         else
             # simple copy
             data_unfolded[ik_unfolded] = data[ik_irred]
         end
     end
-    data_unfolded
+    if is_ψ
+        BlochWaves(basis_unfolded, denest(basis_unfolded, data_unfolded))
+    else
+        data_unfolded
+    end
 end
 
 function unfold_bz(scfres)
@@ -436,7 +444,7 @@ function unfold_bz(scfres)
     ψ = unfold_array_(scfres.basis, basis_unfolded, scfres.ψ, true)
     eigenvalues = unfold_array_(scfres.basis, basis_unfolded, scfres.eigenvalues, false)
     occupation = unfold_array_(scfres.basis, basis_unfolded, scfres.occupation, false)
-    energies, ham = energy_hamiltonian(basis_unfolded, ψ, occupation;
+    energies, ham = energy_hamiltonian(ψ, occupation;
                                        scfres.ρ, eigenvalues, scfres.εF)
     @assert energies.total ≈ scfres.energies.total
     new_scfres = (; basis=basis_unfolded, ψ, ham, eigenvalues, occupation)

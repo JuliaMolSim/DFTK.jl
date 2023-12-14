@@ -29,7 +29,7 @@ function ph_compute_reference(basis_supercell)
             model_disp = Model(convert(Model{eltype(ε)}, model_supercell); lattice, positions)
             # TODO: Would be cleaner with PR #675.
             basis_disp_bs = PlaneWaveBasis(model_disp; Ecut=5)
-            forces = compute_forces(basis_disp_bs, nothing, nothing)
+            forces = compute_forces(BlochWaves(basis_disp_bs), nothing)
             reduce(hcat, forces)
         end
     end

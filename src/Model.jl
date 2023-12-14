@@ -26,6 +26,10 @@ struct Model{T <: Real, VT <: Real}
     n_electrons::Union{Int, Nothing}
     εF::Union{T, Nothing}
 
+    # Option for multicomponents computations.
+    # TODO: Planed to replace current handling of spins, as it will allow full spin computations.
+    n_components::Int
+
     # spin_polarization values:
     #     :none       No spin polarization, αα and ββ density identical,
     #                 αβ and βα blocks zero, 1 spin component treated explicitly
@@ -106,7 +110,8 @@ function Model(lattice::AbstractMatrix{T},
                terms=[Kinetic()],
                temperature=zero(T),
                smearing=temperature > 0 ? Smearing.FermiDirac() : Smearing.None(),
-               spin_polarization=determine_spin_polarization(magnetic_moments),
+               n_components=1,
+               spin_polarization=default_spin_polarization(magnetic_moments, n_components),
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
                                              spin_polarization, terms),
                ) where {T <: Real}
@@ -178,7 +183,8 @@ function Model(lattice::AbstractMatrix{T},
     Model{T,value_type(T)}(model_name,
                            lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
                            unit_cell_volume, recip_cell_volume,
-                           n_electrons, εF, spin_polarization, n_spin, temperature, smearing,
+                           n_electrons, εF, n_components, spin_polarization, n_spin,
+                           temperature, smearing,
                            atoms, positions, atom_groups, terms, symmetries)
 end
 function Model(lattice::AbstractMatrix{<:Integer}, atoms::Vector{<:Element},
@@ -224,6 +230,7 @@ function Model{T}(model::Model;
           model.temperature,
           model.smearing,
           model.εF,
+          model.n_components,
           model.spin_polarization,
           model.symmetries,
           # Can be safely disabled: this has been checked for model
@@ -248,6 +255,11 @@ normalize_magnetic_moment(mm::AbstractVector)::Vec3{Float64} = mm
 
 """Number of valence electrons."""
 n_electrons_from_atoms(atoms) = sum(n_elec_valence, atoms; init=0)
+
+function default_spin_polarization(magnetic_moments, n_components)
+    n_components > 1 && return :spinless
+    determine_spin_polarization(magnetic_moments)
+end
 
 """
 Default logic to determine the symmetry operations to be used in the model.

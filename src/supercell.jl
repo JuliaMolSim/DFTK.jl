@@ -72,8 +72,7 @@ function cell_to_supercell(ψ, basis::PlaneWaveBasis{T},
     # Ensure that the basis is unfolded.
     length(basis.kgrid) != length(basis.kpoints) && error("basis must be unfolded")
 
-    num_kpG   = sum(size.(ψ, 1))
-    num_bands = size(ψ[1], 2)
+    num_kpG   = sum([size(ψk, 2) for ψk in ψ])
 
     # Maps k+G vector of initial basis to a G vector of basis_supercell
     function cell_supercell_mapping(kpt)
@@ -84,12 +83,12 @@ function cell_to_supercell(ψ, basis::PlaneWaveBasis{T},
     # Transfer all ψ[k] independantly and return the hcat of all blocs
     ψ_out_blocs = []
     for (ik, kpt) in enumerate(basis.kpoints)
-        ψk_supercell = zeros(complex(T), num_kpG, num_bands)
-        ψk_supercell[cell_supercell_mapping(kpt), :] .= ψ[ik]
+        ψk_supercell = zeros(complex(T), basis.model.n_components, num_kpG, size(ψ[ik], 3))
+        ψk_supercell[:, cell_supercell_mapping(kpt), :] .= ψ[ik]
         push!(ψ_out_blocs, ψk_supercell)
     end
     # Note that each column is normalize since each ψ[ik][:,n] is.
-    hcat(ψ_out_blocs...)
+    BlochWaves(basis_supercell, [cat(ψ_out_blocs...; dims=3)])
 end
 
 @doc raw"""
@@ -110,15 +109,14 @@ function cell_to_supercell(scfres::NamedTuple)
 
     # Compute supercell basis, ψ, occupations and ρ
     basis_supercell = cell_to_supercell(basis)
-    ψ_supercell     = [cell_to_supercell(ψ, basis, basis_supercell)]
+    ψ_supercell     = cell_to_supercell(ψ, basis, basis_supercell)
     eigs_supercell  = [vcat(scfres_unfold.eigenvalues...)]
     occ_supercell   = compute_occupation(basis_supercell, eigs_supercell, scfres.εF).occupation
-    ρ_supercell     = compute_density(basis_supercell, ψ_supercell, occ_supercell;
-                                      scfres.occupation_threshold)
+    ρ_supercell     = compute_density(ψ_supercell, occ_supercell; scfres.occupation_threshold)
 
     # Supercell Energies
-    Eham_supercell = energy_hamiltonian(basis_supercell, ψ_supercell, occ_supercell;
-                                        ρ=ρ_supercell, eigenvalues=eigs_supercell, scfres.εF)
+    Eham_supercell = energy_hamiltonian(ψ_supercell, occ_supercell; ρ=ρ_supercell,
+                                        eigenvalues=eigs_supercell, scfres.εF)
 
     merge(scfres, (; ham=Eham_supercell.ham, basis=basis_supercell, ψ=ψ_supercell,
                    energies=Eham_supercell.energies, ρ=ρ_supercell,

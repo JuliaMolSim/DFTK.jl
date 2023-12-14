@@ -5,7 +5,11 @@ function gather_kpts_scfres(scfres::NamedTuple)
     kpt_properties = (:ψ, :occupation, :eigenvalues)
     scfdict = Dict{Symbol, Any}()
     for symbol in kpt_properties
-        scfdict[symbol] = gather_kpts(getproperty(scfres, symbol), scfres.basis)
+        if symbol == :ψ
+            scfdict[symbol] = gather_kpts(denest(getproperty(scfres, symbol)), scfres.basis)
+        else
+            scfdict[symbol] = gather_kpts(getproperty(scfres, symbol), scfres.basis)
+        end
     end
     scfdict[:basis] = gather_kpts(scfres.basis)
 

@@ -174,7 +174,7 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     function R_ldiv!(x, y)
         x .= R(precon \ R(y))
     end
-    J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
+    J = LinearMap{eltype(ψk)}(RAR, size(ψk, 1))
     res = cg(J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
              callback=cg_callback)
     !res.converged && @warn("Sternheimer CG not converged", res.n_iter,
@@ -188,6 +188,20 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     αkn = ψk_exHψk_ex \ ψk_extra' * (b - H(δψknᴿ))
 
     δψkn = ψk_extra * αkn + δψknᴿ
+end
+function sternheimer_solver_wrapper(Hk, ψk, ε, rhs;
+                                    callback=identity, cg_callback=identity,
+                                    ψk_extra=zeros_like(ψk, size(ψk)[1:2]..., 0),
+                                    εk_extra=zeros(0),
+                                    Hψk_extra=zeros_like(ψk, size(ψk)[1:2]..., 0),
+                                    tol=1e-9)
+    ψk_extra_r = reshape(ψk_extra, prod(size(ψk_extra)[1:2]), :)
+    Hψk_extra_r = reshape(Hψk_extra, prod(size(Hψk_extra)[1:2]), :)
+    ψk_r = reshape(ψk, :, size(ψk, 3))
+    δψkn = sternheimer_solver(Hk, ψk_r, ε, vec(rhs); callback, cg_callback,
+                              ψk_extra=ψk_extra_r, εk_extra,
+                              Hψk_extra=Hψk_extra_r, tol)
+    reshape(δψkn, size(ψk)[1:2]...)
 end
 
 # Apply the four-point polarizability operator χ0_4P = -Ω^-1
@@ -265,7 +279,7 @@ function compute_δocc!(δocc, basis, ψ, εF::T, ε, δHψ) where {T}
         D = zero(T)
         for ik = 1:Nk, (n, εnk) in enumerate(ε[ik])
             enred = (εnk - εF) / temperature
-            δεnk = real(dot(ψ[ik][:, n], δHψ[ik][:, n]))
+            δεnk = real(dot(ψ[ik][:, :, n], δHψ[ik][:, :, n]))
             fpnk = filled_occ * Smearing.occupation_derivative(smearing, enred) / temperature
             δocc[ik][n] = δεnk * fpnk
             D += fpnk * basis.kweights[ik]
@@ -290,7 +304,7 @@ Perform in-place computations of the derivatives of the wave functions by solvin
 a Sternheimer equation for each `k`-points. It is assumed the passed `δψ` are initialised
 to zero.
 """
-function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros_like(ψk, size(ψk,1), 0) for ψk in ψ],
+function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros_like(ψk, size(ψk)[1:2]..., 0) for ψk in ψ],
                      kwargs_sternheimer...)
     model = basis.model
     temperature = model.temperature
@@ -307,7 +321,12 @@ function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros_like(
 
         ψk_extra = ψ_extra[ik]
         Hψk_extra = Hk * ψk_extra
-        εk_extra  = diag(real.(ψk_extra' * Hψk_extra))
+        εk_extra = let
+            lead_dim = prod(size(ψk_extra)[1:2])
+            ψk_extra_r = reshape(ψk_extra, lead_dim, :)
+            Hψk_extra_r = reshape(Hψk_extra, lead_dim, :)
+            diag(real.(ψk_extra_r' * Hψk_extra_r))
+        end
         for n = 1:length(εk)
             fnk = filled_occ * Smearing.occupation(smearing, (εk[n]-εF) / temperature)
 
@@ -320,12 +339,13 @@ function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros_like(
                 ddiff = Smearing.occupation_divided_difference
                 ratio = filled_occ * ddiff(smearing, εk[m], εk[n], εF, temperature)
                 αmn = compute_αmn(fmk, fnk, ratio)  # fnk * αmn + fmk * αnm = ratio
-                δψk[:, n] .+= ψk[:, m] .* αmn .* dot(ψk[:, m], δHψ[ik][:, n])
+                δψk[:, :, n] .+= ψk[:, :, m] .* αmn .* dot(ψk[:, :, m], δHψ[ik][:, :, n])
             end
 
             # Sternheimer contribution
-            δψk[:, n] .+= sternheimer_solver(Hk, ψk, εk[n], δHψ[ik][:, n]; ψk_extra,
-                                             εk_extra, Hψk_extra, kwargs_sternheimer...)
+            δψk[:, :, n] .+= sternheimer_solver_wrapper(Hk, ψk, εk[n], δHψ[ik][:, :, n];
+                                                        ψk_extra, εk_extra, Hψk_extra,
+                                                        kwargs_sternheimer...)
         end
     end
 end
@@ -344,11 +364,11 @@ end
     mask_occ   = map(occk -> findall(occnk -> abs(occnk) ≥ occ_thresh, occk), occupation)
     mask_extra = map(occk -> findall(occnk -> abs(occnk) < occ_thresh, occk), occupation)
 
-    ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
-    ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
+    ψ_occ   = [ψ[ik][:, :, maskk] for (ik, maskk) in enumerate(mask_occ)]
+    ψ_extra = [ψ[ik][:, :, maskk] for (ik, maskk) in enumerate(mask_extra)]
 
     ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-    δHψ_occ = [δHψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
+    δHψ_occ = [δHψ[ik][:, :, maskk] for (ik, maskk) in enumerate(mask_occ)]
 
     # First we compute δoccupation. We only need to do this for the actually occupied
     # orbitals. So we make a fresh array padded with zeros, but only alter the elements
@@ -360,7 +380,7 @@ end
 
     # Then we compute δψ, again in-place into a zero-padded array
     δψ = zero.(ψ)
-    δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
+    δψ_occ = [δψ[ik][:, :, maskk] for (ik, maskk) in enumerate(mask_occ)]
     compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_occ; ψ_extra,
                 kwargs_sternheimer...)
 
@@ -390,9 +410,9 @@ function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV::AbstractArray{T};
 
     δHψ = [RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]
-    (; δψ, δoccupation) = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+    (; δψ, δoccupation) = apply_χ0_4P(ham, denest(ψ), occupation, εF, eigenvalues, δHψ;
                                       occupation_threshold, kwargs_sternheimer...)
-    δρ = compute_δρ(basis, ψ, δψ, occupation, δoccupation; occupation_threshold)
+    δρ = compute_δρ(ψ, δψ, occupation, δoccupation; occupation_threshold)
     δρ * normδV
 end
 

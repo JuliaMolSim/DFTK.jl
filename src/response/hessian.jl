@@ -26,9 +26,12 @@ Compute the application of Ω defined at ψ to δψ. H is the Hamiltonian comput
 from ψ and Λ is the set of Rayleigh coefficients ψk' * Hk * ψk at each k-point.
 """
 @timing function apply_Ω(δψ, ψ, H::Hamiltonian, Λ)
+    n_components = H.basis.model.n_components
+    @assert n_components == 1
     δψ = proj_tangent(δψ, ψ)
-    Ωδψ = [H.blocks[ik] * δψk - δψk * Λ[ik] for (ik, δψk) in enumerate(δψ)]
-    proj_tangent!(Ωδψ, ψ)
+    Ωδψ = [H.blocks[ik] * δψk - δψk * Λ[ik]
+           for (ik, δψk) in enumerate(blochwaves_as_matrices(δψ))]
+    proj_tangent!(blochwave_as_tensor.(Ωδψ, n_components), ψ)
 end
 
 """
@@ -37,19 +40,21 @@ end
 Compute the application of K defined at ψ to δψ. ρ is the density issued from ψ.
 δψ also generates a δρ, computed with `compute_δρ`.
 """
+# T@D@ basis redundant; change signature maybe?
 @views @timing function apply_K(basis::PlaneWaveBasis, δψ, ψ, ρ, occupation)
     δψ = proj_tangent(δψ, ψ)
-    δρ = compute_δρ(basis, ψ, δψ, occupation)
+    δρ = compute_δρ(ψ, δψ, occupation)
     δV = apply_kernel(basis, δρ; ρ)
 
     Kδψ = map(enumerate(ψ)) do (ik, ψk)
         kpt = basis.kpoints[ik]
         δVψk = similar(ψk)
 
-        for n = 1:size(ψk, 2)
-            ψnk_real = ifft(basis, kpt, ψk[:, n])
-            δVψnk_real = δV[:, :, :, kpt.spin] .* ψnk_real
-            δVψk[:, n] = fft(basis, kpt, δVψnk_real)
+        for n = 1:size(ψk, 3)
+            ψnk_real = ifft(basis, kpt, ψk[:, :, n])
+            δVψnk_real = reduce(hcat, δV[:, :, :, kpt.spin] .* ψnk_real[σ, :, :, :]
+                                for σ = 1:size(ψk, 1))
+            δVψk[:, :, n] = fft(basis, kpt, δVψnk_real)
         end
         δVψk
     end
@@ -58,13 +63,14 @@ Compute the application of K defined at ψ to δψ. ρ is the density issued fro
 end
 
 """
-    solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, res, occupation;
+    solve_ΩplusK(ψ::BlochWaves{T}, rhs, occupation;
                  tol=1e-10, verbose=false) where {T}
 
 Return δψ where (Ω+K) δψ = rhs
 """
-@timing function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
-                      callback=identity, tol=1e-10) where {T}
+@timing function solve_ΩplusK(ψ::BlochWaves{T}, rhs, occupation; callback=identity,
+                              tol=1e-10) where {T}
+    basis = ψ.basis
     filled_occ = filled_occupation(basis.model)
     # for now, all orbitals have to be fully occupied -> need to strip them beforehand
     @assert all(all(occ_k .== filled_occ) for occ_k in occupation)
@@ -75,9 +81,10 @@ Return δψ where (Ω+K) δψ = rhs
     @assert mpi_nprocs() == 1  # Distributed implementation not yet available
 
     # compute quantites at the point which define the tangent space
-    ρ = compute_density(basis, ψ, occupation)
-    H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
+    ρ = compute_density(ψ, occupation)
+    H = energy_hamiltonian(ψ, occupation; ρ).ham
 
+    ψ_matrices = blochwaves_as_matrices(ψ)
     pack(ψ) = reinterpret_real(pack_ψ(ψ))
     unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ))
     unsafe_unpack(x) = unsafe_unpack_ψ(reinterpret_complex(x), size.(ψ))
@@ -89,18 +96,19 @@ Return δψ where (Ω+K) δψ = rhs
     # preconditioner
     Pks = [PreconditionerTPA(basis, kpt) for kpt in basis.kpoints]
     for ik = 1:length(Pks)
-        precondprep!(Pks[ik], ψ[ik])
+        precondprep!(Pks[ik], ψ_matrices[ik])
     end
     function f_ldiv!(x, y)
         δψ = unpack(y)
         proj_tangent!(δψ, ψ)
         Pδψ = [ Pks[ik] \ δψk for (ik, δψk) in enumerate(δψ)]
-        proj_tangent!(Pδψ, ψ)
+        # T@D@ revert deepcopy
+        Pδψ = deepcopy(proj_tangent!(Pδψ, ψ))
         x .= pack(Pδψ)
     end
 
     # Rayleigh-coefficients
-    Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ, H * ψ)]
+    Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ_matrices, H * ψ_matrices)]
 
     # mapping of the linear system on the tangent space
     function ΩpK(x)
@@ -114,7 +122,8 @@ Return δψ where (Ω+K) δψ = rhs
     # solve (Ω+K) δψ = rhs on the tangent space with CG
     function proj(x)
         δψ = unpack(x)
-        proj_tangent!(δψ, ψ)
+        # T@D@ revert deepcopy
+        δψ = deepcopy(proj_tangent!(δψ, ψ))
         pack(δψ)
     end
     res = cg(J, rhs_pack; precon=FunctionPreconditioner(f_ldiv!), proj, tol,
@@ -145,11 +154,12 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
     basis = ham.basis
     @assert size(rhs[1]) == size(ψ[1])  # Assume the same number of bands in ψ and rhs
 
+    ψ_array = denest(ψ)
     # compute δρ0 (ignoring interactions)
-    δψ0, δoccupation0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
+    δψ0, δoccupation0 = apply_χ0_4P(ham, ψ_array, occupation, εF, eigenvalues, -rhs;
                                     tol=tol_sternheimer, occupation_threshold,
                                     kwargs...)  # = -χ04P * rhs
-    δρ0 = compute_δρ(basis, ψ, δψ0, occupation, δoccupation0; occupation_threshold)
+    δρ0 = compute_δρ(ψ, δψ0, occupation, δoccupation0; occupation_threshold)
 
     # compute total δρ
     pack(δρ)   = vec(δρ)
@@ -176,13 +186,13 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
     end
 
     # Compute total change in eigenvalues
-    δeigenvalues = map(ψ, δHψ) do ψk, δHψk
-        map(eachcol(ψk), eachcol(δHψk)) do ψnk, δHψnk
+    δeigenvalues = map(ψ_array, δHψ) do ψk, δHψk
+        map(eachslice(ψk; dims=3), eachslice(δHψk; dims=3)) do ψnk, δHψnk
             real(dot(ψnk, δHψnk))  # δε_{nk} = <ψnk | δH | ψnk>
         end
     end
 
-    δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+    δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ_array, occupation, εF, eigenvalues, δHψ;
                                        occupation_threshold, tol=tol_sternheimer,
                                        kwargs...)
 

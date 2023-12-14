@@ -55,10 +55,10 @@ struct TermXc{T,CT} <: TermNonlinear where {T,CT}
     ρcore::CT
 end
 
-function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupation;
-                           ρ, τ=nothing) where {T}
+function xc_potential_real(term::TermXc, ψ::BlochWaves{T}, occupation; ρ, τ=nothing) where {T}
     @assert !isempty(term.functionals)
 
+    basis    = ψ.basis
     model    = basis.model
     n_spin   = model.n_spin_components
     potential_threshold = term.potential_threshold
@@ -74,7 +74,7 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
         if isnothing(ψ) || isnothing(occupation)
             τ = zero(ρ)
         else
-            τ = compute_kinetic_energy_density(basis, ψ, occupation)
+            τ = compute_kinetic_energy_density(ψ, occupation)
         end
     end
 
@@ -135,11 +135,11 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     (; E, potential, Vτ)
 end
 
-@views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},
-                                              ψ, occupation; ρ, τ=nothing,
-                                              kwargs...) where {T}
-    E, Vxc, Vτ = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
+@views @timing "ene_ops: xc" function ene_ops(term::TermXc, ψ::BlochWaves, occupation;
+                                              ρ, τ=nothing, kwargs...)
+    E, Vxc, Vτ = xc_potential_real(term, ψ, occupation; ρ, τ)
 
+    basis = ψ.basis
     ops = map(basis.kpoints) do kpt
         if !isnothing(Vτ)
             [RealSpaceMultiplication(basis, kpt, Vxc[:, :, :, kpt.spin]),
@@ -151,14 +151,14 @@ end
     (; E, ops)
 end
 
-@timing "forces: xc" function compute_forces(term::TermXc, basis::PlaneWaveBasis{T},
-                                             ψ, occupation; ρ, τ=nothing,
-                                             kwargs...) where {T}
+@timing "forces: xc" function compute_forces(term::TermXc, ψ::BlochWaves{T}, occupation;
+                                             ρ, τ=nothing, kwargs...) where {T}
     # the only non-zero force contribution is from the nlcc core charge
     # early return if nlcc is disabled / no elements have model core charges
     isnothing(term.ρcore) && return nothing
 
-    Vxc_real = xc_potential_real(term, basis, ψ, occupation; ρ, τ).potential
+    basis = ψ.basis
+    Vxc_real = xc_potential_real(term, ψ, occupation; ρ, τ).potential
     # TODO: the factor of 2 here should be associated with the density, not the potential
     if basis.model.spin_polarization in (:none, :spinless)
         Vxc_fourier = fft(basis, Vxc_real[:,:,:,1])

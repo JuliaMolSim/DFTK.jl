@@ -99,8 +99,10 @@ function TermAnyonic(basis::PlaneWaveBasis{T}, hbar, β) where {T}
     TermAnyonic(hbar, β, ρref, Aref)
 end
 
-function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occupation;
+function ene_ops(term::TermAnyonic, ψ::BlochWaves{T}, occupation;
                  ρ, kwargs...) where {T}
+    basis = ψ.basis
+    @assert basis.model.n_components == 1
     hbar = term.hbar
     β = term.β
     @assert ψ !== nothing # the hamiltonian depends explicitly on ψ
@@ -132,7 +134,7 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occupation;
                                           β^2 .* (abs2.(Areal[1]) .+ abs2.(Areal[2])))]
 
     # Now compute effective local potential - 2β x^⟂/|x|² ∗ (βAρ + J)
-    J = compute_current(basis, ψ, occupation)
+    J = compute_current(basis, [ψk[1, :, :] for ψk in ψ], occupation)
     eff_current = [hbar .* J[α] .+
                    β .* ρ .* Areal[α] for α = 1:2]
     eff_current_fourier = [fft(basis, eff_current[α]) for α = 1:2]
@@ -153,11 +155,13 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occupation;
     ops_ham = [ops_energy..., RealSpaceMultiplication(basis, basis.kpoints[1], eff_pot_real)]
 
     E = zero(T)
-    for iband = 1:size(ψ[1], 2)
-        ψnk = @views ψ[1][:, iband]
-        # TODO optimize this
-        for op in ops_energy
-            E += occupation[1][iband] * real(dot(ψnk, op * ψnk))
+    for iband = 1:size(ψ[1], 3)
+        for σ = 1:basis.model.n_components
+            ψσnk = @views ψ[1][σ, :, iband]
+            # TODO optimize this
+            for op in ops_energy
+                E += occupation[1][iband] * real(dot(ψσnk, op * ψσnk))
+            end
         end
     end
 

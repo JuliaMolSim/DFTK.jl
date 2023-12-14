@@ -8,8 +8,8 @@ struct Entropy end
 (::Entropy)(basis) = TermEntropy()
 struct TermEntropy <: Term end
 
-function ene_ops(term::TermEntropy, basis::PlaneWaveBasis{T}, ψ, occupation;
-                 kwargs...) where {T}
+function ene_ops(term::TermEntropy, ψ::BlochWaves{T}, occupation; kwargs...) where {T}
+    basis = ψ.basis
     ops = [NoopOperator(basis, kpt) for kpt in basis.kpoints]
     smearing    = basis.model.smearing
     temperature = basis.model.temperature
@@ -25,8 +25,8 @@ function ene_ops(term::TermEntropy, basis::PlaneWaveBasis{T}, ψ, occupation;
     eigenvalues = kwargs[:eigenvalues]
 
     E = zero(T)
-    for (ik, k) in enumerate(basis.kpoints)
-        for iband = 1:size(ψ[ik], 2)
+    for (ik, ψk) in enumerate(ψ)
+        for iband = 1:size(ψk, 3)
             E -= (temperature
                   * basis.kweights[ik]
                   * filled_occupation(basis.model)

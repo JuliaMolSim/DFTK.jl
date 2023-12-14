@@ -42,8 +42,8 @@ function _is_well_conditioned(A::AbstractArray{<:Interval}; kwargs...)
 end
 
 function symmetry_operations(lattice::AbstractMatrix{<:Interval}, atoms, positions,
-                                  magnetic_moments=[];
-                                  tol_symmetry=max(SYMMETRY_TOLERANCE, maximum(radius, lattice)))
+                             magnetic_moments=[];
+                             tol_symmetry=max(SYMMETRY_TOLERANCE, maximum(radius, lattice)))
     @assert tol_symmetry < 1e-2
     symmetry_operations(IntervalArithmetic.mid.(lattice), atoms, positions, magnetic_moments;
                         tol_symmetry)

@@ -30,8 +30,8 @@ function TermMagnetic(basis::PlaneWaveBasis{T}, Afunction::Function) where {T}
     TermMagnetic(Apotential)
 end
 
-function ene_ops(term::TermMagnetic, basis::PlaneWaveBasis{T}, ψ, occupation;
-                 kwargs...) where {T}
+function ene_ops(term::TermMagnetic, ψ::BlochWaves{T}, occupation; kwargs...) where {T}
+    basis = ψ.basis
     ops = [MagneticFieldOperator(basis, kpoint, term.Apotential)
            for (ik, kpoint) in enumerate(basis.kpoints)]
     if isnothing(ψ) || isnothing(occupation)
@@ -39,11 +39,13 @@ function ene_ops(term::TermMagnetic, basis::PlaneWaveBasis{T}, ψ, occupation;
     end
 
     E = zero(T)
-    for (ik, k) in enumerate(basis.kpoints)
-        for iband = 1:size(ψ[1], 2)
-            ψnk = @views ψ[ik][:, iband]
-            # TODO optimize this
-            E += basis.kweights[ik] * occupation[ik][iband] * real(dot(ψnk, ops[ik] * ψnk))
+    for (ik, ψk) in enumerate(ψ)
+        for iband = 1:size(ψk, 3)
+            for σ = 1:basis.model.n_components
+                ψσnk = @views ψ[ik][σ, :, iband]
+                # TODO optimize this
+                E += basis.kweights[ik] * occupation[ik][iband] * real(dot(ψσnk, ops[ik] * ψσnk))
+            end
         end
     end
     E = mpi_sum(E, basis.comm_kpts)

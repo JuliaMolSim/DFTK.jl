@@ -25,8 +25,8 @@
         @testset "Newton" begin
             scfres_start = self_consistent_field(basis, maxiter=1)
             # remove virtual orbitals
-            ψ0 = select_occupied_orbitals(basis, scfres_start.ψ, scfres_start.occupation).ψ
-            ρ_newton = newton(basis, ψ0; tol).ρ
+            ψ0 = select_occupied_orbitals(scfres_start.ψ, scfres_start.occupation).ψ
+            ρ_newton = newton(ψ0; tol).ρ
             @test maximum(abs, ρ_newton - ρ_def) < 10tol
         end
     end
@@ -74,12 +74,12 @@ end
     ρ0    = guess_density(basis, magnetic_moments)
     ρ_def = self_consistent_field(basis; tol, ρ=ρ0).ρ
     scfres_start = self_consistent_field(basis, maxiter=1, ρ=ρ0)
-    ψ0 = select_occupied_orbitals(basis, scfres_start.ψ, scfres_start.occupation).ψ
+    ψ0 = select_occupied_orbitals(scfres_start.ψ, scfres_start.occupation).ψ
 
     # Run DM
     if mpi_nprocs() == 1  # Distributed implementation not yet available
         @testset "Direct minimization" begin
-            ρ_dm = direct_minimization(basis, ψ0; g_tol=tol).ρ
+            ρ_dm = direct_minimization(ψ0; g_tol=tol).ρ
             @test maximum(abs.(ρ_dm - ρ_def)) < 10tol
         end
     end
@@ -87,7 +87,7 @@ end
     # Run Newton algorithm
     if mpi_nprocs() == 1  # Distributed implementation not yet available
         @testset "Newton" begin
-            ρ_newton = newton(basis, ψ0; tol).ρ
+            ρ_newton = newton(ψ0; tol).ρ
             @test maximum(abs.(ρ_newton - ρ_def)) < 10tol
         end
     end

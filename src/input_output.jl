@@ -8,6 +8,7 @@
 function Base.show(io::IO, model::Model)
     nD = model.n_dim == 3 ? "" : "$(model.n_dim)D, "
     print(io, "Model(", model.model_name, ", ", nD,
+          "n_components = ", model.n_components, ", ",
           "spin_polarization = :", model.spin_polarization, ")")
 end
 
@@ -33,6 +34,7 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
     if !isnothing(model.n_electrons)
         showfieldln(io, "num. electrons", model.n_electrons)
     end
+    showfieldln(io, "num. components",    model.n_components)
     showfieldln(io, "spin polarization",  model.spin_polarization)
     showfieldln(io, "temperature",        @sprintf "%.5g Ha" model.temperature)
     if model.temperature > 0

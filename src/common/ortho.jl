@@ -1,9 +1,4 @@
-@timing function ortho_qr(φk::ArrayType) where {ArrayType <: AbstractArray}
-    x = convert(ArrayType, qr(φk).Q)
-    if size(x) == size(φk)
-        return x
-    else
-        # Sometimes QR (but funnily not always) CUDA messes up the size here
-        return x[:, 1:size(φk, 2)]
-    end
+@timing function ortho_qr(φk::AbstractArray{T}) where {T}
+    x = convert(Matrix{T}, qr(blochwave_as_matrix(φk)).Q)
+    blochwave_as_tensor(x, size(φk, 1))[:, :, 1:size(φk, 3)]
 end

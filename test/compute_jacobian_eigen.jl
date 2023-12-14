@@ -7,18 +7,22 @@ using DFTK: apply_K, apply_Ω
 using DFTK: precondprep!, FunctionPreconditioner
 using LinearMaps
 
-function eigen_ΩplusK(basis::PlaneWaveBasis{T}, ψ, occupation, numval) where {T}
+function eigen_ΩplusK(ψ::BlochWaves{T}, occupation, numval) where {T}
+    basis = ψ.basis
+    n_components = basis.model.n_components
+    @assert n_components == 1
+    ψ_matrices = blochwaves_as_matrices(ψ)
 
     pack(ψ) = reinterpret_real(pack_ψ(ψ))
     unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ))
 
     # compute quantites at the point which define the tangent space
-    ρ = compute_density(basis, ψ, occupation)
-    H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
+    ρ = compute_density(ψ, occupation)
+    H = energy_hamiltonian(ψ, occupation; ρ).ham
 
     # preconditioner
     Pks = [PreconditionerTPA(basis, kpt) for kpt in basis.kpoints]
-    for (ik, ψk) in enumerate(ψ)
+    for (ik, ψk) in enumerate(ψ_matrices)
         precondprep!(Pks[ik], ψk)
     end
     function f_ldiv!(x, y)
@@ -33,18 +37,17 @@ function eigen_ΩplusK(basis::PlaneWaveBasis{T}, ψ, occupation, numval) where {
     end
 
     # random starting point on the tangent space to avoid eigenvalue 0
-    n_bands = size(ψ[1], 2)
     x0 = map(1:numval) do _
-        initial = map(basis.kpoints) do kpt
+        initial = map(enumerate(basis.kpoints)) do (ik, kpt)
             n_Gk = length(G_vectors(basis, kpt))
-            randn(Complex{eltype(basis)}, n_Gk, n_bands)
+            randn(Complex{eltype(basis)}, n_components, n_Gk, size(ψ[ik], 3))
         end
         pack(proj_tangent(initial, ψ))
     end
-    x0 = hcat(x0...)
+    x0 = reduce(hcat, x0)
 
     # Rayleigh-coefficients
-    Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ, H * ψ)]
+    Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ_matrices, H * ψ_matrices)]
 
     # mapping of the linear system on the tangent space
     function ΩpK(x)
@@ -73,9 +76,9 @@ end
         model  = model_atomic(testcase.lattice, testcase.atoms, testcase.positions)
         basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[1, 1, 1])
         scfres = self_consistent_field(basis; tol=1e-8)
-        ψ, occupation = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
+        ψ, occupation = select_occupied_orbitals(scfres.ψ, scfres.occupation)
 
-        res = eigen_ΩplusK(basis, ψ, occupation, numval)
+        res = eigen_ΩplusK(ψ, occupation, numval)
         gap = scfres.eigenvalues[1][5] - scfres.eigenvalues[1][4]
 
         # in the linear case, the smallest eigenvalue of Ω is the gap
@@ -89,9 +92,9 @@ end
         model  = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
         basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[1, 1, 1])
         scfres = self_consistent_field(basis; tol=1e-8)
-        ψ, occupation = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
+        ψ, occupation = select_occupied_orbitals(scfres.ψ, scfres.occupation)
 
-        res = eigen_ΩplusK(basis, ψ, occupation, numval)
+        res = eigen_ΩplusK(ψ, occupation, numval)
         @test res.λ[1] > 1e-3
     end
 end
