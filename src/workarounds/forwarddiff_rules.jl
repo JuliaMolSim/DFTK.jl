@@ -200,14 +200,14 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     ## Compute external perturbation (contained in ham_dual) and from matvec with bands
     Hψ_dual = let
         occupation_dual = [T.(occk) for occk in scfres.occupation]
-        ψ_dual = [Complex.(T.(real(ψk)), T.(imag(ψk))) for ψk in scfres.ψ]
-        ρ_dual = compute_density(basis_dual, ψ_dual, occupation_dual)
+        ψ_dual_values = [Complex.(T.(real(ψk)), T.(imag(ψk))) for ψk in scfres.ψ]
+        ψ_dual = BlochWaves(basis_dual, ψ_dual_values)
+        ρ_dual = compute_density(ψ_dual, occupation_dual)
         εF_dual = T(scfres.εF)  # Only needed for entropy term
         eigenvalues_dual = [T.(εk) for εk in scfres.eigenvalues]
-        ham_dual = energy_hamiltonian(basis_dual, ψ_dual, occupation_dual;
-                                      ρ=ρ_dual, eigenvalues=eigenvalues_dual,
-                                      εF=εF_dual).ham
-        ham_dual * ψ_dual
+        ham_dual = energy_hamiltonian(ψ_dual, occupation_dual;
+                                      ρ=ρ_dual, eigenvalues=eigenvalues_dual, εF=εF_dual).ham
+        ham_dual * ψ_dual_values
     end
 
     ## Implicit differentiation
@@ -219,12 +219,12 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
 
     ## Convert and combine
     DT = ForwardDiff.Dual{ForwardDiff.tagtype(T)}
-    ψ = map(scfres.ψ, getfield.(δresults, :δψ)...) do ψk, δψk...
+    ψ = BlochWaves(basis_dual, map(scfres.ψ, getfield.(δresults, :δψ)...) do ψk, δψk...
         map(ψk, δψk...) do ψnk, δψnk...
             Complex(DT(real(ψnk), real.(δψnk)),
                     DT(imag(ψnk), imag.(δψnk)))
         end
-    end
+    end)
     ρ = map((ρi, δρi...) -> DT(ρi, δρi), scfres.ρ, getfield.(δresults, :δρ)...)
     eigenvalues = map(scfres.eigenvalues, getfield.(δresults, :δeigenvalues)...) do εk, δεk...
         map((εnk, δεnk...) -> DT(εnk, δεnk), εk, δεk...)
@@ -237,7 +237,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     # TODO Could add δresults[α].δVind the dual part of the total local potential in ham_dual
     # and in this way return a ham that represents also the total change in Hamiltonian
 
-    (; energies, ham) = energy_hamiltonian(basis_dual, ψ, occupation; ρ, eigenvalues, εF)
+    energies, ham = energy_hamiltonian(ψ, occupation; ρ, eigenvalues, εF)
 
     # This has to be changed whenever the scfres structure changes
     (; ham, basis=basis_dual, energies, ρ, eigenvalues, occupation, εF, ψ,

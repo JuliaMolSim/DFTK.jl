@@ -38,27 +38,28 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         n_bands = div(n_electrons, 2, RoundUp)
         filled_occ = DFTK.filled_occupation(model)
 
-        ψ = map(basis.kpoints) do kpt
-            Q = Matrix(qr(randn(ComplexF64, length(G_vectors(basis, kpt)), n_bands)).Q)
-            reshape(Q, 1, size(Q)...)
-        end
+        ψ = BlochWaves(basis, map(basis.kpoints) do kpt
+            n_Gk = length(G_vectors(basis, kpt))
+            Q = Matrix(qr(randn(ComplexF64, n_Gk, n_bands)).Q)
+            reshape(Q, 1, n_Gk, n_bands)
+        end)
         occupation = [filled_occ * rand(n_bands) for _ = 1:length(basis.kpoints)]
         occ_scaling = n_electrons / sum(sum(occupation))
         occupation = [occ * occ_scaling for occ in occupation]
         ρ = with_logger(NullLogger()) do
-            compute_density(basis, ψ, occupation)
+            compute_density(ψ, occupation)
         end
-        E0, ham = energy_hamiltonian(basis, ψ, occupation; ρ)
+        E0, ham = energy_hamiltonian(ψ, occupation; ρ)
 
         @assert length(basis.terms) == 1
 
         δψ = [randn(ComplexF64, size(ψ[ik])) for ik = 1:length(basis.kpoints)]
         function compute_E(ε)
-            ψ_trial = ψ .+ ε .* δψ
+            ψ_trial = BlochWaves(basis, denest(ψ) .+ ε .* δψ)
             ρ_trial = with_logger(NullLogger()) do
-                compute_density(basis, ψ_trial, occupation)
+                compute_density(ψ_trial, occupation)
             end
-            E = energy_hamiltonian(basis, ψ_trial, occupation; ρ=ρ_trial).energies
+            E = energy_hamiltonian(ψ_trial, occupation; ρ=ρ_trial).energies
             E.total
         end
 
@@ -66,7 +67,6 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
 
         diff_predicted = 0.0
         for ik = 1:length(basis.kpoints)
-            # T@D@ should be ok without 1
             Hψk = ham.blocks[ik]*ψ[ik][1, :, :]
             test_matrix_repr_operator(ham.blocks[ik], ψ[ik]; atol)
             δψkHψk = sum(occupation[ik][iband] * real(dot(δψ[ik][1, :, iband], Hψk[:, iband]))

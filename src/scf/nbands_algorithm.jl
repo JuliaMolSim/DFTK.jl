@@ -67,7 +67,7 @@ function determine_n_bands(bands::AdaptiveBands, occupation::Nothing, eigenvalue
     (; n_bands_converge, n_bands_compute)
 end
 function determine_n_bands(bands::AdaptiveBands, occupation::AbstractVector,
-                           eigenvalues::AbstractVector, ψ::AbstractVector)
+                           eigenvalues::AbstractVector, ψ::BlochWaves)
     # TODO Could return different bands per k-Points
 
     # Determine number of bands to be actually converged

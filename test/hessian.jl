@@ -7,13 +7,13 @@ function setup_quantities(testcase)
     basis = PlaneWaveBasis(model; Ecut=3, kgrid=(3, 3, 3), fft_size=[9, 9, 9])
     scfres = self_consistent_field(basis; tol=10)
 
-    ψ, occupation = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
+    ψ, occupation = select_occupied_orbitals(scfres.ψ, scfres.occupation)
 
-    ρ = compute_density(basis, ψ, occupation)
-    rhs = compute_projected_gradient(basis, ψ, occupation)
-    ϕ = rhs + ψ
+    ρ = compute_density(ψ, occupation)
+    rhs = compute_projected_gradient(ψ, occupation)
+    ϕ = rhs + denest(ψ)
 
-    (; scfres, basis, ψ, occupation, ρ, rhs, ϕ)
+    (; scfres, ψ, occupation, ρ, rhs, ϕ)
 end
 end
 
@@ -22,11 +22,11 @@ end
     =#    tags=[:dont_test_mpi] setup=[Hessian, TestCases] begin
     using DFTK: solve_ΩplusK
     using LinearAlgebra
-    (; basis, ψ, occupation, rhs, ϕ) = Hessian.setup_quantities(TestCases.silicon)
+    (; ψ, occupation, rhs, ϕ) = Hessian.setup_quantities(TestCases.silicon)
 
     @test isapprox(
-        real(dot(ϕ, solve_ΩplusK(basis, ψ, rhs, occupation).δψ)),
-        real(dot(solve_ΩplusK(basis, ψ, ϕ, occupation).δψ, rhs)),
+        real(dot(ϕ, solve_ΩplusK(ψ, rhs, occupation).δψ)),
+        real(dot(solve_ΩplusK(ψ, ϕ, occupation).δψ, rhs)),
         atol=1e-7
     )
 end
@@ -36,11 +36,12 @@ end
     using DFTK
     using DFTK: apply_Ω
     using LinearAlgebra
-    (; basis, ψ, occupation, ρ, rhs, ϕ) = Hessian.setup_quantities(TestCases.silicon)
+    (; ψ, occupation, ρ, rhs, ϕ) = Hessian.setup_quantities(TestCases.silicon)
+    ψ_arr = denest(ψ)
 
-    H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
+    H = energy_hamiltonian(ψ, occupation; ρ).ham
     # Rayleigh-coefficients
-    Λ = [ψk[1, :, :]'Hψk[1, :, :] for (ψk, Hψk) in zip(ψ, H * ψ)]
+    Λ = [ψk[1, :, :]'Hψk[1, :, :] for (ψk, Hψk) in zip(ψ_arr, H * ψ_arr)]
 
     # Ω is complex-linear and so self-adjoint as a complex operator.
     @test isapprox(
@@ -54,13 +55,13 @@ end
     =#    tags=[:dont_test_mpi] setup=[Hessian, TestCases] begin
     using DFTK: apply_K
     using LinearAlgebra
-    (; basis, ψ, occupation, ρ, rhs, ϕ) = Hessian.setup_quantities(TestCases.silicon)
+    (; ψ, occupation, ρ, rhs, ϕ) = Hessian.setup_quantities(TestCases.silicon)
 
     # K involves conjugates and is only a real-linear operator,
     # hence we test using the real dot product.
     @test isapprox(
-        real(dot(ϕ, apply_K(basis, rhs, ψ, ρ, occupation))),
-        real(dot(apply_K(basis, ϕ, ψ, ρ, occupation), rhs)),
+        real(dot(ϕ, apply_K(ψ.basis, rhs, ψ, ρ, occupation))),
+        real(dot(apply_K(ψ.basis, ϕ, ψ, ρ, occupation), rhs)),
         atol=1e-7
     )
 end
@@ -76,8 +77,8 @@ end
     basis = PlaneWaveBasis(model; Ecut=3, kgrid=(3, 3, 3), fft_size=[9, 9, 9])
     scfres = self_consistent_field(basis; tol=10)
 
-    rhs = compute_projected_gradient(basis, scfres.ψ, scfres.occupation)
-    ϕ = rhs + scfres.ψ
+    rhs = compute_projected_gradient(scfres.ψ, scfres.occupation)
+    ϕ = rhs + denest(scfres.ψ)
 
     @testset "self-adjointness of solve_ΩplusK_split" begin
         @test isapprox(real(dot(ϕ, solve_ΩplusK_split(scfres, rhs).δψ)),
@@ -88,11 +89,12 @@ end
     @testset "solve_ΩplusK_split agrees with solve_ΩplusK" begin
         scfres = self_consistent_field(basis; tol=1e-10)
         δψ1 = solve_ΩplusK_split(scfres, rhs).δψ
-        δψ1 = select_occupied_orbitals(basis, δψ1, scfres.occupation).ψ
-        (; ψ, occupation) = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
-        rhs_trunc = select_occupied_orbitals(basis, rhs, occupation).ψ
-        δψ2 = solve_ΩplusK(basis, ψ, rhs_trunc, occupation).δψ
-        @test norm(δψ1 - δψ2) < 1e-7
+        δψ1 = select_occupied_orbitals(BlochWaves(basis, δψ1), scfres.occupation).ψ
+        (; ψ, occupation) = select_occupied_orbitals(scfres.ψ, scfres.occupation)
+        rhs_trunc = select_occupied_orbitals(BlochWaves(basis, rhs), occupation).ψ
+        δψ2 = solve_ΩplusK(ψ, rhs_trunc, occupation).δψ
+        # T@D@
+        @test norm([e for e in δψ1] - δψ2) < 1e-7
     end
 end
 
@@ -109,8 +111,8 @@ end
     scfres = self_consistent_field(basis; tol=1e-12, nbandsalg)
 
     ψ = scfres.ψ
-    rhs = compute_projected_gradient(basis, scfres.ψ, scfres.occupation)
-    ϕ = rhs + ψ
+    rhs = compute_projected_gradient(scfres.ψ, scfres.occupation)
+    ϕ = rhs + denest(ψ)
 
     @testset "self-adjointness of solve_ΩplusK_split" begin
         @test isapprox(real(dot(ϕ, solve_ΩplusK_split(scfres, rhs).δψ)),

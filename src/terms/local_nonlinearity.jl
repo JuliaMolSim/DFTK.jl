@@ -9,8 +9,9 @@ struct TermLocalNonlinearity{TF} <: TermNonlinear
 end
 (L::LocalNonlinearity)(::AbstractBasis) = TermLocalNonlinearity(L.f)
 
-function ene_ops(term::TermLocalNonlinearity, basis::PlaneWaveBasis{T}, ψ, occupation;
+function ene_ops(term::TermLocalNonlinearity, ψ::BlochWaves{T}, occupation;
                  ρ, kwargs...) where {T}
+    basis = ψ.basis
     fp(ρ) = ForwardDiff.derivative(term.f, ρ)
     E = sum(fρ -> convert_dual(T, fρ), term.f.(ρ)) * basis.dvol
     potential = convert_dual.(T, fp.(ρ))

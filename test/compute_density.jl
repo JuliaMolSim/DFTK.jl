@@ -25,14 +25,15 @@
 
         res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol)
         occ, εF = DFTK.compute_occupation(basis, res.λ, FermiBisection())
-        ρnew = compute_density(basis, res.X, occ)
+        ρnew = compute_density(BlochWaves(basis, res.X), occ)
 
         for it = 1:n_rounds
             ham = Hamiltonian(basis; ρ=ρnew)
-            res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol, ψguess=res.X)
+            ψguess = BlochWaves(basis, res.X)
+            res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol, ψguess)
 
             occ, εF = DFTK.compute_occupation(basis, res.λ, FermiBisection())
-            ρnew = compute_density(basis, res.X, occ)
+            ρnew = compute_density(BlochWaves(basis, res.X), occ)
         end
 
         ham, res.X, res.λ, ρnew, occ

@@ -28,8 +28,8 @@
             δρ = randn(size(ρ0))
             ρ_minus     = ρ0 - ε * δρ
             ρ_plus      = ρ0 + ε * δρ
-            ops_minus = DFTK.ene_ops(term, basis, nothing, nothing; ρ=ρ_minus).ops
-            ops_plus  = DFTK.ene_ops(term, basis, nothing, nothing; ρ=ρ_plus).ops
+            ops_minus = DFTK.ene_ops(term, BlochWaves(basis), nothing; ρ=ρ_minus).ops
+            ops_plus  = DFTK.ene_ops(term, BlochWaves(basis), nothing; ρ=ρ_plus).ops
             δV = zero(ρ0)
 
             for iσ = 1:model.n_spin_components

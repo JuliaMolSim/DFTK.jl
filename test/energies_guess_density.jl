@@ -17,7 +17,7 @@
     basis = PlaneWaveBasis(model; Ecut, kgrid, fft_size, kshift)
 
     ρ0 = guess_density(basis, ValenceDensityGaussian())
-    E, H = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
+    E, H = energy_hamiltonian(BlochWaves(basis), nothing; ρ=ρ0)
 
     @test E["Hartree"] ≈  0.3527293727197568  atol=5e-8
     @test E["Xc"]      ≈ -2.3033165870558165  atol=5e-8
@@ -26,8 +26,8 @@
     res = diagonalize_all_kblocks(lobpcg_hyper, H, n_bands, tol=1e-9)
     occupation = [[2.0, 2.0, 2.0, 2.0, 0.0, 0.0, 0.0, 0.0]
                   for i = 1:length(basis.kpoints)]
-    ρ = compute_density(H.basis, res.X, occupation)
-    E, H = energy_hamiltonian(basis, res.X, occupation; ρ)
+    ρ = compute_density(BlochWaves(H.basis, res.X), occupation)
+    E, H = energy_hamiltonian(BlochWaves(basis, res.X), occupation; ρ)
 
     @test E["Kinetic"]        ≈  3.3824289861522194  atol=5e-8
     @test E["AtomicLocal"]    ≈ -2.4178712046759157  atol=5e-8
@@ -49,7 +49,7 @@
                                    PairwisePotential(V, params)],
                       )
     basis = PlaneWaveBasis(model; Ecut, kgrid, fft_size, kshift)
-    E, H = energy_hamiltonian(basis, res.X, occupation; ρ)
+    E, H = energy_hamiltonian(BlochWaves(basis, res.X), occupation; ρ)
 
     @test E["Kinetic"]             ≈  3.3824289861522194  atol=5e-8
     @test E["AtomicLocal"]         ≈ -2.4178712046759157  atol=5e-8

@@ -432,7 +432,11 @@ function unfold_array_(basis_irred, basis_unfolded, data, is_ψ)
             data_unfolded[ik_unfolded] = data[ik_irred]
         end
     end
-    data_unfolded
+    if is_ψ
+        BlochWaves(basis_unfolded, denest(basis_unfolded, data_unfolded))
+    else
+        data_unfolded
+    end
 end
 
 function unfold_bz(scfres)
@@ -440,7 +444,7 @@ function unfold_bz(scfres)
     ψ = unfold_array_(scfres.basis, basis_unfolded, scfres.ψ, true)
     eigenvalues = unfold_array_(scfres.basis, basis_unfolded, scfres.eigenvalues, false)
     occupation = unfold_array_(scfres.basis, basis_unfolded, scfres.occupation, false)
-    energies, ham = energy_hamiltonian(basis_unfolded, ψ, occupation;
+    energies, ham = energy_hamiltonian(ψ, occupation;
                                        scfres.ρ, eigenvalues, scfres.εF)
     @assert energies.total ≈ scfres.energies.total
     new_scfres = (; basis=basis_unfolded, ψ, ham, eigenvalues, occupation)

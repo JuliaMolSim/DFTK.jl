@@ -229,7 +229,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     fermialg::AbstractFermiAlgorithm=default_fermialg(basis.model),
     ρ=guess_density(basis),
     V=nothing,
-    ψ=nothing,
+    ψ::BlochWaves=BlochWaves(basis),
     tol=1e-6,
     maxiter=100,
     eigensolver=lobpcg_hyper,
@@ -253,15 +253,16 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     end
 
     # Initial guess for V (if none given)
-    ham = energy_hamiltonian(basis, nothing, nothing; ρ).ham
+    ham = energy_hamiltonian(BlochWaves(basis), nothing; ρ).ham
     isnothing(V) && (V = total_local_potential(ham))
 
-    function EVρ(Vin; diagtol=tol / 10, ψ=nothing, eigenvalues=nothing, occupation=nothing)
+    function EVρ(Vin; diagtol=tol / 10, ψ=BlochWaves(ham.basis), eigenvalues=nothing,
+                 occupation=nothing)
         ham_V = hamiltonian_with_total_potential(ham, Vin)
 
         res_V = next_density(ham_V, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
                              occupation, miniter=diag_miniter, tol=diagtol)
-        new_E, new_ham = energy_hamiltonian(basis, res_V.ψ, res_V.occupation;
+        new_E, new_ham = energy_hamiltonian(res_V.ψ, res_V.occupation;
                                             ρ=res_V.ρout, eigenvalues=res_V.eigenvalues,
                                             εF=res_V.εF)
         (; basis, ham=new_ham, energies=new_E,

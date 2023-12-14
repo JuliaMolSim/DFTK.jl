@@ -72,8 +72,10 @@ export compute_fft_size
 export G_vectors, G_vectors_cart, r_vectors, r_vectors_cart
 export Gplusk_vectors, Gplusk_vectors_cart
 export Kpoint
-export to_composite_σG
-export from_composite_σG
+export BlochWaves, view_component, nest, denest
+export blochwave_as_matrix
+export blochwave_as_tensor
+export blochwaves_as_matrices
 export ifft
 export irfft
 export ifft!

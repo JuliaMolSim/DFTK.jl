@@ -1,23 +1,24 @@
 # Densities (and potentials) are represented by arrays
 # ρ[ix,iy,iz,iσ] in real space, where iσ ∈ [1:n_spin_components]
 
-# TODO: We reduce all components for the density. Will need to be though again when we merge
-# the components and the spins.
 """
-    compute_density(basis::PlaneWaveBasis, ψ::AbstractVector, occupation::AbstractVector)
+    compute_density(ψ::BlochWaves, occupation::AbstractVector)
 
-Compute the density for a wave function `ψ` discretized on the plane-wave
-grid `basis`, where the individual k-points are occupied according to `occupation`.
-`ψ` should be one coefficient matrix per ``k``-point.
+Compute the density for a wave function `ψ` discretized on the plane-wave grid `ψ.basis`,
+where the individual k-points are occupied according to `occupation`.
+`ψ` should contain one coefficient matrix per ``k``-point.
 It is possible to ask only for occupations higher than a certain level to be computed by
 using an optional `occupation_threshold`. By default all occupation numbers are considered.
 """
-@views @timing function compute_density(basis::PlaneWaveBasis{T}, ψ, occupation;
-                                        occupation_threshold=zero(T)) where {T}
-    S = promote_type(T, real(eltype(ψ[1])))
+# TODO: We reduce all components for the density. Will need to be though again when we merge
+# the components and the spins.
+@views @timing function compute_density(ψ::BlochWaves{T, Tψ}, occupation;
+                                        occupation_threshold=zero(T)) where {T, Tψ}
+    S = promote_type(T, real(Tψ))
     # occupation should be on the CPU as we are going to be doing scalar indexing.
     occupation = [to_cpu(oc) for oc in occupation]
 
+    basis = ψ.basis
     mask_occ = [findall(occnk -> abs(occnk) ≥ occupation_threshold, occk)
                 for occk in occupation]
     if all(isempty, mask_occ)  # No non-zero occupations => return zero density
@@ -66,21 +67,22 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
 end
 
 # Variation in density corresponding to a variation in the orbitals and occupations.
-@views @timing function compute_δρ(basis::PlaneWaveBasis{T}, ψ, δψ,
-                                   occupation, δoccupation=zero.(occupation);
+@views @timing function compute_δρ(ψ::BlochWaves{T}, δψ, occupation,
+                                   δoccupation=zero.(occupation);
                                    occupation_threshold=zero(T)) where {T}
     ForwardDiff.derivative(zero(T)) do ε
         ψ_ε   = [ψk   .+ ε .* δψk   for (ψk,   δψk)   in zip(ψ, δψ)]
         occ_ε = [occk .+ ε .* δocck for (occk, δocck) in zip(occupation, δoccupation)]
-        compute_density(basis, ψ_ε, occ_ε; occupation_threshold)
+        compute_density(BlochWaves(ψ.basis, ψ_ε), occ_ε; occupation_threshold)
     end
 end
 
-@views @timing function compute_kinetic_energy_density(basis::PlaneWaveBasis{TT}, ψ,
-                                                       occupation) where {TT}
+@views @timing function compute_kinetic_energy_density(ψ::BlochWaves{T, Tψ},
+                                                       occupation) where {T, Tψ}
+    basis = ψ.basis
     @assert basis.model.n_components == 1
-    T = promote_type(TT, real(eltype(ψ[1])))
-    τ = similar(ψ[1], T, (basis.fft_size..., basis.model.n_spin_components))
+    TT = promote_type(T, real(Tψ))
+    τ = similar(ψ[1], TT, (basis.fft_size..., basis.model.n_spin_components))
     τ .= 0
     dαψnk_real = zeros(complex(T), basis.fft_size)
     for (ik, kpt) in enumerate(basis.kpoints)

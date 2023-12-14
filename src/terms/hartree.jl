@@ -39,8 +39,9 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
     TermHartree(T(scaling_factor), T(scaling_factor) .* poisson_green_coeffs)
 end
 
-@timing "ene_ops: hartree" function ene_ops(term::TermHartree, basis::PlaneWaveBasis{T},
-                                            ψ, occupation; ρ, kwargs...) where {T}
+@timing "ene_ops: hartree" function ene_ops(term::TermHartree, ψ::BlochWaves{T}, occupation;
+                                            ρ, kwargs...) where {T}
+    basis = ψ.basis
     ρtot_fourier = fft(basis, total_density(ρ))
     pot_fourier = term.poisson_green_coeffs .* ρtot_fourier
     pot_real = irfft(basis, pot_fourier)

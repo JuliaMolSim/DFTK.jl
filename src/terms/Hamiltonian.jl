@@ -194,9 +194,10 @@ end
 # Get energies and Hamiltonian
 # kwargs is additional info that might be useful for the energy terms to precompute
 # (eg the density ρ)
-@timing function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
+@timing function energy_hamiltonian(ψ::BlochWaves, occupation; kwargs...)
+    basis = ψ.basis
     # it: index into terms, ik: index into kpoints
-    @timing "ene_ops" ene_ops_arr = [ene_ops(term, basis, ψ, occupation; kwargs...)
+    @timing "ene_ops" ene_ops_arr = [ene_ops(term, ψ, occupation; kwargs...)
                                      for term in basis.terms]
     energies  = [eh.E for eh in ene_ops_arr]
     operators = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
@@ -221,8 +222,8 @@ end
     energies = Energies(basis.model.term_types, energies)
     (; energies, ham)
 end
-function Hamiltonian(basis::PlaneWaveBasis; ψ=nothing, occupation=nothing, kwargs...)
-    energy_hamiltonian(basis, ψ, occupation; kwargs...).ham
+function Hamiltonian(basis::PlaneWaveBasis; ψ=BlochWaves(basis), occupation=nothing, kwargs...)
+    energy_hamiltonian(ψ, occupation; kwargs...).ham
 end
 
 """

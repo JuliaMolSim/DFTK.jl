@@ -17,14 +17,15 @@
     function recompute_energy(lattice, symmetries, element)
         basis = make_basis(lattice, symmetries, element)
         scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-13))
-        (; energies) = energy_hamiltonian(basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
+        (; energies) = energy_hamiltonian(scfres.ψ, scfres.occupation; ρ=scfres.ρ)
         energies.total
     end
 
     function hellmann_feynman_energy(scfres, lattice, symmetries, element)
         basis = make_basis(lattice, symmetries, element)
-        ρ = DFTK.compute_density(basis, scfres.ψ, scfres.occupation)
-        (; energies) = energy_hamiltonian(basis, scfres.ψ, scfres.occupation; ρ)
+        ψ = BlochWaves(basis, denest(scfres.ψ))
+        ρ = DFTK.compute_density(ψ, scfres.occupation)
+        (; energies) = energy_hamiltonian(ψ, scfres.occupation; ρ)
         energies.total
     end
 

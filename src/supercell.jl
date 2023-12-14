@@ -88,7 +88,7 @@ function cell_to_supercell(ψ, basis::PlaneWaveBasis{T},
         push!(ψ_out_blocs, ψk_supercell)
     end
     # Note that each column is normalize since each ψ[ik][:,n] is.
-    [cat(ψ_out_blocs...; dims=3)]
+    BlochWaves(basis_supercell, [cat(ψ_out_blocs...; dims=3)])
 end
 
 @doc raw"""
@@ -112,12 +112,11 @@ function cell_to_supercell(scfres::NamedTuple)
     ψ_supercell     = cell_to_supercell(ψ, basis, basis_supercell)
     eigs_supercell  = [vcat(scfres_unfold.eigenvalues...)]
     occ_supercell   = compute_occupation(basis_supercell, eigs_supercell, scfres.εF).occupation
-    ρ_supercell     = compute_density(basis_supercell, ψ_supercell, occ_supercell;
-                                      scfres.occupation_threshold)
+    ρ_supercell     = compute_density(ψ_supercell, occ_supercell; scfres.occupation_threshold)
 
     # Supercell Energies
-    Eham_supercell = energy_hamiltonian(basis_supercell, ψ_supercell, occ_supercell;
-                                        ρ=ρ_supercell, eigenvalues=eigs_supercell, scfres.εF)
+    Eham_supercell = energy_hamiltonian(ψ_supercell, occ_supercell; ρ=ρ_supercell,
+                                        eigenvalues=eigs_supercell, scfres.εF)
 
     merge(scfres, (; ham=Eham_supercell.ham, basis=basis_supercell, ψ=ψ_supercell,
                    energies=Eham_supercell.energies, ρ=ρ_supercell,

@@ -54,7 +54,7 @@ tol = 1e-5;
 # We compute the reference solution ``P_*`` from which we will compute the
 # references forces.
 scfres_ref = self_consistent_field(basis_ref; tol, callback=identity)
-ψ_ref = DFTK.select_occupied_orbitals(basis_ref, scfres_ref.ψ, scfres_ref.occupation).ψ;
+ψ_ref = DFTK.select_occupied_orbitals(scfres_ref.ψ, scfres_ref.occupation).ψ;
 
 # We compute a variational approximation of the reference solution with
 # smaller `Ecut`. `ψr`, `ρr` and `Er` are the quantities computed with `Ecut`
@@ -69,16 +69,16 @@ Ecut = 15
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 scfres = self_consistent_field(basis; tol, callback=identity)
 ψr = DFTK.transfer_blochwave(scfres.ψ, basis, basis_ref)
-ρr = compute_density(basis_ref, ψr, scfres.occupation)
-Er, hamr = energy_hamiltonian(basis_ref, ψr, scfres.occupation; ρ=ρr);
+ρr = compute_density(ψr, scfres.occupation)
+Er, hamr = energy_hamiltonian(ψr, scfres.occupation; ρ=ρr);
 
 # We then compute several quantities that we need to evaluate the error bounds.
 
 # - Compute the residual ``R(P)``, and remove the virtual orbitals, as required
 #   in [`src/scf/newton.jl`](https://github.com/JuliaMolSim/DFTK.jl/blob/fedc720dab2d194b30d468501acd0f04bd4dd3d6/src/scf/newton.jl#L121).
-res = DFTK.compute_projected_gradient(basis_ref, ψr, scfres.occupation)
-res, occ = DFTK.select_occupied_orbitals(basis_ref, res, scfres.occupation)
-ψr = DFTK.select_occupied_orbitals(basis_ref, ψr, scfres.occupation).ψ;
+res = DFTK.compute_projected_gradient(ψr, scfres.occupation)
+res, occ = DFTK.select_occupied_orbitals(BlochWaves(ψr.basis, res), scfres.occupation)
+ψr = DFTK.select_occupied_orbitals(ψr, scfres.occupation).ψ;
 
 # - Compute the error ``P-P_*`` on the associated orbitals ``ϕ-ψ`` after aligning
 #   them: this is done by solving ``\min |ϕ - ψU|`` for ``U`` unitary matrix of
@@ -129,7 +129,7 @@ function apply_metric(φ, P, δφ, A::Function)
         Aδφk
     end
 end
-Mres = apply_metric(ψr, P, res, apply_inv_M);
+Mres = apply_metric(ψr.data, P, res, apply_inv_M);
 
 # We can now compute the modified residual ``R_{\rm Schur}(P)`` using a Schur
 # complement to approximate the error on low-frequencies[^CDKL2021]:
@@ -149,7 +149,7 @@ Mres = apply_metric(ψr, P, res, apply_inv_M);
 
 # - Compute the projection of the residual onto the high and low frequencies:
 resLF = DFTK.transfer_blochwave(res, basis_ref, basis)
-resHF = res - DFTK.transfer_blochwave(resLF, basis, basis_ref);
+resHF = denest(res) - denest(DFTK.transfer_blochwave(resLF, basis, basis_ref));
 
 # - Compute ``{\boldsymbol M}^{-1}_{22}R_2(P)``:
 e2 = apply_metric(ψr, P, resHF, apply_inv_M);
@@ -163,15 +163,15 @@ e2 = apply_metric(ψr, P, resHF, apply_inv_M);
 end
 ΩpKe2 = DFTK.apply_Ω(e2, ψr, hamr, Λ) .+ DFTK.apply_K(basis_ref, e2, ψr, ρr, occ)
 ΩpKe2 = DFTK.transfer_blochwave(ΩpKe2, basis_ref, basis)
-rhs = resLF - ΩpKe2;
+rhs = denest(resLF) - denest(ΩpKe2);
 
 # - Solve the Schur system to compute ``R_{\rm Schur}(P)``: this is the most
 #   costly step, but inverting ``\boldsymbol{Ω} + \boldsymbol{K}`` on the small space has
 #   the same cost than the full SCF cycle on the small grid.
-(; ψ) = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
-e1 = DFTK.solve_ΩplusK(basis, ψ, rhs, occ; tol).δψ
+(; ψ) = DFTK.select_occupied_orbitals(scfres.ψ, scfres.occupation)
+e1 = DFTK.solve_ΩplusK(ψ, rhs, occ; tol).δψ
 e1 = DFTK.transfer_blochwave(e1, basis, basis_ref)
-res_schur = e1 + Mres;
+res_schur = denest(e1) + Mres;
 
 # ## Error estimates
 
@@ -197,8 +197,9 @@ relerror["F(P)"] = compute_relerror(f);
 # To this end, we use the `ForwardDiff.jl` package to compute ``{\rm d}F(P)``
 # using automatic differentiation.
 function df(basis, occupation, ψ, δψ, ρ)
-    δρ = DFTK.compute_δρ(basis, ψ, δψ, occupation)
-    ForwardDiff.derivative(ε -> compute_forces(basis, ψ.+ε.*δψ, occupation; ρ=ρ+ε.*δρ), 0)
+    δρ = DFTK.compute_δρ(ψ, δψ, occupation)
+    ForwardDiff.derivative(ε -> compute_forces(BlochWaves(ψ.basis, denest(ψ).+ε.*δψ),
+                                               occupation; ρ=ρ+ε.*δρ), 0)
 end;
 
 # - Computation of the forces by a linearization argument if we have access to

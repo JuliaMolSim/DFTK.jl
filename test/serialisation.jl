@@ -29,8 +29,12 @@ function test_scfres_agreement(tested, ref)
     @test tested.energies.total ≈  ref.energies.total atol=1e-13
     @test tested.eigenvalues    == ref.eigenvalues
     @test tested.occupation     == ref.occupation
-    @test tested.ψ              == ref.ψ
     @test tested.ρ              ≈  ref.ρ rtol=1e-14
+
+    @test tested.ψ.data            == ref.ψ.data
+    @test tested.ψ.basis.Ecut      == ref.ψ.basis.Ecut
+    @test tested.ψ.basis.kweights  == ref.ψ.basis.kweights
+    @test tested.ψ.basis.fft_size  == ref.ψ.basis.fft_size
 end
 end
 

@@ -99,8 +99,9 @@ function TermAnyonic(basis::PlaneWaveBasis{T}, hbar, β) where {T}
     TermAnyonic(hbar, β, ρref, Aref)
 end
 
-function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occupation;
+function ene_ops(term::TermAnyonic, ψ::BlochWaves{T}, occupation;
                  ρ, kwargs...) where {T}
+    basis = ψ.basis
     @assert basis.model.n_components == 1
     hbar = term.hbar
     β = term.β

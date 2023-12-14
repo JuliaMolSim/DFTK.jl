@@ -34,7 +34,11 @@ function DFTK.load_scfres(jld::JLD2.JLDFile)
 
     kpt_properties = (:ψ, :occupation, :eigenvalues)  # Need splitting over MPI processes
     for sym in kpt_properties
-        scfdict[sym] = jld[string(sym)][basis.krange_thisproc]
+        if sym == :ψ
+            scfdict[sym] = nest(basis, jld[string(sym)][basis.krange_thisproc])
+        else
+            scfdict[sym] = jld[string(sym)][basis.krange_thisproc]
+        end
     end
     for sym in jld["__propertynames"]
         sym in (:ham, :basis, :ρ, :energies) && continue  # special
@@ -42,7 +46,7 @@ function DFTK.load_scfres(jld::JLD2.JLDFile)
         scfdict[sym] = jld[string(sym)]
     end
 
-    energies, ham = energy_hamiltonian(basis, scfdict[:ψ], scfdict[:occupation];
+    energies, ham = energy_hamiltonian(scfdict[:ψ], scfdict[:occupation];
                                        ρ=scfdict[:ρ], eigenvalues=scfdict[:eigenvalues],
                                        εF=scfdict[:εF])
 

@@ -40,9 +40,10 @@ end
 Compute the application of K defined at ψ to δψ. ρ is the density issued from ψ.
 δψ also generates a δρ, computed with `compute_δρ`.
 """
+# T@D@ basis redundant; change signature maybe?
 @views @timing function apply_K(basis::PlaneWaveBasis, δψ, ψ, ρ, occupation)
     δψ = proj_tangent(δψ, ψ)
-    δρ = compute_δρ(basis, ψ, δψ, occupation)
+    δρ = compute_δρ(ψ, δψ, occupation)
     δV = apply_kernel(basis, δρ; ρ)
 
     Kδψ = map(enumerate(ψ)) do (ik, ψk)
@@ -62,13 +63,14 @@ Compute the application of K defined at ψ to δψ. ρ is the density issued fro
 end
 
 """
-    solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, res, occupation;
+    solve_ΩplusK(ψ::BlochWaves{T}, rhs, occupation;
                  tol=1e-10, verbose=false) where {T}
 
 Return δψ where (Ω+K) δψ = rhs
 """
-@timing function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
-                      callback=identity, tol=1e-10) where {T}
+@timing function solve_ΩplusK(ψ::BlochWaves{T}, rhs, occupation; callback=identity,
+                              tol=1e-10) where {T}
+    basis = ψ.basis
     filled_occ = filled_occupation(basis.model)
     # for now, all orbitals have to be fully occupied -> need to strip them beforehand
     @assert all(all(occ_k .== filled_occ) for occ_k in occupation)
@@ -79,8 +81,8 @@ Return δψ where (Ω+K) δψ = rhs
     @assert mpi_nprocs() == 1  # Distributed implementation not yet available
 
     # compute quantites at the point which define the tangent space
-    ρ = compute_density(basis, ψ, occupation)
-    H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
+    ρ = compute_density(ψ, occupation)
+    H = energy_hamiltonian(ψ, occupation; ρ).ham
 
     ψ_matrices = blochwaves_as_matrices(ψ)
     pack(ψ) = reinterpret_real(pack_ψ(ψ))
@@ -152,11 +154,12 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
     basis = ham.basis
     @assert size(rhs[1]) == size(ψ[1])  # Assume the same number of bands in ψ and rhs
 
+    ψ_array = denest(ψ)
     # compute δρ0 (ignoring interactions)
-    δψ0, δoccupation0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
+    δψ0, δoccupation0 = apply_χ0_4P(ham, ψ_array, occupation, εF, eigenvalues, -rhs;
                                     tol=tol_sternheimer, occupation_threshold,
                                     kwargs...)  # = -χ04P * rhs
-    δρ0 = compute_δρ(basis, ψ, δψ0, occupation, δoccupation0; occupation_threshold)
+    δρ0 = compute_δρ(ψ, δψ0, occupation, δoccupation0; occupation_threshold)
 
     # compute total δρ
     pack(δρ)   = vec(δρ)
@@ -183,13 +186,13 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
     end
 
     # Compute total change in eigenvalues
-    δeigenvalues = map(ψ, δHψ) do ψk, δHψk
+    δeigenvalues = map(ψ_array, δHψ) do ψk, δHψk
         map(eachslice(ψk; dims=3), eachslice(δHψk; dims=3)) do ψnk, δHψnk
             real(dot(ψnk, δHψnk))  # δε_{nk} = <ψnk | δH | ψnk>
         end
     end
 
-    δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+    δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ_array, occupation, εF, eigenvalues, δHψ;
                                        occupation_threshold, tol=tol_sternheimer,
                                        kwargs...)
 

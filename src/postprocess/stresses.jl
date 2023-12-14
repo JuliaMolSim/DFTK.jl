@@ -12,8 +12,9 @@ Compute the stresses (= 1/Vol dE/d(M*lattice), taken at M=I) of an obtained SCF 
                                    basis.kgrid, basis.symmetries_respect_rgrid,
                                    basis.use_symmetries_for_kpoint_reduction,
                                    basis.comm_kpts, basis.architecture)
-        ρ = compute_density(new_basis, scfres.ψ, scfres.occupation)
-        energies = energy_hamiltonian(new_basis, scfres.ψ, scfres.occupation;
+        ψ = BlochWaves(new_basis, denest(scfres.ψ))
+        ρ = compute_density(ψ, scfres.occupation)
+        energies = energy_hamiltonian(ψ, scfres.occupation;
                                       ρ, scfres.eigenvalues, scfres.εF).energies
         energies.total
     end

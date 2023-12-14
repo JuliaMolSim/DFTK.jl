@@ -49,9 +49,9 @@ using IterativeSolvers
 #  Compute the gradient of the energy, projected on the space tangent to ψ, that
 #  is to say H(ψ)*ψ - ψ*λ where λ is the set of Rayleigh coefficients associated
 #  to the ψ.
-function compute_projected_gradient(basis::PlaneWaveBasis, ψ, occupation)
-    ρ = compute_density(basis, ψ, occupation)
-    H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
+function compute_projected_gradient(ψ, occupation)
+    ρ = compute_density(ψ, occupation)
+    H = energy_hamiltonian(ψ, occupation; ρ).ham
 
     [proj_tangent_kpt(H.blocks[ik] * ψk, ψk) for (ik, ψk) in enumerate(ψ)]
 end
@@ -75,18 +75,18 @@ end
 
 
 """
-    newton(basis::PlaneWaveBasis{T}, ψ0;
+    newton(ψ0::BlochWaves{T};
            tol=1e-6, tol_cg=tol / 100, maxiter=20, callback=ScfDefaultCallback(),
            is_converged=ScfConvergenceDensity(tol))
 
 Newton algorithm. Be careful that the starting point needs to be not too far
 from the solution.
 """
-function newton(basis::PlaneWaveBasis{T}, ψ0; tol=1e-6, tol_cg=tol / 100, maxiter=20,
-                callback=ScfDefaultCallback(),
-                is_converged=ScfConvergenceDensity(tol)) where {T}
+function newton(ψ0::BlochWaves{T}; tol=1e-6, tol_cg=tol / 100, maxiter=20,
+                callback=ScfDefaultCallback(), is_converged=ScfConvergenceDensity(tol)) where {T}
 
     # setting parameters
+    basis = ψ0.basis
     model = basis.model
     @assert model.n_components == 1
     @assert iszero(model.temperature)  # temperature is not yet supported
@@ -106,9 +106,9 @@ function newton(basis::PlaneWaveBasis{T}, ψ0; tol=1e-6, tol_cg=tol / 100, maxit
     n_iter = 0
 
     # orbitals, densities and energies to be updated along the iterations
-    ψ = deepcopy(ψ0)
-    ρ = compute_density(basis, ψ, occupation)
-    energies, H = energy_hamiltonian(basis, ψ, occupation; ρ)
+    ψ = BlochWaves(basis, denest(ψ0))
+    ρ = compute_density(ψ, occupation)
+    energies, H = energy_hamiltonian(ψ, occupation; ρ)
     converged = false
 
     # perform iterations
@@ -116,13 +116,13 @@ function newton(basis::PlaneWaveBasis{T}, ψ0; tol=1e-6, tol_cg=tol / 100, maxit
         n_iter += 1
 
         # compute Newton step and next iteration
-        res = compute_projected_gradient(basis, ψ, occupation)
+        res = compute_projected_gradient(ψ, occupation)
         # solve (Ω+K) δψ = -res so that the Newton step is ψ <- ψ + δψ
-        δψ = solve_ΩplusK(basis, ψ, -res, occupation; tol=tol_cg).δψ
-        ψ  = [ortho_qr(ψ[ik] + δψ[ik]) for ik = 1:Nk]
+        δψ = solve_ΩplusK(ψ, -res, occupation; tol=tol_cg).δψ
+        ψ  = BlochWaves(basis, [ortho_qr(ψ[ik] + δψ[ik]) for ik = 1:Nk])
 
-        ρ_next = compute_density(basis, ψ, occupation)
-        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ_next)
+        ρ_next = compute_density(ψ, occupation)
+        energies, H = energy_hamiltonian(ψ, occupation; ρ=ρ_next)
         info = (; ham=H, basis, converged, stage=:iterate, ρin=ρ, ρout=ρ_next, n_iter,
                 energies, algorithm="Newton")
         callback(info)

@@ -142,7 +142,7 @@ Flag convergence on the change in cartesian force between two iterations.
 function ScfConvergenceForce(tolerance)
     previous_force = nothing
     function is_converged(info)
-        force = compute_forces_cart(info.basis, info.ψ, info.occupation; ρ=info.ρout)
+        force = compute_forces_cart(info.ψ, info.occupation; ρ=info.ρout)
         error = isnothing(previous_force) ? NaN : norm(previous_force - force)
         previous_force = force
         error < tolerance

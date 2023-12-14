@@ -25,9 +25,9 @@ struct TermAtomicNonlocal <: Term
     ops::Vector{NonlocalOperator}
 end
 
-@timing "ene_ops: nonlocal" function ene_ops(term::TermAtomicNonlocal,
-                                             basis::PlaneWaveBasis{T},
-                                             ψ, occupation; kwargs...) where {T}
+@timing "ene_ops: nonlocal" function ene_ops(term::TermAtomicNonlocal, ψ::BlochWaves{T},
+                                             occupation; kwargs...) where {T}
+    basis = ψ.basis
     if isnothing(ψ) || isnothing(occupation)
         return (; E=T(Inf), term.ops)
     end
@@ -45,10 +45,10 @@ end
     (; E, term.ops)
 end
 
-@timing "forces: nonlocal" function compute_forces(::TermAtomicNonlocal,
-                                                   basis::PlaneWaveBasis{TT},
-                                                   ψ, occupation; kwargs...) where {TT}
-    T = promote_type(TT, real(eltype(ψ[1])))
+@timing "forces: nonlocal" function compute_forces(::TermAtomicNonlocal, ψ::BlochWaves{T, Tψ},
+                                                   occupation; kwargs...) where {T, Tψ}
+    basis = ψ.basis
+    TT = promote_type(T, real(Tψ))
     model = basis.model
     unit_cell_volume = model.unit_cell_volume
     psp_groups = [group for group in model.atom_groups
@@ -58,11 +58,11 @@ end
     isempty(psp_groups) && return nothing
 
     # energy terms are of the form <psi, P C P' psi>, where P(G) = form_factor(G) * structure_factor(G)
-    forces = [zero(Vec3{T}) for _ = 1:length(model.positions)]
+    forces = [zero(Vec3{TT}) for _ = 1:length(model.positions)]
     for group in psp_groups
         element = model.atoms[first(group)]
 
-        C = build_projection_coefficients_(T, element.psp)
+        C = build_projection_coefficients_(TT, element.psp)
         for (ik, kpt) in enumerate(basis.kpoints)
             # we compute the forces from the irreductible BZ; they are symmetrized later
             qs = Gplusk_vectors(basis, kpt)
@@ -74,7 +74,7 @@ end
                 P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
 
                 forces[idx] += map(1:3) do α
-                    dPdR = [-2T(π)*im*q[α] for q in qs] .* P
+                    dPdR = [-2TT(π)*im*q[α] for q in qs] .* P
                     mapreduce(+, 1:model.n_components) do σ
                         ψkσ = ψ[ik][σ, :, :]
                         dHψkσ = P * (C * (dPdR' * ψkσ))

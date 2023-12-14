@@ -410,9 +410,9 @@ function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV::AbstractArray{T};
 
     δHψ = [RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
            for (ik, kpt) in enumerate(basis.kpoints)]
-    (; δψ, δoccupation) = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+    (; δψ, δoccupation) = apply_χ0_4P(ham, denest(ψ), occupation, εF, eigenvalues, δHψ;
                                       occupation_threshold, kwargs_sternheimer...)
-    δρ = compute_δρ(basis, ψ, δψ, occupation, δoccupation; occupation_threshold)
+    δρ = compute_δρ(ψ, δψ, occupation, δoccupation; occupation_threshold)
     δρ * normδV
 end
 

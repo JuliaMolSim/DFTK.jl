@@ -13,8 +13,9 @@ data structure to determine and adjust the number of bands to be computed.
 function next_density(ham::Hamiltonian,
                       nbandsalg::NbandsAlgorithm=AdaptiveBands(ham.basis.model),
                       fermialg::AbstractFermiAlgorithm=default_fermialg(ham.basis.model);
-                      eigensolver=lobpcg_hyper, ψ=nothing, eigenvalues=nothing,
-                      occupation=nothing, kwargs...)
+                      eigensolver=lobpcg_hyper, ψ=BlochWaves(ham.basis),
+                      eigenvalues=nothing, occupation=nothing, kwargs...)
+    @assert ham.basis == ψ.basis
     n_bands_converge, n_bands_compute = determine_n_bands(nbandsalg, occupation,
                                                           eigenvalues, ψ)
 
@@ -49,10 +50,10 @@ function next_density(ham::Hamiltonian,
               "`nbandsalg=AdaptiveBands(model; n_bands_converge=$(n_bands_converge + 3)`)")
     end
 
-    ψ = eigres.X
-    ρout = compute_density(ham.basis, ψ, occupation; nbandsalg.occupation_threshold)
-    (; ψ, eigenvalues=eigres.λ, occupation, εF, ρout, diagonalization=eigres,
-     n_bands_converge, nbandsalg.occupation_threshold)
+    ψ = BlochWaves(ham.basis, eigres.X)
+    ρout = compute_density(ψ, occupation; nbandsalg.occupation_threshold)
+    (; ψ, eigenvalues=eigres.λ, occupation, εF, ρout,
+     diagonalization=eigres, n_bands_converge, nbandsalg.occupation_threshold)
 end
 
 
@@ -87,7 +88,7 @@ Overview of parameters:
 @timing function self_consistent_field(
     basis::PlaneWaveBasis{T};
     ρ=guess_density(basis),
-    ψ=nothing,
+    ψ::BlochWaves=BlochWaves(basis),
     tol=1e-6,
     is_converged=ScfConvergenceDensity(tol),
     maxiter=100,
@@ -102,10 +103,8 @@ Overview of parameters:
     compute_consistent_energies=true,
     response=ResponseOptions(),  # Dummy here, only for AD
 ) where {T}
+    @assert basis == ψ.basis
     # All these variables will get updated by fixpoint_map
-    if !isnothing(ψ)
-        @assert length(ψ) == length(basis.kpoints)
-    end
     occupation = nothing
     eigenvalues = nothing
     ρout = ρ
@@ -124,7 +123,7 @@ Overview of parameters:
 
         # Note that ρin is not the density of ψ, and the eigenvalues
         # are not the self-consistent ones, which makes this energy non-variational
-        energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρin, eigenvalues, εF)
+        energies, ham = energy_hamiltonian(ψ, occupation; ρ=ρin, eigenvalues, εF)
 
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
@@ -138,8 +137,7 @@ Overview of parameters:
 
         # Compute the energy of the new state
         if compute_consistent_energies
-            energies = energy_hamiltonian(basis, ψ, occupation;
-                                          ρ=ρout, eigenvalues, εF).energies
+            energies = energy_hamiltonian(ψ, occupation; ρ=ρout, eigenvalues, εF).energies
         end
         info = merge(info, (; energies))
 
@@ -162,7 +160,7 @@ Overview of parameters:
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρout, so we return that. We also perform a last energy computation
     # to return a correct variational energy
-    energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρout, eigenvalues, εF)
+    energies, ham = energy_hamiltonian(ψ, occupation; ρ=ρout, eigenvalues, εF)
 
     # Measure for the accuracy of the SCF
     # TODO probably should be tracked all the way ...

@@ -150,9 +150,10 @@ function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
     # It is then of size G_vectors(basis_out.kpoints[ik]) and the transfer can be done with
     # ψ_out[ik] .= ψ_in[ik][idcs_in[ik], :]
 
-    map(enumerate(basis_out.kpoints)) do (ik, kpt_out)
-        transfer_blochwave_kpt(ψ_in[ik], basis_in, basis_in.kpoints[ik], basis_out, kpt_out)
-    end
+    BlochWaves(basis_out, map(enumerate(basis_out.kpoints)) do (ik, kpt_out)
+               transfer_blochwave_kpt(ψ_in[ik], basis_in, basis_in.kpoints[ik],
+                                      basis_out, kpt_out)
+    end)
 end
 
 @doc raw"""

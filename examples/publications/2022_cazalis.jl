@@ -9,8 +9,8 @@ using Plots
 struct Hartree2D end
 struct Term2DHartree <: DFTK.TermNonlinear end
 (t::Hartree2D)(basis) = Term2DHartree()
-function DFTK.ene_ops(term::Term2DHartree, basis::PlaneWaveBasis{T},
-                      ψ, occ; ρ, kwargs...) where {T}
+function DFTK.ene_ops(term::Term2DHartree, ψ::BlochWaves{T}, occ; ρ, kwargs...) where {T}
+    basis = ψ.basis
     ## 2D Fourier transform of 3D Coulomb interaction 1/|x|
     poisson_green_coeffs = 2T(π) ./ [norm(G) for G in G_vectors_cart(basis)]
     poisson_green_coeffs[1] = 0  # DC component

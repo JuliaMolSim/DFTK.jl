@@ -35,7 +35,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
                           model_kwargs...)
         basis = PlaneWaveBasis(model; basis_kwargs...)
         ρ0    = guess_density(basis, magnetic_moments)
-        ham0  = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0).ham
+        ham0  = energy_hamiltonian(BlochWaves(basis), nothing; ρ=ρ0).ham
         nbandsalg = is_εF_fixed ? FixedBands(; n_bands_converge=6) : AdaptiveBands(model)
         res = DFTK.next_density(ham0, nbandsalg; tol, eigensolver)
         scfres = (; ham=ham0, res...)
@@ -56,7 +56,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
             model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions;
                               model_kwargs..., extra_terms=[term_builder])
             basis = PlaneWaveBasis(model; basis_kwargs...)
-            ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0).ham
+            ham = energy_hamiltonian(BlochWaves(basis), nothing; ρ=ρ0).ham
             res = DFTK.next_density(ham, nbandsalg; tol, eigensolver)
             res.ρout
         end
@@ -71,7 +71,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         @test norm(diff_findiff - diff_applied_χ0) < testtol
 
         # Test apply_χ0 without extra bands
-        ψ_occ, occ_occ = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation;
+        ψ_occ, occ_occ = DFTK.select_occupied_orbitals(scfres.ψ, scfres.occupation;
                                                        threshold=scfres.occupation_threshold)
         ε_occ = [scfres.eigenvalues[ik][1:size(ψk, 3)] for (ik, ψk) in enumerate(ψ_occ)]
 

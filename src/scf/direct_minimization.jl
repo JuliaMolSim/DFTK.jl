@@ -63,14 +63,16 @@ Computes the ground state by direct minimization. `kwargs...` are
 passed to `Optim.Options()`. Note that the resulting ψ are not
 necessarily eigenvectors of the Hamiltonian.
 """
-direct_minimization(basis::PlaneWaveBasis; kwargs...) = direct_minimization(basis, nothing; kwargs...)
-function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
-                             prec_type=PreconditionerTPA, maxiter=1_000,
+direct_minimization(basis::PlaneWaveBasis; kwargs...) =
+    direct_minimization(BlochWaves(basis); kwargs...)
+
+function direct_minimization(ψ0::BlochWaves{T}; prec_type=PreconditionerTPA, maxiter=1_000,
                              optim_solver=Optim.LBFGS, tol=1e-6, kwargs...) where {T}
     if mpi_nprocs() > 1
         # need synchronization in Optim
         error("Direct minimization with MPI is not supported yet")
     end
+    basis = ψ0.basis
     model = basis.model
     @assert model.n_components == 1
     @assert iszero(model.temperature)  # temperature is not yet supported
@@ -81,7 +83,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     Nk = length(basis.kpoints)
 
     if isnothing(ψ0)
-        ψ0 = [random_orbitals(basis, kpt, n_bands) for kpt in basis.kpoints]
+        ψ0 = BlochWaves(basis, [random_orbitals(basis, kpt, n_bands) for kpt in basis.kpoints])
     end
     ψ0_matrices = blochwaves_as_matrices(ψ0)
     occupation = [filled_occ * ones(T, n_bands) for _ = 1:Nk]
@@ -89,9 +91,8 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     # we need to copy the reinterpret array here to not raise errors in Optim.jl
     # TODO raise this issue in Optim.jl
     pack(ψ) = copy(reinterpret_real(pack_ψ(ψ)))
-    unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ0))
-    unsafe_unpack(x) = unsafe_unpack_ψ(reinterpret_complex(x), size.(ψ0))
-    unsafe_unpack2(x) = unsafe_unpack_ψ(reinterpret_complex(x), size.(ψ0_matrices))
+    unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ0_matrices))
+    unsafe_unpack(x) = unsafe_unpack_ψ(reinterpret_complex(x), size.(ψ0_matrices))
 
     # this will get updated along the iterations
     H = nothing
@@ -101,8 +102,8 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     # computes energies and gradients
     function fg!(::Any, G, ψ)
         ψ = unpack(ψ)
-        ρ = compute_density(basis, ψ, occupation)
-        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ)
+        ρ = compute_density(BlochWaves(basis, ψ), occupation)
+        energies, H = energy_hamiltonian(BlochWaves(basis, ψ), occupation; ρ)
 
         # The energy has terms like occ * <ψ|H|ψ>, so the gradient is 2occ Hψ
         if G !== nothing
@@ -115,10 +116,10 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
         energies.total
     end
 
-    manifold = DMManifold(Nk, unsafe_unpack2)
+    manifold = DMManifold(Nk, unsafe_unpack)
 
     Pks = [prec_type(basis, kpt) for kpt in basis.kpoints]
-    P = DMPreconditioner(Nk, Pks, unsafe_unpack2)
+    P = DMPreconditioner(Nk, Pks, unsafe_unpack)
 
     kwdict = Dict(kwargs)
     optim_options = Optim.Options(; allow_f_increases=true, show_trace=true,
@@ -126,7 +127,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
                                   f_tol=pop!(kwdict, :f_tol, -1),
                                   g_tol=pop!(kwdict, :g_tol, -1),
                                   iterations=maxiter, kwdict...)
-    res = Optim.optimize(Optim.only_fg!(fg!), pack(ψ0),
+    res = Optim.optimize(Optim.only_fg!(fg!), pack(ψ0_matrices),
                          optim_solver(; P, precondprep=precondprep!, manifold,
                                       linesearch=LineSearches.BackTracking()),
                          optim_options)
@@ -146,5 +147,6 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
 
     # We rely on the fact that the last point where fg! was called is the minimizer to
     # avoid recomputing at ψ
-    (; ham=H, basis, energies, converged=true, ρ, ψ, eigenvalues, occupation, εF, optim_res=res)
+    (; ham=H, basis, energies, converged=true, ρ, ψ=BlochWaves(basis, ψ), eigenvalues,
+     occupation, εF, optim_res=res)
 end

@@ -4,7 +4,7 @@ include("operators.jl")
 # - A Term is something that, given a state, returns a named tuple (; E, hams) with an energy
 #   and a list of RealFourierOperator (for each kpoint).
 # - Each term must overload
-#     `ene_ops(term, basis, ψ, occupation; kwargs...)`
+#     `ene_ops(term, ψ, occupation; kwargs...)`
 #         -> (; E::Real, ops::Vector{RealFourierOperator}).
 # - Note that terms are allowed to hold on to references to ψ (eg Fock term),
 #   so ψ should not mutated after ene_ops
@@ -26,8 +26,8 @@ abstract type TermNonlinear <: Term end
 A term with a constant zero energy.
 """
 struct TermNoop <: Term end
-function ene_ops(term::TermNoop, basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where {T}
-    (; E=zero(eltype(T)), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
+function ene_ops(term::TermNoop, ψ::BlochWaves{T}, occupation; kwargs...) where {T}
+    (; E=zero(eltype(T)), ops=[NoopOperator(ψ.basis, kpt) for kpt in ψ.basis.kpoints])
 end
 
 include("Hamiltonian.jl")
@@ -59,9 +59,9 @@ include("anyonic.jl")
 breaks_symmetries(::Anyonic) = true
 
 # forces computes either nothing or an array forces[at][α] (by default no forces)
-compute_forces(::Term, ::AbstractBasis, ψ, occupation; kwargs...) = nothing
+compute_forces(::Term, ::BlochWaves, occupation; kwargs...) = nothing
 # dynamical matrix for phonons computations (array dynmat[n_dim, n_atom, n_dim, n_atom])
-compute_dynmat(::Term, ::AbstractBasis, ψ, occupation; kwargs...) = nothing
+compute_dynmat(::Term, ::BlochWaves, occupation; kwargs...) = nothing
 
 @doc raw"""
     compute_kernel(basis::PlaneWaveBasis; kwargs...)

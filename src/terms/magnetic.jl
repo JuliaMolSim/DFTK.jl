@@ -30,8 +30,8 @@ function TermMagnetic(basis::PlaneWaveBasis{T}, Afunction::Function) where {T}
     TermMagnetic(Apotential)
 end
 
-function ene_ops(term::TermMagnetic, basis::PlaneWaveBasis{T}, ψ, occupation;
-                 kwargs...) where {T}
+function ene_ops(term::TermMagnetic, ψ::BlochWaves{T}, occupation; kwargs...) where {T}
+    basis = ψ.basis
     ops = [MagneticFieldOperator(basis, kpoint, term.Apotential)
            for (ik, kpoint) in enumerate(basis.kpoints)]
     if isnothing(ψ) || isnothing(occupation)
