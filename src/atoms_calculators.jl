@@ -22,16 +22,15 @@ struct DFTKState
 end
 function DFTKState(system::AbstractSystem, params::DFTKParameters)
     basis = prepare_basis(system, params)
-    ρ = guess_density(basis)
+    ρ = guess_density(basis, system)
     ψ = nothing # Will get initialized by SCF.
-    return DFTKState((;ρ, ψ, basis))
+    DFTKState((; ρ, ψ, basis))
 end
 
 function prepare_basis(system::AbstractSystem, params::DFTKParameters)
     # By default create an LDA model.
-    model = model_LDA(system; symmetries=false, params.model_kwargs...)
-    basis = PlaneWaveBasis(model; params.basis_kwargs...)
-    return basis
+    model = model_DFT(system; symmetries=false, params.model_kwargs...)
+    PlaneWaveBasis(model; params.basis_kwargs...)
 end
 
 Base.@kwdef mutable struct DFTKCalculator
@@ -41,7 +40,7 @@ end
 
 function DFTKCalculator(system; state=nothing, verbose_scf=false, model_kwargs, basis_kwargs, scf_kwargs)
     if !verbose_scf
-        scf_kwargs = (; scf_kwargs..., callback = (x) -> nothing)
+        scf_kwargs = merge(scf_kwargs, (;callback = identity))
     end
     params = DFTKParameters(;model_kwargs, basis_kwargs, scf_kwargs)
 
@@ -49,28 +48,29 @@ function DFTKCalculator(system; state=nothing, verbose_scf=false, model_kwargs, 
     if isnothing(state)
         state = DFTKState(system, params)
     end
-
-    return DFTKCalculator(params, state)
+    DFTKCalculator(params, state)
 end
 
-AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(system::AbstractSystem, calculator::DFTKCalculator; state = calculator.state)
+AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
+        system::AbstractSystem, calculator::DFTKCalculator; state = calculator.state)
     # Update basis (and the enregy terms within).
     basis = prepare_basis(system, calculator.params)
     
     # Note that we use the state's densities and orbitals, but change the basis 
     # to reflect system changes.
-    scfres = self_consistent_field(basis; ρ=state.scfres.ρ, ψ=state.scfres.ψ, calculator.params.scf_kwargs...)
+    scfres = self_consistent_field(basis;
+                    state.scfres.ρ, state.scfres.ψ, calculator.params.scf_kwargs...)
     calculator.state = DFTKState(scfres)
-    return calculator.state.scfres.energies.total
+    calculator.state.scfres.energies.total
 end
     
-AtomsCalculators.@generate_interface function AtomsCalculators.forces(system::AbstractSystem, calculator::DFTKCalculator; state = calculator.state)
+AtomsCalculators.@generate_interface function AtomsCalculators.forces(
+        system::AbstractSystem, calculator::DFTKCalculator; state = calculator.state)
     # Update basis (and the enregy terms within).
     basis = prepare_basis(system, calculator.params)
     
-    # Note that we use the state's densities and orbitals, but change the basis 
-    # to reflect system changes.
-    scfres = self_consistent_field(basis; ρ=state.scfres.ρ, ψ=state.scfres.ψ, calculator.params.scf_kwargs...)
+    scfres = self_consistent_field(basis;
+                    state.scfres.ρ, state.scfres.ψ, calculator.params.scf_kwargs...)
     calculator.state = DFTKState(scfres)
-    return compute_forces_cart(calculator.state.scfres)
+    compute_forces_cart(calculator.state.scfres)
 end
