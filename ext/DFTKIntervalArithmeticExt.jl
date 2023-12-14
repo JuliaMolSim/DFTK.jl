@@ -1,10 +1,11 @@
 module DFTKIntervalArithmeticExt
-const Interval = IntervalArithmetic.Interval
-import SpecialFunctions: erfc
+using DFTK
+using IntervalArithmetic
+using LinearAlgebra
 import DFTK: symmetry_operations, _is_well_conditioned, compute_Glims_fast
 import DFTK: local_potential_fourier
-using DFTK
-using LinearAlgebra
+import IntervalArithmetic: Interval
+import SpecialFunctions: erfc
 
 # Monkey-patch a few functions for Intervals
 # ... this is far from proper and a bit specific for our use case here

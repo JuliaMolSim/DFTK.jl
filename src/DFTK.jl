@@ -4,7 +4,6 @@ using DocStringExtensions
 using LinearAlgebra
 using Markdown
 using Printf
-using Requires
 using TimerOutputs
 using Unitful
 using UnitfulAtomic
@@ -222,14 +221,6 @@ include("postprocess/current.jl")
 include("workarounds/dummy_inplace_fft.jl")
 include("workarounds/forwarddiff_rules.jl")
 include("workarounds/gpu_arrays.jl")
-
-
-function __init__()
-    # TODO Move out into extension module
-    @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" begin
-        include("workarounds/cuda_arrays.jl")
-    end
-end
 
 # Precompilation block with a basic workflow
 @setup_workload begin
