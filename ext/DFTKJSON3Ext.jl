@@ -1,31 +1,14 @@
 module DFTKJSON3Ext
 using DFTK
-using DFTK: todict, band_data_to_dict
 using JSON3
 using MPI
 
-function DFTK.save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{:json})
-    # TODO Quick and dirty solution for now.
-    #      The better approach is to integrate with StructTypes.jl
-    # Also should probably be merged with save_bands eventually
-    # once the treatment of MPI distributed data is uniform.
-
-    data = Dict("energies" => todict(scfres.energies), "damping" => scfres.α)
-    for key in (:converged, :occupation_threshold, :εF, :eigenvalues,
-                :occupation, :n_bands_converge, :n_iter, :algorithm, :norm_Δρ)
-        data[string(key)] = getproperty(scfres, key)
+function save_json(todict_function, filename::AbstractString, scfres::NamedTuple;
+                   save_ψ=false, extra_data=Dict{String,Any}())
+    data = todict_function(scfres; save_ψ)
+    for (k, v) in pairs(extra_data)
+        data[k] = v
     end
-
-    open(filename, "w") do io
-        JSON3.pretty(io, data)
-    end
-end
-
-function DFTK.save_bands(filename::AbstractString, band_data::NamedTuple, ::Val{:json};
-                    save_ψ=false)
-    save_ψ && @warn "save_ψ not supported with json files"
-
-    data = band_data_to_dict(band_data)
     if mpi_master()
         open(filename, "w") do io
             JSON3.pretty(io, data)
@@ -33,6 +16,12 @@ function DFTK.save_bands(filename::AbstractString, band_data::NamedTuple, ::Val{
     end
     MPI.Barrier(MPI.COMM_WORLD)
     nothing
+end
+function DFTK.save_scfres(::Val{:json}, filename::AbstractString, scfres::NamedTuple; kwargs...)
+    save_json(DFTK.scfres_to_dict, filename, scfres; kwargs...)
+end
+function DFTK.save_bands(::Val{:json}, filename::AbstractString, band_data::NamedTuple; kwargs...)
+    save_json(DFTK.band_data_to_dict, filename, band_data; kwargs...)
 end
 
 end

@@ -570,3 +570,11 @@ function gather_kpts(data::AbstractArray, basis::PlaneWaveBasis)
         nothing
     end
 end
+
+"""
+Scatter the data of a quantity depending on `k`-Points from the master process
+to the child processes. On non-master processes `nothing` may be passed.
+"""
+function scatter_kpts(data::Union{Nothing,AbstractArray}, basis::PlaneWaveBasis)
+    # TODO
+end

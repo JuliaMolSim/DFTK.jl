@@ -50,6 +50,8 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
     end
 end
 
+# Make a new sublevel, which works slightly differently across data formats
+make_subdict!(dict::Dict, name::AbstractString) = get!(dict, name, Dict{String,Any}())
 
 """
 Convert a `Model` struct to a dictionary representation.
@@ -65,31 +67,29 @@ Some details on the conventions for the returned data:
 - n_electrons: Number of electrons, may be missing if εF is fixed instead
 - εF: Fixed Fermi level to use, may be missing if n_electronis is specified instead.
 """
-function todict(model::Model)
-    data = Dict(
-        "model_name"        => model.model_name,
-        "lattice"           => model.lattice,
-        "recip_lattice"     => model.recip_lattice,
-        "n_dim"             => model.n_dim,
-        "spin_polarization" => model.spin_polarization,
-        "n_spin_components" => model.n_spin_components,
-        "temperature"       => model.temperature,
-        "smearing"          => string(model.smearing),
-        "n_atoms"           => length(model.atoms),
-        "atomic_symbols"    => map(e -> string(atomic_symbol(e)), model.atoms),
-        "atomic_positions"  => model.positions,
-        "atomic_positions_cart" => vector_red_to_cart.(model, model.positions),
-    )
-    !isnothing(model.εF)          && (data["εF"]          = model.εF)
-    !isnothing(model.n_electrons) && (data["n_electrons"] = model.n_electrons)
+todict(model::Model) = todict!(Dict{String,Any}(), model)
+function todict!(dict, model::Model)
+    dict["model_name"]        = model.model_name
+    dict["lattice"]           = model.lattice
+    dict["recip_lattice"]     = model.recip_lattice
+    dict["n_dim"]             = model.n_dim
+    dict["spin_polarization"] = model.spin_polarization
+    dict["n_spin_components"] = model.n_spin_components
+    dict["temperature"]       = model.temperature
+    dict["smearing"]          = string(model.smearing)
+    dict["n_atoms"]           = length(model.atoms)
+    dict["atomic_symbols"]    = map(e -> string(atomic_symbol(e)), model.atoms)
+    dict["atomic_positions"]  = model.positions
+    dict["atomic_positions_cart"] = vector_red_to_cart.(model, model.positions)
+    !isnothing(model.εF)          && (dict["εF"]          = model.εF)
+    !isnothing(model.n_electrons) && (dict["n_electrons"] = model.n_electrons)
 
-
-    data["symmetries_rotations"]    = [symop.W for symop in model.symmetries]
-    data["symmetries_translations"] = [symop.w for symop in model.symmetries]
-    data["terms"] = map(model.term_types) do term
+    dict["symmetries_rotations"]    = [symop.W for symop in model.symmetries]
+    dict["symmetries_translations"] = [symop.w for symop in model.symmetries]
+    dict["terms"] = map(model.term_types) do term
         sprint(show, "text/plain", term)
     end
-    data
+    dict
 end
 
 function Base.show(io::IO, kpoint::Kpoint)
@@ -143,18 +143,23 @@ Some details on the conventions for the returned data:
   with the basis for ρ.
 - kweights: Weights for the k-points, summing to 1.0
 """
-function todict(basis::PlaneWaveBasis)
-    data = Dict(
-        "kcoords"       => basis.kcoords_global,
-        "kcoords_cart"  => vector_red_to_cart.(basis.model, basis.kcoords_global),
-        "kweights"      => basis.kweights_global,
-        "n_kpoints"     => length(basis.kcoords_global),
-        "fft_size"      => basis.fft_size,
-        "dvol"          => basis.dvol,
-        "Ecut"          => basis.Ecut,
-        "variational"   => basis.variational,
-    )
-    data["symmetries_rotations"]    = [symop.W for symop in basis.symmetries]
-    data["symmetries_translations"] = [symop.w for symop in basis.symmetries]
-    merge(todict(basis.model), data)
+todict(basis::PlaneWaveBasis) = todict!(Dict{String,Any}(), basis)
+function todict!(dict, basis::PlaneWaveBasis)
+    todict!(dict, basis.model)
+
+    dict["kgrid"]        = sprint(show, "text/plain", basis.kgrid)
+    dict["kcoords"]      = basis.kcoords_global
+    dict["kcoords_cart"] = vector_red_to_cart.(basis.model, basis.kcoords_global)
+    dict["kweights"]     = basis.kweights_global
+    dict["n_kpoints"]    = length(basis.kcoords_global)
+    dict["fft_size"]     = basis.fft_size
+    dict["dvol"]         = basis.dvol
+    dict["Ecut"]         = basis.Ecut
+    dict["variational"]  = basis.variational
+    dict["symmetries_rotations"]    = [symop.W for symop in basis.symmetries]
+    dict["symmetries_translations"] = [symop.w for symop in basis.symmetries]
+    dict["symmetries_respect_rgrid"] = basis.symmetries_respect_rgrid
+    dict["use_symmetries_for_kpoint_reduction"] = basis.use_symmetries_for_kpoint_reduction
+
+    dict
 end

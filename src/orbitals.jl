@@ -20,6 +20,34 @@ function select_occupied_orbitals(basis, ψ, occupation; threshold=0.0)
     (; ψ=selected_ψ, occupation=selected_occ)
 end
 
+# Packing routine to store all bands ψ using same-sized matrices.
+# This is useful for serialisation to disk
+function blockify_ψ(basis::PlaneWaveBasis, ψ::AbstractVector)
+    # Determine largest rectangular grid on which all bands can live
+    n_G_vectors = [length(kpt.mapping) for kpt in basis.kpoints]
+    max_n_G = mpi_max(maximum(n_G_vectors), basis.comm_kpts)
+
+    # Zero-pad each ψk to the full stored rectangle
+    ψ = map(ψ) do ψk
+        n_G, n_bands = size(ψk)
+        ψk_full = zeros(eltype(ψk), max_n_G, n_bands)
+        ψk_full[1:n_G, :] = ψk
+        ψk_full
+    end
+
+    (; ψ, n_G_vectors, max_n_G)
+end
+
+# Unpacking routine for the above by truncating each array to the sizes
+# given in the second argument.
+function unblockify_ψ(ψ::AbstractVector, n_G_vectors::AbstractVector)
+    map(ψ, n_G_vectors) do (ψk, n_G)
+        ψk[1:n_G, :]
+    end
+end
+
+
+
 # Packing routines used in direct_minimization and newton algorithms.
 # They pack / unpack sets of ψ's (or compatible arrays, such as hamiltonian
 # applies and gradients) to make them compatible to be used in algorithms

@@ -163,8 +163,9 @@ Intended to give a condensed set of results and useful metadata
 for post processing. See also the [`todict`](@ref) function
 for the [`Model`](@ref) and the [`PlaneWaveBasis`](@ref), which are
 called from this function and the outputs merged. Note, that only
-the master process returns the dictionary. On all other processors
-`nothing` is returned.
+the master process returns meaningful data. All other processors
+still return a dictionary (to simplify code in calling locations),
+but the data may be dummy.
 
 Some details on the conventions for the returned data:
 - εF: Computed Fermi level (if present in band_data)
@@ -175,24 +176,25 @@ Some details on the conventions for the returned data:
 - n_iter: (n_spin, n_kpoints) array of the number of iterations the
   diagonalisation routine required.
 """
-function band_data_to_dict(band_data::NamedTuple)
+band_data_to_dict(band_data::NamedTuple) = band_data_to_dict!(Dict{String,Any}(), band_data)
+function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false)
     # TODO Quick and dirty solution for now.
     #      The better would be to have a BandData struct and use
     #      a `todict` function for it, which does essentially this.
     #      See also the todo in compute_bands above.
-    data = todict(band_data.basis)
+    todict!(dict, band_data.basis)
 
     n_bands   = length(band_data.eigenvalues[1])
     n_kpoints = length(band_data.basis.kcoords_global)
     n_spin    = band_data.basis.model.n_spin_components
-    data["n_bands"] = n_bands  # n_spin_components and n_kpoints already stored
+    dict["n_bands"] = n_bands  # n_spin_components and n_kpoints already stored
 
     if !isnothing(band_data.εF)
-        data["εF"] = band_data.εF
+        dict["εF"] = band_data.εF
     end
 
     if haskey(band_data, :kinter)
-        data["labels"] = map(band_data.kinter.labels) do labeldict
+        dict["labels"] = map(band_data.kinter.labels) do labeldict
             Dict(k => string(v) for (k, v) in pairs(labeldict))
         end
     end
@@ -201,38 +203,50 @@ function band_data_to_dict(band_data::NamedTuple)
     function gather_and_reshape(data::AbstractVector{T}, shape) where {T}
         value = gather_kpts(data, band_data.basis)
         if mpi_master()
-            if T <: AbstractVector
-                value = reduce(hcat, value)
+            if T <: AbstractArray
+                value = reduce((v, w) -> cat(v, w; dims=(ndims(T) + 1)), value)
             end
             reshaped = reshape(value, reverse(shape)...)
-            permutedims(reshaped, reverse(1:length(shape)))
+            out = permutedims(reshaped, reverse(1:length(shape)))
         else
-            nothing
+            similar(data, zeros(Int, length(shape))...)
         end
     end
     for key in (:eigenvalues, :eigenvalues_error, :occupation)
         if hasproperty(band_data, key) && !isnothing(getproperty(band_data, key))
-            data[string(key)] = gather_and_reshape(getproperty(band_data, key),
+            dict[string(key)] = gather_and_reshape(getproperty(band_data, key),
                                                    (n_spin, n_kpoints, n_bands))
         end
     end
-    if mpi_master() && length(band_data.diagonalization) > 1
-        @warn("Ignoring residual norm and iterations of all but the " *
-              "last diagonalisation performed.")
-    end
-    diagonalization = last(band_data.diagonalization)
 
-    data["n_iter"]         = gather_and_reshape(diagonalization.n_iter, (n_spin, n_kpoints))
-    data["residual_norms"] = gather_and_reshape(diagonalization.residual_norms,
-                                                (n_spin, n_kpoints, n_bands))
+    diagonalization = make_subdict!(dict, "diagonalization")
+    diag_n_iter = sum(diag -> diag.n_iter, band_data.diagonalization)
+    diagonalization["n_iter"] = gather_and_reshape(diag_n_iter, (n_spin, n_kpoints))
 
-    if mpi_master()
-        data
-    else
-        nothing
+    diag_resid  = last(band_data.diagonalization).residual_norms
+    diagonalization["residual_norms"] = gather_and_reshape(diag_resid,
+                                                           (n_spin, n_kpoints, n_bands))
+
+    if save_ψ
+        # Store ψ using the largest rectangular grid on which all bands can live
+        (; ψ, n_G_vectors, max_n_G) = blockify_ψ(band_data.basis, band_data.ψ)
+        dict["kpt_n_G_vectors"] = gather_and_reshape(n_G_vectors, (n_spin, n_kpoints))
+        dict["ψ"] = gather_and_reshape(ψ, (n_spin, n_kpoints, n_bands, max_n_G))
+
+        # Store additionally the actually employed G vectors
+        kpt_G_vectors = map(band_data.basis.kpoints) do kpt
+            Gs_full = zeros(Int, 3, max_n_G)
+            for (iG, G) in enumerate(G_vectors(band_data.basis, kpt))
+                Gs_full[:, iG] = G
+            end
+            Gs_full
+        end
+        dict["kpt_G_vectors"] = gather_and_reshape(kpt_G_vectors,
+                                                   (n_spin, n_kpoints, max_n_G, 3))
     end
+
+    dict
 end
-
 
 function kdistances_and_ticks(kcoords, klabels::Dict, kbranches)
     # kcoords in cartesian coordinates, klabels uses cartesian coordinates
@@ -363,21 +377,26 @@ function plot_bandstructure end
 Write the computed bands to a file. `save_ψ` determines whether the wavefunction
 is also saved or not. Note that this function can be both used on the results
 of [`compute_bands`](@ref) and [`self_consistent_field`](@ref).
+
+!!! warning "No compatibility guarantees"
+    No guarantees are made with respect to this function at this point.
+    It may change incompatibly between DFTK versions (including patch versions)
+    or stop working / be removed in the future.
 """
-function save_bands(filename::AbstractString, band_data::NamedTuple; save_ψ=false, kwargs...)
+function save_bands(filename::AbstractString, band_data::NamedTuple; save_ψ=false)
     _, ext = splitext(filename)
     ext = Symbol(ext[2:end])
 
     # Whitelist valid extensions
-    !(ext in (:json, )) && error("Extension '$ext' not supported by DFTK.")
+    !(ext in (:json, :jld2)) && error("Extension '$ext' not supported by DFTK.")
 
     # When writing these functions keep in mind that k-Point data is
     # distributed across MPI processors and thus this function is called
     # on *all* MPI processors.
-    save_bands(filename, band_data, Val(ext); save_ψ, kwargs...)
+    save_bands(Val(ext), filename, band_data; save_ψ)
 end
 
-function save_bands(filename::AbstractString, ::NamedTuple, ::Any; kwargs...)
+function save_bands(::Any, filename::AbstractString, ::NamedTuple; kwargs...)
     error("The extension $(last(splitext(filename))) is currently not available. " *
           "A required package (e.g. JSON3) is not yet loaded.")
 end
