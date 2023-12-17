@@ -10,8 +10,9 @@ function save_jld2(to_dict_function!, file::AbstractString, scfres::NamedTuple;
     if mpi_master()
         JLD2.jldopen(file, "w") do jld
             to_dict_function!(jld, scfres; save_ψ)
-            jld["model"] = scfres.basis.model  # Save original model datastructure
+            delete!(jld, "kgrid")
             jld["kgrid"] = scfres.basis.kgrid  # Save original kgrid datastructure
+            jld["model"] = scfres.basis.model  # Save original model datastructure
             for (k, v) in pairs(extra_data)
                 jld[k] = v
             end
@@ -78,50 +79,36 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian)
     end
     scfdict = MPI.bcast(scfdict, 0, MPI.COMM_WORLD)
 
-    return (; scfdict...)
+    function reshape_and_scatter(data)
+        if mpi_master()
+            n = ndims(data)
+            value = reshape(data, size(data)[1:n-2]..., size(data, n-1) * size(data, n))
+            if ndims(value) > 1
+                value = collect(eachslice(value, dims=n-1))
+            end
+        else
+            value = nothing
+        end
+        DFTK.scatter_kpts(value, basis)
+    end
 
+    # TODO Check if this Array.( ... ) is really needed. My suspicion is
+    #      otherwise one gets a view here.
+    scfdict[:eigenvalues] = Array.(reshape_and_scatter(jld["eigenvalues"]))
+    scfdict[:occupation]  = Array.(reshape_and_scatter(jld["occupation"]))
+
+    n_G_vectors = reshape_and_scatter(jld["kpt_n_G_vectors"])
+    ψ_padded = reshape_and_scatter(jld["ψ"])
+    scfdict[:ψ] = map(n_G_vectors, ψ_padded) do n_Gk, ψk_padded
+        ψk_padded[1:n_Gk, :]
+    end
+
+    #
+    # TODO Put on the GPU if needed
+    #
     # TODO Check custom basis for consistency with the data extracted here
     #      Make the next lines less repetitive
-
-    if mpi_master()
-        occupation = jld["occupation"]
-        permutedims(occupation, reverse(1:ndims(occupation)))
-        occupation = reshape(occupation, n_bands, n_kpts * n_spin)
-        occupation = collect(eachrow(occupation))
-    else
-        occupation = nothing
-    end
-    scfdict[:occupation] = scatter_kpts(occupation, basis)
-
-    if mpi_master()
-        eigenvalues = jld["eigenvalues"]
-        permutedims(eigenvalues, reverse(1:ndims(eigenvalues)))
-        eigenvalues = reshape(eigenvalues, n_bands, n_kpts * n_spin)
-        eigenvalues = collect(eachrow(eigenvalues))
-    else
-        eigenvalues = nothing
-    end
-    scfdict[:eigenvalues] = scatter_kpts(eigenvalues, basis)
-
-    if mpi_master()
-        n_G_vectors = jld["n_G_vectors"]
-        permutedims(n_G_vectors, reverse(1:ndims(n_G_vectors)))
-        n_G_vectors = reshape(n_G_vectors, n_kpts * n_spin)
-    else
-        n_G_vectors = nothing
-    end
-    n_G_vectors = scatter_kpts(n_G_vectors, basis)
-
-    if mpi_master()
-        ψ = jld["ψ"]
-        permutedims(ψ, reverse(1:ndims(ψ)))
-        ψ = reshape(ψ, n_G_max, n_bands, n_kpts * n_spin)
-        ψ = collect(eachslice(ψ, dims=3))
-    else
-        ψ = nothing
-    end
-    ψ_padded = scatter_kpts(ψ, basis)
-    scfdict[:ψ] = [ψk_padded[1:n_Gk, :] for (n_Gk, ψk_padded) in zip(n_G_vectors, ψ_padded)]
+    #
 
     if !skip_hamiltonian
         energies, ham = DFTK.energy_hamiltonian(basis, scfdict[:ψ], scfdict[:occupation];

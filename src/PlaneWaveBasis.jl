@@ -549,8 +549,7 @@ Gather the distributed data of a quantity depending on `k`-Points on the master 
 and return it. On the other (non-master) processes `nothing` is returned.
 """
 function gather_kpts(data::AbstractArray, basis::PlaneWaveBasis)
-    # This function does not handle the self-communication case properly
-    @assert basis.comm_kpts != MPI.COMM_SELF
+    mpi_nprocs(basis.comm_kpts) == 1 && return data
 
     master = tag = 0
     n_kpts = sum(length, basis.krange_allprocs)
@@ -558,8 +557,9 @@ function gather_kpts(data::AbstractArray, basis::PlaneWaveBasis)
         allk_data = similar(data, n_kpts)
         allk_data[basis.krange_allprocs[1]] = data
         for rank = 1:mpi_nprocs(basis.comm_kpts)-1  # Note: MPI ranks are 0-based
-            # TODO Could save some memory by using in-place recv!
+            # TODO Could save some memory by using in-place Recv!
             #      Could save some time by using asynchronous operations
+            #      Maybe we can also use the built-in MPI.gather
             rk_data, status = MPI.recv(basis.comm_kpts, MPI.Status; source=rank, tag)
             @assert MPI.Get_error(status) == 0  # all went well
             allk_data[basis.krange_allprocs[rank + 1]] = rk_data
@@ -576,5 +576,12 @@ Scatter the data of a quantity depending on `k`-Points from the master process
 to the child processes. On non-master processes `nothing` may be passed.
 """
 function scatter_kpts(data::Union{Nothing,AbstractArray}, basis::PlaneWaveBasis)
-    # TODO
+    mpi_nprocs(basis.comm_kpts) == 1 && return data
+    if mpi_master()
+        splitted_data = [data[basis.krange_allprocs[rank]]
+                         for rank in 1:mpi_nprocs(basis.comm_kpts)]
+    else
+        splitted_data = nothing
+    end
+    MPI.scatter(splitted_data, basis.comm_kpts)
 end

@@ -156,10 +156,14 @@ function todict!(dict, basis::PlaneWaveBasis)
     dict["dvol"]         = basis.dvol
     dict["Ecut"]         = basis.Ecut
     dict["variational"]  = basis.variational
-    dict["symmetries_rotations"]    = [symop.W for symop in basis.symmetries]
-    dict["symmetries_translations"] = [symop.w for symop in basis.symmetries]
     dict["symmetries_respect_rgrid"] = basis.symmetries_respect_rgrid
     dict["use_symmetries_for_kpoint_reduction"] = basis.use_symmetries_for_kpoint_reduction
+
+    # Update the symmetry as discretisation might have broken some symmetries
+    delete!(dict, "symmetries_rotations")
+    delete!(dict, "symmetries_translations")
+    dict["symmetries_rotations"]    = [symop.W for symop in basis.symmetries]
+    dict["symmetries_translations"] = [symop.w for symop in basis.symmetries]
 
     dict
 end

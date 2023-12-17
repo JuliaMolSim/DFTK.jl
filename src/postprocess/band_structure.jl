@@ -168,15 +168,26 @@ still return a dictionary (to simplify code in calling locations),
 but the data may be dummy.
 
 Some details on the conventions for the returned data:
-- εF: Computed Fermi level (if present in band_data)
-- labels: A mapping of high-symmetry k-Point labels to the index in
+- `εF`: Computed Fermi level (if present in band_data)
+- `labels`: A mapping of high-symmetry k-Point labels to the index in
   the `"kcoords"` vector of the corresponding k-Point.
-- eigenvalues, eigenvalues_error, occupation, residual_norms:
-  (n_spin, n_kpoints, n_bands) arrays of the respective data.
-- n_iter: (n_spin, n_kpoints) array of the number of iterations the
-  diagonalisation routine required.
+- `eigenvalues`, `eigenvalues_error`, `occupation`, `residual_norms`:
+  `(n_bands, n_kpoints, n_spin)` arrays of the respective data.
+- `n_iter`: `(n_kpoints, n_spin)` array of the number of iterations the
+  diagonalization routine required.
+- `ψ`: `(max_n_G, n_bands, n_kpoints, n_spin)` arrays where `max_n_G` is the maximal
+  number of G-vectors used for any k-point. The data is zero-padded, i.e.
+  for k-points which have less G-vectors than max_n_G, then there are
+  tailing zeros.
+- `kpt_n_G_vectors`: `(n_kpoints, n_spin)` array, the number of valid G-vectors
+  for each k-points, i.e. the extend along the first axis of `ψ` where data
+  is valid.
+- `kpt_G_vectors`: `(3, max_n_G, n_kpoints, n_spin)` array of the integer
+  (reduced) coordinates of the G-points used for each k-point.
 """
-band_data_to_dict(band_data::NamedTuple) = band_data_to_dict!(Dict{String,Any}(), band_data)
+function band_data_to_dict(band_data::NamedTuple; save_ψ=false)
+    band_data_to_dict!(Dict{String,Any}(), band_data; save_ψ)
+end
 function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false)
     # TODO Quick and dirty solution for now.
     #      The better would be to have a BandData struct and use
@@ -192,7 +203,6 @@ function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false)
     if !isnothing(band_data.εF)
         dict["εF"] = band_data.εF
     end
-
     if haskey(band_data, :kinter)
         dict["labels"] = map(band_data.kinter.labels) do labeldict
             Dict(k => string(v) for (k, v) in pairs(labeldict))
@@ -206,8 +216,7 @@ function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false)
             if T <: AbstractArray
                 value = reduce((v, w) -> cat(v, w; dims=(ndims(T) + 1)), value)
             end
-            reshaped = reshape(value, reverse(shape)...)
-            out = permutedims(reshaped, reverse(1:length(shape)))
+            reshape(value, shape)
         else
             similar(data, zeros(Int, length(shape))...)
         end
@@ -215,23 +224,23 @@ function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false)
     for key in (:eigenvalues, :eigenvalues_error, :occupation)
         if hasproperty(band_data, key) && !isnothing(getproperty(band_data, key))
             dict[string(key)] = gather_and_reshape(getproperty(band_data, key),
-                                                   (n_spin, n_kpoints, n_bands))
+                                                   (n_bands, n_kpoints, n_spin))
         end
     end
 
     diagonalization = make_subdict!(dict, "diagonalization")
     diag_n_iter = sum(diag -> diag.n_iter, band_data.diagonalization)
-    diagonalization["n_iter"] = gather_and_reshape(diag_n_iter, (n_spin, n_kpoints))
+    diagonalization["n_iter"] = gather_and_reshape(diag_n_iter, (n_kpoints, n_spin))
 
     diag_resid  = last(band_data.diagonalization).residual_norms
     diagonalization["residual_norms"] = gather_and_reshape(diag_resid,
-                                                           (n_spin, n_kpoints, n_bands))
+                                                           (n_bands, n_kpoints, n_spin))
 
     if save_ψ
         # Store ψ using the largest rectangular grid on which all bands can live
         (; ψ, n_G_vectors, max_n_G) = blockify_ψ(band_data.basis, band_data.ψ)
-        dict["kpt_n_G_vectors"] = gather_and_reshape(n_G_vectors, (n_spin, n_kpoints))
-        dict["ψ"] = gather_and_reshape(ψ, (n_spin, n_kpoints, n_bands, max_n_G))
+        dict["kpt_n_G_vectors"] = gather_and_reshape(n_G_vectors, (n_kpoints, n_spin))
+        dict["ψ"] = gather_and_reshape(ψ, (max_n_G, n_bands, n_kpoints, n_spin))
 
         # Store additionally the actually employed G vectors
         kpt_G_vectors = map(band_data.basis.kpoints) do kpt
@@ -242,7 +251,7 @@ function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false)
             Gs_full
         end
         dict["kpt_G_vectors"] = gather_and_reshape(kpt_G_vectors,
-                                                   (n_spin, n_kpoints, max_n_G, 3))
+                                                   (3, max_n_G, n_kpoints, n_spin))
     end
 
     dict

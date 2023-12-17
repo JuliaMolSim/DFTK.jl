@@ -18,9 +18,20 @@ function gather_kpts_scfres(scfres::NamedTuple)
 end
 
 """
+Convert a band computational result to a dictionary representation.
+Intended to give a condensed set of results and useful metadata
+for post processing. See also the [`todict`](@ref) function
+for the [`Model`](@ref) and the [`PlaneWaveBasis`](@ref) as well as
+the [`band_data_to_dict`](@ref) functions, which are called by this
+function and their outputs merged. Only the master process
+returns meaningful data.
 
+Some details on the conventions for the returned data:
 - ρ: (fft_size[1], fft_size[2], fft_size[3], n_spin) array of density
   on real-space grid.
+
+TODO more docs
+
 """
 scfres_to_dict(scfres::NamedTuple) = scfres_to_dict!(Dict{String,Any}(), scfres)
 function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true)
@@ -29,11 +40,10 @@ function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true)
     band_data_to_dict!(dict, scfres; save_ψ)
 
     # These are either already done above or will be ignored or dealt with below.
-    special = (:ham, :basis, :energies, :ρ, :ψ, :eigenvalues, :occupation, :εF)
+    special = (:ham, :basis, :energies,
+               :ρ, :ψ, :eigenvalues, :occupation, :εF, :diagonalization)
     propmap = Dict(:α => :damping, )  # compatibility mapping
     if mpi_master()
-        @warn("Consider changing the axis permutation to make spin also the *first*" *
-              "axis for the density")
         dict["ρ"] = scfres.ρ
         energies = make_subdict!(dict, "energies")
         for (key, value) in todict(scfres.energies)
@@ -78,7 +88,7 @@ this, set `skip_hamiltonian=true`.
     if !(ext in (:jld2, :hdf5))
         error("Extension '$ext' not supported by DFTK.")
     end
-    load_scfres(Val(ext). filename, basis; skip_hamiltonian)
+    load_scfres(Val(ext), filename, basis; skip_hamiltonian)
 end
 function load_scfres(::Any, filename::AbstractString; kwargs...)
     error("The extension $(last(splitext(filename))) is currently not available. " *
