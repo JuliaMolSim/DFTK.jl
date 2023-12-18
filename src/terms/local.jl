@@ -66,7 +66,7 @@ function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
     pot_fourier = map(G_vectors_cart(basis)) do G
         convert_dual(complex(T), external.potential(G) / sqrt(unit_cell_volume))
     end
-    real_enforced!(basis, pot_fourier)  # Symmetrize Fourier coeffs to have real iFFT
+    real_enforced!(pot_fourier, basis)  # Symmetrize Fourier coeffs to have real iFFT
     TermExternal(irfft(basis, pot_fourier))
 end
 
@@ -117,7 +117,7 @@ function compute_local_potential(S, basis::PlaneWaveBasis{T}; positions=basis.mo
         pot / sqrt(model.unit_cell_volume)
     end
 
-    iszero(q) && real_enforced!(basis, pot_fourier)  # Symmetrize coeffs to have real iFFT
+    iszero(q) && real_enforced!(pot_fourier, basis)  # Symmetrize coeffs to have real iFFT
     ifft(S, basis, to_device(basis.architecture, pot_fourier))
 end
 (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T} =
