@@ -10,12 +10,14 @@ function save_jld2(to_dict_function!, file::AbstractString, scfres::NamedTuple;
     if mpi_master()
         JLD2.jldopen(file, "w") do jld
             to_dict_function!(jld, scfres; save_ψ)
-            delete!(jld, "kgrid")
-            jld["kgrid"] = scfres.basis.kgrid  # Save original kgrid datastructure
-            jld["model"] = scfres.basis.model  # Save original model datastructure
             for (k, v) in pairs(extra_data)
                 jld[k] = v
             end
+
+            # Save some original datastructures (where JLD2 can easily preserve more)
+            jld["model"] = scfres.basis.model  # Save original model datastructure
+            delete!(jld, "kgrid")
+            jld["kgrid"] = scfres.basis.kgrid  # Save original kgrid datastructure
         end
     else
         dummy = Dict{String,Any}()
@@ -61,9 +63,26 @@ function DFTK.load_scfres(::Val{:jld2}, filename::AbstractString, basis=nothing;
     scfres
 end
 function load_scfres_jld2(jld, basis; skip_hamiltonian)
+    basisok = false
     if isnothing(basis)
         basis = load_basis(jld)
+        basisok = true
+    elseif mpi_master()
+        # Check custom basis for consistency with the data extracted here
+        if !(basis.architecture isa DFTK.CPU)  # TODO Else need to put things on the GPU
+            error("Only CPU architectures supported for now.")
+        end
+        if jld["fft_size"] != basis.fft_size
+            error("Mismatch in fft_size between file ($(jld["fft_size"])) " *
+                  "and supplied basis ($(basis.fft_size))")
+        end
+        if jld["n_kpoints"] != length(basis.kgrid)
+            error("Mismatch in number of k-points between file ($(jld["n_kpoints"])) " *
+                  "and supplied basis ($(length(basis.kgrid)))")
+        end
+        basisok = true
     end
+    basisok || error("Basis not consistent")
 
     propmap = Dict(:damping => :α, )  # compatibility mapping
     if mpi_master()
@@ -78,13 +97,17 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian)
         scfdict = nothing
     end
     scfdict = MPI.bcast(scfdict, 0, MPI.COMM_WORLD)
+    scfdict[:basis] = basis
 
-    function reshape_and_scatter(data)
+    function reshape_and_scatter(jld, key)
         if mpi_master()
+            # TODO Performance improvement by reading the jld file in chunks ?
+            #      would for sure lower the memory footprint with many k-points
+            data = jld[key]
             n = ndims(data)
             value = reshape(data, size(data)[1:n-2]..., size(data, n-1) * size(data, n))
             if ndims(value) > 1
-                value = collect(eachslice(value, dims=n-1))
+                value = [Array(s) for s in eachslice(value, dims=n-1)]
             end
         else
             value = nothing
@@ -92,25 +115,28 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian)
         DFTK.scatter_kpts(value, basis)
     end
 
-    # TODO Check if this Array.( ... ) is really needed. My suspicion is
-    #      otherwise one gets a view here.
-    scfdict[:eigenvalues] = Array.(reshape_and_scatter(jld["eigenvalues"]))
-    scfdict[:occupation]  = Array.(reshape_and_scatter(jld["occupation"]))
+    # TODO Could also reconstruct diagonalization data structure
 
-    n_G_vectors = reshape_and_scatter(jld["kpt_n_G_vectors"])
-    ψ_padded = reshape_and_scatter(jld["ψ"])
-    scfdict[:ψ] = map(n_G_vectors, ψ_padded) do n_Gk, ψk_padded
-        ψk_padded[1:n_Gk, :]
+    scfdict[:eigenvalues] = reshape_and_scatter(jld, "eigenvalues")
+    scfdict[:occupation]  = reshape_and_scatter(jld, "occupation")
+
+    has_ψ = mpi_master() ? haskey(jld, "ψ") : nothing
+    has_ψ = MPI.bcast(has_ψ, 0, MPI.COMM_WORLD)
+    if has_ψ
+        n_G_vectors = reshape_and_scatter(jld, "kpt_n_G_vectors")
+
+        basisok = all(n_G_vectors[ik] == length(DFTK.G_vectors(basis, kpt))
+                      for (ik, kpt) in enumerate(basis.kpoints))
+        basisok = DFTK.mpi_min(basisok, basis.comm_kpts)
+        basisok || error("Mismatch in number of G-vectors per k-point.")
+
+        ψ_padded = reshape_and_scatter(jld, "ψ")
+        scfdict[:ψ] = map(n_G_vectors, ψ_padded) do n_Gk, ψk_padded
+            ψk_padded[1:n_Gk, :]
+        end
     end
 
-    #
-    # TODO Put on the GPU if needed
-    #
-    # TODO Check custom basis for consistency with the data extracted here
-    #      Make the next lines less repetitive
-    #
-
-    if !skip_hamiltonian
+    if !skip_hamiltonian && has_ψ
         energies, ham = DFTK.energy_hamiltonian(basis, scfdict[:ψ], scfdict[:occupation];
                                                 ρ=scfdict[:ρ],
                                                 eigenvalues=scfdict[:eigenvalues],

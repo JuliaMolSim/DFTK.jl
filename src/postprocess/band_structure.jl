@@ -214,6 +214,12 @@ function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false)
         value = gather_kpts(data, band_data.basis)
         if mpi_master()
             if T <: AbstractArray
+                # TODO This is quite memory intensive. This could be avoided
+                #      if we pass also the dict and the key to this function
+                #      and use a custom function to emplace the data chunk-wise.
+                #      On a dict this here is the best we can do, but for HDF5
+                #      and JLD2 creating the dataset and writing chunk-wise
+                #      would avoid some copies.
                 value = reduce((v, w) -> cat(v, w; dims=(ndims(T) + 1)), value)
             end
             reshape(value, shape)
@@ -231,6 +237,10 @@ function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false)
     diagonalization = make_subdict!(dict, "diagonalization")
     diag_n_iter = sum(diag -> diag.n_iter, band_data.diagonalization)
     diagonalization["n_iter"] = gather_and_reshape(diag_n_iter, (n_kpoints, n_spin))
+    diagonalization["n_matvec"] = mpi_sum(sum(diag -> diag.n_matvec, band_data.diagonalization),
+                                          band_data.basis.comm_kpts)
+    diagonalization["converged"] = mpi_min(last(band_data.diagonalization).converged,
+                                           band_data.basis.comm_kpts)
 
     diag_resid  = last(band_data.diagonalization).residual_norms
     diagonalization["residual_norms"] = gather_and_reshape(diag_resid,

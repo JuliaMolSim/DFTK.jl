@@ -2,6 +2,7 @@ module DFTKWriteVTKExt
 using WriteVTK
 using DFTK
 using DFTK: gather_kpts
+using Printf
 
 function DFTK.save_scfres(::Val{:vts}, filename::AbstractString, scfres::NamedTuple;
                           save_ψ=false, extra_data=Dict{String,Any}())
