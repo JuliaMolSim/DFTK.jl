@@ -117,8 +117,12 @@ function compute_local_potential(S, basis::PlaneWaveBasis{T}; positions=basis.mo
         pot / sqrt(model.unit_cell_volume)
     end
 
-    iszero(q) && real_enforced!(pot_fourier, basis)  # Symmetrize coeffs to have real iFFT
-    ifft(S, basis, to_device(basis.architecture, pot_fourier))
+    if iszero(q)
+        real_enforced!(pot_fourier, basis)  # Symmetrize coeffs to have real iFFT
+        return irfft(basis, to_device(basis.architecture, pot_fourier))
+    else
+        return ifft(basis, to_device(basis.architecture, pot_fourier))
+    end
 end
 (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T} =
     TermAtomicLocal(compute_local_potential(T, basis))
@@ -132,6 +136,7 @@ end
     model = basis.model
     recip_lattice = model.recip_lattice
     ρ_fourier = fft(basis, total_density(ρ))
+    real_ifSreal = S <: Real ? real : identity
 
     # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
     # where struct_factor(G) = e^{-i G·r}
@@ -142,12 +147,11 @@ end
                         for G in G_vectors(basis)]
         for idx in group
             r = model.positions[idx]
-            forces[idx] = -convert_enforced(S,
-                              sum(conj(ρ_fourier[iG])
-                                       * form_factors[iG]
-                                       * cis2pi(-dot(G + q, r))
-                                       * (-2T(π)) * (G + q) * im
-                                       / sqrt(model.unit_cell_volume)
+            forces[idx] = -real_ifSreal(sum(conj(ρ_fourier[iG])
+                                        * form_factors[iG]
+                                        * cis2pi(-dot(G + q, r))
+                                        * (-2T(π)) * (G + q) * im
+                                        / sqrt(model.unit_cell_volume)
                                   for (iG, G) in enumerate(G_vectors(basis))))
         end
     end

@@ -41,7 +41,7 @@ function compute_poisson_green_coeffs(basis::PlaneWaveBasis{T}, scaling_factor;
         real_enforced!(poisson_green_coeffs, basis)
     end
     poisson_green_coeffs = to_device(basis.architecture, poisson_green_coeffs)
-    return scaling_factor .* poisson_green_coeffs
+    scaling_factor .* poisson_green_coeffs
 end
 function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
     poisson_green_coeffs = compute_poisson_green_coeffs(basis, scaling_factor)
@@ -70,12 +70,13 @@ function apply_kernel(term::TermHartree, basis::PlaneWaveBasis{T}, δρ::Abstrac
                       q=zero(Vec3{T}), kwargs...) where {T, Tδρ}
     δV = zero(δρ)
     δρtot = total_density(δρ)
-    coeffs = if iszero(q)
-        # We have the information in memory.
-        term.poisson_green_coeffs
+    if iszero(q)
+        # Note broadcast here: δV is 4D, and all its spin components get the same potential.
+        δV .= irfft(basis, term.poisson_green_coeffs * fft(basis, δρtot))
     else
-        compute_poisson_green_coeffs(basis, term.scaling_factor; q)
+        # Coefficients with q != 0 not in memory => recompute
+        coeffs = compute_poisson_green_coeffs(basis, term.scaling_factor; q)
+        δV .= ifft(basis, coeffs .* fft(basis, δρtot))
     end
-    # Note broadcast here: δV is 4D, and all its spin components get the same potential.
-    δV .= ifft(Tδρ, basis, coeffs .* fft(basis, δρtot))
+    δV
 end

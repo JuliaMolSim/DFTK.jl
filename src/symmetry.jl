@@ -317,8 +317,8 @@ end
 """
 Symmetrize a density by applying all the basis (by default) symmetries and forming the average.
 """
-@views @timing function symmetrize_ρ(basis, ρ::AbstractArray{T}; symmetries=basis.symmetries,
-                                     do_lowpass=true) where {T}
+@views @timing function symmetrize_ρ(basis, ρ::AbstractArray{T};
+                                     symmetries=basis.symmetries, do_lowpass=true) where {T}
     ρin_fourier  = to_cpu(fft(basis, ρ))
     ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρ, 4)
@@ -326,7 +326,8 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
                                     ρin_fourier[:, :, :, σ], basis, symmetries)
         do_lowpass && lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
     end
-    ifft(T, basis, to_device(basis.architecture, ρout_fourier) ./ length(symmetries))
+    inv_fft = T <: Real ? irfft : ifft
+    inv_fft(basis, to_device(basis.architecture, ρout_fourier) ./ length(symmetries))
 end
 
 """

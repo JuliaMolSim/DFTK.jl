@@ -56,6 +56,7 @@ end
     Tψ = promote_type(T, eltype(ψ[1]))
     # δρ is expected to be real when computations are not phonon-related.
     Tδρ = iszero(q) ? real(Tψ) : Tψ
+    real_qzero = iszero(q) ? real : identity
 
     ordering(kdata) = kdata[k_to_equivalent_kpq_permutation(basis, q)]
 
@@ -83,7 +84,7 @@ end
         #   |ψ_nk|² is 2 ψ_{n,k} * δψ_{n,k+q}.
         ifft!(storage.δψnk_real, basis, kpt_plus_q, δψk_plus_q[:, n])
 
-        storage.δρ[:, :, :, kpt.spin] .+= convert_enforced(Tδρ,
+        storage.δρ[:, :, :, kpt.spin] .+= real_qzero(
             2 .* occupation[ik][n] .* basis.kweights[ik] .* conj(storage.ψnk_real)
                                                          .* storage.δψnk_real
                 .+ δoccupation[ik][n] .* basis.kweights[ik] .* abs2.(storage.ψnk_real))

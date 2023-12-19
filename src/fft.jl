@@ -65,10 +65,6 @@ silently drops the imaginary part.
 function irfft(basis::PlaneWaveBasis{T}, f_fourier::AbstractArray) where {T}
     real(ifft(basis, f_fourier))
 end
-# Force iFFT to be casted to type T.
-function ifft(T, basis::PlaneWaveBasis, f_fourier::AbstractArray)
-    convert_enforced(T, ifft(basis, f_fourier))
-end
 
 
 @doc raw"""

@@ -89,7 +89,7 @@ struct ElementPsp <: Element
 end
 function Base.show(io::IO, el::ElementPsp)
     pspid = isempty(el.psp.identifier) ? "custom" : el.psp.identifier
-    if el.mass === atomic_mass(el)
+    if el.mass == atomic_mass(el)
         print(io, "ElementPsp($(el.symbol); psp=\"$pspid\")")
     else
         print(io, "ElementPsp($(el.symbol); psp=\"$pspid\", mass=\"$(el.mass)\")")
