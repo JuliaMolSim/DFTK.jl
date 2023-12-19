@@ -226,22 +226,24 @@ end
 @testitem "AbstractSystem (atomic mass consistency)" begin
     using DFTK: parse_system
     using AtomsIO
-    filename = tempname() * ".cif"
-    open(filename, "w") do io
-        write(io, "data_image0 \
-                   _cell_length_a       10 \
-                   _cell_length_b       10 \
-                   _cell_length_c       10 \
-                   _cell_angle_alpha    90 \
-                   _cell_angle_beta     90 \
-                   _cell_angle_gamma    90 \
-                   loop_ \
-                     _atom_site_type_symbol \
-                     _atom_site_label \
-                     Fe  Fe \
-                     W   W")
+    system = mktempdir() do tmpdir
+        filename = joinpath(tmpdir, "WFe.cif")
+        open(filename, "w") do io
+            write(io, "data_image0 \
+                       _cell_length_a       10 \
+                       _cell_length_b       10 \
+                       _cell_length_c       10 \
+                       _cell_angle_alpha    90 \
+                       _cell_angle_beta     90 \
+                       _cell_angle_gamma    90 \
+                       loop_ \
+                         _atom_site_type_symbol \
+                         _atom_site_label \
+                         Fe  Fe \
+                         W   W")
+        end
+        load_system(filename)
     end
-    system = load_system(filename)
     # Warning due to rounding of atomic masses by the parser.
     @test_warn "Some atomic masses differ" parse_system(system)
 end
