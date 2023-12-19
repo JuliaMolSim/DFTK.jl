@@ -230,7 +230,7 @@ function kpq_equivalent_blochwave_to_kpq(basis, kpt, q, ψk_plus_q_equivalent)
     index, ΔG = find_equivalent_kpt(basis, kcoord_plus_q, kpt.spin)
     equivalent_kpt_plus_q = basis.kpoints[index]
 
-    kpt_plus_q = build_kpoints(basis, [kcoord_plus_q])[kpt.spin]
+    kpt_plus_q = Kpoint(basis, kcoord_plus_q, kpt.spin)
     (; kpt=kpt_plus_q,
      ψk=transfer_blochwave_kpt(ψk_plus_q_equivalent, basis, equivalent_kpt_plus_q,
                                kpt_plus_q, -ΔG))

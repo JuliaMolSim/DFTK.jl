@@ -234,8 +234,8 @@ function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
         all(isinteger, basis.kpoints[idx].coordinate - Sk)
     end
     if isnothing(ikfull)
-        # Build a new k-point datastructure:
-        Skpoint = build_kpoints(basis, [Sk])[1]
+        # Build new k-point datastructure
+        Skpoint = Kpoint(basis, Sk, kpoint.spin)
     else
         Skpoint = basis.kpoints[ikfull]
         @assert Skpoint.coordinate ≈ Sk
