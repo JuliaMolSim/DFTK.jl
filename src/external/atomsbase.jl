@@ -30,12 +30,6 @@ function parse_system(system::AbstractSystem{D}) where {D}
         end
     end
 
-    dftk_atomic_masses = getfield.(element.(getfield.(atoms, :symbol)), :atomic_mass)
-    if (atomic_mass(system) != dftk_atomic_masses)
-        @warn "Some atomic masses differ from the default ones; they may come from \
-               rounding error from the external parser."
-    end
-
     positions = map(system) do atom
         coordinate = zeros(T, 3)
         coordinate[1:D] = lattice[1:D, 1:D] \ T.(austrip.(position(atom)))
