@@ -157,7 +157,7 @@ end
     kpoints_spin_1 = [Kpoint(1, k, model.recip_lattice, fft_size, Ecut;
                              variational, architecture)
                       for k in kcoords]
-    all_kpoints = Kpoint[]
+    all_kpoints = similar(kpoints_spin_1, 0)
     for iσ = 1:model.n_spin_components
         for kpt in kpoints_spin_1
             push!(all_kpoints, Kpoint(iσ, kpt.coordinate,
