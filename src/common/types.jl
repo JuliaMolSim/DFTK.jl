@@ -5,7 +5,7 @@ using StaticArrays: setindex
 # in Model and PlaneWaveBasis) from e.g. an interval or a dual type.
 value_type(T) = T
 # Lossy: force interpretation of value as a determined type.
-convert_enforced(::Type{T}, x) where {T <: Real} = real(x)
+convert_enforced(::Type{T}, x) where {T <: Real}    = real(x)
 convert_enforced(::Type{T}, x) where {T <: Complex} = x
 
 # Frequently-used array types

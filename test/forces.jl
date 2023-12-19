@@ -11,7 +11,8 @@
         basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0],
                                symmetries_respect_rgrid=true,
                                fft_size=(18, 18, 18))  # FFT chosen to match QE
-        scfres = self_consistent_field(basis; tol=1e-11)
+        is_converged = DFTK.ScfConvergenceDensity(1e-11)
+        scfres = self_consistent_field(basis; is_converged)
         scfres.energies.total, compute_forces(scfres), compute_forces_cart(scfres)
     end
 
@@ -57,7 +58,8 @@ end
         basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0],
                                symmetries_respect_rgrid=true,
                                fft_size=(18, 18, 18))  # FFT chosen to match QE
-        scfres = self_consistent_field(basis; tol=1e-11)
+        is_converged = DFTK.ScfConvergenceDensity(1e-11)
+        scfres = self_consistent_field(basis; is_converged)
         scfres.energies.total, compute_forces(scfres), compute_forces_cart(scfres)
     end
 
@@ -100,7 +102,7 @@ end
         model  = model_DFT(silicon.lattice, silicon.atoms, positions, :lda_xc_teter93;
                            temperature=0.03, smearing, spin_polarization=:collinear)
         basis  = PlaneWaveBasis(model; Ecut=4, kgrid=[4, 1, 2], kshift=[1/2, 0, 0])
-        scfres = self_consistent_field(basis; tol=5e-10)
+        scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(5e-10))
         scfres.energies.total, compute_forces(scfres)
     end
 
@@ -133,8 +135,10 @@ end
                           temperature=0.02, smearing=Smearing.Gaussian(), magnetic_moments)
         basis = PlaneWaveBasis(model; Ecut=4, kgrid=[1, 1, 1])
 
-        scfres = self_consistent_field(basis; ρ=guess_density(basis, magnetic_moments),
-                                       tol=1e-7, damping=0.7, mixing=SimpleMixing())
+        scfres = self_consistent_field(basis;
+                                       is_converged=DFTK.ScfConvergenceDensity(1e-7),
+                                       ρ=guess_density(basis, magnetic_moments),
+                                       damping=0.7, mixing=SimpleMixing())
         scfres.energies.total, compute_forces(scfres)
     end
 

@@ -206,7 +206,8 @@ struct ElementGaussian <: Element
     symbol::Symbol  # Element symbol
 end
 AtomsBase.atomic_symbol(el::ElementGaussian) = el.symbol
-AtomsBase.atomic_mass(::ElementGaussian) = nothing  # forces user to chose a mass
+# TODO: maybe to zero mass. Now: forces user to chose a mass.
+AtomsBase.atomic_mass(::ElementGaussian) = nothing
 
 """
 Element interacting with electrons via a Gaussian potential.

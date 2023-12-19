@@ -75,7 +75,8 @@ end
                           temperature=1e-2, smearing=Smearing.Gaussian())
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 
-        scfres = self_consistent_field(basis; tol=1e-10, mixing=KerkerMixing(),
+        is_converged = DFTK.ScfConvergenceDensity(1e-10)
+        scfres = self_consistent_field(basis; is_converged, mixing=KerkerMixing(),
                                        nbandsalg=FixedBands(; n_bands_converge=10),
                                        damping=0.6, response=ResponseOptions(; verbose=true))
 
@@ -113,7 +114,8 @@ end
         model = model_DFT(Matrix{T}(silicon.lattice), silicon.atoms, pos, [pbex, pbec])
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 
-        scfres = self_consistent_field(basis; tol=1e-10,
+        is_converged = DFTK.ScfConvergenceDensity(1e-10)
+        scfres = self_consistent_field(basis; is_converged,
                                        response=ResponseOptions(; verbose=true))
         compute_forces_cart(scfres)
     end
@@ -157,7 +159,8 @@ end
                       n_electrons, terms, spin_polarization=:spinless)
         basis = PlaneWaveBasis(model; Ecut=500, kgrid=(1, 1, 1))
         ρ = zeros(Float64, basis.fft_size..., 1)
-        scfres = self_consistent_field(basis; ρ, tol=1e-10,
+        is_converged = DFTK.ScfConvergenceDensity(1e-10)
+        scfres = self_consistent_field(basis; ρ, is_converged,
                                        response=ResponseOptions(; verbose=true))
         compute_forces_cart(scfres)
     end
