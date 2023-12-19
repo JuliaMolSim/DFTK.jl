@@ -1,4 +1,4 @@
-@testitem "Test AtomsCalculators energy and forces interface" tags=[:dont_test_mpi, :dont_test_windows] setup=[TestCases] begin
+@testitem "Test AtomsCalculators energy and forces interface" setup=[TestCases] begin
     using DFTK
     using AtomsBase
     using AtomsCalculators
@@ -7,9 +7,9 @@
     # Converto to AtomsBase system
     silicon = periodic_system(silicon.lattice, silicon.atoms, silicon.positions)
     
-    model_kwargs = (; functionals = [:lda_x, :lda_c_pw])
-    basis_kwargs = (; kgrid = [4, 4, 4], Ecut = 5.0)
-    scf_kwargs = (; tol = 1e-7)
+    model_kwargs = (; functionals=[:lda_x, :lda_c_pw])
+    basis_kwargs = (; kgrid=[4, 4, 4], Ecut=5.0)
+    scf_kwargs = (; tol=1e-7)
     calculator = DFTKCalculator(silicon; model_kwargs, basis_kwargs, scf_kwargs)
 
     energy = AtomsCalculators.potential_energy(silicon, calculator)

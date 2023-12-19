@@ -35,12 +35,12 @@ end
 
 Base.@kwdef mutable struct DFTKCalculator
     params::DFTKParameters
-    state::DFTKState = nothing
+    state::DFTKState
 end
 
-function DFTKCalculator(system; state=nothing, verbose_scf=false, model_kwargs, basis_kwargs, scf_kwargs)
-    if !verbose_scf
-        scf_kwargs = merge(scf_kwargs, (;callback = identity))
+function DFTKCalculator(system; state=nothing, verbose=false, model_kwargs, basis_kwargs, scf_kwargs)
+    if !verbose
+        scf_kwargs = merge(scf_kwargs, (;callback=identity))
     end
     params = DFTKParameters(;model_kwargs, basis_kwargs, scf_kwargs)
 
@@ -53,24 +53,25 @@ end
 
 AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
         system::AbstractSystem, calculator::DFTKCalculator; state = calculator.state)
-    # Update basis (and the enregy terms within).
+    # Update basis (and the energy terms within).
     basis = prepare_basis(system, calculator.params)
     
     # Note that we use the state's densities and orbitals, but change the basis 
     # to reflect system changes.
     scfres = self_consistent_field(basis;
-                    state.scfres.ρ, state.scfres.ψ, calculator.params.scf_kwargs...)
+                                   state.scfres.ρ, state.scfres.ψ,
+                                   calculator.params.scf_kwargs...)
     calculator.state = DFTKState(scfres)
     calculator.state.scfres.energies.total
 end
     
 AtomsCalculators.@generate_interface function AtomsCalculators.forces(
         system::AbstractSystem, calculator::DFTKCalculator; state = calculator.state)
-    # Update basis (and the enregy terms within).
     basis = prepare_basis(system, calculator.params)
     
     scfres = self_consistent_field(basis;
-                    state.scfres.ρ, state.scfres.ψ, calculator.params.scf_kwargs...)
+                                   state.scfres.ρ, state.scfres.ψ,
+                                   calculator.params.scf_kwargs...)
     calculator.state = DFTKState(scfres)
     compute_forces_cart(calculator.state.scfres)
 end
