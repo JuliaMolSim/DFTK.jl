@@ -1,4 +1,5 @@
 import Roots
+#import MPI
 
 # Functions for finding the Fermi level and occupation numbers for bands
 # The goal is to find εF so that
@@ -148,7 +149,7 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
 
     all_eigenvalues = sort(vcat(eigenvalues...))
 
-    # Bissection method to find  the index of the eigenvalue such that excess_n_electrons = 0
+    # Bisection method to find the index of the eigenvalue such that excess_n_electrons = 0
     i_min = 1
     i_max = length(all_eigenvalues)
 
@@ -167,7 +168,9 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
         εF = 1/2*(all_eigenvalues[i_min]+all_eigenvalues[i_max])
     end
 
-    if !allequal(compute_occupation(basis, eigenvalues, εF; temperature, smearing).occupation)
+    occ = compute_occupation(basis, eigenvalues, εF; temperature, smearing).occupation
+    merged_spin_occupations = sum([occ[krange_spin(basis, i)] for i in 1:basis.model.n_spin_components])
+    if !allequal(merged_spin_occupations)
         @warn("Not all kpoints have the same number of occupied states, which could mean "*
               "that a metallic system is treated at zero temperature.")
     end
