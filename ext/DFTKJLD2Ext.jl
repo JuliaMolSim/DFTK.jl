@@ -76,15 +76,15 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian)
             error("Mismatch in fft_size between file ($(jld["fft_size"])) " *
                   "and supplied basis ($(basis.fft_size))")
         end
-        if jld["n_kpoints"] != length(basis.kgrid)
+        if jld["n_kpoints"] != length(basis.kpoints)
             error("Mismatch in number of k-points between file ($(jld["n_kpoints"])) " *
-                  "and supplied basis ($(length(basis.kgrid)))")
+                  "and supplied basis ($(length(basis.kpoints)))")
         end
         basisok = true
     end
     basisok || error("Basis not consistent")
 
-    propmap = Dict(:damping => :α, )  # compatibility mapping
+    propmap = Dict(:damping_value => :α, )  # compatibility mapping
     if mpi_master()
         scfdict = Dict{Symbol, Any}(
             :εF => jld["εF"],

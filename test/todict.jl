@@ -2,20 +2,26 @@
 using Test
 using DFTK
 
-function test_dict_agreement(band_data, dict; explicit_reshape=false)
+function test_agreement_bands(band_data, dict; explicit_reshape=false)
     # NOTE: For MPI-parallel tests, this needs to be called on each processor,
     #       but testing only happens on master
 
-    model = band_data.basis.model
-    n_kpoints = length(band_data.basis.kcoords_global)
+    basis = band_data.basis
+    model = basis.model
+    n_kpoints = length(basis.kcoords_global)
     n_spin    = model.n_spin_components
     n_bands   = length(band_data.eigenvalues[1])
+    max_n_G   = DFTK.mpi_max(maximum(kpt -> length(G_vectors(basis, kpt)), basis.kpoints),
+                             basis.comm_kpts)
 
-    all_eigenvalues = DFTK.gather_kpts(band_data.eigenvalues, band_data.basis)
-    all_occupation  = DFTK.gather_kpts(band_data.occupation,  band_data.basis)
-    all_n_iter      = DFTK.gather_kpts(last(band_data.diagonalization).n_iter, band_data.basis)
-    rotations       = [symop.W for symop in band_data.basis.symmetries]
-    translations    = [symop.w for symop in band_data.basis.symmetries]
+    all_kpoints     = DFTK.gather_kpts(basis.kpoints, basis)
+    all_eigenvalues = DFTK.gather_kpts(band_data.eigenvalues, basis)
+    all_occupation  = DFTK.gather_kpts(band_data.occupation,  basis)
+    all_ψ           = DFTK.gather_kpts(band_data.ψ,           basis)
+    all_n_iter      = DFTK.gather_kpts(last(band_data.diagonalization).n_iter, basis)
+    all_resids      = DFTK.gather_kpts(last(band_data.diagonalization).residual_norms, basis)
+    rotations       = [symop.W for symop in basis.symmetries]
+    translations    = [symop.w for symop in basis.symmetries]
 
     function condreshape(data, shape...)
         if explicit_reshape
@@ -29,36 +35,70 @@ function test_dict_agreement(band_data, dict; explicit_reshape=false)
         # Tests that data required downstream (e.g. in Aiida) is present in the dict
         # and behaves as expected.
 
-        @test dict["n_bands"]   == n_bands
-        @test dict["n_kpoints"] == n_kpoints
+        @test dict["n_bands"]           == n_bands
+        @test dict["n_kpoints"]         == n_kpoints
+        @test dict["n_atoms"]           == length(model.atoms)
         @test dict["n_spin_components"] == n_spin
-        @test dict["model_name"]  == model.model_name
-        @test dict["temperature"] ≈  model.temperature  atol=1e-12
-        @test dict["smearing"]    == "$(model.smearing)"
-        @test dict["atomic_symbols"] == map(e -> string(atomic_symbol(e)), model.atoms)
+        @test dict["model_name"]        == model.model_name
+        @test dict["temperature"]       ≈  model.temperature  atol=1e-12
+        @test dict["smearing"]          == "$(model.smearing)"
+        @test dict["atomic_symbols"]    == map(e -> string(atomic_symbol(e)), model.atoms)
         @test dict["atomic_positions"] ≈ model.positions atol=1e-12
         @test dict["εF"]        ≈  band_data.εF  atol=1e-12
-        @test dict["kcoords"]   ≈  band_data.basis.kcoords_global  atol=1e-12
-        @test dict["kweights"]  ≈  band_data.basis.kweights_global atol=1e-12
-        @test dict["Ecut"]      ≈  band_data.basis.Ecut
-        @test [dict["fft_size"]...]  == [band_data.basis.fft_size...]
+        @test dict["kcoords"]   ≈  basis.kcoords_global  atol=1e-12
+        @test dict["kweights"]  ≈  basis.kweights_global atol=1e-12
+        @test dict["Ecut"]      ≈  basis.Ecut
+        @test dict["dvol"]      ≈  basis.dvol atol=1e-12
+        @test [dict["fft_size"]...]  == [basis.fft_size...]
         @test dict["symmetries_translations"] ≈ translations atol=1e-12
+        @test dict["use_symmetries_for_kpoint_reduction"] == basis.use_symmetries_for_kpoint_reduction
+        @test dict["symmetries_respect_rgrid"] == basis.symmetries_respect_rgrid
 
         lattice_resh = condreshape(dict["lattice"], 3, 3)
         rotations_resh = [condreshape(rot, 3, 3) for rot in dict["symmetries_rotations"]]
-        @test lattice_resh ≈ model.lattice atol=1e-12
-        @test rotations_resh ≈ rotations atol=1e-12
+        @test lattice_resh   ≈ model.lattice atol=1e-12
+        @test rotations_resh ≈ rotations     atol=1e-12
 
-        eigenvalues_resh = condreshape(dict["eigenvalues"], (n_spin, n_kpoints, n_bands))
-        occupation_resh  = condreshape(dict["occupation"],  (n_spin, n_kpoints, n_bands))
-        n_iter_resh      = condreshape(dict["n_iter"],      (n_spin, n_kpoints))
+        diagon = dict["diagonalization"]
+        n_iter_resh = condreshape(diagon["n_iter"],         (n_kpoints, n_spin))
+        residnorm   = condreshape(diagon["residual_norms"], (n_bands, n_kpoints, n_spin))
+
+        eigenvalues_resh = condreshape(dict["eigenvalues"], (n_bands, n_kpoints, n_spin))
+        occupation_resh  = condreshape(dict["occupation"],  (n_bands, n_kpoints, n_spin))
+        n_G_resh    = condreshape(dict["kpt_n_G_vectors"],  (n_kpoints, n_spin))
+        G_vecs_resh = condreshape(dict["kpt_G_vectors"],    (3, max_n_G, n_kpoints, n_spin))
+        ψ_resh      = condreshape(dict["ψ"], (max_n_G, n_bands, n_kpoints, n_spin))
         for σ = 1:n_spin
             krange_spin = (1 + (σ - 1) * n_kpoints):(σ * n_kpoints)
             for (i, ik) in enumerate(krange_spin)
-                @test all_eigenvalues[ik] ≈  eigenvalues_resh[σ, i, :] atol=1e-12
-                @test all_occupation[ik]  ≈  occupation_resh[σ, i, :]  atol=1e-12
-                @test all_n_iter[ik]      == n_iter_resh[σ, i]
+                @test all_eigenvalues[ik] ≈  eigenvalues_resh[:, i, σ] atol=1e-12
+                @test all_occupation[ik]  ≈  occupation_resh[:, i, σ]  atol=1e-12
+                @test all_n_iter[ik]      == n_iter_resh[i, σ]
+                @test all_resids[ik]      ≈  residnorm[:, i, σ] atol=1e-12
+
+                @test size(all_ψ[ik], 1) == n_G_resh[i, σ]
+                @test all_ψ[ik]          ≈ ψ_resh[1:n_G_resh[i, σ], :, i, σ] atol=1e-12
+                @test all(all_kpoints[ik].G_vectors[iG] == G_vecs_resh[:, iG, i, σ]
+                          for iG = 1:n_G_resh[i, σ])
             end
+        end
+    end  # master
+end  # function
+
+function test_agreement_scfres(scfres, dict; explicit_reshape=false)
+    test_agreement_bands(scfres, dict; explicit_reshape)
+    if mpi_master()
+        @test dict["ρ"]             ≈ scfres.ρ atol=1e-12
+        @test dict["damping_value"] ≈ scfres.α atol=1e-12
+
+        for key in keys(scfres.energies)
+            @test dict["energies"][key] ≈ scfres.energies[key] atol=1e-12
+        end
+        @test dict["energies"]["total"] ≈ scfres.energies.total atol=1e-12
+
+        for key in dict["scfres_extra_keys"]
+            key == "damping_value" && continue
+            @test dict[key] == getproperty(scfres, Symbol(key))
         end
     end  # master
 end  # function
@@ -90,13 +130,13 @@ function test_todict(label; spin_polarization=:none, Ecut=7, temperature=0.0,
     randomize_intarray!(last(scfres.diagonalization).n_iter)
 
     # This also tests Model.todict, Basis.todict
-    dict_scfres = DFTK.band_data_to_dict(scfres)
-    dict_bands  = DFTK.band_data_to_dict(bands)
-
+    dict_scfres = DFTK.scfres_to_dict(scfres;    save_ψ=true)
+    dict_bands  = DFTK.band_data_to_dict(bands;  save_ψ=true)
 
     @testset "$label" begin
-        DictAgreement.test_dict_agreement(scfres, dict_scfres; explicit_reshape=false)
-        DictAgreement.test_dict_agreement(bands,  dict_bands;  explicit_reshape=false)
+        DictAgreement.test_agreement_bands(bands,   dict_bands)
+        DictAgreement.test_agreement_bands(scfres,  dict_scfres)
+        DictAgreement.test_agreement_scfres(scfres, dict_scfres)
     end
 end
 

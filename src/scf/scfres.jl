@@ -33,7 +33,9 @@ Some details on the conventions for the returned data:
 TODO more docs
 
 """
-scfres_to_dict(scfres::NamedTuple) = scfres_to_dict!(Dict{String,Any}(), scfres)
+function scfres_to_dict(scfres::NamedTuple; save_ψ=false)
+    scfres_to_dict!(Dict{String,Any}(), scfres; save_ψ)
+end
 function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true)
     # TODO Rename to todict(scfres) once scfres gets its proper type
 
@@ -42,7 +44,7 @@ function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true)
     # These are either already done above or will be ignored or dealt with below.
     special = (:ham, :basis, :energies,
                :ρ, :ψ, :eigenvalues, :occupation, :εF, :diagonalization)
-    propmap = Dict(:α => :damping, )  # compatibility mapping
+    propmap = Dict(:α => :damping_value, )  # compatibility mapping
     if mpi_master()
         dict["ρ"] = scfres.ρ
         energies = make_subdict!(dict, "energies")
@@ -97,9 +99,9 @@ end
 
 
 """
-Save an `scfres` obtained from `self_consistent_field` to a file.
-The format is determined from the file extension. Currently the following
-file extensions are recognized and supported:
+Save an `scfres` obtained from `self_consistent_field` to a file. On all processes
+but the master one the `filename` is ignored. The format is determined from the file extension.
+Currently the following file extensions are recognized and supported:
 
 - **jld2**: A JLD2 file. Stores the complete state and can be used
   (with [`load_scfres`](@ref)) to restart an SCF from a checkpoint or
@@ -129,6 +131,8 @@ Keyword arguments:
 """
 @timing function save_scfres(filename::AbstractString, scfres::NamedTuple;
                              save_ψ=nothing, extra_data=Dict{String,Any}())
+    filename = MPI.bcast(filename, 0, MPI.COMM_WORLD)
+
     _, ext = splitext(filename)
     ext = Symbol(ext[2:end])
     if !(ext in (:jld2, :vts, :json))
