@@ -463,6 +463,6 @@ end
 Ensure its real-space equivalent of passed Fourier-space representation is entirely real by
 removing wavevectors `G` that don't have a `-G` counterpart in the basis.
 """
-@timing function real_enforced!(fourier_coeffs, basis::PlaneWaveBasis)
+@timing function enforce_real!(fourier_coeffs, basis::PlaneWaveBasis)
     lowpass_for_symmetry!(fourier_coeffs, basis; symmetries=[SymOp(-Mat3(I), Vec3(0, 0, 0))])
 end
