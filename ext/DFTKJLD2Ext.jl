@@ -76,9 +76,13 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian)
             error("Mismatch in fft_size between file ($(jld["fft_size"])) " *
                   "and supplied basis ($(basis.fft_size))")
         end
-        if jld["n_kpoints"] != length(basis.kpoints)
+        if jld["n_kpoints"] != length(basis.kcoords_global)
             error("Mismatch in number of k-points between file ($(jld["n_kpoints"])) " *
-                  "and supplied basis ($(length(basis.kpoints)))")
+                  "and supplied basis ($(length(basis.kcoords_global)))")
+        end
+        if jld["n_spin_components"] != basis.model.n_spin_components
+            error("Mismatch in number of spin components between file ($(jld["n_spin_components"])) " *
+                  "and supplied basis ($(basis.model.n_spin_components))")
         end
         basisok = true
     end
@@ -144,7 +148,9 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian)
         scfdict[:energies] = energies
         scfdict[:ham]      = ham
     else
-        # TODO reconstruct energies from the data we have in the jld
+        terms   = filter!(!isequal("total"), collect(keys(jld["energies"])))
+        values = [jld["energies"][k] for k in terms]
+        scfdict[:energies] = DFTK.Energies(DFTK.OrderedDict(terms .=> values))
     end
 
     MPI.Barrier(MPI.COMM_WORLD)

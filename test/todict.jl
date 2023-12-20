@@ -2,7 +2,7 @@
 using Test
 using DFTK
 
-function test_agreement_bands(band_data, dict; explicit_reshape=false)
+function test_agreement_bands(band_data, dict; explicit_reshape=false, test_ψ=true)
     # NOTE: For MPI-parallel tests, this needs to be called on each processor,
     #       but testing only happens on master
 
@@ -65,9 +65,13 @@ function test_agreement_bands(band_data, dict; explicit_reshape=false)
 
         eigenvalues_resh = condreshape(dict["eigenvalues"], (n_bands, n_kpoints, n_spin))
         occupation_resh  = condreshape(dict["occupation"],  (n_bands, n_kpoints, n_spin))
-        n_G_resh    = condreshape(dict["kpt_n_G_vectors"],  (n_kpoints, n_spin))
-        G_vecs_resh = condreshape(dict["kpt_G_vectors"],    (3, max_n_G, n_kpoints, n_spin))
-        ψ_resh      = condreshape(dict["ψ"], (max_n_G, n_bands, n_kpoints, n_spin))
+
+        if test_ψ
+            n_G_resh    = condreshape(dict["kpt_n_G_vectors"],  (n_kpoints, n_spin))
+            G_vecs_resh = condreshape(dict["kpt_G_vectors"],    (3, max_n_G, n_kpoints, n_spin))
+            ψ_resh      = condreshape(dict["ψ"], (max_n_G, n_bands, n_kpoints, n_spin))
+        end
+
         for σ = 1:n_spin
             krange_spin = (1 + (σ - 1) * n_kpoints):(σ * n_kpoints)
             for (i, ik) in enumerate(krange_spin)
@@ -76,19 +80,34 @@ function test_agreement_bands(band_data, dict; explicit_reshape=false)
                 @test all_n_iter[ik]      == n_iter_resh[i, σ]
                 @test all_resids[ik]      ≈  residnorm[:, i, σ] atol=1e-12
 
-                @test size(all_ψ[ik], 1) == n_G_resh[i, σ]
-                @test all_ψ[ik]          ≈ ψ_resh[1:n_G_resh[i, σ], :, i, σ] atol=1e-12
-                @test all(all_kpoints[ik].G_vectors[iG] == G_vecs_resh[:, iG, i, σ]
-                          for iG = 1:n_G_resh[i, σ])
+
+                if test_ψ
+                    @test size(all_ψ[ik], 1) == n_G_resh[i, σ]
+                    @test all_ψ[ik]          ≈ ψ_resh[1:n_G_resh[i, σ], :, i, σ] atol=1e-12
+                    @test all(all_kpoints[ik].G_vectors[iG] == G_vecs_resh[:, iG, i, σ]
+                              for iG = 1:n_G_resh[i, σ])
+                end
             end
         end
+
     end  # master
 end  # function
 
-function test_agreement_scfres(scfres, dict; explicit_reshape=false)
-    test_agreement_bands(scfres, dict; explicit_reshape)
+function test_agreement_scfres(scfres, dict; explicit_reshape=false, test_ψ=true)
+    test_agreement_bands(scfres, dict; explicit_reshape, test_ψ)
+
+    function condreshape(data, shape...)
+        if explicit_reshape
+            reshape(data, shape...)
+        else
+            data
+        end
+    end
+
     if mpi_master()
-        @test dict["ρ"]             ≈ scfres.ρ atol=1e-12
+        ρ_resh = condreshape(dict["ρ"], scfres.basis.fft_size...,
+                             scfres.basis.model.n_spin_components)
+        @test ρ_resh                ≈ scfres.ρ atol=1e-12
         @test dict["damping_value"] ≈ scfres.α atol=1e-12
 
         for key in keys(scfres.energies)
@@ -96,10 +115,23 @@ function test_agreement_scfres(scfres, dict; explicit_reshape=false)
         end
         @test dict["energies"]["total"] ≈ scfres.energies.total atol=1e-12
 
+        # Note: For MPI runs, each processor may not gather the data exactly the same
+        #       way, which can induce machine-epsilons inconsistencies. That is why we
+        #       do not use strict equalities.
         for key in dict["scfres_extra_keys"]
             key == "damping_value" && continue
-            @test dict[key] == getproperty(scfres, Symbol(key))
+            if dict[key] isa Number
+                @test dict[key] ≈  getproperty(scfres, Symbol(key))  atol=1e-12
+            else
+                @test dict[key] == getproperty(scfres, Symbol(key))
+            end
         end
+
+        # Check some keys that are relied upon downstream
+        @test "converged"            in dict["scfres_extra_keys"]
+        @test "occupation_threshold" in dict["scfres_extra_keys"]
+        @test "n_bands_converge"     in dict["scfres_extra_keys"]
+        @test "n_iter"               in dict["scfres_extra_keys"]
     end  # master
 end  # function
 end  # module

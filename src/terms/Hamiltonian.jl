@@ -187,7 +187,8 @@ end
     # it: index into terms, ik: index into kpoints
     @timing "ene_ops" ene_ops_arr = [ene_ops(term, basis, ψ, occupation; kwargs...)
                                      for term in basis.terms]
-    energies  = [eh.E for eh in ene_ops_arr]
+    term_names = [string(nameof(typeof(term))) for term in basis.model.term_types]
+    energy_values  = [eh.E for eh in ene_ops_arr]
     operators = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
 
     # flatten the inner arrays in case a term returns more than one operator
@@ -207,7 +208,7 @@ end
 
     ham = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks)
                               for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
-    energies = Energies(basis.model.term_types, energies)
+    energies = Energies(term_names, energy_values)
     (; energies, ham)
 end
 function Hamiltonian(basis::PlaneWaveBasis; ψ=nothing, occupation=nothing, kwargs...)

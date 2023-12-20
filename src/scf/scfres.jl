@@ -42,7 +42,7 @@ function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true)
     band_data_to_dict!(dict, scfres; save_ψ)
 
     # These are either already done above or will be ignored or dealt with below.
-    special = (:ham, :basis, :energies,
+    special = (:ham, :basis, :energies, :stage,
                :ρ, :ψ, :eigenvalues, :occupation, :εF, :diagonalization)
     propmap = Dict(:α => :damping_value, )  # compatibility mapping
     if mpi_master()

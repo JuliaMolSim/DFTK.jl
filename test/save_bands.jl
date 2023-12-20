@@ -25,7 +25,7 @@ function test_save_bands(label; spin_polarization=:none, Ecut=7, temperature=0.0
         # Tests the data required downstream (e.g. in Aiida) is present in the dict
         mktempdir() do tmpdir
             dumpfile = joinpath(tmpdir, "bands.json")
-            save_bands(dumpfile, band_data)
+            save_bands(dumpfile, band_data; save_ψ=false)
 
             if mpi_master()
                 data = open(JSON3.read, dumpfile)  # Get data back as dict
@@ -33,21 +33,22 @@ function test_save_bands(label; spin_polarization=:none, Ecut=7, temperature=0.0
                 data = nothing
             end  # master
 
-            DictAgreement.test_dict_agreement(band_data, data; explicit_reshape=true)
+            DictAgreement.test_agreement_bands(band_data, data;
+                                               explicit_reshape=true, test_ψ=false)
         end  # tmpdir
     end  # json test
 
     @testset "JLD2 ($label)" begin
         mktempdir() do tmpdir
             dumpfile = joinpath(tmpdir, "bands.jld2")
-            save_bands(dumpfile, band_data)
+            save_bands(dumpfile, band_data; save_ψ=true)
 
             if mpi_master()
                 JLD2.jldopen(dumpfile, "r") do jld
-                    DictAgreement.test_dict_agreement(band_data, jld)
+                    DictAgreement.test_agreement_bands(band_data, jld)
                 end
             else
-                DictAgreement.test_dict_agreement(band_data, nothing)
+                DictAgreement.test_agreement_bands(band_data, nothing)
             end # master
         end  # tmpdir
     end  # json test

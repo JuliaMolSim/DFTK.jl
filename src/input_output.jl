@@ -151,7 +151,7 @@ function todict!(dict, basis::PlaneWaveBasis)
     dict["kcoords"]      = basis.kcoords_global
     dict["kcoords_cart"] = vector_red_to_cart.(basis.model, basis.kcoords_global)
     dict["kweights"]     = basis.kweights_global
-    dict["n_kpoints"]    = length(basis.kgrid)
+    dict["n_kpoints"]    = length(basis.kcoords_global)
     dict["fft_size"]     = basis.fft_size
     dict["dvol"]         = basis.dvol
     dict["Ecut"]         = basis.Ecut

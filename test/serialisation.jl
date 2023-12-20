@@ -16,6 +16,7 @@ function test_scfres_agreement(tested, ref)
     @test tested.basis.Ecut      == ref.basis.Ecut
     @test tested.basis.kweights  == ref.basis.kweights
     @test tested.basis.fft_size  == ref.basis.fft_size
+    @test tested.basis.kgrid     == ref.basis.kgrid
 
     kcoords_test = getproperty.(tested.basis.kpoints, :coordinate)
     kcoords_ref  = getproperty.(ref.basis.kpoints, :coordinate)
@@ -30,82 +31,6 @@ function test_scfres_agreement(tested, ref)
     @test tested.occupation     == ref.occupation
     @test tested.ψ              == ref.ψ
     @test tested.ρ              ≈  ref.ρ rtol=1e-14
-end
-end
-
-@testsetup module SerialisationIO
-using Test
-using DFTK
-using MPI
-using JLD2
-using JSON3
-using WriteVTK
-using ..ScfresAgreement: test_scfres_agreement
-
-function test_serialisation(testcase, label; modelargs=(; ),
-                            basisargs=(; Ecut=5, kgrid=(2, 3, 4)))
-    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions; modelargs...)
-
-    basis = PlaneWaveBasis(model; basisargs...)
-    nbandsalg = FixedBands(; n_bands_converge=20)
-    scfres = self_consistent_field(basis; tol=1e-1, nbandsalg)
-
-    @test_throws ErrorException save_scfres("MyVTKfile.random", scfres)
-    @test_throws ErrorException save_scfres("MyVTKfile", scfres)
-
-    @testset "JLD2 ($label)" begin
-        mktempdir() do tmpdir
-            dumpfile = joinpath(tmpdir, "scfres.jld2")
-            dumpfile = MPI.bcast(dumpfile, 0, MPI.COMM_WORLD)  # master -> everyone
-
-            save_scfres(dumpfile, scfres)
-            @test isfile(dumpfile)
-            test_scfres_agreement(scfres, load_scfres(dumpfile))
-        end
-    end
-
-    @testset "VTK ($label)" begin
-        mktempdir() do tmpdir
-            dumpfile = joinpath(tmpdir, "scfres.vts")
-            dumpfile = MPI.bcast(dumpfile, 0, MPI.COMM_WORLD)  # master -> everyone
-
-            save_scfres(dumpfile, scfres; save_ψ=true)
-            @test isfile(dumpfile)
-        end
-    end
-
-    @testset "JSON ($label)" begin
-        mktempdir() do tmpdir
-            dumpfile = joinpath(tmpdir, "scfres.json")
-            dumpfile = MPI.bcast(dumpfile, 0, MPI.COMM_WORLD)  # master -> everyone
-
-            save_scfres(dumpfile, scfres)
-            @test isfile(dumpfile)
-
-            data = open(JSON3.read, dumpfile)  # Get data back as dict
-
-            # Keys which need to be MPI-synchronised
-            for key in (:eigenvalues, :occupation)
-                gathered = DFTK.gather_kpts(getproperty(scfres, key), scfres.basis)
-                mpi_master() && @test data[key] == gathered
-            end
-
-            # Note: For MPI runs, each processor may not gather the data exactly the same
-            #       way, which can induce machine-epsilons inconsistencies. That is why we
-            #       do not use strict equalities.
-            tol = 10eps(eltype(basis))
-            # Normal keys and energy values
-            for key in (:converged, :occupation_threshold, :εF, :n_bands_converge,
-                        :n_iter, :norm_Δρ)
-                @test data[key] ≈ getproperty(scfres, key) atol=tol
-            end
-            for key in keys(scfres.energies)
-                @test data["energies"][key] ≈ scfres.energies[key] atol=tol
-            end
-            @test data["energies"]["total"] ≈ scfres.energies.total atol=tol
-            @test data["algorithm"] == scfres.algorithm
-        end
-    end
 end
 end
 
@@ -135,10 +60,55 @@ end
     end
 end
 
-@testitem "Serialisation" setup=[ScfresAgreement, SerialisationIO, TestCases] begin
+@testitem "Serialisation" setup=[ScfresAgreement, DictAgreement, TestCases] begin
     using DFTK
-    using .SerialisationIO: test_serialisation
+    using JLD2
+    using JSON3
+    using MPI
+    using Test
+    using WriteVTK
     testcase = TestCases.silicon
+
+    function test_serialisation(testcase, label; modelargs=(; ),
+                                basisargs=(; Ecut=5, kgrid=(2, 3, 4)))
+        model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions; modelargs...)
+
+        basis = PlaneWaveBasis(model; basisargs...)
+        nbandsalg = FixedBands(; n_bands_converge=20)
+        scfres = self_consistent_field(basis; tol=1e-1, nbandsalg)
+
+        @test_throws ErrorException save_scfres("MyVTKfile.random", scfres)
+        @test_throws ErrorException save_scfres("MyVTKfile", scfres)
+
+        @testset "JLD2 ($label)" begin
+            mktempdir() do tmpdir
+                dumpfile = joinpath(tmpdir, "scfres.jld2")
+                save_scfres(dumpfile, scfres)
+                @test isfile(dumpfile)
+                ScfresAgreement.test_scfres_agreement(scfres, load_scfres(dumpfile))
+                ScfresAgreement.test_scfres_agreement(scfres, load_scfres(dumpfile, basis))
+            end
+        end
+
+        @testset "VTK ($label)" begin
+            mktempdir() do tmpdir
+                dumpfile = joinpath(tmpdir, "scfres.vts")
+                save_scfres(dumpfile, scfres; save_ψ=true)
+                @test isfile(dumpfile)
+            end
+        end
+
+        @testset "JSON ($label)" begin
+            mktempdir() do tmpdir
+                dumpfile = joinpath(tmpdir, "scfres.json")
+                save_scfres(dumpfile, scfres)
+                @test isfile(dumpfile)
+                data = open(JSON3.read, dumpfile)  # Get data back as dict
+                DictAgreement.test_agreement_scfres(scfres, data;
+                                                    test_ψ=false, explicit_reshape=true)
+            end
+        end
+    end
 
     test_serialisation(testcase, "nospin notemp"; modelargs=(; spin_polarization=:none))
     test_serialisation(testcase, "collinear temp";

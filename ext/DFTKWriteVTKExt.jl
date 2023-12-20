@@ -3,6 +3,7 @@ using WriteVTK
 using DFTK
 using DFTK: gather_kpts
 using Printf
+using MPI
 
 function DFTK.save_scfres(::Val{:vts}, filename::AbstractString, scfres::NamedTuple;
                           save_ψ=false, extra_data=Dict{String,Any}())
@@ -21,7 +22,7 @@ function DFTK.save_scfres(::Val{:vts}, filename::AbstractString, scfres::NamedTu
         bands = gather_kpts(scfres.ψ, scfres.basis)
         basis = gather_kpts(scfres.basis)
         if mpi_master()
-            for ik = 1:length(basis.kgrid), n = 1:size(bands[ik], 2)
+            for ik = 1:length(basis.kpoints), n = 1:size(bands[ik], 2)
                 ψnk_real = ifft(basis, basis.kpoints[ik], bands[ik][:, n])
                 prefix = @sprintf "ψ_k%03i_n%03i" ik n
                 vtkfile["$(prefix)_real"] = real.(ψnk_real)

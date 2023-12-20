@@ -201,6 +201,7 @@ function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false)
     dict["n_bands"] = n_bands  # n_spin_components and n_kpoints already stored
 
     if !isnothing(band_data.εF)
+        haskey(dict, "εF") && delete!(dict, "εF")
         dict["εF"] = band_data.εF
     end
     if haskey(band_data, :kinter)
@@ -251,6 +252,7 @@ function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false)
         (; ψ, n_G_vectors, max_n_G) = blockify_ψ(band_data.basis, band_data.ψ)
         dict["kpt_n_G_vectors"] = gather_and_reshape(n_G_vectors, (n_kpoints, n_spin))
         dict["ψ"] = gather_and_reshape(ψ, (max_n_G, n_bands, n_kpoints, n_spin))
+        dict["max_n_G"] = max_n_G
 
         # Store additionally the actually employed G vectors
         kpt_G_vectors = map(band_data.basis.kpoints) do kpt
@@ -393,7 +395,8 @@ function plot_bandstructure end
 
 
 """
-Write the computed bands to a file. `save_ψ` determines whether the wavefunction
+Write the computed bands to a file. On all processes, but the master one the
+`filename` is ignored. `save_ψ` determines whether the wavefunction
 is also saved or not. Note that this function can be both used on the results
 of [`compute_bands`](@ref) and [`self_consistent_field`](@ref).
 
@@ -403,6 +406,7 @@ of [`compute_bands`](@ref) and [`self_consistent_field`](@ref).
     or stop working / be removed in the future.
 """
 function save_bands(filename::AbstractString, band_data::NamedTuple; save_ψ=false)
+    filename = MPI.bcast(filename, 0, MPI.COMM_WORLD)
     _, ext = splitext(filename)
     ext = Symbol(ext[2:end])
 

@@ -5,7 +5,10 @@ using MPI
 
 function save_json(todict_function, filename::AbstractString, scfres::NamedTuple;
                    save_ψ=false, extra_data=Dict{String,Any}())
-    data = todict_function(scfres; save_ψ)
+    if save_ψ
+        @warn "Saving the bloch waves (save_ψ=true) not supported with the json format."
+    end
+    data = todict_function(scfres; save_ψ=false)
     for (k, v) in pairs(extra_data)
         data[k] = v
     end
