@@ -147,9 +147,13 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
               "a temperature or switch to a calculation with collinear spin polarization.")
     end
 
-    all_eigenvalues = sort(vcat(eigenvalues...))
-
+    # Gathering the eigenvalues distributed over the kpoints in MPI
+    n_bands = length(eigenvalues[1])   # assuming that the same number of bands are computed for each kpoint
+    counts = [ Int32(n_bands*length(basis.krange_allprocs[rank])) for rank in 1:MPI.Comm_size(basis.comm_kpts)]
+    all_eigenvalues = MPI.Allgatherv(vcat(eigenvalues...), counts, basis.comm_kpts)
+        
     # Bisection method to find the index of the eigenvalue such that excess_n_electrons = 0
+    all_eigenvalues = sort(all_eigenvalues)
     i_min = 1
     i_max = length(all_eigenvalues)
 
