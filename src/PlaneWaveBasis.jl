@@ -125,8 +125,9 @@ Base.Broadcast.broadcastable(basis::PlaneWaveBasis) = Ref(basis)
 Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
 
-function Kpoint(spin::Integer, coordinate::AbstractVector{T}, recip_lattice::AbstractMatrix{T},
-                fft_size, Ecut; variational=true, architecture::AbstractArchitecture) where {T}
+function Kpoint(spin::Integer, coordinate::AbstractVector{<:Real},
+                recip_lattice::AbstractMatrix{T}, fft_size, Ecut;
+                variational=true, architecture::AbstractArchitecture) where {T}
     mapping = Int[]
     Gvecs_k = Vec3{Int}[]
     k = Vec3{T}(coordinate)
