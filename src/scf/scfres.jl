@@ -18,7 +18,7 @@ function gather_kpts_scfres(scfres::NamedTuple)
 end
 
 """
-Convert a band computational result to a dictionary representation.
+Convert an `scfres` to a dictionary representation.
 Intended to give a condensed set of results and useful metadata
 for post processing. See also the [`todict`](@ref) function
 for the [`Model`](@ref) and the [`PlaneWaveBasis`](@ref) as well as
@@ -29,9 +29,14 @@ returns meaningful data.
 Some details on the conventions for the returned data:
 - ρ: (fft_size[1], fft_size[2], fft_size[3], n_spin) array of density
   on real-space grid.
-
-TODO more docs
-
+- energies: Dictionary / subdirectory containing the energy terms
+- converged: Has the SCF reached convergence
+- norm_Δρ: Most recent change in ρ during an SCF step
+- occupation_threshold: Threshold below which orbitals are considered
+  unoccupied
+- n_bands_converge: Number of bands that have been 
+  fully converged numerically.
+- n_iter: Number of iterations.
 """
 function scfres_to_dict(scfres::NamedTuple; save_ψ=false)
     scfres_to_dict!(Dict{String,Any}(), scfres; save_ψ)
