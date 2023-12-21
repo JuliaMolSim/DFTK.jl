@@ -72,6 +72,7 @@ For instance, to launch core functionality tests, one can use
 using TestEnv       # Optional: automatically installs required packages
 TestEnv.activate()  # for tests in a temporary environment.
 using TestItemRunner
+cd("test")          # By default, the following macro runs everything from the parent folder.
 @run_package_tests filter = ti -> :core ∈ ti.tags
 ```
 Or to only run the tests of a particular file `serialisation.jl` use

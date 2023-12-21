@@ -234,8 +234,8 @@ function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
         all(isinteger, basis.kpoints[idx].coordinate - Sk)
     end
     if isnothing(ikfull)
-        # Build a new k-point datastructure:
-        Skpoint = build_kpoints(basis, [Sk])[1]
+        # Build new k-point datastructure
+        Skpoint = Kpoint(basis, Sk, kpoint.spin)
     else
         Skpoint = basis.kpoints[ikfull]
         @assert Skpoint.coordinate ≈ Sk
@@ -317,7 +317,8 @@ end
 """
 Symmetrize a density by applying all the basis (by default) symmetries and forming the average.
 """
-@views @timing function symmetrize_ρ(basis, ρ; symmetries=basis.symmetries, do_lowpass=true)
+@views @timing function symmetrize_ρ(basis, ρ::AbstractArray{T};
+                                     symmetries=basis.symmetries, do_lowpass=true) where {T}
     ρin_fourier  = to_cpu(fft(basis, ρ))
     ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρ, 4)
@@ -325,7 +326,8 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
                                     ρin_fourier[:, :, :, σ], basis, symmetries)
         do_lowpass && lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
     end
-    irfft(basis, to_device(basis.architecture, ρout_fourier) ./ length(symmetries))
+    inv_fft = T <: Real ? irfft : ifft
+    inv_fft(basis, to_device(basis.architecture, ρout_fourier) ./ length(symmetries))
 end
 
 """
@@ -461,6 +463,6 @@ end
 Ensure its real-space equivalent of passed Fourier-space representation is entirely real by
 removing wavevectors `G` that don't have a `-G` counterpart in the basis.
 """
-@timing function enforce_real!(basis, fourier_coeffs)
+@timing function enforce_real!(fourier_coeffs, basis::PlaneWaveBasis)
     lowpass_for_symmetry!(fourier_coeffs, basis; symmetries=[SymOp(-Mat3(I), Vec3(0, 0, 0))])
 end

@@ -96,7 +96,7 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     ρ = nothing
 
     # computes energies and gradients
-    function fg!(E, G, ψ)
+    function fg!(::Any, G, ψ)
         ψ = unpack(ψ)
         ρ = compute_density(basis, ψ, occupation)
         energies, H = energy_hamiltonian(basis, ψ, occupation; ρ)

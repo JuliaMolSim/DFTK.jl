@@ -124,37 +124,48 @@ Base.Broadcast.broadcastable(basis::PlaneWaveBasis) = Ref(basis)
 
 Base.eltype(::PlaneWaveBasis{T}) where {T} = T
 
+
+function Kpoint(spin::Integer, coordinate::AbstractVector{<:Real},
+                recip_lattice::AbstractMatrix{T}, fft_size, Ecut;
+                variational=true, architecture::AbstractArchitecture) where {T}
+    mapping = Int[]
+    Gvecs_k = Vec3{Int}[]
+    k = Vec3{T}(coordinate)
+    # provide a rough hint so that the arrays don't have to be resized so much
+    n_guess = div(prod(fft_size), 8)
+    sizehint!(mapping, n_guess)
+    sizehint!(Gvecs_k, n_guess)
+    for (i, G) in enumerate(G_vectors(fft_size))
+        if !variational || norm2(recip_lattice * (G + k)) / 2 ≤ Ecut
+            push!(mapping, i)
+            push!(Gvecs_k, G)
+        end
+    end
+    Gvecs_k = to_device(architecture, Gvecs_k)
+
+    mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
+    Kpoint(spin, k, mapping, mapping_inv, Gvecs_k)
+end
+function Kpoint(basis::PlaneWaveBasis, coordinate::AbstractVector, spin::Int)
+    Kpoint(spin, coordinate, basis.model.recip_lattice, basis.fft_size, basis.Ecut;
+           basis.variational, basis.architecture)
+end
+
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
                                variational=true,
                                architecture::AbstractArchitecture) where {T}
-    kpoints_per_spin = [Kpoint[] for _ = 1:model.n_spin_components]
-    for k in kcoords
-        k = Vec3{T}(k)  # rationals are sloooow
-        mapping = Int[]
-        Gvecs_k = Vec3{Int}[]
-        # provide a rough hint so that the arrays don't have to be resized so much
-        n_guess = div(prod(fft_size), 8)
-        sizehint!(mapping, n_guess)
-        sizehint!(Gvecs_k, n_guess)
-        for (i, G) in enumerate(G_vectors(fft_size))
-            if !variational || norm2(model.recip_lattice * (G + k)) / 2 ≤ Ecut
-                push!(mapping, i)
-                push!(Gvecs_k, G)
-            end
-        end
-        Gvecs_k = to_device(architecture, Gvecs_k)
-
-        mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
-        for iσ = 1:model.n_spin_components
-            push!(kpoints_per_spin[iσ],
-                  Kpoint(iσ, k, mapping, mapping_inv, Gvecs_k))
+    # Build all k-points for the first spin
+    kpoints_spin_1 = [Kpoint(1, k, model.recip_lattice, fft_size, Ecut;
+                             variational, architecture)
+                      for k in kcoords]
+    all_kpoints = similar(kpoints_spin_1, 0)
+    for iσ = 1:model.n_spin_components
+        for kpt in kpoints_spin_1
+            push!(all_kpoints, Kpoint(iσ, kpt.coordinate,
+                                      kpt.mapping, kpt.mapping_inv, kpt.G_vectors))
         end
     end
-    vcat(kpoints_per_spin...)  # put all spin up first, then all spin down
-end
-function build_kpoints(basis::PlaneWaveBasis, kcoords)
-    build_kpoints(basis.model, basis.fft_size, kcoords, basis.Ecut;
-                  variational=basis.variational, basis.architecture)
+    all_kpoints
 end
 
 # Lowest-level constructor, should not be called directly.

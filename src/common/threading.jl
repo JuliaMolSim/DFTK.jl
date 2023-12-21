@@ -21,3 +21,22 @@ function disable_threading()
     @assert n_julia == 1  # To exit in non-master MPI nodes
     setup_threading(;n_fft=1, n_blas=1)
 end
+
+# Parallelization loop breaking range into chunks.
+function parallel_loop_over_range(fun, storages::AbstractVector, range)
+    chunk_length = cld(length(range), Threads.nthreads())
+
+    iszero(chunk_length) && return storages
+
+    @sync for (ichunk, chunk) in enumerate(Iterators.partition(range, chunk_length))
+        Threads.@spawn for idc in chunk  # spawn a task per chunk
+            fun(storages[ichunk], idc)
+        end
+    end
+
+    return storages
+end
+function parallel_loop_over_range(fun, allocate_local_storage::Function, range)
+    storages = [allocate_local_storage() for _ = 1:Threads.nthreads()]
+    parallel_loop_over_range(fun, storages, range)
+end

@@ -183,7 +183,8 @@ end
     forces
 end
 
-function _force_xc_internal(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U}, form_factors, igroup, r) where {T, U}
+function _force_xc_internal(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U},
+                            form_factors, igroup, r) where {T, U}
     TT = promote_type(T, real(U))
     f  = zero(Vec3{TT})
     for (iG, (G, G_cart)) in enumerate(zip(G_vectors(basis), G_vectors_cart(basis)))
@@ -359,7 +360,8 @@ function compute_kernel(term::TermXc, basis::PlaneWaveBasis; ρ, kwargs...)
 end
 
 
-function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ; ρ, kwargs...) where {T}
+function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArray{Tδρ};
+                      ρ, kwargs...) where {T, Tδρ}
     n_spin = basis.model.n_spin_components
     isempty(term.functionals) && return nothing
     @assert all(family(xc) in (:lda, :gga) for xc in term.functionals)
@@ -384,7 +386,7 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ; ρ, kwargs..
 
     # If the XC functional is not supported for an architecture, terms is on the CPU
     terms = kernel_terms(term.functionals, density)
-    δV = zero(ρ)  # [ix, iy, iz, iσ]
+    δV = zeros(Tδρ, size(ρ)...)  # [ix, iy, iz, iσ]
 
     Vρρ = to_device(basis.architecture, reshape(terms.Vρρ, n_spin, n_spin, basis.fft_size...))
     @views for s = 1:n_spin, t = 1:n_spin  # LDA term

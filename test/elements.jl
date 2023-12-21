@@ -1,5 +1,7 @@
 @testitem "Check constructing ElementCoulomb" begin
     using DFTK
+    using Unitful
+    using UnitfulAtomic
     using DFTK: charge_nuclear, charge_ionic, n_elec_core, n_elec_valence
     using DFTK: ElementCoulomb, local_potential_fourier, local_potential_real
     using LinearAlgebra
@@ -15,6 +17,7 @@
     @test element.symbol == :Mg
 
     @test atomic_symbol(element) == :Mg
+    @test atomic_mass(element) == 24.305u"u"
     @test charge_nuclear(element) == 12
     @test charge_ionic(element) == 12
     @test n_elec_valence(element) == charge_ionic(element)
@@ -27,6 +30,8 @@ end
 
 @testitem "Check constructing ElementPsp" begin
     using DFTK
+    using Unitful
+    using UnitfulAtomic
     using DFTK: load_psp, charge_nuclear, charge_ionic, n_elec_core, n_elec_valence
     using DFTK: ElementPsp, local_potential_fourier, local_potential_real
 
@@ -44,6 +49,7 @@ end
     @test element.psp.identifier == "hgh/lda/c-q4"
 
     @test atomic_symbol(element) == :C
+    @test atomic_mass(element) == 12.011u"u"
     @test charge_nuclear(element) == 6
     @test charge_ionic(element) == 4
     @test n_elec_valence(element) == 4
@@ -56,6 +62,8 @@ end
 
 @testitem "Check constructing ElementCohenBergstresser" begin
     using DFTK
+    using Unitful
+    using UnitfulAtomic
     using DFTK: charge_nuclear, charge_ionic, n_elec_core, n_elec_valence
     using DFTK: ElementCohenBergstresser, local_potential_fourier
 
@@ -67,6 +75,7 @@ end
     @test element.symbol == :Si
 
     @test atomic_symbol(element) == :Si
+    @test atomic_mass(element) == 28.085u"u"
     @test charge_nuclear(element) == 14
     @test charge_ionic(element) == 4
     @test n_elec_valence(element) == 4
@@ -79,12 +88,14 @@ end
 
 @testitem "Check constructing ElementGaussian" begin
     using DFTK
+    using Unitful
+    using UnitfulAtomic
     using DFTK: local_potential_fourier, local_potential_real
 
     element = ElementGaussian(1.0, 0.5; symbol=:X1)
 
     @test atomic_symbol(element) == :X1
-
+    @test isnothing(atomic_mass(element))
     @test local_potential_fourier(element, 0.0) == -1.0
     @test local_potential_fourier(element, 2.0) == -0.6065306597126334
     @test local_potential_real(element, 2.0) == -0.00026766045152977074

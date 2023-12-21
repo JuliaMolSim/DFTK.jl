@@ -25,7 +25,7 @@ function ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis, f_fourier::Abstrac
     f_real .*= basis.ifft_normalization
 end
 function ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                 kpt::Kpoint, f_fourier::AbstractVector; normalize=true)
+               kpt::Kpoint, f_fourier::AbstractVector; normalize=true)
     @assert length(f_fourier) == length(kpt.mapping)
     @assert size(f_real) == basis.fft_size
 
@@ -58,7 +58,6 @@ end
 function ifft(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector; kwargs...)
     ifft!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier; kwargs...)
 end
-
 """
 Perform a real valued iFFT; see [`ifft`](@ref). Note that this function
 silently drops the imaginary part.
@@ -80,7 +79,7 @@ function fft!(f_fourier::AbstractArray3, basis::PlaneWaveBasis, f_real::Abstract
     f_fourier .*= basis.fft_normalization
 end
 function fft!(f_fourier::AbstractVector, basis::PlaneWaveBasis,
-                 kpt::Kpoint, f_real::AbstractArray3; normalize=true)
+              kpt::Kpoint, f_real::AbstractArray3; normalize=true)
     @assert size(f_real) == basis.fft_size
     @assert length(f_fourier) == length(kpt.mapping)
 
