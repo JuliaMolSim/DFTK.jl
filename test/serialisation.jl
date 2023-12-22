@@ -88,6 +88,7 @@ end
                 @test isfile(dumpfile)
                 ScfresAgreement.test_scfres_agreement(scfres, load_scfres(dumpfile))
                 ScfresAgreement.test_scfres_agreement(scfres, load_scfres(dumpfile, basis))
+                MPI.Barrier(MPI.COMM_WORLD)
             end
         end
 
@@ -96,6 +97,7 @@ end
                 dumpfile = joinpath(tmpdir, "scfres.vts")
                 save_scfres(dumpfile, scfres; save_ψ=true)
                 @test isfile(dumpfile)
+                MPI.Barrier(MPI.COMM_WORLD)
             end
         end
 
@@ -107,6 +109,7 @@ end
                 data = open(JSON3.read, dumpfile)  # Get data back as dict
                 DictAgreement.test_agreement_scfres(scfres, data;
                                                     test_ψ=false, explicit_reshape=true)
+                MPI.Barrier(MPI.COMM_WORLD)
             end
         end
     end

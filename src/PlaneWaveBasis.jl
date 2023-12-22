@@ -546,38 +546,52 @@ end
 
 """
 Gather the distributed data of a quantity depending on `k`-Points on the master process
-and return it. On the other (non-master) processes `nothing` is returned.
+and return it as a dense `(size(kdata[1])..., n_kpoints)` array. On the other (non-master)
+processes `nothing` is returned.
 """
-function gather_kpts(data::AbstractArray, basis::PlaneWaveBasis)
-    mpi_nprocs(basis.comm_kpts) == 1 && return data
+function gather_kpts_block!(dest::AbstractArray, basis::PlaneWaveBasis,
+                            kdata::AbstractVector{T}) where {T}
+    if ndims(T) == 0  # Scalar
+        rk_data = kdata
+    else
+        rk_data = reduce((v, w) -> cat(v, w; dims=ndims(T) + 1), kdata)
+    end
 
     master = tag = 0
-    n_kpts = sum(length, basis.krange_allprocs)
     if MPI.Comm_rank(basis.comm_kpts) == master
-        allk_data = similar(data, n_kpts)
-        allk_data[basis.krange_allprocs[1]] = data
+        dest[fill(:, ndims(T))..., basis.krange_allprocs[1]] = rk_data
         for rank = 1:mpi_nprocs(basis.comm_kpts)-1  # Note: MPI ranks are 0-based
             # TODO Could save some memory by using in-place Recv!
             #      Could save some time by using asynchronous operations
             #      Maybe we can also use the built-in MPI.gather
             rk_data, status = MPI.recv(basis.comm_kpts, MPI.Status; source=rank, tag)
             @assert MPI.Get_error(status) == 0  # all went well
-            allk_data[basis.krange_allprocs[rank + 1]] = rk_data
+            dest[fill(ndims(T), :)..., basis.krange_allprocs[1]] = rk_data
         end
-        allk_data
+        dest
     else
-        MPI.send(data, master, tag, basis.comm_kpts)
+        MPI.send(rk_data, master, tag, basis.comm_kpts)
         nothing
     end
+end
+function gather_kpts_block(basis::PlaneWaveBasis, kdata::AbstractVector)
+    T = eltype(kdata[1])
+    n_kpoints = sum(length, basis.krange_allprocs)
+    gather_kpts_block!(zeros(T, size(kdata[1])..., n_kpoints), basis, kdata)
 end
 
 """
 Scatter the data of a quantity depending on `k`-Points from the master process
 to the child processes. On non-master processes `nothing` may be passed.
 """
-function scatter_kpts(data::Union{Nothing,AbstractArray}, basis::PlaneWaveBasis)
-    mpi_nprocs(basis.comm_kpts) == 1 && return data
+function scatter_kpts_block(basis::PlaneWaveBasis, data::Union{Nothing,AbstractArray})
     if mpi_master()
+        if ndims(data) > 1
+            # TODO This needs a lot of memory ... can be improved
+            #      by scattering one process at a time and only copying
+            #      that memory out.
+            data = [Array(s) for s in eachslice(data, dims=ndims(data)-1)]
+        end
         splitted_data = [data[basis.krange_allprocs[rank]]
                          for rank in 1:mpi_nprocs(basis.comm_kpts)]
     else

@@ -222,49 +222,33 @@ function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false)
         end
     end
 
-    # Gather k-Point distributed MPI data and store it under the given key
-    function gather_kpt_data!(dict, key::AbstractString, data::AbstractVector{T}) where {T}
-        # if mpi_nprocs(basis.comm_kpts) == 1
-        #     dict[key] = data
-        #     return
-        # end
-        n_kpoints = length(basis.kcoords_global)
-        n_spin    = basis.model.n_spin_components
-
-        value = gather_kpts(data, basis)
-        if mpi_master()
-            if T <: AbstractArray
-                # TODO This is quite memory intensive. This could be avoided
-                #      if we pass also the dict and the key to this function
-                #      and use a custom function to emplace the data chunk-wise.
-                #      On a dict this here is the best we can do, but for HDF5
-                #      and JLD2 creating the dataset and writing chunk-wise
-                #      would avoid some copies.
-                value = reduce((v, w) -> cat(v, w; dims=(ndims(T) + 1)), value)
-            end
-            dict[key] = reshape(value, (size(data[1])..., n_kpoints, n_spin))
+    function gather_and_store!(dict, key, basis, data)
+        gathered = gather_kpts_block(basis, data)
+        if !isnothing(gathered)
+            n_kpoints = length(basis.kcoords_global)
+            n_spin    = basis.model.n_spin_components
+            dict[key] = reshape(gathered, (size(data[1])..., n_kpoints, n_spin))
         end
     end
 
     for key in (:eigenvalues, :eigenvalues_error, :occupation)
         if hasproperty(band_data, key) && !isnothing(getproperty(band_data, key))
-            gather_kpt_data!(dict, string(key), getproperty(band_data, key))
+            gather_and_store!(dict, string(key), basis, getproperty(band_data, key))
         end
     end
 
     diagonalization = make_subdict!(dict, "diagonalization")
     diag_resid  = last(band_data.diagonalization).residual_norms
     diag_n_iter = sum(diag -> diag.n_iter, band_data.diagonalization)
-    gather_kpt_data!(diagonalization, "residual_norms", diag_resid)
-    gather_kpt_data!(diagonalization, "n_iter",         diag_n_iter)
     diagonalization["n_matvec"] = mpi_sum(sum(diag -> diag.n_matvec,
                                               band_data.diagonalization),
                                           band_data.basis.comm_kpts)
     diagonalization["converged"] = mpi_min(last(band_data.diagonalization).converged,
                                            band_data.basis.comm_kpts)
+    gather_and_store!(diagonalization, "residual_norms", basis, diag_resid)
+    gather_and_store!(diagonalization, "n_iter",         basis, diag_n_iter)
 
-    save_kpt_G_vectors = save_ψ
-    if save_kpt_G_vectors
+    if save_ψ
         # Store the employed G vectors using the largest rectangular grid
         # on which all bands can live
         n_G_vectors = [length(kpt.mapping) for kpt in basis.kpoints]
@@ -276,33 +260,29 @@ function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false)
             end
             Gs_full
         end
-        gather_kpt_data!(dict, "kpt_n_G_vectors", n_G_vectors)
-        gather_kpt_data!(dict, "kpt_G_vectors",   kpt_G_vectors)
-        dict["kpt_max_n_G"] = max_n_G
-    end
+        dict["kpt_max_n_G"]     = max_n_G
+        gather_and_store!(dict, "kpt_n_G_vectors", basis, n_G_vectors)
+        gather_and_store!(dict, "kpt_G_vectors",   basis, kpt_G_vectors)
 
-    if save_ψ
+        # TODO This gather_and_store! actually allocates a full array
+        #      of size (max_n_G, n_bands, n_kpoints), which can lead to
+        #      the master process running out of memory.
         ψblock = blockify_ψ(band_data.basis, band_data.ψ).ψ
-        gather_kpt_data!(dict, "ψ", ψblock)
-    end
-    #=
-    # TODO Pursue this later ...
-    #
-    # Save each rank separately to avoid excessive memory allocations on saving
-    # (by gathering the bands of all kpoints on the master process)
-    if save_ψ
-        rank   = MPI.Comm_rank(basis.comm_kpts)
-        ψrank  = make_subdict!(make_subdict!(dict, "ψ"), "rank_$rank")
-        n_spin = basis.model.n_spin_components
-        krange = basis.krange_thisproc[krange_spin(basis, 1)]
+        gather_and_store!(dict, "ψ", basis, ψblock)
 
-        ψblock = blockify_ψ(band_data.basis, band_data.ψ).ψ
-        ψblock = reduce((v, w) -> cat(v, w; dims=3), ψblock)
-        ψrank["krange"] = krange
-        ψrank["data"]   = reshape(ψblock, (max_n_G, n_bands, length(krange), n_spin))
+        # TODO Alternative for later ...
+        #      Avoid this in the future by saving the data of each MPI rank in
+        #      a separate key into the dict (one after the other). This will
+        #      avoid the need for this memory allocation
+        #
+        # ψrank  = make_subdict!(make_subdict!(dict, "ψ"),
+        #                        "rank_$(MPI.Comm_rank(basis.comm_kpts))")
+        # n_spin = basis.model.n_spin_components
+        # krange = basis.krange_thisproc[krange_spin(basis, 1)]
+        # ψdata  = reduce((v, w) -> cat(v, w; dims=3), ψblock)
+        # ψrank["krange"] = krange
+        # ψrank["data"]   = reshape(ψdata, (max_n_G, n_bands, length(krange), n_spin))
     end
-    =#
-
     dict
 end
 
