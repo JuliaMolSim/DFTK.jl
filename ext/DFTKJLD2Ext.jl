@@ -104,7 +104,6 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian)
     scfdict = MPI.bcast(scfdict, 0, MPI.COMM_WORLD)
     scfdict[:basis] = basis
 
-    #=
     function reshape_and_scatter(jld, key)
         if mpi_master()
             data = jld[key]
@@ -114,22 +113,6 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian)
             data = nothing
         end
         DFTK.scatter_kpts_block(basis, data)
-    end
-    =#
-    function reshape_and_scatter(jld, key)
-        if mpi_master()
-            # TODO Performance improvement by reading the jld file in chunks ?
-            #      would for sure lower the memory footprint with many k-points
-            data = jld[key]
-            n = ndims(data)
-            value = reshape(data, size(data)[1:n-2]..., size(data, n-1) * size(data, n))
-            if ndims(value) > 1
-                value = [Array(s) for s in eachslice(value, dims=n-1)]
-            end
-        else
-            value = nothing
-        end
-        DFTK.scatter_kpts(value, basis)
     end
 
     # TODO Could also reconstruct diagonalization data structure

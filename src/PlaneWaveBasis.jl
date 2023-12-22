@@ -592,18 +592,8 @@ function scatter_kpts_block(basis::PlaneWaveBasis, data::Union{Nothing,AbstractA
             #      sends it, then extracts the next slice and so on.
             #      Would also enable the use of non-blocking asynchronous operations
             #      for the sending and receiving of data.
-            data = [Array(s) for s in eachslice(data, dims=ndims(data)-1)]
+            data = [Array(s) for s in eachslice(data, dims=ndims(data))]
         end
-        splitted_data = [data[basis.krange_allprocs[rank]]
-                         for rank in 1:mpi_nprocs(basis.comm_kpts)]
-    else
-        splitted_data = nothing
-    end
-    MPI.scatter(splitted_data, basis.comm_kpts)
-end
-
-function scatter_kpts(data::Union{Nothing,AbstractVector}, basis::PlaneWaveBasis)
-    if mpi_master()
         splitted_data = [data[basis.krange_allprocs[rank]]
                          for rank in 1:mpi_nprocs(basis.comm_kpts)]
     else
