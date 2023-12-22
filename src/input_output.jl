@@ -253,9 +253,9 @@ function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false)
         # on which all bands can live
         n_G_vectors = [length(kpt.mapping) for kpt in basis.kpoints]
         max_n_G = mpi_max(maximum(n_G_vectors), basis.comm_kpts)
-        kpt_G_vectors = map(band_data.basis.kpoints) do kpt
+        kpt_G_vectors = map(basis.kpoints) do kpt
             Gs_full = zeros(Int, 3, max_n_G)
-            for (iG, G) in enumerate(G_vectors(band_data.basis, kpt))
+            for (iG, G) in enumerate(G_vectors(basis, kpt))
                 Gs_full[:, iG] = G
             end
             Gs_full
@@ -267,13 +267,12 @@ function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false)
         # TODO This gather_and_store! actually allocates a full array
         #      of size (max_n_G, n_bands, n_kpoints), which can lead to
         #      the master process running out of memory.
-        ψblock = blockify_ψ(band_data.basis, band_data.ψ).ψ
+        ψblock = blockify_ψ(basis, band_data.ψ).ψ
         gather_and_store!(dict, "ψ", basis, ψblock)
 
         # TODO Alternative for later ...
-        #      Avoid this in the future by saving the data of each MPI rank in
-        #      a separate key into the dict (one after the other). This will
-        #      avoid the need for this memory allocation
+        #      Avoid this full array allocation in the future by saving the data of each MPI
+        #      rank in a separate key into the dict (one after the other).
         #
         # ψrank  = make_subdict!(make_subdict!(dict, "ψ"),
         #                        "rank_$(MPI.Comm_rank(basis.comm_kpts))")

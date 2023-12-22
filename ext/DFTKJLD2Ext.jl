@@ -63,30 +63,31 @@ function DFTK.load_scfres(::Val{:jld2}, filename::AbstractString, basis=nothing;
     scfres
 end
 function load_scfres_jld2(jld, basis; skip_hamiltonian)
-    basisok = false
     if isnothing(basis)
         basis = load_basis(jld)
-        basisok = true
-    elseif mpi_master()
-        # Check custom basis for consistency with the data extracted here
-        if !(basis.architecture isa DFTK.CPU)  # TODO Else need to put things on the GPU
-            error("Only CPU architectures supported for now.")
+    else
+        errormsg = ""
+        if mpi_master()
+            # Check custom basis for consistency with the data extracted here
+            if !(basis.architecture isa DFTK.CPU)  # TODO Else need to put things on the GPU
+                errormsg = "Only CPU architectures supported for now."
+            end
+            if jld["fft_size"] != basis.fft_size
+                errormsg = ("Mismatch in fft_size between file ($(jld["fft_size"])) " *
+                            "and supplied basis ($(basis.fft_size))")
+            end
+            if jld["n_kpoints"] != length(basis.kcoords_global)
+                errormsg = ("Mismatch in number of k-points between file ($(jld["n_kpoints"])) " *
+                            "and supplied basis ($(length(basis.kcoords_global)))")
+            end
+            if jld["n_spin_components"] != basis.model.n_spin_components
+                errormsg = ("Mismatch in number of spin components between file ($(jld["n_spin_components"])) " *
+                            "and supplied basis ($(basis.model.n_spin_components))")
+            end
         end
-        if jld["fft_size"] != basis.fft_size
-            error("Mismatch in fft_size between file ($(jld["fft_size"])) " *
-                  "and supplied basis ($(basis.fft_size))")
-        end
-        if jld["n_kpoints"] != length(basis.kcoords_global)
-            error("Mismatch in number of k-points between file ($(jld["n_kpoints"])) " *
-                  "and supplied basis ($(length(basis.kcoords_global)))")
-        end
-        if jld["n_spin_components"] != basis.model.n_spin_components
-            error("Mismatch in number of spin components between file ($(jld["n_spin_components"])) " *
-                  "and supplied basis ($(basis.model.n_spin_components))")
-        end
-        basisok = true
+        errormsg = MPI.bcast(errormsg, 0, MPI.COMM_WORLD)
+        isempty(errormsg) || error(errormsg)
     end
-    basisok || error("Basis not consistent")
 
     propmap = Dict(:damping_value => :α, )  # compatibility mapping
     if mpi_master()
@@ -103,6 +104,7 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian)
     scfdict = MPI.bcast(scfdict, 0, MPI.COMM_WORLD)
     scfdict[:basis] = basis
 
+    #=
     function reshape_and_scatter(jld, key)
         if mpi_master()
             data = jld[key]
@@ -112,6 +114,22 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian)
             data = nothing
         end
         DFTK.scatter_kpts_block(basis, data)
+    end
+    =#
+    function reshape_and_scatter(jld, key)
+        if mpi_master()
+            # TODO Performance improvement by reading the jld file in chunks ?
+            #      would for sure lower the memory footprint with many k-points
+            data = jld[key]
+            n = ndims(data)
+            value = reshape(data, size(data)[1:n-2]..., size(data, n-1) * size(data, n))
+            if ndims(value) > 1
+                value = [Array(s) for s in eachslice(value, dims=n-1)]
+            end
+        else
+            value = nothing
+        end
+        DFTK.scatter_kpts(value, basis)
     end
 
     # TODO Could also reconstruct diagonalization data structure

@@ -100,7 +100,7 @@ save_bands("iron_afm_bands.json", bands)
 # (since the JLD2 format is based on HDF5).
 
 using JLD2
-save_scfres("iron_afm.jld2", scfres);
+save_scfres("iron_afm.jld2", scfres; compress=true);
 
 # Since such JLD2 can also be read by DFTK to start or continue a calculation,
 # these can also be used for checkpointing or for transferring results

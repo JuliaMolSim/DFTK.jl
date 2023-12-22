@@ -1,10 +1,10 @@
 @testsetup module DictAgreement
 using Test
 using DFTK
+using MPI
 
 function test_agreement_bands(band_data, dict; explicit_reshape=false, test_ψ=true)
-    # NOTE: For MPI-parallel tests, this needs to be called on each processor,
-    #       but testing only happens on master
+    # NOTE: For MPI-parallel tests, this needs to be called on each processor
 
     basis = band_data.basis
     model = basis.model
@@ -13,13 +13,6 @@ function test_agreement_bands(band_data, dict; explicit_reshape=false, test_ψ=t
     n_bands   = length(band_data.eigenvalues[1])
     max_n_G   = DFTK.mpi_max(maximum(kpt -> length(G_vectors(basis, kpt)), basis.kpoints),
                              basis.comm_kpts)
-
-    all_kpoints     = DFTK.gather_kpts(basis.kpoints, basis)
-    all_eigenvalues = DFTK.gather_kpts(band_data.eigenvalues, basis)
-    all_occupation  = DFTK.gather_kpts(band_data.occupation,  basis)
-    all_ψ           = DFTK.gather_kpts(band_data.ψ,           basis)
-    all_n_iter      = DFTK.gather_kpts(last(band_data.diagonalization).n_iter, basis)
-    all_resids      = DFTK.gather_kpts(last(band_data.diagonalization).residual_norms, basis)
     rotations       = [symop.W for symop in basis.symmetries]
     translations    = [symop.w for symop in basis.symmetries]
 
@@ -31,6 +24,13 @@ function test_agreement_bands(band_data, dict; explicit_reshape=false, test_ψ=t
         end
     end
 
+    n_iter_resh      = nothing
+    eigenvalues_resh = nothing
+    occupation_resh  = nothing
+    resid_resh       = nothing
+    n_G_resh         = nothing
+    G_vecs_resh      = nothing
+    ψ_resh           = nothing
     if mpi_master()
         # Tests that data required downstream (e.g. in Aiida) is present in the dict
         # and behaves as expected.
@@ -60,37 +60,41 @@ function test_agreement_bands(band_data, dict; explicit_reshape=false, test_ψ=t
         @test rotations_resh ≈ rotations     atol=1e-12
 
         diagon = dict["diagonalization"]
-        n_iter_resh = condreshape(diagon["n_iter"],         (n_kpoints, n_spin))
-        residnorm   = condreshape(diagon["residual_norms"], (n_bands, n_kpoints, n_spin))
-
-        eigenvalues_resh = condreshape(dict["eigenvalues"], (n_bands, n_kpoints, n_spin))
-        occupation_resh  = condreshape(dict["occupation"],  (n_bands, n_kpoints, n_spin))
+        n_iter_resh      = condreshape(diagon["n_iter"],         (n_kpoints, n_spin))
+        resid_resh       = condreshape(diagon["residual_norms"], (n_bands, n_kpoints, n_spin))
+        eigenvalues_resh = condreshape(dict["eigenvalues"],      (n_bands, n_kpoints, n_spin))
+        occupation_resh  = condreshape(dict["occupation"],       (n_bands, n_kpoints, n_spin))
 
         if test_ψ
             n_G_resh    = condreshape(dict["kpt_n_G_vectors"],  (n_kpoints, n_spin))
             G_vecs_resh = condreshape(dict["kpt_G_vectors"],    (3, max_n_G, n_kpoints, n_spin))
             ψ_resh      = condreshape(dict["ψ"], (max_n_G, n_bands, n_kpoints, n_spin))
         end
+    end
+    n_iter_resh      = MPI.bcast(n_iter_resh,      0, MPI.COMM_WORLD)
+    resid_resh       = MPI.bcast(resid_resh,       0, MPI.COMM_WORLD)
+    eigenvalues_resh = MPI.bcast(eigenvalues_resh, 0, MPI.COMM_WORLD)
+    occupation_resh  = MPI.bcast(occupation_resh,  0, MPI.COMM_WORLD)
+    n_G_resh         = MPI.bcast(n_G_resh,         0, MPI.COMM_WORLD)
+    G_vecs_resh      = MPI.bcast(G_vecs_resh,      0, MPI.COMM_WORLD)
+    ψ_resh           = MPI.bcast(ψ_resh,           0, MPI.COMM_WORLD)
 
-        for σ = 1:n_spin
-            krange_spin = (1 + (σ - 1) * n_kpoints):(σ * n_kpoints)
-            for (i, ik) in enumerate(krange_spin)
-                @test all_eigenvalues[ik] ≈  eigenvalues_resh[:, i, σ] atol=1e-12
-                @test all_occupation[ik]  ≈  occupation_resh[:, i, σ]  atol=1e-12
-                @test all_n_iter[ik]      == n_iter_resh[i, σ]
-                @test all_resids[ik]      ≈  residnorm[:, i, σ] atol=1e-12
+    for σ = 1:n_spin, ik = DFTK.krange_spin(basis, σ)
+        ikgl = mod1(basis.krange_thisproc[ik], n_kpoints)  # global k-point index
 
+        ldiag = last(band_data.diagonalization)
+        @test n_iter_resh[ikgl, σ]         == ldiag.n_iter[ik]
+        @test resid_resh[:, ikgl, σ]       ≈  ldiag.residual_norms[ik]  atol=1e-12
+        @test eigenvalues_resh[:, ikgl, σ] ≈  band_data.eigenvalues[ik] atol=1e-12
+        @test occupation_resh[:, ikgl, σ]  ≈  band_data.occupation[ik]  atol=1e-12
 
-                if test_ψ
-                    @test size(all_ψ[ik], 1) == n_G_resh[i, σ]
-                    @test all(all_kpoints[ik].G_vectors[iG] == G_vecs_resh[:, iG, i, σ]
-                              for iG = 1:n_G_resh[i, σ])
-                    @test all_ψ[ik]          ≈ ψ_resh[1:n_G_resh[i, σ], :, i, σ] atol=1e-12
-                end
-            end
+        if test_ψ
+            @test n_G_resh[ikgl, σ] == length(basis.kpoints[ik].G_vectors)
+            @test all(G_vecs_resh[:, iG, ikgl, σ] == G
+                      for (iG, G) in enumerate(basis.kpoints[ik].G_vectors))
+            @test ψ_resh[1:n_G_resh[ikgl, σ], :, ikgl, σ] ≈ band_data.ψ[ik] atol=1e-12
         end
-
-    end  # master
+    end
 end  # function
 
 function test_agreement_scfres(scfres, dict; explicit_reshape=false, test_ψ=true)

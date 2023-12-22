@@ -42,8 +42,7 @@ Currently the following file extensions are recognized and supported:
   as h5py or similar.
   See [Saving SCF results on disk and SCF checkpoints](@ref) for details.
 - **vts**: A VTK file for visualisation e.g. in [paraview](https://www.paraview.org/).
-  Stores the density, spin density and some metadata (energy, Fermi level,
-  occupation etc.).
+  Stores the density, spin density, optionally bands and some metadata.
 - **json**: A JSON file with basic information about the SCF run. Stores for example
    the number of iterations, occupations, some information about the basis,
    eigenvalues, Fermi level etc.
@@ -58,10 +57,10 @@ Keyword arguments:
 - `compress`: Apply compression to array data. Requires the `CodecZlib` package
   to be available.
 
-!!! warning "No compatibility guarantees"
-    No guarantees are made with respect to this function at this point.
-    It may change incompatibly between DFTK versions (including patch versions)
-    or stop working / be removed in the future.
+!!! warning "Changes to data format reserved"
+    No guarantees are made with respect to the format of the keys at this point.
+    We may change this incompatibly between DFTK versions (including patch versions).
+    In particular changes with respect to the ψ structure are planned.
 """
 @timing function save_scfres(filename::AbstractString, scfres::NamedTuple;
                              save_ψ=nothing, extra_data=Dict{String,Any}(),

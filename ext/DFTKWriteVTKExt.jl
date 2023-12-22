@@ -1,7 +1,7 @@
 module DFTKWriteVTKExt
 using WriteVTK
 using DFTK
-using DFTK: gather_kpts
+using DFTK: gather_kpts, gather_kpts_block, blockify_ψ
 using Printf
 using MPI
 
@@ -19,11 +19,14 @@ function DFTK.save_scfres(::Val{:vts}, filename::AbstractString, scfres::NamedTu
     end
 
     if save_ψ
-        bands = gather_kpts(scfres.ψ, scfres.basis)
         basis = gather_kpts(scfres.basis)
+        ψblock_dist = blockify_ψ(scfres.basis, scfres.ψ).ψ
+        ψblock = gather_kpts_block(scfres.basis, ψblock_dist)
+
         if mpi_master()
-            for ik = 1:length(basis.kpoints), n = 1:size(bands[ik], 2)
-                ψnk_real = ifft(basis, basis.kpoints[ik], bands[ik][:, n])
+            for ik = 1:length(basis.kpoints), n = 1:size(ψblock, 2)
+                kpt_n_G = length(G_vectors(basis, basis.kpoints[ik]))
+                ψnk_real = ifft(basis, basis.kpoints[ik], ψblock[1:kpt_n_G, n, ik])
                 prefix = @sprintf "ψ_k%03i_n%03i" ik n
                 vtkfile["$(prefix)_real"] = real.(ψnk_real)
                 vtkfile["$(prefix)_imag"] = imag.(ψnk_real)
@@ -31,26 +34,15 @@ function DFTK.save_scfres(::Val{:vts}, filename::AbstractString, scfres::NamedTu
         end
     end
 
-    eigenvalues = gather_kpts(scfres.eigenvalues, scfres.basis)
-    occupation  = gather_kpts(scfres.occupation,  scfres.basis)
     if mpi_master()
         ρtotal, ρspin = total_density(scfres.ρ), spin_density(scfres.ρ)
         vtkfile["ρtotal"] = ρtotal
         if !isnothing(ρspin)
             vtkfile["ρspin"]  = ρspin
         end
-
-        for key in keys(scfres.energies)
-            vtkfile["energy_$(key)"] = scfres.energies[key]
-        end
-        vtkfile["εF"] = scfres.εF
-        vtkfile["eigenvalues"] = reduce(hcat, scfres.eigenvalues)
-        vtkfile["occupation"]  = reduce(hcat, scfres.occupation)
-
         for (key, value) in pairs(extra_data)
             vtkfile[key] = value
         end
-
         WriteVTK.vtk_save(vtkfile)
     end
 

@@ -288,10 +288,10 @@ Write the computed bands to a file. On all processes, but the master one the
 is also saved or not. Note that this function can be both used on the results
 of [`compute_bands`](@ref) and [`self_consistent_field`](@ref).
 
-!!! warning "No compatibility guarantees"
-    No guarantees are made with respect to this function at this point.
-    It may change incompatibly between DFTK versions (including patch versions)
-    or stop working / be removed in the future.
+!!! warning "Changes to data format reserved"
+    No guarantees are made with respect to the format of the keys at this point.
+    We may change this incompatibly between DFTK versions (including patch versions).
+    In particular changes with respect to the ψ structure are planned.
 """
 function save_bands(filename::AbstractString, band_data::NamedTuple; save_ψ=false)
     filename = MPI.bcast(filename, 0, MPI.COMM_WORLD)

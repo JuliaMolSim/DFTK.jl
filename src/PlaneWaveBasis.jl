@@ -546,11 +546,11 @@ end
 
 """
 Gather the distributed data of a quantity depending on `k`-Points on the master process
-and return it as a dense `(size(kdata[1])..., n_kpoints)` array. On the other (non-master)
-processes `nothing` is returned.
+and save it in `dest` as a dense `(size(kdata[1])..., n_kpoints)` array. On the other
+(non-master) processes `nothing` is returned.
 """
-function gather_kpts_block!(dest::AbstractArray, basis::PlaneWaveBasis,
-                            kdata::AbstractVector{T}) where {T}
+function gather_kpts_block!(dest, basis::PlaneWaveBasis, kdata::AbstractVector{T}) where {T}
+    # dest is set up, such that a HDF5 dataset would work
     if ndims(T) == 0  # Scalar
         rk_data = kdata
     else
@@ -563,10 +563,9 @@ function gather_kpts_block!(dest::AbstractArray, basis::PlaneWaveBasis,
         for rank = 1:mpi_nprocs(basis.comm_kpts)-1  # Note: MPI ranks are 0-based
             # TODO Could save some memory by using in-place Recv!
             #      Could save some time by using asynchronous operations
-            #      Maybe we can also use the built-in MPI.gather
             rk_data, status = MPI.recv(basis.comm_kpts, MPI.Status; source=rank, tag)
             @assert MPI.Get_error(status) == 0  # all went well
-            dest[fill(ndims(T), :)..., basis.krange_allprocs[1]] = rk_data
+            dest[fill(:, ndims(T))..., basis.krange_allprocs[rank + 1]] = rk_data
         end
         dest
     else
@@ -585,13 +584,26 @@ Scatter the data of a quantity depending on `k`-Points from the master process
 to the child processes. On non-master processes `nothing` may be passed.
 """
 function scatter_kpts_block(basis::PlaneWaveBasis, data::Union{Nothing,AbstractArray})
+    # data is set up, such that a HDF5 dataset would work
     if mpi_master()
         if ndims(data) > 1
-            # TODO This needs a lot of memory ... can be improved
-            #      by scattering one process at a time and only copying
-            #      that memory out.
+            # TODO This needs to allocate the data twice. We could avoid that by using
+            #      a loop like in gather_kpts_block, which extracts a slice and directly
+            #      sends it, then extracts the next slice and so on.
+            #      Would also enable the use of non-blocking asynchronous operations
+            #      for the sending and receiving of data.
             data = [Array(s) for s in eachslice(data, dims=ndims(data)-1)]
         end
+        splitted_data = [data[basis.krange_allprocs[rank]]
+                         for rank in 1:mpi_nprocs(basis.comm_kpts)]
+    else
+        splitted_data = nothing
+    end
+    MPI.scatter(splitted_data, basis.comm_kpts)
+end
+
+function scatter_kpts(data::Union{Nothing,AbstractVector}, basis::PlaneWaveBasis)
+    if mpi_master()
         splitted_data = [data[basis.krange_allprocs[rank]]
                          for rank in 1:mpi_nprocs(basis.comm_kpts)]
     else
