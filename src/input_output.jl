@@ -167,3 +167,194 @@ function todict!(dict, basis::PlaneWaveBasis)
 
     dict
 end
+
+
+"""
+Convert a band computational result to a dictionary representation.
+Intended to give a condensed set of results and useful metadata
+for post processing. See also the [`todict`](@ref) function
+for the [`Model`](@ref) and the [`PlaneWaveBasis`](@ref), which are
+called from this function and the outputs merged. Note, that only
+the master process returns meaningful data. All other processors
+still return a dictionary (to simplify code in calling locations),
+but the data may be dummy.
+
+Some details on the conventions for the returned data:
+- `εF`: Computed Fermi level (if present in band_data)
+- `labels`: A mapping of high-symmetry k-Point labels to the index in
+  the `"kcoords"` vector of the corresponding k-Point.
+- `eigenvalues`, `eigenvalues_error`, `occupation`, `residual_norms`:
+  `(n_bands, n_kpoints, n_spin)` arrays of the respective data.
+- `n_iter`: `(n_kpoints, n_spin)` array of the number of iterations the
+  diagonalization routine required.
+- `kpt_max_n_G`: Maximal number of G-vectors used for any k-point.
+- `kpt_n_G_vectors`: `(n_kpoints, n_spin)` array, the number of valid G-vectors
+  for each k-point, i.e. the extend along the first axis of `ψ` where data
+  is valid.
+- `kpt_G_vectors`: `(3, max_n_G, n_kpoints, n_spin)` array of the integer
+  (reduced) coordinates of the G-points used for each k-point.
+- `ψ`: `(max_n_G, n_bands, n_kpoints, n_spin)` arrays where `max_n_G` is the maximal
+  number of G-vectors used for any k-point. The data is zero-padded, i.e.
+  for k-points which have less G-vectors than max_n_G, then there are
+  tailing zeros.
+"""
+function band_data_to_dict(band_data::NamedTuple; save_ψ=false)
+    band_data_to_dict!(Dict{String,Any}(), band_data; save_ψ)
+end
+function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false)
+    # TODO Quick and dirty solution for now.
+    #      The better would be to have a BandData struct and use
+    #      a `todict` function for it, which does essentially this.
+    #      See also the todo in compute_bands above.
+    basis = band_data.basis
+    todict!(dict, basis)
+
+    n_bands = length(band_data.eigenvalues[1])
+    dict["n_bands"] = n_bands  # n_spin_components and n_kpoints already stored
+
+    if !isnothing(band_data.εF)
+        haskey(dict, "εF") && delete!(dict, "εF")
+        dict["εF"] = band_data.εF
+    end
+    if haskey(band_data, :kinter)
+        dict["labels"] = map(band_data.kinter.labels) do labeldict
+            Dict(k => string(v) for (k, v) in pairs(labeldict))
+        end
+    end
+
+    # Gather k-Point distributed MPI data and store it under the given key
+    function gather_kpt_data!(dict, key::AbstractString, data::AbstractVector{T}) where {T}
+        # if mpi_nprocs(basis.comm_kpts) == 1
+        #     dict[key] = data
+        #     return
+        # end
+        n_kpoints = length(basis.kcoords_global)
+        n_spin    = basis.model.n_spin_components
+
+        value = gather_kpts(data, basis)
+        if mpi_master()
+            if T <: AbstractArray
+                # TODO This is quite memory intensive. This could be avoided
+                #      if we pass also the dict and the key to this function
+                #      and use a custom function to emplace the data chunk-wise.
+                #      On a dict this here is the best we can do, but for HDF5
+                #      and JLD2 creating the dataset and writing chunk-wise
+                #      would avoid some copies.
+                value = reduce((v, w) -> cat(v, w; dims=(ndims(T) + 1)), value)
+            end
+            dict[key] = reshape(value, (size(data[1])..., n_kpoints, n_spin))
+        end
+    end
+
+    for key in (:eigenvalues, :eigenvalues_error, :occupation)
+        if hasproperty(band_data, key) && !isnothing(getproperty(band_data, key))
+            gather_kpt_data!(dict, string(key), getproperty(band_data, key))
+        end
+    end
+
+    diagonalization = make_subdict!(dict, "diagonalization")
+    diag_resid  = last(band_data.diagonalization).residual_norms
+    diag_n_iter = sum(diag -> diag.n_iter, band_data.diagonalization)
+    gather_kpt_data!(diagonalization, "residual_norms", diag_resid)
+    gather_kpt_data!(diagonalization, "n_iter",         diag_n_iter)
+    diagonalization["n_matvec"] = mpi_sum(sum(diag -> diag.n_matvec,
+                                              band_data.diagonalization),
+                                          band_data.basis.comm_kpts)
+    diagonalization["converged"] = mpi_min(last(band_data.diagonalization).converged,
+                                           band_data.basis.comm_kpts)
+
+    save_kpt_G_vectors = save_ψ
+    if save_kpt_G_vectors
+        # Store the employed G vectors using the largest rectangular grid
+        # on which all bands can live
+        n_G_vectors = [length(kpt.mapping) for kpt in basis.kpoints]
+        max_n_G = mpi_max(maximum(n_G_vectors), basis.comm_kpts)
+        kpt_G_vectors = map(band_data.basis.kpoints) do kpt
+            Gs_full = zeros(Int, 3, max_n_G)
+            for (iG, G) in enumerate(G_vectors(band_data.basis, kpt))
+                Gs_full[:, iG] = G
+            end
+            Gs_full
+        end
+        gather_kpt_data!(dict, "kpt_n_G_vectors", n_G_vectors)
+        gather_kpt_data!(dict, "kpt_G_vectors",   kpt_G_vectors)
+        dict["kpt_max_n_G"] = max_n_G
+    end
+
+    if save_ψ
+        ψblock = blockify_ψ(band_data.basis, band_data.ψ).ψ
+        gather_kpt_data!(dict, "ψ", ψblock)
+    end
+    #=
+    # TODO Pursue this later ...
+    #
+    # Save each rank separately to avoid excessive memory allocations on saving
+    # (by gathering the bands of all kpoints on the master process)
+    if save_ψ
+        rank   = MPI.Comm_rank(basis.comm_kpts)
+        ψrank  = make_subdict!(make_subdict!(dict, "ψ"), "rank_$rank")
+        n_spin = basis.model.n_spin_components
+        krange = basis.krange_thisproc[krange_spin(basis, 1)]
+
+        ψblock = blockify_ψ(band_data.basis, band_data.ψ).ψ
+        ψblock = reduce((v, w) -> cat(v, w; dims=3), ψblock)
+        ψrank["krange"] = krange
+        ψrank["data"]   = reshape(ψblock, (max_n_G, n_bands, length(krange), n_spin))
+    end
+    =#
+
+    dict
+end
+
+"""
+Convert an `scfres` to a dictionary representation.
+Intended to give a condensed set of results and useful metadata
+for post processing. See also the [`todict`](@ref) function
+for the [`Model`](@ref) and the [`PlaneWaveBasis`](@ref) as well as
+the [`band_data_to_dict`](@ref) functions, which are called by this
+function and their outputs merged. Only the master process
+returns meaningful data.
+
+Some details on the conventions for the returned data:
+- ρ: (fft_size[1], fft_size[2], fft_size[3], n_spin) array of density
+  on real-space grid.
+- energies: Dictionary / subdirectory containing the energy terms
+- converged: Has the SCF reached convergence
+- norm_Δρ: Most recent change in ρ during an SCF step
+- occupation_threshold: Threshold below which orbitals are considered
+  unoccupied
+- n_bands_converge: Number of bands that have been 
+  fully converged numerically.
+- n_iter: Number of iterations.
+"""
+function scfres_to_dict(scfres::NamedTuple; save_ψ=false)
+    scfres_to_dict!(Dict{String,Any}(), scfres; save_ψ)
+end
+function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true)
+    # TODO Rename to todict(scfres) once scfres gets its proper type
+
+    band_data_to_dict!(dict, scfres; save_ψ)
+
+    # These are either already done above or will be ignored or dealt with below.
+    special = (:ham, :basis, :energies, :stage,
+               :ρ, :ψ, :eigenvalues, :occupation, :εF, :diagonalization)
+    propmap = Dict(:α => :damping_value, )  # compatibility mapping
+    if mpi_master()
+        dict["ρ"] = scfres.ρ
+        energies = make_subdict!(dict, "energies")
+        for (key, value) in todict(scfres.energies)
+            energies[key] = value
+        end
+
+        scfres_extra_keys = String[]
+        for symbol in propertynames(scfres)
+            symbol in special && continue
+            key = string(get(propmap, symbol, symbol))
+            dict[key] = getproperty(scfres, symbol)
+            push!(scfres_extra_keys, key)
+        end
+        dict["scfres_extra_keys"] = scfres_extra_keys
+    end
+
+    dict
+end

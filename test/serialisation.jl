@@ -34,7 +34,7 @@ function test_scfres_agreement(tested, ref)
 end
 end
 
-@testitem "SCF checkpointing" setup=[ScfresAgreement, TestCases] begin
+@testitem "SCF checkpointing" setup=[ScfresAgreement, TestCases] tags=[:serialisation] begin
     using DFTK
     using DFTK: ScfDefaultCallback, ScfSaveCheckpoints
     using JLD2  # needed for ScfSaveCheckpoints
@@ -60,7 +60,8 @@ end
     end
 end
 
-@testitem "Serialisation" setup=[ScfresAgreement, DictAgreement, TestCases] begin
+@testitem "Serialisation" setup=[ScfresAgreement, DictAgreement, TestCases] #=
+                       =# tags=[:serialisation] begin
     using DFTK
     using JLD2
     using JSON3

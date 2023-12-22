@@ -6,7 +6,7 @@ using Printf
 using MPI
 
 function DFTK.save_scfres(::Val{:vts}, filename::AbstractString, scfres::NamedTuple;
-                          save_ψ=false, extra_data=Dict{String,Any}())
+                          save_ψ=false, extra_data=Dict{String,Any}(), kwargs...)
     # Initialise the grid and open the file on master
     vtkfile = nothing
     if mpi_master()

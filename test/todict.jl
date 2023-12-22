@@ -83,9 +83,9 @@ function test_agreement_bands(band_data, dict; explicit_reshape=false, test_ψ=t
 
                 if test_ψ
                     @test size(all_ψ[ik], 1) == n_G_resh[i, σ]
-                    @test all_ψ[ik]          ≈ ψ_resh[1:n_G_resh[i, σ], :, i, σ] atol=1e-12
                     @test all(all_kpoints[ik].G_vectors[iG] == G_vecs_resh[:, iG, i, σ]
                               for iG = 1:n_G_resh[i, σ])
+                    @test all_ψ[ik]          ≈ ψ_resh[1:n_G_resh[i, σ], :, i, σ] atol=1e-12
                 end
             end
         end
@@ -136,7 +136,7 @@ function test_agreement_scfres(scfres, dict; explicit_reshape=false, test_ψ=tru
 end  # function
 end  # module
 
-@testitem "todict" setup=[TestCases, DictAgreement] begin
+@testitem "todict" setup=[TestCases, DictAgreement] tags=[:serialisation] begin
 using Test
 using DFTK
 testcase = TestCases.silicon

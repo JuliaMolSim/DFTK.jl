@@ -6,9 +6,9 @@ using MPI
 DFTK.make_subdict!(jld::Union{JLD2.Group,JLD2.JLDFile}, name::AbstractString) = JLD2.Group(jld, name)
 
 function save_jld2(to_dict_function!, file::AbstractString, scfres::NamedTuple;
-                   save_ψ=true, extra_data=Dict{String,Any}())
+                   save_ψ=true, extra_data=Dict{String,Any}(), compress=false)
     if mpi_master()
-        JLD2.jldopen(file, "w") do jld
+        JLD2.jldopen(file, "w"; compress) do jld
             to_dict_function!(jld, scfres; save_ψ)
             for (k, v) in pairs(extra_data)
                 jld[k] = v

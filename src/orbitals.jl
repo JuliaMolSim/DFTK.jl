@@ -30,12 +30,11 @@ function blockify_ψ(basis::PlaneWaveBasis, ψ::AbstractVector)
     # Zero-pad each ψk to the full stored rectangle
     ψ = map(ψ) do ψk
         n_G, n_bands = size(ψk)
-        ψk_full = zeros(eltype(ψk), max_n_G, n_bands)
+        ψk_full = similar(ψk, max_n_G, n_bands)
         ψk_full[1:n_G, :] = ψk
         ψk_full
     end
-
-    (; ψ, n_G_vectors, max_n_G)
+    (; ψ, n_G_vectors)
 end
 
 # Unpacking routine for the above by truncating each array to the sizes
@@ -45,7 +44,6 @@ function unblockify_ψ(ψ::AbstractVector, n_G_vectors::AbstractVector)
         ψk[1:n_G, :]
     end
 end
-
 
 
 # Packing routines used in direct_minimization and newton algorithms.
