@@ -145,7 +145,7 @@ using Test
 using DFTK
 testcase = TestCases.silicon
 
-function test_todict(label; spin_polarization=:none, Ecut=7, temperature=0.0)
+function test_todict(label; spin_polarization=:none, Ecut=7, temperature=0.0, kgrid)
     if spin_polarization == :collinear
         magnetic_moments = [1.0, 1.0]
     else
@@ -175,11 +175,8 @@ function test_todict(label; spin_polarization=:none, Ecut=7, temperature=0.0)
     end
 end
 
-test_todict("nospin notemp";
-            spin_polarization=:none,
+test_todict("nospin notemp";  spin_polarization=:none,
             kgrid=MonkhorstPack(1, max(2, mpi_nprocs()), 1))  # At least one k-point per MPI proc.
-test_todict("collinear temp";
-            spin_polarization=:collinear,
-            kgrid=MonkhorstPack(2, 1, 3),
-            temperature=1e-3)
+test_todict("collinear temp"; spin_polarization=:collinear,
+            kgrid=MonkhorstPack(2, 1, 3), temperature=1e-3)
 end

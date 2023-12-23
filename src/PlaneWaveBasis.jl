@@ -532,8 +532,8 @@ end
 """
 Gather the distributed ``k``-point data on the master process and return
 it as a `PlaneWaveBasis`. On the other (non-master) processes `nothing` is returned.
-The returned object should not be used for computations and only to extract data
-for post-processing and serialisation to disk.
+The returned object should not be used for computations and only for debugging
+or to extract data for serialisation to disk.
 """
 function gather_kpts(basis::PlaneWaveBasis)
     # No need to allocate and setup a new basis object
@@ -565,6 +565,8 @@ and save it in `dest` as a dense `(size(kdata[1])..., n_kpoints)` array. On the 
     n_chunk = MPI.Bcast(length(kdata[1]), 0, basis.comm_kpts)
     @assert all(length(k) == n_chunk for k in kdata)
 
+    # Note: This function assumes that k-points are stored contiguously in rank-increasing
+    # order, i.e. it depends on the splitting realised by split_evenly.
     for σ in 1:basis.model.n_spin_components
         if mpi_master(basis.comm_kpts)
             # Setup variable buffer using appropriate data lengths and 
@@ -599,19 +601,44 @@ end
 
 """
 Scatter the data of a quantity depending on `k`-Points from the master process
-to the child processes. On non-master processes `nothing` may be passed.
+to the child processes and return it as a Vector{Array}, where the outer vector
+is a list over all k-points. On non-master processes `nothing` may be passed.
 """
 function scatter_kpts_block(basis::PlaneWaveBasis, data::Union{Nothing,AbstractArray})
-    if mpi_master()
-        if ndims(data) > 1
-            # TODO This needs to allocate the data twice. We could avoid that by using
-            #      Scatterv! like in gather_kpts_block
-            data = [Array(s) for s in eachslice(data, dims=ndims(data))]
+    T, N = (mpi_master(basis.comm_kpts) ? (eltype(data), ndims(data))
+                                        : (nothing, nothing))
+    T, N = MPI.bcast((T, N), 0, basis.comm_kpts)
+    splitted = Vector{Array{T,N-1}}(undef, length(basis.kpoints))
+
+    for σ in 1:basis.model.n_spin_components
+        # Setup variable buffer for sending using appropriate data lengths
+        if mpi_master(basis.comm_kpts)
+            @assert data isa AbstractArray
+            chunkshape = size(data)[1:end-1]
+            n_chunk = prod(chunkshape; init=one(Int))
+            counts = [n_chunk * length(basis.krange_allprocs[rank][σ])
+                      for rank in 1:mpi_nprocs(basis.comm_kpts)]
+            displs = [n_chunk * (first(basis.krange_allprocs[rank][σ])-1)
+                      for rank in 1:mpi_nprocs(basis.comm_kpts)]
+            @assert all(displs .+ counts .≤ length(data))
+            sendbuf = MPI.VBuffer(data, counts, displs)
+        else
+            sendbuf = nothing
+            chunkshape = nothing
         end
-        splitted_data = [data[vcat(basis.krange_allprocs[rank]...)]
-                         for rank in 1:mpi_nprocs(basis.comm_kpts)]
-    else
-        splitted_data = nothing
+        chunkshape = MPI.bcast(chunkshape, 0, basis.comm_kpts)
+        destbuf = zeros(T, chunkshape..., length(basis.krange_thisproc[σ]))
+
+        # Scatter and split
+        MPI.Scatterv!(sendbuf, destbuf, basis.comm_kpts)
+        for (ik, slice) in zip(krange_spin(basis, σ),
+                               eachslice(destbuf; dims=ndims(destbuf)))
+            splitted[ik] = slice
+        end
     end
-    MPI.scatter(splitted_data, basis.comm_kpts)
+    if N == 1
+        getindex.(splitted)  # Transform Vector{Array{T,0}} => Vector{T}
+    else
+        splitted
+    end
 end
