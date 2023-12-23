@@ -212,7 +212,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     response.verbose && println("Solving response problem")
     δresults = ntuple(ForwardDiff.npartials(T)) do α
         δHextψ = [ForwardDiff.partials.(δHextψk, α) for δHextψk in Hψ_dual]
-        solve_ΩplusK_split(scfres, -δHextψ; tol=scfres.norm_Δρ, response.verbose)
+        solve_ΩplusK_split(scfres, -δHextψ; tol=last(scfres.history_Δρ), response.verbose)
     end
 
     ## Convert and combine
@@ -243,7 +243,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
        response=getfield.(δresults, :history),
        scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter,
        scfres.n_bands_converge, scfres.diagonalization, scfres.stage,
-       scfres.algorithm, scfres.norm_Δρ)
+       scfres.algorithm, scfres.runtime_ns)
 end
 
 # other workarounds

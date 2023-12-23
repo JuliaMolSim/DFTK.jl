@@ -9,20 +9,23 @@ cost of rebuilding the basis. If the stored basis and the passed basis are incon
 (e.g. different FFT size, Ecut, k-points etc.) the `load_scfres` will error out.
 
 By default the `energies` and `ham` (`Hamiltonian` object) are recomputed. To avoid
-this, set `skip_hamiltonian=true`.
+this, set `skip_hamiltonian=true`. On errors the routine exits unless `strict=false`
+in which case it tries to recover from the file as much data as it can, but then the
+resulting `scfres` might not be fully consistent.
 
 !!! warning "No compatibility guarantees"
     No guarantees are made with respect to this function at this point.
     It may change incompatibly between DFTK versions (including patch versions)
     or stop working / be removed in the future.
 """
-@timing function load_scfres(filename::AbstractString, basis=nothing; skip_hamiltonian=false)
+@timing function load_scfres(filename::AbstractString, basis=nothing;
+                             skip_hamiltonian=false, strict=true)
     _, ext = splitext(filename)
     ext = Symbol(ext[2:end])
     if !(ext in (:jld2, :hdf5))
         error("Extension '$ext' not supported by DFTK.")
     end
-    load_scfres(Val(ext), filename, basis; skip_hamiltonian)
+    load_scfres(Val(ext), filename, basis; skip_hamiltonian, strict)
 end
 function load_scfres(::Any, filename::AbstractString; kwargs...)
     error("The extension $(last(splitext(filename))) is currently not available. " *

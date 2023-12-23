@@ -2,7 +2,7 @@
 using Test
 using DFTK
 
-function test_scfres_agreement(tested, ref)
+function test_scfres_agreement(tested, ref; test_ψ=true)
     @test tested.basis.model.lattice           == ref.basis.model.lattice
     @test tested.basis.model.temperature       == ref.basis.model.temperature
     @test tested.basis.model.smearing          == ref.basis.model.smearing
@@ -29,8 +29,11 @@ function test_scfres_agreement(tested, ref)
     @test tested.energies.total ≈  ref.energies.total atol=1e-13
     @test tested.eigenvalues    == ref.eigenvalues
     @test tested.occupation     == ref.occupation
-    @test tested.ψ              == ref.ψ
     @test tested.ρ              ≈  ref.ρ rtol=1e-14
+
+    if test_ψ
+        @test tested.ψ == ref.ψ
+    end
 end
 end
 
@@ -39,24 +42,32 @@ end
     using DFTK: ScfDefaultCallback, ScfSaveCheckpoints
     using JLD2  # needed for ScfSaveCheckpoints
     using MPI
+    using LinearAlgebra
     o2molecule = TestCases.o2molecule
 
+    magnetic_moments = [1., 1.]
     model = model_PBE(o2molecule.lattice, o2molecule.atoms, o2molecule.positions;
                       temperature=0.02, smearing=Smearing.Gaussian(),
-                      magnetic_moments=[1., 1.], symmetries=false)
+                      magnetic_moments, symmetries=false)
 
     kgrid = [1, mpi_nprocs(), 1]   # Ensure at least 1 kpt per process
     basis  = PlaneWaveBasis(model; Ecut=4, kgrid)
+    ρ = guess_density(basis, magnetic_moments)
 
     # Run SCF and do checkpointing along the way
     mktempdir() do tmpdir
-        checkpointfile = joinpath(tmpdir, "scfres.jld2")
-        checkpointfile = MPI.bcast(checkpointfile, 0, MPI.COMM_WORLD)  # master -> everyone
-
-        callback  = ScfDefaultCallback() ∘ ScfSaveCheckpoints(checkpointfile; keep=true)
+        filename = joinpath(tmpdir, "scfres.jld2")
+        filename = MPI.bcast(filename, 0, MPI.COMM_WORLD)  # master -> everyone
+        kwargs = kwargs_scf_checkpoints(basis; filename, ρ)
         nbandsalg = FixedBands(; n_bands_converge=20)
-        scfres = self_consistent_field(basis; tol=1e-2, nbandsalg, callback)
-        ScfresAgreement.test_scfres_agreement(scfres, load_scfres(checkpointfile))
+        scfres = self_consistent_field(basis; tol=1e-2, nbandsalg, kwargs...)
+
+        kwargs = kwargs_scf_checkpoints(basis; filename, ρ)
+        @test norm(kwargs.ρ - scfres.ρ) < 1e-12
+        scfres = self_consistent_field(basis; tol=5e-2, nbandsalg, kwargs...)
+        @test scfres.n_iter ≤ 3
+
+        ScfresAgreement.test_scfres_agreement(scfres, load_scfres(filename); test_ψ=false)
     end
 end
 

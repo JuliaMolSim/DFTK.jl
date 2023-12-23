@@ -50,19 +50,19 @@ function load_basis(jld)
 end
 
 
-function DFTK.load_scfres(::Val{:jld2}, filename::AbstractString, basis=nothing;
-                          skip_hamiltonian=false)
+function DFTK.load_scfres(::Val{:jld2}, filename::AbstractString, basis=nothing; kwargs...)
     if mpi_master()
         scfres = JLD2.jldopen(filename, "r") do jld
-            load_scfres_jld2(jld, basis; skip_hamiltonian)
+            load_scfres_jld2(jld, basis; kwargs...)
         end
     else
-        scfres = load_scfres_jld2(nothing, basis; skip_hamiltonian)
+        scfres = load_scfres_jld2(nothing, basis; kwargs...)
     end
     MPI.Barrier(MPI.COMM_WORLD)
     scfres
 end
-function load_scfres_jld2(jld, basis; skip_hamiltonian)
+function load_scfres_jld2(jld, basis; skip_hamiltonian, strict)
+    consistent_kpts = true
     if isnothing(basis)
         basis = load_basis(jld)
     else
@@ -77,12 +77,16 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian)
                             "and supplied basis ($(basis.fft_size))")
             end
             if jld["n_kpoints"] != length(basis.kcoords_global)
-                errormsg = ("Mismatch in number of k-points between file ($(jld["n_kpoints"])) " *
-                            "and supplied basis ($(length(basis.kcoords_global)))")
+                consistent_kpts = false
+                strict && (errormsg = "Mismatch in number of k-points between file " *
+                                      "($(jld["n_kpoints"])) and supplied basis " *
+                                      "($(length(basis.kcoords_global)))")
             end
             if jld["n_spin_components"] != basis.model.n_spin_components
-                errormsg = ("Mismatch in number of spin components between file ($(jld["n_spin_components"])) " *
-                            "and supplied basis ($(basis.model.n_spin_components))")
+                consistent_kpts = false
+                errormsg = ("Mismatch in number of spin components between file " *
+                            "($(jld["n_spin_components"])) and supplied basis " *
+                            "($(basis.model.n_spin_components))")
             end
         end
         errormsg = MPI.bcast(errormsg, 0, MPI.COMM_WORLD)
@@ -122,10 +126,12 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian)
 
     # TODO Could also reconstruct diagonalization data structure
 
-    scfdict[:eigenvalues] = reshape_and_scatter(jld, "eigenvalues")
-    scfdict[:occupation]  = reshape_and_scatter(jld, "occupation")
+    if consistent_kpts
+        scfdict[:eigenvalues] = reshape_and_scatter(jld, "eigenvalues")
+        scfdict[:occupation]  = reshape_and_scatter(jld, "occupation")
+    end
 
-    has_ψ = mpi_master() ? haskey(jld, "ψ") : nothing
+    has_ψ = mpi_master() ? (consistent_kpts && haskey(jld, "ψ")) : nothing
     has_ψ = MPI.bcast(has_ψ, 0, MPI.COMM_WORLD)
     if has_ψ
         n_G_vectors = reshape_and_scatter(jld, "kpt_n_G_vectors")
@@ -139,6 +145,8 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian)
         scfdict[:ψ] = map(n_G_vectors, ψ_padded) do n_Gk, ψk_padded
             ψk_padded[1:n_Gk, :]
         end
+    else
+        scfdict[:ψ] = nothing
     end
 
     if !skip_hamiltonian && has_ψ
