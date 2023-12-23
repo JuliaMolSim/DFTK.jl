@@ -5,7 +5,8 @@
 
     Ecut = 3
     fft_size = [15, 15, 15]
-    model = Model(silicon.lattice, silicon.atoms, silicon.positions)
+    model = Model(silicon.lattice, silicon.atoms, silicon.positions;
+                  spin_polarization=:collinear)
     basis = PlaneWaveBasis(model; Ecut=3, silicon.kgrid, fft_size)
 
     @test basis.model.lattice == silicon.lattice
@@ -22,14 +23,17 @@
 
     for (ik, kpt) in enumerate(basis.kpoints)
         kpt = basis.kpoints[ik]
-        @test kpt.coordinate == silicon.kgrid.kcoords[basis.krange_thisproc[ik]]
+        σ = kpt.spin
+        ikmod = ik ≤ length(basis.krange_thisproc[1]) ? ik : ik - basis.krange_thisproc[1]
+        @test kpt.coordinate == silicon.kgrid.kcoords[basis.krange_thisproc_allspin[ik]]
+        @test kpt.coordinate == silicon.kgrid.kcoords[basis.krange_thisproc[σ][ikmod]]
 
         for (ig, G) in enumerate(G_vectors(basis, kpt))
             @test g_start <= G <= g_stop
         end
         @test g_all[kpt.mapping] == G_vectors(basis, kpt)
     end
-    @test basis.kweights == silicon.kgrid.kweights[basis.krange_thisproc]
+    @test basis.kweights == silicon.kgrid.kweights[basis.krange_thisproc_allspin]
 end
 
 @testitem "PlaneWaveBasis: Energy cutoff is respected" setup=[TestCases] begin

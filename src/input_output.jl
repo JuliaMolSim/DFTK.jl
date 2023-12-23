@@ -267,20 +267,11 @@ function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false)
         # TODO This gather_and_store! actually allocates a full array
         #      of size (max_n_G, n_bands, n_kpoints), which can lead to
         #      the master process running out of memory.
+        #
+        #      One way to avoid this full array allocation in the future by saving the data
+        #      of each MPI rank in a separate key into the dict (one after the other).
         ψblock = blockify_ψ(basis, band_data.ψ).ψ
         gather_and_store!(dict, "ψ", basis, ψblock)
-
-        # TODO Alternative for later ...
-        #      Avoid this full array allocation in the future by saving the data of each MPI
-        #      rank in a separate key into the dict (one after the other).
-        #
-        # ψrank  = make_subdict!(make_subdict!(dict, "ψ"),
-        #                        "rank_$(MPI.Comm_rank(basis.comm_kpts))")
-        # n_spin = basis.model.n_spin_components
-        # krange = basis.krange_thisproc[krange_spin(basis, 1)]
-        # ψdata  = reduce((v, w) -> cat(v, w; dims=3), ψblock)
-        # ψrank["krange"] = krange
-        # ψrank["data"]   = reshape(ψdata, (max_n_G, n_bands, length(krange), n_spin))
     end
     dict
 end

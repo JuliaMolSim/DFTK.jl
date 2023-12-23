@@ -28,7 +28,7 @@
 
         @test res.converged
         for ik = 1:length(basis.kpoints)
-            @test ref_λ[basis.krange_thisproc[ik]] ≈ res.λ[ik] atol = 1e-4
+            @test ref_λ[basis.krange_thisproc_allspin[ik]] ≈ res.λ[ik] atol = 1e-4
             @test maximum(res.residual_norms[ik]) < 1e-4
             @test res.n_iter[ik] < 200
         end
@@ -40,7 +40,7 @@
 
         @test res.converged
         for ik = 1:length(basis.kpoints)
-            @test ref_λ[basis.krange_thisproc[ik]] ≈ res.λ[ik]
+            @test ref_λ[basis.krange_thisproc_allspin[ik]] ≈ res.λ[ik]
             @test maximum(res.residual_norms[ik]) < 100tol  # TODO Why the 100?
             @test res.n_iter[ik] < 50
         end
@@ -69,7 +69,7 @@ end
          -0.513805498246478, -0.497036479690380]
     ]
     for ik = 1:length(basis.kpoints)
-        @test res.λ[ik][1:5] ≈ ref[basis.krange_thisproc[ik]] atol=5e-7
+        @test res.λ[ik][1:5] ≈ ref[basis.krange_thisproc_allspin[ik]] atol=5e-7
     end
 end
 
@@ -96,7 +96,7 @@ end
          0.418387442903058, 0.619797227001203],
     ]
     for ik = 1:length(basis.kpoints)
-        @test res.λ[ik] ≈ ref[basis.krange_thisproc[ik]] atol=0.02
+        @test res.λ[ik] ≈ ref[basis.krange_thisproc_allspin[ik]] atol=0.02
     end
 end
 

@@ -80,7 +80,7 @@ function test_agreement_bands(band_data, dict; explicit_reshape=false, test_ψ=t
     ψ_resh           = MPI.bcast(ψ_resh,           0, MPI.COMM_WORLD)
 
     for σ = 1:n_spin, ik = DFTK.krange_spin(basis, σ)
-        ikgl = mod1(basis.krange_thisproc[ik], n_kpoints)  # global k-point index
+        ikgl = mod1(basis.krange_thisproc_allspin[ik], n_kpoints)  # global k-point index
 
         ldiag = last(band_data.diagonalization)
         @test n_iter_resh[ikgl, σ]         == ldiag.n_iter[ik]
@@ -145,8 +145,7 @@ using Test
 using DFTK
 testcase = TestCases.silicon
 
-function test_todict(label; spin_polarization=:none, Ecut=7, temperature=0.0,
-                     kgrid=MonkhorstPack(1, 1, 1))
+function test_todict(label; spin_polarization=:none, Ecut=7, temperature=0.0)
     if spin_polarization == :collinear
         magnetic_moments = [1.0, 1.0]
     else
@@ -154,7 +153,7 @@ function test_todict(label; spin_polarization=:none, Ecut=7, temperature=0.0,
     end
     model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions;
                       spin_polarization, temperature, magnetic_moments)
-    basis = PlaneWaveBasis(model; Ecut, kgrid)
+    basis = PlaneWaveBasis(model; Ecut, kgrid, use_symmetries_for_kpoint_reduction=false)
     nbandsalg = FixedBands(; n_bands_converge=8)
     scfres = self_consistent_field(basis; tol=1e-1, nbandsalg)
     bands  = compute_bands(scfres, kgrid; n_bands=8, tol=1e-1)
@@ -176,6 +175,11 @@ function test_todict(label; spin_polarization=:none, Ecut=7, temperature=0.0,
     end
 end
 
-test_todict("nospin notemp";  spin_polarization=:none, kgrid=MonkhorstPack(1, 2, 1))
-test_todict("collinear temp"; spin_polarization=:collinear, kgrid=MonkhorstPack(2, 1, 3))
+test_todict("nospin notemp";
+            spin_polarization=:none,
+            kgrid=MonkhorstPack(1, max(2, mpi_nprocs()), 1))  # At least one k-point per MPI proc.
+test_todict("collinear temp";
+            spin_polarization=:collinear,
+            kgrid=MonkhorstPack(2, 1, 3),
+            temperature=1e-3)
 end

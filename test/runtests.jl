@@ -14,7 +14,7 @@ include("runtests_parser.jl")
 runfile = joinpath(@__DIR__, "runtests_runner.jl")
 
 if base_tag == :mpi
-    nprocs  = parse(Int, get(ENV, "DFTK_TEST_NPROCS", "2"))
+    nprocs  = parse(Int, get(ENV, "DFTK_TEST_NPROCS", "$(clamp(Sys.CPU_THREADS, 2, 4))"))
     run(`$(mpiexec()) -n $nprocs $(Base.julia_cmd())
         --check-bounds=yes --depwarn=yes --project --color=yes --startup-file=no
         $runfile $ARGS`)
