@@ -2,11 +2,12 @@
 Adds simplistic checkpointing to a DFTK self-consistent field calculation.
 Requires JLD2 to be loaded.
 """
-function ScfSaveCheckpoints(filename="dftk_scf_checkpoint.jld2"; keep=false, overwrite=false)
+function ScfSaveCheckpoints(filename="dftk_scf_checkpoint.jld2";
+                            keep=false, overwrite=false)
     # TODO Save only every 30 minutes or so
     function callback(info)
         if info.n_iter == 1
-            isfile(filename) && !overwrite && error(
+            mpi_master() && isfile(filename) && !overwrite && error(
                 "Checkpoint $filename exists. Use 'overwrite=true' to force overwriting."
             )
         end

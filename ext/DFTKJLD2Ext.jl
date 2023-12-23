@@ -91,9 +91,14 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian)
 
     propmap = Dict(:damping_value => :α, )  # compatibility mapping
     if mpi_master()
+        # Setup default energies
+        e_keys   = filter!(!isequal("total"), collect(keys(jld["energies"])))
+        e_values = [jld["energies"][k] for k in e_keys]
+
         scfdict = Dict{Symbol, Any}(
-            :εF => jld["εF"],
-            :ρ  => jld["ρ"],
+            :εF       => jld["εF"],
+            :ρ        => jld["ρ"],
+            :energies => DFTK.Energies(e_keys, e_values),
         )
         for key in jld["scfres_extra_keys"]
             scfdict[get(propmap, Symbol(key), Symbol(key))] = jld[key]
@@ -143,10 +148,6 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian)
                                                 εF=scfdict[:εF])
         scfdict[:energies] = energies
         scfdict[:ham]      = ham
-    else
-        terms   = filter!(!isequal("total"), collect(keys(jld["energies"])))
-        values = [jld["energies"][k] for k in terms]
-        scfdict[:energies] = DFTK.Energies(DFTK.OrderedDict(terms .=> values))
     end
 
     MPI.Barrier(MPI.COMM_WORLD)
