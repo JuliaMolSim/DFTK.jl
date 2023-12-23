@@ -23,17 +23,19 @@
 
     for (ik, kpt) in enumerate(basis.kpoints)
         kpt = basis.kpoints[ik]
-        σ = kpt.spin
-        ikmod = ik ≤ length(basis.krange_thisproc[1]) ? ik : ik - basis.krange_thisproc[1]
-        @test kpt.coordinate == silicon.kgrid.kcoords[basis.krange_thisproc_allspin[ik]]
-        @test kpt.coordinate == silicon.kgrid.kcoords[basis.krange_thisproc[σ][ikmod]]
-
+        ikmod = mod1(basis.krange_thisproc_allspin[ik], length(silicon.kgrid.kcoords))
+        @test kpt.coordinate     == silicon.kgrid.kcoords[ikmod]
+        @test basis.kweights[ik] == silicon.kgrid.kweights[ikmod]
         for (ig, G) in enumerate(G_vectors(basis, kpt))
             @test g_start <= G <= g_stop
         end
         @test g_all[kpt.mapping] == G_vectors(basis, kpt)
     end
-    @test basis.kweights == silicon.kgrid.kweights[basis.krange_thisproc_allspin]
+    for σ = 1:basis.model.n_spin_components
+        for (ikσ, ik) = enumerate(DFTK.krange_spin(basis, σ))
+            @test basis.krange_thisproc[σ][ikσ] == basis.krange_thisproc_allspin[ik]
+        end
+    end
 end
 
 @testitem "PlaneWaveBasis: Energy cutoff is respected" setup=[TestCases] begin
