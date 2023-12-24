@@ -54,6 +54,8 @@ Keyword arguments:
 - `save_ψ`: Save the orbitals as well (may lead to larger files). This is the default
   for `jld2`, but `false` for all other formats, where this is considerably more
   expensive.
+- `save_ρ`: Save the density as well (may lead to larger files). This is the default
+  for all but `json`.
 - `extra_data`: Additional data to place into the file. The data is just copied
   like `fp["key"] = value`, where `fp` is a `JLD2.JLDFile`, `WriteVTK.vtk_grid`
   and so on.
@@ -67,7 +69,7 @@ Keyword arguments:
 """
 @timing function save_scfres(filename::AbstractString, scfres::NamedTuple;
                              save_ψ=nothing, extra_data=Dict{String,Any}(),
-                             compress=false)
+                             compress=false, save_ρ=true)
     filename = MPI.bcast(filename, 0, MPI.COMM_WORLD)
 
     _, ext = splitext(filename)
@@ -75,10 +77,8 @@ Keyword arguments:
     if !(ext in (:jld2, :vts, :json))
         error("Extension '$ext' not supported by DFTK.")
     end
-    if isnothing(save_ψ)
-        save_ψ = (ext == :jld2)
-    end
-    save_scfres(Val(ext), filename, scfres; save_ψ, extra_data, compress)
+    save_ψ = something(save_ψ, (ext == :jld2))
+    save_scfres(Val(ext), filename, scfres; save_ψ, save_ρ, extra_data, compress)
 end
 function save_scfres(::Any, filename::AbstractString, ::NamedTuple; kwargs...)
     error("The extension $(last(splitext(filename))) is currently not available. " *

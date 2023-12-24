@@ -198,10 +198,10 @@ Some details on the conventions for the returned data:
   for k-points which have less G-vectors than max_n_G, then there are
   tailing zeros.
 """
-function band_data_to_dict(band_data::NamedTuple; save_ψ=false)
-    band_data_to_dict!(Dict{String,Any}(), band_data; save_ψ)
+function band_data_to_dict(band_data::NamedTuple; kwargs...)
+    band_data_to_dict!(Dict{String,Any}(), band_data; kwargs...)
 end
-function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false)
+function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false, save_ρ=nothing)
     # TODO Quick and dirty solution for now.
     #      The better would be to have a BandData struct and use
     #      a `todict` function for it, which does essentially this.
@@ -297,10 +297,10 @@ Some details on the conventions for the returned data:
   fully converged numerically.
 - n_iter: Number of iterations.
 """
-function scfres_to_dict(scfres::NamedTuple; save_ψ=false)
-    scfres_to_dict!(Dict{String,Any}(), scfres; save_ψ)
+function scfres_to_dict(scfres::NamedTuple; kwargs...)
+    scfres_to_dict!(Dict{String,Any}(), scfres; kwargs...)
 end
-function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true)
+function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true, save_ρ=true)
     # TODO Rename to todict(scfres) once scfres gets its proper type
 
     band_data_to_dict!(dict, scfres; save_ψ)
@@ -310,7 +310,9 @@ function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true)
                :ρ, :ψ, :eigenvalues, :occupation, :εF, :diagonalization)
     propmap = Dict(:α => :damping_value, )  # compatibility mapping
     if mpi_master()
-        dict["ρ"] = scfres.ρ
+        if save_ρ
+            dict["ρ"] = scfres.ρ
+        end
         energies = make_subdict!(dict, "energies")
         for (key, value) in todict(scfres.energies)
             energies[key] = value

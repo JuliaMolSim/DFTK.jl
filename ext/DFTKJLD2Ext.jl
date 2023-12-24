@@ -6,10 +6,10 @@ using MPI
 DFTK.make_subdict!(jld::Union{JLD2.Group,JLD2.JLDFile}, name::AbstractString) = JLD2.Group(jld, name)
 
 function save_jld2(to_dict_function!, file::AbstractString, scfres::NamedTuple;
-                   save_ψ=true, extra_data=Dict{String,Any}(), compress=false)
+                   save_ψ=true, save_ρ=true, extra_data=Dict{String,Any}(), compress=false)
     if mpi_master()
         JLD2.jldopen(file, "w"; compress) do jld
-            to_dict_function!(jld, scfres; save_ψ)
+            to_dict_function!(jld, scfres; save_ψ, save_ρ)
             for (k, v) in pairs(extra_data)
                 jld[k] = v
             end
@@ -101,7 +101,7 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict)
 
         scfdict = Dict{Symbol, Any}(
             :εF       => jld["εF"],
-            :ρ        => jld["ρ"],
+            :ρ        => get(jld, "ρ", nothing),
             :energies => DFTK.Energies(e_keys, e_values),
         )
         for key in jld["scfres_extra_keys"]
@@ -149,7 +149,7 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict)
         scfdict[:ψ] = nothing
     end
 
-    if !skip_hamiltonian && has_ψ
+    if !skip_hamiltonian && has_ψ && !isnothing(scfdict[:ρ])
         energies, ham = DFTK.energy_hamiltonian(basis, scfdict[:ψ], scfdict[:occupation];
                                                 ρ=scfdict[:ρ],
                                                 eigenvalues=scfdict[:eigenvalues],
