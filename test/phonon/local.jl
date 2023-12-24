@@ -46,9 +46,8 @@ function test_frequencies(testcase; ω_ref=nothing)
     qpoints = Phonon.generate_supercell_qpoints(; supercell_size=kgrid).qpoints
     scf_tol = 1e-12
     χ0_tol  = scf_tol/10
-    is_converged = DFTK.ScfConvergenceDensity(scf_tol)
-    determine_diagtol = DFTK.ScfDiagtol(diagtol_max=scf_tol)
-    scf_kwargs = (; is_converged, determine_diagtol)
+    scf_kwargs = (; is_converged=ScfConvergenceDensity(scf_tol),
+                  diagtolalg=AdaptiveDiagtol(; diagtol_max=scf_tol))
 
     model = model_tested(testcase.lattice, testcase.atoms, testcase.positions;
                          symmetries=false, testcase.temperature)
