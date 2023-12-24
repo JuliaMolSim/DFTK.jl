@@ -147,7 +147,7 @@ function (conv::ScfConvergenceForce)(info)
     info.n_iter ≤ 1 && (conv.previous_force = nothing)
     force = compute_forces_cart(info.basis, info.ψ, info.occupation; ρ=info.ρout)
     error = isnothing(conv.previous_force) ? NaN : norm(conv.previous_force - force)
-    previous_force = force
+    conv.previous_force = force
     error < conv.tolerance
 end
 
