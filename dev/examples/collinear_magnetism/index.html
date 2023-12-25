@@ -13,61 +13,61 @@ basis_nospin = PlaneWaveBasis(model_nospin; kgrid, Ecut)
 
 scfres_nospin = self_consistent_field(basis_nospin; tol=1e-4, mixing=KerkerDosMixing());</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime
 ---   ---------------   ---------   ---------   ----   ------
-  1   -16.65005458815                   -0.48    5.8
-  2   -16.65071626579       -3.18       -1.01    1.0   17.8ms
-  3   -16.65081133826       -4.02       -2.32    1.2   18.6ms
-  4   -16.65082416220       -4.89       -2.83    2.5   23.9ms
-  5   -16.65082460941       -6.35       -3.26    1.5   19.7ms
-  6   -16.65082468799       -7.10       -3.76    2.0   22.3ms
-  7   -16.65082469744       -8.02       -4.27    2.0   23.0ms</code></pre><pre><code class="language-julia hljs">scfres_nospin.energies</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Energy breakdown (in Ha):
-    Kinetic             15.9207756
-    AtomicLocal         -5.0692853
-    AtomicNonlocal      -5.2201927
+  1   -16.65001040191                   -0.48    5.5
+  2   -16.65071264937       -3.15       -1.01    1.0   18.3ms
+  3   -16.65080987848       -4.01       -2.33    1.2   19.2ms
+  4   -16.65082411869       -4.85       -2.84    2.8   25.3ms
+  5   -16.65082459367       -6.32       -3.26    1.8   21.1ms
+  6   -16.65082468814       -7.02       -3.76    2.0   22.7ms
+  7   -16.65082469753       -8.03       -4.27    2.0   23.8ms</code></pre><pre><code class="language-julia hljs">scfres_nospin.energies</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Energy breakdown (in Ha):
+    Kinetic             15.9208097
+    AtomicLocal         -5.0693049
+    AtomicNonlocal      -5.2202110
     Ewald               -21.4723040
     PspCorrection       1.8758831 
-    Hartree             0.7793329 
-    Xc                  -3.4467465
-    Entropy             -0.0182878
+    Hartree             0.7793386 
+    Xc                  -3.4467483
+    Entropy             -0.0182879
 
-    total               -16.650824697437</code></pre><p>Since we did not specify any initial magnetic moment on the iron atom, DFTK will automatically assume that a calculation with only spin-paired electrons should be performed. As a result the obtained ground state features no spin-polarization.</p><p>Now we repeat the calculation, but give the iron atom an initial magnetic moment. For specifying the magnetic moment pass the desired excess of spin-up over spin-down electrons at each centre to the <code>Model</code> and the guess density functions. In this case we seek the state with as many spin-parallel <span>$d$</span>-electrons as possible. In our pseudopotential model the 8 valence electrons are 2 pair of <span>$s$</span>-electrons, 1 pair of <span>$d$</span>-electrons and 4 unpaired <span>$d$</span>-electrons giving a desired magnetic moment of <code>4</code> at the iron centre. The structure (i.e. pair mapping and order) of the <code>magnetic_moments</code> array needs to agree with the <code>atoms</code> array and <code>0</code> magnetic moments need to be specified as well.</p><pre><code class="language-julia hljs">magnetic_moments = [4];</code></pre><div class="admonition is-success"><header class="admonition-header">Units of the magnetisation and magnetic moments in DFTK</header><div class="admonition-body"><p>Unlike all other quantities magnetisation and magnetic moments in DFTK are given in units of the Bohr magneton <span>$μ_B$</span>, which in atomic units has the value <span>$\frac{1}{2}$</span>. Since <span>$μ_B$</span> is (roughly) the magnetic moment of a single electron the advantage is that one can directly think of these quantities as the excess of spin-up electrons or spin-up electron density.</p></div></div><p>We repeat the calculation using the same model as before. DFTK now detects the non-zero moment and switches to a collinear calculation.</p><pre><code class="language-julia hljs">model = model_LDA(lattice, atoms, positions; magnetic_moments, temperature=0.01)
+    total               -16.650824697529</code></pre><p>Since we did not specify any initial magnetic moment on the iron atom, DFTK will automatically assume that a calculation with only spin-paired electrons should be performed. As a result the obtained ground state features no spin-polarization.</p><p>Now we repeat the calculation, but give the iron atom an initial magnetic moment. For specifying the magnetic moment pass the desired excess of spin-up over spin-down electrons at each centre to the <code>Model</code> and the guess density functions. In this case we seek the state with as many spin-parallel <span>$d$</span>-electrons as possible. In our pseudopotential model the 8 valence electrons are 2 pair of <span>$s$</span>-electrons, 1 pair of <span>$d$</span>-electrons and 4 unpaired <span>$d$</span>-electrons giving a desired magnetic moment of <code>4</code> at the iron centre. The structure (i.e. pair mapping and order) of the <code>magnetic_moments</code> array needs to agree with the <code>atoms</code> array and <code>0</code> magnetic moments need to be specified as well.</p><pre><code class="language-julia hljs">magnetic_moments = [4];</code></pre><div class="admonition is-success"><header class="admonition-header">Units of the magnetisation and magnetic moments in DFTK</header><div class="admonition-body"><p>Unlike all other quantities magnetisation and magnetic moments in DFTK are given in units of the Bohr magneton <span>$μ_B$</span>, which in atomic units has the value <span>$\frac{1}{2}$</span>. Since <span>$μ_B$</span> is (roughly) the magnetic moment of a single electron the advantage is that one can directly think of these quantities as the excess of spin-up electrons or spin-up electron density.</p></div></div><p>We repeat the calculation using the same model as before. DFTK now detects the non-zero moment and switches to a collinear calculation.</p><pre><code class="language-julia hljs">model = model_LDA(lattice, atoms, positions; magnetic_moments, temperature=0.01)
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 ρ0 = guess_density(basis, magnetic_moments)
 scfres = self_consistent_field(basis, tol=1e-6; ρ=ρ0, mixing=KerkerDosMixing());</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">n     Energy            log10(ΔE)   log10(Δρ)   Magnet   Diag   Δtime
 ---   ---------------   ---------   ---------   ------   ----   ------
-  1   -16.66162749427                   -0.51    2.618    4.6
-  2   -16.66809992942       -2.19       -1.09    2.445    1.4   36.8ms
-  3   -16.66904444027       -3.02       -2.05    2.337    2.1   43.3ms
-  4   -16.66910025968       -4.25       -2.75    2.302    2.0   42.7ms
-  5   -16.66910305497       -5.55       -2.97    2.295    1.9   44.2ms
-  6   -16.66910415140       -5.96       -3.50    2.286    1.8   42.1ms
-  7   -16.66910417000       -7.73       -3.78    2.286    1.6   40.5ms
-  8   -16.66910417421       -8.38       -4.29    2.285    1.8   42.0ms
-  9   -16.66910417503       -9.09       -4.89    2.286    1.9   42.9ms
- 10   -16.66910417507      -10.38       -5.26    2.286    2.1   45.5ms
- 11   -16.66910417509      -10.81       -5.86    2.286    1.5   40.9ms
- 12   -16.66910417508   +  -11.41       -6.10    2.286    1.9   44.0ms</code></pre><pre><code class="language-julia hljs">scfres.energies</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Energy breakdown (in Ha):
-    Kinetic             16.2947198
-    AtomicLocal         -5.2227265
-    AtomicNonlocal      -5.4100283
+  1   -16.66157271041                   -0.51    2.618    4.8
+  2   -16.66808066293       -2.19       -1.09    2.445    1.4   37.0ms
+  3   -16.66904319397       -3.02       -2.05    2.337    2.1   43.1ms
+  4   -16.66910056799       -4.24       -2.74    2.302    1.9   42.4ms
+  5   -16.66910321215       -5.58       -2.99    2.294    1.6   40.7ms
+  6   -16.66910415326       -6.03       -3.53    2.286    1.9   42.2ms
+  7   -16.66910417275       -7.71       -3.81    2.286    1.9   42.9ms
+  8   -16.66910417415       -8.85       -4.33    2.285    1.8   42.2ms
+  9   -16.66910417510       -9.02       -4.84    2.286    1.6   41.3ms
+ 10   -16.66910417507   +  -10.59       -5.29    2.286    1.8   41.8ms
+ 11   -16.66910417509      -10.87       -5.87    2.286    1.8   43.1ms
+ 12   -16.66910417508   +  -11.59       -6.27    2.286    2.0   46.2ms</code></pre><pre><code class="language-julia hljs">scfres.energies</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Energy breakdown (in Ha):
+    Kinetic             16.2947193
+    AtomicLocal         -5.2227260
+    AtomicNonlocal      -5.4100280
     Ewald               -21.4723040
     PspCorrection       1.8758831 
-    Hartree             0.8191963 
+    Hartree             0.8191962 
     Xc                  -3.5406834
     Entropy             -0.0131612
 
-    total               -16.669104175081</code></pre><div class="admonition is-info"><header class="admonition-header">Model and magnetic moments</header><div class="admonition-body"><p>DFTK does not store the <code>magnetic_moments</code> inside the <code>Model</code>, but only uses them to determine the lattice symmetries. This step was taken to keep <code>Model</code> (which contains the physical model) independent of the details of the numerical details such as the initial guess for the spin density.</p></div></div><p>In direct comparison we notice the first, spin-paired calculation to be a little higher in energy</p><pre><code class="language-julia hljs">println(&quot;No magnetization: &quot;, scfres_nospin.energies.total)
+    total               -16.669104175084</code></pre><div class="admonition is-info"><header class="admonition-header">Model and magnetic moments</header><div class="admonition-body"><p>DFTK does not store the <code>magnetic_moments</code> inside the <code>Model</code>, but only uses them to determine the lattice symmetries. This step was taken to keep <code>Model</code> (which contains the physical model) independent of the details of the numerical details such as the initial guess for the spin density.</p></div></div><p>In direct comparison we notice the first, spin-paired calculation to be a little higher in energy</p><pre><code class="language-julia hljs">println(&quot;No magnetization: &quot;, scfres_nospin.energies.total)
 println(&quot;Magnetic case:    &quot;, scfres.energies.total)
-println(&quot;Difference:       &quot;, scfres.energies.total - scfres_nospin.energies.total);</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">No magnetization: -16.65082469743653
-Magnetic case:    -16.669104175081323
-Difference:       -0.018279477644792763</code></pre><p>Notice that with the small cutoffs we use to generate the online documentation the calculation is far from converged. With more realistic parameters a larger energy difference of about 0.1 Hartree is obtained.</p><p>The spin polarization in the magnetic case is visible if we consider the occupation of the spin-up and spin-down Kohn-Sham orbitals. Especially for the <span>$d$</span>-orbitals these differ rather drastically. For example for the first <span>$k$</span>-point:</p><pre><code class="language-julia hljs">iup   = 1
+println(&quot;Difference:       &quot;, scfres.energies.total - scfres_nospin.energies.total);</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">No magnetization: -16.650824697528616
+Magnetic case:    -16.669104175083934
+Difference:       -0.01827947755531767</code></pre><p>Notice that with the small cutoffs we use to generate the online documentation the calculation is far from converged. With more realistic parameters a larger energy difference of about 0.1 Hartree is obtained.</p><p>The spin polarization in the magnetic case is visible if we consider the occupation of the spin-up and spin-down Kohn-Sham orbitals. Especially for the <span>$d$</span>-orbitals these differ rather drastically. For example for the first <span>$k$</span>-point:</p><pre><code class="language-julia hljs">iup   = 1
 idown = iup + length(scfres.basis.kpoints) ÷ 2
 @show scfres.occupation[iup][1:7]
-@show scfres.occupation[idown][1:7];</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">(scfres.occupation[iup])[1:7] = [1.0, 0.9999987814374373, 0.9999987814374373, 0.9999987814374373, 0.9582252896233678, 0.9582252896233647, 1.1265104800397934e-29]
-(scfres.occupation[idown])[1:7] = [1.0, 0.8438954788495286, 0.8438954788495259, 0.8438954788495229, 8.140984502142683e-6, 8.14098450214251e-6, 1.3435009254854195e-32]</code></pre><p>Similarly the eigenvalues differ</p><pre><code class="language-julia hljs">@show scfres.eigenvalues[iup][1:7]
-@show scfres.eigenvalues[idown][1:7];</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">(scfres.eigenvalues[iup])[1:7] = [-0.06935854395605566, 0.3568856065281263, 0.35688560652812673, 0.3568856065281268, 0.461736062798634, 0.46173606279863477, 1.1596224096807992]
-(scfres.eigenvalues[idown])[1:7] = [-0.03125747422549417, 0.4761889519885434, 0.4761889519885436, 0.47618895198854383, 0.6102498935332258, 0.610249893533226, 1.2269384219316095]</code></pre><div class="admonition is-info"><header class="admonition-header">``k``-points in collinear calculations</header><div class="admonition-body"><p>For collinear calculations the <code>kpoints</code> field of the <code>PlaneWaveBasis</code> object contains each <span>$k$</span>-point coordinate twice, once associated with spin-up and once with down-down. The list first contains all spin-up <span>$k$</span>-points and then all spin-down <span>$k$</span>-points, such that <code>iup</code> and <code>idown</code> index the same <span>$k$</span>-point, but differing spins.</p></div></div><p>We can observe the spin-polarization by looking at the density of states (DOS) around the Fermi level, where the spin-up and spin-down DOS differ.</p><pre><code class="language-julia hljs">using Plots
+@show scfres.occupation[idown][1:7];</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">(scfres.occupation[iup])[1:7] = [1.0, 0.9999987814410648, 0.9999987814410648, 0.9999987814410648, 0.9582253341560243, 0.9582253341560245, 1.1266552412950664e-29]
+(scfres.occupation[idown])[1:7] = [1.0, 0.8438938075770984, 0.8438938075770991, 0.8438938075770954, 8.140897865004246e-6, 8.140897865004332e-6, 4.138928691871095e-33]</code></pre><p>Similarly the eigenvalues differ</p><pre><code class="language-julia hljs">@show scfres.eigenvalues[iup][1:7]
+@show scfres.eigenvalues[idown][1:7];</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">(scfres.eigenvalues[iup])[1:7] = [-0.06935856089772784, 0.3568856004687862, 0.35688560046878687, 0.35688560046878637, 0.4617360753841307, 0.46173607538413064, 1.159621148432443]
+(scfres.eigenvalues[idown])[1:7] = [-0.03125745550017466, 0.47618910256380337, 0.4761891025638033, 0.4761891025638036, 0.6102500236660567, 0.6102500236660566, 1.238712715108625]</code></pre><div class="admonition is-info"><header class="admonition-header">``k``-points in collinear calculations</header><div class="admonition-body"><p>For collinear calculations the <code>kpoints</code> field of the <code>PlaneWaveBasis</code> object contains each <span>$k$</span>-point coordinate twice, once associated with spin-up and once with down-down. The list first contains all spin-up <span>$k$</span>-points and then all spin-down <span>$k$</span>-points, such that <code>iup</code> and <code>idown</code> index the same <span>$k$</span>-point, but differing spins.</p></div></div><p>We can observe the spin-polarization by looking at the density of states (DOS) around the Fermi level, where the spin-up and spin-down DOS differ.</p><pre><code class="language-julia hljs">using Plots
 bands_666 = compute_bands(scfres, MonkhorstPack(6, 6, 6))  # Increase kgrid to get nicer DOS.
-plot_dos(bands_666)</code></pre><img src="d79cbf01.svg" alt="Example block output"/><p>Note that if same k-grid as SCF should be employed, a simple <code>plot_dos(scfres)</code> is sufficient.</p><p>Similarly the band structure shows clear differences between both spin components.</p><pre><code class="language-julia hljs">using Unitful
+plot_dos(bands_666)</code></pre><img src="023e08b6.svg" alt="Example block output"/><p>Note that if same k-grid as SCF should be employed, a simple <code>plot_dos(scfres)</code> is sufficient.</p><p>Similarly the band structure shows clear differences between both spin components.</p><pre><code class="language-julia hljs">using Unitful
 using UnitfulAtomic
 bands_kpath = compute_bands(scfres; kline_density=6)
-plot_bandstructure(bands_kpath)</code></pre><img src="d2fbbfc7.svg" alt="Example block output"/></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../metallic_systems/">« Temperature and metallic systems</a><a class="docs-footer-nextpage" href="../convergence_study/">Performing a convergence study »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.1.2 on <span class="colophon-date" title="Thursday 21 December 2023 16:27">Thursday 21 December 2023</span>. Using Julia version 1.9.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+plot_bandstructure(bands_kpath)</code></pre><img src="b1dfe1a2.svg" alt="Example block output"/></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../metallic_systems/">« Temperature and metallic systems</a><a class="docs-footer-nextpage" href="../convergence_study/">Performing a convergence study »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.1.2 on <span class="colophon-date" title="Monday 25 December 2023 09:10">Monday 25 December 2023</span>. Using Julia version 1.9.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
