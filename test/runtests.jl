@@ -16,6 +16,7 @@ runfile = joinpath(@__DIR__, "runtests_runner.jl")
 # Trigger some precompilation and build steps
 using ASEconvert
 using CUDA
+using DFTK
 
 if base_tag == :mpi
     nprocs  = parse(Int, get(ENV, "DFTK_TEST_NPROCS", "$(clamp(Sys.CPU_THREADS, 2, 4))"))
