@@ -112,8 +112,7 @@ end
 #      - Flag convergence only after two subsequent steps converged
 
 """
-Flag convergence as soon as total energy change drops below a tolerance
-at least `n_times` times.
+Flag convergence as soon as total energy change drops below a tolerance.
 """
 struct ScfConvergenceEnergy
     tolerance::Float64

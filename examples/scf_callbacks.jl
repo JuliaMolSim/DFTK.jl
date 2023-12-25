@@ -21,8 +21,8 @@ basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3]);
 
 # DFTK already defines a few callback functions for standard
 # tasks. One example is the usual convergence table,
-# which is defined in the callback `ScfDefaultCallback`.
-# Another example is `ScfSaveCheckpoints`, which stores the state
+# which is defined in the callback [`ScfDefaultCallback`](@ref).
+# Another example is [`ScfSaveCheckpoints`](@ref), which stores the state
 # of an SCF at each iterations to allow resuming from a failed
 # calculation at a later point.
 # See [Saving SCF results on disk and SCF checkpoints](@ref) for details

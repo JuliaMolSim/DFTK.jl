@@ -97,10 +97,8 @@ struct PlaneWaveBasis{T,
     krange_thisproc::Vector{UnitRange{Int}}  # Indices of kpoints treated explicitly by this
     #            # processor in the global kcoords array. To allow for contiguous array
     #            # indexing, this is given as a unit range for spin-up and spin-down
-    krange_thisproc_allspin::Vector{Int}  # Contiguous indexing version of the above.
-    #                                       == vcat(krange_thisproc)
-    krange_allprocs::Vector{Vector{UnitRange{Int}}}  # Same as krange_thisproc.
-    #                                                  One for each processor.
+    krange_allprocs::Vector{Vector{UnitRange{Int}}}  # Same as above, but one entry per rank
+    krange_thisproc_allspin::Vector{Int}  # Indexing version == vcat(krange_thisproc...)
 
     ## Information on the hardware and device used for computations.
     architecture::Arch
@@ -318,7 +316,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
         Gs, r_vectors,
         kpoints, kweights, kgrid,
         kcoords_global, kweights_global,
-        comm_kpts, krange_thisproc, krange_thisproc_allspin, krange_allprocs,
+        comm_kpts, krange_thisproc, krange_allprocs, krange_thisproc_allspin,
         architecture, symmetries, symmetries_respect_rgrid,
         use_symmetries_for_kpoint_reduction, terms)
 

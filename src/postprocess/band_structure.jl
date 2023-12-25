@@ -309,5 +309,5 @@ end
 
 function save_bands(::Any, filename::AbstractString, ::NamedTuple; kwargs...)
     error("The extension $(last(splitext(filename))) is currently not available. " *
-          "A required package (e.g. JSON3) is not yet loaded.")
+          "A required package (e.g. JSON3 or JLD2) is not yet loaded.")
 end

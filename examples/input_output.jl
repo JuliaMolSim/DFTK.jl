@@ -110,10 +110,9 @@ save_bands("iron_afm_bands.json", bands)
 using JLD2
 save_scfres("iron_afm.jld2", scfres)
 
-# Saving such JLD2 files supports some options, such as `compress=true`, which
-# enables a fast compression algorithm, or `save_ψ=false`, which avoids saving
-# the Bloch waves (much faster and smaller files). [`save_bands`](@ref) is
-# can also be used with JLD2 files.
+# Saving such JLD2 files supports some options, such as `save_ψ=false`, which avoids saving
+# the Bloch waves (much faster and smaller files). Notice that JLD2 files can also be used
+# with [`save_bands`](@ref).
 
 # Since such JLD2 can also be read by DFTK to start or continue a calculation,
 # these can also be used for checkpointing or for transferring results

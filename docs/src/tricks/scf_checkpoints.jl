@@ -87,10 +87,12 @@ loaded.energies
 # but can continue the calculation from the last checkpoint.
 #
 # The easiest way to enable checkpointing is to use the [`kwargs_scf_checkpoints`](@ref)
-# function, which sets up checkpointing and when checkpoint file is already present, uses it
-# to continue the calculation. This is done by modifying the keyword arguments to
-# [`self_consistent_field`](@ref) appropriately, e.g. by using the density or orbitals
-# from the checkpoint file. For example:
+# function, which does two things. (1) It sets up checkpointing using the
+# [`ScfSaveCheckpoints`](@ref) callback and (2) if a checkpoint file is detected,
+# the stored density is used to continue the calculation instead of the usual
+# atomic-orbital based guess. In practice this is done by modifying the keyword arguments
+# passed to # [`self_consistent_field`](@ref) appropriately, e.g. by using the density
+# or orbitals from the checkpoint file. For example:
 
 checkpointargs = kwargs_scf_checkpoints(basis; ρ=guess_density(basis, magnetic_moments))
 scfres = self_consistent_field(basis; tol=1e-2, checkpointargs...)
@@ -103,9 +105,10 @@ checkpointargs = kwargs_scf_checkpoints(basis; ρ=guess_density(basis, magnetic_
 scfres = self_consistent_field(basis; tol=1e-3, checkpointargs...)
 
 # Since only the density is stored in a checkpoint
-# (i.e. not the Bloch waves), the first step needs a slightly elevated number
-# of diagonalizations. Notice, that reconstructing the `checkpointargs` is important as
-# the second time different data is passed (e.g. the density from the checkpoint file).
+# (and not the Bloch waves), the first step needs a slightly elevated number
+# of diagonalizations. Notice, that reconstructing the `checkpointargs` in this second
+# call is important as the `checkpointargs` now contain different data,
+# such that the SCF continues from the checkpoint.
 # By default checkpoint is saved in the file `dftk_scf_checkpoint.jld2`, which can be changed
 # using the `filename` keyword argument of [`kwargs_scf_checkpoints`](@ref). Note that the
 # file is not deleted by DFTK, so it is your responsibility to clean it up. Further note
@@ -119,7 +122,7 @@ oldstate = load_scfres("dftk_scf_checkpoint.jld2")
 scfres   = self_consistent_field(oldstate.basis, ρ=oldstate.ρ, ψ=oldstate.ψ, tol=1e-4);
 
 # Some details on what happens under the hood in this mechanism: When using the
-# `kwargs_scf_checkpoints` function, the `ScfSaveCheckpoints()` callback is employed
+# `kwargs_scf_checkpoints` function, the `ScfSaveCheckpoints` callback is employed
 # during the SCF, which causes the density to be stored to the JLD2 file in every iteration.
 # When reading the file, the `kwargs_scf_checkpoints` transparently patches away the `ψ`
 # and `ρ` keyword arguments and replaces them by the data obtained from the file.

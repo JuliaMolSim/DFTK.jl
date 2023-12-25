@@ -142,9 +142,7 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict)
         basisok || error("Mismatch in number of G-vectors per k-point.")
 
         ψ_padded = reshape_and_scatter(jld, "ψ")
-        scfdict[:ψ] = map(n_G_vectors, ψ_padded) do n_Gk, ψk_padded
-            ψk_padded[1:n_Gk, :]
-        end
+        scfdict[:ψ] = DFTK.unblockify_ψ(ψ_padded, n_G_vectors)
     else
         scfdict[:ψ] = nothing
     end

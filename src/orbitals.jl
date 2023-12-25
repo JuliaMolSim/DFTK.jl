@@ -39,9 +39,9 @@ end
 
 # Unpacking routine for the above by truncating each array to the sizes
 # given in the second argument.
-function unblockify_ψ(ψ::AbstractVector, n_G_vectors::AbstractVector)
-    map(ψ, n_G_vectors) do (ψk, n_G)
-        ψk[1:n_G, :]
+function unblockify_ψ(ψ_padded::AbstractVector, n_G_vectors::AbstractVector)
+    map(n_G_vectors, ψ_padded) do n_Gk, ψk_padded
+        ψk_padded[1:n_Gk, :]
     end
 end
 

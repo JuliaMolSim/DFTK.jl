@@ -99,8 +99,7 @@ Overview of parameters:
 - `tol`: Tolerance for the density change (``\|ρ_\text{out} - ρ_\text{in}\|``)
   to flag convergence. Default is `1e-6`.
 - `is_converged`: Convergence control callback. Typical objects passed here are
-  `DFTK.ScfConvergenceDensity(tol)` (the default), `DFTK.ScfConvergenceEnergy(tol)`
-  or `DFTK.ScfConvergenceForce(tol)`.
+  `ScfConvergenceDensity(tol)` (the default), `ScfConvergenceEnergy(tol)` or `ScfConvergenceForce(tol)`.
 - `maxiter`: Maximal number of SCF iterations
 - `mixing`: Mixing method, which determines the preconditioner ``P^{-1}`` in the above equation.
   Typical mixings are [`LdosMixing`](@ref), [`KerkerMixing`](@ref), [`SimpleMixing`](@ref)
