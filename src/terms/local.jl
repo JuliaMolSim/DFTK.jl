@@ -89,7 +89,7 @@ function compute_local_potential(S, basis::PlaneWaveBasis{T}; positions=basis.mo
     # positions, this involves a form factor (`local_potential_fourier`)
     # and a structure factor e^{-i G·r}
     model = basis.model
-    Gqs_cart = [model.recip_lattice * (G + q) for G in G_vectors(basis)]
+    Gqs_cart = [model.recip_lattice * (G + q) for G in to_cpu(G_vectors(basis))]
     # TODO Bring Gqs_cart on the CPU for compatibility with the pseudopotentials which
     #      are not isbits ... might be able to solve this by restructuring the loop
 
@@ -107,7 +107,7 @@ function compute_local_potential(S, basis::PlaneWaveBasis{T}; positions=basis.mo
         end
     end
 
-    Gqs = [G + q for G in G_vectors(basis)]  # TODO Again for GPU compatibility
+    Gqs = [G + q for G in to_cpu(G_vectors(basis))]  # TODO Again for GPU compatibility
     pot_fourier = map(enumerate(Gqs)) do (iG, G)
         p = norm(Gqs_cart[iG])
         pot = sum(enumerate(model.atom_groups)) do (igroup, group)

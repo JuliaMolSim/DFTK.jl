@@ -33,7 +33,7 @@ function compute_poisson_green_coeffs(basis::PlaneWaveBasis{T}, scaling_factor;
     # Solving the Poisson equation ΔV = -4π ρ in Fourier space
     # is multiplying elementwise by 4π / |G|^2.
     poisson_green_coeffs = 4T(π) ./ [sum(abs2, model.recip_lattice * (G + q))
-                                     for G in G_vectors(basis)]
+                                     for G in to_cpu(G_vectors(basis))]
     if iszero(q)
         # Compensating charge background => Zero DC.
         GPUArraysCore.@allowscalar poisson_green_coeffs[1] = 0
