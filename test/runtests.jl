@@ -13,6 +13,10 @@ include("runtests_parser.jl")
 (; base_tag) = parse_test_args()
 runfile = joinpath(@__DIR__, "runtests_runner.jl")
 
+# Trigger some precompilation and build steps
+using ASEconvert
+using CUDA
+
 if base_tag == :mpi
     nprocs  = parse(Int, get(ENV, "DFTK_TEST_NPROCS", "$(clamp(Sys.CPU_THREADS, 2, 4))"))
     run(`$(mpiexec()) -n $nprocs $(Base.julia_cmd())
