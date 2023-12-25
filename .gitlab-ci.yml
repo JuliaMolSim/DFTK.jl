@@ -9,7 +9,8 @@ stages:
 julia/1.9-n2:
   stage: test
   variables:
-    SCHEDULER_PARAMETERS: -N 1 -n 1 -c 16 --gres=gpu:a100:1 --qos=devel -p dgx -t 00:30:00 -A hpc-prf-dftkjl
+    # SCHEDULER_PARAMETERS: -N 1 -n 1 -c 16 --gres=gpu:a100:1 --qos=devel -p dgx -t 00:30:00 -A hpc-prf-dftkjl
+    SCHEDULER_PARAMETERS: -N 1 -n 1 -c 16 --gres=gpu:a100:1 --qos=devel -p dgx -t 01:30:00 -A hpc-prf-dftkjl
     JULIA_DEPOT_PATH: /scratch/hpc-prf-dftkjl/dftkjl01/.julia-ci
     JULIA_NUM_THREADS: 1  # GPU and multi-threading not yet compatible
   coverage: '/\(\d+.\d+\%\) covered/'
@@ -22,9 +23,12 @@ julia/1.9-n2:
     - module load lang/JuliaHPC/1.9.3-foss-2022a-CUDA-11.7.0
     - julia --project=. -e '
         using Pkg; Pkg.instantiate();
+        using DFTK;
+        using Preferences;
+        set_preferences!(DFTK, "precompile_workload" => false; force=true);
         Pkg.add("CUDA");
         using CUDA;
-        CUDA.set_runtime_version!(v"11.7"; local_toolkit=true)
+        CUDA.set_runtime_version!(v"11.7"; local_toolkit=true);
       '
     - julia --color=yes --project=. -e '
         using Pkg;
