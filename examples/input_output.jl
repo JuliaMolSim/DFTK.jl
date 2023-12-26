@@ -47,6 +47,13 @@ basis = PlaneWaveBasis(model; Ecut=10, kgrid=(2, 2, 2))
 ρ0 = guess_density(basis, system)
 scfres = self_consistent_field(basis, ρ=ρ0);
 
+# !!! warning "DFTK data formats are not yet fully matured"
+#     The data format in which DFTK saves data as well as the general interface
+#     of the [`load_scfres`](@ref) and [`save_scfres`](@ref) pair of functions
+#     are not yet fully matured. If you use the functions or the produced files
+#     expect that you need to adapt your routines in the future even with patch
+#     version bumps.
+
 # ## Writing VTK files for visualization
 # For visualizing the density or the Kohn-Sham orbitals DFTK supports storing
 # the result of an SCF calculations in the form of VTK files.
@@ -97,10 +104,15 @@ save_bands("iron_afm_bands.json", bands)
 # stored on disk in form of an [JLD2.jl](https://github.com/JuliaIO/JLD2.jl) file.
 # This file can be read from other Julia scripts
 # as well as other external codes supporting the HDF5 file format
-# (since the JLD2 format is based on HDF5).
+# (since the JLD2 format is based on HDF5). This includes notably `h5py`
+# to read DFTK output from python.
 
 using JLD2
-save_scfres("iron_afm.jld2", scfres);
+save_scfres("iron_afm.jld2", scfres)
+
+# Saving such JLD2 files supports some options, such as `save_ψ=false`, which avoids saving
+# the Bloch waves (much faster and smaller files). Notice that JLD2 files can also be used
+# with [`save_bands`](@ref).
 
 # Since such JLD2 can also be read by DFTK to start or continue a calculation,
 # these can also be used for checkpointing or for transferring results

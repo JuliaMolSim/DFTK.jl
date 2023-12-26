@@ -157,83 +157,6 @@ function kpath_get_branch(kinter::KPathInterpolant{D}, ibranch::Integer) where {
     map(k -> vcat(k, zeros_like(k, 3 - D)), kinter.kpaths[ibranch])
 end
 
-"""
-Convert a band computational result to a dictionary representation.
-Intended to give a condensed set of results and useful metadata
-for post processing. See also the [`todict`](@ref) function
-for the [`Model`](@ref) and the [`PlaneWaveBasis`](@ref), which are
-called from this function and the outputs merged. Note, that only
-the master process returns the dictionary. On all other processors
-`nothing` is returned.
-
-Some details on the conventions for the returned data:
-- εF: Computed Fermi level (if present in band_data)
-- labels: A mapping of high-symmetry k-Point labels to the index in
-  the `"kcoords"` vector of the corresponding k-Point.
-- eigenvalues, eigenvalues_error, occupation, residual_norms:
-  (n_spin, n_kpoints, n_bands) arrays of the respective data.
-- n_iter: (n_spin, n_kpoints) array of the number of iterations the
-  diagonalisation routine required.
-"""
-function band_data_to_dict(band_data::NamedTuple)
-    # TODO Quick and dirty solution for now.
-    #      The better would be to have a BandData struct and use
-    #      a `todict` function for it, which does essentially this.
-    #      See also the todo in compute_bands above.
-    data = todict(band_data.basis)
-
-    n_bands   = length(band_data.eigenvalues[1])
-    n_kpoints = length(band_data.basis.kcoords_global)
-    n_spin    = band_data.basis.model.n_spin_components
-    data["n_bands"] = n_bands  # n_spin_components and n_kpoints already stored
-
-    if !isnothing(band_data.εF)
-        data["εF"] = band_data.εF
-    end
-
-    if haskey(band_data, :kinter)
-        data["labels"] = map(band_data.kinter.labels) do labeldict
-            Dict(k => string(v) for (k, v) in pairs(labeldict))
-        end
-    end
-
-    # Gather MPI distributed on the first processor and reshape as specified
-    function gather_and_reshape(data::AbstractVector{T}, shape) where {T}
-        value = gather_kpts(data, band_data.basis)
-        if mpi_master()
-            if T <: AbstractVector
-                value = reduce(hcat, value)
-            end
-            reshaped = reshape(value, reverse(shape)...)
-            permutedims(reshaped, reverse(1:length(shape)))
-        else
-            nothing
-        end
-    end
-    for key in (:eigenvalues, :eigenvalues_error, :occupation)
-        if hasproperty(band_data, key) && !isnothing(getproperty(band_data, key))
-            data[string(key)] = gather_and_reshape(getproperty(band_data, key),
-                                                   (n_spin, n_kpoints, n_bands))
-        end
-    end
-    if mpi_master() && length(band_data.diagonalization) > 1
-        @warn("Ignoring residual norm and iterations of all but the " *
-              "last diagonalisation performed.")
-    end
-    diagonalization = last(band_data.diagonalization)
-
-    data["n_iter"]         = gather_and_reshape(diagonalization.n_iter, (n_spin, n_kpoints))
-    data["residual_norms"] = gather_and_reshape(diagonalization.residual_norms,
-                                                (n_spin, n_kpoints, n_bands))
-
-    if mpi_master()
-        data
-    else
-        nothing
-    end
-end
-
-
 function kdistances_and_ticks(kcoords, klabels::Dict, kbranches)
     # kcoords in cartesian coordinates, klabels uses cartesian coordinates
     function getlabel(kcoord; tol=1e-4)
@@ -360,24 +283,31 @@ function plot_bandstructure end
 
 
 """
-Write the computed bands to a file. `save_ψ` determines whether the wavefunction
+Write the computed bands to a file. On all processes, but the master one the
+`filename` is ignored. `save_ψ` determines whether the wavefunction
 is also saved or not. Note that this function can be both used on the results
 of [`compute_bands`](@ref) and [`self_consistent_field`](@ref).
+
+!!! warning "Changes to data format reserved"
+    No guarantees are made with respect to the format of the keys at this point.
+    We may change this incompatibly between DFTK versions (including patch versions).
+    In particular changes with respect to the ψ structure are planned.
 """
-function save_bands(filename::AbstractString, band_data::NamedTuple; save_ψ=false, kwargs...)
+function save_bands(filename::AbstractString, band_data::NamedTuple; save_ψ=false)
+    filename = MPI.bcast(filename, 0, MPI.COMM_WORLD)
     _, ext = splitext(filename)
     ext = Symbol(ext[2:end])
 
     # Whitelist valid extensions
-    !(ext in (:json, )) && error("Extension '$ext' not supported by DFTK.")
+    !(ext in (:json, :jld2)) && error("Extension '$ext' not supported by DFTK.")
 
     # When writing these functions keep in mind that k-Point data is
     # distributed across MPI processors and thus this function is called
     # on *all* MPI processors.
-    save_bands(filename, band_data, Val(ext); save_ψ, kwargs...)
+    save_bands(Val(ext), filename, band_data; save_ψ)
 end
 
-function save_bands(filename::AbstractString, ::NamedTuple, ::Any; kwargs...)
+function save_bands(::Any, filename::AbstractString, ::NamedTuple; kwargs...)
     error("The extension $(last(splitext(filename))) is currently not available. " *
-          "A required package (e.g. JSON3) is not yet loaded.")
+          "A required package (e.g. JSON3 or JLD2) is not yet loaded.")
 end

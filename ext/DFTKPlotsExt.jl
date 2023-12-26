@@ -2,29 +2,10 @@ module DFTKPlotsExt
 using Brillouin: KPath
 using DFTK
 using DFTK: is_metal, data_for_plotting, spin_components, default_band_εrange
-import DFTK: ScfPlotTrace, plot_dos, plot_bandstructure
+import DFTK: plot_dos, plot_bandstructure
 using Plots
 using Unitful
 using UnitfulAtomic
-
-function ScfPlotTrace(plt=Plots.plot(; yaxis=:log); kwargs...)
-    energies = nothing
-    function callback(info)
-        if info.stage == :finalize
-            minenergy = minimum(energies[max(1, end-5):end])
-            error = abs.(energies .- minenergy)
-            error[error .== 0] .= NaN
-            extra = ifelse(:mark in keys(kwargs), (), (; mark=:x))
-            Plots.plot!(plt, error; extra..., kwargs...)
-            display(plt)
-        elseif info.n_iter == 1
-            energies = [info.energies.total]
-        else
-            push!(energies, info.energies.total)
-        end
-        info
-    end
-end
 
 
 function plot_bandstructure(basis::PlaneWaveBasis,

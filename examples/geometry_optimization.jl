@@ -38,7 +38,7 @@ function compute_scfres(x)
     if isnothing(ρ)
         ρ = guess_density(basis)
     end
-    is_converged = DFTK.ScfConvergenceForce(tol / 10)
+    is_converged = ScfConvergenceForce(tol / 10)
     scfres = self_consistent_field(basis; ψ, ρ, is_converged, callback=identity)
     ψ = scfres.ψ
     ρ = scfres.ρ

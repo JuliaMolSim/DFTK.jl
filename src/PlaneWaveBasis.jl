@@ -93,11 +93,12 @@ struct PlaneWaveBasis{T,
     kweights_global::Vector{T}
 
     ## Setup for MPI-distributed processing over k-points
-    comm_kpts::MPI.Comm           # communicator for the kpoints distribution
-    krange_thisproc::Vector{Int}  # indices of kpoints treated explicitly by this
-    #                               processor in the global kcoords array
-    krange_allprocs::Vector{Vector{Int}}  # indices of kpoints treated by the
-    #                                       respective rank in comm_kpts
+    comm_kpts::MPI.Comm  # communicator for the kpoints distribution
+    krange_thisproc::Vector{UnitRange{Int}}  # Indices of kpoints treated explicitly by this
+    #            # processor in the global kcoords array. To allow for contiguous array
+    #            # indexing, this is given as a unit range for spin-up and spin-down
+    krange_allprocs::Vector{Vector{UnitRange{Int}}}  # Same as above, but one entry per rank
+    krange_thisproc_allspin::Vector{Int}  # Indexing version == vcat(krange_thisproc...)
 
     ## Information on the hardware and device used for computations.
     architecture::Arch
@@ -256,8 +257,8 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
         # generally it leads to duplicated work that is not in the users interest.
         if parse(Bool, get(ENV, "CI", "false"))
             comm_kpts = MPI.COMM_SELF
-            krange_thisproc = 1:n_kpt
-            krange_allprocs = fill(1:n_kpt, n_procs)
+            krange_thisproc1 = 1:n_kpt
+            krange_allprocs1 = fill(1:n_kpt, n_procs)
         else
             error("No point in trying to parallelize $n_kpt kpoints over $n_procs " *
                   "processes; reduce the number of MPI processes.")
@@ -265,28 +266,35 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
     else
         # get the slice of 1:n_kpt to be handled by this process
         # Note: MPI ranks are 0-based
-        krange_allprocs = split_evenly(1:n_kpt, n_procs)
-        krange_thisproc = krange_allprocs[1 + MPI.Comm_rank(comm_kpts)]
-        @assert mpi_sum(length(krange_thisproc), comm_kpts) == n_kpt
-        @assert !isempty(krange_thisproc)
+        krange_allprocs1 = split_evenly(1:n_kpt, n_procs)
+        krange_thisproc1 = krange_allprocs1[1 + MPI.Comm_rank(comm_kpts)]
+        @assert mpi_sum(length(krange_thisproc1), comm_kpts) == n_kpt
+        @assert !isempty(krange_thisproc1)
     end
-    kweights = kweights_global[krange_thisproc]
 
     # Setup k-point basis sets
     !variational && @warn(
         "Non-variational calculations are experimental. " *
         "Not all features of DFTK may be supported or work as intended."
     )
-    kpoints = build_kpoints(model, fft_size, kcoords_global[krange_thisproc], Ecut;
+    kpoints = build_kpoints(model, fft_size, kcoords_global[krange_thisproc1], Ecut;
                             variational, architecture)
     # kpoints is now possibly twice the size of krange. Make things consistent
-    if model.n_spin_components == 2
-        krange_thisproc   = vcat(krange_thisproc, n_kpt .+ krange_thisproc)
-        krange_allprocs   = [vcat(range, n_kpt .+ range) for range in krange_allprocs]
-        kweights = vcat(kweights, kweights)
+    if model.n_spin_components == 1
+        kweights = kweights_global[krange_thisproc1]
+        krange_allprocs = [[range] for range in krange_allprocs1]
+    else
+        kweights = vcat(kweights_global[krange_thisproc1],
+                        kweights_global[krange_thisproc1])
+        krange_allprocs = [[range, n_kpt .+ range] for range in krange_allprocs1]
     end
+    krange_thisproc = krange_allprocs[1 + MPI.Comm_rank(comm_kpts)]
+    krange_thisproc_allspin = vcat(krange_thisproc...)
+
     @assert mpi_sum(sum(kweights), comm_kpts) ≈ model.n_spin_components
     @assert length(kpoints) == length(kweights)
+    @assert length(kpoints) == sum(length, krange_thisproc)
+    @assert length(kpoints) == length( krange_thisproc_allspin)
 
     if architecture isa GPU && Threads.nthreads() > 1
         error("Can't mix multi-threading and GPU computations yet.")
@@ -307,7 +315,8 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
         fft_normalization, ifft_normalization,
         Gs, r_vectors,
         kpoints, kweights, kgrid,
-        kcoords_global, kweights_global, comm_kpts, krange_thisproc, krange_allprocs,
+        kcoords_global, kweights_global,
+        comm_kpts, krange_thisproc, krange_allprocs, krange_thisproc_allspin,
         architecture, symmetries, symmetries_respect_rgrid,
         use_symmetries_for_kpoint_reduction, terms)
 
@@ -521,8 +530,8 @@ end
 """
 Gather the distributed ``k``-point data on the master process and return
 it as a `PlaneWaveBasis`. On the other (non-master) processes `nothing` is returned.
-The returned object should not be used for computations and only to extract data
-for post-processing and serialisation to disk.
+The returned object should not be used for computations and only for debugging
+or to extract data for serialisation to disk.
 """
 function gather_kpts(basis::PlaneWaveBasis)
     # No need to allocate and setup a new basis object
@@ -546,27 +555,88 @@ end
 
 """
 Gather the distributed data of a quantity depending on `k`-Points on the master process
-and return it. On the other (non-master) processes `nothing` is returned.
+and save it in `dest` as a dense `(size(kdata[1])..., n_kpoints)` array. On the other
+(non-master) processes `nothing` is returned.
 """
-function gather_kpts(data::AbstractArray, basis::PlaneWaveBasis)
-    # This function does not handle the self-communication case properly
-    @assert basis.comm_kpts != MPI.COMM_SELF
+@views function gather_kpts_block!(dest, basis::PlaneWaveBasis, kdata::AbstractVector{A}) where {A}
+    # Number of elements stored per k-point in `kdata` (as vector of arrays)
+    n_chunk = MPI.Bcast(length(kdata[1]), 0, basis.comm_kpts)
+    @assert all(length(k) == n_chunk for k in kdata)
 
-    master = tag = 0
-    n_kpts = sum(length, basis.krange_allprocs)
-    if MPI.Comm_rank(basis.comm_kpts) == master
-        allk_data = similar(data, n_kpts)
-        allk_data[basis.krange_allprocs[1]] = data
-        for rank = 1:mpi_nprocs(basis.comm_kpts)-1  # Note: MPI ranks are 0-based
-            # TODO Could save some memory by using in-place recv!
-            #      Could save some time by using asynchronous operations
-            rk_data, status = MPI.recv(basis.comm_kpts, MPI.Status; source=rank, tag)
-            @assert MPI.Get_error(status) == 0  # all went well
-            allk_data[basis.krange_allprocs[rank + 1]] = rk_data
+    # Note: This function assumes that k-points are stored contiguously in rank-increasing
+    # order, i.e. it depends on the splitting realised by split_evenly.
+    for σ in 1:basis.model.n_spin_components
+        if mpi_master(basis.comm_kpts)
+            # Setup variable buffer using appropriate data lengths and 
+            counts = [n_chunk * length(basis.krange_allprocs[rank][σ])
+                      for rank in 1:mpi_nprocs(basis.comm_kpts)]
+            displs = [n_chunk * (first(basis.krange_allprocs[rank][σ])-1)
+                      for rank in 1:mpi_nprocs(basis.comm_kpts)]
+            @assert all(displs .+ counts .≤ length(dest))
+            @assert eltype(dest) == eltype(A)
+            destbuf = MPI.VBuffer(dest, counts, displs)
+        else
+            destbuf = nothing
         end
-        allk_data
+
+        # Make contiguous send buffer from vector of k-point-specific data
+        sendbuf = kdata[krange_spin(basis, σ)]
+        if ndims(A) > 0  # Scalar
+            sendbuf = reduce((v, w) -> cat(v, w; dims=ndims(A) + 1), sendbuf)
+        end
+        MPI.Gatherv!(sendbuf, destbuf, basis.comm_kpts)
+    end
+    dest
+end
+function gather_kpts_block(basis::PlaneWaveBasis, kdata::AbstractVector{A}) where {A}
+    dest = nothing
+    if mpi_master(basis.comm_kpts)
+        n_kptspin = length(basis.kcoords_global) * basis.model.n_spin_components
+        dest = zeros(eltype(A), size(kdata[1])..., n_kptspin)
+    end
+    gather_kpts_block!(dest, basis, kdata)
+end
+
+"""
+Scatter the data of a quantity depending on `k`-Points from the master process
+to the child processes and return it as a Vector{Array}, where the outer vector
+is a list over all k-points. On non-master processes `nothing` may be passed.
+"""
+function scatter_kpts_block(basis::PlaneWaveBasis, data::Union{Nothing,AbstractArray})
+    T, N = (mpi_master(basis.comm_kpts) ? (eltype(data), ndims(data))
+                                        : (nothing, nothing))
+    T, N = MPI.bcast((T, N), 0, basis.comm_kpts)
+    splitted = Vector{Array{T,N-1}}(undef, length(basis.kpoints))
+
+    for σ in 1:basis.model.n_spin_components
+        # Setup variable buffer for sending using appropriate data lengths
+        if mpi_master(basis.comm_kpts)
+            @assert data isa AbstractArray
+            chunkshape = size(data)[1:end-1]
+            n_chunk = prod(chunkshape; init=one(Int))
+            counts = [n_chunk * length(basis.krange_allprocs[rank][σ])
+                      for rank in 1:mpi_nprocs(basis.comm_kpts)]
+            displs = [n_chunk * (first(basis.krange_allprocs[rank][σ])-1)
+                      for rank in 1:mpi_nprocs(basis.comm_kpts)]
+            @assert all(displs .+ counts .≤ length(data))
+            sendbuf = MPI.VBuffer(data, counts, displs)
+        else
+            sendbuf = nothing
+            chunkshape = nothing
+        end
+        chunkshape = MPI.bcast(chunkshape, 0, basis.comm_kpts)
+        destbuf = zeros(T, chunkshape..., length(basis.krange_thisproc[σ]))
+
+        # Scatter and split
+        MPI.Scatterv!(sendbuf, destbuf, basis.comm_kpts)
+        for (ik, slice) in zip(krange_spin(basis, σ),
+                               eachslice(destbuf; dims=ndims(destbuf)))
+            splitted[ik] = slice
+        end
+    end
+    if N == 1
+        getindex.(splitted)  # Transform Vector{Array{T,0}} => Vector{T}
     else
-        MPI.send(data, master, tag, basis.comm_kpts)
-        nothing
+        splitted
     end
 end

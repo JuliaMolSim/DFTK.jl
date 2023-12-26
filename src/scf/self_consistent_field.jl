@@ -1,5 +1,45 @@
 include("scf_callbacks.jl")
 
+"""
+Transparently handle checkpointing by either returning kwargs for `self_consistent_field`,
+which start checkpointing (if no checkpoint file is present) or that continue a checkpointed
+run (if a checkpoint file can be loaded). `filename` is the location where the checkpoint
+is saved, `save_ψ` determines whether orbitals are saved in the checkpoint as well.
+The latter is discouraged, since generally slow.
+"""
+function kwargs_scf_checkpoints(basis::AbstractBasis;
+                                filename="dftk_scf_checkpoint.jld2",
+                                callback=ScfDefaultCallback(),
+                                diagtolalg::AdaptiveDiagtol=AdaptiveDiagtol(),
+                                ρ=guess_density(basis),
+                                ψ=nothing, save_ψ=false,
+                                kwargs...)
+    callback = callback ∘ ScfSaveCheckpoints(; filename, save_ψ)
+    if isfile(filename)
+        # Disable strict checking, since we can live with only the density data
+        previous = load_scfres(filename, basis; skip_hamiltonian=true, strict=false)
+
+        # If we can expect the guess to be good, tighten the diagtol.
+        has_ρ = !isnothing(previous.ρ)
+        consistent_kpts = hasproperty(previous, :eigenvalues)
+        if has_ρ && consistent_kpts && hasproperty(previous, :history_Δρ)
+            diagtol_first = determine_diagtol(diagtolalg, previous)
+        elseif has_ρ
+            diagtol_first = diagtolalg.diagtol_max
+        else
+            diagtol_first = diagtolalg.diagtol_first
+        end
+        diagtolalg = AdaptiveDiagtol(; diagtol_first,
+                                       diagtolalg.diagtol_max,
+                                       diagtolalg.diagtol_min,
+                                       diagtolalg.ratio_ρdiff)
+        return (; callback, diagtolalg, previous.ψ, previous.ρ, kwargs...)
+    else
+        return (; callback, diagtolalg, ψ, ρ, kwargs...)
+    end
+end
+
+
 # Struct to store some options for forward-diff / reverse-diff response
 # (unused in primal calculations)
 @kwdef struct ResponseOptions
@@ -67,8 +107,7 @@ Overview of parameters:
 - `tol`: Tolerance for the density change (``\|ρ_\text{out} - ρ_\text{in}\|``)
   to flag convergence. Default is `1e-6`.
 - `is_converged`: Convergence control callback. Typical objects passed here are
-  `DFTK.ScfConvergenceDensity(tol)` (the default), `DFTK.ScfConvergenceEnergy(tol)`
-  or `DFTK.ScfConvergenceForce(tol)`.
+  `ScfConvergenceDensity(tol)` (the default), `ScfConvergenceEnergy(tol)` or `ScfConvergenceForce(tol)`.
 - `maxiter`: Maximal number of SCF iterations
 - `mixing`: Mixing method, which determines the preconditioner ``P^{-1}`` in the above equation.
   Typical mixings are [`LdosMixing`](@ref), [`KerkerMixing`](@ref), [`SimpleMixing`](@ref)
@@ -94,7 +133,7 @@ Overview of parameters:
     damping=0.8,
     solver=scf_anderson_solver(),
     eigensolver=lobpcg_hyper,
-    determine_diagtol=default_diagtol(basis; tol),
+    diagtolalg=default_diagtolalg(basis; tol),
     nbandsalg::NbandsAlgorithm=AdaptiveBands(basis.model),
     fermialg::AbstractFermiAlgorithm=default_fermialg(basis.model),
     callback=ScfDefaultCallback(; show_damping=false),
@@ -112,7 +151,10 @@ Overview of parameters:
     n_iter = 0
     energies = nothing
     ham = nothing
+    start_ns = time_ns()
     info = (; n_iter=0, ρin=ρ)  # Populate info with initial values
+    history_Etot = T[]
+    history_Δρ   = T[]
     converged = false
 
     # We do density mixing in the real representation
@@ -127,31 +169,33 @@ Overview of parameters:
 
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
-                                 occupation, miniter=1, tol=determine_diagtol(info))
+                                 occupation, miniter=1,
+                                 tol=determine_diagtol(diagtolalg, info))
         (; ψ, eigenvalues, occupation, εF, ρout) = nextstate
+        Δρ = ρout - ρin
 
         # Update info with results gathered so far
         info = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
                 ρin, ρout, α=damping, n_iter, nbandsalg.occupation_threshold,
-                nextstate..., diagonalization=[nextstate.diagonalization])
+                runtime_ns=time_ns() - start_ns, nextstate...,
+                diagonalization=[nextstate.diagonalization])
 
         # Compute the energy of the new state
         if compute_consistent_energies
             energies = energy_hamiltonian(basis, ψ, occupation;
                                           ρ=ρout, eigenvalues, εF).energies
         end
-        info = merge(info, (; energies))
 
-        # Apply mixing and pass it the full info as kwargs
-        δρ = mix_density(mixing, basis, ρout - ρin; info...)
-        ρnext = ρin .+ T(damping) .* δρ
-        info = merge(info, (; ρnext))
+        # Push energy and density change of this step.
+        push!(history_Etot, energies.total)
+        push!(history_Δρ,   norm(Δρ) * sqrt(basis.dvol))
+        info = merge(info, (; energies, history_Δρ, history_Etot))
 
         callback(info)
         converged = is_converged(info)
         converged = MPI.bcast(converged, 0, MPI.COMM_WORLD)  # Ensure same converged
 
-        ρnext
+        ρin + T(damping) .* mix_density(mixing, basis, Δρ; info...)
     end
 
     # Tolerance and maxiter are only dummy here: Convergence is flagged by is_converged
@@ -163,15 +207,11 @@ Overview of parameters:
     # to return a correct variational energy
     energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρout, eigenvalues, εF)
 
-    # Measure for the accuracy of the SCF
-    # TODO probably should be tracked all the way ...
-    norm_Δρ = norm(info.ρout - info.ρin) * sqrt(basis.dvol)
-
     # Callback is run one last time with final state to allow callback to clean up
     info = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
             ρ=ρout, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
-            n_iter, ψ, info.diagonalization, stage=:finalize,
-            algorithm="SCF", norm_Δρ)
+            n_iter, ψ, info.diagonalization, stage=:finalize, history_Δρ, history_Etot,
+            runtime_ns=time_ns() - start_ns, algorithm="SCF")
     callback(info)
     info
 end
