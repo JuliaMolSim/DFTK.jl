@@ -36,8 +36,10 @@ Compute the index mapping between two bases. Returns two arrays
 the transfer from `ψkin` (defined on `basis_in` and `kpt_in`) to `ψkout`
 (defined on `basis_out` and `kpt_out`).
 """
-function transfer_mapping(basis_in::PlaneWaveBasis{T},  kpt_in::Kpoint,
-                          basis_out::PlaneWaveBasis{T}, kpt_out::Kpoint) where {T}
+function transfer_mapping(basis_in::PlaneWaveBasis,  kpt_in::Kpoint,
+                          basis_out::PlaneWaveBasis, kpt_out::Kpoint)
+    @assert basis_in.model.lattice == basis_out.model.lattice
+
     idcs_in  = 1:length(G_vectors(basis_in, kpt_in))  # All entries from idcs_in
     kpt_in == kpt_out && return idcs_in, idcs_in
 
@@ -49,7 +51,7 @@ function transfer_mapping(basis_in::PlaneWaveBasis{T},  kpt_in::Kpoint,
     # make sure that the index linearization works. It is not an issue to
     # filter these vectors as this can only happen if Ecut_in > Ecut_out.
     if any(isnothing, idcs_out)
-        idcs_in  = idcs_in[idcs_out .!= nothing]
+        idcs_in  = idcs_in[idcs_out  .!= nothing]
         idcs_out = idcs_out[idcs_out .!= nothing]
     end
     idcs_out = getindex.(Ref(LinearIndices(basis_out.fft_size)), idcs_out)
@@ -59,7 +61,7 @@ function transfer_mapping(basis_in::PlaneWaveBasis{T},  kpt_in::Kpoint,
     # basis_out has less G_vectors than basis_in at this k-point
     idcs_out = indexin(idcs_out, kpt_out.mapping)
     if any(isnothing, idcs_out)
-        idcs_in  = idcs_in[idcs_out .!= nothing]
+        idcs_in  = idcs_in[idcs_out  .!= nothing]
         idcs_out = idcs_out[idcs_out .!= nothing]
     end
 
@@ -70,8 +72,8 @@ end
 Return a sparse matrix that maps quantities given on `basis_in` and `kpt_in`
 to quantities on `basis_out` and `kpt_out`.
 """
-function compute_transfer_matrix(basis_in::PlaneWaveBasis{T}, kpt_in::Kpoint,
-                                 basis_out::PlaneWaveBasis{T}, kpt_out::Kpoint) where {T}
+function compute_transfer_matrix(basis_in::PlaneWaveBasis,  kpt_in::Kpoint,
+                                 basis_out::PlaneWaveBasis, kpt_out::Kpoint)
     idcs_in, idcs_out = transfer_mapping(basis_in, kpt_in, basis_out, kpt_out)
     sparse(idcs_out, idcs_in, true)
 end
@@ -80,7 +82,7 @@ end
 Return a list of sparse matrices (one per ``k``-point) that map quantities given in the
 `basis_in` basis to quantities given in the `basis_out` basis.
 """
-function compute_transfer_matrix(basis_in::PlaneWaveBasis{T}, basis_out::PlaneWaveBasis{T}) where {T}
+function compute_transfer_matrix(basis_in::PlaneWaveBasis, basis_out::PlaneWaveBasis)
     @assert basis_in.model.lattice == basis_out.model.lattice
     @assert length(basis_in.kpoints) == length(basis_out.kpoints)
     @assert all(basis_in.kpoints[ik].coordinate == basis_out.kpoints[ik].coordinate
@@ -92,8 +94,8 @@ end
 """
 Transfer an array `ψk` defined on basis_in ``k``-point kpt_in to basis_out ``k``-point kpt_out.
 """
-function transfer_blochwave_kpt(ψk_in, basis_in::PlaneWaveBasis{T}, kpt_in::Kpoint,
-                                basis_out::PlaneWaveBasis{T}, kpt_out::Kpoint) where {T}
+function transfer_blochwave_kpt(ψk_in, basis_in::PlaneWaveBasis, kpt_in::Kpoint,
+                                basis_out::PlaneWaveBasis, kpt_out::Kpoint)
     kpt_in == kpt_out && return copy(ψk_in)
     @assert length(G_vectors(basis_in, kpt_in)) == size(ψk_in, 1)
     idcsk_in, idcsk_out = transfer_mapping(basis_in, kpt_in, basis_out, kpt_out)
@@ -129,8 +131,7 @@ end
 """
 Transfer Bloch wave between two basis sets. Limited feature set.
 """
-function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis{T},
-                            basis_out::PlaneWaveBasis{T}) where {T}
+function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis, basis_out::PlaneWaveBasis)
     @assert basis_in.model.lattice == basis_out.model.lattice
     @assert length(basis_in.kpoints) == length(basis_out.kpoints)
     @assert all(basis_in.kpoints[ik].coordinate == basis_out.kpoints[ik].coordinate
