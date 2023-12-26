@@ -121,6 +121,7 @@ function (conv::ScfConvergenceEnergy)(info)
     if last(info.history_Δρ) > 10sqrt(conv.tolerance)
         return false  # The ρ change should also be small to avoid the SCF being just stuck
     end
+    length(info.history_Etot) < 2 && return false
     ΔE = (info.history_Etot[end-1] - info.history_Etot[end])
     ΔE < conv.tolerance
 end
