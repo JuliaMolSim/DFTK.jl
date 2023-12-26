@@ -219,7 +219,8 @@ if CONTINUOUS_INTEGRATION && DFTKBRANCH == "master"
 end
 
 # Deploy docs to gh-pages branch
-deploydocs(; repo=DFTKREPO, devbranch="master")
+# Note: Overwrites the commit history via a force push (saves storage space)
+deploydocs(; repo=DFTKREPO, devbranch="master", forcepush=true)
 
 # Remove generated example files
 if !DEBUG
