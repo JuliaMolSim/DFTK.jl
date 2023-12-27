@@ -25,7 +25,7 @@ Base.pairs(energies::Energies)          = (k => v for (k, v) in zip(energies.key
 Base.iterate(energies::Energies)        = iterate(pairs(energies))
 Base.iterate(energies::Energies, state) = iterate(pairs(energies), state)
 Base.length(energies::Energies)         = length(energies.keys)
-Base.haskey(energies::Energies, key)    = haskey(energies, key)
+Base.haskey(energies::Energies, key)    = !isnothing(findfirst(isequal(key), energies.keys))
 
 Base.propertynames(energies::Energies, ::Bool=false) = append!(Symbol.(energies.keys), :total)
 function Base.getproperty(energies::Energies{T}, x::Symbol) where {T}
