@@ -14,29 +14,29 @@ function kwargs_scf_checkpoints(basis::AbstractBasis;
                                 ρ=guess_density(basis),
                                 ψ=nothing, save_ψ=false,
                                 kwargs...)
-    callback = callback ∘ ScfSaveCheckpoints(; filename, save_ψ)
     if isfile(filename)
         # Disable strict checking, since we can live with only the density data
         previous = load_scfres(filename, basis; skip_hamiltonian=true, strict=false)
 
         # If we can expect the guess to be good, tighten the diagtol.
-        has_ρ = !isnothing(previous.ρ)
-        consistent_kpts = hasproperty(previous, :eigenvalues)
-        if has_ρ && consistent_kpts && hasproperty(previous, :history_Δρ)
-            diagtol_first = determine_diagtol(diagtolalg, previous)
-        elseif has_ρ
-            diagtol_first = diagtolalg.diagtol_max
-        else
-            diagtol_first = diagtolalg.diagtol_first
+        if !isnothing(previous.ρ)
+            ρ = previous.ρ
+            consistent_kpts = hasproperty(previous, :eigenvalues)
+            if consistent_kpts && hasproperty(previous, :history_Δρ)
+                diagtol_first = determine_diagtol(diagtolalg, previous)
+            else
+                diagtol_first = diagtolalg.diagtol_max
+            end
+            diagtolalg = AdaptiveDiagtol(; diagtol_first,
+                                           diagtolalg.diagtol_max,
+                                           diagtolalg.diagtol_min,
+                                           diagtolalg.ratio_ρdiff)
         end
-        diagtolalg = AdaptiveDiagtol(; diagtol_first,
-                                       diagtolalg.diagtol_max,
-                                       diagtolalg.diagtol_min,
-                                       diagtolalg.ratio_ρdiff)
-        return (; callback, diagtolalg, previous.ψ, previous.ρ, kwargs...)
-    else
-        return (; callback, diagtolalg, ψ, ρ, kwargs...)
+        ψ = something(previous.ψ, Some(ψ))
     end
+
+    callback = callback ∘ ScfSaveCheckpoints(; filename, save_ψ)
+    (; callback, diagtolalg, ψ, ρ, kwargs...)
 end
 
 

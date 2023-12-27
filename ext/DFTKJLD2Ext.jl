@@ -102,6 +102,7 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict)
         scfdict = Dict{Symbol, Any}(
             :εF       => jld["εF"],
             :ρ        => get(jld, "ρ", nothing),
+            :ψ        => nothing,
             :energies => DFTK.Energies(e_keys, e_values),
         )
         for key in jld["scfres_extra_keys"]
@@ -135,16 +136,15 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict)
     has_ψ = MPI.bcast(has_ψ, 0, MPI.COMM_WORLD)
     if has_ψ
         n_G_vectors = reshape_and_scatter(jld, "kpt_n_G_vectors")
-
         basisok = all(n_G_vectors[ik] == length(DFTK.G_vectors(basis, kpt))
                       for (ik, kpt) in enumerate(basis.kpoints))
         basisok = DFTK.mpi_min(basisok, basis.comm_kpts)
-        basisok || error("Mismatch in number of G-vectors per k-point.")
-
-        ψ_padded = reshape_and_scatter(jld, "ψ")
-        scfdict[:ψ] = DFTK.unblockify_ψ(ψ_padded, n_G_vectors)
-    else
-        scfdict[:ψ] = nothing
+        if basisok
+            ψ_padded = reshape_and_scatter(jld, "ψ")
+            scfdict[:ψ] = DFTK.unblockify_ψ(ψ_padded, n_G_vectors)
+        elseif strict
+            error("Mismatch in number of G-vectors per k-point.")
+        end
     end
 
     if !skip_hamiltonian && has_ψ && !isnothing(scfdict[:ρ])
