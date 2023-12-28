@@ -60,7 +60,7 @@ end
 
 """
 Computes the ground state by direct minimization. `kwargs...` are
-passed to `Optim.Options()` and `optim_method` selects the optim approach,
+passed to `Optim.Options()` and `optim_method` selects the optim approach
 which is employed.
 """
 function direct_minimization(basis::PlaneWaveBasis{T};
