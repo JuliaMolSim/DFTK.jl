@@ -211,6 +211,7 @@ function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false, save_ρ=
 
     n_bands = length(band_data.eigenvalues[1])
     dict["n_bands"] = n_bands  # n_spin_components and n_kpoints already stored
+    dict["n_bands_converge"] = band_data.n_bands_converge
 
     if !isnothing(band_data.εF)
         haskey(dict, "εF") && delete!(dict, "εF")
@@ -306,7 +307,7 @@ function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true, save_ρ=true)
     band_data_to_dict!(dict, scfres; save_ψ)
 
     # These are either already done above or will be ignored or dealt with below.
-    special = (:ham, :basis, :energies, :stage,
+    special = (:ham, :basis, :energies, :stage, :n_bands_converge,
                :ρ, :ψ, :eigenvalues, :occupation, :εF, :diagonalization)
     propmap = Dict(:α => :damping_value, )  # compatibility mapping
     if mpi_master()
