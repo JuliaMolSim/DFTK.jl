@@ -41,7 +41,7 @@ end
     @test scfres.energies.total * prod(kgrid) ≈ scfres_supercell.energies.total
 
     # Compare densities
-    ρ_ref = DFTK.interpolate_density(dropdims(scfres.ρ, dims=4), basis, basis_supercell)
+    ρ_ref = DFTK.interpolate_density(scfres.ρ, basis, basis_supercell)
     @test norm(ρ_ref .- scfres_supercell.ρ) < 10*tol
     @test norm(ρ_ref .- scfres_supercell_manual.ρ) < 10*tol
 end
