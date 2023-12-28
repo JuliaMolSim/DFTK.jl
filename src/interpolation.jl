@@ -2,11 +2,13 @@ import Interpolations
 import Interpolations: interpolate, extrapolate, scale, BSpline, Quadratic, OnCell
 
 """
-Interpolate a function expressed in a basis `basis_in` to a basis `basis_out`.
-This interpolation uses a very basic real-space algorithm, and makes a DWIM-y attempt to
-take into account the fact that `basis_out` can be a supercell of `basis_in`.
+Interpolate a density expressed in a basis `basis_in` to a basis `basis_out`.
+This interpolation uses a very basic real-space algorithm, and makes a DWIM-y attempt
+to take into account the fact that `basis_out` can be a supercell of `basis_in`.
 """
-function interpolate_density(ρ_in::AbstractArray, basis_in::PlaneWaveBasis, basis_out::PlaneWaveBasis)
+function interpolate_density(ρ_in::AbstractArray{T, 4},
+                             basis_in::PlaneWaveBasis,
+                             basis_out::PlaneWaveBasis) where {T}
     if basis_in.model.lattice == basis_out.model.lattice
         @assert size(ρ_in) == (basis_in.fft_size..., basis_in.model.n_spin_components)
         interpolate_density(ρ_in, basis_out.fft_size)
@@ -14,6 +16,52 @@ function interpolate_density(ρ_in::AbstractArray, basis_in::PlaneWaveBasis, bas
         interpolate_density(ρ_in, basis_in.fft_size, basis_out.fft_size,
                             basis_in.model.lattice, basis_out.model.lattice)
     end
+end
+
+"""
+Interpolate a density in real space from one FFT grid to another. Assumes the
+lattice is unchanged.
+"""
+function interpolate_density(ρ_in::AbstractArray{T, 4}, grid_out::NTuple{3}) where {T}
+    n_spin = size(ρ_in, 4)
+    interpolate_density!(similar(ρ_in, grid_out..., n_spin), ρ_in)
+end
+
+"""
+Interpolate a density in real space from one FFT grid to another, where
+`lattice_in` and `lattice_out` may be supercells of each other.
+"""
+function interpolate_density(ρ_in::AbstractArray{T, 4},
+                             grid_in::NTuple{3}, grid_out::NTuple{3},
+                             lattice_in, lattice_out) where {T}
+    # The two lattices should have the same dimension.
+    @assert iszero.(eachcol(lattice_in)) == iszero.(eachcol(lattice_out))
+    @assert size(ρ_in)[1:3] == grid_in
+
+    # Build supercell, array of 3 integers
+    supercell = map(eachcol(lattice_in), eachcol(lattice_out)) do col_in, col_out
+        iszero(col_in) ? 1 : round(Int, norm(col_out) / norm(col_in))
+    end
+
+    # Check if some direction of lattice_in is not too big compared to lattice_out.
+    supercell_in = supercell .* lattice_in
+    is_suspicious_direction = map(eachcol(supercell_in), eachcol(lattice_out)) do s_in, a_out
+        norm(s_in - a_out) > 0.3*norm(a_out)
+    end
+    for i in findall(is_suspicious_direction)
+        @warn "In direction $i, the output lattice is very different from the input lattice"
+    end
+
+    # ρ_in represents a periodic function, on a grid 0, 1/N, ... (N-1)/N
+    grid_supercell = grid_in .* supercell
+    ρ_in_supercell = similar(ρ_in, grid_supercell..., size(ρ_in, 4))
+    for i = 1:supercell[1], j = 1:supercell[2], k = 1:supercell[3]
+        ρ_in_supercell[1 + (i-1)*grid_in[1] : i*grid_in[1],
+                       1 + (j-1)*grid_in[2] : j*grid_in[2],
+                       1 + (k-1)*grid_in[3] : k*grid_in[3], :] = ρ_in
+    end
+
+    interpolate_density(ρ_in_supercell, grid_out)
 end
 
 function interpolate_density!(ρ_out::AbstractArray{T, 3}, ρ_in::AbstractArray{T, 3}) where {T}
@@ -39,49 +87,7 @@ function interpolate_density!(ρ_out::AbstractArray{T, 4}, ρ_in::AbstractArray{
     end
     ρ_out
 end
-function interpolate_density(ρ_in::AbstractArray, grid_out::Tuple)
-    n_spin = size(ρ_in, 4)
-    interpolate_density!(similar(ρ_in, grid_out..., n_spin), ρ_in)
-end
 
-# Interpolate ρ_in from grid grid_in of lattice_in to grid_out of lattice_out. lattice_out
-# is expected to have a size comparable or bigger than lattice_in.
-function interpolate_density(ρ_in::AbstractArray, grid_in::Tuple, grid_out::Tuple,
-                             lattice_in, lattice_out)
-    # The two lattices should have the same dimension.
-    @assert iszero.(eachcol(lattice_in)) == iszero.(eachcol(lattice_out))
-    @assert size(ρ_in) == grid_in
-
-    # First, build supercell, array of 3 integers
-    supercell = map(eachcol(lattice_in), eachcol(lattice_out)) do col_in, col_out
-        iszero(col_in) ? 1 : round(Int, norm(col_out) / norm(col_in))
-    end
-
-    # Check if some direction of lattice_in is not too big compared to lattice_out.
-    supercell_in = supercell .* lattice_in
-    is_suspicious_direction = map(eachcol(supercell_in), eachcol(lattice_out)) do s_in, a_out
-        norm(s_in - a_out) > 0.3*norm(a_out)
-    end
-    for i in findall(is_suspicious_direction)
-        @warn "In direction $i, the output lattice is very different from the input lattice"
-    end
-
-    # ρ_in represents a periodic function, on a grid 0, 1/N, ... (N-1)/N
-    grid_supercell = grid_in .* supercell
-    ρ_in_supercell = similar(ρ_in, grid_supercell...)
-    for i = 1:supercell[1]
-        for j = 1:supercell[2]
-            for k = 1:supercell[3]
-                ρ_in_supercell[
-                    1 + (i-1)*grid_in[1] : i*grid_in[1],
-                    1 + (j-1)*grid_in[2] : j*grid_in[2],
-                    1 + (k-1)*grid_in[3] : k*grid_in[3]] = ρ_in
-            end
-        end
-    end
-
-    interpolate_density(ρ_in_supercell, grid_out)
-end
 
 """
 Interpolate some data from one ``k``-point to another. The interpolation is fast, but not
