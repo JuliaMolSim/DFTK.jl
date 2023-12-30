@@ -13,4 +13,9 @@ model = model_LDA(lattice, atoms, positions)
 basis = PlaneWaveBasis(model; Ecut=10, kgrid=[1, 1, 1])
 scfres = self_consistent_field(basis, tol=1e-8)
 
+ΓmnGk = DFTK.compute_coulomb_vertex(basis, scfres.ψ)
+Ecoul = DFTK.twice_coulomb_energy(ΓmnGk, scfres.occupation)
+println("Ecoul vertex   $Ecoul")
+println("Ecoul ene      $(2scfres.energies["Hartree"])")
+
 DFTK.export_cc4s("silicon_cc4s.hdf5", scfres)
