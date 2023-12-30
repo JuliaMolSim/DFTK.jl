@@ -100,7 +100,7 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict)
         e_values = [jld["energies"][k] for k in e_keys]
 
         scfdict = Dict{Symbol, Any}(
-            :εF       => jld["εF"],
+            :εF       => get(jld, "εF", nothing),
             :ρ        => get(jld, "ρ", nothing),
             :ψ        => nothing,
             :energies => DFTK.Energies(e_keys, e_values),
