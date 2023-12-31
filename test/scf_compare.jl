@@ -74,12 +74,12 @@ end
     ρ0    = guess_density(basis, magnetic_moments)
     ρ_def = self_consistent_field(basis; tol, ρ=ρ0).ρ
     scfres_start = self_consistent_field(basis, maxiter=1, ρ=ρ0)
-    ψ0 = select_occupied_orbitals(basis, scfres_start.ψ, scfres_start.occupation).ψ
+    (; ψ) = select_occupied_orbitals(basis, scfres_start.ψ, scfres_start.occupation)
 
     # Run DM
     if mpi_nprocs() == 1  # Distributed implementation not yet available
         @testset "Direct minimization" begin
-            ρ_dm = direct_minimization(basis, ψ0; tol).ρ
+            ρ_dm = direct_minimization(basis; ψ, tol).ρ
             @test maximum(abs.(ρ_dm - ρ_def)) < 10tol
         end
     end
@@ -87,7 +87,7 @@ end
     # Run Newton algorithm
     if mpi_nprocs() == 1  # Distributed implementation not yet available
         @testset "Newton" begin
-            ρ_newton = newton(basis, ψ0; tol).ρ
+            ρ_newton = newton(basis, ψ; tol).ρ
             @test maximum(abs.(ρ_newton - ρ_def)) < 10tol
         end
     end

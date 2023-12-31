@@ -12,7 +12,7 @@
              LocalNonlinearity(ρ -> C * ρ^α)]
     model = Model(lattice; n_electrons=1, terms, spin_polarization=:spinless)
     basis = PlaneWaveBasis(model; Ecut=15, kgrid=(1, 1, 1))
-    scfres_dm  = direct_minimization(basis, tol=1e-10)
+    scfres_dm  = direct_minimization(basis; tol=1e-10)
     scfres_scf = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceEnergy(1e-10))
     @test abs(scfres_scf.energies.total - scfres_dm.energies.total) < 1e-6
 end
