@@ -203,8 +203,8 @@ end
         end
         ret
     end
-    hks_per_k   = [flatten([blocks[ik] for blocks in operators])
-                   for ik = 1:length(basis.kpoints)]      # hks_per_k[ik][it]
+    hks_per_k = [flatten([blocks[ik] for blocks in operators])
+                 for ik = 1:length(basis.kpoints)]      # hks_per_k[ik][it]
 
     ham = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks)
                               for (hks, kpt) in zip(hks_per_k, basis.kpoints)])

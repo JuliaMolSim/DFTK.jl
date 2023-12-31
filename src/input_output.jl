@@ -237,16 +237,18 @@ function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false, save_ρ=
         end
     end
 
-    diagonalization = make_subdict!(dict, "diagonalization")
-    diag_resid  = last(band_data.diagonalization).residual_norms
-    diag_n_iter = sum(diag -> diag.n_iter, band_data.diagonalization)
-    diagonalization["n_matvec"] = mpi_sum(sum(diag -> diag.n_matvec,
-                                              band_data.diagonalization),
-                                          band_data.basis.comm_kpts)
-    diagonalization["converged"] = mpi_min(last(band_data.diagonalization).converged,
-                                           band_data.basis.comm_kpts)
-    gather_and_store!(diagonalization, "residual_norms", basis, diag_resid)
-    gather_and_store!(diagonalization, "n_iter",         basis, diag_n_iter)
+    if haskey(band_data, :diagonalization)
+        diagonalization = make_subdict!(dict, "diagonalization")
+        diag_resid  = last(band_data.diagonalization).residual_norms
+        diag_n_iter = sum(diag -> diag.n_iter, band_data.diagonalization)
+        diagonalization["n_matvec"] = mpi_sum(sum(diag -> diag.n_matvec,
+                                                  band_data.diagonalization),
+                                              band_data.basis.comm_kpts)
+        diagonalization["converged"] = mpi_min(last(band_data.diagonalization).converged,
+                                               band_data.basis.comm_kpts)
+        gather_and_store!(diagonalization, "residual_norms", basis, diag_resid)
+        gather_and_store!(diagonalization, "n_iter",         basis, diag_n_iter)
+    end
 
     if save_ψ
         # Store the employed G vectors using the largest rectangular grid

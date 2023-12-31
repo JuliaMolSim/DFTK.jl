@@ -189,11 +189,11 @@ Overview of parameters:
         # Push energy and density change of this step.
         push!(history_Etot, energies.total)
         push!(history_Δρ,   norm(Δρ) * sqrt(basis.dvol))
-        info = merge(info, (; energies, history_Δρ, history_Etot))
+        info = merge(info, (; energies, history_Δρ, history_Etot, converged))
 
-        callback(info)
         converged = is_converged(info)
         converged = MPI.bcast(converged, 0, MPI.COMM_WORLD)  # Ensure same converged
+        callback(merge(info, (; converged)))
 
         ρin + T(damping) .* mix_density(mixing, basis, Δρ; info...)
     end
