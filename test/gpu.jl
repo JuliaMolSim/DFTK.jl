@@ -10,7 +10,7 @@
     function run_problem(; architecture)
         model = model_PBE(silicon.lattice, silicon.atoms, silicon.positions)
         basis = PlaneWaveBasis(model; Ecut=10, kgrid=(3, 3, 3), architecture)
-        self_consistent_field(basis; tol=1e-9, solver=scf_damping_solver(1.0))
+        self_consistent_field(basis; tol=1e-9, solver=scf_damping_solver(damping=1.0))
     end
 
     scfres_cpu = run_problem(; architecture=DFTK.CPU())
@@ -34,7 +34,7 @@ end
 
         # TODO Bump tolerance a bit here ... still leads to NaNs unfortunately
         self_consistent_field(basis; ρ, tol=1e-7, mixing=KerkerMixing(),
-                              solver=scf_damping_solver(1.0))
+                              solver=scf_damping_solver(damping=1.0))
     end
 
     scfres_cpu = run_problem(; architecture=DFTK.CPU())
