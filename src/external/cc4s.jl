@@ -2,38 +2,46 @@ using HDF5
 
 # See https://manuals.cc4s.org/user-manual/objects/CoulombVertex.html
 function compute_coulomb_vertex(basis, ψ)
-    @assert length(basis.kpoints) == 1
-
-    hartree = only(t for t in basis.terms if t isa TermHartree)
-    coeff   = sqrt.(hartree.poisson_green_coeffs)
-
-    kpt = only(basis.kpoints)
-    ψk  = only(ψ)
-
-    n_bands = size(ψk, 2)
-    n_G   = prod(basis.fft_size)
-    ΓmnGk = zeros(ComplexF64, n_bands, n_bands, n_G)
-
-    for (nk, ψnk) in enumerate(eachcol(ψk))
-        ψnk_real = ifft(basis, kpt, ψnk)
-        for (mk, ψmk) in enumerate(eachcol(ψk))
-            ψmk_real = ifft(basis, kpt, ψmk)
-            kweight = sqrt(basis.kweights[1])
-            ΓmnGk[mk, nk, :] = kweight * coeff .* fft(basis, conj(ψmk_real) .* ψnk_real)
-        end
+    T = Float64
+    mpi_nprocs(basis.comm_kpts) > 1 && error("Cannot use mpi")
+    if length(basis.kpoints) == 1 && basis.use_symmetries_for_kpoint_reduction
+        error("Cannot use symmetries")
+        # This requires appropriate insertion of kweights
     end
 
-    ΓmnGk
+    error("This version of the function should theoretically be correct, but is untested.")
+
+    # TODO Other cases should work, but never tested and could be buggy
+    n_kpt = length(basis.kpoints)
+    @assert n_kpt == 1
+
+    n_bands = size(ψ[1], 2)
+    n_G  = prod(basis.fft_size)
+    ΓmnG = zeros(complex(T), n_bands * n_kpt, n_bands * n_kpt, n_G)
+    for (ikn, kptn) in enumerate(basis.kpoints), (n, ψnk) in enumerate(eachcol(ψ[ikn]))
+        ψnk_real = ifft(basis, kptn, ψnk)
+        for (ikm, kptm) in enumerate(basis.kpoints)
+            q = kptn.coordinate - kptm.coordinate
+            coeffs = sqrt(compute_poisson_green_coeffs(basis, one(T); q))
+            for (m, ψmk) in enumerate(eachcol(ψ[ikm]))
+                ψmk_real = ifft(basis, kptm, ψmk)
+                mm = (ikm - 1) * n_kpt + m  # Blocks of all bands for each k-point
+                nn = (ikn - 1) * n_kpt + n
+                ΓmnG[mm, nn, :] = coeffs .* fft(basis, conj(ψmk_real) .* ψnk_real)
+            end  # ψmk
+        end # kptm
+    end  # kptn, ψnk
+    ΓmnG
 end
 
-function twice_coulomb_energy(ΓmnGk, occupation)
-    occk = only(occupation)
+function twice_coulomb_energy(ΓmnG, occupation)
+    occk = only(occupation)  # TODO This routine fails for n_kpt != 1
     n_bands = length(occk)
 
     res = zero(Float64)
     for (nk, occnk) in enumerate(occk)
         for (mk, occmk) in enumerate(occk)
-            res += real(dot(ΓmnGk[nk, nk, :], ΓmnGk[mk, mk, :])) * occnk * occmk
+            res += real(dot(ΓmnG[nk, nk, :], ΓmnG[mk, mk, :])) * occnk * occmk
         end
     end
 
