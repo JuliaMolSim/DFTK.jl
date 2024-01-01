@@ -48,7 +48,7 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
     #      types subtype. In a first version the ScfResult could just contain
     #      the currently used named tuple and forward all operations to it.
     (; basis=bs_basis, ψ=eigres.X, eigenvalues=eigres.λ, ρ, εF, occupation,
-     diagonalization=[eigres])
+     diagonalization=[eigres], n_bands_converge=n_bands)
 end
 
 """

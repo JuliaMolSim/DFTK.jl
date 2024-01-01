@@ -1,63 +1,114 @@
-using HDF5
+using YAML
 
-# See https://manuals.cc4s.org/user-manual/objects/CoulombVertex.html
-function compute_coulomb_vertex(basis, ψ)
-    T = Float64
-    mpi_nprocs(basis.comm_kpts) > 1 && error("Cannot use mpi")
-    if length(basis.kpoints) == 1 && basis.use_symmetries_for_kpoint_reduction
-        error("Cannot use symmetries")
-        # This requires appropriate insertion of kweights
+# https://manuals.cc4s.org/user-manual/objects/EigenEnergies.html
+# Note: This should be the HF eigenenergies, but here we dump the DFT eigenenergies
+function write_eigenenergies(folder::AbstractString,
+                             eigenvalues::AbstractVector,
+                             εF::Number;
+                             force=false)
+    @assert length(eigenvalues) == 1
+    εk = eigenvalues[1]
+
+    # Note: Eigenenergies need to be ordered in *non-decreasing* order for cc4s !
+    @assert maximum(abs, sort(εk) - εk) < 1e-10
+
+    yamlfile     = joinpath(folder, "EigenEnergies.yaml")
+    elementsfile = joinpath(folder, "EigenEnergies.elements")
+    if !force && (isfile(yamlfile) || isfile(elementsfile))
+        error("Generated files $yamlfile and/or $elementsfile exists.")
     end
 
-    error("This version of the function should theoretically be correct, but is untested.")
+    metadata = Dict(
+        "fermiEnergy" => εF,
+        "energies"    => εk,
+    )
+    data = Dict(
+        "version"    => 100,
+        "type"       => "Tensor",
+        "scalarType" => "Real64",
+        "dimensions" => [Dict("length" => length(εk),
+                              "type"   => "State")],
+        "elements"   => Dict("type" => "TextFile"),
+        "unit"       => 1.0,  # DFTK using Hartree as well
+        "metaData"   => metadata,
+    )
+    open(fp -> YAML.write(fp, data), yamlfile, "w")
 
-    # TODO Other cases should work, but never tested and could be buggy
-    n_kpt = length(basis.kpoints)
-    @assert n_kpt == 1
-
-    n_bands = size(ψ[1], 2)
-    n_G  = prod(basis.fft_size)
-    ΓmnG = zeros(complex(T), n_bands * n_kpt, n_bands * n_kpt, n_G)
-    for (ikn, kptn) in enumerate(basis.kpoints), (n, ψnk) in enumerate(eachcol(ψ[ikn]))
-        ψnk_real = ifft(basis, kptn, ψnk)
-        for (ikm, kptm) in enumerate(basis.kpoints)
-            q = kptn.coordinate - kptm.coordinate
-            coeffs = sqrt(compute_poisson_green_coeffs(basis, one(T); q))
-            for (m, ψmk) in enumerate(eachcol(ψ[ikm]))
-                ψmk_real = ifft(basis, kptm, ψmk)
-                mm = (ikm - 1) * n_kpt + m  # Blocks of all bands for each k-point
-                nn = (ikn - 1) * n_kpt + n
-                ΓmnG[mm, nn, :] = coeffs .* fft(basis, conj(ψmk_real) .* ψnk_real)
-            end  # ψmk
-        end # kptm
-    end  # kptn, ψnk
-    ΓmnG
-end
-
-function twice_coulomb_energy(ΓmnG, occupation)
-    occk = only(occupation)  # TODO This routine fails for n_kpt != 1
-    n_bands = length(occk)
-
-    res = zero(Float64)
-    for (nk, occnk) in enumerate(occk)
-        for (mk, occmk) in enumerate(occk)
-            res += real(dot(ΓmnG[nk, nk, :], ΓmnG[mk, mk, :])) * occnk * occmk
+    open(elementsfile, "w") do fp
+        for ε in εk
+            println(fp, ε)
         end
     end
 
-    res
+    [yamlfile, elementsfile]
+end
+
+# See https://manuals.cc4s.org/user-manual/objects/CoulombVertex.html
+function write_coulomb_vector(folder::AbstractString, ΓnmG::AbstractArray{T, 5};
+                              force=true) where {T}
+    n_kpt   = size(ΓnmG, 1)
+    n_bands = size(ΓnmG, 2)
+    n_aux_field = size(ΓnmG, 5)
+    @assert n_kpt   == size(ΓnmG, 3)
+    @assert n_bands == size(ΓnmG, 4)
+    @assert n_kpt  == 1  # 1 kpt is hard-coded for now (see write_eigenenergies)
+
+    yamlfile     = joinpath(folder, "CoulombVertex.yaml")
+    elementsfile = joinpath(folder, "CoulombVertex.elements")
+    if !force && (isfile(yamlfile) || isfile(elementsfile))
+        error("Generated files $yamlfile and/or $elementsfile exists.")
+    end
+
+    dimensions = [
+        Dict("length" => n_aux_field,     "type" => "AuxiliaryField"),
+        Dict("length" => n_kpt * n_bands, "type" => "State"),
+        Dict("length" => n_kpt * n_bands, "type" => "State"),
+    ]
+    data = Dict(
+        "version"    => 100,
+        "type"       => "Tensor",
+        "scalarType" => "Complex64",
+        "dimensions" => dimensions,
+        "elements"   => Dict("type" => "IeeeBinaryFile"),
+        "unit"       => 1.0,  # DFTK using Hartree as well
+        "metaData"   => Dict("halfGrid" => 0),  # Complex integrals
+    )
+    open(fp -> YAML.write(fp, data), yamlfile, "w")
+
+    # C++ is row-major, julia is column-major. Therefore vectorising
+    # a (1, n_bands, 1, n_bands, n_aux_field) tensor leads to a
+    # (n_aux_field, n_bands, n_bands) tensor in row-major ordering
+
+    binary = convert(Vector{Complex{Cdouble}}, vec(ΓnmG))
+    open(fp -> write(fp, binary), elementsfile, "w")
+
+    [yamlfile, elementsfile]
 end
 
 
+"""
+Write CC4S input files from an SCF result `scfres` or an output
+from `compute_bands` to the `folder` (by default `joinpath(pwd(), "cc4s")`).
+This will dump a number of `yaml` and binary/text data files
+to this folder. The files written will be returned by the function.
+If `force` is true then existing files will be overwritten.
 
-function export_cc4s(datafile::AbstractString, scfres)
-    basis = scfres.basis
-    ΓmnGk = compute_coulomb_vertex(scfres.basis, scfres.ψ)
+!!! warning "Experimental function"
+    This function is experimental, may not work in all cases or
+    may be changed incompatibly in the future (including patch version bumps).
+"""
+function export_cc4s(scfres::NamedTuple,
+                     folder::AbstractString=joinpath(pwd(), "cc4s");
+                     n_bands=scfres.n_bands_converge,
+                     force=false, svdtol=1e-10)
+    mkpath(folder)
 
-    εk = only(scfres.eigenvalues)
-    h5open(datafile, "w") do file
-        write(file, "Gamma_mnG", ΓmnGk)
-        write(file, "eigenvalues", εk)
-        write(file, "epsilon_fermi", scfres.εF)
-    end
+    eigenvalues = map(εk -> εk[1:n_bands], scfres.eigenvalues)
+    files_ene = write_eigenenergies(folder, eigenvalues, scfres.εF; force)
+
+    ΓmnG = compute_coulomb_vertex(scfres.basis, scfres.ψ; n_bands)
+    Γcompress = svdcompress_coulomb_vertex(ΓmnG; tol=svdtol)
+    files_coul = write_coulomb_vector(folder, Γcompress; force)
+
+    append!(files_ene, files_coul)
 end

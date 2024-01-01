@@ -1,0 +1,64 @@
+- name: Read
+  in:
+    fileName: "CoulombVertex.yaml"
+  out:
+    destination: CoulombVertex
+
+- name: Read
+  in:
+    fileName: "EigenEnergies.yaml"
+  out:
+    destination: EigenEnergies
+
+- name: DefineHolesAndParticles
+  in:
+    eigenEnergies: EigenEnergies
+  out:
+    slicedEigenEnergies: EigenEnergies
+
+- name: SliceOperator
+  in:
+    slicedEigenEnergies: EigenEnergies
+    operator: CoulombVertex
+  out:
+    slicedOperator: CoulombVertex
+
+- name: VertexCoulombIntegrals
+  in:
+    slicedCoulombVertex: CoulombVertex
+  out:
+    coulombIntegrals: CoulombIntegrals
+
+- name: CoupledCluster
+  in:
+    method: Ccsd
+    slicedEigenEnergies: EigenEnergies
+    coulombIntegrals: CoulombIntegrals
+    slicedCoulombVertex: CoulombVertex
+    integralsSliceSize: 100
+    maxIterations: 30
+    energyConvergence: 1.0E-5
+    amplitudesConvergence: 1.0E-5
+    mixer:
+      type: DiisMixer
+      maxResidua: 5
+  out:
+    energy: CcsdEnergy
+    amplitudes: Amplitudes
+
+- name: Write
+  in:
+    fileName: "Amplitudes.yaml"
+    source: Amplitudes
+    binary: 1
+  out: {}
+
+
+# - name: PerturbativeTriples
+#   in:
+#     slicedEigenEnergies: EigenEnergies
+#     amplitudes: Amplitudes
+#     coulombIntegrals: CoulombIntegrals
+#   out:
+#     energy: AtripEnergy
+

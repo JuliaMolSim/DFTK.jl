@@ -118,6 +118,7 @@ export compute_kernel
 export BlowupIdentity
 export BlowupCHV
 export BlowupAbinit
+include("coulomb.jl")
 include("DispatchFunctional.jl")
 include("terms/terms.jl")
 
