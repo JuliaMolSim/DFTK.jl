@@ -101,6 +101,9 @@ function export_cc4s(scfres::NamedTuple,
                      folder::AbstractString=joinpath(pwd(), "cc4s");
                      n_bands=scfres.n_bands_converge,
                      force=false, svdtol=1e-10)
+    # TODO Check for the scfres to be Hartree-Fock ... otherwise the resulting Calculation
+    #      is not necessarily proper Coupled Cluster
+
     mkpath(folder)
 
     eigenvalues = map(εk -> εk[1:n_bands], scfres.eigenvalues)
