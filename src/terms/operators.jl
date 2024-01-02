@@ -10,6 +10,22 @@ They also implement mul! and Matrix(op) for exploratory use.
 abstract type RealFourierOperator end
 # RealFourierOperator contain fields `basis` and `kpoint`
 
+Base.Array(op::RealFourierOperator) = Matrix(op)
+
+# Slow fallback for getting operator as a dense matrix
+function Matrix(op::RealFourierOperator)
+    T = complex(eltype(op.basis))
+    n_G = length(G_vectors(op.basis, op.kpoint))
+    H = zeros(T, n_G, n_G)
+    ψ = zeros(T, n_G)
+    @views for i in 1:n_G
+        ψ[i] = one(T)
+        mul!(H[:, i], op, ψ)
+        ψ[i] = zero(T)
+    end
+    H
+end
+
 # Unoptimized fallback, intended for exploratory use only.
 # For performance, call through Hamiltonian which saves FFTs.
 function LinearAlgebra.mul!(Hψ::AbstractVector, op::RealFourierOperator, ψ::AbstractVector)
@@ -147,7 +163,6 @@ function apply!(Hψ, op::DivAgradOperator, ψ,
         ∂αψ_real = ifft!(ψ_scratch, op.basis, op.kpoint, im .* G_plus_k[α] .* ψ.fourier)
         A∇ψ      = fft(op.basis, op.kpoint, ∂αψ_real .* op.A)
         Hψ.fourier .-= im .* G_plus_k[α] .* A∇ψ ./ 2
-
     end
 end
 # TODO Implement  Matrix(op::DivAgrad)
@@ -164,3 +179,30 @@ function optimize_operators_(ops)
                                                sum([op.potential for op in RSmults]))
     [nonRSmults..., combined_RSmults]
 end
+
+struct ExchangeOperator{T <: Real} <: RealFourierOperator
+    basis::PlaneWaveBasis{T}
+    kpoint::Kpoint{T}
+    poisson_green_coeffs  # TODO This needs to be typed
+    occk  # TODO This needs to be typed
+    ψk    # TODO This needs to be typed
+end
+function apply!(Hψ, op::ExchangeOperator, ψ)
+    # Hψ = - ∑_n f_n ψ_n(r) ∫ (ψ_n)†(r') * ψ(r') / |r-r'| dr'
+    for (n, ψnk) in enumerate(eachcol(op.ψk))
+        ψnk_real = ifft(op.basis, op.kpoint, ψnk)
+        x_real   = conj(ψnk_real) .* ψ.real
+
+        # TODO I think some symmetrisation is needed here since there are G-vectors, which are not balanced for even grids, which do not get properly converged.
+
+
+        # Compute integral by Poisson solve
+        x_four  = fft(op.basis, x_real)
+        Vx_four = x_four .* op.poisson_green_coeffs
+        Vx_real = ifft(op.basis, Vx_four)
+
+        # Real-space multiply and accumulate
+        Hψ.real .-= op.occk[n] .* ψnk_real .* Vx_real
+    end
+end
+# TODO Implement  Matrix(op::ExchangeOperator)

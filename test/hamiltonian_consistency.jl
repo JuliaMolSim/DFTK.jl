@@ -9,21 +9,14 @@ testcase = silicon
 
 function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
     for operator in hamk.operators
-        try
-            operator_matrix = Matrix(operator)
-            @test norm(operator_matrix*ψk - operator*ψk) < atol
-        catch e
-            allowed_missing_operators = Union{DFTK.DivAgradOperator,
-                                              DFTK.MagneticFieldOperator}
-            @assert operator isa allowed_missing_operators
-            @info "Matrix of operator $(nameof(typeof(operator))) not yet supported" maxlog=1
-        end
+        operator_matrix = Matrix(operator)
+        @test norm(operator_matrix*ψk - operator*ψk) < atol
     end
 end
 
 function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2, 3],
-                               kshift=[0, 1, 0]/2, lattice=testcase.lattice, Ecut=10,
-                               spin_polarization=:none)
+                               kshift=[0, 1, 0]/2, lattice=testcase.lattice,
+                               Ecut=10, integer_occupation=false, spin_polarization=:none)
     sspol = spin_polarization != :none ? " ($spin_polarization)" : ""
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
     @testset "$(typeof(term))$xc $sspol" begin
@@ -43,6 +36,9 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         occupation = [filled_occ * rand(n_bands) for _ = 1:length(basis.kpoints)]
         occ_scaling = n_electrons / sum(sum(occupation))
         occupation = [occ * occ_scaling for occ in occupation]
+        if integer_occupation
+            occupation = [filled_occ * ones(n_bands) for _ in 1:length(basis.kpoints)]
+        end
         ρ = with_logger(NullLogger()) do
             compute_density(basis, ψ, occupation)
         end
@@ -64,10 +60,10 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
 
         diff_predicted = 0.0
         for ik = 1:length(basis.kpoints)
-            Hψk = ham.blocks[ik]*ψ[ik]
+            Hψk = ham.blocks[ik] * ψ[ik]
             test_matrix_repr_operator(ham.blocks[ik], ψ[ik]; atol)
             δψkHψk = sum(occupation[ik][iband] * real(dot(δψ[ik][:, iband], Hψk[:, iband]))
-                         for iband=1:n_bands)
+                         for iband = 1:n_bands)
             diff_predicted += 2 * basis.kweights[ik] * δψkHψk
         end
         diff_predicted = mpi_sum(diff_predicted, basis.comm_kpts)
@@ -101,6 +97,7 @@ end
     test_consistency_term(Xc(:mgga_c_scan), spin_polarization=:collinear)
     test_consistency_term(Xc(:mgga_x_b00))
     test_consistency_term(Xc(:mgga_c_b94), spin_polarization=:collinear)
+    test_consistency_term(ExactExchange(); kgrid=(1, 1, 1), Ecut=7)
 
     let
         a = 6

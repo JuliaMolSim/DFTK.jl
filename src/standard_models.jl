@@ -44,6 +44,18 @@ function model_DFT(lattice::AbstractMatrix,
     model_DFT(lattice, atoms, positions, Xc(functionals); kwargs...)
 end
 
+"""
+Build an Hartree-Fock model from the specified atoms.
+"""
+function model_HF(lattice::AbstractMatrix, atoms::Vector{<:Element},
+                  positions::Vector{<:AbstractVector};
+                  extra_terms=[], scaling_factor=1, kwargs...)
+    # TODO scaling_factor is a dirty trick for testing for now ... remove this argument later
+    @warn "Exact exchange in DFTK is hardly optimised and not yet production-ready."
+    model_atomic(lattice, atoms, positions;
+                 extra_terms=[Hartree(), ExactExchange(scaling_factor), extra_terms...],
+                 model_name="HF", kwargs...)
+end
 
 """
 Build an LDA model (Perdew & Wang parametrization) from the specified atoms.
@@ -76,7 +88,7 @@ end
 
 
 # Generate equivalent functions for AtomsBase
-for fun in (:model_atomic, :model_DFT, :model_LDA, :model_PBE, :model_SCAN)
+for fun in (:model_atomic, :model_DFT, :model_LDA, :model_PBE, :model_SCAN, :model_HF)
     @eval function $fun(system::AbstractSystem, args...; kwargs...)
         parsed = parse_system(system)
         $fun(parsed.lattice, parsed.atoms, parsed.positions, args...;

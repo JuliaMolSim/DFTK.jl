@@ -100,6 +100,7 @@ export Hamiltonian
 export HamiltonianBlock
 export energy_hamiltonian
 export Kinetic
+export ExactExchange
 export ExternalFromFourier
 export ExternalFromReal
 export AtomicLocal
@@ -143,7 +144,7 @@ include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
 
 export model_atomic
-export model_DFT, model_PBE, model_LDA, model_SCAN
+export model_DFT, model_PBE, model_LDA, model_SCAN, model_HF
 include("standard_models.jl")
 
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing
