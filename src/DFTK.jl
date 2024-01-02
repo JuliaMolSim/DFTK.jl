@@ -102,6 +102,7 @@ export Hamiltonian
 export HamiltonianBlock
 export energy_hamiltonian
 export Kinetic
+export ExactExchange
 export ExternalFromFourier
 export ExternalFromReal
 export AtomicLocal
@@ -147,7 +148,7 @@ export diagonalize_all_kblocks
 include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
 
-export model_atomic, model_DFT
+export model_atomic, model_DFT, model_HF
 export LDA, PBE, PBEsol, SCAN, r2SCAN
 include("standard_models.jl")
 
