@@ -9,6 +9,7 @@ Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
 atoms     = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
 
+# TODO This should be Hartree-Fock ... otherwise the result is not proper CC !
 model  = model_LDA(lattice, atoms, positions)
 basis  = PlaneWaveBasis(model; Ecut=10, kgrid=[1, 1, 1])
 scfres = self_consistent_field(basis, tol=1e-8)
