@@ -12,11 +12,16 @@ function LibxcFunctional(identifier::Symbol)
     @assert fun.kind   in (:exchange, :correlation, :exchange_correlation)
     kind = Dict(:exchange => :x, :correlation => :c, :exchange_correlation => :xc)[fun.kind]
 
-    @assert fun.family in (:lda, :gga, :mgga)  # Hybrids not supported yet.
-    if fun.family == :mgga && Libxc.needs_laplacian(fun)
-        family = :mggal
+    @assert fun.family in (:lda, :gga, :mgga, :hyb_lda, :hyb_gga, :hyb_mgga)
+    # Libxc maintains the distinction between hybrid and non-hybrid equivalents,
+    # but this distinction is not relevant for the functional interface
+    if startswith(string(fun.family), "hyb")
+        family = Symbol(string(fun.family)[5:end])
     else
         family = fun.family
+    end
+    if family == :mgga && Libxc.needs_laplacian(fun)
+        family = :mggal
     end
     LibxcFunctional{family,kind}(identifier)
 end
@@ -154,3 +159,10 @@ for fun in (:potential_terms, :kernel_terms)
         end
     end
 end
+
+# TODO This is hackish for now until Libxc has fully picked up the DftFunctionals.jl interface
+exx_coefficient(::Functional{:lda})      = nothing
+exx_coefficient(::Functional{:gga})      = nothing
+exx_coefficient(::Functional{:mgga})     = nothing
+exx_coefficient(fun::DispatchFunctional) = exx_coefficient(fun.inner)
+exx_coefficient(fun::LibxcFunctional)    = Libxc.Functional(fun.identifier).exx_coefficient

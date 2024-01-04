@@ -7,23 +7,9 @@ using LinearAlgebra
 using ..TestCases: silicon
 testcase = silicon
 
-function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
-    for operator in hamk.operators
-        try
-            operator_matrix = Matrix(operator)
-            @test norm(operator_matrix*ψk - operator*ψk) < atol
-        catch e
-            allowed_missing_operators = Union{DFTK.DivAgradOperator,
-                                              DFTK.MagneticFieldOperator}
-            @assert operator isa allowed_missing_operators
-            @info "Matrix of operator $(nameof(typeof(operator))) not yet supported" maxlog=1
-        end
-    end
-end
-
 function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2, 3],
-                               kshift=[0, 1, 0]/2, lattice=testcase.lattice, Ecut=10,
-                               spin_polarization=:none)
+                               kshift=[0, 1, 0]/2, lattice=testcase.lattice,
+                               Ecut=10, spin_polarization=:none)
     sspol = spin_polarization != :none ? " ($spin_polarization)" : ""
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
     @testset "$(typeof(term))$xc $sspol" begin
@@ -33,6 +19,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         model = Model(lattice, atoms, testcase.positions; terms=[term], spin_polarization,
                       symmetries=true)
         basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
+        @assert length(basis.terms) == 1
 
         n_electrons = testcase.n_electrons
         n_bands = div(n_electrons, 2, RoundUp)
@@ -48,8 +35,14 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         end
         E0, ham = energy_hamiltonian(basis, ψ, occupation; ρ)
 
-        @assert length(basis.terms) == 1
+        # Test operator is derivative of the energy
+        for ik = 1:length(basis.kpoints)
+            for operator in ham.blocks[ik].operators
+                @test norm(Matrix(operator) * ψ[ik] - operator * ψ[ik]) < atol
+            end
+        end
 
+        # Test operator is derivative of the energy
         δψ = [randn(ComplexF64, size(ψ[ik])) for ik = 1:length(basis.kpoints)]
         function compute_E(ε)
             ψ_trial = ψ .+ ε .* δψ
@@ -59,15 +52,13 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
             E = energy_hamiltonian(basis, ψ_trial, occupation; ρ=ρ_trial).energies
             E.total
         end
-
         diff = (compute_E(ε) - compute_E(-ε)) / (2ε)
 
         diff_predicted = 0.0
         for ik = 1:length(basis.kpoints)
-            Hψk = ham.blocks[ik]*ψ[ik]
-            test_matrix_repr_operator(ham.blocks[ik], ψ[ik]; atol)
+            Hψk = ham.blocks[ik] * ψ[ik]
             δψkHψk = sum(occupation[ik][iband] * real(dot(δψ[ik][:, iband], Hψk[:, iband]))
-                         for iband=1:n_bands)
+                         for iband = 1:n_bands)
             diff_predicted += 2 * basis.kweights[ik] * δψkHψk
         end
         diff_predicted = mpi_sum(diff_predicted, basis.comm_kpts)
@@ -101,6 +92,7 @@ end
     test_consistency_term(Xc(:mgga_c_scan), spin_polarization=:collinear)
     test_consistency_term(Xc(:mgga_x_b00))
     test_consistency_term(Xc(:mgga_c_b94), spin_polarization=:collinear)
+    test_consistency_term(ExactExchange(); kgrid=(1, 1, 1), Ecut=7)
 
     let
         a = 6
