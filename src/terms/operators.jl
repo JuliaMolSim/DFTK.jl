@@ -180,12 +180,12 @@ function optimize_operators_(ops)
     [nonRSmults..., combined_RSmults]
 end
 
-struct ExchangeOperator{T <: Real} <: RealFourierOperator
+struct ExchangeOperator{T <: Real,Tocc,Tpsi} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
     kpoint::Kpoint{T}
-    poisson_green_coeffs  # TODO This needs to be typed
-    occk  # TODO This needs to be typed
-    ψk    # TODO This needs to be typed
+    poisson_green_coeffs::Array{T, 3}
+    occk::Tocc
+    ψk::Tpsi
 end
 function apply!(Hψ, op::ExchangeOperator, ψ)
     # Hψ = - ∑_n f_n ψ_n(r) ∫ (ψ_n)†(r') * ψ(r') / |r-r'| dr'

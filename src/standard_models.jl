@@ -33,8 +33,14 @@ function model_DFT(lattice::AbstractMatrix,
                    xc::Xc;
                    extra_terms=[], kwargs...)
     model_name = isempty(xc.functionals) ? "rHF" : join(string.(xc.functionals), "+")
+    exx = [ExactExchange(; scaling_factor=exx_coefficient(f))
+           for f in xc.functionals if !isnothing(exx_coefficient(f))]
+    if !isempty(exx)
+        @assert length(exx) == 1
+        @warn "Exact exchange in DFTK is hardly optimised and not yet production-ready."
+    end
     model_atomic(lattice, atoms, positions;
-                 extra_terms=[Hartree(), xc, extra_terms...], model_name, kwargs...)
+                 extra_terms=[Hartree(), xc, exx..., extra_terms...], model_name, kwargs...)
 end
 function model_DFT(lattice::AbstractMatrix,
                    atoms::Vector{<:Element},
@@ -56,6 +62,10 @@ function model_HF(lattice::AbstractMatrix, atoms::Vector{<:Element},
                  extra_terms=[Hartree(), ExactExchange(scaling_factor), extra_terms...],
                  model_name="HF", kwargs...)
 end
+
+#
+# DFT shortcut models
+#
 
 """
 Build an LDA model (Perdew & Wang parametrization) from the specified atoms.
@@ -87,8 +97,19 @@ function model_SCAN(lattice::AbstractMatrix, atoms::Vector{<:Element},
 end
 
 
+"""
+Build an PBE0 model from the specified atoms.
+DOI:10.1103/PhysRevLett.77.3865
+"""
+function model_PBE0(lattice::AbstractMatrix, atoms::Vector{<:Element},
+                   positions::Vector{<:AbstractVector}; kwargs...)
+    model_DFT(lattice, atoms, positions, [:hyb_gga_xc_pbeh]; kwargs...)
+end
+
+
 # Generate equivalent functions for AtomsBase
-for fun in (:model_atomic, :model_DFT, :model_LDA, :model_PBE, :model_SCAN, :model_HF)
+for fun in (:model_atomic, :model_DFT, :model_HF,
+            :model_LDA, :model_PBE, :model_SCAN, :model_PBE0)
     @eval function $fun(system::AbstractSystem, args...; kwargs...)
         parsed = parse_system(system)
         $fun(parsed.lattice, parsed.atoms, parsed.positions, args...;

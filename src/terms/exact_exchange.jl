@@ -1,8 +1,8 @@
-"""
+@doc raw"""
 Exact exchange term: the Hartree-Exact exchange energy of the orbitals
-
--1/2 ∑ ∫∫ ϕ_i^*(r)ϕ_j^*(r')ϕ_i(r')ϕ_j(r) / |r - r'| dr dr'
-
+```math
+-1/2 ∑_{nm} f_n f_m ∫∫ \frac{ψ_n^*(r)ψ_m^*(r')ψ_n(r')ψ_m(r)}{|r - r'|} dr dr'
+```
 """
 struct ExactExchange
     scaling_factor::Real  # to scale the term
