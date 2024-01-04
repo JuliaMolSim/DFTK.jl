@@ -192,9 +192,7 @@ function apply!(Hψ, op::ExchangeOperator, ψ)
     for (n, ψnk) in enumerate(eachcol(op.ψk))
         ψnk_real = ifft(op.basis, op.kpoint, ψnk)
         x_real   = conj(ψnk_real) .* ψ.real
-
-        # TODO I think some symmetrisation is needed here since there are G-vectors, which are not balanced for even grids, which do not get properly converged.
-
+        # TODO Some symmetrisation of x_real might be needed here ...
 
         # Compute integral by Poisson solve
         x_four  = fft(op.basis, x_real)
