@@ -54,12 +54,10 @@ end
 Build an Hartree-Fock model from the specified atoms.
 """
 function model_HF(lattice::AbstractMatrix, atoms::Vector{<:Element},
-                  positions::Vector{<:AbstractVector};
-                  extra_terms=[], scaling_factor=1, kwargs...)
-    # TODO scaling_factor is a dirty trick for testing for now ... remove this argument later
+                  positions::Vector{<:AbstractVector}; extra_terms=[], kwargs...)
     @warn "Exact exchange in DFTK is hardly optimised and not yet production-ready."
     model_atomic(lattice, atoms, positions;
-                 extra_terms=[Hartree(), ExactExchange(scaling_factor), extra_terms...],
+                 extra_terms=[Hartree(), ExactExchange(), extra_terms...],
                  model_name="HF", kwargs...)
 end
 
