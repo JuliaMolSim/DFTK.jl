@@ -1,5 +1,6 @@
 @testitem "Helium exchange energy" setup=[TestCases] begin
     using DFTK
+    using LinearAlgebra
     silicon = TestCases.silicon
 
     lattice   = 10diagm(ones(3))
