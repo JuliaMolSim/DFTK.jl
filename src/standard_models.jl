@@ -108,6 +108,21 @@ function model_DFT(system::AbstractSystem; pseudopotentials, functionals, kwargs
 end
 function model_DFT(lattice::AbstractMatrix,
                    atoms::Vector{<:Element},
+                   positions::Vector{<:AbstractVector},
+                   xc::Xc;
+                   extra_terms=[], kwargs...)
+    model_name = isempty(xc.functionals) ? "rHF" : join(string.(xc.functionals), "+")
+    exx = [ExactExchange(; scaling_factor=exx_coefficient(f))
+           for f in xc.functionals if !isnothing(exx_coefficient(f))]
+    if !isempty(exx)
+        @assert length(exx) == 1
+        @warn "Exact exchange in DFTK is hardly optimised and not yet production-ready."
+    end
+    model_atomic(lattice, atoms, positions;
+                 extra_terms=[Hartree(), xc, exx..., extra_terms...], model_name, kwargs...)
+end
+function model_DFT(lattice::AbstractMatrix,
+                   atoms::Vector{<:Element},
                    positions::Vector{<:AbstractVector};
                    functionals, kwargs...)
     # The idea is for the functionals keyword argument to be pretty smart in the long run,
@@ -192,3 +207,24 @@ r2SCAN(; kwargs...) = Xc([:mgga_x_r2scan, :mgga_c_r2scan]; kwargs...)
 @deprecate model_SCAN(system::AbstractSystem; kwargs...) model_DFT(system; functionals=SCAN(), kwargs...)
 @deprecate(model_DFT(system::AbstractSystem, functionals; kwargs...),
            model_DFT(system; functionals, kwargs...))
+
+"""
+Build an PBE0 model from the specified atoms.
+DOI:10.1103/PhysRevLett.77.3865
+"""
+function model_PBE0(lattice::AbstractMatrix, atoms::Vector{<:Element},
+                   positions::Vector{<:AbstractVector}; kwargs...)
+    model_DFT(lattice, atoms, positions, [:hyb_gga_xc_pbeh]; kwargs...)
+end
+
+
+# Generate equivalent functions for AtomsBase
+for fun in (:model_atomic, :model_DFT, :model_HF,
+            :model_LDA, :model_PBE, :model_SCAN, :model_PBE0)
+    @eval function $fun(system::AbstractSystem, args...; kwargs...)
+        parsed = parse_system(system)
+        $fun(parsed.lattice, parsed.atoms, parsed.positions, args...;
+             parsed.magnetic_moments, kwargs...)
+    end
+end
+>>>>>>> 0c26b766 (Hybrids)

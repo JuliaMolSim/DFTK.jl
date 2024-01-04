@@ -7,13 +7,6 @@ using LinearAlgebra
 using ..TestCases: silicon
 testcase = silicon
 
-function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
-    for operator in hamk.operators
-        operator_matrix = Matrix(operator)
-        @test norm(operator_matrix*ψk - operator*ψk) < atol
-    end
-end
-
 function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2, 3],
                                kshift=[0, 1, 0]/2, lattice=testcase.lattice,
                                atom=nothing, Ecut=10, integer_occupation=false,
@@ -29,6 +22,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         model = Model(lattice, atoms, testcase.positions; terms=[term], spin_polarization,
                       symmetries=true)
         basis = PlaneWaveBasis(model; Ecut, kgrid=MonkhorstPack(kgrid; kshift))
+        @assert length(basis.terms) == 1
 
         n_electrons = testcase.n_electrons
         n_bands = div(n_electrons, 2, RoundUp)
@@ -39,9 +33,6 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         occupation = [filled_occ * rand(n_bands) for _ = 1:length(basis.kpoints)]
         occ_scaling = n_electrons / sum(sum(occupation))
         occupation = [occ * occ_scaling for occ in occupation]
-        if integer_occupation
-            occupation = [filled_occ * ones(n_bands) for _ in 1:length(basis.kpoints)]
-        end
         ρ = with_logger(NullLogger()) do
             compute_density(basis, ψ, occupation)
         end
@@ -52,8 +43,14 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         end
         E0, ham = energy_hamiltonian(basis, ψ, occupation; ρ, τ, hubbard_n)
 
-        @assert length(basis.terms) == 1
+        # Test operator is derivative of the energy
+        for ik = 1:length(basis.kpoints)
+            for operator in ham.blocks[ik].operators
+                @test norm(Matrix(operator) * ψ[ik] - operator * ψ[ik]) < atol
+            end
+        end
 
+        # Test operator is derivative of the energy
         δψ = [randn(ComplexF64, size(ψ[ik])) for ik = 1:length(basis.kpoints)]
         function compute_E(ε)
             ψ_trial = ψ .+ ε .* δψ
@@ -76,7 +73,6 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         diff_predicted = 0.0
         for ik = 1:length(basis.kpoints)
             Hψk = ham.blocks[ik] * ψ[ik]
-            test_matrix_repr_operator(ham.blocks[ik], ψ[ik]; atol)
             δψkHψk = sum(occupation[ik][iband] * real(dot(δψ[ik][:, iband], Hψk[:, iband]))
                          for iband = 1:n_bands)
             diff_predicted += 2 * basis.kweights[ik] * δψkHψk
@@ -103,7 +99,6 @@ end
     test_consistency_term(ExternalFromFourier(X -> abs(norm(X))))
     test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
     test_consistency_term(Hartree())
-<<<<<<< HEAD
     let
         Si = ElementPsp(14, load_psp(testcase.psp_upf))
         test_consistency_term(Hubbard(OrbitalManifold([1, 2], "3P"), 0.01), atom=Si)
@@ -130,19 +125,6 @@ end
         test_consistency_term(Xc([:mgga_c_b94]; use_nlcc=false), atom=Si,
                               spin_polarization=:collinear)
     end
-=======
-    test_consistency_term(Ewald())
-    test_consistency_term(PspCorrection())
-    test_consistency_term(Xc([:lda_xc_teter93]))
-    test_consistency_term(Xc([:lda_xc_teter93]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:gga_x_pbe]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:mgga_x_tpss]))
-    test_consistency_term(Xc([:mgga_x_scan]))
-    test_consistency_term(Xc([:mgga_c_scan]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:mgga_x_b00]))
-    test_consistency_term(Xc([:mgga_c_b94]), spin_polarization=:collinear)
-    test_consistency_term(ExactExchange(); kgrid=(1, 1, 1), Ecut=7)
->>>>>>> Exact exchange
 
     let
         a = 6
