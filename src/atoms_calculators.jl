@@ -51,9 +51,7 @@ function DFTKCalculator(system; state=nothing, verbose=false, model_kwargs, basi
     DFTKCalculator(params, state)
 end
 
-AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
-        system::AbstractSystem, calculator::DFTKCalculator; state = calculator.state)
-    # Update basis (and the energy terms within).
+function compute_scf!(system::AbstractSystem, calculator::DFTKCalculator, state::DFTKState)
     basis = prepare_basis(system, calculator.params)
     
     # Note that we use the state's densities and orbitals, but change the basis 
@@ -62,16 +60,16 @@ AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
                                    state.scfres.ρ, state.scfres.ψ,
                                    calculator.params.scf_kwargs...)
     calculator.state = DFTKState(scfres)
+end
+
+AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
+        system::AbstractSystem, calculator::DFTKCalculator; state = calculator.state)
+    compute_scf!(system, calculator, state)
     calculator.state.scfres.energies.total
 end
     
 AtomsCalculators.@generate_interface function AtomsCalculators.forces(
         system::AbstractSystem, calculator::DFTKCalculator; state = calculator.state)
-    basis = prepare_basis(system, calculator.params)
-    
-    scfres = self_consistent_field(basis;
-                                   state.scfres.ρ, state.scfres.ψ,
-                                   calculator.params.scf_kwargs...)
-    calculator.state = DFTKState(scfres)
+    compute_scf!(system, calculator, state)
     compute_forces_cart(calculator.state.scfres)
 end
