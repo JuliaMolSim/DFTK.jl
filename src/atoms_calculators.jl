@@ -4,12 +4,13 @@
 # This interface is inspired by the one used in Molly.jl, 
 # see https://github.com/JuliaMolSim/Molly.jl/blob/master/src/types.jl
 #
-# TODO: Decide how Hamiltonian terms should be updated upon change of the positions.
-# These terms are held inside the `basis`. Currently, the whole basis is rebuilt.
-# TODO: Find out if symmetries can be re-enabled (see issue on GH).
-
+# Important: By default, when the calculator is called with a `state`, the 
+# symmetries of the state will be re-used in the current calculation (the basis 
+# is re-built, but symmetries are fixed and not re-computed). 
+#    
 using AtomsBase
 using AtomsCalculators
+
 
 Base.@kwdef struct DFTKParameters
     model_kwargs = (; )
@@ -21,16 +22,11 @@ struct DFTKState
     scfres::NamedTuple
 end
 function DFTKState(system::AbstractSystem, params::DFTKParameters)
-    basis = prepare_basis(system, params)
+    model = model_DFT(system; params.model_kwargs...)
+    basis = PlaneWaveBasis(model; params.basis_kwargs...)
     ρ = guess_density(basis, system)
     ψ = nothing # Will get initialized by SCF.
     DFTKState((; ρ, ψ, basis))
-end
-
-function prepare_basis(system::AbstractSystem, params::DFTKParameters)
-    # By default create an LDA model.
-    model = model_DFT(system; symmetries=false, params.model_kwargs...)
-    PlaneWaveBasis(model; params.basis_kwargs...)
 end
 
 Base.@kwdef mutable struct DFTKCalculator
@@ -38,7 +34,8 @@ Base.@kwdef mutable struct DFTKCalculator
     state::DFTKState
 end
 
-function DFTKCalculator(system; state=nothing, verbose=false, model_kwargs, basis_kwargs, scf_kwargs)
+function DFTKCalculator(system; state=nothing, verbose=false,
+                        model_kwargs, basis_kwargs, scf_kwargs)
     if !verbose
         scf_kwargs = merge(scf_kwargs, (;callback=identity))
     end
@@ -52,7 +49,10 @@ function DFTKCalculator(system; state=nothing, verbose=false, model_kwargs, basi
 end
 
 function compute_scf!(system::AbstractSystem, calculator::DFTKCalculator, state::DFTKState)
-    basis = prepare_basis(system, calculator.params)
+    model = model_DFT(system; calculator.params.model_kwargs...,
+                      symmetries=state.scfres.basis.symmetries)
+    # Note that we re-use the symmetries from the state, to avoid degenerate cases.
+    basis = PlaneWaveBasis(model; calculator.params.basis_kwargs...)
     
     # Note that we use the state's densities and orbitals, but change the basis 
     # to reflect system changes.
