@@ -78,7 +78,7 @@ function PspHgh(path; identifier=path, kwargs...)
         # This is done here.
         hcoeff = [parse(Float64, part) for part in split(m[3])]
         for i = 1:nproj
-            for j in i:nproj
+            for j = i:nproj
                 h[l + 1][j, i] = h[l + 1][i, j] = hcoeff[j - i + 1]
             end
 

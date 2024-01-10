@@ -82,7 +82,7 @@ end
 Atomic local potential defined by `model.atoms`.
 """
 struct AtomicLocal end
-function compute_local_potential(S, basis::PlaneWaveBasis{T}; positions=basis.model.positions,
+function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model.positions,
                                  q=zero(Vec3{T})) where {T}
     # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
     # Since V is a sum of radial functions located at atomic
@@ -125,7 +125,7 @@ function compute_local_potential(S, basis::PlaneWaveBasis{T}; positions=basis.mo
     end
 end
 (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T} =
-    TermAtomicLocal(compute_local_potential(T, basis))
+    TermAtomicLocal(compute_local_potential(basis))
 
 function compute_forces(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occupation;
                         ρ, kwargs...) where {T}
@@ -167,19 +167,18 @@ function compute_δV_αs(::TermAtomicLocal, basis::PlaneWaveBasis{T}, α, s; q=z
     displacement[s] = setindex(displacement[s], one(T), α)
     ForwardDiff.derivative(zero(T)) do ε
         positions = ε*displacement .+ positions
-        compute_local_potential(S, basis; q, positions)
+        compute_local_potential(basis; q, positions)
     end
 end
 
 # Phonon: Second-order perturbation of the local potential with respect to a displacement on
 # the directions α and β of the atoms s and t.
 function compute_δ²V_βtαs(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, β, t, α, s) where {T}
-    model = basis.model
-
-    displacement = zero.(model.positions)
+    positions = basis.model.positions
+    displacement = zero.(positions)
     displacement[t] = setindex(displacement[t], one(T), β)
     ForwardDiff.derivative(zero(T)) do ε
-        positions = ε*displacement .+ model.positions
+        positions = ε*displacement .+ positions
         compute_δV_αs(term, basis, α, s; positions)
     end
 end

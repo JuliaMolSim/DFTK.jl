@@ -78,10 +78,10 @@ end
                     -sum(occupation[ik][iband] * basis.kweights[ik] *
                          2real(dot(ψk[:, iband], dHψk[:, iband]))
                          for iband=1:size(ψk, 2))
-                end  # α
-            end  # r
-        end  # kpt
-    end  # group
+                end
+            end
+        end
+    end
 
     forces = mpi_sum!(forces, basis.comm_kpts)
     symmetrize_forces(basis, forces)
@@ -105,7 +105,7 @@ function _build_projection_coefficients(T, psps, psp_positions)
         block = count+1:count+n_proj_psp
         proj_coeffs[block, block] = _build_projection_coefficients(T, psp)
         count += n_proj_psp
-    end  # psp, r
+    end
     @assert count == n_proj
 
     proj_coeffs
@@ -119,12 +119,12 @@ function _build_projection_coefficients(T, psp::NormConservingPsp)
     n_proj = count_n_proj(psp)
     proj_coeffs = zeros(T, n_proj, n_proj)
     count = 0
-    for l = 0:psp.lmax, m = -l:l
+    for l = 0:psp.lmax, _ = -l:l
         n_proj_l = count_n_proj_radial(psp, l)  # Number of i's
         range = count .+ (1:n_proj_l)
         proj_coeffs[range, range] = psp.h[l + 1]
         count += n_proj_l
-    end # l, m
+    end
     proj_coeffs
 end
 
