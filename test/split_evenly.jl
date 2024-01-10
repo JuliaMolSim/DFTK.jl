@@ -3,7 +3,7 @@
 
     function run_test(itr, n)
         splitted = DFTK.split_evenly(itr, n)
-        @test collect(itr) == vcat(splitted...)
+        @test collect(itr) == reduce(vcat, splitted)
     end
 
     run_test(1:12, 4)

@@ -138,7 +138,7 @@ struct DivAgradOperator{T <: Real, AT} <: RealFourierOperator
     kpoint::Kpoint{T}
     A::AT
 end
-function apply!(Hψ, op::DivAgradOperator, ψ,
+function apply!(Hψ, op::DivAgradOperator, ψ;
                 ψ_scratch=zeros(complex(eltype(op.basis)), op.basis.fft_size...))
     # TODO: Performance improvements: Unscaled plans, avoid remaining allocations
     #       (which are only on the small k-point-specific Fourier grid
@@ -147,7 +147,6 @@ function apply!(Hψ, op::DivAgradOperator, ψ,
         ∂αψ_real = ifft!(ψ_scratch, op.basis, op.kpoint, im .* G_plus_k[α] .* ψ.fourier)
         A∇ψ      = fft(op.basis, op.kpoint, ∂αψ_real .* op.A)
         Hψ.fourier .-= im .* G_plus_k[α] .* A∇ψ ./ 2
-
     end
 end
 # TODO Implement  Matrix(op::DivAgrad)

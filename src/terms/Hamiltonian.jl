@@ -155,8 +155,8 @@ end
             @timeit to "divAgrad" begin
                 apply!((; fourier=Hψ[:, iband], real=nothing),
                        H.divAgrad_op,
-                       (; fourier=ψ[:, iband], real=nothing),
-                       ψ_real)  # ψ_real used as scratch
+                       (; fourier=ψ[:, iband], real=nothing);
+                       ψ_scratch=ψ_real)
             end
         end
 
