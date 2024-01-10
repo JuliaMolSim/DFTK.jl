@@ -114,8 +114,7 @@ Assemble the right-hand side term for the Sternheimer equation for all relevant 
 Compute the perturbation of the Hamiltonian with respect to a variation of the local
 potential produced by a displacement of the atom s in the direction α.
 """
-@timing function compute_δHψ_αs(basis::PlaneWaveBasis, ψ, q, α, s; kwargs...)
-    δHψ_per_term = [compute_δHψ_αs(term, basis, ψ, q, α, s; kwargs...)
-                    for term in basis.terms]
+@timing function compute_δHψ_αs(basis::PlaneWaveBasis, ψ, q, α, s)
+    δHψ_per_term = [compute_δHψ_αs(term, basis, ψ, q, α, s) for term in basis.terms]
     sum(filter(!isnothing, δHψ_per_term))
 end

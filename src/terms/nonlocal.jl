@@ -44,8 +44,8 @@ end
 end
 
 @timing "forces: nonlocal" function compute_forces(::TermAtomicNonlocal,
-                                                   basis::PlaneWaveBasis{TT},
-                                                   ψ, occupation; kwargs...) where {TT}
+                                                   basis::PlaneWaveBasis{TT}, ψ, occupation;
+                                                   kwargs...) where {TT}
     T = promote_type(TT, real(eltype(ψ[1])))
     model = basis.model
     unit_cell_volume = model.unit_cell_volume
