@@ -114,7 +114,7 @@ end
     weirdatom   = Atom(6, randn(3)u"Å"; atomic_symsymbol=:C1)
     atoms       = [:C => rand(3), :Si => rand(3), :H => rand(3), :C => rand(3)]
     pos_units   = last.(atoms)
-    pos_lattice = austrip.(reduce(hcat, lattice))
+    pos_lattice = austrip.(stack(lattice))
     system      = periodic_system(atoms, lattice; fractional=true)
 
     let model = Model(system)
@@ -207,7 +207,7 @@ end
     @test atomic_symbol(system_psp) == [:C1, :C2]
     @test atomic_mass(system_psp) == [-1u"u", -2u"u"]
 
-    pos_lattice = austrip.(reduce(hcat, lattice))
+    pos_lattice = austrip.(stack(lattice))
     let model = model_LDA(system_psp)
         @test model.lattice   == pos_lattice
         @test model.lattice * model.positions[1] * u"bohr" ≈ atoms[1].position

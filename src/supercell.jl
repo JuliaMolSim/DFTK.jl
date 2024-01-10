@@ -3,7 +3,7 @@ Construct a supercell of size `supercell_size` from a unit cell described by its
 `atoms` and their `positions`.
 """
 function create_supercell(lattice, atoms, positions, supercell_size)
-    lattice_supercell = reduce(hcat, supercell_size .* eachcol(lattice))
+    lattice_supercell = stack(supercell_size .* eachcol(lattice))
 
     # Compute atoms reduced coordinates in the supercell
     atoms_supercell = eltype(atoms)[]

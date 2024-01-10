@@ -194,7 +194,7 @@ function compute_dynmat(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occ
 
     ∫δρδV = zeros(S, 3, n_atoms, 3, n_atoms)
     for s = 1:n_atoms, α = 1:n_dim
-        ∫δρδV[:, :, α, s] .-= reduce(hcat, forces_local(S, basis, δρs[α, s], q))
+        ∫δρδV[:, :, α, s] .-= stack(forces_local(S, basis, δρs[α, s], q))
     end
 
     ∫ρδ²V = zeros(S, 3, n_atoms, 3, n_atoms)

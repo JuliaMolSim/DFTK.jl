@@ -81,7 +81,7 @@ end
                                        damping=0.6, response=ResponseOptions(; verbose=true))
 
         ComponentArray(
-           eigenvalues=reduce(hcat, [ev[1:10] for ev in scfres.eigenvalues]),
+           eigenvalues=stack([ev[1:10] for ev in scfres.eigenvalues]),
            ρ=scfres.ρ,
            energies=collect(values(scfres.energies)),
            εF=scfres.εF,
