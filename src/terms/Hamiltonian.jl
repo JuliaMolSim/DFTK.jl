@@ -33,8 +33,8 @@ struct DftHamiltonianBlock <: HamiltonianBlock
     scratch  # Pre-allocated scratch arrays for fast application
 end
 
-function HamiltonianBlock(basis, kpoint, operators; scratch=ham_allocate_scratch_(basis))
-    optimized_operators = optimize_operators_(operators)
+function HamiltonianBlock(basis, kpoint, operators; scratch=_ham_allocate_scratch(basis))
+    optimized_operators = _optimize_operators(operators)
     fourier_ops  = filter(o -> o isa FourierMultiplication,   optimized_operators)
     real_ops     = filter(o -> o isa RealSpaceMultiplication, optimized_operators)
     nonlocal_ops = filter(o -> o isa NonlocalOperator,        optimized_operators)
@@ -54,7 +54,7 @@ function HamiltonianBlock(basis, kpoint, operators; scratch=ham_allocate_scratch
         GenericHamiltonianBlock(basis, kpoint, operators, optimized_operators, nothing)
     end
 end
-function ham_allocate_scratch_(basis::PlaneWaveBasis{T}) where {T}
+function _ham_allocate_scratch(basis::PlaneWaveBasis{T}) where {T}
     [(; ψ_reals=zeros_like(basis.G_vectors, complex(T), basis.fft_size...))
      for _ = 1:Threads.nthreads()]
 end
