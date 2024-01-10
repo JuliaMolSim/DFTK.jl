@@ -74,9 +74,9 @@ in reduced coordinates.
     δψs = [zero.(ψ) for _ = 1:3, _ = 1:n_atoms]
     if !isempty(ψ)
         for s = 1:n_atoms, α = 1:n_dim
-            δHψs_sα = compute_δHψ_sα(basis, ψ, q, s, α)
+            δHψs_αs = compute_δHψ_αs(basis, ψ, q, α, s)
             (; δψ, δρ, δoccupation) = solve_ΩplusK_split(ham, ρ, ψ, occupation, εF,
-                                                         eigenvalues, -δHψs_sα; q,
+                                                         eigenvalues, -δHψs_αs; q,
                                                          kwargs...)
             δoccupations[α, s] = δoccupation
             δρs[α, s] = δρ
@@ -114,8 +114,8 @@ Assemble the right-hand side term for the Sternheimer equation for all relevant 
 Compute the perturbation of the Hamiltonian with respect to a variation of the local
 potential produced by a displacement of the atom s in the direction α.
 """
-@timing function compute_δHψ_sα(basis::PlaneWaveBasis, ψ, q, s, α; kwargs...)
-    δHψ_per_term = [compute_δHψ_sα(term, basis, ψ, q, s, α; kwargs...)
+@timing function compute_δHψ_αs(basis::PlaneWaveBasis, ψ, q, α, s; kwargs...)
+    δHψ_per_term = [compute_δHψ_αs(term, basis, ψ, q, α, s; kwargs...)
                     for term in basis.terms]
     sum(filter(!isnothing, δHψ_per_term))
 end

@@ -160,7 +160,7 @@ end
 
 # Phonon: Perturbation of the local potential with respect to a displacement on the
 # direction α of the atom s.
-function compute_δV_sα(::TermAtomicLocal, basis::PlaneWaveBasis{T}, s, α; q=zero(Vec3{T}),
+function compute_δV_αs(::TermAtomicLocal, basis::PlaneWaveBasis{T}, α, s; q=zero(Vec3{T}),
                        positions=basis.model.positions) where {T}
     S = iszero(q) ? T : complex(T)
     displacement = zero.(positions)
@@ -173,14 +173,14 @@ end
 
 # Phonon: Second-order perturbation of the local potential with respect to a displacement on
 # the directions α and β of the atoms s and t.
-function compute_δ²V(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, β, t, α, s) where {T}
+function compute_δ²V_βtαs(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, β, t, α, s) where {T}
     model = basis.model
 
     displacement = zero.(model.positions)
     displacement[t] = setindex(displacement[t], one(T), β)
     ForwardDiff.derivative(zero(T)) do ε
         positions = ε*displacement .+ model.positions
-        compute_δV_sα(term, basis, s, α; positions)
+        compute_δV_αs(term, basis, α, s; positions)
     end
 end
 
@@ -202,7 +202,7 @@ function compute_dynmat(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occ
     δ²V_fourier = similar(ρ_fourier)
     for s = 1:n_atoms, α = 1:n_dim
         for t = 1:n_atoms, β = 1:n_dim
-            fft!(δ²V_fourier, basis, compute_δ²V(term, basis, β, t, α, s))
+            fft!(δ²V_fourier, basis, compute_δ²V_βtαs(term, basis, β, t, α, s))
             ∫ρδ²V[β, t, α, s] = sum(conj(ρ_fourier) .* δ²V_fourier)
         end
     end
@@ -211,9 +211,9 @@ function compute_dynmat(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occ
     ∫δρδV + ∫ρδ²V
 end
 
-function compute_δHψ_sα(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, q, s, α) where {T}
-    δV_sα = similar(ψ[1], basis.fft_size..., basis.model.n_spin_components)
+function compute_δHψ_αs(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, q, α, s) where {T}
+    δV_αs = similar(ψ[1], basis.fft_size..., basis.model.n_spin_components)
     # All spin components get the same potential.
-    δV_sα .= compute_δV_sα(term, basis, s, α; q)
-    multiply_ψ_by_blochwave(basis, ψ, δV_sα, q)
+    δV_αs .= compute_δV_αs(term, basis, α, s; q)
+    multiply_ψ_by_blochwave(basis, ψ, δV_αs, q)
 end
