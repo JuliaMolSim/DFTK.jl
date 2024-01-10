@@ -78,10 +78,10 @@ end
                     -sum(occupation[ik][iband] * basis.kweights[ik] *
                          2real(dot(ψk[:, iband], dHψk[:, iband]))
                          for iband=1:size(ψk, 2))
-                end
-            end
-        end
-    end
+                end  # α
+            end  # r
+        end  # kpt
+    end  # group
 
     forces = mpi_sum!(forces, basis.comm_kpts)
     symmetrize_forces(basis, forces)
