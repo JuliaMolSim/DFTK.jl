@@ -148,11 +148,11 @@ end
         for idx in group
             r = model.positions[idx]
             forces[idx] = -real_ifSreal(sum(conj(ρ_fourier[iG])
-                                        * form_factors[iG]
-                                        * cis2pi(-dot(G + q, r))
-                                        * (-2T(π)) * (G + q) * im
-                                        / sqrt(model.unit_cell_volume)
-                                  for (iG, G) in enumerate(G_vectors(basis))))
+                                              * form_factors[iG]
+                                              * cis2pi(-dot(G + q, r))
+                                              * (-2T(π)) * (G + q) * im
+                                              / sqrt(model.unit_cell_volume)
+                                        for (iG, G) in enumerate(G_vectors(basis))))
         end
     end
     forces
