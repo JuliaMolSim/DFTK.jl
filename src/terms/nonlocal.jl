@@ -83,7 +83,7 @@ end
         end  # kpt
     end  # group
 
-    forces = mpi_sum!(forces, basis.comm_kpts)
+    mpi_sum!(forces, basis.comm_kpts)
     symmetrize_forces(basis, forces)
 end
 
