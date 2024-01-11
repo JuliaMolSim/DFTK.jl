@@ -1,7 +1,5 @@
 @testsetup module SiliconRedHF
 using DFTK
-using GenericLinearAlgebra
-using DoubleFloats
 using ..RunSCF: run_scf_and_compare
 using ..TestCases: silicon
 
@@ -39,7 +37,7 @@ function run_silicon_redHF(T; Ecut=5, grid_size=15, spin_polarization=:none, kwa
     model = model_DFT(silicon.lattice, atoms, silicon.positions, []; temperature=0.05,
                       spin_polarization, magnetic_moments)
     model = convert(Model{T}, model)  # Ensure the selected floating-point type is used
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
+    basis = PlaneWaveBasis(model; Ecut, kgrid=(3, 3, 3), fft_size)
 
     spin_polarization == :collinear && (ref_redHF = vcat(ref_redHF, ref_redHF))
     run_scf_and_compare(T, basis, ref_redHF, ref_etot; ρ=guess_density(basis), kwargs...)
@@ -56,13 +54,14 @@ end
 @testitem "Silicon without XC (large)" #=
     =#    tags=[:slow, :core] setup=[RunSCF, TestCases, SiliconRedHF] begin
     SiliconRedHF.run_silicon_redHF(Float64; Ecut=25, test_tol=1e-5, n_ignored=2,
-                                   grid_size=35, scf_tol=1e-7, test_etot=false)
+                                   grid_size=35, scf_ene_tol=1e-7, test_etot=false)
 end
 
 # There is a weird race condition with MPI + DoubleFloats. TODO debug
 @testitem "Silicon without XC (small, Double32)" #=
     =#    tags=[:core, :dont_test_mpi] setup=[RunSCF, TestCases, SiliconRedHF] begin
     using DoubleFloats
+    using GenericLinearAlgebra
 
     SiliconRedHF.run_silicon_redHF(Double32; Ecut=5, test_tol=0.05, n_ignored=0,
                                    grid_size=15, test_etot=false)

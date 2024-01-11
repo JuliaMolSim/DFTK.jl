@@ -73,7 +73,7 @@ end
     δFtot_fourier  = total_density(δF_fourier)
     δFspin_fourier = spin_density(δF_fourier)
     δρtot_fourier = δFtot_fourier .* G² ./ (kTF.^2 .+ G²)
-    enforce_real!(basis, δρtot_fourier)
+    enforce_real!(δρtot_fourier, basis)
     δρtot = irfft(basis, δρtot_fourier)
 
     # Copy DC component, otherwise it never gets updated
@@ -83,7 +83,7 @@ end
         ρ_from_total_and_spin(δρtot, nothing)
     else
         δρspin_fourier = @. δFspin_fourier - δFtot_fourier * (4π * ΔDOS_Ω) / (kTF^2 + G²)
-        enforce_real!(basis, δρspin_fourier)
+        enforce_real!(δρspin_fourier, basis)
         δρspin = irfft(basis, δρspin_fourier)
         ρ_from_total_and_spin(δρtot, δρspin)
     end
@@ -163,7 +163,7 @@ Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `verbose`: Run the GMRES in verbose mode.
 - `reltol`: Relative tolerance for GMRES
 """
-function HybridMixing(;εr=1.0, kTF=0.8, localization=identity,
+function HybridMixing(; εr=10.0, kTF=0.8, localization=identity,
                       adjust_temperature=IncreaseMixingTemperature(), kwargs...)
     χ0terms = [DielectricModel(; εr, kTF, localization),
                LdosModel(;adjust_temperature)]

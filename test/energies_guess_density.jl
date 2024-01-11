@@ -25,7 +25,7 @@
     # Run one diagonalization and compute energies
     res = diagonalize_all_kblocks(lobpcg_hyper, H, n_bands, tol=1e-9)
     occupation = [[2.0, 2.0, 2.0, 2.0, 0.0, 0.0, 0.0, 0.0]
-                  for i in 1:length(basis.kpoints)]
+                  for i = 1:length(basis.kpoints)]
     ρ = compute_density(H.basis, res.X, occupation)
     E, H = energy_hamiltonian(basis, res.X, occupation; ρ)
 

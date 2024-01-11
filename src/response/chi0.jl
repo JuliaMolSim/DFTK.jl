@@ -1,5 +1,4 @@
 using LinearMaps
-using ProgressMeter
 
 @doc raw"""
 Compute the independent-particle susceptibility. Will blow up for large systems.
@@ -68,7 +67,7 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature)
         V = Vs[ik]
         Vr = cat(ifft.(Ref(basis), Ref(kpt), eachcol(V))..., dims=4)
         Vr = reshape(Vr, n_fft, N)
-        @showprogress "Computing χ0 for k-point $ik/$(length(basis.kpoints)) ..." for m = 1:N, n = 1:N
+        for m = 1:N, n = 1:N
             enred = (E[n] - εF) / temperature
             @assert occupation[ik][n] ≈ filled_occ * Smearing.occupation(smearing, enred)
             ddiff = Smearing.occupation_divided_difference
@@ -171,7 +170,8 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     end
     precon = PreconditionerTPA(basis, kpoint)
     # First column of ψk as there is no natural kinetic energy.
-    precondprep!(precon, ψk[:, 1])
+    # We take care of the (rare) cases when ψk is empty.
+    precondprep!(precon, size(ψk, 2) ≥ 1 ? ψk[:, 1] : nothing)
     function R_ldiv!(x, y)
         x .= R(precon \ R(y))
     end
@@ -252,7 +252,7 @@ The derivatives of the occupations are in-place stored in δocc.
 The tuple (; δocc, δεF) is returned. It is assumed the passed `δocc`
 are initialised to zero.
 """
-function compute_δocc!(δocc, basis, ψ, εF::T, ε, δHψ) where {T}
+function compute_δocc!(δocc, basis::PlaneWaveBasis{T}, ψ, εF, ε, δHψ) where {T}
     model = basis.model
     temperature = model.temperature
     smearing = model.smearing
@@ -291,49 +291,59 @@ Perform in-place computations of the derivatives of the wave functions by solvin
 a Sternheimer equation for each `k`-points. It is assumed the passed `δψ` are initialised
 to zero.
 """
-function compute_δψ!(δψ, basis, H, ψ, εF, ε, δHψ; ψ_extra=[zeros_like(ψk, size(ψk,1), 0) for ψk in ψ],
-                     kwargs_sternheimer...)
+function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε_minus_q=ε;
+                     ψ_extra=[zeros_like(ψk, size(ψk,1), 0) for ψk in ψ],
+                     q=zero(Vec3{T}), kwargs_sternheimer...) where {T}
+    # We solve the Sternheimer equation
+    #   (H_k - ε_{n,k-q}) δψ_{n,k} = - (1 - P_{k}) δHψ_{n, k-q},
+    # where P_{k} is the projector on ψ_{k} and with the conventions:
+    # * δψ_{k} is the variation of ψ_{k-q}, which implies (for ℬ_{k} the `basis.kpoints`)
+    #     δψ_{k-q} ∈ ℬ_{k-q} and δHψ_{k-q} ∈ ℬ_{k};
+    # * δHψ[ik] = δHψ_{k-q};
+    # * ε_minus_q[ik] = ε_{·, k-q}.
     model = basis.model
     temperature = model.temperature
     smearing = model.smearing
     filled_occ = filled_occupation(model)
-    Nk = length(basis.kpoints)
 
     # Compute δψnk band per band
-    for ik = 1:Nk
+    for ik = 1:length(ψ)
         Hk  = H[ik]
         ψk  = ψ[ik]
         εk  = ε[ik]
         δψk = δψ[ik]
+        εk_minus_q = ε_minus_q[ik]
 
         ψk_extra = ψ_extra[ik]
         Hψk_extra = Hk * ψk_extra
         εk_extra  = diag(real.(ψk_extra' * Hψk_extra))
-        for n = 1:length(εk)
-            fnk = filled_occ * Smearing.occupation(smearing, (εk[n]-εF) / temperature)
+        for n = 1:length(εk_minus_q)
+            fnk_minus_q = filled_occ * Smearing.occupation(smearing, (εk_minus_q[n]-εF) / temperature)
 
             # Explicit contributions (nonzero only for temperature > 0)
             for m = 1:length(εk)
-                # the n == m contribution in compute_δρ is obtained through
-                # δoccupation, see the explanation above
-                m == n && continue
+                # The n == m contribution in compute_δρ is obtained through δoccupation, see
+                # the explanation above; except if we perform phonon calculations.
+                iszero(q) && (m == n) && continue
                 fmk = filled_occ * Smearing.occupation(smearing, (εk[m]-εF) / temperature)
                 ddiff = Smearing.occupation_divided_difference
-                ratio = filled_occ * ddiff(smearing, εk[m], εk[n], εF, temperature)
-                αmn = compute_αmn(fmk, fnk, ratio)  # fnk * αmn + fmk * αnm = ratio
+                ratio = filled_occ * ddiff(smearing, εk[m], εk_minus_q[n], εF, temperature)
+                αmn = compute_αmn(fmk, fnk_minus_q, ratio)  # fnk_minus_q * αmn + fmk * αnm = ratio
                 δψk[:, n] .+= ψk[:, m] .* αmn .* dot(ψk[:, m], δHψ[ik][:, n])
             end
 
             # Sternheimer contribution
-            δψk[:, n] .+= sternheimer_solver(Hk, ψk, εk[n], δHψ[ik][:, n]; ψk_extra,
+            δψk[:, n] .+= sternheimer_solver(Hk, ψk, εk_minus_q[n], δHψ[ik][:, n]; ψk_extra,
                                              εk_extra, Hψk_extra, kwargs_sternheimer...)
         end
     end
 end
 
 @views @timing function apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                                    occupation_threshold, kwargs_sternheimer...)
+                                    occupation_threshold, q=zero(Vec3{eltype(ham.basis)}),
+                                    kwargs_sternheimer...)
     basis = ham.basis
+    ordering(kdata) = kdata[k_to_equivalent_kpq_permutation(basis, -q)]
 
     # We first select orbitals with occupation number higher than
     # occupation_threshold for which we compute the associated response δψn,
@@ -347,23 +357,31 @@ end
 
     ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
     ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
-
     ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-    δHψ_occ = [δHψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
+    δHψ_minus_q_occ = [δHψ[ik][:, maskk] for (ik, maskk) in enumerate(ordering(mask_occ))]
+    # Only needed for phonon calculations.
+    ε_minus_q_occ  = ordering([eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)])
 
     # First we compute δoccupation. We only need to do this for the actually occupied
     # orbitals. So we make a fresh array padded with zeros, but only alter the elements
     # corresponding to the occupied orbitals. (Note both compute_δocc! and compute_δψ!
     # assume that the first array argument has already been initialised to zero).
+    # For phonon calculations when q ≠ 0, we do not use δoccupation, and compute directly
+    # the full perturbation δψ.
     δoccupation = zero.(occupation)
-    δocc_occ = [δoccupation[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-    δεF = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_occ).δεF
+    if iszero(q)
+        δocc_occ = [δoccupation[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
+        δεF = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_minus_q_occ).δεF
+    else
+        δεF = zero(εF)
+    end
 
-    # Then we compute δψ, again in-place into a zero-padded array
-    δψ = zero.(ψ)
-    δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
-    compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_occ; ψ_extra,
-                kwargs_sternheimer...)
+    # Then we compute δψ (again in-place into a zero-padded array) with elements of
+    # `basis.kpoints` that are equivalent to `k+q`.
+    δψ = zero.(δHψ)  # δHψ ≠ δHψ_minus_q
+    δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(ordering(mask_occ))]
+    compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, ε_minus_q_occ;
+                ψ_extra, q, kwargs_sternheimer...)
 
     (; δψ, δoccupation, δεF)
 end
@@ -371,9 +389,9 @@ end
 """
 Get the density variation δρ corresponding to a potential variation δV.
 """
-function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV::AbstractArray{T};
-                  occupation_threshold=default_occupation_threshold(T),
-                  kwargs_sternheimer...) where {T}
+function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{TδV};
+                  occupation_threshold=default_occupation_threshold(TδV),
+                  q=zero(Vec3{eltype(ham.basis)}), kwargs_sternheimer...) where {T, TδV}
 
     basis = ham.basis
 
@@ -386,19 +404,21 @@ function apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV::AbstractArray{T};
     # Sternheimer linear solver (it makes the rhs be order 1 even if
     # δV is small)
     normδV = norm(δV)
-    normδV < eps(typeof(εF)) && return zero(δV)
+    normδV < eps(T) && return zero(δV)
     δV ./= normδV
 
-    δHψ = [RealSpaceMultiplication(basis, kpt, @views δV[:, :, :, kpt.spin]) * ψ[ik]
-           for (ik, kpt) in enumerate(basis.kpoints)]
-    δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                                       occupation_threshold, kwargs_sternheimer...)
-    δρ = compute_δρ(basis, ψ, δψ, occupation, δoccupation; occupation_threshold)
+    # For phonon calculations, assemble
+    #   δHψ_k = δV_{q} · ψ_{k-q}.
+    δHψ = multiply_ψ_by_blochwave(basis, ψ, δV, q)
+    (; δψ, δoccupation) = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+                                      occupation_threshold, q, kwargs_sternheimer...)
+
+    δρ = compute_δρ(basis, ψ, δψ, occupation, δoccupation; occupation_threshold, q)
+
     δρ * normδV
 end
 
 function apply_χ0(scfres, δV; kwargs_sternheimer...)
-    apply_χ0(scfres.ham, scfres.ψ, scfres.occupation, scfres.εF,
-             scfres.eigenvalues, δV; scfres.occupation_threshold,
-             kwargs_sternheimer...)
+    apply_χ0(scfres.ham, scfres.ψ, scfres.occupation, scfres.εF, scfres.eigenvalues, δV;
+             scfres.occupation_threshold, kwargs_sternheimer...)
 end

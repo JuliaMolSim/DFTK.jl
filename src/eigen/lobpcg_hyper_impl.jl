@@ -76,7 +76,7 @@ function Base.size(A::LazyHcat)
     (n, m)
 end
 
-Base.Array(A::LazyHcat)  = hcat(A.blocks...)
+Base.Array(A::LazyHcat)  = reduce(hcat, A.blocks)
 
 Base.adjoint(A::LazyHcat) = Adjoint(A)
 
@@ -302,7 +302,7 @@ function final_retval(X, AX, resid_history, niter, n_matvec)
     λ = real(diag(X' * AX))
     residuals = AX .- X*Diagonal(λ)
     (; λ, X,
-     residual_norms=[norm(residuals[:, i]) for i in 1:size(residuals, 2)],
+     residual_norms=[norm(residuals[:, i]) for i = 1:size(residuals, 2)],
      residual_history=resid_history[:, 1:niter+1], n_matvec)
 end
 

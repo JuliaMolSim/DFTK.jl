@@ -3,8 +3,9 @@
 """
 Wannerize the obtained bands using wannier90. By default all converged
 bands from the `scfres` are employed (change with `n_bands` kwargs)
-and `n_wannier = n_bands` wannier functions are computed using
-random Gaussians as guesses. All keyword arguments supported by
+and `n_wannier = n_bands` wannier functions are computed.
+Random Gaussians are used as guesses by default, can be changed
+using the `projections` kwarg. All keyword arguments supported by
 Wannier90 for the disentanglement may be added as keyword arguments.
 The function returns the `fileprefix`.
 

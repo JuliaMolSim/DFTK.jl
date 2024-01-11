@@ -1,23 +1,30 @@
 module DFTKJSON3Ext
-using JSON3
 using DFTK
-using DFTK: todict
+using JSON3
+using MPI
 
-function DFTK.save_scfres_master(filename::AbstractString, scfres::NamedTuple, ::Val{:json})
-    # TODO Quick and dirty solution for now.
-    #      The better approach is to integrate with StructTypes.jl
-
-    data = Dict("energies" => todict(scfres.energies), "damping" => scfres.α)
-    for key in (:converged, :occupation_threshold, :εF, :eigenvalues,
-                :occupation, :n_bands_converge, :n_iter, :algorithm, :norm_Δρ)
-        data[string(key)] = getproperty(scfres, key)
+function save_json(todict_function, filename::AbstractString, scfres::NamedTuple;
+                   save_ψ=false, extra_data=Dict{String,Any}(), save_ρ=true, kwargs...)
+    if save_ψ
+        @warn "Saving the bloch waves (save_ψ=true) not supported with the json format."
     end
-
-    open(filename, "w") do io
-        JSON3.pretty(io, data)
+    data = todict_function(scfres; save_ψ, save_ρ)
+    for (k, v) in pairs(extra_data)
+        data[k] = v
     end
+    if mpi_master()
+        open(filename, "w") do io
+            JSON3.pretty(io, data)
+        end
+    end
+    MPI.Barrier(MPI.COMM_WORLD)
+    nothing
 end
-
-#TODO introduce `todict` functions for all sorts of datastructures (basis, ...)
+function DFTK.save_scfres(::Val{:json}, filename::AbstractString, scfres::NamedTuple; kwargs...)
+    save_json(DFTK.scfres_to_dict, filename, scfres; kwargs...)
+end
+function DFTK.save_bands(::Val{:json}, filename::AbstractString, band_data::NamedTuple; kwargs...)
+    save_json(DFTK.band_data_to_dict, filename, band_data; kwargs...)
+end
 
 end

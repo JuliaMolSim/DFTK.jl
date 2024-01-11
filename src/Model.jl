@@ -106,7 +106,7 @@ function Model(lattice::AbstractMatrix{T},
                terms=[Kinetic()],
                temperature=zero(T),
                smearing=temperature > 0 ? Smearing.FermiDirac() : Smearing.None(),
-               spin_polarization=default_spin_polarization(magnetic_moments),
+               spin_polarization=determine_spin_polarization(magnetic_moments),
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
                                              spin_polarization, terms),
                ) where {T <: Real}
@@ -249,8 +249,6 @@ normalize_magnetic_moment(mm::AbstractVector)::Vec3{Float64} = mm
 """Number of valence electrons."""
 n_electrons_from_atoms(atoms) = sum(n_elec_valence, atoms; init=0)
 
-default_spin_polarization(magnetic_moments) = determine_spin_polarization(magnetic_moments)
-
 """
 Default logic to determine the symmetry operations to be used in the model.
 """
@@ -307,7 +305,6 @@ spin_components(model::Model) = spin_components(model.spin_polarization)
 import Base.Broadcast.broadcastable
 Base.Broadcast.broadcastable(model::Model) = Ref(model)
 
-
 #=
 There are two types of quantities, depending on how they transform under change of coordinates.
 
@@ -342,7 +339,10 @@ recip_vector_red_to_cart(model::Model, vec) = recip_vector_red_to_cart(model)(ve
 recip_vector_cart_to_red(model::Model, vec) = recip_vector_cart_to_red(model)(vec)
 
 #=
-Transformations on vectors and covectors are matrices and comatrices.
+Transformations on vectors and covectors are matrices and comatrices, i.e. matrices act on
+a vector to give a vector and comatrices act on covector to give a covector.
+Beware that some quantities (e.g., the force constant matrix) map vectors to covectors and
+are therefore not matrices nor comatrices; they fall outside of these methods.
 
 Consider two covectors f and g related by a transformation matrix B. In reduced
 coordinates g_red = B_red f_red and in cartesian coordinates we want g_cart = B_cart f_cart.

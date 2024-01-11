@@ -4,16 +4,14 @@ using DFTK
 function get_scf_energies(testcase, supersampling, functionals)
     Ecut=3
     scf_tol=1e-12  # Tolerance in total enengy
-    kcoords = [[.2, .3, .4]]
+    kgrid = ExplicitKpoints([[.2, .3, .4]])
 
     # force symmetries to false because the symmetrization is weird at low ecuts
     model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions, functionals;
                       symmetries=false)
-    fft_size = compute_fft_size(model, Ecut, kcoords; supersampling,
+    fft_size = compute_fft_size(model, Ecut, kgrid; supersampling,
                                 ensure_smallprimes=false, algorithm=:precise)
-
-    kweights = [1]
-    basis = PlaneWaveBasis(model, Ecut, kcoords, kweights; fft_size)
+    basis = PlaneWaveBasis(model; Ecut, kgrid, fft_size)
     scfres = self_consistent_field(basis; tol=scf_tol)
     values(scfres.energies)
 end

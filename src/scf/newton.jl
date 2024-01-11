@@ -97,16 +97,19 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
 
     # number of kpoints and occupation
     Nk = length(basis.kpoints)
-    occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
+    occupation = [filled_occ * ones(T, n_bands) for _ = 1:Nk]
 
     # iterators
-    n_iter = 0
+    n_iter    = 0
+    converged = false
+    start_ns  = time_ns()
+    history_Etot = T[]
+    history_Δρ   = T[]
 
     # orbitals, densities and energies to be updated along the iterations
     ψ = deepcopy(ψ0)
     ρ = compute_density(basis, ψ, occupation)
     energies, H = energy_hamiltonian(basis, ψ, occupation; ρ)
-    converged = false
 
     # perform iterations
     while !converged && n_iter < maxiter
@@ -116,17 +119,20 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
         res = compute_projected_gradient(basis, ψ, occupation)
         # solve (Ω+K) δψ = -res so that the Newton step is ψ <- ψ + δψ
         δψ = solve_ΩplusK(basis, ψ, -res, occupation; tol=tol_cg).δψ
-        ψ  = [ortho_qr(ψ[ik] + δψ[ik]) for ik in 1:Nk]
+        ψ  = [ortho_qr(ψ[ik] + δψ[ik]) for ik = 1:Nk]
 
-        ρ_next = compute_density(basis, ψ, occupation)
-        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρ_next)
-        info = (; ham=H, basis, converged, stage=:iterate, ρin=ρ, ρout=ρ_next, n_iter,
-                energies, algorithm="Newton")
+        ρout        = compute_density(basis, ψ, occupation)
+        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρout)
+        push!(history_Δρ,   norm(ρout - ρ) * sqrt(basis.dvol))
+        push!(history_Etot, energies.total)
+        info = (; ham=H, basis, converged, stage=:iterate, ρin=ρ, ρout=ρout, n_iter,
+                energies, algorithm="Newton", runtime_ns=time_ns() - start_ns,
+                history_Δρ, history_Etot)
         callback(info)
 
         # update and test convergence
         converged = is_converged(info)
-        ρ = ρ_next
+        ρ = ρout
     end
 
     # Rayleigh-Ritz
@@ -144,7 +150,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
     # return results and call callback one last time with final state for clean
     # up
     info = (; ham=H, basis, energies, converged, ρ, eigenvalues, occupation, εF, n_iter, ψ,
-            stage=:finalize, algorithm="Newton")
+            stage=:finalize, algorithm="Newton", runtime_ns=time_ns() - start_ns)
     callback(info)
     info
 end

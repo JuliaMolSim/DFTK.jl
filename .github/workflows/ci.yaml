@@ -21,30 +21,30 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {mode: 'stable',  os: ubuntu-latest,  payload: "noslow,example" }
-          - {mode: 'stable',  os: macOS-latest,   payload: noslow           }
-          - {mode: 'stable',  os: windows-latest, payload: noslow           }
-          - {mode: 'stable',  os: ubuntu-latest,  payload: "noslow,mpi"     }
-          - {mode: 'nightly', os: ubuntu-latest,  payload: noslow           }
+          - {mode: stable,  os: ubuntu-latest,  payload: noslow-example }
+          - {mode: stable,  os: macOS-latest,   payload: noslow         }
+          - {mode: stable,  os: windows-latest, payload: noslow         }
+          - {mode: stable,  os: ubuntu-latest,  payload: noslow-mpi     }
+          - {mode: nightly, os: ubuntu-latest,  payload: noslow         }
     env:
-      GKS_ENCODING: "utf8"
-      GKSwstype: "100"       # Needed for Plots-related tests
-      PLOTS_TEST: "true"     # Needed for Plots-related tests
-      DFTK_TEST_NPROCS: "2"  # For MPI parallelised tests
+      GKS_ENCODING: utf8
+      GKSwstype: 100       # Needed for Plots-related tests
+      PLOTS_TEST: true     # Needed for Plots-related tests
+      DFTK_TEST_NPROCS: 2  # For MPI parallelised tests
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: "Setup Julia stable"
+      - name: Setup Julia stable
         uses: julia-actions/setup-julia@v1
         with:
           version: '1.9'
           arch: x64
         if: ${{ matrix.mode == 'stable' }}
-      - name: "Setup Julia nightly"
+      - name: Setup Julia nightly
         uses: julia-actions/setup-julia@v1
         with:
-          version: 'nightly'
+          version: nightly
           arch: x64
         if: ${{ matrix.mode == 'nightly' }}
 

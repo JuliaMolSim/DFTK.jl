@@ -17,9 +17,7 @@ function Optim.project_tangent!(m::DMManifold, g, x)
     g_unpack = m.unpack(g)
     x_unpack = m.unpack(x)
     for ik = 1:m.Nk
-        Optim.project_tangent!(Optim.Stiefel(),
-                               g_unpack[ik],
-                               x_unpack[ik])
+        Optim.project_tangent!(Optim.Stiefel(), g_unpack[ik], x_unpack[ik])
     end
     g
 end
@@ -62,13 +60,19 @@ end
 
 """
 Computes the ground state by direct minimization. `kwargs...` are
-passed to `Optim.Options()`. Note that the resulting ψ are not
-necessarily eigenvectors of the Hamiltonian.
+passed to `Optim.Options()` and `optim_method` selects the optim approach
+which is employed.
 """
-direct_minimization(basis::PlaneWaveBasis; kwargs...) = direct_minimization(basis, nothing; kwargs...)
-function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
-                             prec_type=PreconditionerTPA, maxiter=1_000,
-                             optim_solver=Optim.LBFGS, tol=1e-6, kwargs...) where {T}
+function direct_minimization(basis::PlaneWaveBasis{T};
+                             ψ=nothing,
+                             tol=1e-6,
+                             is_converged=ScfConvergenceDensity(tol),
+                             maxiter=1_000,
+                             prec_type=PreconditionerTPA,
+                             callback=ScfDefaultCallback(),
+                             optim_method=Optim.LBFGS,
+                             linesearch=LineSearches.BackTracking(),
+                             kwargs...) where {T}
     if mpi_nprocs() > 1
         # need synchronization in Optim
         error("Direct minimization with MPI is not supported yet")
@@ -81,33 +85,69 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     n_bands = div(model.n_electrons, n_spin * filled_occ, RoundUp)
     Nk = length(basis.kpoints)
 
-    if ψ0 === nothing
-        ψ0 = [random_orbitals(basis, kpt, n_bands) for kpt in basis.kpoints]
+    if isnothing(ψ)
+        ψ = [random_orbitals(basis, kpt, n_bands) for kpt in basis.kpoints]
     end
-    occupation = [filled_occ * ones(T, n_bands) for ik = 1:Nk]
+    occupation = [filled_occ * ones(T, n_bands) for _ = 1:Nk]
 
     # we need to copy the reinterpret array here to not raise errors in Optim.jl
     # TODO raise this issue in Optim.jl
     pack(ψ) = copy(reinterpret_real(pack_ψ(ψ)))
-    unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ0))
-    unsafe_unpack(x) = unsafe_unpack_ψ(reinterpret_complex(x), size.(ψ0))
+    unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ))
+    unsafe_unpack(x) = unsafe_unpack_ψ(reinterpret_complex(x), size.(ψ))
 
-    # this will get updated along the iterations
-    H = nothing
-    energies = nothing
-    ρ = nothing
+    # This will get updated along the iterations
+    ρ    = nothing
+    ham  = nothing
+    info = nothing
+    energies  = nothing
+    converged = false
+    start_ns  = time_ns()
+    history_Etot = T[]
+    history_Δρ   = T[]
+
+    # Will be later overwritten by the Optim-internal state, which we need in the
+    # callback to access certain quantities for convergence control.
+    optim_state = nothing
+
+    function compute_ρout(ψ, optim_state)
+        # This is the current preconditioned, but unscaled gradient, which implies that
+        # the next step would be ρout - ρ. We thus record convergence, but let Optim do
+        # one more step.
+        δψ = unsafe_unpack(optim_state.s)
+        ψ_next = [ortho_qr(ψ[ik] - δψ[ik]) for ik in 1:Nk]
+        compute_density(basis, ψ_next, occupation)
+    end
+
+    function optim_callback(ts)
+        ts.iteration < 1 && return false
+        converged        && return true
+        ρout = compute_ρout(ψ, optim_state)
+        Δρ = ρout - ρ
+        push!(history_Δρ,   norm(Δρ) * sqrt(basis.dvol))
+        push!(history_Etot, energies.total)
+
+        info = (; ham, basis, energies, occupation, ρout, ρin=ρ, ψ,
+                runtime_ns=time_ns() - start_ns, history_Δρ, history_Etot,
+                stage=:iterate, algorithm="DM", n_iter=ts.iteration, optim_state)
+
+        converged = is_converged(info)
+        info = callback(info)
+
+        false
+    end
 
     # computes energies and gradients
-    function fg!(E, G, ψ)
-        ψ = unpack(ψ)
+    function fg!(::Any, G, x)
+        ψ = unpack(x)
         ρ = compute_density(basis, ψ, occupation)
-        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ)
+        energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ)
 
         # The energy has terms like occ * <ψ|H|ψ>, so the gradient is 2occ Hψ
         if G !== nothing
             G = unsafe_unpack(G)
             for ik = 1:Nk
-                mul!(G[ik], H.blocks[ik], ψ[ik])
+                mul!(G[ik], ham.blocks[ik], ψ[ik])
                 G[ik] .*= 2*filled_occ
             end
         end
@@ -115,26 +155,25 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
     end
 
     manifold = DMManifold(Nk, unsafe_unpack)
-
     Pks = [prec_type(basis, kpt) for kpt in basis.kpoints]
     P = DMPreconditioner(Nk, Pks, unsafe_unpack)
 
-    kwdict = Dict(kwargs)
-    optim_options = Optim.Options(; allow_f_increases=true, show_trace=true,
-                                  x_tol=pop!(kwdict, :x_tol, tol),
-                                  f_tol=pop!(kwdict, :f_tol, -1),
-                                  g_tol=pop!(kwdict, :g_tol, -1),
-                                  iterations=maxiter, kwdict...)
-    res = Optim.optimize(Optim.only_fg!(fg!), pack(ψ0),
-                         optim_solver(; P, precondprep=precondprep!, manifold,
-                                      linesearch=LineSearches.BackTracking()),
-                         optim_options)
-    ψ = unpack(res.minimizer)
+    optim_options = Optim.Options(; allow_f_increases=true,
+                                  callback=optim_callback,
+                                  # Disable convergence control by Optim
+                                  x_tol=-1, f_tol=-1, g_tol=-1,
+                                  iterations=maxiter, kwargs...)
+    optim_solver = optim_method(; P, precondprep=precondprep!, manifold, linesearch)
+    ψ_packed = pack(ψ)
+    objective = OnceDifferentiable(Optim.only_fg!(fg!), ψ_packed, zero(T); inplace=true)
+    optim_state = Optim.initial_state(optim_solver, optim_options, objective, ψ_packed)
+    res = Optim.optimize(objective, ψ_packed, optim_solver, optim_options, optim_state)
+    ψ = unpack(Optim.minimizer(res))
 
     # Final Rayleigh-Ritz (not strictly necessary, but sometimes useful)
-    eigenvalues = []
+    eigenvalues = Vector{T}[]
     for ik = 1:Nk
-        Hψk = H.blocks[ik] * ψ[ik]
+        Hψk = ham[ik] * ψ[ik]
         F = eigen(Hermitian(ψ[ik]'Hψk))
         push!(eigenvalues, F.values)
         ψ[ik] .= ψ[ik] * F.vectors
@@ -145,5 +184,10 @@ function direct_minimization(basis::PlaneWaveBasis{T}, ψ0;
 
     # We rely on the fact that the last point where fg! was called is the minimizer to
     # avoid recomputing at ψ
-    (; ham=H, basis, energies, converged=true, ρ, ψ, eigenvalues, occupation, εF, optim_res=res)
+    info = (; ham, basis, energies, converged, ρ, eigenvalues, occupation, εF,
+            n_bands_converge=n_bands, n_iter=Optim.iterations(res),
+            runtime_ns=time_ns() - start_ns, history_Δρ, history_Etot,
+            ψ, stage=:finalize, algorithm="DM", optim_res=res)
+    callback(info)
+    info
 end

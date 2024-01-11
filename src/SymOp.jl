@@ -20,6 +20,9 @@
 # Tolerance to consider two atomic positions as equal (in relative coordinates).
 const SYMMETRY_TOLERANCE = convert(Float64, @load_preference("symmetry_tolerance", 1e-5))
 
+# Whether symmetry determination and k-point reduction is checked explicitly in the code
+const SYMMETRY_CHECK = true
+
 is_approx_integer(r; atol=SYMMETRY_TOLERANCE) = all(ri -> abs(ri - round(ri)) ≤ atol, r)
 
 struct SymOp{T <: Real}

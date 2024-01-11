@@ -2,6 +2,31 @@ using Primes
 
 # COV_EXCL_START
 
+# These files are copied (and very slightly modified) from [FourierTransforms.jl](https://github.com/JuliaComputing/FourierTransforms.jl)
+# commit [6a206bcfc8f49a129ca34beaf57d05cdc148dc8a](https://github.com/JuliaComputing/FourierTransforms.jl/tree/6a206bcfc8f49a129ca34beaf57d05cdc148dc8a).
+# For their license see [LICENCE.md](LICENCE.md).
+
+# The following licence applies:
+# Copyright (c) 2017-2019: Steven G. Johnson, Yingbo Ma, and Julia Computing.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 # 1d Cooley-Tukey FFTs, using an FFTW-like (version 1) approach: automatic
 # generation of fixed-size FFT kernels (with and without twiddle factors)
 # which are combined to make arbitrary-size FFTs (plus generic base
@@ -301,7 +326,8 @@ macro nontwiddle(args...)
     end
     @assert isa(T, Type)
     quote
-        function FourierTransforms.applystep(ns::NontwiddleKernelStep{T,$n,$forward},
+        function DFTKGenericLinearAlgebraExt.applystep(
+                                  ns::NontwiddleKernelStep{T,$n,$forward},
                                   vn::Integer,
                                   X::AbstractArray{T},
                                   x0::Integer, xs::Integer, xvs::Integer,
@@ -340,7 +366,8 @@ macro twiddle(args...)
     end
     @assert isa(T, Type)
     quote
-        function FourierTransforms.applystep(ts::TwiddleKernelStep{T,$n,$forward},
+        function DFTKGenericLinearAlgebraExt.applystep(
+                                   ts::TwiddleKernelStep{T,$n,$forward},
                                    vn::Integer,
                                    X::AbstractArray{T},
                                    x0::Integer, xs::Integer, xvs::Integer,

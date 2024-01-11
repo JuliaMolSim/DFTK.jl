@@ -43,7 +43,7 @@ function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
 function PreconditionerTPA(ham::HamiltonianBlock; kwargs...)
-    PreconditionerTPA(ham.basis, ham.kpoint)
+    PreconditionerTPA(ham.basis, ham.kpoint; kwargs...)
 end
 
 @views function ldiv!(Y, P::PreconditionerTPA, R)
@@ -72,6 +72,8 @@ ldiv!(P::PreconditionerTPA, R) = ldiv!(R, P, R)
 end
 (Base.:*)(P::PreconditionerTPA, R) = mul!(copy(R), P, R)
 
-function precondprep!(P::PreconditionerTPA, X)
+function precondprep!(P::PreconditionerTPA, X::AbstractArray)
     P.mean_kin = [real(dot(x, Diagonal(P.kin), x)) for x in eachcol(X)]
 end
+precondprep!(P::PreconditionerTPA, ::Nothing) = 1  # fallback for edge cases
+

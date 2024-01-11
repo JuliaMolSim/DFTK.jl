@@ -20,6 +20,32 @@ function select_occupied_orbitals(basis, ψ, occupation; threshold=0.0)
     (; ψ=selected_ψ, occupation=selected_occ)
 end
 
+# Packing routine to store all bands ψ using same-sized matrices.
+# This is useful for serialisation to disk
+function blockify_ψ(basis::PlaneWaveBasis, ψ::AbstractVector)
+    # Determine largest rectangular grid on which all bands can live
+    n_G_vectors = [length(kpt.mapping) for kpt in basis.kpoints]
+    max_n_G = mpi_max(maximum(n_G_vectors), basis.comm_kpts)
+
+    # Zero-pad each ψk to the full stored rectangle
+    ψ = map(ψ) do ψk
+        n_G, n_bands = size(ψk)
+        ψk_full = similar(ψk, max_n_G, n_bands)
+        ψk_full[1:n_G, :] = ψk
+        ψk_full
+    end
+    (; ψ, n_G_vectors)
+end
+
+# Unpacking routine for the above by truncating each array to the sizes
+# given in the second argument.
+function unblockify_ψ(ψ_padded::AbstractVector, n_G_vectors::AbstractVector)
+    map(n_G_vectors, ψ_padded) do n_Gk, ψk_padded
+        ψk_padded[1:n_Gk, :]
+    end
+end
+
+
 # Packing routines used in direct_minimization and newton algorithms.
 # They pack / unpack sets of ψ's (or compatible arrays, such as hamiltonian
 # applies and gradients) to make them compatible to be used in algorithms
@@ -53,7 +79,7 @@ function unsafe_unpack_ψ(x, sizes_ψ)
 end
 unpack_ψ(x, sizes_ψ) = deepcopy(unsafe_unpack_ψ(x, sizes_ψ))
 
-function random_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, howmany) where {T}
+function random_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, howmany::Integer) where {T}
     orbitals = similar(basis.G_vectors, Complex{T}, length(G_vectors(basis, kpt)), howmany)
     randn!(TaskLocalRNG(), orbitals)  # use the RNG on the device if we're using a GPU
     ortho_qr(orbitals)

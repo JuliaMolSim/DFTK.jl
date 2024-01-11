@@ -119,11 +119,11 @@ function PspUpf(path; identifier=path, rcut=nothing)
         count += nproj_l
     end
 
-    r2_pswfcs = [Vector{Float64}[] for _ in 0:lmax-1]
-    pswfc_occs = [Float64[] for _ in 0:lmax-1]
-    pswfc_energies = [Float64[] for _ in 0:lmax-1]
-    pswfc_labels = [String[] for _ in 0:lmax-1]
-    for l in 0:lmax-1
+    r2_pswfcs = [Vector{Float64}[] for _ = 0:lmax-1]
+    pswfc_occs = [Float64[] for _ = 0:lmax-1]
+    pswfc_energies = [Float64[] for _ = 0:lmax-1]
+    pswfc_labels = [String[] for _ = 0:lmax-1]
+    for l = 0:lmax-1
         pswfcs_l = filter(χ -> χ["angular_momentum"] == l, pseudo["atomic_wave_functions"])
         for pswfc_li in pswfcs_l
             # Ry -> Ha, rχ -> r²χ

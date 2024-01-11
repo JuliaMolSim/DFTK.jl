@@ -32,7 +32,7 @@
             ops_plus  = DFTK.ene_ops(term, basis, nothing, nothing; ρ=ρ_plus).ops
             δV = zero(ρ0)
 
-            for iσ in 1:model.n_spin_components
+            for iσ = 1:model.n_spin_components
                 # Index of the first spin-up or spin-down k-point
                 ifirst = first(DFTK.krange_spin(basis, iσ))
                 δV[:, :, :, iσ] = (ops_plus[ifirst].potential - ops_minus[ifirst].potential) / (2ε)

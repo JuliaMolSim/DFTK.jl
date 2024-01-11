@@ -31,7 +31,7 @@ function my_callback(info)
 end
 my_isconverged = info -> norm(info.ρout - info.ρin) < tol
 opts = (; callback=my_callback, is_converged=my_isconverged, maxiter, tol,
-        determine_diagtol=info -> diagtol)
+        diagtolalg=AdaptiveDiagtol(; diagtol_max=diagtol))
 
 global errs = []
 global gaps = []

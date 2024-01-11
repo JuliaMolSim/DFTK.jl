@@ -36,28 +36,28 @@ end
 @testitem "Smearing for insulators" tags=[:dont_test_mpi] setup=[Occupation, TestCases] begin
     using DFTK: FermiZeroTemperature
     using Logging
-    testcase = TestCases.silicon
+    silicon = TestCases.silicon
 
     Ecut = 5
     n_bands = 10
     fft_size = [15, 15, 15]
 
     # Emulate an insulator ... prepare energy levels
-    eigenvalues = [zeros(n_bands) for k in testcase.kcoords]
-    n_occ = div(testcase.n_electrons, 2, RoundUp)
-    n_k = length(testcase.kcoords)
-    for ik in 1:n_k
+    n_k = length(silicon.kgrid)
+    eigenvalues = [zeros(n_bands) for _ = 1:n_k]
+    n_occ = div(silicon.n_electrons, 2, RoundUp)
+    for ik = 1:n_k
         eigenvalues[ik] = sort(rand(n_bands))
         eigenvalues[ik][n_occ+1:end] .+= 2
     end
-    εHOMO = maximum(eigenvalues[ik][n_occ] for ik in 1:n_k)
-    εLUMO = minimum(eigenvalues[ik][n_occ + 1] for ik in 1:n_k)
+    εHOMO = maximum(eigenvalues[ik][n_occ]     for ik = 1:n_k)
+    εLUMO = minimum(eigenvalues[ik][n_occ + 1] for ik = 1:n_k)
 
     # Occupation for zero temperature
     occupation0 = let
-        model = Model(testcase.lattice, testcase.atoms, testcase.positions; temperature=0.0,
-                      terms=[Kinetic()])
-        basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.kweights; fft_size)
+        model = Model(silicon.lattice, silicon.atoms, silicon.positions;
+                      temperature=0.0, terms=[Kinetic()])
+        basis = PlaneWaveBasis(model; Ecut, silicon.kgrid, fft_size)
         occupation, εF = DFTK.compute_occupation(basis, eigenvalues, FermiZeroTemperature())
         @test εHOMO < εF < εLUMO
         @test DFTK.weighted_ksum(basis, sum.(occupation)) ≈ model.n_electrons
@@ -67,11 +67,11 @@ end
     # See that the electron count still works if we add temperature
     for temperature in (0, 1e-6, .1, 1.0), smearing in Occupation.smearing_methods,
                                            alg in Occupation.fermialgs
-        model = Model(testcase.lattice, testcase.atoms, testcase.positions;
+        model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                       temperature, smearing, terms=[Kinetic()])
-        basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.kweights; fft_size)
-        occs, _ = with_logger(NullLogger()) do
-            DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-12)
+        basis = PlaneWaveBasis(model; Ecut, silicon.kgrid, fft_size)
+        occs = with_logger(NullLogger()) do
+            DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-12).occupation
         end
         @test sum(basis.kweights .* sum.(occs)) ≈ model.n_electrons
     end
@@ -79,13 +79,13 @@ end
     # See that the occupation is largely uneffected with only a bit of temperature
     for temperature in (0, 1e-6, 1e-4), smearing in Occupation.smearing_methods,
                                         alg in Occupation.fermialgs
-        model = Model(testcase.lattice, testcase.atoms, testcase.positions;
+        model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                       temperature, smearing, terms=[Kinetic()])
-        basis = PlaneWaveBasis(model, Ecut, testcase.kcoords, testcase.kweights; fft_size)
-        occupation, _ = DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-6)
+        basis = PlaneWaveBasis(model; Ecut, silicon.kgrid, fft_size)
+        (; occupation) = DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-6)
 
-        for ik in 1:n_k
-            @test all(isapprox.(occupation[ik], occupation0[ik], atol=1e-2))
+        for ik = 1:n_k
+            @test all(isapprox.(occupation[ik], occupation0[ik]; atol=1e-2))
         end
     end
 end

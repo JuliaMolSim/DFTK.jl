@@ -38,7 +38,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         ham0  = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0).ham
         nbandsalg = is_εF_fixed ? FixedBands(; n_bands_converge=6) : AdaptiveBands(model)
         res = DFTK.next_density(ham0, nbandsalg; tol, eigensolver)
-        scfres = (ham=ham0, res...)
+        scfres = (; ham=ham0, res...)
 
         # create external small perturbation εδV
         n_spin = model.n_spin_components

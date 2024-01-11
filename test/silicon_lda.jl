@@ -18,7 +18,6 @@ function run_silicon_lda(T; Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     ]
     ref_etot = -7.911817522631488
 
-    fft_size = fill(grid_size, 3)
     Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/lda/si-q4"))
     atoms = [Si, Si]
 
@@ -30,7 +29,7 @@ function run_silicon_lda(T; Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     model = model_DFT(silicon.lattice, atoms, silicon.positions, [:lda_x, :lda_c_vwn];
                       spin_polarization, magnetic_moments)
     model = convert(Model{T}, model)
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
+    basis = PlaneWaveBasis(model; Ecut, silicon.kgrid, fft_size=fill(grid_size, 3) )
 
     spin_polarization == :collinear && (ref_lda = vcat(ref_lda, ref_lda))
     run_scf_and_compare(T, basis, ref_lda, ref_etot; ρ=guess_density(basis), kwargs...)
@@ -41,29 +40,29 @@ end
 @testitem "Silicon LDA (small, Float64)" #=
     =#    tags=[:minimal] setup=[RunSCF, TestCases, SiliconLDA] begin
     SiliconLDA.run_silicon_lda(Float64; Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17,
-                               scf_tol=1e-5)
+                               scf_ene_tol=1e-5)
 end
 
 @testitem "Silicon LDA (large, Float64)" #=
     =#    tags=[:slow] setup=[RunSCF, TestCases, SiliconLDA] begin
     SiliconLDA.run_silicon_lda(Float64; Ecut=25, test_tol=1e-5, n_ignored=0, grid_size=33,
-                               scf_tol=1e-7)
+                               scf_ene_tol=1e-7)
 end
 
 @testitem "Silicon LDA (small, Float32)" #=
     =#    tags=[:minimal] setup=[RunSCF, TestCases, SiliconLDA] begin
     SiliconLDA.run_silicon_lda(Float32; Ecut=7, test_tol=0.03, n_ignored=1, grid_size=19,
-                               scf_tol=1e-4)
+                               scf_ene_tol=1e-4)
 end
 
 @testitem "Silicon LDA (small, collinear spin)" #=
     =#    tags=[:minimal] setup=[RunSCF, TestCases, SiliconLDA] begin
     SiliconLDA.run_silicon_lda(Float64; Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17,
-                               scf_tol=1e-5, spin_polarization=:collinear)
+                               scf_ene_tol=1e-5, spin_polarization=:collinear)
 end
 
 @testitem "Silicon LDA (large, collinear spin)" #=
     =#    tags=[:slow] setup=[RunSCF, TestCases, SiliconLDA] begin
     SiliconLDA.run_silicon_lda(Float64; Ecut=25, test_tol=1e-5, n_ignored=0, grid_size=33,
-                               scf_tol=1e-7, spin_polarization=:collinear)
+                               scf_ene_tol=1e-7, spin_polarization=:collinear)
 end

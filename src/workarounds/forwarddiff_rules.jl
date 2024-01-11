@@ -156,7 +156,7 @@ function construct_value(model::Model{T}) where {T <: ForwardDiff.Dual}
 end
 
 construct_value(el::Element) = el
-construct_value(el::ElementPsp) = ElementPsp(el.Z, el.symbol, construct_value(el.psp))
+construct_value(el::ElementPsp) = ElementPsp(el.Z, el.symbol, el.mass, construct_value(el.psp))
 construct_value(psp::PspHgh) = psp
 function construct_value(psp::PspHgh{T}) where {T <: ForwardDiff.Dual}
     PspHgh(psp.Zion,
@@ -171,17 +171,18 @@ end
 
 
 function construct_value(basis::PlaneWaveBasis{T}) where {T <: ForwardDiff.Dual}
-    new_kshift = isnothing(basis.kshift) ? nothing : ForwardDiff.value.(basis.kshift)
+    # NOTE: This is a pretty slow function as it *recomputes* basically
+    #       everything instead of just extracting the primal data contained
+    #       already in the dualised PlaneWaveBasis data structure.
     PlaneWaveBasis(construct_value(basis.model),
                    ForwardDiff.value(basis.Ecut),
-                   map(v -> ForwardDiff.value.(v), basis.kcoords_global),
-                   ForwardDiff.value.(basis.kweights_global);
+                   basis.fft_size,
+                   basis.variational,
+                   basis.kgrid,
                    basis.symmetries_respect_rgrid,
-                   fft_size=basis.fft_size,
-                   kgrid=basis.kgrid,
-                   kshift=new_kshift,
-                   variational=basis.variational,
-                   comm_kpts=basis.comm_kpts)
+                   basis.use_symmetries_for_kpoint_reduction,
+                   basis.comm_kpts,
+                   basis.architecture)
 end
 
 
@@ -211,7 +212,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     response.verbose && println("Solving response problem")
     δresults = ntuple(ForwardDiff.npartials(T)) do α
         δHextψ = [ForwardDiff.partials.(δHextψk, α) for δHextψk in Hψ_dual]
-        solve_ΩplusK_split(scfres, -δHextψ; tol=scfres.norm_Δρ, response.verbose)
+        solve_ΩplusK_split(scfres, -δHextψ; tol=last(scfres.history_Δρ), response.verbose)
     end
 
     ## Convert and combine
@@ -242,7 +243,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
        response=getfield.(δresults, :history),
        scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter,
        scfres.n_bands_converge, scfres.diagonalization, scfres.stage,
-       scfres.algorithm, scfres.norm_Δρ)
+       scfres.algorithm, scfres.runtime_ns)
 end
 
 # other workarounds

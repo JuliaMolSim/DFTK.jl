@@ -25,7 +25,7 @@ Xc(functional; kwargs...) = Xc([functional]; kwargs...)
 
 function Base.show(io::IO, xc::Xc)
     fac = isone(xc.scaling_factor) ? "" : ", scaling_factor=$(xc.scaling_factor)"
-    fun = length(xc.functionals) == 1 ? ":$(xc.functionals[1])" : "$(xc.functionals)"
+    fun = join(xc.functionals, ", ")
     print(io, "Xc($fun$fac)")
 end
 
@@ -95,7 +95,7 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
 
     # Potential contributions Vρ -2 ∇⋅(Vσ ∇ρ) + ΔVl
     potential = zero(ρ)
-    @views for s in 1:n_spin
+    @views for s = 1:n_spin
         Vρ = to_device(basis.architecture, reshape(terms.Vρ, n_spin, basis.fft_size...))
 
         potential[:, :, :, s] .+= Vρ[s, :, :, :]
@@ -109,7 +109,7 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
                 # in the energy expression. See comment block below on spin-polarised XC.
                 sum((s == t ? one(T) : one(T)/2)
                     .* Vσ[tσ(s, t), :, :, :] .* density.∇ρ_real[t, :, :, :, α]
-                    for t in 1:n_spin)
+                    for t = 1:n_spin)
             end
         end
         if haskey(terms, :Vl) && any(x -> abs(x) > potential_threshold, terms.Vl)
@@ -158,7 +158,7 @@ end
     # early return if nlcc is disabled / no elements have model core charges
     isnothing(term.ρcore) && return nothing
 
-    _, Vxc_real, _ = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
+    Vxc_real = xc_potential_real(term, basis, ψ, occupation; ρ, τ).potential
     # TODO: the factor of 2 here should be associated with the density, not the potential
     if basis.model.spin_polarization in (:none, :spinless)
         Vxc_fourier = fft(basis, Vxc_real[:,:,:,1])
@@ -172,7 +172,8 @@ end
                    if has_core_density(model.atoms[first(group)])]
     @assert !isnothing(nlcc_groups)
 
-    forces = [zero(Vec3{T}) for _ in 1:length(model.positions)]
+    TT = promote_type(T, eltype(Vxc_real))
+    forces = [zero(Vec3{TT}) for _ = 1:length(model.positions)]
     for (igroup, group) in nlcc_groups
         for iatom in group
             r = model.positions[iatom]
@@ -182,9 +183,10 @@ end
     forces
 end
 
-function _force_xc_internal(basis, Vxc_fourier, form_factors, igroup, r)
-    T = real(eltype(basis))
-    f = zero(Vec3{T})
+function _force_xc_internal(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U},
+                            form_factors, igroup, r) where {T, U}
+    TT = promote_type(T, real(U))
+    f  = zero(Vec3{TT})
     for (iG, (G, G_cart)) in enumerate(zip(G_vectors(basis), G_vectors_cart(basis)))
         f -= real(conj(Vxc_fourier[iG])
                   .* form_factors[(igroup, norm(G_cart))]
@@ -309,7 +311,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
 
         tσ = DftFunctionals.spinindex_σ  # Spin index transformation (s, t) => st as expected by Libxc
         σ_real .= 0
-        @views for α in 1:3
+        @views for α = 1:3
             σ_real[tσ(1, 1), :, :, :] .+= ∇ρ_real[1, :, :, :, α] .* ∇ρ_real[1, :, :, :, α]
             if n_spin > 1
                 σ_real[tσ(1, 2), :, :, :] .+= ∇ρ_real[1, :, :, :, α] .* ∇ρ_real[2, :, :, :, α]
@@ -358,7 +360,8 @@ function compute_kernel(term::TermXc, basis::PlaneWaveBasis; ρ, kwargs...)
 end
 
 
-function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ; ρ, kwargs...) where {T}
+function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArray{Tδρ};
+                      ρ, kwargs...) where {T, Tδρ}
     n_spin = basis.model.n_spin_components
     isempty(term.functionals) && return nothing
     @assert all(family(xc) in (:lda, :gga) for xc in term.functionals)
@@ -376,17 +379,17 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ; ρ, kwargs..
     cross_derivatives = Dict{Symbol, Any}()
     if max_ρ_derivs > 0
         cross_derivatives[:δσ] = [
-            @views 2sum(∇ρ[I[1], :, :, :, α] .* ∇δρ[I[2], :, :, :, α] for α in 1:3)
+            @views 2sum(∇ρ[I[1], :, :, :, α] .* ∇δρ[I[2], :, :, :, α] for α = 1:3)
             for I in CartesianIndices((n_spin, n_spin))
         ]
     end
 
     # If the XC functional is not supported for an architecture, terms is on the CPU
     terms = kernel_terms(term.functionals, density)
-    δV = zero(ρ)  # [ix, iy, iz, iσ]
+    δV = zeros(Tδρ, size(ρ)...)  # [ix, iy, iz, iσ]
 
     Vρρ = to_device(basis.architecture, reshape(terms.Vρρ, n_spin, n_spin, basis.fft_size...))
-    @views for s in 1:n_spin, t in 1:n_spin  # LDA term
+    @views for s = 1:n_spin, t = 1:n_spin  # LDA term
         δV[:, :, :, s] .+= Vρρ[s, t, :, :, :] .* δρ[t, :, :, :]
     end
     if haskey(terms, :Vρσ)  # GGA term
@@ -433,8 +436,8 @@ function add_kernel_gradient_correction!(δV, terms, density, perturbation, cros
     tσ  = DftFunctionals.spinindex_σ
 
     # Note: δV[ix, iy, iz, iσ] unlike the other quantities ...
-    @views for s in 1:n_spin
-        for t in 1:n_spin, u in 1:n_spin
+    @views for s = 1:n_spin
+        for t = 1:n_spin, u = 1:n_spin
             spinfac_tu = (t == u ? one(T) : one(T)/2)
             @. δV[:, :, :, s] += spinfac_tu * Vρσ[s, tσ(t, u), :, :, :] * δσ[t, u][:, :, :]
         end
@@ -444,16 +447,16 @@ function add_kernel_gradient_correction!(δV, terms, density, perturbation, cros
         δV[:, :, :, s] .+= divergence_real(density.basis) do α
             ret_α = similar(density.ρ_real, basis.fft_size...)
             ret_α .= 0
-            for t in 1:n_spin
+            for t = 1:n_spin
                 spinfac_st = (t == s ? one(T) : one(T)/2)
                 ret_α .+= -2spinfac_st .* Vσ[tσ(s, t), :, :, :] .* ∇δρ[t, :, :, :, α]
 
-                for u in 1:n_spin
+                for u = 1:n_spin
                     spinfac_su = (s == u ? one(T) : one(T)/2)
                     ret_α .+= (-2spinfac_su .* Vρσ[t, tσ(s, u), :, :, :]
                                .* ∇ρ[u, :, :, :, α] .* δρ[t, :, :, :])
 
-                    for v in 1:n_spin
+                    for v = 1:n_spin
                         spinfac_uv = (u == v ? one(T) : one(T)/2)
                         ret_α .+= (-2spinfac_uv .* spinfac_st
                                    .* Vσσ[tσ(s, t), tσ(u, v), :, :, :]
@@ -496,7 +499,7 @@ for fun in (:potential_terms, :kernel_terms)
         function DftFunctionals.$fun(xcs::Vector{Functional}, density::LibxcDensities)
             isempty(xcs) && return NamedTuple()
             result = $fun(xcs[1], density)
-            for i in 2:length(xcs)
+            for i = 2:length(xcs)
                 result = mergesum(result, $fun(xcs[i], density))
             end
             result

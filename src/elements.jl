@@ -16,7 +16,9 @@ charge_nuclear(::Element) = 0
 
 """Chemical symbol corresponding to an element"""
 AtomsBase.atomic_symbol(::Element) = :X
-# The preceeding functions are fallback implementations that should be altered as needed.
+
+"""Return the atomic mass of an atom type"""
+AtomsBase.atomic_mass(el::Element) = element(atomic_symbol(el)).atomic_mass
 
 """Return the total ionic charge of an atom type (nuclear charge - core electrons)"""
 charge_ionic(el::Element) = charge_nuclear(el)
@@ -29,6 +31,7 @@ n_elec_core(el::Element) = charge_nuclear(el) - charge_ionic(el)
 
 """Check presence of model core charge density (non-linear core correction)."""
 has_core_density(::Element) = false
+# The preceeding functions are fallback implementations that should be altered as needed.
 
 # Fall back to the Gaussian table for Elements without pseudopotentials
 function valence_charge_density_fourier(el::Element, q::T)::T where {T <: Real}
@@ -51,10 +54,12 @@ Base.show(io::IO, el::Element) = print(io, "$(typeof(el))($(atomic_symbol(el)))"
 struct ElementCoulomb <: Element
     Z::Int  # Nuclear charge
     symbol  # Element symbol
+    mass    # Atomic mass
 end
 charge_ionic(el::ElementCoulomb)   = el.Z
 charge_nuclear(el::ElementCoulomb) = el.Z
 AtomsBase.atomic_symbol(el::ElementCoulomb) = el.symbol
+AtomsBase.atomic_mass(el::ElementCoulomb) = el.mass
 
 """
 Element interacting with electrons via a bare Coulomb potential
@@ -62,8 +67,9 @@ Element interacting with electrons via a bare Coulomb potential
 `key` may be an element symbol (like `:Si`), an atomic number (e.g. `14`)
 or an element name (e.g. `"silicon"`)
 """
-ElementCoulomb(key) = ElementCoulomb(periodic_table[key].number, Symbol(periodic_table[key].symbol))
-
+function ElementCoulomb(key; mass=element(key).atomic_mass)
+    ElementCoulomb(periodic_table[key].number, Symbol(periodic_table[key].symbol), mass)
+end
 
 function local_potential_fourier(el::ElementCoulomb, q::T) where {T <: Real}
     q == 0 && return zero(T)  # Compensating charge background
@@ -78,11 +84,16 @@ local_potential_real(el::ElementCoulomb, r::Real) = -el.Z / r
 struct ElementPsp <: Element
     Z::Int         # Nuclear charge
     symbol         # Element symbol
+    mass           # Atomic mass
     psp            # Pseudopotential data structure
 end
 function Base.show(io::IO, el::ElementPsp)
     pspid = isempty(el.psp.identifier) ? "custom" : el.psp.identifier
-    print(io, "ElementPsp($(el.symbol); psp=\"$pspid\")")
+    if el.mass == atomic_mass(el)
+        print(io, "ElementPsp($(el.symbol); psp=\"$pspid\")")
+    else
+        print(io, "ElementPsp($(el.symbol); psp=\"$pspid\", mass=\"$(el.mass)\")")
+    end
 end
 
 """
@@ -90,14 +101,15 @@ Element interacting with electrons via a pseudopotential model.
 `key` may be an element symbol (like `:Si`), an atomic number (e.g. `14`)
 or an element name (e.g. `"silicon"`)
 """
-function ElementPsp(key; psp)
-    ElementPsp(periodic_table[key].number, Symbol(periodic_table[key].symbol), psp)
+function ElementPsp(key; psp, mass=element(Symbol(periodic_table[key].symbol)).atomic_mass)
+    ElementPsp(periodic_table[key].number, Symbol(periodic_table[key].symbol), mass, psp)
 end
 
 charge_ionic(el::ElementPsp) = charge_ionic(el.psp)
 charge_nuclear(el::ElementPsp) = el.Z
 has_core_density(el::ElementPsp) = has_core_density(el.psp)
 AtomsBase.atomic_symbol(el::ElementPsp) = el.symbol
+AtomsBase.atomic_mass(el::ElementPsp) = el.mass
 
 function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}
     q == 0 && return zero(T)  # Compensating charge background
@@ -123,12 +135,14 @@ end
 struct ElementCohenBergstresser <: Element
     Z::Int  # Nuclear charge
     symbol  # Element symbol
+    mass    # Atomic mass
     V_sym   # Map |G|^2 (in units of (2π / lattice_constant)^2) to form factors
     lattice_constant  # Lattice constant (in Bohr) which is assumed
 end
 charge_ionic(el::ElementCohenBergstresser)   = 4
 charge_nuclear(el::ElementCohenBergstresser) = el.Z
 AtomsBase.atomic_symbol(el::ElementCohenBergstresser) = el.symbol
+AtomsBase.atomic_mass(el::ElementCohenBergstresser) = el.mass
 
 """
 Element where the interaction with electrons is modelled
@@ -142,17 +156,17 @@ or an element name (e.g. `"silicon"`)
 function ElementCohenBergstresser(key; lattice_constant=nothing)
     # Form factors from Cohen-Bergstresser paper Table 2
     # Lattice constants from Table 1
-    data = Dict(:Si => (form_factors=Dict( 3 => -0.21u"Ry",
-                                           8 =>  0.04u"Ry",
-                                          11 =>  0.08u"Ry"),
+    data = Dict(:Si => (; form_factors=Dict( 3 => -0.21u"Ry",
+                                             8 =>  0.04u"Ry",
+                                            11 =>  0.08u"Ry"),
                         lattice_constant=5.43u"Å"),
-                :Ge => (form_factors=Dict( 3 => -0.23u"Ry",
-                                           8 =>  0.01u"Ry",
-                                          11 =>  0.06u"Ry"),
+                :Ge => (; form_factors=Dict( 3 => -0.23u"Ry",
+                                             8 =>  0.01u"Ry",
+                                            11 =>  0.06u"Ry"),
                         lattice_constant=5.66u"Å"),
-                :Sn => (form_factors=Dict( 3 => -0.20u"Ry",
-                                           8 =>  0.00u"Ry",
-                                          11 =>  0.04u"Ry"),
+                :Sn => (; form_factors=Dict( 3 => -0.20u"Ry",
+                                             8 =>  0.00u"Ry",
+                                            11 =>  0.04u"Ry"),
                         lattice_constant=6.49u"Å"),
             )
 
@@ -173,7 +187,8 @@ function ElementCohenBergstresser(key; lattice_constant=nothing)
     V_sym = Dict(key => austrip(value) * unit_cell_volume / 2
                  for (key, value) in pairs(data[symbol].form_factors))
 
-    ElementCohenBergstresser(periodic_table[key].number, symbol, V_sym, lattice_constant)
+    ElementCohenBergstresser(periodic_table[key].number, symbol, element(symbol).atomic_mass,
+                             V_sym, lattice_constant)
 end
 
 function local_potential_fourier(el::ElementCohenBergstresser, q::T) where {T <: Real}
@@ -186,11 +201,13 @@ end
 
 
 struct ElementGaussian <: Element
-    α                               # Prefactor
-    L                               # Width of the Gaussian nucleus
-    symbol::Union{Nothing, Symbol}  # Element symbol
+    α               # Prefactor
+    L               # Width of the Gaussian nucleus
+    symbol::Symbol  # Element symbol
 end
 AtomsBase.atomic_symbol(el::ElementGaussian) = el.symbol
+# TODO: maybe to zero mass. Now: forces user to chose a mass.
+AtomsBase.atomic_mass(::ElementGaussian) = nothing
 
 """
 Element interacting with electrons via a Gaussian potential.

@@ -62,7 +62,7 @@ end
         # not be an identity. To prevent this we use enforce_real! to explicitly set
         # the non-matched Fourier component to zero.
         ρ = random_density(basis, 1)
-        ρ_fourier_purified = DFTK.enforce_real!(basis, fft(basis, ρ))
+        ρ_fourier_purified = DFTK.enforce_real!(fft(basis, ρ), basis)
         ρ = irfft(basis, ρ_fourier_purified)
 
         ρ_b  = transfer_density(ρ,   basis,     basis_big)

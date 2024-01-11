@@ -45,7 +45,7 @@ end
              ]
     model = Model(lattice; n_electrons, terms, spin_polarization=:spinless)  # "spinless electrons"
     basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
-    scfres = direct_minimization(basis, tol=1e-6, maxiter=300)  # Limit maxiter as guess can be bad
+    scfres = direct_minimization(basis; tol=1e-6, maxiter=300)  # Limit maxiter as guess can be bad
     E = scfres.energies.total
     s = 2
     E11 = π/2 * (2(s+1)/s)^((s+2)/s) * (s/(s+2))^(2(s+1)/s) * E^((s+2)/s) / β
