@@ -224,7 +224,7 @@ We use here that:
     k_plus_b = basis.kpoints[ik_plus_b]
     equivalent_G_vectors = [(ip, index_G_vectors(basis, k_plus_b, p + G_shift))
                             for (ip, p) in enumerate(G_vectors(basis, k))]
-    ip        = [eqG[1] for eqG in equivalent_G_vectors if !isnothing(eqG[1])]
+    ip        = [eqG[1] for eqG in equivalent_G_vectors if !isnothing(eqG[2])]
     ip_plus_b = [eqG[2] for eqG in equivalent_G_vectors if !isnothing(eqG[2])]
 
     # Compute overlaps
