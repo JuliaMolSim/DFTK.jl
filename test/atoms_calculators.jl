@@ -5,10 +5,9 @@
     silicon = TestCases.silicon
 
     # Perturb from equilibrium so forces are not 0.
-    silicon.positions[1] += [0.05, 0, 0]
-    # Converto to AtomsBase system
-    silicon = periodic_system(silicon.lattice, silicon.atoms, silicon.positions)
-    
+    positions = [silicon.positions[1] + [0.05, 0, 0], silicon.positions[2]]
+    silicon = periodic_system(silicon.lattice, silicon.atoms, positions)
+
     model_kwargs = (; temperature=1e-6, functionals=[:lda_x, :lda_c_pw])
     basis_kwargs = (; kgrid=[4, 4, 4], Ecut=5.0)
     scf_kwargs = (; tol=1e-7)
