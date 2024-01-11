@@ -68,11 +68,11 @@ end
             form_factors = build_form_factors(element.psp, G_plus_k_cart)
             for idx in group
                 r = model.positions[idx]
-                structure_factors = [cis2pi(-dot(Gk, r)) for Gk in G_plus_k]
+                structure_factors = [cis2pi(-dot(p, r)) for p in G_plus_k]
                 P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
 
                 forces[idx] += map(1:3) do α
-                    dPdR = [-2T(π)*im*Gk[α] for Gk in G_plus_k] .* P
+                    dPdR = [-2T(π)*im*p[α] for p in G_plus_k] .* P
                     ψk = ψ[ik]
                     dHψk = P * (C * (dPdR' * ψk))
                     -sum(occupation[ik][iband] * basis.kweights[ik] *
@@ -147,7 +147,7 @@ H_{\rm per} &= \sum_R \sum_{ij} C_{ij} \ket{p_i(x-R)} \bra{p_j(x-R)}
 \end{aligned}
 ```
 
-where ``\hat p_i(q) = ∫_{ℝ^3} p_i(r) e^{-iq·r} dr``.
+where ``\hat p_i(p) = ∫_{ℝ^3} p_i(r) e^{-ip·r} dr``.
 
 We store ``\frac{1}{\sqrt Ω} \hat p_i(k+G)`` in `proj_vectors`.
 """
@@ -161,7 +161,7 @@ function _build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
 
     # Compute the columns of proj_vectors = 1/√Ω pihat(k+G)
     # Since the pi are translates of each others, pihat(k+G) decouples as
-    # pihat(q) = ∫ p(r-R) e^{-iqr} dr = e^{-iqR} phat(q).
+    # pihat(p) = ∫ p(r-R) e^{-ip·r} dr = e^{-ip·R} phat(p).
     # The first term is the structure factor, the second the form factor.
     offset = 0  # offset into proj_vectors
     for (psp, positions) in zip(psps, psp_positions)
@@ -172,7 +172,7 @@ function _build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
         # Combine with structure factors
         for r in positions
             # k+G in this formula can also be G, this only changes an unimportant phase factor
-            structure_factors = map(Gk -> cis2pi(-dot(Gk, r)), G_plus_k)
+            structure_factors = map(p -> cis2pi(-dot(p, r)), G_plus_k)
             @views for iproj = 1:count_n_proj(psp)
                 proj_vectors[:, offset+iproj] .=
                     structure_factors .* form_factors[:, iproj] ./ sqrt(unit_cell_volume)
@@ -192,34 +192,34 @@ Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 function build_form_factors(psp, G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
     T = real(TT)
 
-    # Pre-compute the radial parts of the non-local projectors at unique |Gk| to speed up
+    # Pre-compute the radial parts of the non-local projectors at unique |p| to speed up
     # the form factor calculation (by a lot). Using a hash map gives O(1) lookup.
 
     # Maximum number of projectors over angular momenta so that form factors
-    # for a given `Gk` can be stored in an `nproj x (lmax + 1)` matrix.
+    # for a given `p` can be stored in an `nproj x (lmax + 1)` matrix.
     n_proj_max = maximum(l -> count_n_proj_radial(psp, l), 0:psp.lmax; init=0)
 
     radials = IdDict{T,Matrix{T}}()  # IdDict for Dual compatibility
-    for Gk in G_plus_k
-        Gk_norm = norm(Gk)
-        if !haskey(radials, Gk_norm)
-            radials_Gk = Matrix{T}(undef, n_proj_max, psp.lmax + 1)
+    for p in G_plus_k
+        p_norm = norm(p)
+        if !haskey(radials, p_norm)
+            radials_p = Matrix{T}(undef, n_proj_max, psp.lmax + 1)
             for l = 0:psp.lmax, iproj_l = 1:count_n_proj_radial(psp, l)
-                radials_Gk[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, Gk_norm)
+                radials_p[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, p_norm)
             end
-            radials[Gk_norm] = radials_Gk
+            radials[p_norm] = radials_p
         end
     end
 
     form_factors = Matrix{Complex{T}}(undef, length(G_plus_k), count_n_proj(psp))
-    for (iG, Gk) in enumerate(G_plus_k)
-        radials_Gk = radials[norm(Gk)]
+    for (iG, p) in enumerate(G_plus_k)
+        radials_p = radials[norm(p)]
         count = 1
         for l = 0:psp.lmax, m = -l:l
             # see "Fourier transforms of centered functions" in the docs for the formula
-            angular = (-im)^l * ylm_real(l, m, Gk)
+            angular = (-im)^l * ylm_real(l, m, p)
             for iproj_l = 1:count_n_proj_radial(psp, l)
-                form_factors[iG, count] = radials_Gk[iproj_l, l+1] * angular
+                form_factors[iG, count] = radials_p[iproj_l, l+1] * angular
                 count += 1
             end
         end

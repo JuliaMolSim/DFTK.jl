@@ -120,7 +120,7 @@ function apply!(Hψ, op::MagneticFieldOperator, ψ)
     # TODO this could probably be better optimized
     for α = 1:3
         iszero(op.Apot[α]) && continue
-        pα = [Gk[α] for Gk in Gplusk_vectors_cart(op.basis, op.kpoint)]
+        pα = [p[α] for p in Gplusk_vectors_cart(op.basis, op.kpoint)]
         ∂αψ_fourier = pα .* ψ.fourier
         ∂αψ_real = ifft(op.basis, op.kpoint, ∂αψ_fourier)
         Hψ.real .+= op.Apot[α] .* ∂αψ_real
@@ -142,7 +142,7 @@ function apply!(Hψ, op::DivAgradOperator, ψ;
                 ψ_scratch=zeros(complex(eltype(op.basis)), op.basis.fft_size...))
     # TODO: Performance improvements: Unscaled plans, avoid remaining allocations
     #       (which are only on the small k-point-specific Fourier grid
-    G_plus_k = [[Gk[α] for Gk in Gplusk_vectors_cart(op.basis, op.kpoint)] for α = 1:3]
+    G_plus_k = [[p[α] for p in Gplusk_vectors_cart(op.basis, op.kpoint)] for α = 1:3]
     for α = 1:3
         ∂αψ_real = ifft!(ψ_scratch, op.basis, op.kpoint, im .* G_plus_k[α] .* ψ.fourier)
         A∇ψ      = fft(op.basis, op.kpoint, ∂αψ_real .* op.A)
