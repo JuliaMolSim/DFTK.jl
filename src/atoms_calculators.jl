@@ -12,6 +12,15 @@ using AtomsBase
 using AtomsCalculators
 
 
+"""
+Construct a [AtomsCalculators](https://github.com/JuliaMolSim/AtomsCalculators.jl) compatible calculator
+for DFTK. The `model_kwargs` are passed onto the [`Model`](@ref) constructor, the `basis_kwargs` to the [`PlaneWaveBasis`](@ref) constructor, the `scf_kwargs` to [`self_consistent_field`](@ref). At the very least the DFT `functionals` and the `Ecut` needs to be specified.
+
+## Example
+julia> DFTKParameters(; model_kwargs=(; functionals=[:lda_x, :lda_c_vwn]),
+                       basis_kwargs=(; Ecut=10, kgrid=(2, 2, 2)),
+                       scf_kwargs=(; tol=1e-4))
+"""
 Base.@kwdef struct DFTKParameters
     model_kwargs = (; )
     basis_kwargs = (; )
