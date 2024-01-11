@@ -154,8 +154,8 @@ end
 @timing "forces: xc" function compute_forces(term::TermXc, basis::PlaneWaveBasis{T},
                                              ψ, occupation; ρ, τ=nothing,
                                              kwargs...) where {T}
-    # the only non-zero force contribution is from the nlcc core charge
-    # early return if nlcc is disabled / no elements have model core charges
+    # The only non-zero force contribution is from the nlcc core charge:
+    # early return if nlcc is disabled / no elements have model core charges.
     isnothing(term.ρcore) && return nothing
 
     Vxc_real = xc_potential_real(term, basis, ψ, occupation; ρ, τ).potential
@@ -177,15 +177,15 @@ end
     for (igroup, group) in nlcc_groups
         for iatom in group
             r = model.positions[iatom]
-            forces[iatom] = _force_xc_internal(basis, Vxc_fourier, form_factors, igroup, r)
+            forces[iatom] = _force_xc(basis, Vxc_fourier, form_factors, igroup, r)
         end
     end
     forces
 end
 
-# function barrier to work around various type instabilities
-function _force_xc_internal(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U},
-                            form_factors, igroup, r) where {T, U}
+# Function barrier to work around various type instabilities.
+function _force_xc(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U}, form_factors,
+                   igroup, r) where {T, U}
     TT = promote_type(T, real(U))
     f  = zero(Vec3{TT})
     for (iG, (G, G_cart)) in enumerate(zip(G_vectors(basis), G_vectors_cart(basis)))
