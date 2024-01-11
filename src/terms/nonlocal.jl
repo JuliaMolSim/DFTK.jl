@@ -152,7 +152,7 @@ where ``\hat p_i(p) = ∫_{ℝ^3} p_i(r) e^{-ip·r} dr``.
 We store ``\frac{1}{\sqrt Ω} \hat p_i(k+G)`` in `proj_vectors`.
 """
 function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
-                                   psps, psp_positions) where {T}
+                                  psps, psp_positions) where {T}
     unit_cell_volume = basis.model.unit_cell_volume
     n_proj = count_n_proj(psps, psp_positions)
     n_G    = length(G_vectors(basis, kpt))
