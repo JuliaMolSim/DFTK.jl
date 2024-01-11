@@ -212,14 +212,14 @@ function build_form_factors(psp, G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
     end
 
     form_factors = Matrix{Complex{T}}(undef, length(G_plus_k), count_n_proj(psp))
-    for (iG, p) in enumerate(G_plus_k)
+    for (ip, p) in enumerate(G_plus_k)
         radials_p = radials[norm(p)]
         count = 1
         for l = 0:psp.lmax, m = -l:l
             # see "Fourier transforms of centered functions" in the docs for the formula
             angular = (-im)^l * ylm_real(l, m, p)
             for iproj_l = 1:count_n_proj_radial(psp, l)
-                form_factors[iG, count] = radials_p[iproj_l, l+1] * angular
+                form_factors[ip, count] = radials_p[iproj_l, l+1] * angular
                 count += 1
             end
         end
