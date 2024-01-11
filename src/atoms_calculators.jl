@@ -25,7 +25,7 @@ function DFTKState(system::AbstractSystem, params::DFTKParameters)
     model = model_DFT(system; params.model_kwargs...)
     basis = PlaneWaveBasis(model; params.basis_kwargs...)
     ρ = guess_density(basis, system)
-    ψ = nothing # Will get initialized by SCF.
+    ψ = nothing  # Will get initialized by SCF.
     DFTKState((; ρ, ψ, basis))
 end
 
@@ -37,9 +37,9 @@ end
 function DFTKCalculator(system; state=nothing, verbose=false,
                         model_kwargs, basis_kwargs, scf_kwargs)
     if !verbose
-        scf_kwargs = merge(scf_kwargs, (;callback=identity))
+        scf_kwargs = merge(scf_kwargs, (; callback=identity))
     end
-    params = DFTKParameters(;model_kwargs, basis_kwargs, scf_kwargs)
+    params = DFTKParameters(; model_kwargs, basis_kwargs, scf_kwargs)
 
     # Create dummy state if not given.
     if isnothing(state)
@@ -54,8 +54,6 @@ function compute_scf!(system::AbstractSystem, calculator::DFTKCalculator, state:
                       symmetries=state.scfres.basis.symmetries)
     basis = PlaneWaveBasis(model; calculator.params.basis_kwargs...)
     
-    # Note that we use the state's densities and orbitals, but change the basis 
-    # to reflect system changes.
     scfres = self_consistent_field(basis;
                                    state.scfres.ρ, state.scfres.ψ,
                                    calculator.params.scf_kwargs...)
