@@ -43,10 +43,10 @@ function occupation_divided_difference(S::SmearingFunction, x, y, εF, temp)
     else
         f(z) = occupation(S, (z-εF) / temp)
         fder(z) = occupation_derivative(S, (z-εF)/temp) / temp
-        _divided_difference(f, fder, x, y)
+        divided_difference(f, fder, x, y)
     end
 end
-function _divided_difference(f, fder, x::T, y) where {T}
+function divided_difference(f, fder, x::T, y) where {T}
     # (f(x) - f(y))/(x - y) is accurate to ε/|x-y|
     # so for x ~= y we use the approximation (f'(x)+f'(y))/2,
     # which is accurate to |x-y|^2, and therefore better when |x-y| ≤ cbrt(ε)
@@ -86,7 +86,7 @@ function occupation_divided_difference(S::FermiDirac, x, y, εF, temp)
     large_float = floatmax(typeof(x)) / 1e4 # conservative
     will_exp_overflow(z1, z2) = abs((z1-z2)/temp) > log(large_float)
     if x == y || will_exp_overflow(x, y) || will_exp_overflow(x, εF) || will_exp_overflow(y, εF)
-        _divided_difference(f, fder, x, y)
+        divided_difference(f, fder, x, y)
     else
         Δfxy = f(x) * f(y) * exp((x-εF)/temp) * expm1((y-x)/temp)
         Δfyx = f(x) * f(y) * exp((y-εF)/temp) * expm1((x-y)/temp)

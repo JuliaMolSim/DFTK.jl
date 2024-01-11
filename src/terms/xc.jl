@@ -177,13 +177,13 @@ end
     for (igroup, group) in nlcc_groups
         for iatom in group
             r = model.positions[iatom]
-            forces[iatom] = _force_xc_internal(basis, Vxc_fourier, form_factors, igroup, r)
+            forces[iatom] = _force_xc(basis, Vxc_fourier, form_factors, igroup, r)
         end
     end
     forces
 end
 
-function _force_xc_internal(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U},
+function _force_xc(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U},
                             form_factors, igroup, r) where {T, U}
     TT = promote_type(T, real(U))
     f  = zero(Vec3{TT})

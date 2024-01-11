@@ -153,7 +153,7 @@ end
 
 
 # Optimize RFOs by combining terms that can be combined
-function _optimize_operators(ops)
+function optimize_operators(ops)
     ops = [op for op in ops if !(op isa NoopOperator)]
     RSmults = [op for op in ops if op isa RealSpaceMultiplication]
     isempty(RSmults) && return ops

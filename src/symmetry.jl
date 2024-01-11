@@ -407,7 +407,7 @@ function unfold_mapping(basis_irred, kpt_unfolded)
     error("Invalid unfolding of BZ")
 end
 
-function _unfold_array(basis_irred, basis_unfolded, data, is_ψ)
+function unfold_array(basis_irred, basis_unfolded, data, is_ψ)
     if basis_irred == basis_unfolded
         return data
     end
@@ -435,9 +435,9 @@ end
 
 function unfold_bz(scfres)
     basis_unfolded = unfold_bz(scfres.basis)
-    ψ = _unfold_array(scfres.basis, basis_unfolded, scfres.ψ, true)
-    eigenvalues = _unfold_array(scfres.basis, basis_unfolded, scfres.eigenvalues, false)
-    occupation = _unfold_array(scfres.basis, basis_unfolded, scfres.occupation, false)
+    ψ = unfold_array(scfres.basis, basis_unfolded, scfres.ψ, true)
+    eigenvalues = unfold_array(scfres.basis, basis_unfolded, scfres.eigenvalues, false)
+    occupation = unfold_array(scfres.basis, basis_unfolded, scfres.occupation, false)
     energies, ham = energy_hamiltonian(basis_unfolded, ψ, occupation;
                                        scfres.ρ, eigenvalues, scfres.εF)
     @assert energies.total ≈ scfres.energies.total

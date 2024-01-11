@@ -34,7 +34,7 @@ struct DftHamiltonianBlock <: HamiltonianBlock
 end
 
 function HamiltonianBlock(basis, kpoint, operators; scratch=_ham_allocate_scratch(basis))
-    optimized_operators = _optimize_operators(operators)
+    optimized_operators = optimize_operators(operators)
     fourier_ops  = filter(o -> o isa FourierMultiplication,   optimized_operators)
     real_ops     = filter(o -> o isa RealSpaceMultiplication, optimized_operators)
     nonlocal_ops = filter(o -> o isa NonlocalOperator,        optimized_operators)

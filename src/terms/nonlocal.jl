@@ -14,8 +14,8 @@ function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
 
     isempty(psp_groups) && return TermNoop()
     ops = map(basis.kpoints) do kpt
-        P = _build_projection_vectors(basis, kpt, psps, psp_positions)
-        D = _build_projection_coefficients(T, psps, psp_positions)
+        P = build_projection_vectors(basis, kpt, psps, psp_positions)
+        D = build_projection_coefficients(T, psps, psp_positions)
         NonlocalOperator(basis, kpt, P, to_device(basis.architecture, D))
     end
     TermAtomicNonlocal(ops)
@@ -60,7 +60,7 @@ end
     for group in psp_groups
         element = model.atoms[first(group)]
 
-        C = _build_projection_coefficients(T, element.psp)
+        C = build_projection_coefficients(T, element.psp)
         for (ik, kpt) in enumerate(basis.kpoints)
             # we compute the forces from the irreductible BZ; they are symmetrized later
             G_plus_k = Gplusk_vectors(basis, kpt)
@@ -92,7 +92,7 @@ end
 # The ordering of the projector indices is (A,l,m,i), where A is running over all
 # atoms, l, m are AM quantum numbers and i is running over all projectors for a
 # given l. The matrix is block-diagonal with non-zeros only if A, l and m agree.
-function _build_projection_coefficients(T, psps, psp_positions)
+function build_projection_coefficients(T, psps, psp_positions)
     # TODO In the current version the proj_coeffs still has a lot of zeros.
     #      One could improve this by storing the blocks as a list or in a
     #      BlockDiagonal data structure
@@ -103,7 +103,7 @@ function _build_projection_coefficients(T, psps, psp_positions)
     for (psp, positions) in zip(psps, psp_positions), _ in positions
         n_proj_psp = count_n_proj(psp)
         block = count+1:count+n_proj_psp
-        proj_coeffs[block, block] = _build_projection_coefficients(T, psp)
+        proj_coeffs[block, block] = build_projection_coefficients(T, psp)
         count += n_proj_psp
     end
     @assert count == n_proj
@@ -115,7 +115,7 @@ end
 # The ordering of the projector indices is (l,m,i), where l, m are the
 # AM quantum numbers and i is running over all projectors for a given l.
 # The matrix is block-diagonal with non-zeros only if l and m agree.
-function _build_projection_coefficients(T, psp::NormConservingPsp)
+function build_projection_coefficients(T, psp::NormConservingPsp)
     n_proj = count_n_proj(psp)
     proj_coeffs = zeros(T, n_proj, n_proj)
     count = 0
@@ -151,7 +151,7 @@ where ``\hat p_i(p) = ∫_{ℝ^3} p_i(r) e^{-ip·r} dr``.
 
 We store ``\frac{1}{\sqrt Ω} \hat p_i(k+G)`` in `proj_vectors`.
 """
-function _build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
+function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
                                    psps, psp_positions) where {T}
     unit_cell_volume = basis.model.unit_cell_volume
     n_proj = count_n_proj(psps, psp_positions)
