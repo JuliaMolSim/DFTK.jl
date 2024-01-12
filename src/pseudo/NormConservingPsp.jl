@@ -42,8 +42,8 @@ Evaluate the radial part of the `i`-th projector for angular momentum `l`
 at the reciprocal vector with modulus `p`:
 ```math
 \begin{aligned}
-proj(p) &= ∫_{ℝ^3} p_{il}(r) e^{-ip·r} dr \\
-        &= 4π ∫_{ℝ_+} r^2 p_{il}(r) j_l(p·r) dr.
+{\rm proj}(p) &= ∫_{ℝ^3} {\rm proj}_{il}(r) e^{-ip·r} dr \\
+              &= 4π ∫_{ℝ_+} r^2 {\rm proj}_{il}(r) j_l(p·r) dr.
 \end{aligned}
 ```
 """

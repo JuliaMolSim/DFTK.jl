@@ -349,7 +349,7 @@ end
 
 """
 Symmetrize the forces in *reduced coordinates*, forces given as an
-array forces[iel][α,i]
+array `forces[iel][α,i]`.
 """
 function symmetrize_forces(model::Model, forces; symmetries)
     symmetrized_forces = zero(forces)

@@ -9,7 +9,7 @@ For the Coulomb potential with periodic boundary conditions, this is rather
 1/2 ∫ρ(x)ρ(y) G(x-y) dx dy,
 ```
 where G is the Green's function of the periodic Laplacian with zero
-mean (-Δ G = sum_{R} 4π δ_R, integral of G zero on a unit cell).
+mean (``-Δ G = ∑_R 4π δ_R``, integral of G zero on a unit cell).
 """
 struct Hartree
     scaling_factor::Real  # to scale by an arbitrary factor (useful for exploration)
