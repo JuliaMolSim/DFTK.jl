@@ -57,8 +57,8 @@ end
 
 """
 Entropy. Note that this is a function of the energy `x`, not of `occupation(x)`.
-This function satisfies s' = x f' (see https://www.vasp.at/vasp-workshop/k-points.pdf
-p. 12 and https://arxiv.org/pdf/1805.07144.pdf p. 18.
+This function satisfies `s' = x f'` (see <https://www.vasp.at/vasp-workshop/k-points.pdf>
+p. 12 and <https://arxiv.org/pdf/1805.07144.pdf> p. 18.
 """
 entropy(S::SmearingFunction, x) = error()
 

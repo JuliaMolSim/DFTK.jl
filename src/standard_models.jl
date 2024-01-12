@@ -47,7 +47,7 @@ end
 
 """
 Build an LDA model (Perdew & Wang parametrization) from the specified atoms.
-DOI:10.1103/PhysRevB.45.13244
+<https://doi.org/10.1103/PhysRevB.45.13244>
 """
 function model_LDA(lattice::AbstractMatrix, atoms::Vector{<:Element},
                    positions::Vector{<:AbstractVector}; kwargs...)
@@ -57,7 +57,7 @@ end
 
 """
 Build an PBE-GGA model from the specified atoms.
-DOI:10.1103/PhysRevLett.77.3865
+<https://doi.org/10.1103/PhysRevLett.77.3865>
 """
 function model_PBE(lattice::AbstractMatrix, atoms::Vector{<:Element},
                    positions::Vector{<:AbstractVector}; kwargs...)
@@ -67,7 +67,7 @@ end
 
 """
 Build a SCAN meta-GGA model from the specified atoms.
-DOI:10.1103/PhysRevLett.115.036402
+<https://doi.org/10.1103/PhysRevLett.115.036402>
 """
 function model_SCAN(lattice::AbstractMatrix, atoms::Vector{<:Element},
                     positions::Vector{<:AbstractVector}; kwargs...)
