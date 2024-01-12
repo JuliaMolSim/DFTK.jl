@@ -11,7 +11,7 @@
     model_kwargs = (; temperature=1e-3, functionals=[:lda_x, :lda_c_pw])
     basis_kwargs = (; kgrid=[4, 4, 4], Ecut=5.0)
     scf_kwargs = (; tol=1e-7)
-    calculator = DFTKCalculator(silicon; model_kwargs, basis_kwargs, scf_kwargs)
+    calculator = DFTKCalculator(; model_kwargs, basis_kwargs, scf_kwargs)
 
     energy = AtomsCalculators.potential_energy(silicon, calculator)
     ref_energy = -7.86059

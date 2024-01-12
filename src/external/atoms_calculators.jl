@@ -9,21 +9,15 @@ using AtomsCalculators
 Base.@kwdef struct DFTKParameters
     model_kwargs = (; )
     basis_kwargs = (; )
-    scf_kwargs = (; )
+    scf_kwargs   = (; )
 end
 
-struct DFTKState
-    scfres::NamedTuple
+struct DFTKState{T}
+    scfres::T
 end
-function DFTKState(system::AbstractSystem, params::DFTKParameters)
-    model = model_DFT(system; params.model_kwargs...)
-    basis = PlaneWaveBasis(model; params.basis_kwargs...)
-    ρ = guess_density(basis, system)
-    ψ = nothing  # Will get initialized by SCF.
-    DFTKState((; ρ, ψ, basis))
-end
+DFTKState() = DFTKState((; ψ=nothing, ρ=nothing))
 
-Base.@kwdef mutable struct DFTKCalculator
+mutable struct DFTKCalculator
     params::DFTKParameters
     state::DFTKState
 end
@@ -40,33 +34,35 @@ By default the calculator preserves the symmetries that are stored inside the
 
 ## Example
 ```julia-repl
-julia> DFTKCalculator(system;
-                      model_kwargs=(; functionals=[:lda_x, :lda_c_vwn]),
-                      basis_kwargs=(; Ecut=10, kgrid=(2, 2, 2)),
-                      scf_kwargs=(; tol=1e-4))
+julia> DFTKCalculator(; model_kwargs=(; functionals=[:lda_x, :lda_c_vwn]),
+                        basis_kwargs=(; Ecut=10, kgrid=(2, 2, 2)),
+                        scf_kwargs=(; tol=1e-4))
 ```
 """
-function DFTKCalculator(system; state=nothing, verbose=false,
-                        model_kwargs, basis_kwargs, scf_kwargs)
+function DFTKCalculator(params::DFTKParameters)
+    DFTKCalculator(params, DFTKState())  # Create dummy state if not given.
+end
+
+function DFTKCalculator(; verbose=false, model_kwargs, basis_kwargs, scf_kwargs)
     if !verbose
         scf_kwargs = merge(scf_kwargs, (; callback=identity))
     end
     params = DFTKParameters(; model_kwargs, basis_kwargs, scf_kwargs)
-
-    # Create dummy state if not given.
-    if isnothing(state)
-        state = DFTKState(system, params)
-    end
-    DFTKCalculator(params, state)
+    DFTKCalculator(params)
 end
 
 function compute_scf!(system::AbstractSystem, calculator::DFTKCalculator, state::DFTKState)
-    # Note that we re-use the symmetries from the state, to avoid degenerate cases.
-    model  = model_DFT(system; calculator.params.model_kwargs...,
-                       symmetries=state.scfres.basis.symmetries)
-    basis  = PlaneWaveBasis(model; calculator.params.basis_kwargs...)
-    scfres = self_consistent_field(basis;
-                                   state.scfres.ρ, state.scfres.ψ,
+    model_kwargs = calculator.params.model_kwargs
+    if haskey(state.scfres, :basis)
+        # Note that we re-use the symmetries from the state,
+        # to avoid issues with accidentally more symmetric structures.
+        model_kwargs = merge(model_kwargs, (; state.scfres.basis.model.symmetries))
+    end
+    model = model_DFT(system; model_kwargs...)
+    basis = PlaneWaveBasis(model; calculator.params.basis_kwargs...)
+
+    ρ = isnothing(state.scfres.ρ) ? guess_density(basis, system) : state.scfres.ρ
+    scfres = self_consistent_field(basis; ρ, state.scfres.ψ,
                                    calculator.params.scf_kwargs...)
     calculator.state = DFTKState(scfres)
 end
