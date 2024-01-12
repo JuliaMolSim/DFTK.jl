@@ -48,7 +48,9 @@ end
 
 """
 Real space multiplication by a potential:
+```math
 (Hψ)(r) = V(r) ψ(r).
+```
 """
 struct RealSpaceMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
@@ -77,9 +79,11 @@ function Matrix(op::RealSpaceMultiplication)
     H
 end
 
-"""
+@doc raw"""
 Fourier space multiplication, like a kinetic energy term:
-(Hψ)(G) = multiplier(G) ψ(G).
+```math
+(Hψ)(G) = {\rm multiplier}(G) ψ(G).
+```
 """
 struct FourierMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOperator
     basis::PlaneWaveBasis{T}

@@ -1,5 +1,8 @@
-"""
-Kinetic energy: 1/2 sum_n f_n ∫ |∇ψn|^2 * blowup(-i∇Ψ).
+@doc raw"""
+Kinetic energy:
+```math
+1/2 ∑_n f_n ∫ |∇ψ_n|^2 * {\rm blowup}(-i∇Ψ_n).
+```
 """
 Base.@kwdef struct Kinetic{F}
     scaling_factor::Real = 1
