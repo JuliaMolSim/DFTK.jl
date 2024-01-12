@@ -8,17 +8,17 @@
     positions = [silicon.positions[1] + [0.05, 0, 0], silicon.positions[2]]
     silicon = periodic_system(silicon.lattice, silicon.atoms, positions)
 
-    model_kwargs = (; temperature=1e-6, functionals=[:lda_x, :lda_c_pw])
+    model_kwargs = (; temperature=1e-3, functionals=[:lda_x, :lda_c_pw])
     basis_kwargs = (; kgrid=[4, 4, 4], Ecut=5.0)
     scf_kwargs = (; tol=1e-7)
     calculator = DFTKCalculator(silicon; model_kwargs, basis_kwargs, scf_kwargs)
 
     energy = AtomsCalculators.potential_energy(silicon, calculator)
-    ref_energy = -7.86054
+    ref_energy = -7.86059
     @test energy ≈ ref_energy rtol=1e-3
 
     forces = AtomsCalculators.forces(silicon, calculator)
-    ref_forces = [[0.01283, -0.0329, -0.0329],
-                  [-0.01283, 0.0329, 0.0329]]
+    ref_forces = [[ 0.01283, -0.0329, -0.0329],
+                  [-0.01283,  0.0329,  0.0329]]
     @test forces ≈ ref_forces rtol=1e-3
 end

@@ -1,28 +1,11 @@
-#
 # Define AtomsCalculators interface for DFTK.
 #
-# This interface is inspired by the one used in Molly.jl, 
+# This interface is inspired by the one used in Molly.jl,
 # see https://github.com/JuliaMolSim/Molly.jl/blob/master/src/types.jl
-#
-# By default, when the calculator is called with a `state`, the 
-# symmetries of the state will be re-used in the current calculation (the basis 
-# is re-built, but symmetries are fixed and not re-computed). 
-#    
 using AtomsBase
 using AtomsCalculators
 
 
-"""
-Construct a [AtomsCalculators](https://github.com/JuliaMolSim/AtomsCalculators.jl) compatible calculator
-for DFTK. The `model_kwargs` are passed onto the [`Model`](@ref) constructor, the `basis_kwargs` to the [`PlaneWaveBasis`](@ref) constructor, the `scf_kwargs` to [`self_consistent_field`](@ref). At the very least the DFT `functionals` and the `Ecut` needs to be specified.
-
-## Example
-```julia-repl
-julia> DFTKParameters(; model_kwargs=(; functionals=[:lda_x, :lda_c_vwn]),
-                       basis_kwargs=(; Ecut=10, kgrid=(2, 2, 2)),
-                       scf_kwargs=(; tol=1e-4))
-```
-"""
 Base.@kwdef struct DFTKParameters
     model_kwargs = (; )
     basis_kwargs = (; )
@@ -45,6 +28,24 @@ Base.@kwdef mutable struct DFTKCalculator
     state::DFTKState
 end
 
+"""
+Construct a [AtomsCalculators](https://github.com/JuliaMolSim/AtomsCalculators.jl)
+compatible calculator for DFTK. The `model_kwargs` are passed onto the
+[`Model`](@ref) constructor, the `basis_kwargs` to the [`PlaneWaveBasis`](@ref)
+constructor, the `scf_kwargs` to [`self_consistent_field`](@ref). At the very
+least the DFT `functionals` and the `Ecut` needs to be specified.
+
+By default the calculator preserves the symmetries that are stored inside the
+`state` (the basis is re-built, but symmetries are fixed and not re-computed).
+
+## Example
+```julia-repl
+julia> DFTKCalculator(system;
+                      model_kwargs=(; functionals=[:lda_x, :lda_c_vwn]),
+                      basis_kwargs=(; Ecut=10, kgrid=(2, 2, 2)),
+                      scf_kwargs=(; tol=1e-4))
+```
+"""
 function DFTKCalculator(system; state=nothing, verbose=false,
                         model_kwargs, basis_kwargs, scf_kwargs)
     if !verbose
@@ -61,10 +62,9 @@ end
 
 function compute_scf!(system::AbstractSystem, calculator::DFTKCalculator, state::DFTKState)
     # Note that we re-use the symmetries from the state, to avoid degenerate cases.
-    model = model_DFT(system; calculator.params.model_kwargs...,
-                      symmetries=state.scfres.basis.symmetries)
-    basis = PlaneWaveBasis(model; calculator.params.basis_kwargs...)
-    
+    model  = model_DFT(system; calculator.params.model_kwargs...,
+                       symmetries=state.scfres.basis.symmetries)
+    basis  = PlaneWaveBasis(model; calculator.params.basis_kwargs...)
     scfres = self_consistent_field(basis;
                                    state.scfres.ρ, state.scfres.ψ,
                                    calculator.params.scf_kwargs...)
@@ -77,7 +77,7 @@ AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
     compute_scf!(system, calculator, state)
     calculator.state.scfres.energies.total
 end
-    
+
 AtomsCalculators.@generate_interface function AtomsCalculators.forces(
         system::AbstractSystem, calculator::DFTKCalculator; state = calculator.state,
         kwargs...)
