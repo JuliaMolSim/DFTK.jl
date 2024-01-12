@@ -209,7 +209,7 @@ function compute_dynmat(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occ
     ∫δρδV + ∫ρδ²V
 end
 
-function compute_δHψ_αs(term::TermAtomicLocal, basis::PlaneWaveBasis, ψ, q, α, s)
+function compute_δHψ_αs(term::TermAtomicLocal, basis::PlaneWaveBasis, ψ, α, s, q)
     δV_αs = similar(ψ[1], basis.fft_size..., basis.model.n_spin_components)
     # All spin components get the same potential.
     δV_αs .= compute_δV_αs(term, basis, α, s; q)

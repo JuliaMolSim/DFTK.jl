@@ -63,7 +63,7 @@ compute_forces(::Term, ::AbstractBasis, ψ, occupation; kwargs...) = nothing
 # dynamical matrix for phonons computations (array dynmat[3, n_atom, 3, n_atom])
 compute_dynmat(::Term, ::AbstractBasis, ψ, occupation; kwargs...) = nothing
 # variation of the Hamiltonian applied to orbitals for phonons computations
-compute_δHψ_αs(::Term, ::AbstractBasis, ψ, q, α, s; kwargs...) = nothing
+compute_δHψ_αs(::Term, ::AbstractBasis, ψ, α, s, q; kwargs...) = nothing
 
 @doc raw"""
     compute_kernel(basis::PlaneWaveBasis; kwargs...)
