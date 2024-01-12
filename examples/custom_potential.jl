@@ -24,9 +24,9 @@ CustomPotential() = CustomPotential(1.0, 0.5);
 function DFTK.local_potential_real(el::CustomPotential, r::Real)
     -el.α / (√(2π) * el.L) * exp(- (r / el.L)^2 / 2)
 end
-function DFTK.local_potential_fourier(el::CustomPotential, q::Real)
-    ## = ∫ V(r) exp(-ix⋅q) dx
-    -el.α * exp(- (q * el.L)^2 / 2)
+function DFTK.local_potential_fourier(el::CustomPotential, p::Real)
+    ## = ∫ V(r) exp(-ix⋅p) dx
+    -el.α * exp(- (p * el.L)^2 / 2)
 end
 
 # !!! tip "Gaussian potentials and DFTK"

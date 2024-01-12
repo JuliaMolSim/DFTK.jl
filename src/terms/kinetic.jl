@@ -25,13 +25,13 @@ function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, blowup) where {T}
     TermKinetic(T(scaling_factor), kinetic_energies)
 end
 
-function kinetic_energy(blowup, scaling_factor, Ecut, q::AbstractArray{Vec3{T}}) where {T}
-    map(q) do qk
-        T(scaling_factor) * norm2(qk) / 2 * blowup(norm(qk), Ecut)
+function kinetic_energy(blowup, scaling_factor, Ecut, p::AbstractArray{Vec3{T}}) where {T}
+    map(p) do pk
+        T(scaling_factor) * norm2(pk) / 2 * blowup(norm(pk), Ecut)
     end
 end
-function kinetic_energy(kin::Kinetic, Ecut, q)
-    kinetic_energy(kin.blowup, kin.scaling_factor, Ecut, q)
+function kinetic_energy(kin::Kinetic, Ecut, p)
+    kinetic_energy(kin.blowup, kin.scaling_factor, Ecut, p)
 end
 
 @timing "ene_ops: kinetic" function ene_ops(term::TermKinetic, basis::PlaneWaveBasis{T},

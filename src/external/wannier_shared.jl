@@ -272,20 +272,20 @@ Given an orbital ``g_n``, the periodized orbital is defined by :
 The Fourier coefficient of ``g^{per}_n`` at any G
 is given by the value of the Fourier transform of ``g_n`` in G.
 
-Each projection is a callable object that accepts the basis and some qpoints as an argument,
-and returns the Fourier transform of ``g_n`` at the qpoints.
+Each projection is a callable object that accepts the basis and some p-points as an argument,
+and returns the Fourier transform of ``g_n`` at the p-points.
 """
 function compute_amn_kpoint(basis::PlaneWaveBasis, kpt, ψk, projections, n_bands)
     n_wannier = length(projections)
     # TODO This function should be improved in performance
 
-    qs = vec(map(G -> G .+ kpt.coordinate, G_vectors(basis)))  # all q = k+G in reduced coordinates
+    ps = vec(map(G -> G .+ kpt.coordinate, G_vectors(basis)))  # all p = k+G in reduced coordinates
     Ak = zeros(eltype(ψk), (n_bands, n_wannier))
 
     # Compute Ak
     for n = 1:n_wannier
         proj = projections[n]
-        gn_per = proj(basis, qs[kpt.mapping])
+        gn_per = proj(basis, ps[kpt.mapping])
         # Fourier coeffs of gn_per for k+G in common with ψk
         # Functions are l^2 normalized in Fourier, in DFTK conventions.
         coeffs_gn_per = gn_per ./ norm(gn_per)

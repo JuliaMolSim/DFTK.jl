@@ -161,65 +161,65 @@ function eval_psp_projector_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
     psp.r2_projs_interp[l+1][i](r) / r^2
 end
 
-function eval_psp_projector_fourier(psp::PspUpf, i, l, q::T)::T where {T<:Real}
+function eval_psp_projector_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     # The projectors may have been cut off before the end of the radial mesh
     # by PseudoPotentialIO because UPFs list a radial cutoff index for these
     # functions after which they are strictly zero in the file.
     ircut_proj = min(psp.ircut, length(psp.r2_projs[l+1][i]))
     rgrid = @view psp.rgrid[1:ircut_proj]
     r2_proj = @view psp.r2_projs[l+1][i][1:ircut_proj]
-    return hankel(rgrid, r2_proj, l, q)
+    return hankel(rgrid, r2_proj, l, p)
 end
 
 function eval_psp_pswfc_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
     psp.r2_pswfcs_interp[l+1][i](r) / r^2
 end
 
-function eval_psp_pswfc_fourier(psp::PspUpf, i, l, q::T)::T where {T<:Real}
+function eval_psp_pswfc_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     # Pseudo-atomic wavefunctions are _not_ currently cut off like the other
     # quantities. They are the reason that PseudoDojo UPF files have a much
     # larger radial grid than their psp8 counterparts.
     # If issues arise, try cutting them off too.
-    return hankel(psp.rgrid, psp.r2_pswfcs[l+1][i], l, q)
+    return hankel(psp.rgrid, psp.r2_pswfcs[l+1][i], l, p)
 end
 
 eval_psp_local_real(psp::PspUpf, r::T) where {T<:Real} = psp.vloc_interp(r)
 
-function eval_psp_local_fourier(psp::PspUpf, q::T)::T where {T<:Real}
+function eval_psp_local_fourier(psp::PspUpf, p::T)::T where {T<:Real}
     # QE style C(r) = -Zerf(r)/r Coulomb tail correction used to ensure
     # exponential decay of `f` so that the Hankel transform is accurate.
     # H[Vloc(r)] = H[Vloc(r) - C(r)] + H[C(r)],
-    # where H[-Zerf(r)/r] = -Z/q^2 exp(-q^2 /4)
+    # where H[-Zerf(r)/r] = -Z/p^2 exp(-p^2 /4)
     # ABINIT uses a more 'pure' Coulomb term with the same asymptotic behavior
-    # C(r) = -Z/r; H[-Z/r] = -Z/q^2
+    # C(r) = -Z/r; H[-Z/r] = -Z/p^2
     rgrid = @view psp.rgrid[1:psp.ircut]
     vloc = @view psp.vloc[1:psp.ircut]
     f = (
         rgrid .* (rgrid .* vloc .- -psp.Zion * erf.(rgrid))
-        .* sphericalbesselj_fast.(0, q .* rgrid)
+        .* sphericalbesselj_fast.(0, p .* rgrid)
     )
     I = trapezoidal(rgrid, f)
-    4T(π) * (I + -psp.Zion / q^2 * exp(-q^2 / T(4)))
+    4T(π) * (I + -psp.Zion / p^2 * exp(-p^2 / T(4)))
 end
 
 function eval_psp_density_valence_real(psp::PspUpf, r::T) where {T<:Real}
     psp.r2_ρion_interp(r) / r^2
 end
 
-function eval_psp_density_valence_fourier(psp::PspUpf, q::T) where {T<:Real}
+function eval_psp_density_valence_fourier(psp::PspUpf, p::T) where {T<:Real}
     rgrid = @view psp.rgrid[1:psp.ircut]
     r2_ρion = @view psp.r2_ρion[1:psp.ircut]
-    return hankel(rgrid, r2_ρion, 0, q)
+    return hankel(rgrid, r2_ρion, 0, p)
 end
 
 function eval_psp_density_core_real(psp::PspUpf, r::T) where {T<:Real}
     psp.r2_ρcore_interp(r) / r^2
 end
 
-function eval_psp_density_core_fourier(psp::PspUpf, q::T) where {T<:Real}
+function eval_psp_density_core_fourier(psp::PspUpf, p::T) where {T<:Real}
     rgrid = @view psp.rgrid[1:psp.ircut]
     r2_ρcore = @view psp.r2_ρcore[1:psp.ircut]
-    return hankel(rgrid, r2_ρcore, 0, q)
+    return hankel(rgrid, r2_ρcore, 0, p)
 end
 
 function eval_psp_energy_correction(T, psp::PspUpf, n_electrons)
