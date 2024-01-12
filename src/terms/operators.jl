@@ -3,9 +3,9 @@
 
 """
 Linear operators that act on tuples (real, fourier)
-The main entry point is `apply!(out, op, in)` which performs the operation out += op*in
-where out and in are named tuples (real, fourier)
-They also implement mul! and Matrix(op) for exploratory use.
+The main entry point is `apply!(out, op, in)` which performs the operation `out += op*in`
+where `out` and `in` are named tuples `(; real, fourier)`.
+They also implement `mul!` and `Matrix(op)` for exploratory use.
 """
 abstract type RealFourierOperator end
 # RealFourierOperator contain fields `basis` and `kpoint`

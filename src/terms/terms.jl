@@ -98,7 +98,7 @@ compute_kernel(::Term, ::AbstractBasis{T}; kwargs...) where {T} = nothing  # By 
     apply_kernel(basis::PlaneWaveBasis, δρ; kwargs...)
 
 Computes the potential response to a perturbation δρ in real space,
-as a 4D (i,j,k,σ) array.
+as a 4D `(i,j,k,σ)` array.
 """
 @timing function apply_kernel(basis::PlaneWaveBasis, δρ; RPA=false, kwargs...)
     n_spin = basis.model.n_spin_components

@@ -119,8 +119,8 @@ eval_psp_density_valence_real(psp::NormConservingPsp, r::AbstractVector) =
 Evaluate the atomic valence charge density in reciprocal space:
 ```math
 \begin{aligned}
-ρval(p) &= ∫_{R^3} ρval(r) e^{-ip·r} dr
-        &= 4π ∫_{R+} ρval(r) sinc(p·r) r^2 dr.
+ρ_{\rm val}(p) &= ∫_{ℝ^3} ρ_{\rm val}(r) e^{-ip·r} dr \\
+               &= 4π ∫_{ℝ_+} ρ_{\rm val}(r) \frac{\sin(p·r)}{ρ·r} r^2 dr.
 \end{aligned}
 ```
 """
@@ -142,8 +142,8 @@ eval_psp_density_core_real(psp::NormConservingPsp, r::AbstractVector) =
 Evaluate the atomic core charge density in reciprocal space:
 ```math
 \begin{aligned}
-ρval(p) &= ∫_{R^3} ρcore(r) e^{-ip·r} dr
-        &= 4π ∫_{R+} ρcore(r) sinc(p·r) r^2 dr.
+ρ_{\rm core}(p) &= ∫_{ℝ^3} ρ_{\rm core}(r) e^{-ip·r} dr \\
+               &= 4π ∫_{ℝ_+} ρ_{\rm core}(r) \frac{\sin(p·r)}{ρ·r} r^2 dr.
 \end{aligned}
 ```
 """

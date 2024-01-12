@@ -152,9 +152,9 @@ function (conv::ScfConvergenceForce)(info)
 end
 
 
-"""
+@doc raw"""
 Algorithm for the tolerance used for the next diagonalization. This function takes
-``|ρnext - ρin|`` and multiplies it with `ratio_ρdiff` to get the next `diagtol`,
+``|ρ_{\rm next} - ρ_{\rm in}|`` and multiplies it with `ratio_ρdiff` to get the next `diagtol`,
 ensuring additionally that the returned value is between `diagtol_min` and `diagtol_max`
 and never increases.
 """
