@@ -195,8 +195,8 @@ function local_potential_fourier(el::ElementCohenBergstresser, p::T) where {T <:
     p == 0 && return zero(T)  # Compensating charge background
 
     # Get |p|^2 in units of (2π / lattice_constant)^2
-    qsq_pi = Int(round(p^2 / (2π / el.lattice_constant)^2, digits=2))
-    T(get(el.V_sym, qsq_pi, 0.0))
+    psq_pi = Int(round(p^2 / (2π / el.lattice_constant)^2, digits=2))
+    T(get(el.V_sym, psq_pi, 0.0))
 end
 
 

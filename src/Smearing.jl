@@ -29,7 +29,7 @@ Derivative of the occupation function, approximation to minus the delta function
 occupation_derivative(S::SmearingFunction, x) = ForwardDiff.derivative(x -> occupation(S, x), x)
 
 """
-(f(x) - f(y))/(x - y), computed stably in the case where x and y are close
+`(f(x) - f(y))/(x - y)`, computed stably in the case where `x` and `y` are close
 """
 function occupation_divided_difference(S::SmearingFunction, x, y, εF, temp)
     if temp == 0

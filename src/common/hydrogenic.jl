@@ -4,7 +4,7 @@ Same as Wannier90 user guide Table 3.3.
 # Arguments
 - `r`: radial grid
 - `n`: principal quantum number
-- `α`: diffusivity, ``\frac{Z}/{a}`` where ``Z`` is the atomic number and
+- `α`: diffusivity, ``\frac{Z}{a}`` where ``Z`` is the atomic number and
     ``a`` is the Bohr radius.
 """
 function radial_hydrogenic(r::AbstractVector{T}, n::Integer, α::Real=one(T)) where {T<:Real}

@@ -10,21 +10,21 @@ struct GaussianWannierProjection
     center::AbstractVector
 end
 
-function (proj::GaussianWannierProjection)(basis::PlaneWaveBasis, qs)
+function (proj::GaussianWannierProjection)(basis::PlaneWaveBasis, ps)
     # associate a center with the fourier transform of the corresponding gaussian
     # TODO: what is the normalization here?
 
     model = basis.model
-    map(qs) do q
-        q_cart = recip_vector_red_to_cart(model, q)
-        exp( 2π*(-im*dot(q, proj.center) - dot(q_cart, q_cart) / 4) )
+    map(ps) do p
+        p_cart = recip_vector_red_to_cart(model, p)
+        exp( 2π*(-im*dot(p, proj.center) - dot(p_cart, p_cart) / 4) )
     end
 end
 
 @doc raw"""
 A hydrogenic initial guess.
 
-`α` is the diffusivity, ``\frac{Z}/{a}`` where ``Z`` is the atomic number and
+`α` is the diffusivity, ``\frac{Z}{a}`` where ``Z`` is the atomic number and
     ``a`` is the Bohr radius.
 """
 struct HydrogenicWannierProjection
@@ -35,7 +35,7 @@ struct HydrogenicWannierProjection
     α::Real
 end
 
-function (proj::HydrogenicWannierProjection)(basis::PlaneWaveBasis, qs)
+function (proj::HydrogenicWannierProjection)(basis::PlaneWaveBasis, ps)
     # TODO: Performance can probably be improved a lot here.
     # TODO: Some of this logic could be used for the pswfc from the UPF PSPs.
 
@@ -52,19 +52,19 @@ function (proj::HydrogenicWannierProjection)(basis::PlaneWaveBasis, qs)
     r2_R_dr = r.^2 .* R .* dr
 
     model = basis.model
-    map(qs) do q
-        q_cart = recip_vector_red_to_cart(model, q)
-        qnorm = norm(q_cart)
+    map(ps) do p
+        p_cart = recip_vector_red_to_cart(model, p)
+        pnorm = norm(p_cart)
 
         radial_part = 0.0
         for (ir, rval) in enumerate(r)
-            @inbounds radial_part += r2_R_dr[ir] * sphericalbesselj_fast(proj.l, qnorm * rval)
+            @inbounds radial_part += r2_R_dr[ir] * sphericalbesselj_fast(proj.l, pnorm * rval)
         end
 
-        # both q and proj.center in reduced coordinates
-        center_offset = exp(-im*2π*dot(q, proj.center))
+        # both p and proj.center in reduced coordinates
+        center_offset = exp(-im*2π*dot(p, proj.center))
         # without the 4π normalization because the matrix will be orthonormalized anyway
-        angular_part = ylm_real(proj.l, proj.m, q_cart) * (-im)^proj.l
+        angular_part = ylm_real(proj.l, proj.m, p_cart) * (-im)^proj.l
 
         center_offset * angular_part * radial_part
     end

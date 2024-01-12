@@ -97,7 +97,7 @@ potential:
 ```math
 \lim_{p \to 0} 4π N_{\rm elec} ∫_{ℝ_+} (V(r) - C(r)) \frac{\sin(p·r)}{p·r} r^2 dr + F[C(r)]
  = 4π N_{\rm elec} ∫_{ℝ_+} (V(r) + Z/r) r^2 dr.
- ```
+```
 """
 function eval_psp_energy_correction end
 # by default, no correction, see PspHgh implementation and tests
