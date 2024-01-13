@@ -52,18 +52,16 @@ function DFTKCalculator(; verbose=false, model_kwargs, basis_kwargs, scf_kwargs)
 end
 
 function compute_scf!(system::AbstractSystem, calculator::DFTKCalculator, state::DFTKState)
-    model_kwargs = calculator.params.model_kwargs
-    if haskey(state.scfres, :basis)
-        # Note that we re-use the symmetries from the state,
-        # to avoid issues with accidentally more symmetric structures.
-        model_kwargs = merge(model_kwargs, (; state.scfres.basis.model.symmetries))
-    end
-    model = model_DFT(system; model_kwargs...)
-    basis = PlaneWaveBasis(model; calculator.params.basis_kwargs...)
+    params = calculator.params
 
-    ρ = isnothing(state.scfres.ρ) ? guess_density(basis, system) : state.scfres.ρ
-    scfres = self_consistent_field(basis; ρ, state.scfres.ψ,
-                                   calculator.params.scf_kwargs...)
+    # We re-use the symmetries from the state to avoid issues
+    # with accidentally more symmetric structures.
+    symmetries = haskey(state.scfres, :basis) ? state.scfres.basis.model.symmetries : true
+    model = model_DFT(system; symmetries, params.model_kwargs...)
+    basis = PlaneWaveBasis(model; params.basis_kwargs...)
+
+    ρ = @something state.scfres.ρ guess_density(basis, system)
+    scfres = self_consistent_field(basis; ρ, state.scfres.ψ, params.scf_kwargs...)
     calculator.state = DFTKState(scfres)
 end
 
