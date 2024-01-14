@@ -1,6 +1,4 @@
 # # [Problems and plane-wave discretisations](@id periodic-problems)
-#md # [![](https://mybinder.org/badge_logo.svg)](@__BINDER_ROOT_URL__/guide/@__NAME__.ipynb)
-#md # [![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)](@__NBVIEWER_ROOT_URL__/guide/@__NAME__.ipynb)
 
 # In this example we want to show how DFTK can be used to solve simple one-dimensional
 # periodic problems. Along the lines this notebook serves as a concise introduction into
