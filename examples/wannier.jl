@@ -119,7 +119,7 @@ function pz_guess(center)
     center1 = center + offset
     center2 = center - offset
     ## Build the custom projector
-    (basis, qs) -> DFTK.GaussianWannierProjection(center1)(basis, qs) - DFTK.GaussianWannierProjection(center2)(basis, qs)
+    (basis, ps) -> DFTK.GaussianWannierProjection(center1)(basis, ps) - DFTK.GaussianWannierProjection(center2)(basis, ps)
 end
 ## Feed to Wannier via the `projections` as before...
 

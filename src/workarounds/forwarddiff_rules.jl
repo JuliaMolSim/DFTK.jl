@@ -48,23 +48,23 @@ end
 for P in [:Plan, :ScaledPlan]  # need ScaledPlan to avoid ambiguities
     @eval begin
         Base.:*(p::AbstractFFTs.$P, x::AbstractArray{<:ForwardDiff.Dual}) =
-            _apply_plan(p, x)
+            apply_plan(p, x)
 
         Base.:*(p::AbstractFFTs.$P, x::AbstractArray{<:Complex{<:ForwardDiff.Dual}}) =
-            _apply_plan(p, x)
+            apply_plan(p, x)
 
         LinearAlgebra.mul!(Y::AbstractArray, p::AbstractFFTs.$P, X::AbstractArray{<:ForwardDiff.Dual}) =
-            (Y .= _apply_plan(p, X))
+            (Y .= apply_plan(p, X))
 
         LinearAlgebra.mul!(Y::AbstractArray, p::AbstractFFTs.$P, X::AbstractArray{<:Complex{<:ForwardDiff.Dual}}) =
-            (Y .= _apply_plan(p, X))
+            (Y .= apply_plan(p, X))
     end
 end
 
 LinearAlgebra.mul!(Y::AbstractArray{<:Complex{<:ForwardDiff.Dual}}, p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, X::AbstractArray{<:ComplexF64}) where {T,P} =
-    (Y .= _apply_plan(p, X))
+    (Y .= apply_plan(p, X))
 
-function _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where {T}
+function apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where {T}
     # TODO do we want x::AbstractArray{<:ForwardDiff.Dual{T}} too?
     xtil = p * ForwardDiff.value.(x)
     dxtils = ntuple(ForwardDiff.npartials(eltype(x))) do n
@@ -78,15 +78,15 @@ function _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardD
     end
 end
 
-function _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray) where {T,P}
-    _apply_plan(p.p, p.scale * x) # for when p.scale is Dual, need out-of-place
+function apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray) where {T,P}
+    apply_plan(p.p, p.scale * x) # for when p.scale is Dual, need out-of-place
 end
 
 # this is to avoid method ambiguities between these two:
-#   _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where {T}
-#   _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray) where {T,P}
-function _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{Tg}}}) where {T,P,Tg}
-    _apply_plan(p.p, p.scale * x)
+#   apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where {T}
+#   apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray) where {T,P}
+function apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{Tg}}}) where {T,P,Tg}
+    apply_plan(p.p, p.scale * x)
 end
 
 # Convert and strip off duals if that's the only way

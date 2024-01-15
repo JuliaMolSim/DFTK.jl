@@ -82,7 +82,7 @@ end
 Atomic local potential defined by `model.atoms`.
 """
 struct AtomicLocal end
-function compute_local_potential(S, basis::PlaneWaveBasis{T}; positions=basis.model.positions,
+function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model.positions,
                                  q=zero(Vec3{T})) where {T}
     # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
     # Since V is a sum of radial functions located at atomic
@@ -125,7 +125,7 @@ function compute_local_potential(S, basis::PlaneWaveBasis{T}; positions=basis.mo
     end
 end
 (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T} =
-    TermAtomicLocal(compute_local_potential(T, basis))
+    TermAtomicLocal(compute_local_potential(basis))
 
 function compute_forces(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occupation;
                         ρ, kwargs...) where {T}
@@ -148,11 +148,11 @@ end
         for idx in group
             r = model.positions[idx]
             forces[idx] = -real_ifSreal(sum(conj(ρ_fourier[iG])
-                                        * form_factors[iG]
-                                        * cis2pi(-dot(G + q, r))
-                                        * (-2T(π)) * (G + q) * im
-                                        / sqrt(model.unit_cell_volume)
-                                  for (iG, G) in enumerate(G_vectors(basis))))
+                                              * form_factors[iG]
+                                              * cis2pi(-dot(G + q, r))
+                                              * (-2T(π)) * (G + q) * im
+                                              / sqrt(model.unit_cell_volume)
+                                        for (iG, G) in enumerate(G_vectors(basis))))
         end
     end
     forces
@@ -160,27 +160,26 @@ end
 
 # Phonon: Perturbation of the local potential with respect to a displacement on the
 # direction α of the atom s.
-function compute_δV_sα(::TermAtomicLocal, basis::PlaneWaveBasis{T}, s, α; q=zero(Vec3{T}),
+function compute_δV_αs(::TermAtomicLocal, basis::PlaneWaveBasis{T}, α, s; q=zero(Vec3{T}),
                        positions=basis.model.positions) where {T}
     S = iszero(q) ? T : complex(T)
     displacement = zero.(positions)
     displacement[s] = setindex(displacement[s], one(T), α)
     ForwardDiff.derivative(zero(T)) do ε
         positions = ε*displacement .+ positions
-        compute_local_potential(S, basis; q, positions)
+        compute_local_potential(basis; q, positions)
     end
 end
 
 # Phonon: Second-order perturbation of the local potential with respect to a displacement on
 # the directions α and β of the atoms s and t.
-function compute_δ²V(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, β, t, α, s) where {T}
-    model = basis.model
-
-    displacement = zero.(model.positions)
+function compute_δ²V_βtαs(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, β, t, α, s) where {T}
+    positions = basis.model.positions
+    displacement = zero.(positions)
     displacement[t] = setindex(displacement[t], one(T), β)
     ForwardDiff.derivative(zero(T)) do ε
-        positions = ε*displacement .+ model.positions
-        compute_δV_sα(term, basis, s, α; positions)
+        positions = ε*displacement .+ positions
+        compute_δV_αs(term, basis, α, s; positions)
     end
 end
 
@@ -194,7 +193,7 @@ function compute_dynmat(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occ
 
     ∫δρδV = zeros(S, 3, n_atoms, 3, n_atoms)
     for s = 1:n_atoms, α = 1:n_dim
-        ∫δρδV[:, :, α, s] .-= reduce(hcat, forces_local(S, basis, δρs[α, s], q))
+        ∫δρδV[:, :, α, s] .-= stack(forces_local(S, basis, δρs[α, s], q))
     end
 
     ∫ρδ²V = zeros(S, 3, n_atoms, 3, n_atoms)
@@ -202,18 +201,17 @@ function compute_dynmat(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occ
     δ²V_fourier = similar(ρ_fourier)
     for s = 1:n_atoms, α = 1:n_dim
         for t = 1:n_atoms, β = 1:n_dim
-            fft!(δ²V_fourier, basis, compute_δ²V(term, basis, β, t, α, s))
+            fft!(δ²V_fourier, basis, compute_δ²V_βtαs(term, basis, β, t, α, s))
             ∫ρδ²V[β, t, α, s] = sum(conj(ρ_fourier) .* δ²V_fourier)
         end
     end
 
-
     ∫δρδV + ∫ρδ²V
 end
 
-function compute_δHψ_sα(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, q, s, α) where {T}
-    δV_sα = similar(ψ[1], basis.fft_size..., basis.model.n_spin_components)
+function compute_δHψ_αs(term::TermAtomicLocal, basis::PlaneWaveBasis, ψ, α, s, q)
+    δV_αs = similar(ψ[1], basis.fft_size..., basis.model.n_spin_components)
     # All spin components get the same potential.
-    δV_sα .= compute_δV_sα(term, basis, s, α; q)
-    multiply_ψ_by_blochwave(basis, ψ, δV_sα, q)
+    δV_αs .= compute_δV_αs(term, basis, α, s; q)
+    multiply_ψ_by_blochwave(basis, ψ, δV_αs, q)
 end

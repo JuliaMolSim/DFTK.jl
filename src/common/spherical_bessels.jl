@@ -2,8 +2,8 @@
     sphericalbesselj_fast(l::Integer, x::Number)
 
 Returns the spherical Bessel function of the first kind j_l(x). Consistent with
-https://en.wikipedia.org/wiki/Bessel_function#Spherical_Bessel_functions and with
-`SpecialFunctions.sphericalbesselj`. Specialized for integer `0 <= l <= 5`.
+[wikipedia](https://en.wikipedia.org/wiki/Bessel_function#Spherical_Bessel_functions) and
+with `SpecialFunctions.sphericalbesselj`. Specialized for integer `0 <= l <= 5`.
 """
 @fastmath function sphericalbesselj_fast(l::Integer, x::T)::T where {T}
     if l == 0

@@ -31,7 +31,7 @@ function reference_squared_frequencies(basis; kwargs...)
             # TODO: Would be cleaner with PR #675.
             basis_disp_bs = PlaneWaveBasis(model_disp; Ecut=5)
             forces = compute_forces(basis_disp_bs, nothing, nothing)
-            reduce(hcat, forces)
+            stack(forces)
         end
     end
     hessian_ad = DFTK.dynmat_red_to_cart(model, dynmat_ad)

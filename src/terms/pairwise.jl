@@ -156,7 +156,7 @@ function compute_dynmat(term::TermPairwisePotential, basis::PlaneWaveBasis{T}, Ï
             (; forces) = energy_forces_pairwise(model.lattice, symbols, model.positions,
                                                 term.V, term.params, q, ph_disp;
                                                 term.max_radius)
-            reduce(hcat, forces)
+            stack(forces)
         end
     end
     dynmat

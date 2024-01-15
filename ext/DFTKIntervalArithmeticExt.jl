@@ -49,11 +49,11 @@ function symmetry_operations(lattice::AbstractMatrix{<:Interval}, atoms, positio
                         tol_symmetry)
 end
 
-function local_potential_fourier(el::ElementCohenBergstresser, q::T) where {T <: Interval}
-    lor = round(q.lo, digits=5)
-    hir = round(q.hi, digits=5)
+function local_potential_fourier(el::ElementCohenBergstresser, p::T) where {T <: Interval}
+    lor = round(p.lo, digits=5)
+    hir = round(p.hi, digits=5)
     @assert iszero(round(lor - hir, digits=3))
-    T(local_potential_fourier(el, IntervalArithmetic.mid(q)))
+    T(local_potential_fourier(el, IntervalArithmetic.mid(p)))
 end
 
 function DFTK.estimate_integer_lattice_bounds(M::AbstractMatrix{<:Interval}, δ,

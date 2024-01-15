@@ -3,7 +3,7 @@ Construct a supercell of size `supercell_size` from a unit cell described by its
 `atoms` and their `positions`.
 """
 function create_supercell(lattice, atoms, positions, supercell_size)
-    lattice_supercell = reduce(hcat, supercell_size .* eachcol(lattice))
+    lattice_supercell = stack(supercell_size .* eachcol(lattice))
 
     # Compute atoms reduced coordinates in the supercell
     atoms_supercell = eltype(atoms)[]
@@ -13,7 +13,7 @@ function create_supercell(lattice, atoms, positions, supercell_size)
     for (atom, position) in zip(atoms, positions)
         append!(positions_supercell, [(position .+ [i;j;k]) ./ [nx, ny, nz]
                                       for i = 0:nx-1, j = 0:ny-1, k = 0:nz-1])
-        append!(atoms_supercell, vcat([atom for _ = 1:nx*ny*nz]...))
+        append!(atoms_supercell, reduce(vcat, [atom for _ = 1:nx*ny*nz]))
     end
 
     (; lattice=lattice_supercell, atoms=atoms_supercell, positions=positions_supercell)
@@ -89,7 +89,7 @@ function cell_to_supercell(ψ, basis::PlaneWaveBasis{T},
         push!(ψ_out_blocs, ψk_supercell)
     end
     # Note that each column is normalize since each ψ[ik][:,n] is.
-    hcat(ψ_out_blocs...)
+    reduce(hcat, ψ_out_blocs)
 end
 
 @doc raw"""
@@ -111,7 +111,7 @@ function cell_to_supercell(scfres::NamedTuple)
     # Compute supercell basis, ψ, occupations and ρ
     basis_supercell = cell_to_supercell(basis)
     ψ_supercell     = [cell_to_supercell(ψ, basis, basis_supercell)]
-    eigs_supercell  = [vcat(scfres_unfold.eigenvalues...)]
+    eigs_supercell  = [reduce(vcat, scfres_unfold.eigenvalues)]
     occ_supercell   = compute_occupation(basis_supercell, eigs_supercell, scfres.εF).occupation
     ρ_supercell     = compute_density(basis_supercell, ψ_supercell, occ_supercell;
                                       scfres.occupation_threshold)

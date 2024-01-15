@@ -47,7 +47,7 @@ function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
         return xₙ .+ αₙ .* Pfxₙ
     end
 
-    M = hcat(Pfxs...) .- vec(Pfxₙ)  # Mᵢⱼ = (Pfxⱼ)ᵢ - (Pfxₙ)ᵢ
+    M = stack(Pfxs) .- vec(Pfxₙ)  # Mᵢⱼ = (Pfxⱼ)ᵢ - (Pfxₙ)ᵢ
     # We need to solve 0 = M' Pfxₙ + M'M βs <=> βs = - (M'M)⁻¹ M' Pfxₙ
 
     # Ensure the condition number of M stays below maxcond, else prune the history

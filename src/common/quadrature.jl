@@ -34,11 +34,11 @@ simpson
     n == length(y) || error("vectors `x` and `y` must have the same number of elements")
     n == 1 && return zero(promote_type(eltype(x), eltype(y)))
     n <= 4 && return trapezoidal(x, y)
-    (x[2] - x[1]) ≈ (x[3] - x[2]) && return _simpson_uniform(x, y)
-    return _simpson_nonuniform(x, y)
+    (x[2] - x[1]) ≈ (x[3] - x[2]) && return simpson_uniform(x, y)
+    return simpson_nonuniform(x, y)
 end
 
-@inbounds function _simpson_uniform(x::AbstractVector, y::AbstractVector)
+@inbounds function simpson_uniform(x::AbstractVector, y::AbstractVector)
     dx = x[2] - x[1]
     n = length(x)
     n_intervals = n - 1
@@ -62,7 +62,7 @@ end
     return I
 end
 
-@inbounds function _simpson_nonuniform(x::AbstractVector, y::AbstractVector)
+@inbounds function simpson_nonuniform(x::AbstractVector, y::AbstractVector)
     n = length(x)
     n_intervals = n - 1
 

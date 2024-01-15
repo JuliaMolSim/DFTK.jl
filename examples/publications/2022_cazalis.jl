@@ -25,12 +25,12 @@ end
 
 ## define electron-nuclei interaction
 struct Element2DCoulomb <: DFTK.Element end
-function DFTK.local_potential_fourier(el::Element2DCoulomb, q::Real)
-    ## = ∫ V(r) exp(-ix⋅q) dx
-    if q == 0
-        zero(q)
+function DFTK.local_potential_fourier(el::Element2DCoulomb, p::Real)
+    ## = ∫ V(r) exp(-ix⋅p) dx
+    if p == 0
+        zero(p)
     else
-        -2π/q
+        -2π/p
     end
 end
 

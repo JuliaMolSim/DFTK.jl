@@ -76,7 +76,7 @@ function Base.size(A::LazyHcat)
     (n, m)
 end
 
-Base.Array(A::LazyHcat)  = reduce(hcat, A.blocks)
+Base.Array(A::LazyHcat) = stack(A.blocks)
 
 Base.adjoint(A::LazyHcat) = Adjoint(A)
 

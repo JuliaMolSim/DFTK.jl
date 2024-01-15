@@ -10,21 +10,21 @@ struct GaussianWannierProjection
     center::AbstractVector
 end
 
-function (proj::GaussianWannierProjection)(basis::PlaneWaveBasis, qs)
+function (proj::GaussianWannierProjection)(basis::PlaneWaveBasis, ps)
     # associate a center with the fourier transform of the corresponding gaussian
     # TODO: what is the normalization here?
 
     model = basis.model
-    map(qs) do q
-        q_cart = recip_vector_red_to_cart(model, q)
-        exp( 2π*(-im*dot(q, proj.center) - dot(q_cart, q_cart) / 4) )
+    map(ps) do p
+        p_cart = recip_vector_red_to_cart(model, p)
+        exp( 2π*(-im*dot(p, proj.center) - dot(p_cart, p_cart) / 4) )
     end
 end
 
 @doc raw"""
 A hydrogenic initial guess.
 
-`α` is the diffusivity, ``\frac{Z}/{a}`` where ``Z`` is the atomic number and
+`α` is the diffusivity, ``\frac{Z}{a}`` where ``Z`` is the atomic number and
     ``a`` is the Bohr radius.
 """
 struct HydrogenicWannierProjection
@@ -35,7 +35,7 @@ struct HydrogenicWannierProjection
     α::Real
 end
 
-function (proj::HydrogenicWannierProjection)(basis::PlaneWaveBasis, qs)
+function (proj::HydrogenicWannierProjection)(basis::PlaneWaveBasis, ps)
     # TODO: Performance can probably be improved a lot here.
     # TODO: Some of this logic could be used for the pswfc from the UPF PSPs.
 
@@ -52,19 +52,19 @@ function (proj::HydrogenicWannierProjection)(basis::PlaneWaveBasis, qs)
     r2_R_dr = r.^2 .* R .* dr
 
     model = basis.model
-    map(qs) do q
-        q_cart = recip_vector_red_to_cart(model, q)
-        qnorm = norm(q_cart)
+    map(ps) do p
+        p_cart = recip_vector_red_to_cart(model, p)
+        pnorm = norm(p_cart)
 
         radial_part = 0.0
         for (ir, rval) in enumerate(r)
-            @inbounds radial_part += r2_R_dr[ir] * sphericalbesselj_fast(proj.l, qnorm * rval)
+            @inbounds radial_part += r2_R_dr[ir] * sphericalbesselj_fast(proj.l, pnorm * rval)
         end
 
-        # both q and proj.center in reduced coordinates
-        center_offset = exp(-im*2π*dot(q, proj.center))
+        # both p and proj.center in reduced coordinates
+        center_offset = exp(-im*2π*dot(p, proj.center))
         # without the 4π normalization because the matrix will be orthonormalized anyway
-        angular_part = ylm_real(proj.l, proj.m, q_cart) * (-im)^proj.l
+        angular_part = ylm_real(proj.l, proj.m, p_cart) * (-im)^proj.l
 
         center_offset * angular_part * radial_part
     end
@@ -167,8 +167,8 @@ function read_w90_nnkp(fileprefix::String)
         # Meaning of the entries:
         # 1st: Index of k-point
         # 2nd: Index of periodic image of k+b k-point
-        # 3rd: Shift vector to get k-point of ikpb to the actual k+b point required
-        (; ik=splitted[1], ikpb=splitted[2], G_shift=splitted[3:5])
+        # 3rd: Shift vector to get k-point of ik_plus_b to the actual k+b point required
+        (; ik=splitted[1], ik_plus_b=splitted[2], G_shift=splitted[3:5])
     end
     (; nntot, nnkpts)
 end
@@ -209,23 +209,23 @@ end
 
 @doc raw"""
 Computes the matrix ``[M^{k,b}]_{m,n} = \langle u_{m,k} | u_{n,k+b} \rangle``
-for given `k`, `kpb` = ``k+b``.
+for given `k`.
 
 `G_shift` is the "shifting" vector, correction due to the periodicity conditions
 imposed on ``k \to  ψ_k``.
-It is non zero if `kpb` is taken in another unit cell of the reciprocal lattice.
+It is non zero if `k_plus_b` is taken in another unit cell of the reciprocal lattice.
 We use here that:
 ``u_{n(k + G_{\rm shift})}(r) = e^{-i*\langle G_{\rm shift},r \rangle} u_{nk}``.
 """
-@views function overlap_Mmn_k_kpb(basis::PlaneWaveBasis, ψ, ik, ikpb, G_shift, n_bands)
-    # Search for common Fourier modes and their resp. indices in Bloch states k and kpb
+@views function overlap_Mmn_k_kpb(basis::PlaneWaveBasis, ψ, ik, ik_plus_b, G_shift, n_bands)
+    # Search for common Fourier modes and their resp. indices in Bloch states k and k+b
     # TODO Check if this can be improved using the G vector mapping in the kpoints
-    k   = basis.kpoints[ik]
-    kpb = basis.kpoints[ikpb]
-    equivalent_G_vectors = [(iGk, index_G_vectors(basis, kpb, Gk + G_shift))
-                            for (iGk, Gk) in enumerate(G_vectors(basis, k))]
-    iGk   = [eqG[1] for eqG in equivalent_G_vectors if !isnothing(eqG[2])]
-    iGkpb = [eqG[2] for eqG in equivalent_G_vectors if !isnothing(eqG[2])]
+    k        = basis.kpoints[ik]
+    k_plus_b = basis.kpoints[ik_plus_b]
+    equivalent_G_vectors = [(ip, index_G_vectors(basis, k_plus_b, p + G_shift))
+                            for (ip, p) in enumerate(G_vectors(basis, k))]
+    ip        = [eqG[1] for eqG in equivalent_G_vectors if !isnothing(eqG[2])]
+    ip_plus_b = [eqG[2] for eqG in equivalent_G_vectors if !isnothing(eqG[2])]
 
     # Compute overlaps
     # TODO This should be improved ...
@@ -233,7 +233,7 @@ We use here that:
     for n = 1:n_bands
         for m = 1:n_bands
             # Select the coefficient in right order
-            Mkb[m, n] = dot(ψ[ik][iGk, m], ψ[ikpb][iGkpb, n])
+            Mkb[m, n] = dot(ψ[ik][ip, m], ψ[ik_plus_b][ip_plus_b, n])
         end
     end
     iszero(Mkb) && return Matrix(I, n_bands, n_bands)
@@ -244,9 +244,9 @@ end
     open(fileprefix * ".mmn", "w") do fp
         println(fp, "Generated by DFTK at $(now())")
         println(fp, "$n_bands  $(length(ψ))  $(nnkp.nntot)")
-        for (ik, ikpb, G_shift) in nnkp.nnkpts
-            @printf fp "%i  %i  %i  %i  %i \n" ik ikpb G_shift...
-            for ovlp in overlap_Mmn_k_kpb(basis, ψ, ik, ikpb, G_shift, n_bands)
+        for (ik, ik_plus_b, G_shift) in nnkp.nnkpts
+            @printf fp "%i  %i  %i  %i  %i \n" ik ik_plus_b G_shift...
+            for ovlp in overlap_Mmn_k_kpb(basis, ψ, ik, ik_plus_b, G_shift, n_bands)
                 @printf fp "%22.18f %22.18f \n" real(ovlp) imag(ovlp)
             end
         end
@@ -272,20 +272,20 @@ Given an orbital ``g_n``, the periodized orbital is defined by :
 The Fourier coefficient of ``g^{per}_n`` at any G
 is given by the value of the Fourier transform of ``g_n`` in G.
 
-Each projection is a callable object that accepts the basis and some qpoints as an argument,
-and returns the Fourier transform of ``g_n`` at the qpoints.
+Each projection is a callable object that accepts the basis and some p-points as an argument,
+and returns the Fourier transform of ``g_n`` at the p-points.
 """
 function compute_amn_kpoint(basis::PlaneWaveBasis, kpt, ψk, projections, n_bands)
     n_wannier = length(projections)
     # TODO This function should be improved in performance
 
-    qs = vec(map(G -> G .+ kpt.coordinate, G_vectors(basis)))  # all q = k+G in reduced coordinates
+    ps = vec(map(G -> G .+ kpt.coordinate, G_vectors(basis)))  # all p = k+G in reduced coordinates
     Ak = zeros(eltype(ψk), (n_bands, n_wannier))
 
     # Compute Ak
     for n = 1:n_wannier
         proj = projections[n]
-        gn_per = proj(basis, qs[kpt.mapping])
+        gn_per = proj(basis, ps[kpt.mapping])
         # Fourier coeffs of gn_per for k+G in common with ψk
         # Functions are l^2 normalized in Fourier, in DFTK conventions.
         coeffs_gn_per = gn_per ./ norm(gn_per)

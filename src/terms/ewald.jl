@@ -245,7 +245,7 @@ function compute_dynmat(ewald::TermEwald, basis::PlaneWaveBasis{T}, ψ, occupati
             ph_disp = ε .* displacement
             forces = energy_forces_ewald(model.lattice, charges, model.positions, q,
                                          ph_disp; ewald.η).forces
-            reduce(hcat, forces)
+            stack(forces)
         end
 
         dynmat[:, :, α, s] = real_part

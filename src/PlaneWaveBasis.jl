@@ -98,7 +98,7 @@ struct PlaneWaveBasis{T,
     #            # processor in the global kcoords array. To allow for contiguous array
     #            # indexing, this is given as a unit range for spin-up and spin-down
     krange_allprocs::Vector{Vector{UnitRange{Int}}}  # Same as above, but one entry per rank
-    krange_thisproc_allspin::Vector{Int}  # Indexing version == vcat(krange_thisproc...)
+    krange_thisproc_allspin::Vector{Int}  # Indexing version == reduce(vcat, krange_thisproc)
 
     ## Information on the hardware and device used for computations.
     architecture::Arch
@@ -289,7 +289,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
         krange_allprocs = [[range, n_kpt .+ range] for range in krange_allprocs1]
     end
     krange_thisproc = krange_allprocs[1 + MPI.Comm_rank(comm_kpts)]
-    krange_thisproc_allspin = vcat(krange_thisproc...)
+    krange_thisproc_allspin = reduce(vcat, krange_thisproc)
 
     @assert mpi_sum(sum(kweights), comm_kpts) ≈ model.n_spin_components
     @assert length(kpoints) == length(kweights)

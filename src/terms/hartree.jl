@@ -1,15 +1,15 @@
 """
 Hartree term: for a decaying potential V the energy would be
-
-1/2 ∫ρ(x)ρ(y)V(x-y) dxdy
-
+```math
+1/2 ∫ρ(x)ρ(y)V(x-y) dxdy,
+```
 with the integral on x in the unit cell and of y in the whole space.
 For the Coulomb potential with periodic boundary conditions, this is rather
-
-1/2 ∫ρ(x)ρ(y) G(x-y) dx dy
-
+```math
+1/2 ∫ρ(x)ρ(y) G(x-y) dx dy,
+```
 where G is the Green's function of the periodic Laplacian with zero
-mean (-Δ G = sum_{R} 4π δ_R, integral of G zero on a unit cell).
+mean (``-Δ G = ∑_R 4π δ_R``, integral of G zero on a unit cell).
 """
 struct Hartree
     scaling_factor::Real  # to scale by an arbitrary factor (useful for exploration)

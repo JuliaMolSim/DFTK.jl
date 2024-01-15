@@ -106,7 +106,7 @@ number using the `space_group_number` keyword argument.
 function irrfbz_path(model::Model, magnetic_moments=[]; dim::Integer=model.n_dim,
                      space_group_number::Int=0)
     @assert dim ≤ model.n_dim
-    for i in dim:3, j in dim:3
+    for i = dim:3, j = dim:3
         if i != j && !iszero(model.lattice[i, j])
             error("Reducing the dimension for band structure plotting only allowed " *
                   "if the dropped dimensions are orthogonal to the remaining ones.")

@@ -82,8 +82,8 @@ end
     @test n_elec_core(element) == 10
 
     @test local_potential_fourier(element, 0.0) == 0.0
-    q3 = sqrt(3) * 2π / element.lattice_constant
-    @test local_potential_fourier(element, q3) == -14.180625963358901
+    p3 = sqrt(3) * 2π / element.lattice_constant
+    @test local_potential_fourier(element, p3) == -14.180625963358901
 end
 
 @testitem "Check constructing ElementGaussian" begin

@@ -34,13 +34,13 @@ has_core_density(::Element) = false
 # The preceeding functions are fallback implementations that should be altered as needed.
 
 # Fall back to the Gaussian table for Elements without pseudopotentials
-function valence_charge_density_fourier(el::Element, q::T)::T where {T <: Real}
-    gaussian_valence_charge_density_fourier(el, q)
+function valence_charge_density_fourier(el::Element, p::T)::T where {T <: Real}
+    gaussian_valence_charge_density_fourier(el, p)
 end
 
 """Gaussian valence charge density using Abinit's coefficient table, in Fourier space."""
-function gaussian_valence_charge_density_fourier(el::Element, q::T)::T where {T <: Real}
-    charge_ionic(el) * exp(-(q * atom_decay_length(el))^2)
+function gaussian_valence_charge_density_fourier(el::Element, p::T)::T where {T <: Real}
+    charge_ionic(el) * exp(-(p * atom_decay_length(el))^2)
 end
 
 function core_charge_density_fourier(::Element, ::T)::T where {T <: Real}
@@ -71,11 +71,11 @@ function ElementCoulomb(key; mass=element(key).atomic_mass)
     ElementCoulomb(periodic_table[key].number, Symbol(periodic_table[key].symbol), mass)
 end
 
-function local_potential_fourier(el::ElementCoulomb, q::T) where {T <: Real}
-    q == 0 && return zero(T)  # Compensating charge background
+function local_potential_fourier(el::ElementCoulomb, p::T) where {T <: Real}
+    p == 0 && return zero(T)  # Compensating charge background
     # General atom => Use default Coulomb potential
-    # We use int_{R^3} -Z/r e^{-i q⋅x} = -4π Z / |q|^2
-    return -4T(π) * el.Z / q^2
+    # We use int_{R^3} -Z/r e^{-i p⋅x} = -4π Z / |p|^2
+    return -4T(π) * el.Z / p^2
 end
 
 local_potential_real(el::ElementCoulomb, r::Real) = -el.Z / r
@@ -111,25 +111,25 @@ has_core_density(el::ElementPsp) = has_core_density(el.psp)
 AtomsBase.atomic_symbol(el::ElementPsp) = el.symbol
 AtomsBase.atomic_mass(el::ElementPsp) = el.mass
 
-function local_potential_fourier(el::ElementPsp, q::T) where {T <: Real}
-    q == 0 && return zero(T)  # Compensating charge background
-    eval_psp_local_fourier(el.psp, q)
+function local_potential_fourier(el::ElementPsp, p::T) where {T <: Real}
+    p == 0 && return zero(T)  # Compensating charge background
+    eval_psp_local_fourier(el.psp, p)
 end
 
 function local_potential_real(el::ElementPsp, r::Real)
     return eval_psp_local_real(el.psp, r)
 end
 
-function valence_charge_density_fourier(el::ElementPsp, q::T) where {T <: Real}
+function valence_charge_density_fourier(el::ElementPsp, p::T) where {T <: Real}
     if has_valence_density(el.psp)
-        eval_psp_density_valence_fourier(el.psp, q)
+        eval_psp_density_valence_fourier(el.psp, p)
     else
-        gaussian_valence_charge_density_fourier(el, q)
+        gaussian_valence_charge_density_fourier(el, p)
     end
 end
 
-function core_charge_density_fourier(el::ElementPsp, q::T) where {T <: Real}
-    eval_psp_density_core_fourier(el.psp, q)
+function core_charge_density_fourier(el::ElementPsp, p::T) where {T <: Real}
+    eval_psp_density_core_fourier(el.psp, p)
 end
 
 struct ElementCohenBergstresser <: Element
@@ -191,12 +191,12 @@ function ElementCohenBergstresser(key; lattice_constant=nothing)
                              V_sym, lattice_constant)
 end
 
-function local_potential_fourier(el::ElementCohenBergstresser, q::T) where {T <: Real}
-    q == 0 && return zero(T)  # Compensating charge background
+function local_potential_fourier(el::ElementCohenBergstresser, p::T) where {T <: Real}
+    p == 0 && return zero(T)  # Compensating charge background
 
-    # Get |q|^2 in units of (2π / lattice_constant)^2
-    qsq_pi = Int(round(q^2 / (2π / el.lattice_constant)^2, digits=2))
-    T(get(el.V_sym, qsq_pi, 0.0))
+    # Get |p|^2 in units of (2π / lattice_constant)^2
+    psq_pi = Int(round(p^2 / (2π / el.lattice_constant)^2, digits=2))
+    T(get(el.V_sym, psq_pi, 0.0))
 end
 
 
@@ -219,6 +219,6 @@ end
 function local_potential_real(el::ElementGaussian, r)
     -el.α / (√(2π) * el.L) * exp(- (r / el.L)^2 / 2)
 end
-function local_potential_fourier(el::ElementGaussian, q::Real)
-    -el.α * exp(- (q * el.L)^2 / 2)  # = ∫_ℝ³ V(x) exp(-ix⋅q) dx
+function local_potential_fourier(el::ElementGaussian, p::Real)
+    -el.α * exp(- (p * el.L)^2 / 2)  # = ∫_ℝ³ V(x) exp(-ix⋅p) dx
 end

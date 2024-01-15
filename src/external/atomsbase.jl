@@ -7,7 +7,7 @@ function parse_system(system::AbstractSystem{D}) where {D}
     end
 
     # Parse abstract system and return data required to construct model
-    mtx = austrip.(reduce(hcat, bounding_box(system)))
+    mtx = austrip.(stack(bounding_box(system)))
     T = eltype(mtx)
     lattice = zeros(T, 3, 3)
     lattice[1:D, 1:D] .= mtx
