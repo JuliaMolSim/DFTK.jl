@@ -193,9 +193,11 @@ include("pseudo/attach_psp.jl")
 
 export atomic_system, periodic_system  # Reexport from AtomsBase
 export run_wannier90
+export DFTKCalculator
 include("external/atomsbase.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
 include("external/wannier_shared.jl")
+include("external/atoms_calculators.jl")
 
 export compute_bands
 export plot_bandstructure

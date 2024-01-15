@@ -1,6 +1,4 @@
 # # Tutorial
-#md # [![](https://mybinder.org/badge_logo.svg)](@__BINDER_ROOT_URL__/guide/@__NAME__.ipynb)
-#md # [![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)](@__NBVIEWER_ROOT_URL__/guide/@__NAME__.ipynb)
 
 #nb # DFTK is a Julia package for playing with plane-wave
 #nb # density-functional theory algorithms. In its basic formulation it

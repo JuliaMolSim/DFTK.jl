@@ -54,6 +54,7 @@ PAGES = [
         # reliability of calculations.
         "tricks/parallelization.md",
         "tricks/scf_checkpoints.jl",
+        "tricks/compute_clusters.md",
     ],
     "Solvers" => [
         "examples/custom_solvers.jl",
@@ -91,7 +92,7 @@ EXAMPLE_ASSETS = ["examples/Fe_afm.pwi", "examples/Si.extxyz"]
 #
 # Configuration and setup
 #
-DEBUG = false  # set to `true` to disable some checks and cleanup
+DEBUG = false  # Set to true to disable some checks and cleanup
 
 import LibGit2
 import Pkg
@@ -159,51 +160,64 @@ literate_files = map(filter!(endswith(".jl"), extract_paths(PAGES))) do file
     end
 end
 
-# Function to insert badges to examples
-function add_badges(str)
-    badges = [
-        "[![](https://mybinder.org/badge_logo.svg)](@__BINDER_ROOT_URL__/examples/@__NAME__.ipynb)",
-        "[![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)](@__NBVIEWER_ROOT_URL__/examples/@__NAME__.ipynb)",
-    ]
-
-    # Find the Header and insert the badges right below
-    splitted = split(str, "\n")
-    idx = findfirst(startswith.(splitted, "# # "))
-    idx === nothing && error("Example files must start with # #")
-    insert!(splitted, idx + 1, "#md # " * badges[1])
-    insert!(splitted, idx + 2, "#md # " * badges[2])
-    insert!(splitted, idx + 3, "#md #")
-    join(splitted, "\n")
+# Function to insert badges to markdown files
+function add_badges(badges)
+    function preprocess(str)
+        # Find the Header and insert the badges right below
+        splitted = split(str, "\n")
+        idx = findfirst(startswith.(splitted, "# # "))
+        isnothing(idx) && error("Literate files must start with # #")
+        for (i, bad) in enumerate(badges)
+            insert!(splitted, idx + i, "#md # " * bad)
+        end
+        insert!(splitted, idx + length(badges) + 1, "#md #")
+        join(splitted, "\n")
+    end
 end
 
 # Run Literate on them all
 for file in literate_files
-    preprocess = file.example ? add_badges : identity
+    subfolder = relpath(file.dest, SRCPATH)
+    if CONTINUOUS_INTEGRATION
+        badges = [
+            "[![](https://mybinder.org/badge_logo.svg)]" *
+                "(@__BINDER_ROOT_URL__/$subfolder/@__NAME__.ipynb)",
+            "[![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)]" * 
+                "(@__NBVIEWER_ROOT_URL__/$subfolder/@__NAME__.ipynb)",
+        ]
+    else
+        badges = ["Binder links to `/$subfolder/@__NAME__.ipynb`"]
+    end
     Literate.markdown(file.src, file.dest;
                       flavor=Literate.DocumenterFlavor(),
-                      credit=false, preprocess)
+                      credit=false, preprocess=add_badges(badges))
     Literate.notebook(file.src, file.dest; credit=false,
                       execute=CONTINUOUS_INTEGRATION || DEBUG)
 end
 
 # Generate the docs in BUILDPATH
 remote_args = CONTINUOUS_INTEGRATION ? (; ) : (; remotes=nothing)
+mathengine  = Documenter.MathJax3(Dict(
+    :tex => Dict(
+        :macros => Dict(
+            :abs    => [raw"\left\|#1\right\|",     1],
+            :ket    => [raw"\left|#1\right\rangle", 1],
+            :bra    => [raw"\left\langle#1\right|", 1],
+            :braket => [raw"\left\langle#1\middle|#2\right\rangle", 2],
+        ),
+    ),
+))
+
 makedocs(;
     modules=[DFTK],
-    format=Documenter.HTML(
+    format=Documenter.HTML(;
         # Use clean URLs, unless built as a "local" build
-        prettyurls = CONTINUOUS_INTEGRATION,
-        canonical = "https://docs.dftk.org/stable/",
-        edit_link = "master",
-        assets = ["assets/favicon.ico"],
-        mathengine = Documenter.MathJax(Dict(:TeX => Dict(
-            :Macros => Dict(
-                :ket    => [raw"\left|#1\right\rangle", 1],
-                :bra    => [raw"\left\langle#1\right|", 1],
-                :braket => [raw"\left\langle#1\middle|#2\right\rangle", 2],
-            ),
-        ))),
+        prettyurls=CONTINUOUS_INTEGRATION,
+        canonical="https://docs.dftk.org/stable/",
+        edit_link="master",
+        assets=["assets/favicon.ico"],
         size_threshold=nothing,  # do not fail build if large HTML outputs
+        mathengine,
     ),
     sitename = "DFTK.jl",
     authors = "Michael F. Herbst, Antoine Levitt and contributors.",

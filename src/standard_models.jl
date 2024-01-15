@@ -43,7 +43,13 @@ function model_DFT(lattice::AbstractMatrix,
                    kwargs...)
     model_DFT(lattice, atoms, positions, Xc(functionals); kwargs...)
 end
-
+function model_DFT(lattice::AbstractMatrix,
+                   atoms::Vector{<:Element},
+                   positions::Vector{<:AbstractVector};
+                   functionals::AbstractVector,
+                   kwargs...)
+    model_DFT(lattice, atoms, positions, functionals; kwargs...)
+end
 
 """
 Build an LDA model (Perdew & Wang parametrization) from the specified atoms.
