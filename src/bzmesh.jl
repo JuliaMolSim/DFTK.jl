@@ -57,8 +57,8 @@ function irreducible_kcoords(kgrid::MonkhorstPack, symmetries::AbstractVector{<:
         ks == 1//2
     end
     rotations = [symop.W for symop in symmetries]
-    ppoints = [Vec3(0, 0, 0)]
-    spg_mesh = Spglib.get_stabilized_reciprocal_mesh(rotations, kgrid.kgrid_size, ppoints;
+    qpoints = [Vec3(0, 0, 0)]
+    spg_mesh = Spglib.get_stabilized_reciprocal_mesh(rotations, kgrid.kgrid_size, qpoints;
                                                      is_shift, is_time_reversal=false)
     kirreds = map(Spglib.eachpoint(spg_mesh)) do kcoord
         normalize_kpoint_coordinate(Vec3(kcoord))

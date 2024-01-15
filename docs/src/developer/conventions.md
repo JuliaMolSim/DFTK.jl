@@ -10,7 +10,8 @@ to simplify typing them.
 
 - **Reciprocal-space vectors:** ``k`` for vectors in the Brillouin zone,
   ``G`` for vectors of the reciprocal lattice,
-  ``q`` for phonon vectors,
+  ``q`` for phonon vectors (i.e., vectors in the Brillouin zone characteristic of the
+  crystal normal modes),
   ``p`` for general vectors.
 - **Real-space vectors:** ``R`` for lattice vectors,
   ``r`` and ``x`` are usually used for unit for vectors in the unit cell
@@ -117,17 +118,3 @@ normalized as ``\frac{|\Omega|}{N} \sum_{r} |\psi(r)|^{2} = 1`` where
 and in reciprocal space its coefficients are ``\ell^{2}``-normalized,
 see the discussion in section [`PlaneWaveBasis` and plane-wave discretisations](@ref)
 where this is demonstrated.
-
-## Coding and formatting conventions
-The following conventions are not strictly enforced in DFTK. The rule of thumb is
-readability over consistency.
-
-- line lengths should be 92 characters.
-- avoid shortening variable names only for its own sake.
-- named tuples should be explicit, i.e., `(; var=val)` over `(var=val)`.
-- empty callbacks should use `identity`.
-- use `=` to loop over a range but `in` to loop over elements.
-- always format the `where` keyword with explicit braces: `where {T <: Any}`.
-- do not use implicit arguments in functions but explicit keyword.
-- prefix function name by `_` if it is an internal helper function, which is not of general
-  use and should thus be kept close to the vicinity of the calling function.
