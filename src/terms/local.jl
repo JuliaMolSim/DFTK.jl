@@ -174,11 +174,10 @@ end
 # Phonon: Second-order perturbation of the local potential with respect to a displacement on
 # the directions α and β of the atoms s and t.
 function compute_δ²V_βtαs(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, β, t, α, s) where {T}
-    positions = basis.model.positions
-    displacement = zero.(positions)
+    displacement = zero.(basis.model.positions)
     displacement[t] = setindex(displacement[t], one(T), β)
     ForwardDiff.derivative(zero(T)) do ε
-        positions = ε*displacement .+ positions
+        positions = ε*displacement .+ basis.model.positions
         compute_δV_αs(term, basis, α, s; positions)
     end
 end

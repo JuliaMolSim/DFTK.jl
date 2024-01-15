@@ -223,3 +223,22 @@ function multiply_ψ_by_blochwave(basis::PlaneWaveBasis, ψ, f_real, q)
     end
     fψ
 end
+
+@doc raw"""
+    multiply_ψ_by_blochwave(basis::PlaneWaveBasis, ψ, f_fourier, q)
+
+Return the Fourier coefficients for the Bloch waves ``f^{\rm fourier}_{q} ψ_{k-q}`` in an
+element of `basis.kpoints` equivalent to ``k-q``.
+"""
+function multiply_ψ_by_blochwave_operator(apply, basis::PlaneWaveBasis, ψ, q)
+    ordering(kdata) = kdata[k_to_equivalent_kpq_permutation(basis, -q)]
+
+    fψ = zero.(ψ)
+    for (ik, kpt) in enumerate(basis.kpoints)
+        # First, express ψ_{[k-q]} in the basis of k-q points…
+        _, ψk_minus_q = kpq_equivalent_blochwave_to_kpq(basis, kpt, -q, ordering(ψ)[ik])
+        # … then perform the multiplication with f in Fourier space.
+        fψ[ik] .= apply(ik, ψk_minus_q)
+    end
+    fψ
+end
