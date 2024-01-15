@@ -10,7 +10,7 @@
 
     # Run default solver without guess
     ρ0 = zeros(basis.fft_size..., 1)
-    ρ_def = self_consistent_field(basis; ρ=ρ0, tol).ρ
+    ρ_def = self_consistent_field(basis; ρ=ρ0, tol=tol/10).ρ
 
     # Run DM
     if mpi_nprocs() == 1  # Distributed implementation not yet available
