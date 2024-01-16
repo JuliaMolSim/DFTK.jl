@@ -362,10 +362,15 @@ end
 
 
 function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArray{Tδρ};
-                      ρ, kwargs...) where {T, Tδρ}
+                      ρ, q=zero(Vec3{T}), kwargs...) where {T, Tδρ}
     n_spin = basis.model.n_spin_components
     isempty(term.functionals) && return nothing
     @assert all(family(xc) in (:lda, :gga) for xc in term.functionals)
+
+    if !iszero(q) && !isnothing(term.ρcore)
+        error("Phonon computations are not supported for models using nonlinear core \
+              correction.")
+    end
 
     # Take derivatives of the density and the perturbation if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
