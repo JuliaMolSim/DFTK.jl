@@ -63,25 +63,19 @@ in reduced coordinates.
 @timing function compute_dynmat(basis::PlaneWaveBasis{T}, ψ, occupation; q=zero(Vec3{T}),
                                 ρ=nothing, ham=nothing, εF=nothing, eigenvalues=nothing,
                                 kwargs...) where {T}
-    model = basis.model
-    positions = model.positions
-    n_atoms = length(positions)
-    n_dim = model.n_dim
-
+    n_atoms = length(basis.model.positions)
     δρs = [zeros(complex(T), basis.fft_size..., basis.model.n_spin_components)
            for _ = 1:3, _ = 1:n_atoms]
     δoccupations = [zero.(occupation) for _ = 1:3, _ = 1:n_atoms]
     δψs = [zero.(ψ) for _ = 1:3, _ = 1:n_atoms]
-    if !isempty(ψ)
-        for s = 1:n_atoms, α = 1:n_dim
-            δHψs_αs = compute_δHψ_αs(basis, ψ, α, s, q)
-            (; δψ, δρ, δoccupation) = solve_ΩplusK_split(ham, ρ, ψ, occupation, εF,
-                                                         eigenvalues, -δHψs_αs; q,
-                                                         kwargs...)
-            δoccupations[α, s] = δoccupation
-            δρs[α, s] = δρ
-            δψs[α, s] = δψ
-        end
+    for s = 1:n_atoms, α = 1:basis.model.n_dim
+        δHψs_αs = compute_δHψ_αs(basis, ψ, α, s, q)
+        isnothing(δHψs_αs) && continue
+        (; δψ, δρ, δoccupation) = solve_ΩplusK_split(ham, ρ, ψ, occupation, εF, eigenvalues,
+                                                     -δHψs_αs; q, kwargs...)
+        δoccupations[α, s] = δoccupation
+        δρs[α, s] = δρ
+        δψs[α, s] = δψ
     end
 
     dynmats_per_term = [compute_dynmat(term, basis, ψ, occupation; ρ, δψs, δρs,
@@ -116,5 +110,7 @@ potential produced by a displacement of the atom s in the direction α.
 """
 @timing function compute_δHψ_αs(basis::PlaneWaveBasis, ψ, α, s, q)
     δHψ_per_term = [compute_δHψ_αs(term, basis, ψ, α, s, q) for term in basis.terms]
-    sum(filter(!isnothing, δHψ_per_term))
+    filter!(!isnothing, δHψ_per_term)
+    isempty(δHψ_per_term) && return nothing
+    sum(δHψ_per_term)
 end
