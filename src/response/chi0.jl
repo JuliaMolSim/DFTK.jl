@@ -110,6 +110,7 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
                             callback=identity, cg_callback=identity,
                             ψk_extra=zeros_like(ψk, size(ψk, 1), 0), εk_extra=zeros(0),
                             Hψk_extra=zeros_like(ψk, size(ψk, 1), 0), tol=1e-9)
+    iszero(rhs) && return(zero(rhs))
     basis = Hk.basis
     kpoint = Hk.kpoint
 
