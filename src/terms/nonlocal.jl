@@ -1,6 +1,9 @@
 @doc raw"""
 Nonlocal term coming from norm-conserving pseudopotentials in Kleinmann-Bylander form.
-``\text{Energy} = ∑_a ∑_{ij} ∑_{n} f_n \braket{ψ_n}{{\rm proj}_{ai}} D_{ij} \braket{{\rm proj}_{aj}}{ψ_n}.``
+```math
+\text{Energy} =
+    ∑_a ∑_{ij} ∑_{n} f_n \braket{ψ_n}{{\rm proj}_{ai}} D_{ij} \braket{{\rm proj}_{aj}}{ψ_n}.
+```
 """
 struct AtomicNonlocal end
 function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}

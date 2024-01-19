@@ -40,7 +40,7 @@ to simplify typing them.
 ## Units
 In DFTK, atomic units are used throughout, most importantly
 lengths are in Bohr and energies in Hartree.
-See [wikipedia](https://en.wikipedia.org/wiki/Hartree_atomic_units)
+See [Wikipedia](https://en.wikipedia.org/wiki/Hartree_atomic_units)
 for a list of conversion factors. Appropriate unit conversion can
 can be performed using the `Unitful` and `UnitfulAtomic` packages:
 

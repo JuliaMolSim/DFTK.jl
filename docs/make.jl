@@ -199,6 +199,9 @@ end
 remote_args = CONTINUOUS_INTEGRATION ? (; ) : (; remotes=nothing)
 mathengine  = Documenter.MathJax3(Dict(
     :tex => Dict(
+        "inlineMath" => [["\$","\$"], ["\\(","\\)"]],
+        "tags" => "ams",
+        "packages" => ["base", "ams", "autoload"],
         :macros => Dict(
             :abs    => [raw"\left\|#1\right\|",     1],
             :ket    => [raw"\left|#1\right\rangle", 1],
