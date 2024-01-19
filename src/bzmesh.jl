@@ -118,7 +118,7 @@ end
 @doc raw"""
 Build a [`MonkhorstPack`](@ref) grid to ensure kpoints are at most this spacing
 apart (in inverse Bohrs). A reasonable spacing is `0.13` inverse Bohrs
-(around ``2π * 0.04 \AA^{-1}``).
+(around ``2π * 0.04 \, \text{Å}^{-1}``).
 """
 function kgrid_from_maximal_spacing(lattice, spacing; kshift=[0, 0, 0])
     lattice       = austrip.(lattice)

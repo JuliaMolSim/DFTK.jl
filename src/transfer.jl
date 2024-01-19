@@ -219,7 +219,7 @@ Create the Fourier expansion of ``ψ_{k+q}`` from ``ψ_{[k+q]}``, where ``[k+q]`
 
 If ``ΔG ≔ [k+q] - (k+q)``, then we have that
 ```math
-    ∑_G \hat{u}_{[k+q]}(G) e^{i(k+q+G)·r} &= ∑_{G'} \hat{u}_{k+q}(G'-ΔG) e^{i(k+q+ΔG+G')·r},
+    ∑_G \hat{u}_{[k+q]}(G) e^{i(k+q+G)·r} = ∑_{G'} \hat{u}_{k+q}(G'-ΔG) e^{i(k+q+ΔG+G')·r},
 ```
 hence
 ```math
