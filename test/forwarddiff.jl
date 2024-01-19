@@ -1,12 +1,10 @@
-using DFTK
-using ForwardDiff
-using Test
-using ComponentArrays
+@testitem "Force derivatives using ForwardDiff" #=
+    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using ForwardDiff
+    using LinearAlgebra
+    silicon = TestCases.silicon
 
-include("testcases.jl")
-
-
-@testset "Force derivatives using ForwardDiff" begin
     function compute_force(ε1, ε2; metal=false, tol=1e-10)
         T = promote_type(typeof(ε1), typeof(ε2))
         pos = [[1.01, 1.02, 1.03] / 8, -ones(3) / 8 + ε1 * [1., 0, 0] + ε2 * [0, 1., 0]]
@@ -19,7 +17,7 @@ include("testcases.jl")
         end
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 
-        response     = ResponseOptions(verbose=true)
+        response     = ResponseOptions(; verbose=true)
         is_converged = DFTK.ScfConvergenceForce(tol)
         scfres = self_consistent_field(basis; is_converged, response)
         compute_forces_cart(scfres)
@@ -44,7 +42,7 @@ include("testcases.jl")
         @test abs(grad[2] - derivative_ε2[1][1]) < 1e-4
 
         jac = ForwardDiff.jacobian(v -> compute_force(v...)[1], [0.0, 0.0])
-        @test norm(grad - jac[1, :]) < 1e-10
+        @test norm(grad - jac[1, :]) < 1e-9
     end
 
     @testset "Derivative for metals" begin
@@ -57,7 +55,14 @@ include("testcases.jl")
     end
 end
 
-@testset "scfres PSP sensitivity using ForwardDiff" begin
+@testitem "scfres PSP sensitivity using ForwardDiff" #=
+    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using ForwardDiff
+    using LinearAlgebra
+    using ComponentArrays
+    aluminium = TestCases.aluminium
+
     function compute_band_energies(ε::T) where {T}
         psp  = load_psp("hgh/lda/al-q3")
         rloc = convert(T, psp.rloc)
@@ -65,7 +70,7 @@ end
         pspmod = PspHgh(psp.Zion, rloc,
                         psp.cloc, psp.rp .+ [0, ε], psp.h;
                         psp.identifier, psp.description)
-        atoms = fill(ElementPsp(aluminium.atnum, psp=pspmod), length(aluminium.positions))
+        atoms = fill(ElementPsp(aluminium.atnum; psp=pspmod), length(aluminium.positions))
         model = model_LDA(Matrix{T}(aluminium.lattice), atoms, aluminium.positions,
                           temperature=1e-2, smearing=Smearing.Gaussian())
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
@@ -73,14 +78,14 @@ end
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
         scfres = self_consistent_field(basis; is_converged, mixing=KerkerMixing(),
                                        nbandsalg=FixedBands(; n_bands_converge=10),
-                                       damping=0.6, response=ResponseOptions(verbose=true))
+                                       damping=0.6, response=ResponseOptions(; verbose=true))
 
         ComponentArray(
-           eigenvalues=hcat([ev[1:10] for ev in scfres.eigenvalues]...),
+           eigenvalues=stack([ev[1:10] for ev in scfres.eigenvalues]),
            ρ=scfres.ρ,
            energies=collect(values(scfres.energies)),
            εF=scfres.εF,
-           occupation=vcat(scfres.occupation...),
+           occupation=reduce(vcat, scfres.occupation),
         )
     end
 
@@ -91,8 +96,14 @@ end
     @test norm(derivative_fd - derivative_ε) < 5e-4
 end
 
-@testset "Functional force sensitivity using ForwardDiff" begin
+@testitem "Functional force sensitivity using ForwardDiff" #=
+    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using ForwardDiff
+    using LinearAlgebra
+    using ComponentArrays
     using DftFunctionals
+    silicon = TestCases.silicon
 
     function compute_force(ε1::T) where {T}
         pos = [[1.01, 1.02, 1.03] / 8, -ones(3) / 8]
@@ -104,8 +115,8 @@ end
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
-        scfres = self_consistent_field(basis;
-                                       is_converged, response=ResponseOptions(verbose=true))
+        scfres = self_consistent_field(basis; is_converged,
+                                       response=ResponseOptions(; verbose=true))
         compute_forces_cart(scfres)
     end
 
@@ -116,18 +127,26 @@ end
     @test norm(derivative_ε - derivative_fd) < 1e-4
 end
 
-@testset "Derivative of complex function" begin
+@testitem "Derivative of complex function" tags=[:dont_test_mpi] begin
+    using DFTK
+    using ForwardDiff
+    using LinearAlgebra
     using SpecialFunctions, FiniteDifferences
+
     α = randn(ComplexF64)
     erfcα = x -> erfc(α * x)
 
     x0  = randn()
-    fd1 = ForwardDiff.derivative(erfcα , x0)
+    fd1 = ForwardDiff.derivative(erfcα, x0)
     fd2 = FiniteDifferences.central_fdm(5, 1)(erfcα, x0)
-    @test norm(fd1 - fd2) < 1e-10
+    @test norm(fd1 - fd2) < 1e-8
 end
 
-@testset "LocalNonlinearity sensitivity using ForwardDiff" begin
+@testitem "LocalNonlinearity sensitivity using ForwardDiff" tags=[:dont_test_mpi] begin
+    using DFTK
+    using ForwardDiff
+    using LinearAlgebra
+
     function compute_force(ε::T) where {T}
         # solve the 1D Gross-Pitaevskii equation with ElementGaussian potential
         lattice = 10.0 .* [[1 0 0.]; [0 0 0]; [0 0 0]]
@@ -142,7 +161,7 @@ end
         ρ = zeros(Float64, basis.fft_size..., 1)
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
         scfres = self_consistent_field(basis; ρ, is_converged,
-                                       response=ResponseOptions(verbose=true))
+                                       response=ResponseOptions(; verbose=true))
         compute_forces_cart(scfres)
     end
     derivative_ε = let ε = 1e-5

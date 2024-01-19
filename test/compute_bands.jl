@@ -1,12 +1,9 @@
-using Test
-using DFTK
-import Brillouin: interpolate
+@testitem "High-symmetry kpath construction for silicon" #=
+    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using Brillouin: interpolate
+    testcase = TestCases.silicon
 
-include("testcases.jl")
-
-if mpi_nprocs() == 1  # not easy to distribute
-@testset "High-symmetry kpath construction for silicon" begin
-    testcase = silicon
     Ecut = 2
 
     ref_kcoords = [
@@ -97,7 +94,11 @@ if mpi_nprocs() == 1  # not easy to distribute
     @test length.(kinter.kpaths) == [18, 42]
 end
 
-@testset "High-symmetry kpath construction for 1D system" begin
+@testitem "High-symmetry kpath construction for 1D system" tags=[:dont_test_mpi] begin
+    using DFTK
+    using Brillouin: interpolate
+    using LinearAlgebra
+
     lattice = diagm([8.0, 0, 0])
     model   = Model(lattice; terms=[Kinetic()])
     kpath   = irrfbz_path(model)
@@ -114,54 +115,59 @@ end
     @test kinter[8] == [0.5]
 end
 
-@testset "Compute bands for silicon" begin
-    testcase = silicon
+@testitem "Compute bands for silicon" tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using Brillouin: interpolate
+    testcase = TestCases.silicon
+
     Ecut = 7
     n_bands = 8
 
-    model    = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
-    kinter   = interpolate(irrfbz_path(model), density=3)
-    kweights = ones(length(kinter)) ./ length(kinter)
-    basis    = PlaneWaveBasis(model, Ecut, kinter, kweights)
+    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
+    kgrid = ExplicitKpoints(interpolate(irrfbz_path(model), density=3))
+    basis = PlaneWaveBasis(model; Ecut, kgrid)
 
     # Check that plain diagonalization and compute_bands agree
     ρ   = guess_density(basis)
     ham = Hamiltonian(basis; ρ)
-    band_data = compute_bands(basis, kinter; ρ, n_bands)
+    band_data = compute_bands(basis, kgrid; ρ, n_bands)
 
     eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands + 3,
                                      n_conv_check=n_bands, tol=1e-5)
-    for ik in 1:length(basis.kpoints)
-        @test eigres.λ[ik][1:n_bands] ≈ band_data.λ[ik] atol=1e-5
+    for ik = 1:length(basis.kpoints)
+        @test eigres.λ[ik][1:n_bands] ≈ band_data.eigenvalues[ik] atol=1e-5
     end
 end
 
-@testset "prepare_band_data" begin
-    testcase = silicon
+@testitem "prepare_band_data" tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using Brillouin: interpolate
+    using LinearAlgebra
+    testcase = TestCases.silicon
+
     model    = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
     kpath    = irrfbz_path(model)
     kinter   = interpolate(irrfbz_path(model), density=3)
-    kweights = ones(length(kinter)) ./ length(kinter)
-    basis    = PlaneWaveBasis(model, 5, kinter, kweights)
+    basis    = PlaneWaveBasis(model; Ecut=5, kgrid=ExplicitKpoints(kinter))
 
     # Setup some dummy data
-    λ = [10ik .+ collect(1:4) for ik = 1:length(kinter)]
-    λerror = [λ[ik]./100 for ik = 1:length(kinter)]
-    band_data = (; basis, λ, λerror)
-    ret = DFTK.data_for_plotting(kinter, band_data)
+    eigenvalues = [10ik .+ collect(1:4)        for ik = 1:length(kinter)]
+    eigenvalues_error = [eigenvalues[ik]./100  for ik = 1:length(kinter)]
+    band_data = (; basis, eigenvalues, eigenvalues_error, kinter)
+    ret = DFTK.data_for_plotting(band_data)
 
     @test ret.n_spin   == 1
     @test ret.n_kcoord == 8
     @test ret.n_bands  == 4
 
-    for iband in 1:4
-        @test ret.λ[:, iband, 1] == [10ik .+ iband for ik in 1:8]
-        @test ret.λerror[:, iband, 1] == ret.λ[:, iband, 1] ./ 100
+    for iband = 1:4
+        @test ret.eigenvalues[:, iband, 1] == [10ik .+ iband for ik = 1:8]
+        @test ret.eigenvalues_error[:, iband, 1] == ret.eigenvalues[:, iband, 1] ./ 100
     end
 
     B = model.recip_lattice
     ref_kdist = [0.0]
-    for ik in 2:8
+    for ik = 2:8
         if ik != 4
             push!(ref_kdist, ref_kdist[end] + norm(B * (kinter[ik-1] - kinter[ik])))
         else
@@ -175,21 +181,28 @@ end
     @test ret.kbranches == [1:3, 4:8]
 end
 
-@testset "is_metal" begin
+@testitem "is_metal" tags=[:dont_test_mpi] begin
+    using DFTK
+
     λ = [[1, 2, 3, 4], [1, 1.5, 3.5, 4.2], [1, 1.1, 3.2, 4.3], [1, 2, 3.3, 4.1]]
     @test !DFTK.is_metal(λ, 2.5)
     @test  DFTK.is_metal(λ, 3.2)
 end
 
-@testset "High-symmetry kpath for nonstandard lattice" begin
+@testitem "High-symmetry kpath for nonstandard lattice" #=
+    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using Brillouin: interpolate
+    testcase = TestCases.silicon
+
     lattice_std = [0 1 1; 1 0 1; 1 1 0] .* 5.13
-    model_std   = model_LDA(lattice_std, silicon.atoms, silicon.positions)
+    model_std   = model_LDA(lattice_std, testcase.atoms, testcase.positions)
 
     # Non-standard lattice parameters that describe the same system as model_standard.
     lattice_nst = copy(lattice_std)
     lattice_nst[:, 3] .+= lattice_nst[:, 1] .* 3
     position_nst = [[-2, 1, 1]/8, -[-2, 1, 1]/8]
-    model_nst = model_LDA(lattice_nst, silicon.atoms, position_nst)
+    model_nst = model_LDA(lattice_nst, testcase.atoms, position_nst)
 
     kpath_std = irrfbz_path(model_std)
     kpath_nst = irrfbz_path(model_nst)
@@ -203,5 +216,4 @@ end
         @test(  model_std.recip_lattice * k_std
               ≈ model_nst.recip_lattice * k_nst)
     end
-end
 end

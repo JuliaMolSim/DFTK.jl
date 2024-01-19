@@ -9,7 +9,7 @@ a = 10.26  # Silicon lattice constant in Bohr
 lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
-Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
+Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
 atoms = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
 
@@ -46,10 +46,9 @@ as a breakdown over individual routines.
     alter the way stack traces look making it sometimes harder to find
     errors when debugging.
     For this reason timing measurements can be disabled completely
-    (i.e. not even compiled into the code) by setting the environment variable
-    `DFTK_TIMING` to `"0"` or `"false"`.
-    For this to take effect recompiling all DFTK (including the precompile cache)
-    is needed.
+    (i.e. not even compiled into the code) by setting the package-level preference
+    `DFTK.set_timer_enabled!(false)`. You will need to restart your Julia session
+    afterwards to take this into account.
 
 ## Rough timing estimates
 A very (very) rough estimate of the time per SCF step (in seconds)

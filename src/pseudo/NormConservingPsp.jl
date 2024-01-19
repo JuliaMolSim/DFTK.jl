@@ -12,11 +12,19 @@ abstract type NormConservingPsp end
 
 #### Methods:
 # charge_ionic(psp::NormConservingPsp)
+# has_valence_density(psp:NormConservingPsp)
+# has_core_density(psp:NormConservingPsp)
 # eval_psp_projector_real(psp::NormConservingPsp, i, l, r::Real)
-# eval_psp_projector_fourier(psp::NormConservingPsp, i, l, q::Real)
+# eval_psp_projector_fourier(psp::NormConservingPsp, i, l, p::Real)
 # eval_psp_local_real(psp::NormConservingPsp, r::Real)
-# eval_psp_local_fourier(psp::NormConservingPsp, q::Real)
+# eval_psp_local_fourier(psp::NormConservingPsp, p::Real)
 # eval_psp_energy_correction(T::Type, psp::NormConservingPsp, n_electrons::Integer)
+
+#### Optional methods:
+# eval_psp_density_valence_real(psp::NormConservingPsp, r::Real)
+# eval_psp_density_valence_fourier(psp::NormConservingPsp, p::Real)
+# eval_psp_density_core_real(psp::NormConservingPsp, r::Real)
+# eval_psp_density_core_fourier(psp::NormConservingPsp, p::Real)
 
 """
     eval_psp_projector_real(psp, i, l, r)
@@ -28,19 +36,19 @@ eval_psp_projector_real(psp::NormConservingPsp, i, l, r::AbstractVector) =
     eval_psp_projector_real(psp, i, l, norm(r))
 
 @doc raw"""
-    eval_psp_projector_fourier(psp, i, l, q)
+    eval_psp_projector_fourier(psp, i, l, p)
 
 Evaluate the radial part of the `i`-th projector for angular momentum `l`
-at the reciprocal vector with modulus `q`:
+at the reciprocal vector with modulus `p`:
 ```math
 \begin{aligned}
-p(q) &= ∫_{ℝ^3} p_{il}(r) e^{-iq·r} dr \\
-     &= 4π ∫_{ℝ_+} r^2 p_{il}(r) j_l(qr) dr
+{\rm proj}(p) &= ∫_{ℝ^3} {\rm proj}_{il}(r) e^{-ip·r} dr \\
+              &= 4π ∫_{ℝ_+} r^2 {\rm proj}_{il}(r) j_l(p·r) dr.
 \end{aligned}
 ```
 """
-eval_psp_projector_fourier(psp::NormConservingPsp, q::AbstractVector) =
-    eval_psp_projector_fourier(psp, norm(q))
+eval_psp_projector_fourier(psp::NormConservingPsp, p::AbstractVector) =
+    eval_psp_projector_fourier(psp, norm(p))
 
 """
     eval_psp_local_real(psp, r)
@@ -51,26 +59,26 @@ eval_psp_local_real(psp::NormConservingPsp, r::AbstractVector) =
     eval_psp_local_real(psp, norm(r))
 
 @doc raw"""
-    eval_psp_local_fourier(psp, q)
+    eval_psp_local_fourier(psp, p)
 
 Evaluate the local part of the pseudopotential in reciprocal space:
 ```math
 \begin{aligned}
-V_{\rm loc}(q) &= ∫_{ℝ^3} V_{\rm loc}(r) e^{-iqr} dr \\
-               &= 4π ∫_{ℝ_+} V_{\rm loc}(r) \frac{\sin(qr)}{q} r dr
+V_{\rm loc}(p) &= ∫_{ℝ^3} V_{\rm loc}(r) e^{-ip·r} dr \\
+               &= 4π ∫_{ℝ_+} V_{\rm loc}(r) \frac{\sin(p·r)}{p} r dr
 \end{aligned}
 ```
 In practice, the local potential should be corrected using a Coulomb-like term ``C(r) = -Z/r``
 to remove the long-range tail of ``V_{\rm loc}(r)`` from the integral:
 ```math
 \begin{aligned}
-V_{\rm loc}(q) &= ∫_{ℝ^3} (V_{\rm loc}(r) - C(r)) e^{-iq·r} dr + F[C(r)] \\
-               &= 4π ∫_{ℝ_+} (V_{\rm loc}(r) + Z/r) \frac{\sin(qr)}{qr} r^2 dr - Z/q^2
+V_{\rm loc}(p) &= ∫_{ℝ^3} (V_{\rm loc}(r) - C(r)) e^{-ip·r} dr + F[C(r)] \\
+               &= 4π ∫_{ℝ_+} (V_{\rm loc}(r) + Z/r) \frac{\sin(p·r)}{p·r} r^2 dr - Z/p^2.
 \end{aligned}
 ```
 """
-eval_psp_local_fourier(psp::NormConservingPsp, q::AbstractVector) =
-    eval_psp_local_fourier(psp, norm(q))
+eval_psp_local_fourier(psp::NormConservingPsp, p::AbstractVector) =
+    eval_psp_local_fourier(psp, norm(p))
 
 @doc raw"""
     eval_psp_energy_correction([T=Float64,] psp, n_electrons)
@@ -84,12 +92,12 @@ Notice: The returned result is the *energy per unit cell* and not the energy per
 To obtain the latter, the caller needs to divide by the unit cell volume.
 
 The energy correction is defined as the limit of the Fourier-transform of the local
-potential as ``q \to 0``, using the same correction as in the Fourier-transform of the local
+potential as ``p \to 0``, using the same correction as in the Fourier-transform of the local
 potential:
 ```math
-\lim_{q \to 0} 4π N_{\rm elec} ∫_{ℝ_+} (V(r) - C(r)) \frac{\sin(qr)}{qr} r^2 dr + F[C(r)]
- = 4π N_{\rm elec} ∫_{ℝ_+} (V(r) + Z/r) r^2 dr
- ```
+\lim_{p \to 0} 4π N_{\rm elec} ∫_{ℝ_+} (V(r) - C(r)) \frac{\sin(p·r)}{p·r} r^2 dr + F[C(r)]
+ = 4π N_{\rm elec} ∫_{ℝ_+} (V(r) + Z/r) r^2 dr.
+```
 """
 function eval_psp_energy_correction end
 # by default, no correction, see PspHgh implementation and tests
@@ -97,13 +105,59 @@ function eval_psp_energy_correction end
 eval_psp_energy_correction(psp::NormConservingPsp, n_electrons) =
     eval_psp_energy_correction(Float64, psp, n_electrons)
 
+"""
+    eval_psp_density_valence_real(psp, r)
+
+Evaluate the atomic valence charge density in real space.
+"""
+eval_psp_density_valence_real(psp::NormConservingPsp, r::AbstractVector) = 
+    eval_psp_density_valence_real(psp, norm(r))
+
+@doc raw"""
+    eval_psp_density_valence_fourier(psp, p)
+
+Evaluate the atomic valence charge density in reciprocal space:
+```math
+\begin{aligned}
+ρ_{\rm val}(p) &= ∫_{ℝ^3} ρ_{\rm val}(r) e^{-ip·r} dr \\
+               &= 4π ∫_{ℝ_+} ρ_{\rm val}(r) \frac{\sin(p·r)}{ρ·r} r^2 dr.
+\end{aligned}
+```
+"""
+eval_psp_density_valence_fourier(psp::NormConservingPsp, p::AbstractVector) = 
+    eval_psp_density_valence_fourier(psp, norm(p))
+
+"""
+    eval_psp_density_core_real(psp, r)
+
+Evaluate the atomic core charge density in real space.
+"""
+eval_psp_density_core_real(::NormConservingPsp, ::T) where {T <: Real} = zero(T)
+eval_psp_density_core_real(psp::NormConservingPsp, r::AbstractVector) = 
+    eval_psp_density_core_real(psp, norm(r))
+
+@doc raw"""
+    eval_psp_density_core_fourier(psp, p)
+
+Evaluate the atomic core charge density in reciprocal space:
+```math
+\begin{aligned}
+ρ_{\rm core}(p) &= ∫_{ℝ^3} ρ_{\rm core}(r) e^{-ip·r} dr \\
+               &= 4π ∫_{ℝ_+} ρ_{\rm core}(r) \frac{\sin(p·r)}{ρ·r} r^2 dr.
+\end{aligned}
+```
+"""
+eval_psp_density_core_fourier(::NormConservingPsp, ::T) where {T <: Real} = zero(T)
+eval_psp_density_core_fourier(psp::NormConservingPsp, p::AbstractVector) = 
+    eval_psp_density_core_fourier(psp, norm(p))
+
 
 #### Methods defined on a NormConservingPsp
 import Base.Broadcast.broadcastable
 Base.Broadcast.broadcastable(psp::NormConservingPsp) = Ref(psp)
 
 function projector_indices(psp::NormConservingPsp)
-    ((i, l, m) for l in 0:psp.lmax for i in 1:size(psp.h[l+1], 1) for m = -l:l)
+    ((i, l, m) for l = 0:psp.lmax for i = 1:size(psp.h[l+1], 1) for m = -l:l)
 end
 
 """

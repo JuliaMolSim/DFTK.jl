@@ -47,7 +47,7 @@ function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
         return xₙ .+ αₙ .* Pfxₙ
     end
 
-    M = hcat(Pfxs...) .- vec(Pfxₙ)  # Mᵢⱼ = (Pfxⱼ)ᵢ - (Pfxₙ)ᵢ
+    M = stack(Pfxs) .- vec(Pfxₙ)  # Mᵢⱼ = (Pfxⱼ)ᵢ - (Pfxₙ)ᵢ
     # We need to solve 0 = M' Pfxₙ + M'M βs <=> βs = - (M'M)⁻¹ M' Pfxₙ
 
     # Ensure the condition number of M stays below maxcond, else prune the history
@@ -234,7 +234,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     maxiter=100,
     eigensolver=lobpcg_hyper,
     diag_miniter=1,
-    determine_diagtol=ScfDiagtol(),
+    diagtolalg=AdaptiveDiagtol(),
     mixing=SimpleMixing(),
     is_converged=ScfConvergenceDensity(tol),
     callback=ScfDefaultCallback(),
@@ -270,16 +270,22 @@ trial_damping(damping::FixedDamping, args...) = damping.α
 
     n_iter    = 1
     converged = false
+    ΔEdown    = 0.0
+    start_ns  = time_ns()
     α_trial   = trial_damping(damping)
-    diagtol   = determine_diagtol((; ρin=ρ, Vin=V, n_iter))
+    diagtol   = determine_diagtol(diagtolalg, (; ρin=ρ, Vin=V, n_iter))
     info      = EVρ(V; diagtol, ψ)
     Pinv_δV   = mix_potential(mixing, basis, info.Vout - info.Vin; n_iter, info...)
     info      = merge(info, (; α=NaN, diagonalization=[info.diagonalization], ρin=ρ,
                              n_iter, Pinv_δV))
-    ΔEdown    = 0.0
+    history_Etot = eltype(ρ)[]
+    history_Δρ   = eltype(ρ)[]
 
     while n_iter < maxiter
-        info = merge(info, (; stage=:iterate, algorithm="SCF", converged))
+        push!(history_Etot, info.energies.total)
+        push!(history_Δρ,   norm(info.ρout - info.ρin) * sqrt(basis.dvol))
+        info = merge(info, (; stage=:iterate, algorithm="SCF", converged,
+                            runtime_ns=time_ns() - start_ns, history_Etot, history_Δρ))
         callback(info)
         if MPI.bcast(is_converged(info), 0, MPI.COMM_WORLD)
             # TODO Debug why these MPI broadcasts are needed
@@ -301,7 +307,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
         diagonalization = empty(info.diagonalization)
         info_next = info
         while n_backtrack ≤ max_backtracks
-            diagtol = determine_diagtol(info_next)
+            diagtol = determine_diagtol(diagtolalg, info_next)
             mpi_master() && @debug "Iteration $n_iter linesearch step $n_backtrack   α=$α diagtol=$diagtol"
             Vnext = info.Vin .+ α .* δV
 
@@ -310,7 +316,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
                                          n_iter, info_next...)
             push!(diagonalization, info_next.diagonalization)
             info_next = merge(info_next, (; α, diagonalization, ρin=info.ρout, n_iter,
-                                          Pinv_δV=Pinv_δV_next))
+                                          Pinv_δV=Pinv_δV_next, history_Δρ, history_Etot ))
 
             successful = accept_step(info, info_next)
             successful = MPI.bcast(successful, 0, MPI.COMM_WORLD)  # Ensure same successful
@@ -344,7 +350,8 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     info = (; ham, basis, info.energies, converged, ρ=info.ρout, info.eigenvalues,
             info.occupation, info.εF, n_iter, info.ψ, info.n_bands_converge,
             info.diagonalization, stage=:finalize, algorithm="SCF",
-            info.occupation_threshold)
+            history_Δρ, history_Etot, info.occupation_threshold,
+            runtime_ns=time_ns() - start_ns)
     callback(info)
     info
 end
@@ -353,8 +360,8 @@ end
 # Wrapper function setting a few good defaults for adaptive damping
 function scf_potential_mixing_adaptive(basis; tol=1e-6, damping=AdaptiveDamping(), kwargs...)
     @assert damping isa AdaptiveDamping
+    diagtolalg = AdaptiveDiagtol(ratio_ρdiff=0.03, diagtol_first=5e-3, diagtol_max=1e-3)
     scf_potential_mixing(basis; tol, diag_miniter=2,
                          accept_step=ScfAcceptImprovingStep(max_energy_change=tol),
-                         determine_diagtol=ScfDiagtol(ratio_ρdiff=0.03, diagtol_max=5e-3),
-                         damping, kwargs...)
+                         diagtolalg, damping, kwargs...)
 end

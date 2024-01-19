@@ -47,13 +47,14 @@ PAGES = [
         # options we have
         "examples/atomsbase.jl",
         "examples/input_output.jl",
-        "examples/wannier90.jl",
+        "examples/wannier.jl",
     ],
     "Tipps and tricks" => [
         # Resolving convergence issues, what solver to use, improving performance or
         # reliability of calculations.
         "tricks/parallelization.md",
         "tricks/scf_checkpoints.jl",
+        "tricks/compute_clusters.md",
     ],
     "Solvers" => [
         "examples/custom_solvers.jl",
@@ -72,11 +73,13 @@ PAGES = [
         "examples/error_estimates_forces.jl",
     ],
     "Developer resources" => [
+        "developer/setup.md",
         "developer/conventions.md",
+        "developer/style_guide.md",
         "developer/data_structures.md",
         "developer/useful_formulas.md",
         "developer/symmetries.md",
-        "developer/gpu_computations.md"
+        "developer/gpu_computations.md",
     ],
     "api.md",
     "publications.md",
@@ -106,7 +109,7 @@ DFTKREPO   = DFTKGH * ".git"
 # Setup julia dependencies for docs generation if not yet done
 Pkg.activate(@__DIR__)
 if !isfile(joinpath(@__DIR__, "Manifest.toml"))
-    Pkg.develop(Pkg.PackageSpec(path=ROOTPATH))
+    Pkg.develop(Pkg.PackageSpec(; path=ROOTPATH))
     Pkg.instantiate()
 end
 
@@ -119,20 +122,27 @@ ENV["PLOTS_TEST"] = "true"
 using DFTK
 using Documenter
 using Literate
+import Artifacts
 
 #
 # Generate the docs
 #
 
 # Get list of files from PAGES
-extract_paths(pages::AbstractArray) = collect(Iterators.flatten(extract_paths.(pages)))
 extract_paths(file::AbstractString) = [file]
+extract_paths(pages::AbstractArray) = collect(Iterators.flatten(extract_paths.(pages)))
 extract_paths(pair::Pair) = extract_paths(pair.second)
 
 # Transform files to *.md
-transform_to_md(pages::AbstractArray) = transform_to_md.(pages)
 transform_to_md(file::AbstractString) = first(splitext(file)) * ".md"
+transform_to_md(pages::AbstractArray) = transform_to_md.(pages)
 transform_to_md(pair::Pair) = (pair.first => transform_to_md(pair.second))
+
+# Setup Artifacts.toml system
+macro artifact_str(s)
+    @eval Artifacts.@artifact_str $s
+end
+cp(joinpath(ROOTPATH, "Artifacts.toml"), joinpath(@__DIR__, "Artifacts.toml"), force=true)
 
 # Copy assets over
 mkpath(joinpath(SRCPATH, "examples"))
@@ -144,71 +154,88 @@ end
 # The examples go to docs/literate_build/examples, the .jl files stay where they are
 literate_files = map(filter!(endswith(".jl"), extract_paths(PAGES))) do file
     if startswith(file, "examples/")
-        (src=joinpath(ROOTPATH, file), dest=joinpath(SRCPATH, "examples"), example=true)
+        (; src=joinpath(ROOTPATH, file), dest=joinpath(SRCPATH, "examples"), example=true)
     else
-        (src=joinpath(SRCPATH, file), dest=joinpath(SRCPATH, dirname(file)), example=false)
+        (; src=joinpath(SRCPATH, file), dest=joinpath(SRCPATH, dirname(file)), example=false)
     end
 end
 
-# Function to insert badges to examples
-function add_badges(str)
-    badges = [
-        "[![](https://mybinder.org/badge_logo.svg)](@__BINDER_ROOT_URL__/examples/@__NAME__.ipynb)",
-        "[![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)](@__NBVIEWER_ROOT_URL__/examples/@__NAME__.ipynb)",
-    ]
-
-    # Find the Header and insert the badges right below
-    splitted = split(str, "\n")
-    idx = findfirst(startswith.(splitted, "# # "))
-    idx === nothing && error("Example files must start with # #")
-    insert!(splitted, idx + 1, "#md # " * badges[1])
-    insert!(splitted, idx + 2, "#md # " * badges[2])
-    insert!(splitted, idx + 3, "#md #")
-    join(splitted, "\n")
+# Function to insert badges to markdown files
+function add_badges(badges)
+    function preprocess(str)
+        # Find the Header and insert the badges right below
+        splitted = split(str, "\n")
+        idx = findfirst(startswith.(splitted, "# # "))
+        isnothing(idx) && error("Literate files must start with # #")
+        for (i, bad) in enumerate(badges)
+            insert!(splitted, idx + i, "#md # " * bad)
+        end
+        insert!(splitted, idx + length(badges) + 1, "#md #")
+        join(splitted, "\n")
+    end
 end
 
 # Run Literate on them all
 for file in literate_files
-    preprocess = file.example ? add_badges : identity
+    subfolder = relpath(file.dest, SRCPATH)
+    if CONTINUOUS_INTEGRATION
+        badges = [
+            "[![](https://mybinder.org/badge_logo.svg)]" *
+                "(@__BINDER_ROOT_URL__/$subfolder/@__NAME__.ipynb)",
+            "[![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)]" * 
+                "(@__NBVIEWER_ROOT_URL__/$subfolder/@__NAME__.ipynb)",
+        ]
+    else
+        badges = ["Binder links to `/$subfolder/@__NAME__.ipynb`"]
+    end
     Literate.markdown(file.src, file.dest;
                       flavor=Literate.DocumenterFlavor(),
-                      credit=false, preprocess)
+                      credit=false, preprocess=add_badges(badges))
     Literate.notebook(file.src, file.dest; credit=false,
                       execute=CONTINUOUS_INTEGRATION || DEBUG)
 end
 
 # Generate the docs in BUILDPATH
+remote_args = CONTINUOUS_INTEGRATION ? (; ) : (; remotes=nothing)
+mathengine  = Documenter.MathJax3(Dict(
+    :tex => Dict(
+        :macros => Dict(
+            :abs    => [raw"\left\|#1\right\|",     1],
+            :ket    => [raw"\left|#1\right\rangle", 1],
+            :bra    => [raw"\left\langle#1\right|", 1],
+            :braket => [raw"\left\langle#1\middle|#2\right\rangle", 2],
+        ),
+    ),
+))
+
 makedocs(;
     modules=[DFTK],
-    repo="https://" * DFTKGH * "/blob/{commit}{path}#{line}",
-    format=Documenter.HTML(
+    format=Documenter.HTML(;
         # Use clean URLs, unless built as a "local" build
-        prettyurls = CONTINUOUS_INTEGRATION,
-        canonical = "https://docs.dftk.org/stable/",
-        edit_link = "master",
-        assets = ["assets/favicon.ico"],
-        mathengine = Documenter.MathJax(Dict(:TeX => Dict(
-            :Macros => Dict(
-                :ket    => [raw"\left|#1\right\rangle", 1],
-                :bra    => [raw"\left\langle#1\right|", 1],
-                :braket => [raw"\left\langle#1\middle|#2\right\rangle", 2],
-            ),
-        ))),
+        prettyurls=CONTINUOUS_INTEGRATION,
+        canonical="https://docs.dftk.org/stable/",
+        edit_link="master",
+        assets=["assets/favicon.ico"],
+        size_threshold=nothing,  # do not fail build if large HTML outputs
+        mathengine,
     ),
     sitename = "DFTK.jl",
     authors = "Michael F. Herbst, Antoine Levitt and contributors.",
     pages=transform_to_md(PAGES),
     checkdocs=:exports,
-    strict=!DEBUG,
+    warnonly=DEBUG,
+    remote_args...,
 )
 
 # Dump files for managing dependencies in binder
 if CONTINUOUS_INTEGRATION && DFTKBRANCH == "master"
-    cp(joinpath(@__DIR__, "Project.toml"), joinpath(BUILDPATH, "Project.toml"), force=true)
+    cp(joinpath(@__DIR__, "Project.toml"),   joinpath(BUILDPATH, "Project.toml");   force=true)
+    cp(joinpath(ROOTPATH, "Artifacts.toml"), joinpath(BUILDPATH, "Artifacts.toml"); force=true)
 end
 
 # Deploy docs to gh-pages branch
-deploydocs(; repo=DFTKREPO, devbranch="master")
+# Note: Overwrites the commit history via a force push (saves storage space)
+deploydocs(; repo=DFTKREPO, devbranch="master", forcepush=true)
 
 # Remove generated example files
 if !DEBUG

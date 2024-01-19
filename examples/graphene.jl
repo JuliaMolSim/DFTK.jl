@@ -8,6 +8,7 @@ using DFTK
 using Unitful
 using UnitfulAtomic
 using LinearAlgebra
+using Plots
 
 ## Define the convergence parameters (these should be increased in production)
 L = 20  # height of the simulation box
@@ -24,7 +25,7 @@ lattice = [a1 a2 a3]
 C1 = [1/3,-1/3,0.0]  # in reduced coordinates
 C2 = -C1
 positions = [C1, C2]
-C = ElementPsp(:C, psp=load_psp("hgh/pbe/c-q4"))
+C = ElementPsp(:C; psp=load_psp("hgh/pbe/c-q4"))
 atoms = [C, C]
 
 ## Run SCF
@@ -33,6 +34,6 @@ basis = PlaneWaveBasis(model; Ecut, kgrid)
 scfres = self_consistent_field(basis)
 
 ## Construct 2D path through Brillouin zone
-sgnum = 13  # Graphene space group number
-kpath = irrfbz_path(model; dim=2, sgnum)
-plot_bandstructure(scfres, kpath; kline_density=20)
+kpath = irrfbz_path(model; dim=2, space_group_number=13)  # graphene space group number
+bands = compute_bands(scfres, kpath; kline_density=20)
+plot_bandstructure(bands)

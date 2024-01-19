@@ -21,25 +21,24 @@ basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3]);
 
 # DFTK already defines a few callback functions for standard
 # tasks. One example is the usual convergence table,
-# which is defined in the callback `ScfDefaultCallback`.
-# Another example is `ScfPlotTrace`, which records the total
-# energy at each iteration and uses it to plot the convergence
-# of the SCF graphically once it is converged.
-# For details and other callbacks
-# see [`src/scf/scf_callbacks.jl`](https://dftk.org/blob/master/src/scf/scf_callbacks.jl).
-#
-# !!! note "Callbacks are not exported"
-#     Callbacks are not exported from the DFTK namespace as of now,
-#     so you will need to use them, e.g., as `DFTK.ScfDefaultCallback`
-#     and `DFTK.ScfPlotTrace`.
-
+# which is defined in the callback [`ScfDefaultCallback`](@ref).
+# Another example is [`ScfSaveCheckpoints`](@ref), which stores the state
+# of an SCF at each iterations to allow resuming from a failed
+# calculation at a later point.
+# See [Saving SCF results on disk and SCF checkpoints](@ref) for details
+# how to use checkpointing with DFTK.
 
 # In this example we define a custom callback, which plots
 # the change in density at each SCF iteration after the SCF
-# has finished. For this we first define the empty plot canvas
+# has finished. This example is a bit artificial, since the norms
+# of all density differences is available as `scfres.history_Δρ`
+# after the SCF has finished and could be directly plotted, but
+# the following nicely illustrates the use of callbacks in DFTK.
+
+# To enable plotting we first define the empty canvas
 # and an empty container for all the density differences:
 using Plots
-p = plot(yaxis=:log)
+p = plot(; yaxis=:log)
 density_differences = Float64[];
 
 # The callback function itself gets passed a named tuple
@@ -60,12 +59,14 @@ function plot_callback(info)
     end
     info
 end
-callback = DFTK.ScfDefaultCallback() ∘ plot_callback;
+callback = ScfDefaultCallback() ∘ plot_callback;
 
 # Notice that for constructing the `callback` function we chained the `plot_callback`
-# (which does the plotting) with the `ScfDefaultCallback`, such that when using
-# the `plot_callback` function with `self_consistent_field` we still get the usual
-# convergence table printed. We run the SCF with this callback …
+# (which does the plotting) with the `ScfDefaultCallback`. The latter is the function
+# responsible for printing the usual convergence table. Therefore if we simply did
+# `callback=plot_callback` the SCF would go silent. The chaining of both callbacks
+# (`plot_callback` for plotting and `ScfDefaultCallback()` for the convergence table)
+# makes sure both features are enabled. We run the SCF with the chained callback …
 scfres = self_consistent_field(basis; tol=1e-5, callback);
 
 # … and show the plot

@@ -24,10 +24,14 @@ CustomPotential() = CustomPotential(1.0, 0.5);
 function DFTK.local_potential_real(el::CustomPotential, r::Real)
     -el.α / (√(2π) * el.L) * exp(- (r / el.L)^2 / 2)
 end
-function DFTK.local_potential_fourier(el::CustomPotential, q::Real)
-    ## = ∫ V(r) exp(-ix⋅q) dx
-    -el.α * exp(- (q * el.L)^2 / 2)
+function DFTK.local_potential_fourier(el::CustomPotential, p::Real)
+    ## = ∫ V(r) exp(-ix⋅p) dx
+    -el.α * exp(- (p * el.L)^2 / 2)
 end
+
+# !!! tip "Gaussian potentials and DFTK"
+#     DFTK already implements `CustomPotential` in form of the [`DFTK.ElementGaussian`](@ref),
+#     so this explicit re-implementation is only provided for demonstration purposes.
 
 # We set up the lattice. For a 1D case we supply two zero lattice vectors
 a = 10
@@ -70,6 +74,8 @@ tot_local_pot = DFTK.total_local_potential(scfres.ham)[:, 1, 1]; # use only dime
 # Extract other quantities before plotting them
 ρ = scfres.ρ[:, 1, 1, 1]        # converged density, first spin component
 ψ_fourier = scfres.ψ[1][:, 1]   # first k-point, all G components, first eigenvector
+
+# Transform the wave function to real space and fix the phase:
 ψ = ifft(basis, basis.kpoints[1], ψ_fourier)[:, 1, 1]
 ψ /= (ψ[div(end, 2)] / abs(ψ[div(end, 2)]));
 

@@ -58,7 +58,7 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
         β = γ / γ_prev
         p .= proj(c .+ β .* p)
     end
-    info = (; x, converged, tol, residual_norm, iterations=n_iter, maxiter, stage=:finalize)
+    info = (; x, converged, tol, residual_norm, n_iter, maxiter, stage=:finalize)
     callback(info)
     info
 end

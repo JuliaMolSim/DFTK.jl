@@ -1,15 +1,10 @@
-"""
-DFTK --- The density-functional toolkit. Provides functionality for experimenting
-with plane-wave density-functional theory algorithms.
-"""
 module DFTK
 
+using DocStringExtensions
 using LinearAlgebra
 using Markdown
 using Printf
-using Requires
 using TimerOutputs
-using spglib_jll
 using Unitful
 using UnitfulAtomic
 using ForwardDiff
@@ -17,7 +12,14 @@ using AbstractFFTs
 using GPUArraysCore
 using Random
 using ChainRulesCore
-using SnoopPrecompile
+using PrecompileTools
+
+@template METHODS =
+"""
+$(TYPEDSIGNATURES)
+
+$(DOCSTRING)
+"""
 
 export Vec3
 export Mat3
@@ -35,9 +37,13 @@ include("common/mpi.jl")
 include("common/threading.jl")
 include("common/printing.jl")
 include("common/cis2pi.jl")
+include("common/versioninfo.jl")
 include("architecture.jl")
 include("common/zeros_like.jl")
 include("common/norm.jl")
+include("common/quadrature.jl")
+include("common/hankel.jl")
+include("common/hydrogenic.jl")
 
 export PspHgh
 export PspUpf
@@ -52,6 +58,7 @@ export ElementGaussian
 export charge_nuclear
 export charge_ionic
 export atomic_symbol
+export atomic_mass
 export n_elec_valence
 export n_elec_core
 include("elements.jl")
@@ -61,6 +68,7 @@ include("SymOp.jl")
 
 export Smearing
 export Model
+export MonkhorstPack, ExplicitKpoints
 export PlaneWaveBasis
 export compute_fft_size
 export G_vectors, G_vectors_cart, r_vectors, r_vectors_cart
@@ -71,15 +79,18 @@ export irfft
 export ifft!
 export fft
 export fft!
-export create_supercell
-export cell_to_supercell
+export kgrid_from_maximal_spacing, kgrid_from_minimal_n_kpoints
 include("Smearing.jl")
 include("Model.jl")
 include("structure.jl")
+include("bzmesh.jl")
 include("PlaneWaveBasis.jl")
 include("fft.jl")
 include("orbitals.jl")
-include("show.jl")
+include("input_output.jl")
+
+export create_supercell
+export cell_to_supercell
 include("supercell.jl")
 
 export Energies
@@ -141,7 +152,9 @@ export FixedBands, AdaptiveBands
 export scf_damping_solver
 export scf_anderson_solver
 export scf_CROP_solver
-export self_consistent_field
+export self_consistent_field, kwargs_scf_checkpoints
+export ScfConvergenceEnergy, ScfConvergenceDensity, ScfConvergenceForce
+export ScfSaveCheckpoints, ScfDefaultCallback, AdaptiveDiagtol
 export ResponseOptions
 export direct_minimization
 export newton
@@ -158,32 +171,38 @@ include("scf/potential_mixing.jl")
 
 export symmetry_operations
 export standardize_atoms
-export bzmesh_uniform
-export bzmesh_ir_wedge
-export kgrid_from_minimal_spacing, kgrid_from_minimal_n_kpoints
 include("symmetry.jl")
-include("bzmesh.jl")
 
+export DensityConstructionMethod
+export AtomicDensity
+export RandomDensity
+export CoreDensity
+export ValenceDensityGaussian
+export ValenceDensityPseudo
+export ValenceDensityAuto
 export guess_density
 export random_density
+include("density_methods.jl")
+
 export load_psp
 export list_psp
 export attach_psp
-include("guess_density.jl")
 include("pseudo/load_psp.jl")
 include("pseudo/list_psp.jl")
 include("pseudo/attach_psp.jl")
 
-export DFTKPotential
 export atomic_system, periodic_system  # Reexport from AtomsBase
 export run_wannier90
+export DFTKCalculator
 include("external/atomsbase.jl")
-include("external/interatomicpotentials.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
+include("external/wannier_shared.jl")
+include("external/atoms_calculators.jl")
 
 export compute_bands
 export plot_bandstructure
 export irrfbz_path
+export save_bands
 include("postprocess/band_structure.jl")
 
 export compute_forces
@@ -202,53 +221,35 @@ include("response/chi0.jl")
 include("response/hessian.jl")
 export compute_current
 include("postprocess/current.jl")
+export phonon_modes
+export phonon_modes_cart
+export compute_dynmat
+export compute_dynmat_cart
+include("postprocess/phonon.jl")
 
 # Workarounds
 include("workarounds/dummy_inplace_fft.jl")
 include("workarounds/forwarddiff_rules.jl")
 include("workarounds/gpu_arrays.jl")
 
-
-function __init__()
-    # Use "@require" to only include fft_generic.jl once IntervalArithmetic or
-    # DoubleFloats has been loaded (via a "using" or an "import").
-    # See https://github.com/JuliaPackaging/Requires.jl for details.
-    #
-    # The global variable GENERIC_FFT_LOADED makes sure that things are
-    # only included once.
-    @require IntervalArithmetic="d1acc4aa-44c8-5952-acd4-ba5d80a2a253" begin
-        include("workarounds/intervals.jl")
-        !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("workarounds/fft_generic.jl")
-    end
-    @require DoubleFloats="497a8b3b-efae-58df-a0af-a86822472b78" begin
-        !isdefined(DFTK, :GENERIC_FFT_LOADED) && include("workarounds/fft_generic.jl")
-    end
-    @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("plotting.jl")
-    @require JLD2="033835bb-8acc-5ee8-8aae-3f567f8a3819"  include("external/jld2io.jl")
-    @require WriteVTK="64499a7a-5c06-52f2-abe2-ccb03c286192" include("external/vtkio.jl")
-    @require wannier90_jll="c5400fa0-8d08-52c2-913f-1e3f656c1ce9" begin
-        include("external/wannier90.jl")
-    end
-    @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba"  begin
-        include("workarounds/cuda_arrays.jl")
-    end
-end
-
 # Precompilation block with a basic workflow
-if VERSION ≥ v"1.9alpha" && isnothing(get(ENV, "DFTK_NO_PRECOMPILATION", nothing))
-    @precompile_all_calls begin
-        # very artificial silicon ground state example
-        a = 10.26
-        lattice = a / 2 * [[0 1 1.];
-                           [1 0 1.];
-                           [1 1 0.]]
-        Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
-        atoms     = [Si, Si]
-        positions = [ones(3)/8, -ones(3)/8]
+@setup_workload begin
+    # very artificial silicon ground state example
+    a = 10.26
+    lattice = a / 2 * [[0 1 1.];
+                       [1 0 1.];
+                       [1 1 0.]]
+    Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
+    atoms     = [Si, Si]
+    positions = [ones(3)/8, -ones(3)/8]
+    magnetic_moments = [2, -2]
 
-        model = model_LDA(lattice, atoms, positions, temperature=0.1, spin_polarization=:collinear)
+    @compile_workload begin
+        model = model_LDA(lattice, atoms, positions;
+                          magnetic_moments, temperature=0.1, spin_polarization=:collinear)
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
-        scfres = self_consistent_field(basis, tol=1e-2, maxiter=3, callback=identity)
+        ρ0 = guess_density(basis, magnetic_moments)
+        scfres = self_consistent_field(basis; ρ=ρ0, tol=1e-2, maxiter=3, callback=identity)
     end
 end
 end # module DFTK

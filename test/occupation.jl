@@ -1,10 +1,5 @@
-using Test
+@testsetup module Occupation
 using DFTK
-using SpecialFunctions
-using Logging
-using DFTK: FermiZeroTemperature
-
-include("testcases.jl")
 
 smearing_methods = (
     DFTK.Smearing.None(),
@@ -17,10 +12,13 @@ fermialgs = (
     FermiBisection(),
     FermiTwoStage(),
 )
+end
 
 
-@testset "Smearing functions" begin
-    for m in smearing_methods
+@testitem "Smearing functions" setup=[Occupation] begin
+    using DFTK
+
+    for m in Occupation.smearing_methods
         @test DFTK.Smearing.occupation(m, -Inf) == 1
         @test DFTK.Smearing.occupation(m, Inf) == 0
         x = .04
@@ -35,58 +33,69 @@ fermialgs = (
     end
 end
 
-if mpi_nprocs() == 1
-@testset "Smearing for insulators" begin
+@testitem "Smearing for insulators" tags=[:dont_test_mpi] setup=[Occupation, TestCases] begin
+    using DFTK: FermiZeroTemperature
+    using Logging
+    silicon = TestCases.silicon
+
     Ecut = 5
     n_bands = 10
     fft_size = [15, 15, 15]
 
     # Emulate an insulator ... prepare energy levels
-    eigenvalues = [zeros(n_bands) for k in silicon.kcoords]
+    n_k = length(silicon.kgrid)
+    eigenvalues = [zeros(n_bands) for _ = 1:n_k]
     n_occ = div(silicon.n_electrons, 2, RoundUp)
-    n_k = length(silicon.kcoords)
-    for ik in 1:n_k
+    for ik = 1:n_k
         eigenvalues[ik] = sort(rand(n_bands))
         eigenvalues[ik][n_occ+1:end] .+= 2
     end
-    εHOMO = maximum(eigenvalues[ik][n_occ] for ik in 1:n_k)
-    εLUMO = minimum(eigenvalues[ik][n_occ + 1] for ik in 1:n_k)
+    εHOMO = maximum(eigenvalues[ik][n_occ]     for ik = 1:n_k)
+    εLUMO = minimum(eigenvalues[ik][n_occ + 1] for ik = 1:n_k)
 
     # Occupation for zero temperature
-    model = Model(silicon.lattice, silicon.atoms, silicon.positions; temperature=0.0,
-                  terms=[Kinetic()])
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
-    occupation0, εF0 = DFTK.compute_occupation(basis, eigenvalues, FermiZeroTemperature())
-    @test εHOMO < εF0 < εLUMO
-    @test DFTK.weighted_ksum(basis, sum.(occupation0)) ≈ model.n_electrons
+    occupation0 = let
+        model = Model(silicon.lattice, silicon.atoms, silicon.positions;
+                      temperature=0.0, terms=[Kinetic()])
+        basis = PlaneWaveBasis(model; Ecut, silicon.kgrid, fft_size)
+        occupation, εF = DFTK.compute_occupation(basis, eigenvalues, FermiZeroTemperature())
+        @test εHOMO < εF < εLUMO
+        @test DFTK.weighted_ksum(basis, sum.(occupation)) ≈ model.n_electrons
+        occupation
+    end
 
     # See that the electron count still works if we add temperature
-    for temperature in (0, 1e-6, .1, 1.0), smearing in smearing_methods, alg in fermialgs
+    for temperature in (0, 1e-6, .1, 1.0), smearing in Occupation.smearing_methods,
+                                           alg in Occupation.fermialgs
         model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                       temperature, smearing, terms=[Kinetic()])
-        basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
-        occs, _ = with_logger(NullLogger()) do
-            DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-12)
+        basis = PlaneWaveBasis(model; Ecut, silicon.kgrid, fft_size)
+        occs = with_logger(NullLogger()) do
+            DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-12).occupation
         end
         @test sum(basis.kweights .* sum.(occs)) ≈ model.n_electrons
     end
 
     # See that the occupation is largely uneffected with only a bit of temperature
-    for temperature in (0, 1e-6, 1e-4), smearing in smearing_methods, alg in fermialgs
+    for temperature in (0, 1e-6, 1e-4), smearing in Occupation.smearing_methods,
+                                        alg in Occupation.fermialgs
         model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                       temperature, smearing, terms=[Kinetic()])
-        basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
-        occupation, _ = DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-6)
+        basis = PlaneWaveBasis(model; Ecut, silicon.kgrid, fft_size)
+        (; occupation) = DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-6)
 
-        for ik in 1:n_k
-            @test all(isapprox.(occupation[ik], occupation0[ik], atol=1e-2))
+        for ik = 1:n_k
+            @test all(isapprox.(occupation[ik], occupation0[ik]; atol=1e-2))
         end
     end
 end
-end
 
-if mpi_nprocs() == 1
-@testset "Smearing for a simple metal" begin
+@testitem "Smearing for a simple metal" #=
+    =#    tags=[:dont_test_mpi] setup=[Occupation, TestCases] begin
+    using DFTK
+    using Logging
+    (; silicon, magnesium) = TestCases.all_testcases
+
     # Note: Mixture of silicon and magnesium is on purpose
     model = Model(silicon.lattice, magnesium.atoms, magnesium.positions;
                   n_electrons=magnesium.n_electrons, temperature=1e-2, terms=[Kinetic()])
@@ -115,19 +124,22 @@ if mpi_nprocs() == 1
         (DFTK.Smearing.MethfesselPaxton(1), 0.02, 0.16153528960704408),
         (DFTK.Smearing.MethfesselPaxton(1), 0.03, 0.16131173898225953),
     )
-    for (smearing, temperature, εF_ref) in parameters, alg in fermialgs
+    for (smearing, temperature, εF_ref) in parameters, alg in Occupation.fermialgs
         occupation, εF = with_logger(NullLogger()) do
-            DFTK.compute_occupation(basis, eigenvalues, alg;
-                                    smearing, temperature, tol_n_elec=1e-10)
+            DFTK.compute_occupation(basis, eigenvalues, alg; smearing, temperature,
+                                    tol_n_elec=1e-10)
         end
         @test DFTK.weighted_ksum(basis, sum.(occupation)) ≈ model.n_electrons
         @test εF ≈ εF_ref
     end
 end
-end
 
-if mpi_nprocs() == 1
-@testset "Fermi level finding for smearing multiple εF" begin
+@testitem "Fermi level finding for smearing multiple εF" #=
+    =#    tags=[:dont_test_mpi] setup=[Occupation, TestCases] begin
+    using DFTK
+    using Logging
+    iron_bcc = TestCases.iron_bcc
+
     # This is an iron setup, which caused trouble in the past
     #
     model = Model(iron_bcc.lattice, iron_bcc.atoms, iron_bcc.positions;
@@ -182,17 +194,19 @@ if mpi_nprocs() == 1
         @test εF ≈ εF_ref
     end
 end
-end
 
-@testset "Density for smearing with multiple εF" begin
-    testcase = iron_bcc
+@testitem "Density for smearing with multiple εF" setup=[Occupation, TestCases] begin
+    using DFTK
+    testcase = TestCases.iron_bcc
+
     magnetic_moments = [4.0]
     model = model_PBE(testcase.lattice, testcase.atoms, testcase.positions;
                       temperature=1e-2, smearing=Smearing.Gaussian(), magnetic_moments)
     basis = PlaneWaveBasis(model; Ecut=10, kgrid=[4, 4, 4])
     scfres = self_consistent_field(basis; ρ=guess_density(basis, magnetic_moments), tol=1e-4)
 
-    for temperature in (1e-4, 1e-3, 1e-2), smearing in smearing_methods, alg in fermialgs
+    for temperature in (1e-4, 1e-3, 1e-2), smearing in Occupation.smearing_methods,
+                                           alg in Occupation.fermialgs
         smearing isa Smearing.None && continue
         occupation, εF = DFTK.compute_occupation(scfres.basis, scfres.eigenvalues, alg;
                                                  smearing, temperature)
@@ -204,9 +218,9 @@ end
     end
 end
 
-if mpi_nprocs() == 1
-@testset "Fixed Fermi level" begin
-    testcase = magnesium
+@testitem "Fixed Fermi level" tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    testcase = TestCases.magnesium
 
     function run_scf(; kwargs...)
         atoms = fill(ElementGaussian(1.0, 0.5), length(testcase.positions))
@@ -228,5 +242,4 @@ if mpi_nprocs() == 1
         εF > εF_ref && @test n_electrons > n_electrons_ref
         εF < εF_ref && @test n_electrons < n_electrons_ref
     end
-end
 end

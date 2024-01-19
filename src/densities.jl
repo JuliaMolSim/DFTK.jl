@@ -1,10 +1,6 @@
 # Densities (and potentials) are represented by arrays
 # ρ[ix,iy,iz,iσ] in real space, where iσ ∈ [1:n_spin_components]
 
-function _check_nonnegative(ρ::AbstractArray{T}; tol=eps(T)) where {T}
-    minimum(ρ) < -tol && @warn("Negative ρ detected", min_ρ=minimum(ρ))
-end
-
 """
     compute_density(basis::PlaneWaveBasis, ψ::AbstractVector, occupation::AbstractVector)
 
@@ -16,58 +12,91 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
 """
 @views @timing function compute_density(basis::PlaneWaveBasis{T}, ψ, occupation;
                                         occupation_threshold=zero(T)) where {T}
-    S = promote_type(T, real(eltype(ψ[1])))
-    # occupation should be on the CPU as we are going to be doing scalar indexing.
-    occupation = [to_cpu(oc) for oc in occupation]
+    Tρ = promote_type(T, real(eltype(ψ[1])))
 
+    # Occupation should be on the CPU as we are going to be doing scalar indexing.
+    occupation = [to_cpu(oc) for oc in occupation]
     mask_occ = [findall(occnk -> abs(occnk) ≥ occupation_threshold, occk)
                 for occk in occupation]
-    if all(isempty, mask_occ)  # No non-zero occupations => return zero density
-        ρ = zeros_like(basis.G_vectors, S, basis.fft_size..., basis.model.n_spin_components)
-    else
-        # we split the total iteration range (ik, n) in chunks, and parallelize over them
-        ik_n = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
-        chunk_length = cld(length(ik_n), Threads.nthreads())
 
-        # chunk-local variables
-        ρ_chunklocal = map(1:Threads.nthreads()) do i
-            zeros_like(basis.G_vectors, S, basis.fft_size..., basis.model.n_spin_components)
-        end
-        ψnk_real_chunklocal = [zeros_like(basis.G_vectors, complex(S), basis.fft_size...)
-                               for _ = 1:Threads.nthreads()]
-
-        @sync for (ichunk, chunk) in enumerate(Iterators.partition(ik_n, chunk_length))
-            Threads.@spawn for (ik, n) in chunk  # spawn a task per chunk
-                ρ_loc = ρ_chunklocal[ichunk]
-                ψnk_real = ψnk_real_chunklocal[ichunk]
-                kpt = basis.kpoints[ik]
-
-                ifft!(ψnk_real, basis, kpt, ψ[ik][:, n])
-                ρ_loc[:, :, :, kpt.spin] .+= (occupation[ik][n] .* basis.kweights[ik]
-                                              .* abs2.(ψnk_real))
-
-                synchronize_device(basis.architecture)
-            end
-        end
-
-        ρ = sum(ρ_chunklocal)
+    function allocate_local_storage()
+        (; ρ=zeros_like(basis.G_vectors, Tρ, basis.fft_size..., basis.model.n_spin_components),
+         ψnk_real=zeros_like(basis.G_vectors, complex(Tρ), basis.fft_size...))
     end
+    # We split the total iteration range (ik, n) in chunks, and parallelize over them.
+    range = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
+
+    storages = parallel_loop_over_range(allocate_local_storage, range) do storage, kn
+        (ik, n) = kn
+        kpt = basis.kpoints[ik]
+
+        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n])
+        storage.ρ[:, :, :, kpt.spin] .+= (occupation[ik][n] .* basis.kweights[ik]
+                                              .* abs2.(storage.ψnk_real))
+
+        synchronize_device(basis.architecture)
+    end
+    ρ = sum(getfield.(storages, :ρ))
 
     mpi_sum!(ρ, basis.comm_kpts)
     ρ = symmetrize_ρ(basis, ρ; do_lowpass=false)
-    _check_nonnegative(ρ; tol=5occupation_threshold)
-    ρ
+
+    # There can always be small negative densities, e.g. due to numerical fluctuations
+    # in a vacuum region, so put some tolerance even if occupation_threshold == 0
+    negtol = max(sqrt(eps(T)), 10occupation_threshold)
+    minimum(ρ) < -negtol && @warn("Negative ρ detected", min_ρ=minimum(ρ))
+
+    ρ::AbstractArray{Tρ, 4}
 end
 
 # Variation in density corresponding to a variation in the orbitals and occupations.
-@views @timing function compute_δρ(basis::PlaneWaveBasis{T}, ψ, δψ,
-                                   occupation, δoccupation=zero.(occupation);
-                                   occupation_threshold=zero(T)) where {T}
-    ForwardDiff.derivative(zero(T)) do ε
-        ψ_ε   = [ψk   .+ ε .* δψk   for (ψk,   δψk)   in zip(ψ, δψ)]
-        occ_ε = [occk .+ ε .* δocck for (occk, δocck) in zip(occupation, δoccupation)]
-        compute_density(basis, ψ_ε, occ_ε; occupation_threshold)
+@views @timing function compute_δρ(basis::PlaneWaveBasis{T}, ψ, δψ, occupation,
+                                   δoccupation=zero.(occupation);
+                                   occupation_threshold=zero(T), q=zero(Vec3{T})) where {T}
+    Tψ = promote_type(T, eltype(ψ[1]))
+    # δρ is expected to be real when computations are not phonon-related.
+    Tδρ = iszero(q) ? real(Tψ) : Tψ
+    real_qzero = iszero(q) ? real : identity
+
+    ordering(kdata) = kdata[k_to_equivalent_kpq_permutation(basis, q)]
+
+    # occupation should be on the CPU as we are going to be doing scalar indexing.
+    occupation = [to_cpu(oc) for oc in occupation]
+    mask_occ = [findall(occnk -> abs(occnk) ≥ occupation_threshold, occk)
+                for occk in occupation]
+
+    function allocate_local_storage()
+        (; δρ=zeros_like(basis.G_vectors, Tδρ, basis.fft_size..., basis.model.n_spin_components),
+          ψnk_real=zeros_like(basis.G_vectors, Tψ, basis.fft_size...),
+         δψnk_real=zeros_like(basis.G_vectors, Tψ, basis.fft_size...))
     end
+    range = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
+
+    storages = parallel_loop_over_range(allocate_local_storage, range) do storage, kn
+        (ik, n) = kn
+
+        kpt = basis.kpoints[ik]
+        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n])
+        # We return the δψk in the basis k+q which are associated to a displacement of the ψk.
+        kpt_plus_q, δψk_plus_q = kpq_equivalent_blochwave_to_kpq(basis, kpt, q,
+                                                                 ordering(δψ)[ik])
+        # The perturbation of the density
+        #   |ψ_nk|² is 2 ψ_{n,k} * δψ_{n,k+q}.
+        ifft!(storage.δψnk_real, basis, kpt_plus_q, δψk_plus_q[:, n])
+
+        storage.δρ[:, :, :, kpt.spin] .+= real_qzero(
+            2 .* occupation[ik][n] .* basis.kweights[ik] .* conj(storage.ψnk_real)
+                                                         .* storage.δψnk_real
+                .+ δoccupation[ik][n] .* basis.kweights[ik] .* abs2.(storage.ψnk_real))
+
+        synchronize_device(basis.architecture)
+    end
+    δρ = sum(getfield.(storages, :δρ))
+
+    mpi_sum!(δρ, basis.comm_kpts)
+    δρ = symmetrize_ρ(basis, δρ; do_lowpass=false)
+
+    δρ
 end
 
 @views @timing function compute_kinetic_energy_density(basis::PlaneWaveBasis, ψ, occupation)
@@ -76,7 +105,7 @@ end
     τ .= 0
     dαψnk_real = zeros(complex(eltype(basis)), basis.fft_size)
     for (ik, kpt) in enumerate(basis.kpoints)
-        G_plus_k = [[Gk[α] for Gk in Gplusk_vectors_cart(basis, kpt)] for α in 1:3]
+        G_plus_k = [[p[α] for p in Gplusk_vectors_cart(basis, kpt)] for α = 1:3]
         for n = 1:size(ψ[ik], 2), α = 1:3
             ifft!(dαψnk_real, basis, kpt, im .* G_plus_k[α] .* ψ[ik][:, n])
             @. τ[:, :, :, kpt.spin] += occupation[ik][n] * basis.kweights[ik] / 2 * abs2(dαψnk_real)
@@ -103,4 +132,13 @@ function ρ_from_total_and_spin(ρtot, ρspin=nothing)
         cat((ρtot .+ ρspin) ./ 2,
             (ρtot .- ρspin) ./ 2; dims=Val(4))
     end
+end
+
+function ρ_from_total(basis, ρtot::AbstractArray{T}) where {T}
+    if basis.model.spin_polarization in (:none, :spinless)
+        ρspin = nothing
+    else
+        ρspin = zeros_like(basis.G_vectors, T, basis.fft_size...)
+    end
+    ρ_from_total_and_spin(ρtot, ρspin)
 end

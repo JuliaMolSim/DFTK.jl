@@ -23,11 +23,9 @@ lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]];
 
 # which is special cased in DFTK to support 1D models.
 #
-# For the potential term `V` we just pick a harmonic
-# potential. The real-space grid is in ``[0,1)``
-# in fractional coordinates( see
-# [Lattices and lattice vectors](@ref conventions-lattice)),
-# therefore:
+# For the potential term `V` we pick a harmonic
+# potential. We use the function `ExternalFromReal` which uses 
+# cartesian coordinates ( see [Lattices and lattice vectors](@ref conventions-lattice)).
 pot(x) = (x - a/2)^2;
 
 # We setup each energy term in sequence: kinetic, potential and nonlinear term.
@@ -96,8 +94,8 @@ H = ham.blocks[1];
 
 # `H` can be used as a linear operator (efficiently using FFTs), or converted to a dense matrix:
 ψ11 = scfres.ψ[1][:, 1] # first k-point, first eigenvector
-Hmat = Array(H) # This is now just a plain Julia matrix,
-##                which we can compute and store in this simple 1D example
+Hmat = Array(H)  # This is now just a plain Julia matrix,
+##                  which we can compute and store in this simple 1D example
 @assert norm(Hmat * ψ11 - H * ψ11) < 1e-10
 
 # Let's check that ψ11 is indeed an eigenstate:

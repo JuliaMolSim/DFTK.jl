@@ -1,9 +1,8 @@
-using Test
-using DFTK
-using LinearAlgebra
-using Random
+@testitem "Pairwise forces" begin
+    using DFTK
+    using DFTK: energy_forces_pairwise
+    using LinearAlgebra
 
-@testset "Pairwise forces" begin
     a = 5.131570667152971
     lattice = a .* [0 1 1; 1 0 1; 1 1 0]
     # perturb positions away from equilibrium to get nonzero force
@@ -21,12 +20,16 @@ using Random
 
     model = Model(lattice, atoms, positions; terms=[term])
     basis = PlaneWaveBasis(model; Ecut=20, kgrid=(1, 1, 1))
-    forces = compute_forces(basis.terms[1], basis, nothing, nothing)
+    forces = compute_forces(only(basis.terms), basis, nothing, nothing)
 
     # Compare forces to finite differences
     ε=1e-8
     disp=[rand(3) / 20, rand(3) / 20]
-    E1 = DFTK.energy_pairwise(lattice, symbols, positions,              term.V, term.params)
-    E2 = DFTK.energy_pairwise(lattice, symbols, positions .+ ε .* disp, term.V, term.params)
+    T = eltype(lattice)
+    q = zeros(3)
+    E1 = energy_forces_pairwise(T, lattice, symbols, positions,              term.V,
+                                term.params, q, nothing).energy
+    E2 = energy_forces_pairwise(T, lattice, symbols, positions .+ ε .* disp, term.V,
+                                term.params, q, nothing).energy
     @test (E2 - E1) / ε ≈ -dot(disp, forces) atol=abs(1e-6E1)
 end

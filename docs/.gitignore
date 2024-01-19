@@ -7,3 +7,4 @@ src/guide/periodic_problems.ipynb
 src/guide/periodic_problems.md
 src/tricks/scf_checkpoints.ipynb
 src/tricks/scf_checkpoints.md
+/Artifacts.toml

@@ -1,5 +1,3 @@
-using ProgressMeter
-
 @doc raw"""
 Function for diagonalising each ``k``-Point blow of ham one step at a time.
 Some logic for interpolating between ``k``-points is used if `interpolate_kpoints`
@@ -11,15 +9,10 @@ that really does the work, operating on a single ``k``-Block.
 function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::Int;
                                  ψguess=nothing,
                                  prec_type=PreconditionerTPA, interpolate_kpoints=true,
-                                 tol=1e-6, miniter=1, maxiter=100, n_conv_check=nothing,
-                                 show_progress=false)
+                                 tol=1e-6, miniter=1, maxiter=100, n_conv_check=nothing)
     kpoints = ham.basis.kpoints
     results = Vector{Any}(undef, length(kpoints))
 
-    progress = nothing
-    if show_progress
-        progress = Progress(length(kpoints), desc="Diagonalising Hamiltonian kblocks: ")
-    end
     for (ik, kpt) in enumerate(kpoints)
         n_Gk = length(G_vectors(ham.basis, kpt))
         if n_Gk < nev_per_kpoint
@@ -28,6 +21,10 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
         end
         # Get ψguessk
         if !isnothing(ψguess)
+            if n_Gk != size(ψguess[ik], 1)
+                error("Mismatch in dimension between guess ($(size(ψguess[ik], 1)) and " *
+                      "Hamiltonian ($n_Gk)")
+            end
             nev_guess = size(ψguess[ik], 2)
             if nev_guess > nev_per_kpoint
                 ψguessk = ψguess[ik][:, 1:nev_per_kpoint]
@@ -49,21 +46,18 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
         @assert size(ψguessk) == (n_Gk, nev_per_kpoint)
 
         prec = nothing
-        !isnothing(prec_type) && (prec = prec_type(ham.basis, kpt))
-        results[ik] = eigensolver(ham.blocks[ik], ψguessk;
+        !isnothing(prec_type) && (prec = prec_type(ham[ik]))
+        results[ik] = eigensolver(ham[ik], ψguessk;
                                   prec, tol, miniter, maxiter, n_conv_check)
-
-        # Update progress bar if desired
-        !isnothing(progress) && next!(progress)
     end
 
     # Transform results into a nicer datastructure
     # TODO It feels inconsistent to put λ onto the CPU here but none of the other objects.
     #      Better have this handled by the caller of diagonalize_all_kblocks.
-    (λ=[to_cpu(real.(res.λ)) for res in results],  # Always get onto the CPU
+    (; λ=[to_cpu(real.(res.λ)) for res in results],  # Always get onto the CPU
      X=[res.X for res in results],
      residual_norms=[res.residual_norms for res in results],
-     iterations=[res.iterations for res in results],
+     n_iter=[res.n_iter for res in results],
      converged=all(res.converged for res in results),
      n_matvec=sum(res.n_matvec for res in results))
 end
@@ -73,7 +67,7 @@ Function to select a subset of eigenpairs on each ``k``-Point. Works on the
 Tuple returned by `diagonalize_all_kblocks`.
 """
 function select_eigenpairs_all_kblocks(eigres, range)
-    merge(eigres, (λ=[λk[range] for λk in eigres.λ],
+    merge(eigres, (; λ=[λk[range] for λk in eigres.λ],
                    X=[Xk[:, range] for Xk in eigres.X],
                    residual_norms=[resk[range] for resk in eigres.residual_norms]))
 end

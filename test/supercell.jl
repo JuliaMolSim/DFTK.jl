@@ -1,11 +1,8 @@
-using Test
-using DFTK
-include("testcases.jl")
-
-if mpi_nprocs() == 1  # can't be bothered to convert the tests
-
 # Quick test to make sure temperature, smearing and Fermi level are correctly propagated
-@testset "Supercell copy" begin
+@testitem "Supercell copy" tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    magnesium = TestCases.magnesium
+
     Ecut    = 4
     kgrid   = [2, 3, 1]
 
@@ -19,7 +16,12 @@ if mpi_nprocs() == 1  # can't be bothered to convert the tests
     @test scfres.energies.total * prod(kgrid) ≈ scfres_supercell.energies.total
 end
 
-@testset "Compare scf results in unit cell and supercell" begin
+@testitem "Compare scf results in unit cell and supercell" #=
+    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using LinearAlgebra
+    silicon = TestCases.silicon
+
     Ecut    = 4
     kgrid   = [3, 3, 3]
     kshift  = zeros(3)
@@ -39,12 +41,16 @@ end
     @test scfres.energies.total * prod(kgrid) ≈ scfres_supercell.energies.total
 
     # Compare densities
-    ρ_ref = DFTK.interpolate_density(dropdims(scfres.ρ, dims=4), basis, basis_supercell)
+    ρ_ref = DFTK.interpolate_density(scfres.ρ, basis, basis_supercell)
     @test norm(ρ_ref .- scfres_supercell.ρ) < 10*tol
     @test norm(ρ_ref .- scfres_supercell_manual.ρ) < 10*tol
 end
 
-@testset "Supercell response" begin
+@testitem "Supercell response" tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using LinearAlgebra
+    (; silicon, magnesium) = TestCases.all_testcases
+
     Ecut    = 5.0
     kgrid   = [2, 1, 1]
     tol     = 1e-6
@@ -77,6 +83,4 @@ end
             @test norm(δρ - δρ_supercell_2[1:size(δρ, 1), :, :]) < 10*tol
         end
     end
-end
-
 end

@@ -7,7 +7,7 @@ function parse_system(system::AbstractSystem{D}) where {D}
     end
 
     # Parse abstract system and return data required to construct model
-    mtx = austrip.(reduce(hcat, bounding_box(system)))
+    mtx = austrip.(stack(bounding_box(system)))
     T = eltype(mtx)
     lattice = zeros(T, 3, 3)
     lattice[1:D, 1:D] .= mtx
@@ -19,10 +19,13 @@ function parse_system(system::AbstractSystem{D}) where {D}
     atoms = map(system) do atom
         pseudo = get(atom, :pseudopotential, "")
         if isempty(pseudo)
-            ElementCoulomb(atomic_symbol(atom))
+            ElementCoulomb(atomic_number(atom); mass=atomic_mass(atom))
         else
-            get!(cached_pspelements, pseudo) do
-                ElementPsp(atomic_symbol(atom); psp=load_psp(pseudo))
+            key = pseudo * string(atomic_mass(atom))
+            get!(cached_pspelements, key) do
+                kwargs = get(atom, :pseudopotential_kwargs, ())
+                ElementPsp(atomic_number(atom); psp=load_psp(pseudo; kwargs...),
+                           mass=atomic_mass(atom))
             end
         end
     end
@@ -88,6 +91,9 @@ function AtomsBase.atomic_system(lattice::AbstractMatrix{<:Number},
         end
         if element isa ElementPsp
             kwargs[:pseudopotential] = element.psp.identifier
+            if element.psp isa PspUpf
+                kwargs[:pseudopotential_kwargs] = (; element.psp.rcut)
+            end
         elseif element isa ElementCoulomb
             kwargs[:pseudopotential] = ""
         elseif !(element isa ElementCoulomb)
@@ -100,7 +106,8 @@ function AtomsBase.atomic_system(lattice::AbstractMatrix{<:Number},
         if atomic_symbol(element) == :X  # dummy element ... should solve this upstream
             Atom(:X, position; atomic_symbol=:X, atomic_number=0, atomic_mass=0u"u", kwargs...)
         else
-            Atom(atomic_symbol(element), position; kwargs...)
+            Atom(atomic_symbol(element), position; atomic_mass=atomic_mass(element),
+                 kwargs...)
         end
     end
     periodic_system(atomsbase_atoms, collect(eachcol(lattice)) * u"bohr")

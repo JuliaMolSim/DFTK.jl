@@ -10,7 +10,7 @@ function default_n_bands(model)
     n_extra = iszero(model.temperature) ? 0 : ceil(Int, 0.15 * min_n_bands)
     min_n_bands + n_extra
 end
-default_occupation_threshold() = 1e-6
+default_occupation_threshold(T = Float64) = max(T(1e-6), 100eps(T))
 
 
 """
@@ -21,12 +21,13 @@ In each SCF step converge exactly `n_bands_converge`, computing along the way ex
     n_bands_converge::Int # Number of bands to converge
     n_bands_compute::Int = n_bands_converge + 3 # bands to compute (not always converged)
     # Threshold for orbital to be counted as occupied
-    occupation_threshold::Float64 = default_occupation_threshold()
+    occupation_threshold::Float64 = default_occupation_threshold(Float64)
 end
-function FixedBands(model::Model)
+function FixedBands(model::Model{T}) where {T}
     n_bands_converge = default_n_bands(model)
     n_bands_converge += iszero(model.temperature) ? 0 : ceil(Int, 0.05 * n_bands_converge)
-    FixedBands(; n_bands_converge, n_bands_compute=n_bands_converge + 3)
+    FixedBands(; n_bands_converge, n_bands_compute=n_bands_converge + 3,
+               occupation_threshold=default_occupation_threshold(T))
 end
 function determine_n_bands(bands::FixedBands, occupation, eigenvalues, ψ)
     (; bands.n_bands_converge, bands.n_bands_compute)
@@ -42,12 +43,16 @@ computed (but not converged) orbital of `gap_min` is ensured.
 @kwdef struct AdaptiveBands <: NbandsAlgorithm
     n_bands_converge::Int  # Minimal number of bands to converge
     n_bands_compute::Int   # Minimal number of bands to compute
-    occupation_threshold::Float64 = default_occupation_threshold()
+    occupation_threshold::Float64 = default_occupation_threshold(Float64)
     gap_min::Float64 = 1e-3   # Minimal gap between converged and computed bands
 end
-function AdaptiveBands(model::Model; n_bands_converge=default_n_bands(model), kwargs...)
+function AdaptiveBands(model::Model{T};
+                       n_bands_converge=default_n_bands(model),
+                       occupation_threshold=default_occupation_threshold(T),
+                       kwargs...) where {T}
     n_extra = iszero(model.temperature) ? 3 : max(4, ceil(Int, 0.05 * n_bands_converge))
-    AdaptiveBands(; n_bands_converge, n_bands_compute=n_bands_converge + n_extra, kwargs...)
+    AdaptiveBands(; n_bands_converge, n_bands_compute=n_bands_converge + n_extra,
+                  occupation_threshold, kwargs...)
 end
 
 function determine_n_bands(bands::AdaptiveBands, occupation::Nothing, eigenvalues, ψ)
@@ -76,6 +81,7 @@ function determine_n_bands(bands::AdaptiveBands, occupation::AbstractVector,
 
     # Determine number of bands to be computed
     n_bands_compute_ε = maximum(eigenvalues) do εk
+        n_bands_converge > length(εk) && return length(εk) + 1
         something(findlast(εnk -> εnk ≥ εk[n_bands_converge] + bands.gap_min, εk),
                   length(εk) + 1)
     end

@@ -1,10 +1,9 @@
-using DFTK
-using Test
+@testitem "split_evenly" begin
+    using DFTK
 
-@testset "split_evenly" begin
     function run_test(itr, n)
         splitted = DFTK.split_evenly(itr, n)
-        @test collect(itr) == vcat(splitted...)
+        @test collect(itr) == reduce(vcat, splitted)
     end
 
     run_test(1:12, 4)

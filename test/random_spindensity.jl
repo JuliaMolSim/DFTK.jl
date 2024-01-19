@@ -1,8 +1,8 @@
-using Test
-using DFTK
-include("testcases.jl")
+@testitem "Spin-broken silicon setup relaxes to spin-paired ground state" #=
+    =#    setup=[TestCases] begin
+    using DFTK
+    silicon = TestCases.silicon
 
-@testset "Spin-broken silicon setup relaxes to spin-paired ground state" begin
     function run_silicon(spin_polarization)
         model = model_PBE(silicon.lattice, silicon.atoms, silicon.positions;
                           spin_polarization, temperature=0.01)

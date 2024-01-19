@@ -10,7 +10,9 @@ to simplify typing them.
 
 - **Reciprocal-space vectors:** ``k`` for vectors in the Brillouin zone,
   ``G`` for vectors of the reciprocal lattice,
-  ``q`` for general vectors
+  ``q`` for phonon vectors (i.e., vectors in the Brillouin zone characteristic of the
+  crystal normal modes),
+  ``p`` for general vectors.
 - **Real-space vectors:** ``R`` for lattice vectors,
   ``r`` and ``x`` are usually used for unit for vectors in the unit cell
   or general real-space vectors, respectively.
@@ -79,8 +81,8 @@ reciprocal-space lattice vectors by ``B = 2\pi A^{-T}``.
     (notably Python and C) use row-major ordering.
     Care therefore needs to be taken to properly
     transpose the unit cell matrices ``A`` before using it with DFTK.
-    For the supported third-party packages `load_lattice`,
-    `load_positions` and `load_atoms` again handle such conversion automatically.
+    Calls through the supported third-party package AtomsIO handle such conversion
+    automatically.
 
 We use the convention that the unit cell in real space is
 ``[0, 1)^3`` in reduced coordinates and the unit cell in reciprocal
@@ -88,7 +90,7 @@ space (the reducible Brillouin zone) is ``[-1/2, 1/2)^3``.
 
 ## Reduced and cartesian coordinates
 Unless denoted otherwise the code uses **reduced coordinates**
-for reciprocal-space vectors such as ``k``,  ``G``, ``q``
+for reciprocal-space vectors such as ``k``,  ``G``, ``q``, ``p``
 or real-space vectors like ``r`` and ``R``
 (see [Symbol conventions](@ref symbol-conventions)).
 One switches to Cartesian coordinates by
