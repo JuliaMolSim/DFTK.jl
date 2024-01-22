@@ -14,7 +14,7 @@ struct Model{T <: Real, VT <: Real}
     recip_lattice::Mat3{T}
     # Dimension of the system; 3 unless `lattice` has zero columns
     n_dim::Int
-    # Useful for conversions between cartesian and reduced coordinates
+    # Useful for conversions between Cartesian and reduced coordinates
     inv_lattice::Mat3{T}
     inv_recip_lattice::Mat3{T}
     # Volumes
@@ -345,7 +345,7 @@ Beware that some quantities (e.g., the force constant matrix) map vectors to cov
 are therefore not matrices nor comatrices; they fall outside of these methods.
 
 Consider two covectors f and g related by a transformation matrix B. In reduced
-coordinates g_red = B_red f_red and in cartesian coordinates we want g_cart = B_cart f_cart.
+coordinates g_red = B_red f_red and in Cartesian coordinates we want g_cart = B_cart f_cart.
 From g_cart = L⁻ᵀ g_red = L⁻ᵀ B_red f_red = L⁻ᵀ B_red Lᵀ f_cart, we see B_cart = L⁻ᵀ B_red Lᵀ.
 
 Similarly for two vectors r and s with s_red = A_red r_red and s_cart = A_cart r_cart:

@@ -59,13 +59,13 @@ Intended to give a condensed set of useful metadata to post-processing scripts o
 for storing computational results (e.g. bands, bloch waves etc.).
 
 Some details on the conventions for the returned data:
-- lattice, recip_lattice: Always a zero-padded 3x3 matrix, independent on the actual dimension
-- atomic_positions, atomic_positions_cart:
-  Atom positions in fractional or cartesian coordinates, respectively.
-- atomic_symbols: Atomic symbols if known.
-- terms: Some rough information on the terms used for the computation.
-- n_electrons: Number of electrons, may be missing if εF is fixed instead
-- εF: Fixed Fermi level to use, may be missing if n_electronis is specified instead.
+- `lattice`, `recip_lattice`: Always a zero-padded 3x3 matrix, independent on the actual dimension
+- `atomic_positions`, `atomic_positions_cart`:
+  Atom positions in fractional or Cartesian coordinates, respectively.
+- `atomic_symbols`: Atomic symbols if known.
+- `terms`: Some rough information on the terms used for the computation.
+- `n_electrons`: Number of electrons, may be missing if `εF` is fixed instead
+- `εF`: Fixed Fermi level to use, may be missing if `n_electrons` is is specified instead.
 """
 todict(model::Model) = todict!(Dict{String,Any}(), model)
 function todict!(dict, model::Model)
@@ -138,10 +138,10 @@ the same result on all MPI processors. See also the [`todict`](@ref) function
 for the `Model`, which is called from this one to merge the data of both outputs.
 
 Some details on the conventions for the returned data:
-- dvol: Volume element for real-space integration
-- variational: Is the k-point specific basis (for ψ) variationally consistent
+- `dvol`: Volume element for real-space integration
+- `variational`: Is the k-point specific basis (for ψ) variationally consistent
   with the basis for ρ.
-- kweights: Weights for the k-points, summing to 1.0
+- `kweights`: Weights for the k-points, summing to 1.0
 """
 todict(basis::PlaneWaveBasis) = todict!(Dict{String,Any}(), basis)
 function todict!(dict, basis::PlaneWaveBasis)
@@ -182,7 +182,7 @@ but the data may be dummy.
 Some details on the conventions for the returned data:
 - `εF`: Computed Fermi level (if present in band_data)
 - `labels`: A mapping of high-symmetry k-Point labels to the index in
-  the `"kcoords"` vector of the corresponding k-Point.
+  the `kcoords` vector of the corresponding k-point.
 - `eigenvalues`, `eigenvalues_error`, `occupation`, `residual_norms`:
   `(n_bands, n_kpoints, n_spin)` arrays of the respective data.
 - `n_iter`: `(n_kpoints, n_spin)` array of the number of iterations the
@@ -288,16 +288,13 @@ function and their outputs merged. Only the master process
 returns meaningful data.
 
 Some details on the conventions for the returned data:
-- ρ: (fft_size[1], fft_size[2], fft_size[3], n_spin) array of density
-  on real-space grid.
-- energies: Dictionary / subdirectory containing the energy terms
-- converged: Has the SCF reached convergence
-- norm_Δρ: Most recent change in ρ during an SCF step
-- occupation_threshold: Threshold below which orbitals are considered
-  unoccupied
-- n_bands_converge: Number of bands that have been 
-  fully converged numerically.
-- n_iter: Number of iterations.
+- `ρ`: (fft_size[1], fft_size[2], fft_size[3], n_spin) array of density on real-space grid.
+- `energies`: Dictionary / subdirectory containing the energy terms
+- `converged`: Has the SCF reached convergence
+- `norm_Δρ`: Most recent change in ρ during an SCF step
+- `occupation_threshold`: Threshold below which orbitals are considered unoccupied
+- `n_bands_converge`: Number of bands that have been fully converged numerically.
+- `n_iter`: Number of iterations.
 """
 function scfres_to_dict(scfres::NamedTuple; kwargs...)
     scfres_to_dict!(Dict{String,Any}(), scfres; kwargs...)

@@ -25,7 +25,7 @@ atoms = [H, H];
 
 # First, we create a function that computes the solution associated to the
 # position ``x ∈ ℝ^6`` of the atoms in reduced coordinates
-# (cf. [Reduced and cartesian coordinates](@ref) for more
+# (cf. [Reduced and Cartesian coordinates](@ref) for more
 # details on the coordinates system).
 # They are stored as a vector: `x[1:3]` represents the position of the
 # first atom and `x[4:6]` the position of the second.

@@ -135,7 +135,7 @@ end
 (conv::ScfConvergenceDensity)(info) = last(info.history_Δρ) < conv.tolerance
 
 """
-Flag convergence on the change in cartesian force between two iterations.
+Flag convergence on the change in Cartesian force between two iterations.
 """
 mutable struct ScfConvergenceForce
     tolerance
