@@ -26,7 +26,7 @@ function generate_supercell_qpoints(; supercell_size=generate_random_supercell()
     (; supercell_size, qpoints)
 end
 
-function are_approx_frequencies(ω_uc, ω_ref; tol=1e-10)
+function test_approx_frequencies(ω_uc, ω_ref; tol=1e-10)
     # Because three eigenvalues should be close to zero and the square root near
     # zero decrease machine accuracy, we expect at least ``3×2×2 - 3 = 9``
     # eigenvalues to have norm related to the accuracy of the SCF convergence
@@ -59,7 +59,7 @@ function test_frequencies(model_tested, testcase; ω_ref=nothing, Ecut=7, kgrid=
         phonon_modes_cart(basis, dynamical_matrix).frequencies
     end))
 
-    !isnothing(ω_ref) && return are_approx_frequencies(ω_uc, ω_ref; tol=10scf_tol)
+    !isnothing(ω_ref) && return test_approx_frequencies(ω_uc, ω_ref; tol=10scf_tol)
 
     supercell = create_supercell(testcase.lattice, testcase.atoms, testcase.positions,
                                  supercell_size)
@@ -72,7 +72,7 @@ function test_frequencies(model_tested, testcase; ω_ref=nothing, Ecut=7, kgrid=
 
     dynamical_matrix_sc = compute_dynmat(scfres_supercell; tol=χ0_tol)
     ω_sc = sort(phonon_modes_cart(basis_supercell, dynamical_matrix_sc).frequencies)
-    are_approx_frequencies(ω_uc, ω_sc; tol=10scf_tol)
+    test_approx_frequencies(ω_uc, ω_sc; tol=10scf_tol)
 
     isnothing(compute_ref) && return
 
@@ -80,7 +80,7 @@ function test_frequencies(model_tested, testcase; ω_ref=nothing, Ecut=7, kgrid=
                                               kgrid=[1, 1, 1], scf_tol, method=compute_ref)
     ω_ref = sort(phonon_modes_cart(basis_supercell, dynamical_matrix_ref).frequencies)
 
-    are_approx_frequencies(ω_uc, ω_ref; tol=10scf_tol)
+    test_approx_frequencies(ω_uc, ω_ref; tol=10scf_tol)
 end
 
 # Reference results using finite differences or automatic differentiation.
