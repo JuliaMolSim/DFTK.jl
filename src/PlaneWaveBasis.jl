@@ -429,7 +429,7 @@ G_vectors(::PlaneWaveBasis, kpt::Kpoint) = kpt.G_vectors
     G_vectors_cart(basis::PlaneWaveBasis)
     G_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
 
-The list of ``G`` vectors of a given `basis` or `kpt`, in Cartesian coordinates.
+The list of ``G`` vectors of a given `basis` or `kpt`, in cartesian coordinates.
 """
 function G_vectors_cart(basis::PlaneWaveBasis)
     map(recip_vector_red_to_cart(basis.model), G_vectors(basis))
@@ -451,7 +451,7 @@ end
 @doc raw"""
     Gplusk_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
 
-The list of ``G + k`` vectors, in Cartesian coordinates.
+The list of ``G + k`` vectors, in cartesian coordinates.
 """
 function Gplusk_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
     map(recip_vector_red_to_cart(basis.model), Gplusk_vectors(basis, kpt))
@@ -467,7 +467,7 @@ r_vectors(basis::PlaneWaveBasis) = basis.r_vectors
 @doc raw"""
     r_vectors_cart(basis::PlaneWaveBasis)
 
-The list of ``r`` vectors, in Cartesian coordinates.
+The list of ``r`` vectors, in cartesian coordinates.
 """
 r_vectors_cart(basis::PlaneWaveBasis) = map(vector_red_to_cart(basis.model), r_vectors(basis))
 

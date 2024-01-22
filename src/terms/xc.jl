@@ -510,7 +510,7 @@ end
 
 
 """
-Compute divergence of an operand function, which returns the Cartesian x,y,z
+Compute divergence of an operand function, which returns the cartesian x,y,z
 components in real space when called with the arguments 1 to 3.
 The divergence is also returned as a real-space array.
 """

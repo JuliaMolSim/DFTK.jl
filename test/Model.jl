@@ -1,4 +1,4 @@
-@testitem "Test reduced / Cartesian conversion" setup=[TestCases] begin
+@testitem "Test reduced / cartesian conversion" setup=[TestCases] begin
     using DFTK
     using LinearAlgebra
     silicon = TestCases.silicon

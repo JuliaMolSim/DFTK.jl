@@ -42,7 +42,7 @@ end
 
 
 """
-External potential from an analytic function `V` (in Cartesian coordinates).
+External potential from an analytic function `V` (in cartesian coordinates).
 No low-pass filtering is performed.
 """
 struct ExternalFromReal
@@ -56,7 +56,7 @@ end
 
 """
 External potential from the (unnormalized) Fourier coefficients `V(G)`
-G is passed in Cartesian coordinates
+G is passed in cartesian coordinates
 """
 struct ExternalFromFourier
     potential::Function
