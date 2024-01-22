@@ -88,7 +88,7 @@ We use the convention that the unit cell in real space is
 ``[0, 1)^3`` in reduced coordinates and the unit cell in reciprocal
 space (the reducible Brillouin zone) is ``[-1/2, 1/2)^3``.
 
-## Reduced and cartesian coordinates
+## Reduced and Cartesian coordinates
 Unless denoted otherwise the code uses **reduced coordinates**
 for reciprocal-space vectors such as ``k``,  ``G``, ``q``, ``p``
 or real-space vectors like ``r`` and ``R``

@@ -158,7 +158,7 @@ function kpath_get_branch(kinter::KPathInterpolant{D}, ibranch::Integer) where {
 end
 
 function kdistances_and_ticks(kcoords, klabels::Dict, kbranches)
-    # kcoords in cartesian coordinates, klabels uses cartesian coordinates
+    # kcoords in Cartesian coordinates, klabels uses Cartesian coordinates
     function getlabel(kcoord; tol=1e-4)
         findfirst(c -> norm(c - kcoord) < tol, klabels)
     end
