@@ -195,7 +195,7 @@ function main(structure, pseudos; Ecut, kspacing)
         println()
     end
 
-    system = attach_psps(load_system(structure); pseudos...)
+    system = attach_psp(load_system(structure); pseudos...)
     model  = model_PBE(system; temperature=1e-3, smearing=Smearing.MarzariVanderbilt())
 
     kgrid = kgrid_from_minimal_spacing(model, kspacing)

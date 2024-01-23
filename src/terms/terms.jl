@@ -63,7 +63,7 @@ compute_forces(::Term, ::AbstractBasis, ψ, occupation; kwargs...) = nothing
 # dynamical matrix for phonons computations (array dynmat[3, n_atom, 3, n_atom])
 compute_dynmat(::Term, ::AbstractBasis, ψ, occupation; kwargs...) = nothing
 # variation of the Hamiltonian applied to orbitals for phonons computations
-compute_δHψ_sα(::Term, ::AbstractBasis, ψ, q, s, α; kwargs...) = nothing
+compute_δHψ_αs(::Term, ::AbstractBasis, ψ, α, s, q; kwargs...) = nothing
 
 @doc raw"""
     compute_kernel(basis::PlaneWaveBasis; kwargs...)
@@ -98,7 +98,7 @@ compute_kernel(::Term, ::AbstractBasis{T}; kwargs...) where {T} = nothing  # By 
     apply_kernel(basis::PlaneWaveBasis, δρ; kwargs...)
 
 Computes the potential response to a perturbation δρ in real space,
-as a 4D (i,j,k,σ) array.
+as a 4D `(i,j,k,σ)` array.
 """
 @timing function apply_kernel(basis::PlaneWaveBasis, δρ; RPA=false, kwargs...)
     n_spin = basis.model.n_spin_components

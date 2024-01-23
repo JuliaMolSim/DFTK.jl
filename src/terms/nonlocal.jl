@@ -1,6 +1,6 @@
 @doc raw"""
 Nonlocal term coming from norm-conserving pseudopotentials in Kleinmann-Bylander form.
-``\text{Energy} = \sum_a \sum_{ij} \sum_{n} f_n <ψ_n|p_{ai}> D_{ij} <p_{aj}|ψ_n>.``
+``\text{Energy} = ∑_a ∑_{ij} ∑_{n} f_n \braket{ψ_n}{{\rm proj}_{ai}} D_{ij} \braket{{\rm proj}_{aj}}{ψ_n}.``
 """
 struct AtomicNonlocal end
 function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
@@ -14,8 +14,8 @@ function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
 
     isempty(psp_groups) && return TermNoop()
     ops = map(basis.kpoints) do kpt
-        P = build_projection_vectors_(basis, kpt, psps, psp_positions)
-        D = build_projection_coefficients_(T, psps, psp_positions)
+        P = build_projection_vectors(basis, kpt, psps, psp_positions)
+        D = build_projection_coefficients(T, psps, psp_positions)
         NonlocalOperator(basis, kpt, P, to_device(basis.architecture, D))
     end
     TermAtomicNonlocal(ops)
@@ -44,8 +44,8 @@ end
 end
 
 @timing "forces: nonlocal" function compute_forces(::TermAtomicNonlocal,
-                                                   basis::PlaneWaveBasis{TT},
-                                                   ψ, occupation; kwargs...) where {TT}
+                                                   basis::PlaneWaveBasis{TT}, ψ, occupation;
+                                                   kwargs...) where {TT}
     T = promote_type(TT, real(eltype(ψ[1])))
     model = basis.model
     unit_cell_volume = model.unit_cell_volume
@@ -60,19 +60,19 @@ end
     for group in psp_groups
         element = model.atoms[first(group)]
 
-        C = build_projection_coefficients_(T, element.psp)
+        C = build_projection_coefficients(T, element.psp)
         for (ik, kpt) in enumerate(basis.kpoints)
             # we compute the forces from the irreductible BZ; they are symmetrized later
-            qs = Gplusk_vectors(basis, kpt)
-            qs_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
-            form_factors = build_form_factors(element.psp, qs_cart)
+            G_plus_k = Gplusk_vectors(basis, kpt)
+            G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
+            form_factors = build_form_factors(element.psp, G_plus_k_cart)
             for idx in group
                 r = model.positions[idx]
-                structure_factors = [cis2pi(-dot(q, r)) for q in qs]
+                structure_factors = [cis2pi(-dot(p, r)) for p in G_plus_k]
                 P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
 
                 forces[idx] += map(1:3) do α
-                    dPdR = [-2T(π)*im*q[α] for q in qs] .* P
+                    dPdR = [-2T(π)*im*p[α] for p in G_plus_k] .* P
                     ψk = ψ[ik]
                     dHψk = P * (C * (dPdR' * ψk))
                     -sum(occupation[ik][iband] * basis.kweights[ik] *
@@ -83,7 +83,7 @@ end
         end  # kpt
     end  # group
 
-    forces = mpi_sum!(forces, basis.comm_kpts)
+    mpi_sum!(forces, basis.comm_kpts)
     symmetrize_forces(basis, forces)
 end
 
@@ -92,7 +92,7 @@ end
 # The ordering of the projector indices is (A,l,m,i), where A is running over all
 # atoms, l, m are AM quantum numbers and i is running over all projectors for a
 # given l. The matrix is block-diagonal with non-zeros only if A, l and m agree.
-function build_projection_coefficients_(T, psps, psp_positions)
+function build_projection_coefficients(T, psps, psp_positions)
     # TODO In the current version the proj_coeffs still has a lot of zeros.
     #      One could improve this by storing the blocks as a list or in a
     #      BlockDiagonal data structure
@@ -103,9 +103,9 @@ function build_projection_coefficients_(T, psps, psp_positions)
     for (psp, positions) in zip(psps, psp_positions), _ in positions
         n_proj_psp = count_n_proj(psp)
         block = count+1:count+n_proj_psp
-        proj_coeffs[block, block] = build_projection_coefficients_(T, psp)
+        proj_coeffs[block, block] = build_projection_coefficients(T, psp)
         count += n_proj_psp
-    end  # psp, r
+    end
     @assert count == n_proj
 
     proj_coeffs
@@ -115,16 +115,16 @@ end
 # The ordering of the projector indices is (l,m,i), where l, m are the
 # AM quantum numbers and i is running over all projectors for a given l.
 # The matrix is block-diagonal with non-zeros only if l and m agree.
-function build_projection_coefficients_(T, psp::NormConservingPsp)
+function build_projection_coefficients(T, psp::NormConservingPsp)
     n_proj = count_n_proj(psp)
     proj_coeffs = zeros(T, n_proj, n_proj)
     count = 0
-    for l = 0:psp.lmax, m in -l:l
+    for l = 0:psp.lmax, _ = -l:l
         n_proj_l = count_n_proj_radial(psp, l)  # Number of i's
         range = count .+ (1:n_proj_l)
         proj_coeffs[range, range] = psp.h[l + 1]
         count += n_proj_l
-    end # l, m
+    end
     proj_coeffs
 end
 
@@ -134,8 +134,8 @@ Build projection vectors for a atoms array generated by term_nonlocal
 
 ```math
 \begin{aligned}
-H_{\rm at}  &= \sum_{ij} C_{ij} \ket{p_i} \bra{p_j} \\
-H_{\rm per} &= \sum_R \sum_{ij} C_{ij} \ket{p_i(x-R)} \bra{p_j(x-R)}
+H_{\rm at}  &= \sum_{ij} C_{ij} \ket{{\rm proj}_i} \bra{{\rm proj}_j} \\
+H_{\rm per} &= \sum_R \sum_{ij} C_{ij} \ket{{\rm proj}_i(x-R)} \bra{{\rm proj}_j(x-R)}
 \end{aligned}
 ```
 
@@ -143,40 +143,39 @@ H_{\rm per} &= \sum_R \sum_{ij} C_{ij} \ket{p_i(x-R)} \bra{p_j(x-R)}
 \begin{aligned}
 \braket{e_k(G') \middle| H_{\rm per}}{e_k(G)}
         &= \ldots \\
-        &= \frac{1}{Ω} \sum_{ij} C_{ij} \hat p_i(k+G') \hat p_j^*(k+G),
+        &= \frac{1}{Ω} \sum_{ij} C_{ij} \widehat{\rm proj}_i(k+G') \widehat{\rm proj}_j^*(k+G),
 \end{aligned}
 ```
 
-where ``\hat p_i(q) = ∫_{ℝ^3} p_i(r) e^{-iq·r} dr``.
+where ``\widehat{\rm proj}_i(p) = ∫_{ℝ^3} {\rm proj}_i(r) e^{-ip·r} dr``.
 
-We store ``\frac{1}{\sqrt Ω} \hat p_i(k+G)`` in `proj_vectors`.
+We store ``\frac{1}{\sqrt Ω} \widehat{\rm proj}_i(k+G)`` in `proj_vectors`.
 """
-function build_projection_vectors_(basis::PlaneWaveBasis{T}, kpt::Kpoint,
-                                   psps, psp_positions) where {T}
+function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
+                                  psps, psp_positions) where {T}
     unit_cell_volume = basis.model.unit_cell_volume
     n_proj = count_n_proj(psps, psp_positions)
     n_G    = length(G_vectors(basis, kpt))
     proj_vectors = zeros(Complex{T}, n_G, n_proj)
-    qs = to_cpu(Gplusk_vectors(basis, kpt))
+    G_plus_k = to_cpu(Gplusk_vectors(basis, kpt))
 
-    # Compute the columns of proj_vectors = 1/√Ω pihat(k+G)
-    # Since the pi are translates of each others, pihat(k+G) decouples as
-    # pihat(q) = ∫ p(r-R) e^{-iqr} dr = e^{-iqR} phat(q).
+    # Compute the columns of proj_vectors = 1/√Ω \hat proj_i(k+G)
+    # Since the proj_i are translates of each others, \hat proj_i(k+G) decouples as
+    # \hat proj_i(p) = ∫ proj(r-R) e^{-ip·r} dr = e^{-ip·R} \hat proj(p).
     # The first term is the structure factor, the second the form factor.
     offset = 0  # offset into proj_vectors
     for (psp, positions) in zip(psps, psp_positions)
         # Compute position-independent form factors
-        qs_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
-        form_factors = build_form_factors(psp, qs_cart)
+        G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
+        form_factors = build_form_factors(psp, G_plus_k_cart)
 
         # Combine with structure factors
         for r in positions
             # k+G in this formula can also be G, this only changes an unimportant phase factor
-            structure_factors = map(q -> cis2pi(-dot(q, r)), qs)
+            structure_factors = map(p -> cis2pi(-dot(p, r)), G_plus_k)
             @views for iproj = 1:count_n_proj(psp)
-                proj_vectors[:, offset+iproj] .= (
+                proj_vectors[:, offset+iproj] .=
                     structure_factors .* form_factors[:, iproj] ./ sqrt(unit_cell_volume)
-                )
             end
             offset += count_n_proj(psp)
         end
@@ -190,37 +189,37 @@ end
 """
 Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 """
-function build_form_factors(psp, qs::Array)
-    T = real(eltype(eltype(qs)))
+function build_form_factors(psp, G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
+    T = real(TT)
 
-    # Pre-compute the radial parts of the non-local projectors at unique |q| to speed up
+    # Pre-compute the radial parts of the non-local projectors at unique |p| to speed up
     # the form factor calculation (by a lot). Using a hash map gives O(1) lookup.
 
     # Maximum number of projectors over angular momenta so that form factors
-    # for a given `q` can be stored in an `nproj x (lmax + 1)` matrix.
+    # for a given `p` can be stored in an `nproj x (lmax + 1)` matrix.
     n_proj_max = maximum(l -> count_n_proj_radial(psp, l), 0:psp.lmax; init=0)
 
     radials = IdDict{T,Matrix{T}}()  # IdDict for Dual compatibility
-    for q in qs
-        q_norm = norm(q)
-        if !haskey(radials, q_norm)
-            radials_q = Matrix{T}(undef, n_proj_max, psp.lmax + 1)
+    for p in G_plus_k
+        p_norm = norm(p)
+        if !haskey(radials, p_norm)
+            radials_p = Matrix{T}(undef, n_proj_max, psp.lmax + 1)
             for l = 0:psp.lmax, iproj_l = 1:count_n_proj_radial(psp, l)
-                radials_q[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, q_norm)
+                radials_p[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, p_norm)
             end
-            radials[q_norm] = radials_q
+            radials[p_norm] = radials_p
         end
     end
 
-    form_factors = Matrix{Complex{T}}(undef, length(qs), count_n_proj(psp))
-    for (iq, q) in enumerate(qs)
-        radials_q = radials[norm(q)]
+    form_factors = Matrix{Complex{T}}(undef, length(G_plus_k), count_n_proj(psp))
+    for (ip, p) in enumerate(G_plus_k)
+        radials_p = radials[norm(p)]
         count = 1
-        for l = 0:psp.lmax, m in -l:l
+        for l = 0:psp.lmax, m = -l:l
             # see "Fourier transforms of centered functions" in the docs for the formula
-            angular = (-im)^l * ylm_real(l, m, q)
+            angular = (-im)^l * ylm_real(l, m, p)
             for iproj_l = 1:count_n_proj_radial(psp, l)
-                form_factors[iq, count] = radials_q[iproj_l, l+1] * angular
+                form_factors[ip, count] = radials_p[iproj_l, l+1] * angular
                 count += 1
             end
         end

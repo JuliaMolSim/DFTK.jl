@@ -59,9 +59,9 @@ end
     for psp_pair in mPspUpf.hgh_pseudos
         upf = psp_pair.upf
         hgh = psp_pair.hgh
-        for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
-            reference_hgh = eval_psp_local_fourier(hgh, q)
-            @test reference_hgh ≈ eval_psp_local_fourier(upf, q) rtol=1e-3 atol=1e-3
+        for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
+            reference_hgh = eval_psp_local_fourier(hgh, p)
+            @test reference_hgh ≈ eval_psp_local_fourier(upf, p) rtol=1e-3 atol=1e-3
         end
     end
 end
@@ -82,9 +82,9 @@ end
 
         for l = 0:upf.lmax, i in count_n_proj_radial(upf, l)
             ircut = length(upf.r2_projs[l+1][i])
-            for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
-                reference_hgh = eval_psp_projector_fourier(hgh, i, l, q)
-                proj_upf = eval_psp_projector_fourier(upf, i, l, q)
+            for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
+                reference_hgh = eval_psp_projector_fourier(hgh, i, l, p)
+                proj_upf = eval_psp_projector_fourier(upf, i, l, p)
                 @test reference_hgh ≈ proj_upf atol=1e-5 rtol=1e-5
             end
             for r in [upf.rgrid[1], upf.rgrid[ircut]]
@@ -113,15 +113,15 @@ end
     using DFTK: eval_psp_local_real, eval_psp_local_fourier
     using QuadGK
 
-    function integrand(psp, q, r)
-        4π * (eval_psp_local_real(psp, r) + psp.Zion / r) * sin(q * r) / (q * r) * r^2
+    function integrand(psp, p, r)
+        4π * (eval_psp_local_real(psp, r) + psp.Zion / r) * sin(p * r) / (p * r) * r^2
     end
     for psp in values(mPspUpf.upf_pseudos)
-        for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
-            reference = quadgk(r -> integrand(psp, q, r), psp.rgrid[begin],
+        for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
+            reference = quadgk(r -> integrand(psp, p, r), psp.rgrid[begin],
                                psp.rgrid[psp.ircut])[1]
-            correction = 4π * psp.Zion / q^2
-            @test (reference - correction) ≈ eval_psp_local_fourier(psp, q) atol=1e-2 rtol=1e-2
+            correction = 4π * psp.Zion / p^2
+            @test (reference - correction) ≈ eval_psp_local_fourier(psp, p) atol=1e-2 rtol=1e-2
         end
     end
 end
@@ -134,18 +134,18 @@ end
 
     # The integrand for performing the spherical Hankel transfrom,
     # i.e. compute the radial part of the projector in Fourier space
-    function integrand(psp, i, l, q, r)
-        4π * r^2 * eval_psp_projector_real(psp, i, l, r) * sphericalbesselj(l, q * r)
+    function integrand(psp, i, l, p, r)
+        4π * r^2 * eval_psp_projector_real(psp, i, l, r) * sphericalbesselj(l, p * r)
     end
 
     for psp in values(mPspUpf.upf_pseudos)
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1
         for l = 0:psp.lmax, i in count_n_proj_radial(psp, l)
             ir_cut = min(psp.ircut, length(psp.r2_projs[l+1][i]))
-            for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
-                reference = quadgk(r -> integrand(psp, i, l, q, r),
+            for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
+                reference = quadgk(r -> integrand(psp, i, l, p, r),
                                    psp.rgrid[ir_start], psp.rgrid[ir_cut])[1]
-                @test reference ≈ eval_psp_projector_fourier(psp, i, l, q) atol=1e-2 rtol=1e-2
+                @test reference ≈ eval_psp_projector_fourier(psp, i, l, p) atol=1e-2 rtol=1e-2
             end
         end
     end
@@ -157,15 +157,15 @@ end
     using SpecialFunctions: sphericalbesselj
     using QuadGK
 
-    function integrand(psp, q, r)
-        4π * r^2 * eval_psp_density_valence_real(psp, r) * sphericalbesselj(0, q * r)
+    function integrand(psp, p, r)
+        4π * r^2 * eval_psp_density_valence_real(psp, r) * sphericalbesselj(0, p * r)
     end
     for psp in values(mPspUpf.upf_pseudos)
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1
-        for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
-            reference = quadgk(r -> integrand(psp, q, r), psp.rgrid[ir_start],
+        for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
+            reference = quadgk(r -> integrand(psp, p, r), psp.rgrid[ir_start],
                                psp.rgrid[psp.ircut])[1]
-            @test reference  ≈ eval_psp_density_valence_fourier(psp, q) atol=1e-2 rtol=1e-2
+            @test reference  ≈ eval_psp_density_valence_fourier(psp, p) atol=1e-2 rtol=1e-2
         end
     end
 end
@@ -176,15 +176,15 @@ end
     using SpecialFunctions: sphericalbesselj
     using QuadGK
 
-    function integrand(psp, q, r)
-        4π * r^2 * eval_psp_density_core_real(psp, r) * sphericalbesselj(0, q * r)
+    function integrand(psp, p, r)
+        4π * r^2 * eval_psp_density_core_real(psp, r) * sphericalbesselj(0, p * r)
     end
     for psp in values(mPspUpf.upf_pseudos)
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1
-        for q in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
-            reference = quadgk(r -> integrand(psp, q, r), psp.rgrid[ir_start],
+        for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
+            reference = quadgk(r -> integrand(psp, p, r), psp.rgrid[ir_start],
                                psp.rgrid[psp.ircut])[1]
-            @test reference  ≈ eval_psp_density_core_fourier(psp, q) atol=1e-2 rtol=1e-2
+            @test reference  ≈ eval_psp_density_core_fourier(psp, p) atol=1e-2 rtol=1e-2
         end
     end
 end
@@ -193,10 +193,10 @@ end
     =#    tags=[:psp] setup=[mPspUpf] begin
     using DFTK: eval_psp_local_fourier, eval_psp_energy_correction
 
-    q_small = 1e-2    # We are interested in q→0 term
+    p_small = 1e-2    # We are interested in p→0 term
     for psp in values(mPspUpf.upf_pseudos)
-        coulomb = -4π * (psp.Zion) / q_small^2
-        reference = eval_psp_local_fourier(psp, q_small) - coulomb
+        coulomb = -4π * (psp.Zion) / p_small^2
+        reference = eval_psp_local_fourier(psp, p_small) - coulomb
         @test reference ≈ eval_psp_energy_correction(psp, 1) atol=1e-2
     end
 end

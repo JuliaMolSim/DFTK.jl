@@ -69,11 +69,9 @@ scfres = self_consistent_field(basis, tol=1e-5);
 scfres.energies
 
 # Eigenvalues:
-hcat(scfres.eigenvalues...)
+stack(scfres.eigenvalues)
 # `eigenvalues` is an array (indexed by k-points) of arrays (indexed by
-# eigenvalue number). The "splatting" operation `...` calls `hcat`
-# with all the inner arrays as arguments, which collects them into a
-# matrix.
+# eigenvalue number).
 #
 # The resulting matrix is 7 (number of computed eigenvalues) by 8
 # (number of irreducible k-points). There are 7 eigenvalues per
@@ -89,7 +87,7 @@ hcat(scfres.eigenvalues...)
 # for details).
 #
 # We can check the occupations ...
-hcat(scfres.occupation...)
+stack(scfres.occupation)
 # ... and density, where we use that the density objects in DFTK are
 # indexed as ρ[iσ, ix, iy, iz], i.e. first in the spin component and then
 # in the 3-dimensional real-space grid.

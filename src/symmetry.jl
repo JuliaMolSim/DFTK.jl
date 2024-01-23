@@ -143,8 +143,8 @@ end
 end
 
 # Approximate in; can be performance-critical, so we optimize in case of rationals
-is_approx_in_(x::AbstractArray{<:Rational}, X)  = any(isequal(x), X)
-is_approx_in_(x::AbstractArray{T}, X) where {T} = any(y -> isapprox(x, y; atol=sqrt(eps(T))), X)
+_is_approx_in(x::AbstractArray{<:Rational}, X)  = any(isequal(x), X)
+_is_approx_in(x::AbstractArray{T}, X) where {T} = any(y -> isapprox(x, y; atol=sqrt(eps(T))), X)
 
 """
 Filter out the symmetry operations that don't respect the symmetries of the discrete BZ grid
@@ -152,7 +152,7 @@ Filter out the symmetry operations that don't respect the symmetries of the disc
 function symmetries_preserving_kgrid(symmetries, kcoords)
     kcoords_normalized = normalize_kpoint_coordinate.(kcoords)
     function preserves_grid(symop)
-        all(is_approx_in_(normalize_kpoint_coordinate(symop.S * k), kcoords_normalized)
+        all(_is_approx_in(normalize_kpoint_coordinate(symop.S * k), kcoords_normalized)
             for k in kcoords_normalized)
     end
     filter(preserves_grid, symmetries)
@@ -349,7 +349,7 @@ end
 
 """
 Symmetrize the forces in *reduced coordinates*, forces given as an
-array forces[iel][α,i]
+array `forces[iel][α,i]`.
 """
 function symmetrize_forces(model::Model, forces; symmetries)
     symmetrized_forces = zero(forces)
@@ -407,7 +407,7 @@ function unfold_mapping(basis_irred, kpt_unfolded)
     error("Invalid unfolding of BZ")
 end
 
-function unfold_array_(basis_irred, basis_unfolded, data, is_ψ)
+function unfold_array(basis_irred, basis_unfolded, data, is_ψ)
     if basis_irred == basis_unfolded
         return data
     end
@@ -435,9 +435,9 @@ end
 
 function unfold_bz(scfres)
     basis_unfolded = unfold_bz(scfres.basis)
-    ψ = unfold_array_(scfres.basis, basis_unfolded, scfres.ψ, true)
-    eigenvalues = unfold_array_(scfres.basis, basis_unfolded, scfres.eigenvalues, false)
-    occupation = unfold_array_(scfres.basis, basis_unfolded, scfres.occupation, false)
+    ψ = unfold_array(scfres.basis, basis_unfolded, scfres.ψ, true)
+    eigenvalues = unfold_array(scfres.basis, basis_unfolded, scfres.eigenvalues, false)
+    occupation = unfold_array(scfres.basis, basis_unfolded, scfres.occupation, false)
     energies, ham = energy_hamiltonian(basis_unfolded, ψ, occupation;
                                        scfres.ρ, eigenvalues, scfres.εF)
     @assert energies.total ≈ scfres.energies.total

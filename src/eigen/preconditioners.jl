@@ -14,15 +14,15 @@ import LinearAlgebra: mul!
 precondprep!(P, X) = P  # This API is also used in Optim.jl
 
 """
-No preconditioning
+No preconditioning.
 """
 struct PreconditionerNone end
 PreconditionerNone(::PlaneWaveBasis, ::Kpoint) = I
 PreconditionerNone(::HamiltonianBlock) = I
 
 """
-(simplified version of) Tetter-Payne-Allan preconditioning
-↑ M.P. Teter, M.C. Payne and D.C. Allan, Phys. Rev. B 40, 12255 (1989).
+(Simplified version of)
+[Tetter-Payne-Allan preconditioning](https://doi.org/10.1103/physrevb.40.12255).
 """
 mutable struct PreconditionerTPA{T <: Real}
     basis::PlaneWaveBasis

@@ -1,5 +1,8 @@
-"""
-Kinetic energy: 1/2 sum_n f_n ∫ |∇ψn|^2 * blowup(-i∇Ψ).
+@doc raw"""
+Kinetic energy:
+```math
+1/2 ∑_n f_n ∫ |∇ψ_n|^2 * {\rm blowup}(-i∇Ψ_n).
+```
 """
 Base.@kwdef struct Kinetic{F}
     scaling_factor::Real = 1
@@ -25,13 +28,13 @@ function TermKinetic(basis::PlaneWaveBasis{T}, scaling_factor, blowup) where {T}
     TermKinetic(T(scaling_factor), kinetic_energies)
 end
 
-function kinetic_energy(blowup, scaling_factor, Ecut, q::AbstractArray{Vec3{T}}) where {T}
-    map(q) do qk
-        T(scaling_factor) * norm2(qk) / 2 * blowup(norm(qk), Ecut)
+function kinetic_energy(blowup, scaling_factor, Ecut, p::AbstractArray{Vec3{T}}) where {T}
+    map(p) do pk
+        T(scaling_factor) * norm2(pk) / 2 * blowup(norm(pk), Ecut)
     end
 end
-function kinetic_energy(kin::Kinetic, Ecut, q)
-    kinetic_energy(kin.blowup, kin.scaling_factor, Ecut, q)
+function kinetic_energy(kin::Kinetic, Ecut, p)
+    kinetic_energy(kin.blowup, kin.scaling_factor, Ecut, p)
 end
 
 @timing "ene_ops: kinetic" function ene_ops(term::TermKinetic, basis::PlaneWaveBasis{T},
@@ -65,7 +68,7 @@ struct BlowupIdentity end
 
 
 """
-Blow-up function as proposed in https://arxiv.org/abs/2210.00442
+Blow-up function as proposed in [arXiv:2210.00442](https://arxiv.org/abs/2210.00442).
 The blow-up order of the function is fixed to ensure C^2 regularity of the energies bands
 away from crossings and Lipschitz continuity at crossings.
 """

@@ -75,10 +75,11 @@ PAGES = [
     "Developer resources" => [
         "developer/setup.md",
         "developer/conventions.md",
+        "developer/style_guide.md",
         "developer/data_structures.md",
         "developer/useful_formulas.md",
         "developer/symmetries.md",
-        "developer/gpu_computations.md"
+        "developer/gpu_computations.md",
     ],
     "api.md",
     "publications.md",

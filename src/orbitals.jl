@@ -62,7 +62,7 @@ reinterpret_complex(x) = reinterpret(Complex{eltype(x)}, x)
 
 function pack_ψ(ψ)
     # TODO as an optimization, do that lazily? See LazyArrays
-    vcat([vec(ψk) for ψk in ψ]...)
+    reduce(vcat, [vec(ψk) for ψk in ψ])
 end
 
 # Returns pointers into the unpacked ψ

@@ -18,7 +18,7 @@ function get_nnkpt_from_wannier(fileprefix)
             end
         end)
 
-    (nntot=model.n_bvecs, nnkpts)
+    (; nntot=model.n_bvecs, nnkpts)
 end
 
 """

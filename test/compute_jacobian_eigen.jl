@@ -41,7 +41,7 @@ function eigen_ΩplusK(basis::PlaneWaveBasis{T}, ψ, occupation, numval) where {
         end
         pack(proj_tangent(initial, ψ))
     end
-    x0 = hcat(x0...)
+    x0 = stack(x0)
 
     # Rayleigh-coefficients
     Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ, H * ψ)]

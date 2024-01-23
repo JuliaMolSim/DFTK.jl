@@ -113,7 +113,7 @@ end
 end
 
 @doc raw"""
-We use a simplification of the Resta model DOI 10.1103/physrevb.16.2717 and set
+We use a simplification of the [Resta model](https://doi.org/10.1103/physrevb.16.2717) and set
 ``χ_0(q) = \frac{C_0 G^2}{4π (1 - C_0 G^2 / k_{TF}^2)}``
 where ``C_0 = 1 - ε_r`` with ``ε_r`` being the macroscopic relative permittivity.
 We neglect ``K_\text{xc}``, such that
@@ -155,7 +155,7 @@ where ``C_0 = 1 - ε_r``, ``D_\text{loc}`` is the local density of states,
 ``D`` is the density of states and
 the same convention for parameters are used as in [`DielectricMixing`](@ref).
 Additionally there is the real-space localization function `L(r)`.
-For details see Herbst, Levitt 2020 arXiv:2009.01665
+For details see  [Herbst, Levitt 2020](https://arxiv.org/abs/2009.01665).
 
 Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `RPA`: Is the random-phase approximation used for the kernel (i.e. only Hartree kernel is
@@ -179,7 +179,8 @@ The model for the susceptibility is
 \end{aligned}
 ```
 where ``D_\text{loc}`` is the local density of states,
-``D`` is the density of states. For details see Herbst, Levitt 2020 arXiv:2009.01665.
+``D`` is the density of states.
+For details see [Herbst, Levitt 2020](https://arxiv.org/abs/2009.01665).
 
 Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `RPA`: Is the random-phase approximation used for the kernel (i.e. only Hartree kernel is
