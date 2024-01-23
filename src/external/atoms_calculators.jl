@@ -78,3 +78,11 @@ AtomsCalculators.@generate_interface function AtomsCalculators.forces(
     compute_scf!(system, calculator, state)
     compute_forces_cart(calculator.state.scfres)
 end
+
+AtomsCalculators.@generate_interface function AtomsCalculators.virial(
+        system::AbstractSystem, calculator::DFTKCalculator; state = calculator.state,
+        kwargs...)
+    compute_scf!(system, calculator, state)
+    - (compute_stresses_cart(calculator.state.scfres)
+     * calculator. state.scfres.basis.model.unit_cell_volume)
+end
