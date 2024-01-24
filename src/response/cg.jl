@@ -35,11 +35,10 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
 
     # preconditioned conjugate gradient
     while n_iter < maxiter
-        n_iter += 1
-
         # output
         info = (; A, b, n_iter, x, r, residual_norm, converged, stage=:iterate)
         callback(info)
+        n_iter += 1
         if (n_iter ≥ miniter) && residual_norm ≤ tol
             converged = true
             break
