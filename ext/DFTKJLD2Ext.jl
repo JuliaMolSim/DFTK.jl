@@ -8,7 +8,7 @@ DFTK.make_subdict!(jld::Union{JLD2.Group,JLD2.JLDFile}, name::AbstractString) = 
 function save_jld2(to_dict_function!, file::AbstractString, scfres::NamedTuple;
                    save_ψ=true, save_ρ=true, extra_data=Dict{String,Any}(), compress=false)
     if mpi_master()
-        JLD2.jldopen(file, "w"; compress) do jld
+        JLD2.jldopen(file * ".new", "w"; compress) do jld
             to_dict_function!(jld, scfres; save_ψ, save_ρ)
             for (k, v) in pairs(extra_data)
                 jld[k] = v
@@ -19,6 +19,7 @@ function save_jld2(to_dict_function!, file::AbstractString, scfres::NamedTuple;
             delete!(jld, "kgrid")
             jld["kgrid"] = scfres.basis.kgrid  # Save original kgrid datastructure
         end
+        mv(file * ".new", file; force=true)
     else
         dummy = Dict{String,Any}()
         to_dict_function!(dummy, scfres; save_ψ)

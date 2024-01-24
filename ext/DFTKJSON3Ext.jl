@@ -13,9 +13,10 @@ function save_json(todict_function, filename::AbstractString, scfres::NamedTuple
         data[k] = v
     end
     if mpi_master()
-        open(filename, "w") do io
-            JSON3.pretty(io, data)
+        open(filename * ".new", "w") do io
+            JSON3.write(io, data)
         end
+        mv(filename * ".new", filename; force=true)
     end
     MPI.Barrier(MPI.COMM_WORLD)
     nothing
