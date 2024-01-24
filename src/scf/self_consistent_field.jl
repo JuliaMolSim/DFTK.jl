@@ -1,4 +1,5 @@
 include("scf_callbacks.jl")
+using Dates
 
 """
 Transparently handle checkpointing by either returning kwargs for `self_consistent_field`,
@@ -109,6 +110,8 @@ Overview of parameters:
 - `is_converged`: Convergence control callback. Typical objects passed here are
   `ScfConvergenceDensity(tol)` (the default), `ScfConvergenceEnergy(tol)` or `ScfConvergenceForce(tol)`.
 - `maxiter`: Maximal number of SCF iterations
+- `maxtime`: Maximal time to run the SCF for. If this is reached without
+   convergence, the SCF stops.
 - `mixing`: Mixing method, which determines the preconditioner ``P^{-1}`` in the above equation.
   Typical mixings are [`LdosMixing`](@ref), [`KerkerMixing`](@ref), [`SimpleMixing`](@ref)
   or [`DielectricMixing`](@ref). Default is `LdosMixing()`
@@ -129,6 +132,7 @@ Overview of parameters:
     tol=1e-6,
     is_converged=ScfConvergenceDensity(tol),
     maxiter=100,
+    maxtime=Year(1),
     mixing=LdosMixing(),
     damping=0.8,
     solver=scf_anderson_solver(),
@@ -152,6 +156,7 @@ Overview of parameters:
     energies = nothing
     ham = nothing
     start_ns = time_ns()
+    end_time = Dates.now() + maxtime
     info = (; n_iter=0, ρin=ρ)  # Populate info with initial values
     history_Etot = T[]
     history_Δρ   = T[]
@@ -161,6 +166,7 @@ Overview of parameters:
     # TODO support other mixing types
     function fixpoint_map(ρin)
         converged && return ρin  # No more iterations if convergence flagged
+        MPI.bcast(Dates.now() ≥ end_time, MPI.COMM_WORLD) && return ρin
         n_iter += 1
 
         # Note that ρin is not the density of ψ, and the eigenvalues
