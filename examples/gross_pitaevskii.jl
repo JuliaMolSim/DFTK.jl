@@ -25,7 +25,7 @@ lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]];
 #
 # For the potential term `V` we pick a harmonic
 # potential. We use the function `ExternalFromReal` which uses 
-# cartesian coordinates ( see [Lattices and lattice vectors](@ref conventions-lattice)).
+# Cartesian coordinates ( see [Lattices and lattice vectors](@ref conventions-lattice)).
 pot(x) = (x - a/2)^2;
 
 # We setup each energy term in sequence: kinetic, potential and nonlinear term.

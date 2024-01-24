@@ -8,14 +8,14 @@ include("external/spglib.jl")
 # computations. The relationship is
 #   S = W'
 #   τ = -W^-1 w
-# (valid both in reduced and cartesian coordinates). In our notation the rotation matrix
+# (valid both in reduced and Cartesian coordinates). In our notation the rotation matrix
 # W and translation w are such that, for each atom of type A at position a, W a + w is also
 # an atom of type A.
 
 # The full (reducible) Brillouin zone is implicitly represented by a set of (irreducible)
 # kpoints (see explanation in docs). Each irreducible k-point k comes with a list of
 # symmetry operations (S, τ) (containing at least the trivial operation (I, 0)), where S is
-# a unitary matrix (/!\ in cartesian but not in reduced coordinates) and τ a translation
+# a unitary matrix (/!\ in Cartesian but not in reduced coordinates) and τ a translation
 # vector. The k-point is then used to represent implicitly the information at all the
 # kpoints Sk. The relationship between the Hamiltonians is
 #   H_{Sk} = U H_k U*, with
@@ -331,7 +331,7 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
 end
 
 """
-Symmetrize the stress tensor, given as a Matrix in cartesian coordinates
+Symmetrize the stress tensor, given as a Matrix in Cartesian coordinates
 """
 function symmetrize_stresses(model::Model, stresses; symmetries)
     # see (A.28) of https://arxiv.org/pdf/0906.2569.pdf
@@ -361,7 +361,7 @@ function symmetrize_forces(model::Model, forces; symmetries)
             # (but careful that our symmetries are r -> Wr+w, not R(r+f))
             other_at = W \ (position - w)
             i_other_at = findfirst(a -> is_approx_integer(a - other_at), positions_group)
-            # (A.27) is in cartesian coordinates, and since Wcart is orthogonal,
+            # (A.27) is in Cartesian coordinates, and since Wcart is orthogonal,
             # Fsymcart = Wcart * Fcart <=> Fsymred = inv(Wred') Fred
             symmetrized_forces[idx] += inv(W') * forces[group[i_other_at]]
         end
