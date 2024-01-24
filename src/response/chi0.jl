@@ -349,7 +349,7 @@ end
     # occupation_threshold for which we compute the associated response δψn,
     # the others being discarded to ψ_extra.
     # We then use the extra information we have from these additional bands,
-    # non-necessarily converged, to split the sternheimer_solver with a Schur
+    # non-necessarily converged, to split the Sternheimer_solver with a Schur
     # complement.
     occ_thresh = occupation_threshold
     mask_occ   = map(occk -> findall(occnk -> abs(occnk) ≥ occ_thresh, occk), occupation)

@@ -1,78 +1,83 @@
-@testitem "Phonon: Pairwise: comparison to ref testcase" #=
-    =#    tags=[:phonon, :dont_test_mpi] setup=[Phonon] begin
-    using DFTK
+@testsetup module PhononPairwise
+using DFTK
 
-    a = 5.131570667152971
-    lattice = a .* [0 1 1; 1 0 1; 1 1 0]
-    atoms     = [ElementCoulomb(:Li), ElementCoulomb(:H)]
-    positions = [ones(3)/8, -ones(3)/8]
-    testcase = (; lattice, atoms, positions)
-
-    symbols   = [:Li, :H]
+function model_tested(lattice::AbstractMatrix, atoms::Vector{<:DFTK.Element},
+                      positions::Vector{<:AbstractVector}; kwargs...)
     V(x, p) = 4*p.ε * ((p.σ/x)^12 - (p.σ/x)^6)
     params = Dict((:Li, :H ) => (; ε=1, σ=2),
                   ( :H, :H ) => (; ε=1, σ=2),
                   (:Li, :Li) => (; ε=1, σ=2))
-    terms = [PairwisePotential(V, params; max_radius=10)]
+    terms = [Kinetic(),
+             PairwisePotential(V, params; max_radius=10)]
+    if :temperature in keys(kwargs) && kwargs[:temperature] != 0
+        terms = [terms..., Entropy()]
+    end
+    Model(lattice, atoms, positions; model_name="atomic", terms, n_electrons=length(atoms),
+          disable_electrostatics_check=true, kwargs...)
+end
 
-    ω_ref = [ -0.17524941818128295
-              -0.17524941818128292
-              -0.16832870864925772
-              -0.1683287086492577
-              -0.15195539471448133
-              -0.15193439163371011
-              -0.15024477964426225
-              -0.1474510503442476
-              -0.1474510503442476
-              -0.1474293810073767
-              -0.1474293810073767
-              -0.14475429352434355
-              -0.1447542935243435
-              -0.13232858616165102
-              -0.13230326232686676
-              -0.13230326232686657
-              -0.09377914380407501
-              -0.09377914380407495
-              -0.05435449538374675
-              -0.05435449538374669
-              -0.003915427003557917
-              -0.003915427003557904
-              -0.0033812394777427185
-              -1.7065097811479572e-17
-              -3.9611338270885374e-18
-               1.7013223995880296e-17
-               0.013331409088687666
-               0.013331409088687688
-               0.013352636670909857
-               0.013352636670909858
-               0.017234067155574892
-               0.017254437310419694
-               0.030332222284351517
-               0.03033222228435154
-               0.03334700396064381
-               0.03334700396064386 ]
+testcase = let
+    a = 5.131570667152971
+    lattice = a .* [0 1 1; 1 0 1; 1 1 0]
+    atoms     = [ElementCoulomb(:Li), ElementCoulomb(:H)]
+    positions = [ones(3)/8, -ones(3)/8]
+    (; lattice, atoms, positions, temperature=0.1)
+end
+end
+
+@testitem "Phonon: Pairwise: comparison to ref testcase" #=
+    =#    tags=[:phonon, :dont_test_mpi] setup=[Phonon, PhononPairwise] begin
+    using DFTK
+    using .Phonon: test_frequencies
+    using .PhononPairwise: model_tested, testcase
+
+    ω_ref = [ -0.007027791271072399
+              -0.007027791271072398
+              -0.006900536310814988
+              -0.006900536310814986
+              -0.00688581863804306
+              -0.006767457623283974
+              -0.006767457623283973
+              -0.006671943633991508
+              -0.0066712169205625236
+              -0.006612886568974899
+              -0.006612886568974898
+              -0.0066121215689177466
+              -0.006612121568917746
+              -0.006421710386603084
+              -0.006421095893096361
+              -0.006421095893096357
+              -0.006380963485451198
+              -0.006380963485451197
+              -0.0023188854133402996
+              -0.002318885413340299
+              -0.0007296417626126479
+              -0.0007296417626126462
+              -0.0006789096691398658
+              -5.658889649128784e-11
+               3.0176579159771366e-11
+               5.8144997735465574e-11
+               0.0013905952690850048
+               0.001390595269085006
+               0.001391760812737551
+               0.0013917608127375512
+               0.0015908508495691618
+               0.0015918541742743959
+               0.002147722981302167
+               0.0021477229813021688
+               0.0022578909252519617
+               0.002257890925251963 ]
 
     tol = 1e-4  # low because of the small radius that we use to speed-up computations
-    Phonon.test_frequencies(testcase, terms, ω_ref; tol)
+    test_frequencies(model_tested, testcase; ω_ref, tol)
 end
 
 @testitem "Phonon: Pairwise: comparison to automatic differentiation" #=
-    =#    tags=[:phonon, :slow, :dont_test_mpi] setup=[Phonon] begin
+    =#    tags=[:phonon, :slow, :dont_test_mpi] setup=[Phonon, PhononPairwise] begin
     using DFTK
-
-    a = 5.131570667152971
-    lattice = a .* [0 1 1; 1 0 1; 1 1 0]
-    atoms     = [ElementCoulomb(:Li), ElementCoulomb(:H)]
-    positions = [ones(3)/8, -ones(3)/8]
-    testcase = (; lattice, atoms, positions)
-
-    symbols   = [:Li, :H]
-    V(x, p) = 4*p.ε * ((p.σ/x)^12 - (p.σ/x)^6)
-    params = Dict((:Li, :H ) => (; ε=1, σ=2),
-                  ( :H, :H ) => (; ε=1, σ=2),
-                  (:Li, :Li) => (; ε=1, σ=2))
-    terms = [PairwisePotential(V, params; max_radius=10)]
+    using .Phonon: test_frequencies
+    using .PhononPairwise: model_tested, testcase
 
     tol = 1e-4  # low because of the small radius that we use to speed-up computations
-    Phonon.test_rand_frequencies(testcase, terms; tol)
+    test_frequencies(model_tested, testcase; tol, randomize=true)
 end
