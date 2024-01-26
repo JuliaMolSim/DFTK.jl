@@ -6,7 +6,7 @@ Magnetic term ``A⋅(-i∇)``. It is assumed (but not checked) that ``∇⋅A = 
 """
 struct Magnetic
     Afunction::Function  # A(x,y,z) returns [Ax,Ay,Az]
-                         # both [x,y,z] and [Ax,Ay,Az] are in *cartesian* coordinates
+                         # both [x,y,z] and [Ax,Ay,Az] are in *Cartesian* coordinates
 end
 (M::Magnetic)(basis) = TermMagnetic(basis, M.Afunction)
 

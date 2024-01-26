@@ -6,6 +6,7 @@ is given by
 σ_{xx} σ_{xy} σ_{xz} \\
 σ_{yx} σ_{yy} σ_{yz} \\
 σ_{zx} σ_{zy} σ_{zz}
+\end{array}
 \right) = \frac{1}{|Ω|} \left. \frac{dE[ (I+ϵ) * L]}{dM}\right|_{ϵ=0}
 ```
 where ``ϵ`` is the strain.

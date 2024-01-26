@@ -40,7 +40,7 @@ to simplify typing them.
 ## Units
 In DFTK, atomic units are used throughout, most importantly
 lengths are in Bohr and energies in Hartree.
-See [wikipedia](https://en.wikipedia.org/wiki/Hartree_atomic_units)
+See [Wikipedia](https://en.wikipedia.org/wiki/Hartree_atomic_units)
 for a list of conversion factors. Appropriate unit conversion can
 can be performed using the `Unitful` and `UnitfulAtomic` packages:
 
@@ -88,7 +88,7 @@ We use the convention that the unit cell in real space is
 ``[0, 1)^3`` in reduced coordinates and the unit cell in reciprocal
 space (the reducible Brillouin zone) is ``[-1/2, 1/2)^3``.
 
-## Reduced and cartesian coordinates
+## Reduced and Cartesian coordinates
 Unless denoted otherwise the code uses **reduced coordinates**
 for reciprocal-space vectors such as ``k``,  ``G``, ``q``, ``p``
 or real-space vectors like ``r`` and ``R``

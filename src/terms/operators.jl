@@ -118,7 +118,7 @@ Magnetic field operator A⋅(-i∇).
 struct MagneticFieldOperator{T <: Real, AT} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
     kpoint::Kpoint{T}
-    Apot::AT  # Apot[α][i,j,k] is the A field in (cartesian) direction α
+    Apot::AT  # Apot[α][i,j,k] is the A field in (Cartesian) direction α
 end
 function apply!(Hψ, op::MagneticFieldOperator, ψ)
     # TODO this could probably be better optimized
