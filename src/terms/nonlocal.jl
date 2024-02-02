@@ -204,12 +204,12 @@ function build_dprojection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint, psps, 
 end
 
 # Phonon: Second-order perturbation of the projection vectors with respect to a displacement
-# on the directions α and β of the atoms s (null if displacement of two different atoms).
+# on the directions α and β of the atoms s and t.
 function build_ddprojection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint, psps, psp_groups,
-                                    α, β, s) where {T}
+                                    α, β, s, t) where {T}
     positions = basis.model.positions
     displacement = zero.(positions)
-    displacement[s] = setindex(displacement[s], one(T), β)
+    displacement[t] = setindex(displacement[t], one(T), β)
     ForwardDiff.derivative(zero(T)) do ε
         positions = positions .+ ε .* displacement
         build_dprojection_vectors(basis, kpt, psps, psp_groups, α, s; positions)
@@ -288,6 +288,9 @@ function compute_∫δρδV(term::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, 
             form_factors        = build_form_factors(element.psp, G_plus_k_cart)
             form_factors_plus_q = build_form_factors(element.psp, G_plus_kq_cart)
 
+            # function P(pos, k)
+            # end
+
             for idx in group
                 r = model.positions[idx]
                 structure_factors        = [cis2pi(-dot(p, r)) for p in G_plus_k]
@@ -320,14 +323,17 @@ function compute_∫δρδV(term::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, 
     symmetrize_forces(basis, forces)
 end
 
-function compute_dynmat(term::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, occupation;
-                        δψs, δoccupations, q=zero(Vec3{T}), kwargs...) where {T}
+@views function compute_dynmat(term::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, occupation;
+                               δψs, δoccupations, q=zero(Vec3{T}), kwargs...) where {T}
     S = complex(T)
     model = basis.model
     positions = model.positions
     n_atoms = length(positions)
     n_dim = model.n_dim
 
+    # Two contributions: dynmat_δH and dynmat_δ2H
+
+    # ∫δρδV
     ∫δρδV = zeros(S, 3, n_atoms, 3, n_atoms)
     for s = 1:n_atoms, α = 1:n_dim
         ∫δρδV[:, :, α, s] .-= stack(
@@ -335,32 +341,34 @@ function compute_dynmat(term::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, 
         )
     end
 
+    # ∫ρδ²V
     psp_groups = [group for group in model.atom_groups
                     if model.atoms[first(group)] isa ElementPsp]
+    isempty(psp_groups) && return ∫δρδV
     psps          = [model.atoms[first(group)].psp      for group in psp_groups]
     psp_positions = [model.positions[group] for group in psp_groups]
     D = build_projection_coefficients(T, psps, psp_positions)
     ∫ρδ²V = zeros(S, 3, n_atoms, 3, n_atoms)
-    for s = 1:n_atoms, α = 1:n_dim
-        for t = 1:n_atoms, β = 1:n_dim
-            (s ≠ t || isempty(psp_groups)) && continue
-            δ²Hψ = multiply_ψ_by_blochwave_operator(basis, ψ, zero(q)) do ik, ψk
-                kpt = basis.kpoints[ik]
-                P = build_projection_vectors(basis, kpt, psps, psp_positions)
-                ∂αsP = build_dprojection_vectors(basis, kpt, psps, psp_groups, α, s)
-                ∂βsP = build_dprojection_vectors(basis, kpt, psps, psp_groups, β, s)
-                ∂αs∂βsP = build_ddprojection_vectors(basis, kpt, psps, psp_groups, α, β, s)
-                (  ∂αs∂βsP * (D * (P'       * ψk))
-                 + P       * (D * (∂αs∂βsP' * ψk))
-                 + ∂βsP    * (D * (∂αsP'    * ψk))
-                 + ∂αsP    * (D * (∂βsP'    * ψk)))
-            end
-            ∫ρδ²V[β, t, α, s] += sum(sum(occupation[ik][n] * basis.kweights[ik]
-                                           * dot(ψ[ik][:, n], δ²Hψ[ik][:, n])
-                                         for n = 1:size(ψ[ik], 2))
-                                     for ik = 1:length(ψ))
+    for s = 1:n_atoms, α = 1:n_dim, β = 1:n_dim
+        δ²Hψ = multiply_ψ_by_blochwave_operator(basis, ψ, zero(q)) do ik, ψk
+            kpt = basis.kpoints[ik]
+            P = build_projection_vectors(basis, kpt, psps, psp_positions)
+            ∂αsP = build_dprojection_vectors(basis, kpt, psps, psp_groups, α, s)
+            ∂βsP = build_dprojection_vectors(basis, kpt, psps, psp_groups, β, s)
+            ∂αs∂βsP = build_ddprojection_vectors(basis, kpt, psps, psp_groups, α, β, s, s)
+            (  ∂αs∂βsP * (D * (P'       * ψk))
+               + P       * (D * (∂αs∂βsP' * ψk))
+               + ∂βsP    * (D * (∂αsP'    * ψk))
+               + ∂αsP    * (D * (∂βsP'    * ψk)))
         end
+        ∫ρδ²V[β, s, α, s] += sum(sum(occupation[ik][n] * basis.kweights[ik] *
+                                     dot(ψ[ik][:, n], δ²Hψ[ik][:, n])
+                                     for n = 1:size(ψ[ik], 2))
+                                 for ik = 1:length(ψ))
     end
+
+    # P(pos) = ...
+    # f(pos) = P(pos) * (D * P(pos)'ψk)
 
     ∫δρδV + ∫ρδ²V
 end
