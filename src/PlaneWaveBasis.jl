@@ -84,7 +84,7 @@ struct PlaneWaveBasis{T,
     # BZ integration weights, summing up to model.n_spin_components
     kweights::Vector{T}
     # Phonon: Memoization not to recompute kpoint + q each time
-    kpoints_phonon::IdDict{Tuple{Vec3{T}, Int},
+    kpoints_phonon::IdDict{Tuple{Vec3, Int},
                            NamedTuple{(:kpt, :equivalent_kpt),
                                       Tuple{Kpoint{T, T_kpt_G_vecs},
                                             Kpoint{T, T_kpt_G_vecs}}}}
@@ -172,6 +172,9 @@ end
 function _kpoint_phonon_key(coordinate::AbstractArray{T}, spin::Int) where {T}
     digits = floor(Int, -log10(100eps(T)))
     (Vec3(round.(coordinate; digits) .+ eps(T)), spin)
+end
+function _kpoint_phonon_key(coordinate::AbstractArray{T}, spin::Int) where {T <: ForwardDiff.Dual}
+    _kpoint_phonon_key(Vec3(ForwardDiff.value.(coordinate)), spin)
 end
 
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
@@ -314,7 +317,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
     krange_thisproc_allspin = reduce(vcat, krange_thisproc)
 
     # By default kpoints_phonon has only kpoints
-    kpoints_phonon = IdDict{Tuple{Vec3{T}, Int},
+    kpoints_phonon = IdDict{Tuple{Vec3, Int},
                             NamedTuple{(:kpt, :equivalent_kpt), Tuple{Kpoint, Kpoint}}}()
     for kpt in kpoints
         key = _kpoint_phonon_key(kpt.coordinate, kpt.spin)
