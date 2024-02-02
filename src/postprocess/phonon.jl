@@ -5,17 +5,16 @@ function dynmat_red_to_cart(model::Model, dynmat)
     # The dynamical matrix `D` acts on vectors `δr` and gives a covector `δF`:
     #   δF = D δr
     # We have δr_cart = lattice * δr_red, δF_cart = lattice⁻ᵀ δF_red, so
-    # δF_cart = lattice⁻ᵀ D_red lattice^⁻¹ δr_cart
+    #   δF_cart = lattice⁻ᵀ D_red lattice⁻¹ δr_cart
     dynmat_cart = zero.(dynmat)
-    for s = 1:size(dynmat_cart, 2), α = 1:size(dynmat_cart, 4)
+    for s in axes(dynmat_cart, 2), α in axes(dynmat_cart, 4)
         dynmat_cart[:, α, :, s] = inv_lattice' * dynmat[:, α, :, s] * inv_lattice
     end
     dynmat_cart
 end
 
-# Create a ``3×n_{\rm atoms}×3×n_{\rm atoms}`` tensor equivalent to a
-# diagonal matrix with the atomic masses of the atoms in a.u. on the
-# diagonal.
+# Create a ``3×n_{\rm atoms}×3×n_{\rm atoms}`` tensor equivalent to a diagonal matrix with
+# the atomic masses of the atoms in a.u. on the diagonal.
 function mass_matrix(T, atoms)
     n_atoms = length(atoms)
     atoms_mass = atomic_mass.(atoms)
@@ -29,7 +28,8 @@ end
 mass_matrix(model::Model{T}) where {T} = mass_matrix(T, model.atoms)
 
 """
-Get the phonon modes (`frequencies` and `vectors`).
+Get phonon quantities. We return the frequencies, the mass matrix and reduced and Cartesian
+eigenvectors and dynamical matrices.
 """
 function phonon_modes(basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where {T}
     dynmat = compute_dynmat(basis::PlaneWaveBasis, ψ, occupation; kwargs...)

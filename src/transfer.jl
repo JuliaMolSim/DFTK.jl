@@ -36,15 +36,20 @@ Compute the index mapping between two bases. Returns two arrays
 the transfer from `ψkin` (defined on `basis_in` and `kpt_in`) to `ψkout`
 (defined on `basis_out` and `kpt_out`).
 """
+# TODO: Verify signs & update doc (kpt_out does not have to belong to basis_out, as long as
+# it is equivalent to some point in it.
 function transfer_mapping(basis_in::PlaneWaveBasis,  kpt_in::Kpoint,
                           basis_out::PlaneWaveBasis, kpt_out::Kpoint)
     @assert basis_in.model.lattice == basis_out.model.lattice
+    ΔG = kpt_in.coordinate .- kpt_out.coordinate
+    @assert all(is_approx_integer.(ΔG))
+    ΔG = round.(Int, ΔG)
 
     idcs_in  = 1:length(G_vectors(basis_in, kpt_in))  # All entries from idcs_in
     kpt_in == kpt_out && return idcs_in, idcs_in
 
     # Get indices of the G vectors of the old basis inside the new basis.
-    idcs_out = index_G_vectors.(Ref(basis_out), G_vectors(basis_in, kpt_in))
+    idcs_out = index_G_vectors.(Ref(basis_out), G_vectors(basis_in, kpt_in) .+ Ref(ΔG))
 
     # In the case where G_vectors(basis_in.kpoints[ik]) are bigger than vectors
     # in the fft_size box of basis_out, we need to filter out the "nothings" to
@@ -105,26 +110,6 @@ function transfer_blochwave_kpt(ψk_in, basis_in::PlaneWaveBasis, kpt_in::Kpoint
     ψk_out .= 0
     ψk_out[idcsk_out, :] .= ψk_in[idcsk_in, :]
 
-    ψk_out
-end
-
-"""
-Transfer an array `ψk_in` expanded on `kpt_in`, and produce ``ψ(r) e^{i ΔG·r}`` expanded on
-`kpt_out`. It is mostly useful for phonons.
-Beware: `ψk_out` can lose information if the shift `ΔG` is large or if the `G_vectors`
-differ between `k`-points.
-"""
-function transfer_blochwave_kpt(ψk_in, basis::PlaneWaveBasis, kpt_in, kpt_out, ΔG)
-    ψk_out = zeros(eltype(ψk_in), length(G_vectors(basis, kpt_out)), size(ψk_in, 2))
-    for (iG, G) in enumerate(G_vectors(basis, kpt_in))
-        # e^i(kpt_in + G)r = e^i(kpt_out + G')r, where
-        # kpt_out + G' = kpt_in + G = kpt_out + ΔG + G, and
-        # G' = G + ΔG
-        idx_Gp_in_kpoint = index_G_vectors(basis, kpt_out, G - ΔG)
-        if !isnothing(idx_Gp_in_kpoint)
-            ψk_out[idx_Gp_in_kpoint, :] = ψk_in[iG, :]
-        end
-    end
     ψk_out
 end
 
@@ -233,16 +218,11 @@ function kpq_equivalent_blochwave_to_kpq(basis, kpt, q, ψk_plus_q_equivalent)
 
     kpt_plus_q = Kpoint(basis, kcoord_plus_q, kpt.spin)
     (; kpt=kpt_plus_q,
-     ψk=transfer_blochwave_kpt(ψk_plus_q_equivalent, basis, equivalent_kpt_plus_q,
-                               kpt_plus_q, -ΔG))
+     ψk=transfer_blochwave_kpt(ψk_plus_q_equivalent, basis, equivalent_kpt_plus_q, basis,
+                               kpt_plus_q))
 end
 
-# Replaces `multiply_by_expiqr`.
-# TODO: Think about a clear and consistent way to define such a function when completing
-# phonon PRs.
 @doc raw"""
-    multiply_ψ_by_blochwave(basis::PlaneWaveBasis, ψ, f_real, q)
-
 Return the Fourier coefficients for the Bloch waves ``f^{\rm real}_{q} ψ_{k-q}`` in an
 element of `basis.kpoints` equivalent to ``k-q``.
 """
@@ -255,7 +235,7 @@ function multiply_ψ_by_blochwave(basis::PlaneWaveBasis, ψ, f_real, q)
                                                                   ψ[k_to_kmq[ik]])
         # … then perform the multiplication with f in real space and get the Fourier
         # coefficients.
-        for n = 1:size(ψ[ik], 2)
+        for n in axes(ψ[ik], 2)
             fψ[ik][:, n] = fft(basis, kpt,
                                ifft(basis, kpt_minus_q, ψk_minus_q[:, n])
                                  .* f_real[:, :, :, kpt.spin])

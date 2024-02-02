@@ -104,7 +104,7 @@ end
     dαψnk_real = zeros(complex(eltype(basis)), basis.fft_size)
     for (ik, kpt) in enumerate(basis.kpoints)
         G_plus_k = [[p[α] for p in Gplusk_vectors_cart(basis, kpt)] for α = 1:3]
-        for n = 1:size(ψ[ik], 2), α = 1:3
+        for n in axes(ψ[ik], 2), α = 1:3
             ifft!(dαψnk_real, basis, kpt, im .* G_plus_k[α] .* ψ[ik][:, n])
             @. τ[:, :, :, kpt.spin] += occupation[ik][n] * basis.kweights[ik] / 2 * abs2(dαψnk_real)
         end
