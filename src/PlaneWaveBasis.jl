@@ -173,7 +173,7 @@ function _kpoint_phonon_key(coordinate::AbstractArray{T}, spin::Int) where {T}
     digits = floor(Int, -log10(100eps(T)))
     (Vec3(round.(coordinate; digits) .+ eps(T)), spin)
 end
-function _kpoint_phonon_key(coordinate::AbstractArray{T}, spin::Int) where {T <: ForwardDiff.Dual}
+function _kpoint_phonon_key(coordinate::AbstractArray{<: ForwardDiff.Dual}, spin::Int)
     _kpoint_phonon_key(Vec3(ForwardDiff.value.(coordinate)), spin)
 end
 
