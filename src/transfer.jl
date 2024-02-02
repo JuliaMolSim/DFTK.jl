@@ -30,14 +30,17 @@ function transfer_mapping(basis_in::PlaneWaveBasis, basis_out::PlaneWaveBasis)
     zip(idcs_in, idcs_out)
 end
 
-"""
+@doc raw"""
 Compute the index mapping between two bases. Returns two arrays
-`idcs_in` and `idcs_out` such that `ψkout[idcs_out] = ψkin[idcs_in]` does
-the transfer from `ψkin` (defined on `basis_in` and `kpt_in`) to `ψkout`
+`idcs_in` and `idcs_out` such that `ψk_out[idcs_out] = ψk_in[idcs_in]` does
+the transfer from `ψk_in` (defined on `basis_in` and `kpt_in`) to `ψk_out`
 (defined on `basis_out` and `kpt_out`).
+
+Note that `kpt_out` does not have to belong to `basis_out` as long as it is equivalent to
+some other point in it, i.e, `kpt_in = kpt_out + ΔG`.
+Beware: `ψk_out` can lose information if the shift `ΔG` is large or if the `G_vectors`
+differ between `k`-points.
 """
-# TODO: Verify signs & update doc (kpt_out does not have to belong to basis_out, as long as
-# it is equivalent to some point in it.
 function transfer_mapping(basis_in::PlaneWaveBasis,  kpt_in::Kpoint,
                           basis_out::PlaneWaveBasis, kpt_out::Kpoint)
     @assert basis_in.model.lattice == basis_out.model.lattice
