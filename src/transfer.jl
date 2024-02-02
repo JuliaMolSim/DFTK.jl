@@ -199,26 +199,6 @@ function k_to_kpq_permutation(basis::PlaneWaveBasis, q)
 end
 
 @doc raw"""
-Create the Fourier expansion of ``ψ_{k+q}`` from ``ψ_{[k+q]}``, where ``[k+q]`` is in
-`basis.kpoints`, while ``k+q`` may or may not be inside.
-
-If ``ΔG ≔ [k+q] - (k+q)``, then we have that
-```math
-    ∑_G \hat{u}_{[k+q]}(G) e^{i(k+q+G)·r} = ∑_{G'} \hat{u}_{k+q}(G'-ΔG) e^{i(k+q+ΔG+G')·r},
-```
-hence
-```math
-    u_{k+q}(G) = u_{[k+q]}(G + ΔG).
-```
-"""
-function kpq_equivalent_blochwave_to_kpq(basis, kpt, q, ψk_plus_q_equivalent)
-    kpt_plus_q = get_kpoint(basis, kpt.coordinate .+ q, kpt.spin)
-    (; kpt_plus_q.kpt,
-     ψk=transfer_blochwave_kpt(ψk_plus_q_equivalent, basis, kpt_plus_q.equivalent_kpt, basis,
-                               kpt_plus_q.kpt))
-end
-
-@doc raw"""
 Return the Fourier coefficients for the Bloch waves ``f^{\rm real}_{q} ψ_{k-q}`` in an
 element of `basis.kpoints` equivalent to ``k-q``.
 """
@@ -227,8 +207,9 @@ function multiply_ψ_by_blochwave(basis::PlaneWaveBasis, ψ, f_real, q)
     fψ = zero.(ψ)
     for (ik, kpt) in enumerate(basis.kpoints)
         # First, express ψ_{[k-q]} in the basis of k-q points…
-        kpt_minus_q, ψk_minus_q = kpq_equivalent_blochwave_to_kpq(basis, kpt, -q,
-                                                                  ψ[k_to_kmq[ik]])
+        kpt_minus_q, equivalent_kpt_minus_q = get_kpoint(basis, kpt.coordinate - q, kpt.spin)
+        ψk_minus_q = transfer_blochwave_kpt(ψ[k_to_kmq[ik]], basis, equivalent_kpt_minus_q,
+                                            basis, kpt_minus_q)
         # … then perform the multiplication with f in real space and get the Fourier
         # coefficients.
         for n in axes(ψ[ik], 2)

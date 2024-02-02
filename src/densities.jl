@@ -76,8 +76,9 @@ end
         kpt = basis.kpoints[ik]
         ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n])
         # We return the δψk in the basis k+q which are associated to a displacement of the ψk.
-        kpt_plus_q, δψk_plus_q = kpq_equivalent_blochwave_to_kpq(basis, kpt, q,
-                                                                 δψ[k_to_kpq_permutation(basis, q)[ik]])
+        kpt_plus_q, equivalent_kpt_plus_q = get_kpoint(basis, kpt.coordinate + q, kpt.spin)
+        δψk_plus_q = transfer_blochwave_kpt(δψ[k_to_kpq_permutation(basis, q)[ik]], basis,
+                                            equivalent_kpt_plus_q, basis, kpt_plus_q)
         # The perturbation of the density
         #   |ψ_nk|² is 2 ψ_{n,k} * δψ_{n,k+q}.
         ifft!(storage.δψnk_real, basis, kpt_plus_q, δψk_plus_q[:, n])
