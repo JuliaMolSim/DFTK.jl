@@ -29,9 +29,12 @@ end
 mass_matrix(model::Model{T}) where {T} = mass_matrix(T, model.atoms)
 
 """
-Get the phonon modes (`frequencies` and `vectors`) from a dynamical matrix, all in cartesian coordinates.
+Get the phonon modes (`frequencies` and `vectors`).
 """
-function phonon_modes(basis::PlaneWaveBasis{T}) where {T}
+function phonon_modes(basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where {T}
+    dynmat = compute_dynmat(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
+    dynmat_cart = dynmat_red_to_cart(basis.model, dynmat)
+
     n_atoms = length(basis.model.positions)
     M = reshape(mass_matrix(T, basis.model.atoms), 3*n_atoms, 3*n_atoms)
 
@@ -39,12 +42,18 @@ function phonon_modes(basis::PlaneWaveBasis{T}) where {T}
 
     res = eigen(reshape(dynmat_cart, 3*n_atoms, 3*n_atoms), M)
     maximum(abs, imag(res.values)) > sqrt(eps(T)) &&
-        @warn "Some eigenvalues of the dynamical matrix have a large imaginary part"
+        @warn "Some eigenvalues of the dynamical matrix have a large imaginary part."
 
     signs = sign.(real(res.values))
     frequencies = signs .* sqrt.(abs.(real(res.values)))
 
-    (; frequencies, vectors_cart=res.vectors, vectors_red=...)
+    (; frequencies, vectors_cart=res.vectors, vectors=nothing, dynmat, dynmat_cart,
+     mass_matrix=M)
+end
+# For convenience
+function phonon_modes(scfres::NamedTuple; kwargs...)
+    phonon_modes(scfres.basis, scfres.ψ, scfres.occupation; scfres.ρ, scfres.ham,
+                 scfres.occupation_threshold, scfres.εF, scfres.eigenvalues, kwargs...)
 end
 
 @doc raw"""
@@ -75,23 +84,6 @@ in reduced coordinates.
                                        δoccupations, q)
                         for term in basis.terms]
     sum(filter(!isnothing, dynmats_per_term))
-end
-
-"""
-Cartesian form of [`compute_dynmat`](@ref).
-"""
-function compute_dynmat_cart(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
-    dynmats_reduced = compute_dynmat(basis, ψ, occupation; kwargs...)
-    dynmat_red_to_cart(basis.model, dynmats_reduced)
-end
-# helpers
-function compute_dynmat(scfres::NamedTuple; kwargs...)
-    compute_dynmat(scfres.basis, scfres.ψ, scfres.occupation; scfres.ρ, scfres.ham,
-                   scfres.occupation_threshold, scfres.εF, scfres.eigenvalues, kwargs...)
-end
-function compute_dynmat_cart(scfres; kwargs...)
-    compute_dynmat_cart(scfres.basis, scfres.ψ, scfres.occupation; scfres.ρ, scfres.ham,
-                        scfres.occupation_threshold, scfres.εF, scfres.eigenvalues, kwargs...)
 end
 
 """

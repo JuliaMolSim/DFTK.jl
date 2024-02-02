@@ -4,6 +4,8 @@ struct PairwisePotential
     max_radius
 end
 
+# Note: This could be merged with Ewald, but the use of `symbols` would slow down the
+# computationally intensive Ewald sums. So we leave it as it for now.
 @doc raw"""
 Pairwise terms: Pairwise potential between nuclei, e.g., Van der Waals potentials, such as
 Lennard—Jones terms.

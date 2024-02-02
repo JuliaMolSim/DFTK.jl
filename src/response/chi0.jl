@@ -359,9 +359,10 @@ end
     ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
     ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
     ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-    δHψ_minus_q_occ = [δHψ[k_to_kmq[ik]][:, mask_occ[ik]] for ik = 1:length(basis.kpoints)]
+    δHψ_minus_q_occ = [δHψ[ik][:, mask_occ[k_to_kmq[ik]]] for ik = 1:length(basis.kpoints)]
     # Only needed for phonon calculations.
-    ε_minus_q_occ  = [eigenvalues[k_to_kmq[ik]][mask_occ[ik]] for ik = 1:length(basis.kpoints)]
+    ε_minus_q_occ  = [eigenvalues[k_to_kmq[ik]][mask_occ[k_to_kmq[ik]]]
+                      for ik = 1:length(basis.kpoints)]
 
     # First we compute δoccupation. We only need to do this for the actually occupied
     # orbitals. So we make a fresh array padded with zeros, but only alter the elements
@@ -382,7 +383,7 @@ end
     # Then we compute δψ (again in-place into a zero-padded array) with elements of
     # `basis.kpoints` that are equivalent to `k+q`.
     δψ = zero.(δHψ)
-    δψ_occ = [δψ[k_to_kmq[ik]][:, mask_occ[ik]] for ik = 1:length(basis.kpoints)]
+    δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ[k_to_kmq])]
     compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, ε_minus_q_occ;
                 ψ_extra, q, kwargs_sternheimer...)
 

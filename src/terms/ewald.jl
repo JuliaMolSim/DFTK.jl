@@ -43,6 +43,8 @@ function default_η(lattice::AbstractArray{T}) where {T}
     sqrt(sqrt(T(1.69) * norm(recip_lattice ./ 2T(π)) / norm(lattice))) / 2
 end
 
+# Note: This could be merged with Pairwise, but its use of `atom_types` would slow down this
+# computationally intensive Ewald sums. So we leave it as it for now.
 """
 Compute the electrostatic energy and forces. The energy is the electrostatic interaction
 energy per unit cell between point charges in a uniform background of compensating charge to

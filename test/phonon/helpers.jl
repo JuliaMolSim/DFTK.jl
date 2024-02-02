@@ -55,8 +55,7 @@ function test_frequencies(model_tested, testcase; ω_ref=nothing, Ecut=7, kgrid=
     scfres = self_consistent_field(basis; scf_kwargs...)
 
     ω_uc = sort!(reduce(vcat, map(qpoints) do q
-        dynamical_matrix = compute_dynmat_cart(scfres; q, tol=χ0_tol)
-        phonon_modes_cart(basis, dynamical_matrix).frequencies
+        phonon_modes(scfres; q, tol=χ0_tol).frequencies
     end))
 
     !isnothing(ω_ref) && return test_approx_frequencies(ω_uc, ω_ref; tol=10scf_tol)
@@ -70,8 +69,7 @@ function test_frequencies(model_tested, testcase; ω_ref=nothing, Ecut=7, kgrid=
     basis_supercell = PlaneWaveBasis(model_supercell; Ecut, kgrid=[1, 1, 1])
     scfres_supercell = self_consistent_field(basis_supercell; scf_kwargs...)
 
-    dynamical_matrix_sc = compute_dynmat_cart(scfres_supercell; tol=χ0_tol)
-    ω_sc = sort(phonon_modes_cart(basis_supercell, dynamical_matrix_sc).frequencies)
+    ω_sc = sort(phonon_modes(scfres_supercell; tol=χ0_tol).frequencies)
     test_approx_frequencies(ω_uc, ω_sc; tol=10scf_tol)
 
     isnothing(compute_ref) && return
