@@ -23,6 +23,7 @@ for details. In Voigt notation one would use the vector
         new_basis = PlaneWaveBasis(new_model,
                                    basis.Ecut, basis.fft_size, basis.variational,
                                    basis.kgrid, basis.symmetries_respect_rgrid,
+                                   basis.symmetries_respect_basis,
                                    basis.use_symmetries_for_kpoint_reduction,
                                    basis.comm_kpts, basis.architecture)
         ρ = compute_density(new_basis, scfres.ψ, scfres.occupation)
