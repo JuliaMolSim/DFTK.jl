@@ -31,9 +31,11 @@ mass_matrix(model::Model{T}) where {T} = mass_matrix(T, model.atoms)
 """
 Get the phonon modes (`frequencies` and `vectors`) from a dynamical matrix, all in cartesian coordinates.
 """
-function phonon_modes_cart(basis::PlaneWaveBasis{T}, dynmat_cart) where {T}
+function phonon_modes(basis::PlaneWaveBasis{T}) where {T}
     n_atoms = length(basis.model.positions)
     M = reshape(mass_matrix(T, basis.model.atoms), 3*n_atoms, 3*n_atoms)
+
+    # TODO ETIENNE : have phonon_modes recompute dynmat, move the scfres & co helpers to this method
 
     res = eigen(reshape(dynmat_cart, 3*n_atoms, 3*n_atoms), M)
     maximum(abs, imag(res.values)) > sqrt(eps(T)) &&
@@ -42,7 +44,7 @@ function phonon_modes_cart(basis::PlaneWaveBasis{T}, dynmat_cart) where {T}
     signs = sign.(real(res.values))
     frequencies = signs .* sqrt.(abs.(real(res.values)))
 
-    (; frequencies, res.vectors)
+    (; frequencies, vectors_cart=res.vectors, vectors_red=...)
 end
 
 @doc raw"""
