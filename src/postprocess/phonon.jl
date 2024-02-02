@@ -35,11 +35,10 @@ function phonon_modes(basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where
     dynmat = compute_dynmat(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
     dynmat_cart = dynmat_red_to_cart(basis.model, dynmat)
 
-    (; frequencies, vectors, mass_matrix) = _phonon_modes(basis, dynmat_cart)
+    modes = _phonon_modes(basis, dynmat_cart)
 
-    # TODO compute vectors_cart
-
-    (; frequencies, vectors_cart=nothing, vectors, dynmat, dynmat_cart, mass_matrix)
+    (; modes.mass_matrix, modes.frequencies, dynmat, dynmat_cart, modes.vectors_cart,
+     vectors=vector_cart_to_red(basis.model, modes.vectors_cart))
 end
 # Compute the frequencies and vectors. Only internal because of the potential misuse.
 function _phonon_modes(basis::PlaneWaveBasis{T}, dynmat_cart) where {T}
@@ -53,7 +52,7 @@ function _phonon_modes(basis::PlaneWaveBasis{T}, dynmat_cart) where {T}
     signs = sign.(real(res.values))
     frequencies = signs .* sqrt.(abs.(real(res.values)))
 
-    (; frequencies, res.vectors, mass_matrix=M)
+    (; frequencies, vectors_cart=res.vectors, mass_matrix=M)
 end
 # For convenience
 function phonon_modes(scfres::NamedTuple; kwargs...)
