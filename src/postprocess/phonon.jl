@@ -84,7 +84,7 @@ in reduced coordinates.
         δρs[α, s] = δρ
         δψs[α, s] = δψ
     end
-    # query each energy term for their contribution to the dynamical matrix
+    # Query each energy term for their contribution to the dynamical matrix.
     dynmats_per_term = [compute_dynmat(term, basis, ψ, occupation; ρ, δψs, δρs,
                                        δoccupations, q)
                         for term in basis.terms]

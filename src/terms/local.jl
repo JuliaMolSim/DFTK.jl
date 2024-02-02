@@ -209,8 +209,8 @@ function compute_dynmat(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occ
     ∫δρδV + ∫ρδ²V
 end
 
-# δH = perturbation of the local potential wrt a position displacement
-# e^iqr of the α coordinate of atom s
+# δH is the perturbation of the local potential due to a position displacement e^{iq·r} of
+# the α coordinate of atom s.
 function compute_δHψ_αs(term::TermAtomicLocal, basis::PlaneWaveBasis, ψ, α, s, q)
     δV_αs = similar(ψ[1], basis.fft_size..., basis.model.n_spin_components)
     # All spin components get the same potential.

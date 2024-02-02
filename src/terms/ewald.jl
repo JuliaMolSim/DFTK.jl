@@ -43,8 +43,6 @@ function default_η(lattice::AbstractArray{T}) where {T}
     sqrt(sqrt(T(1.69) * norm(recip_lattice ./ 2T(π)) / norm(lattice))) / 2
 end
 
-# Note: This could be merged with Pairwise, but its use of `atom_types` would slow down this
-# computationally intensive Ewald sums. So we leave it as it for now.
 @doc raw"""
 Compute the electrostatic energy and forces. The energy is the electrostatic interaction
 energy per unit cell between point charges in a uniform background of compensating charge to
@@ -65,6 +63,8 @@ transform of (only the direct part of) the force constant matrix.
 """
 function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q, ph_disp;
                              η=default_η(lattice)) where {T}
+    # This could be merged with Pairwise, but its use of `symbols` would slow down this
+    # computationally intensive Ewald sums. So we leave it as it for now.
     @assert length(charges) == length(positions)
     if isempty(charges)
         return (; energy=zero(T), forces=zero(positions))
@@ -167,7 +167,7 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
     (; energy=(sum_recip + sum_real) / 2,  # divide by 2 (because of double counting)
        forces=forces_recip .+ forces_real)
 end
-# for convenience
+# For convenience
 function energy_forces_ewald(lattice::AbstractArray{T}, charges::AbstractArray,
                              positions; kwargs...) where {T}
     energy_forces_ewald(T, lattice, charges, positions, zero(Vec3{T}), nothing)

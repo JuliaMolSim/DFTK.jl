@@ -4,8 +4,6 @@ struct PairwisePotential
     max_radius
 end
 
-# Note: This could be merged with Ewald, but the use of `symbols` would slow down the
-# computationally intensive Ewald sums. So we leave it as it for now.
 @doc raw"""
 Pairwise terms: Pairwise potential between nuclei, e.g., Van der Waals potentials, such as
 Lennard—Jones terms.
@@ -119,7 +117,7 @@ function energy_forces_pairwise(S, lattice::AbstractArray{T}, symbols, positions
     energy = sum_pairwise / 2  # Divide by 2 (because of double counting)
     (; energy, forces)
 end
-# for convenience
+# For convenience
 function energy_forces_pairwise(lattice::AbstractArray{T}, symbols, positions, V, params;
                                 kwargs...) where {T}
     energy_forces_pairwise(T, lattice, symbols, positions, V, params, zero(Vec3{T}), nothing;
