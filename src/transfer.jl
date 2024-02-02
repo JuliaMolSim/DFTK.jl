@@ -215,7 +215,7 @@ end
 
 @doc raw"""
 Create the Fourier expansion of ``ψ_{k+q}`` from ``ψ_{[k+q]}``, where ``[k+q]`` is in
-`basis.kpoints`. while ``k+q`` may or may not be inside.
+`basis.kpoints`, while ``k+q`` may or may not be inside.
 
 If ``ΔG ≔ [k+q] - (k+q)``, then we have that
 ```math

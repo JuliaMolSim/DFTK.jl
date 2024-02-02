@@ -173,7 +173,7 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
     δVind = apply_kernel(basis, δρ; ρ, q)  # Change in potential induced by δρ
     # For phonon calculations, assemble
     #   δHψ_k = δV_{q} · ψ_{k-q}.
-    δHψ = multiply_ψ_by_blochwave(basis, ψ, δVind, q) - rhs
+    δHψ = multiply_ψ_by_blochwave(basis, ψ, δVind, q) .- rhs
 
     # Compute total change in eigenvalues
     δeigenvalues = map(ψ, δHψ) do ψk, δHψk

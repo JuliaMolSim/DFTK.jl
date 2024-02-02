@@ -290,6 +290,7 @@ end
 Perform in-place computations of the derivatives of the wave functions by solving
 a Sternheimer equation for each `k`-points. It is assumed the passed `δψ` are initialised
 to zero.
+For phonons, δHψ[ik] is δH ψ_{k-q}, expressed in basis.kpoints[ik]
 """
 function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε_minus_q=ε;
                      ψ_extra=[zeros_like(ψk, size(ψk,1), 0) for ψk in ψ],
@@ -299,7 +300,7 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
     # where P_{k} is the projector on ψ_{k} and with the conventions:
     # * δψ_{k} is the variation of ψ_{k-q}, which implies (for ℬ_{k} the `basis.kpoints`)
     #     δψ_{k-q} ∈ ℬ_{k-q} and δHψ_{k-q} ∈ ℬ_{k};
-    # * δHψ[ik] = δHψ_{k-q};
+    # * δHψ[ik] = δH ψ_{k-q};
     # * ε_minus_q[ik] = ε_{·, k-q}.
     model = basis.model
     temperature = model.temperature
@@ -378,7 +379,7 @@ end
 
     # Then we compute δψ (again in-place into a zero-padded array) with elements of
     # `basis.kpoints` that are equivalent to `k+q`.
-    δψ = zero.(δHψ)  # δHψ ≠ δHψ_minus_q
+    δψ = zero.(δHψ)
     δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(ordering(mask_occ))]
     compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, ε_minus_q_occ;
                 ψ_extra, q, kwargs_sternheimer...)
