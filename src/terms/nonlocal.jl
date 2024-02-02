@@ -197,7 +197,7 @@ function build_dprojection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint, psps, 
     displacement = zero.(positions)
     displacement[s] = setindex(displacement[s], one(T), α)
     ForwardDiff.derivative(zero(T)) do ε
-        positions = ε*displacement .+ positions
+        positions = positions .+ ε .* displacement
         psp_positions = [positions[group] for group in psp_groups]
         build_projection_vectors(basis, kpt, psps, psp_positions)
     end
@@ -211,7 +211,7 @@ function build_ddprojection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint, psps,
     displacement = zero.(positions)
     displacement[s] = setindex(displacement[s], one(T), β)
     ForwardDiff.derivative(zero(T)) do ε
-        positions = ε*displacement .+ positions
+        positions = positions .+ ε .* displacement
         build_dprojection_vectors(basis, kpt, psps, psp_groups, α, s; positions)
     end
 end
