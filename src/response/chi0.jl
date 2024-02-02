@@ -372,8 +372,9 @@ end
     δoccupation = zero.(occupation)
     if iszero(q)
         δocc_occ = [δoccupation[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-        δεF = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_minus_q_occ).δεF
+        (; δεF) = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_minus_q_occ)
     else
+        # When δH is not periodic, δεnk = <ψnk|δH|ψnk> = 0 so there is no occupation shift
         δεF = zero(εF)
     end
 
