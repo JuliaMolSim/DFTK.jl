@@ -158,6 +158,9 @@ end
     forces
 end
 
+function derivative_wrt_sα(f, s, α)
+end
+
 # Phonon: Perturbation of the local potential with respect to a displacement on the
 # direction α of the atom s.
 function compute_δV_αs(::TermAtomicLocal, basis::PlaneWaveBasis{T}, α, s; q=zero(Vec3{T}),
