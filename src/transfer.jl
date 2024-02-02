@@ -30,7 +30,7 @@ function transfer_mapping(basis_in::PlaneWaveBasis, basis_out::PlaneWaveBasis)
     zip(idcs_in, idcs_out)
 end
 
-@doc raw"""
+"""
 Compute the index mapping between two bases. Returns two arrays
 `idcs_in` and `idcs_out` such that `ψk_out[idcs_out] = ψk_in[idcs_in]` does
 the transfer from `ψk_in` (defined on `basis_in` and `kpt_in`) to `ψk_out`

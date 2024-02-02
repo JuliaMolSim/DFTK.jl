@@ -43,7 +43,8 @@ function phonon_modes(basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where
 
     (; modes.mass_matrix, modes.frequencies, dynmat, dynmat_cart, vectors, modes.vectors_cart)
 end
-# Compute the frequencies and vectors. Only internal because of the potential misuse.
+# Compute the frequencies and vectors. Only internal because of the potential misuse:
+# non-Cartesian computations of the frequencies do not make sense.
 function _phonon_modes(basis::PlaneWaveBasis{T}, dynmat_cart) where {T}
     n_atoms = length(basis.model.positions)
     M = reshape(mass_matrix(T, basis.model.atoms), 3*n_atoms, 3*n_atoms)
