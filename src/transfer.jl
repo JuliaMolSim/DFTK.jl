@@ -212,14 +212,10 @@ hence
 ```
 """
 function kpq_equivalent_blochwave_to_kpq(basis, kpt, q, ψk_plus_q_equivalent)
-    kcoord_plus_q = kpt.coordinate .+ q
-    index, ΔG = find_equivalent_kpt(basis, kcoord_plus_q, kpt.spin)
-    equivalent_kpt_plus_q = basis.kpoints[index]
-
-    kpt_plus_q = Kpoint(basis, kcoord_plus_q, kpt.spin)
-    (; kpt=kpt_plus_q,
-     ψk=transfer_blochwave_kpt(ψk_plus_q_equivalent, basis, equivalent_kpt_plus_q, basis,
-                               kpt_plus_q))
+    kpt_plus_q = get_kpoint(basis, kpt.coordinate .+ q, kpt.spin)
+    (; kpt_plus_q.kpt,
+     ψk=transfer_blochwave_kpt(ψk_plus_q_equivalent, basis, kpt_plus_q.equivalent_kpt, basis,
+                               kpt_plus_q.kpt))
 end
 
 @doc raw"""

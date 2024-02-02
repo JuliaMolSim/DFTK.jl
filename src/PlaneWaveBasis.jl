@@ -151,6 +151,15 @@ function Kpoint(basis::PlaneWaveBasis, coordinate::AbstractVector, spin::Int)
     Kpoint(spin, coordinate, basis.model.recip_lattice, basis.fft_size, basis.Ecut;
            basis.variational, basis.architecture)
 end
+# If coordinate is in basis, return it, otherwise, get equivalent kpoint and return
+# construct_equivalent_kpoint(kpt_equiv, ΔG)
+# TODO: Use memoisation.
+function get_kpoint(basis, coordinate, spin)
+    index, ΔG = find_equivalent_kpt(basis, coordinate, spin)
+    equivalent_kpt = basis.kpoints[index]
+    kpt = iszero(ΔG) ? basis.kpoints[index] : Kpoint(basis, coordinate, spin)
+    (; kpt, equivalent_kpt)
+end
 
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
                                variational=true,
