@@ -202,12 +202,12 @@ function find_equivalent_kpt(basis::PlaneWaveBasis{T}, kcoord, spin; tol=sqrt(ep
 end
 
 """
-Return the indices of the `kpoints` shifted by `q`. That is for each `kpoint` of the `basis`:
-`kpoints[ik].coordinate + q` is equivalent to `kpoints[indices[ik]].coordinate`.
+Returns a permutation `indices` of the kpoints in `basis` such that
+kpoints[ik].coordinate + q is equivalent to kpoints[indices[ik]].coordinate
 """
-function k_to_equivalent_kpq_permutation(basis::PlaneWaveBasis, qcoord)
+function k_to_kpq_permutation(basis::PlaneWaveBasis, q)
     kpoints = basis.kpoints
-    indices = [find_equivalent_kpt(basis, kpt.coordinate + qcoord, kpt.spin).index
+    indices = [find_equivalent_kpt(basis, kpt.coordinate + q, kpt.spin).index
                for kpt in kpoints]
     @assert isperm(indices)
     indices
@@ -247,12 +247,12 @@ Return the Fourier coefficients for the Bloch waves ``f^{\rm real}_{q} ψ_{k-q}`
 element of `basis.kpoints` equivalent to ``k-q``.
 """
 function multiply_ψ_by_blochwave(basis::PlaneWaveBasis, ψ, f_real, q)
-    ordering(kdata) = kdata[k_to_equivalent_kpq_permutation(basis, -q)]
+    k_to_kmq = k_to_kpq_permutation(basis, -q)
     fψ = zero.(ψ)
     for (ik, kpt) in enumerate(basis.kpoints)
         # First, express ψ_{[k-q]} in the basis of k-q points…
         kpt_minus_q, ψk_minus_q = kpq_equivalent_blochwave_to_kpq(basis, kpt, -q,
-                                                                  ordering(ψ)[ik])
+                                                                  ψ[k_to_kmq[ik]])
         # … then perform the multiplication with f in real space and get the Fourier
         # coefficients.
         for n = 1:size(ψ[ik], 2)

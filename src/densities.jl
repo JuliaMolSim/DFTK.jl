@@ -58,8 +58,6 @@ end
     Tδρ = iszero(q) ? real(Tψ) : Tψ
     real_qzero = iszero(q) ? real : identity
 
-    ordering(kdata) = kdata[k_to_equivalent_kpq_permutation(basis, q)]
-
     # occupation should be on the CPU as we are going to be doing scalar indexing.
     occupation = [to_cpu(oc) for oc in occupation]
     mask_occ = [findall(occnk -> abs(occnk) ≥ occupation_threshold, occk)
@@ -79,7 +77,7 @@ end
         ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n])
         # We return the δψk in the basis k+q which are associated to a displacement of the ψk.
         kpt_plus_q, δψk_plus_q = kpq_equivalent_blochwave_to_kpq(basis, kpt, q,
-                                                                 ordering(δψ)[ik])
+                                                                 δψ[k_to_kpq_permutation(basis, q)[ik]])
         # The perturbation of the density
         #   |ψ_nk|² is 2 ψ_{n,k} * δψ_{n,k+q}.
         ifft!(storage.δψnk_real, basis, kpt_plus_q, δψk_plus_q[:, n])

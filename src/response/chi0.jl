@@ -344,7 +344,7 @@ end
                                     occupation_threshold, q=zero(Vec3{eltype(ham.basis)}),
                                     kwargs_sternheimer...)
     basis = ham.basis
-    ordering(kdata) = kdata[k_to_equivalent_kpq_permutation(basis, -q)]
+    k_to_kmq = k_to_kpq_permutation(basis, -q)
 
     # We first select orbitals with occupation number higher than
     # occupation_threshold for which we compute the associated response δψn,
@@ -359,9 +359,9 @@ end
     ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
     ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
     ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-    δHψ_minus_q_occ = [δHψ[ik][:, maskk] for (ik, maskk) in enumerate(ordering(mask_occ))]
+    δHψ_minus_q_occ = [δHψ[k_to_kmq[ik]][:, mask_occ[ik]] for ik = 1:length(basis.kpoints)]
     # Only needed for phonon calculations.
-    ε_minus_q_occ  = ordering([eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)])
+    ε_minus_q_occ  = [eigenvalues[k_to_kmq[ik]][mask_occ[ik]] for ik = 1:length(basis.kpoints)]
 
     # First we compute δoccupation. We only need to do this for the actually occupied
     # orbitals. So we make a fresh array padded with zeros, but only alter the elements
@@ -380,7 +380,7 @@ end
     # Then we compute δψ (again in-place into a zero-padded array) with elements of
     # `basis.kpoints` that are equivalent to `k+q`.
     δψ = zero.(δHψ)
-    δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(ordering(mask_occ))]
+    δψ_occ = [δψ[k_to_kmq[ik]][:, mask_occ[ik]] for ik = 1:length(basis.kpoints)]
     compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, ε_minus_q_occ;
                 ψ_extra, q, kwargs_sternheimer...)
 
