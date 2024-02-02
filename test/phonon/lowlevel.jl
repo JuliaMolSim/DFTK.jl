@@ -29,10 +29,10 @@
     q = Vec3(q0 .* ishift)
 
     @testset "Ordering function" begin
-        k_to_kpq = k_to_kpq_permutation(basis, q)
+        k_to_k_plus_q = k_to_kpq_permutation(basis, q)
         kcoords = getfield.(basis.kpoints, :coordinate)
         for (ik, kcoord) in enumerate(kcoords)
-            @test mod.(kcoord + q .- tol, 1) ≈ mod.(kcoords[k_to_kpq[ik]] .- tol, 1)
+            @test mod.(kcoord + q .- tol, 1) ≈ mod.(kcoords[k_to_k_plus_q[ik]] .- tol, 1)
         end
     end
 end
