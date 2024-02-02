@@ -170,7 +170,8 @@ function get_kpoint(basis::PlaneWaveBasis{T}, coordinate, spin) where {T}
 end
 # To prevent dictionary miss due to precision.
 function _kpoint_phonon_key(coordinate::AbstractArray{T}, spin::Int) where {T}
-    (Vec3(round.(coordinate; digits=5) .+ eps(T)), spin)
+    digits = floor(Int, -log10(100eps(T)))
+    (Vec3(round.(coordinate; digits) .+ eps(T)), spin)
 end
 
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
