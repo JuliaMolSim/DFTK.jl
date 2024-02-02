@@ -2,7 +2,7 @@
 @testsetup module Phonon
 using Test
 using DFTK
-using DFTK: normalize_kpoint_coordinate
+using DFTK: normalize_kpoint_coordinate, _phonon_modes, dynmat_red_to_cart
 using LinearAlgebra
 using ForwardDiff
 using FiniteDifferences
@@ -76,7 +76,7 @@ function test_frequencies(model_tested, testcase; ω_ref=nothing, Ecut=7, kgrid=
 
     dynamical_matrix_ref = compute_dynmat_ref(scfres_supercell.basis, model_tested; Ecut,
                                               kgrid=[1, 1, 1], scf_tol, method=compute_ref)
-    ω_ref = sort(phonon_modes_cart(basis_supercell, dynamical_matrix_ref).frequencies)
+    ω_ref = sort(_phonon_modes(basis_supercell, dynamical_matrix_ref).frequencies)
 
     test_approx_frequencies(ω_uc, ω_ref; tol=10scf_tol)
 end

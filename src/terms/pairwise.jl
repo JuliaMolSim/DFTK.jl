@@ -40,7 +40,7 @@ function ene_ops(term::TermPairwisePotential, basis::PlaneWaveBasis, ψ, occupat
 end
 compute_forces(term::TermPairwisePotential, ::PlaneWaveBasis, ψ, occ; kwargs...) = term.forces
 
-"""
+@doc raw"""
 Compute the pairwise energy and forces. The energy is the interaction energy per unit cell
 between atomic sites. The forces is the opposite of the derivative of the energy with
 respect to `positions`.
@@ -52,11 +52,11 @@ symbols).
 
 The potential is expected to decrease quickly at infinity.
 
-For phonons (`q` != 0), this computes the local energy and forces on the atoms of the reference
-unit cell 0, for an infinite array of atoms at positions 
-r_{iR} = positions[i] + R + ph_disp[i]*e^{-iq·R}.
-`q` is the phonon `q`-point (`Vec3`), and `ph_disp` a list of `Vec3` displacements to
-compute the Fourier transform of (only the direct part of) the force constant matrix.
+For phonons (`q` ≠ 0), this computes the local energy and forces on the atoms of the
+reference unit cell 0, for an infinite array of atoms at positions
+``r_{iR} = {\rm positions}_i + R + {\rm ph_disp}_i e^{-iq·R}``.
+`q` is the phonon `q`-point, and `ph_disp` a list of displacements to compute the Fourier
+transform of the force constant matrix.
 """
 function energy_forces_pairwise(S, lattice::AbstractArray{T}, symbols, positions, V, params,
                                 q, ph_disp; max_radius=100) where {T}

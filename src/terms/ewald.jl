@@ -45,7 +45,7 @@ end
 
 # Note: This could be merged with Pairwise, but its use of `atom_types` would slow down this
 # computationally intensive Ewald sums. So we leave it as it for now.
-"""
+@doc raw"""
 Compute the electrostatic energy and forces. The energy is the electrostatic interaction
 energy per unit cell between point charges in a uniform background of compensating charge to
 yield net neutrality. The forces is the opposite of the derivative of the energy with
@@ -57,11 +57,11 @@ point charges and their positions (as an array of arrays) in fractional coordina
 For now this function returns zero energy and force on non-3D systems. Use a pairwise
 potential term if you want to customise this treatment.
 
-For phonons (`q` != 0), this computes the local energy and forces on the atoms of the reference
-unit cell 0, for an infinite array of atoms at positions 
-r_{iR} = positions[i] + R + ph_disp[i]*e^{-iq·R}.
-`q` is the phonon `q`-point (`Vec3`), and `ph_disp` a list of `Vec3` displacements to
-compute the Fourier transform of (only the direct part of) the force constant matrix.
+For phonon (`q` ≠ 0), this computes the local energy and forces on the atoms of the
+reference unit cell 0, for an infinite array of atoms at positions
+``r_{iR} = {\rm positions}_i + R + {\rm ph_disp}_i e^{-iq·R}``.
+`q` is the phonon `q`-point, and `ph_disp` a list of displacements to compute the Fourier
+transform of (only the direct part of) the force constant matrix.
 """
 function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q, ph_disp;
                              η=default_η(lattice)) where {T}

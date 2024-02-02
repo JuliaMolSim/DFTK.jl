@@ -35,10 +35,16 @@ function phonon_modes(basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where
     dynmat = compute_dynmat(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
     dynmat_cart = dynmat_red_to_cart(basis.model, dynmat)
 
+    (; frequencies, vectors, mass_matrix) = _phonon_modes(basis, dynmat_cart)
+
+    # TODO compute vectors_cart
+
+    (; frequencies, vectors_cart=nothing, vectors, dynmat, dynmat_cart, mass_matrix)
+end
+# Compute the frequencies and vectors. Only internal because of the potential misuse.
+function _phonon_modes(basis::PlaneWaveBasis{T}, dynmat_cart) where {T}
     n_atoms = length(basis.model.positions)
     M = reshape(mass_matrix(T, basis.model.atoms), 3*n_atoms, 3*n_atoms)
-
-    # TODO ETIENNE : have phonon_modes recompute dynmat, move the scfres & co helpers to this method
 
     res = eigen(reshape(dynmat_cart, 3*n_atoms, 3*n_atoms), M)
     maximum(abs, imag(res.values)) > sqrt(eps(T)) &&
@@ -47,8 +53,7 @@ function phonon_modes(basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where
     signs = sign.(real(res.values))
     frequencies = signs .* sqrt.(abs.(real(res.values)))
 
-    (; frequencies, vectors_cart=res.vectors, vectors=nothing, dynmat, dynmat_cart,
-     mass_matrix=M)
+    (; frequencies, res.vectors, mass_matrix=M)
 end
 # For convenience
 function phonon_modes(scfres::NamedTuple; kwargs...)
@@ -87,9 +92,9 @@ in reduced coordinates.
 end
 
 """
-Get δH ψ, with δH the perturbation of the Hamiltonian wrt a position displacement
-e^iqr of the α coordinate of atom s.
-δHψ[ik] is δH ψ_{k-q}, expressed in basis.kpoints[ik]
+Get ``δH·ψ``, with ``δH`` the perturbation of the Hamiltonian with respect to a position
+displacement ``e^{iq·r}`` of the ``α`` coordinate of atom ``s``.
+`δHψ[ik]` is ``δH·ψ_{k-q}``, expressed in `basis.kpoints[ik]`.
 """
 @timing function compute_δHψ_αs(basis::PlaneWaveBasis, ψ, α, s, q)
     δHψ_per_term = [compute_δHψ_αs(term, basis, ψ, α, s, q) for term in basis.terms]
