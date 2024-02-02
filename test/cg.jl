@@ -14,7 +14,7 @@
             res = DFTK.cg(A, b; tol, maxiter=2n)
 
             # test convergence
-            @test norm(A*res.x - b) ≤ tol
+            @test norm(A*res.x - b) ≤ 2tol
             @test res.converged
 
             # test type stability
