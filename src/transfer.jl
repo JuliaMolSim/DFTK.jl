@@ -231,7 +231,6 @@ element of `basis.kpoints` equivalent to ``k-q``.
 """
 function multiply_ψ_by_blochwave_operator(apply, basis::PlaneWaveBasis, ψ, q)
     k_to_k_minus_q = k_to_kpq_permutation(basis, -q)
-
     fψ = zero.(ψ)
     for (ik, kpt) in enumerate(basis.kpoints)
         # First, express ψ_{[k-q]} in the basis of k-q points…
