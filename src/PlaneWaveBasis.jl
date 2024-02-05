@@ -177,7 +177,6 @@ function get_kpoint(basis::PlaneWaveBasis{T}, kcoord, spin) where {T}
     (; kpt, equivalent_kpt)
 end
 
-
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
                                variational=true,
                                architecture::AbstractArchitecture) where {T}
