@@ -263,9 +263,6 @@ function compute_dynmat_δH(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, 
 
     forces = [zero(Vec3{S}) for _ = 1:length(model.positions)]
     for group in psp_groups
-        element = model.atoms[first(group)]
-
-        C = build_projection_coefficients(S, element.psp)
         ψ_plus_q = multiply_by_expiqr(basis, δψ, q)
         for (ik, kpt) in enumerate(basis.kpoints)
             ψk = ψ[ik]
@@ -335,6 +332,8 @@ end
     dynmat_δH + dynmat_δ²H
 end
 
+# δH is the Fourier transform perturbation of the nonlocal potential due to a position
+# displacement e^{iq·r} of the α coordinate of atom s.
 function compute_δHψ_αs(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, α, s, q) where {T}
     model = basis.model
     psp_groups = [group for group in model.atom_groups
@@ -345,5 +344,5 @@ function compute_δHψ_αs(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, �
         derivative_wrt_αs(model.positions, α, s) do positions_αs
             PDPψk(basis, positions_αs, psp_groups, kpt, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk)
         end
-    end  # δHψ
+    end
 end
