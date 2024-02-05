@@ -55,10 +55,11 @@ end
     psp_groups = [group for group in model.atom_groups
                   if model.atoms[first(group)] isa ElementPsp]
 
-    # early return if no pseudopotential atoms
+    # Early return if no pseudopotential atoms.
     isempty(psp_groups) && return nothing
 
-    # energy terms are of the form <psi, P C P' psi>, where P(G) = form_factor(G) * structure_factor(G)
+    # Energy terms are of the form <ψ, P C P' ψ>, where
+    #   P(G) = form_factor(G) * structure_factor(G).
     forces = [zero(Vec3{T}) for _ = 1:length(model.positions)]
 
     for group in psp_groups
@@ -66,7 +67,7 @@ end
 
         C = build_projection_coefficients(T, element.psp)
         for (ik, kpt) in enumerate(basis.kpoints)
-            # we compute the forces from the irreductible BZ; they are symmetrized later
+            # We compute the forces from the irreductible BZ; they are symmetrized later.
             G_plus_k = Gplusk_vectors(basis, kpt)
             G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
             form_factors = build_form_factors(element.psp, G_plus_k_cart)
@@ -254,56 +255,32 @@ function compute_dynmat_δH(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, 
                            δψ, δoccupation, q) where {T}
     S = complex(T)
     model = basis.model
-    unit_cell_volume = model.unit_cell_volume
     psp_groups = [group for group in model.atom_groups
                   if model.atoms[first(group)] isa ElementPsp]
 
-    # early return if no pseudopotential atoms
+    # Early return if no pseudopotential atoms.
     isempty(psp_groups) && return nothing
 
-    # energy terms are of the form <psi, P C P' psi>, where P(G) = form_factor(G) * structure_factor(G)
     forces = [zero(Vec3{S}) for _ = 1:length(model.positions)]
-
-    k_to_k_plus_q = k_to_kpq_permutation(basis, q)
     for group in psp_groups
         element = model.atoms[first(group)]
 
         C = build_projection_coefficients(S, element.psp)
+        ψ_plus_q = multiply_by_expiqr(basis, δψ, q)
         for (ik, kpt) in enumerate(basis.kpoints)
-            kpt_plus_q = get_kpoint(basis, kpt.coordinate + q, kpt.spin).kpt
+            ψk = ψ[ik]
+            δψk_plus_q = ψ_plus_q[ik].ψk
+            kpt_plus_q = ψ_plus_q[ik].kpt
 
-            # we compute the forces from the irreductible BZ; they are symmetrized later
-            G_plus_k  = Gplusk_vectors(basis, kpt)
-            G_plus_kq = Gplusk_vectors(basis, kpt_plus_q)
-            G_plus_k_cart  = to_cpu(Gplusk_vectors_cart(basis, kpt))
-            G_plus_kq_cart = to_cpu(Gplusk_vectors_cart(basis, kpt_plus_q))
-            form_factors        = build_form_factors(element.psp, G_plus_k_cart)
-            form_factors_plus_q = build_form_factors(element.psp, G_plus_kq_cart)
-
-            # function P(pos, k)
-            # end
-
+            # We compute the forces from the irreductible BZ; they are symmetrized later.
             for idx in group
-                r = model.positions[idx]
-                structure_factors        = [cis2pi(-dot(p, r)) for p in G_plus_k]
-                structure_factors_plus_q = [cis2pi(-dot(p, r)) for p in G_plus_kq]
-                P        = structure_factors        .* form_factors        ./ sqrt(unit_cell_volume)
-                P_plus_q = structure_factors_plus_q .* form_factors_plus_q ./ sqrt(unit_cell_volume)
-
                 forces[idx] += map(1:3) do α
-                    dPdR        = [-2S(π)*im*p[α] for p in G_plus_k]  .* P
-                    dPdR_plus_q = [-2S(π)*im*p[α] for p in G_plus_kq] .* P_plus_q
-                    ψk = ψ[ik]
-                    kpt_plus_q, equivalent_kpt_plus_q = get_kpoint(basis, kpt.coordinate + q,
-                                                                   kpt.spin)
-                    δψk_plus_q = transfer_blochwave_kpt(δψ[k_to_k_plus_q[ik]], basis,
-                                                        equivalent_kpt_plus_q, basis,
-                                                        kpt_plus_q)
-
-                    δHψk        = (  dPdR_plus_q * (C * (P'    * ψk))
-                                   + P_plus_q    * (C * (dPdR' * ψk)))
-                    δHψk_plus_q = (  dPdR        * (C * (P'    * ψk))
-                                   + P           * (C * (dPdR' * ψk)))
+                    δHψk = derivative_wrt_αs(model.positions, α, idx) do positions_αs
+                        PDPψk(basis, positions_αs, psp_groups, kpt_plus_q, kpt, ψ[ik])
+                    end
+                    δHψk_plus_q = derivative_wrt_αs(model.positions, α, idx) do positions_αs
+                        PDPψk(basis, positions_αs, psp_groups, kpt, kpt, ψ[ik])
+                    end
                     -sum(  2occupation[ik][iband] * basis.kweights[ik]
                                * dot(δψk_plus_q[:, iband], δHψk[:, iband])
                          + δoccupation[ik][iband]  * basis.kweights[ik]
@@ -364,8 +341,7 @@ function compute_δHψ_αs(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, �
                   if model.atoms[first(group)] isa ElementPsp]
 
     ψ_minus_q = multiply_by_expiqr(basis, ψ, -q)
-    map(enumerate(ψ)) do (ik, ψk)
-        kpt = basis.kpoints[ik]
+    map(enumerate(basis.kpoints)) do (ik, kpt)
         derivative_wrt_αs(model.positions, α, s) do positions_αs
             PDPψk(basis, positions_αs, psp_groups, kpt, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk)
         end
