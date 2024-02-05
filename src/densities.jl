@@ -70,19 +70,16 @@ end
     end
     range = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
 
-    k_to_k_plus_q = k_to_kpq_permutation(basis, q)
+    # We return the δψk in the basis k+q which are associated to a displacement of the ψk.
+    δψ_plus_k = multiply_by_expiqr(basis, δψ, q)
     storages = parallel_loop_over_range(allocate_local_storage, range) do storage, kn
         (ik, n) = kn
 
         kpt = basis.kpoints[ik]
         ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n])
-        # We return the δψk in the basis k+q which are associated to a displacement of the ψk.
-        kpt_plus_q, equivalent_kpt_plus_q = get_kpoint(basis, kpt.coordinate + q, kpt.spin)
-        δψk_plus_q = transfer_blochwave_kpt(δψ[k_to_k_plus_q[ik]], basis,
-                                            equivalent_kpt_plus_q, basis, kpt_plus_q)
         # The perturbation of the density
         #   |ψ_nk|² is 2 ψ_{n,k} * δψ_{n,k+q}.
-        ifft!(storage.δψnk_real, basis, kpt_plus_q, δψk_plus_q[:, n])
+        ifft!(storage.δψnk_real, basis, δψ_plus_k[ik].kpt, δψ_plus_k[ik].ψk[:, n])
 
         storage.δρ[:, :, :, kpt.spin] .+= real_qzero(
             2 .* occupation[ik][n] .* basis.kweights[ik] .* conj(storage.ψnk_real)

@@ -206,18 +206,15 @@ Return the Fourier coefficients for the Bloch waves ``f^{\rm real}_{q} ψ_{k-q}`
 element of `basis.kpoints` equivalent to ``k-q``.
 """
 function multiply_ψ_by_blochwave(basis::PlaneWaveBasis, ψ, f_real, q)
-    k_to_k_minus_q = k_to_kpq_permutation(basis, -q)
     fψ = zero.(ψ)
+    # First, express ψ_{[k-q]} in the basis of k-q points…
+    ψ_minus_q = multiply_by_expiqr(basis, ψ, -q)
     for (ik, kpt) in enumerate(basis.kpoints)
-        # First, express ψ_{[k-q]} in the basis of k-q points…
-        kpt_minus_q, equivalent_kpt_minus_q = get_kpoint(basis, kpt.coordinate - q, kpt.spin)
-        ψk_minus_q = transfer_blochwave_kpt(ψ[k_to_k_minus_q[ik]], basis, equivalent_kpt_minus_q,
-                                            basis, kpt_minus_q)
         # … then perform the multiplication with f in real space and get the Fourier
         # coefficients.
         for n in axes(ψ[ik], 2)
             fψ[ik][:, n] = fft(basis, kpt,
-                               ifft(basis, kpt_minus_q, ψk_minus_q[:, n])
+                               ifft(basis, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk[:, n])
                                  .* f_real[:, :, :, kpt.spin])
         end
     end
@@ -230,27 +227,24 @@ Return the Fourier coefficients for the Bloch waves ``f^{\rm fourier}_{q} ψ_{k-
 element of `basis.kpoints` equivalent to ``k-q``.
 """
 function multiply_ψ_by_blochwave_operator(apply, basis::PlaneWaveBasis, ψ, q)
-    k_to_k_minus_q = k_to_kpq_permutation(basis, -q)
     fψ = zero.(ψ)
+    # First, express ψ_{[k-q]} in the basis of k-q points…
+    ψ_minus_q = multiply_by_expiqr(basis, ψ, -q)
     for (ik, kpt) in enumerate(basis.kpoints)
-        # First, express ψ_{[k-q]} in the basis of k-q points…
-        kpt_minus_q, equivalent_kpt_minus_q = get_kpoint(basis, kpt.coordinate - q, kpt.spin)
-        ψk_minus_q = transfer_blochwave_kpt(ψ[k_to_k_minus_q[ik]], basis, equivalent_kpt_minus_q,
-                                            basis, kpt_minus_q)
         # … then perform the multiplication with f in Fourier space.
-        fψ[ik] .= apply(ik, ψk_minus_q)
+        fψ[ik] .= apply(ik, ψ_minus_q[ik].ψk)
     end
     fψ
 end
 
-
-## TODO keep this one and multiply_by_blochwave
+# TODO: Add docstring
 function multiply_by_expiqr(basis, ψ, q)
-    k_to_k_minus_q = k_to_kpq_permutation(basis, -q)
+    k_to_k_plus_q = k_to_kpq_permutation(basis, q)
     map(enumerate(basis.kpoints)) do (ik, kpt)
         # Express ψ_{[k-q]} in the basis of k-q points.
-        kpt_minus_q, equivalent_kpt_minus_q = get_kpoint(basis, kpt.coordinate - q, kpt.spin)
-        transfer_blochwave_kpt(ψ[k_to_k_minus_q[ik]], basis, equivalent_kpt_minus_q, basis,
-                               kpt_minus_q)
-    end  # ψk_minus_q
+        kpt_plus_q, equivalent_kpt_plus_q = get_kpoint(basis, kpt.coordinate + q, kpt.spin)
+        ψk_plus_q = transfer_blochwave_kpt(ψ[k_to_k_plus_q[ik]], basis, equivalent_kpt_plus_q,
+                                           basis, kpt_plus_q)
+        (; kpt=kpt_plus_q, ψk=ψk_plus_q)
+    end
 end
