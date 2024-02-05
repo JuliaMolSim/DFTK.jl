@@ -16,17 +16,16 @@ More generally, a ``k``-point is a block of the Hamiltonian;
 e.g. collinear spin is treated by doubling the number of ``k``-points.
 """
 struct Kpoint{T <: Real, GT <: AbstractVector{Vec3{Int}}}
-    # Be careful if you need to create them as we make no assumption on the order of its
-    # vector fields.
     spin::Int                     # Spin component can be 1 or 2 as index into what is
     #                             # returned by the `spin_components` function
     coordinate::Vec3{T}           # Fractional coordinate of k-point
+    G_vectors::GT                 # Wave vectors in integer coordinates (vector of Vec3{Int})
+    #                             # ({G, 1/2 |k+G|^2 ≤ Ecut})
+                                  # This is not assumed to be in any particular order
     mapping::Vector{Int}          # Index of G_vectors[i] on the FFT grid:
     #                             # G_vectors(basis)[kpt.mapping[i]] == G_vectors(basis, kpt)[i]
     mapping_inv::Dict{Int, Int}   # Inverse of `mapping`:
     #                             # G_vectors(basis)[i] == G_vectors(basis, kpt)[mapping_inv[i]]
-    G_vectors::GT                 # Wave vectors in integer coordinates (vector of Vec3{Int})
-    #                             # ({G, 1/2 |k+G|^2 ≤ Ecut})
 end
 
 @doc raw"""
@@ -147,7 +146,7 @@ function Kpoint(spin::Integer, coordinate::AbstractVector{<:Real},
     Gvecs_k = to_device(architecture, Gvecs_k)
 
     mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
-    Kpoint(spin, k, mapping, mapping_inv, Gvecs_k)
+    Kpoint(spin, k, Gvecs_k, mapping, mapping_inv)
 end
 function Kpoint(basis::PlaneWaveBasis, coordinate::AbstractVector, spin::Int)
     Kpoint(spin, coordinate, basis.model.recip_lattice, basis.fft_size, basis.Ecut;
@@ -162,8 +161,8 @@ function construct_from_equivalent_kpt(basis, equivalent_kpt, coordinate, ΔG)
         linear[CartesianIndex(mod1.(Tuple(G + CartesianIndex(ΔG...)), basis.fft_size))]
     end
     mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
-    Kpoint(equivalent_kpt.spin, Vec3(coordinate), mapping, mapping_inv,
-           equivalent_kpt.G_vectors .+ Ref(ΔG))
+    Kpoint(equivalent_kpt.spin, Vec3(coordinate), equivalent_kpt.G_vectors .+ Ref(ΔG),
+           mapping, mapping_inv)
 end
 # Returns the kpoint at given coordinate. If outside the Brillouin zone, it is created
 # from an equivalent kpoint in the basis (also returned)
@@ -189,7 +188,7 @@ end
     for iσ = 1:model.n_spin_components
         for kpt in kpoints_spin_1
             push!(all_kpoints, Kpoint(iσ, kpt.coordinate,
-                                      kpt.mapping, kpt.mapping_inv, kpt.G_vectors))
+                                      kpt.G_vectors, kpt.mapping, kpt.mapping_inv))
         end
     end
     all_kpoints
