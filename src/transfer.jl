@@ -191,7 +191,7 @@ end
 
 """
 Returns a permutation `indices` of the kpoints in `basis` such that
-kpoints[ik].coordinate + q is equivalent to kpoints[indices[ik]].coordinate
+`kpoints[ik].coordinate + q` is equivalent to `kpoints[indices[ik]].coordinate`.
 """
 function k_to_kpq_permutation(basis::PlaneWaveBasis, q)
     kpoints = basis.kpoints
@@ -221,7 +221,12 @@ element of `basis.kpoints` equivalent to ``k-q``.
     fψ
 end
 
-# TODO: Add docstring
+"""
+Return the Fourier coefficients corresponding to the multiplication in real-space of the
+wave-functions by ``e^{i q·r}``.
+For `ψk` defined on a basis `k`, return the Fourier coefficients of `ψk · e^{i q·r}` in the
+basis of `k+q`.
+"""
 @views function multiply_by_expiqr(basis, ψ, q)
     k_to_k_plus_q = k_to_kpq_permutation(basis, q)
     map(enumerate(basis.kpoints)) do (ik, kpt)
