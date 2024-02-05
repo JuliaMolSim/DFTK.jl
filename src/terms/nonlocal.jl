@@ -258,8 +258,8 @@ function build_form_factors(psp, G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
     form_factors
 end
 
-function compute_∫δρδV(term::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, occupation,
-                       δψ, δoccupation, q) where {T}
+function compute_dynmat_δH(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, occupation,
+                           δψ, δoccupation, q) where {T}
     S = complex(T)
     model = basis.model
     unit_cell_volume = model.unit_cell_volume
@@ -331,25 +331,25 @@ end
     n_atoms = length(positions)
     n_dim = model.n_dim
 
-    # Two contributions: dynmat_δH and dynmat_δ2H
+    # Two contributions: dynmat_δH and dynmat_δ²H.
 
-    # ∫δρδV
-    ∫δρδV = zeros(S, 3, n_atoms, 3, n_atoms)
+    # dynmat_δH
+    dynmat_δH = zeros(S, 3, n_atoms, 3, n_atoms)
     for s = 1:n_atoms, α = 1:n_dim
-        ∫δρδV[:, :, α, s] .-= stack(
-            compute_∫δρδV(term, basis, ψ, occupation, δψs[α, s], δoccupations[α, s], q)
+        dynmat_δH[:, :, α, s] .-= stack(
+            compute_dynmat_δH(term, basis, ψ, occupation, δψs[α, s], δoccupations[α, s], q)
         )
     end
 
-    # ∫ρδ²V
+    # dynmat_δ²H
     psp_groups = [group for group in model.atom_groups
                     if model.atoms[first(group)] isa ElementPsp]
-    isempty(psp_groups) && return ∫δρδV
+    isempty(psp_groups) && return dynmat_δH
     psps          = [model.atoms[first(group)].psp      for group in psp_groups]
     psp_positions = [model.positions[group] for group in psp_groups]
     D = build_projection_coefficients(T, psps, psp_positions)
-    ∫ρδ²V = zeros(S, 3, n_atoms, 3, n_atoms)
-    for s = 1:n_atoms, α = 1:n_dim, β = 1:n_dim
+    dynmat_δ²H = zeros(S, 3, n_atoms, 3, n_atoms)
+    for s = 1:n_atoms, α = 1:n_dim, β = 1:n_dim  # zero if s ≠ t
         δ²Hψ = multiply_ψ_by_blochwave_operator(basis, ψ, zero(q)) do ik, ψk
             kpt = basis.kpoints[ik]
             P = build_projection_vectors(basis, kpt, psps, psp_positions)
@@ -361,7 +361,7 @@ end
                + ∂βsP    * (D * (∂αsP'    * ψk))
                + ∂αsP    * (D * (∂βsP'    * ψk)))
         end
-        ∫ρδ²V[β, s, α, s] += sum(sum(occupation[ik][n] * basis.kweights[ik] *
+        dynmat_δ²H[β, s, α, s] += sum(sum(occupation[ik][n] * basis.kweights[ik] *
                                      dot(ψ[ik][:, n], δ²Hψ[ik][:, n])
                                      for n = 1:size(ψ[ik], 2))
                                  for ik = 1:length(ψ))
@@ -370,7 +370,7 @@ end
     # P(pos) = ...
     # f(pos) = P(pos) * (D * P(pos)'ψk)
 
-    ∫δρδV + ∫ρδ²V
+    dynmat_δH + dynmat_δ²H
 end
 
 function compute_δHψ_αs(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, α, s, q) where {T}

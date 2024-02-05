@@ -177,12 +177,6 @@ function get_kpoint(basis::PlaneWaveBasis{T}, kcoord, spin) where {T}
     (; kpt, equivalent_kpt)
 end
 
-function construct_equivalent_kpoint(kpoint, ΔG) # <=> Kpoint(kpoint.coordinate+ΔG)
-end
-# function get_kpoint(basis, kcoord)
-#     # if kcoord in basis, return it, otherwise, get equivalent kpoint and return construct_equivalent_kpoint(kpt_equiv, ΔG)
-# end
-
 
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
                                variational=true,

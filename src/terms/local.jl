@@ -193,22 +193,24 @@ function compute_dynmat(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occ
     n_atoms = length(positions)
     n_dim = model.n_dim
 
-    ∫δρδV = zeros(S, 3, n_atoms, 3, n_atoms)
+    # Two contributions: dynmat_δH and dynmat_δ²H
+
+    # dynmat_δH, which is ∫δρδV.
+    dynmat_δH = zeros(S, 3, n_atoms, 3, n_atoms)
     for s = 1:n_atoms, α = 1:n_dim
-        ∫δρδV[:, :, α, s] .-= stack(forces_local(S, basis, δρs[α, s], q))
+        dynmat_δH[:, :, α, s] .-= stack(forces_local(S, basis, δρs[α, s], q))
     end
 
-    ∫ρδ²V = zeros(S, 3, n_atoms, 3, n_atoms)
+    # dynmat_δ²H, which is ∫ρδ²V
+    dynmat_δ²H = zeros(S, 3, n_atoms, 3, n_atoms)
     ρ_fourier = fft(basis, total_density(ρ))
     δ²V_fourier = similar(ρ_fourier)
-    for s = 1:n_atoms, α = 1:n_dim
-        for t = 1:n_atoms, β = 1:n_dim
-            fft!(δ²V_fourier, basis, compute_δ²V_βtαs(term, basis, β, t, α, s))
-            ∫ρδ²V[β, t, α, s] = sum(conj(ρ_fourier) .* δ²V_fourier)
-        end
+    for s = 1:n_atoms, α = 1:n_dim, β = 1:n_dim  # zero if s ≠ t
+        fft!(δ²V_fourier, basis, compute_δ²V_βtαs(term, basis, β, s, α, s))
+        dynmat_δ²H[β, s, α, s] = sum(conj(ρ_fourier) .* δ²V_fourier)
     end
 
-    ∫δρδV + ∫ρδ²V
+    dynmat_δH + dynmat_δ²H
 end
 
 # δH is the perturbation of the local potential due to a position displacement e^{iq·r} of
