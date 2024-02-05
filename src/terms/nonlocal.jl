@@ -81,7 +81,7 @@ end
                     δHψk = P * (C * (dPdR' * ψk))
                     -sum(occupation[ik][iband] * basis.kweights[ik] *
                              2real(dot(ψk[:, iband], δHψk[:, iband]))
-                         for iband=1:size(ψk, 2))
+                         for iband in axes(ψk, 2))
                 end  # α
             end  # r
         end  # kpt
@@ -190,32 +190,6 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     to_device(basis.architecture, proj_vectors)
 end
 
-# Phonon: Perturbation of the projection vectors with respect to a displacement on the
-# direction α of the atom s.
-function build_dprojection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint, psps, psp_groups,
-                                   α, s; positions=basis.model.positions) where {T}
-    displacement = zero.(positions)
-    displacement[s] = setindex(displacement[s], one(T), α)
-    ForwardDiff.derivative(zero(T)) do ε
-        positions = positions .+ ε .* displacement
-        psp_positions = [positions[group] for group in psp_groups]
-        build_projection_vectors(basis, kpt, psps, psp_positions)
-    end
-end
-
-# Phonon: Second-order perturbation of the projection vectors with respect to a displacement
-# on the directions α and β of the atoms s and t.
-function build_ddprojection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint, psps, psp_groups,
-                                    β, t, α, s) where {T}
-    positions = basis.model.positions
-    displacement = zero.(positions)
-    displacement[t] = setindex(displacement[t], one(T), β)
-    ForwardDiff.derivative(zero(T)) do ε
-        positions = positions .+ ε .* displacement
-        build_dprojection_vectors(basis, kpt, psps, psp_groups, α, s; positions)
-    end
-end
-
 """
 Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 """
@@ -256,6 +230,24 @@ function build_form_factors(psp, G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
         @assert count == count_n_proj(psp) + 1
     end
     form_factors
+end
+
+# Helpers for phonon computations.
+function build_projection_coefficients(basis::PlaneWaveBasis{T}, psp_groups) where {T}
+    psps          = [basis.model.atoms[first(group)].psp for group in psp_groups]
+    psp_positions = [basis.model.positions[group] for group in psp_groups]
+    build_projection_coefficients(T, psps, psp_positions)
+end
+function build_projection_vectors(basis, kpt, psp_groups; positions=basis.model.positions)
+    psps          = [basis.model.atoms[first(group)].psp for group in psp_groups]
+    psp_positions = [positions[group] for group in psp_groups]
+    build_projection_vectors(basis, kpt, psps, psp_positions)
+end
+function PDPψk(basis, positions, psp_groups, kpt, kpt_minus_q, ψk)
+    D = build_projection_coefficients(basis, psp_groups)
+    P = build_projection_vectors(basis, kpt, psp_groups; positions)
+    P_minus_q = build_projection_vectors(basis, kpt_minus_q, psp_groups; positions)
+    P * (D * P_minus_q' * ψk)
 end
 
 function compute_dynmat_δH(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, occupation,
@@ -316,7 +308,7 @@ function compute_dynmat_δH(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, 
                                * dot(δψk_plus_q[:, iband], δHψk[:, iband])
                          + δoccupation[ik][iband]  * basis.kweights[ik]
                                * 2real(dot(ψk[:, iband], δHψk_plus_q[:, iband]))
-                         for iband=1:size(ψk, 2))
+                         for iband in axes(ψk, 2))
                 end
             end
         end
@@ -344,34 +336,26 @@ end
         )
     end
 
-    # dynmat_δ²H
     psp_groups = [group for group in model.atom_groups
-                    if model.atoms[first(group)] isa ElementPsp]
+                  if model.atoms[first(group)] isa ElementPsp]
     isempty(psp_groups) && return dynmat_δH
-    psps          = [model.atoms[first(group)].psp      for group in psp_groups]
-    psp_positions = [model.positions[group] for group in psp_groups]
-    D = build_projection_coefficients(T, psps, psp_positions)
+
+    # dynmat_δ²H
     dynmat_δ²H = zeros(S, 3, n_atoms, 3, n_atoms)
+    δ²Hψ = zero.(ψ)
     for s = 1:n_atoms, α = 1:n_dim, β = 1:n_dim  # zero if s ≠ t
-        δ²Hψ = multiply_ψ_by_blochwave_operator(basis, ψ, zero(q)) do ik, ψk
-            kpt = basis.kpoints[ik]
-            P = build_projection_vectors(basis, kpt, psps, psp_positions)
-            ∂αsP = build_dprojection_vectors(basis, kpt, psps, psp_groups, α, s)
-            ∂βsP = build_dprojection_vectors(basis, kpt, psps, psp_groups, β, s)
-            ∂αs∂βsP = build_ddprojection_vectors(basis, kpt, psps, psp_groups, β, s, α, s)
-            (  ∂αs∂βsP * (D * (P'       * ψk))
-               + P       * (D * (∂αs∂βsP' * ψk))
-               + ∂βsP    * (D * (∂αsP'    * ψk))
-               + ∂αsP    * (D * (∂βsP'    * ψk)))
+        for (ik, kpt) in enumerate(basis.kpoints)
+            δ²Hψ[ik] .= derivative_wrt_αs(basis.model.positions, β, s) do positions_βs
+                derivative_wrt_αs(positions_βs, α, s) do positions_βsαs
+                    PDPψk(basis, positions_βsαs, psp_groups, kpt, kpt, ψ[ik])
+                end
+            end
         end
         dynmat_δ²H[β, s, α, s] += sum(sum(occupation[ik][n] * basis.kweights[ik] *
-                                     dot(ψ[ik][:, n], δ²Hψ[ik][:, n])
-                                     for n = 1:size(ψ[ik], 2))
-                                 for ik = 1:length(ψ))
+                                              dot(ψ[ik][:, n], δ²Hψ[ik][:, n])
+                                          for n in axes(ψ[ik], 2))
+                                      for ik = 1:length(ψ))
     end
-
-    # P(pos) = ...
-    # f(pos) = P(pos) * (D * P(pos)'ψk)
 
     dynmat_δH + dynmat_δ²H
 end
@@ -380,20 +364,12 @@ function compute_δHψ_αs(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, �
     model = basis.model
     psp_groups = [group for group in model.atom_groups
                   if model.atoms[first(group)] isa ElementPsp]
-    psps          = [model.atoms[first(group)].psp      for group in psp_groups]
-    psp_positions = [model.positions[group] for group in psp_groups]
 
-    D = build_projection_coefficients(T, psps, psp_positions)
-
-    multiply_ψ_by_blochwave_operator(basis, ψ, q) do ik, ψk
+    ψ_minus_q = multiply_by_expiqr(basis, ψ, -q)
+    map(enumerate(ψ)) do (ik, ψk)
         kpt = basis.kpoints[ik]
-        kpt_minus_q = get_kpoint(basis, kpt.coordinate - q, kpt.spin).kpt
-        P         = build_projection_vectors(basis, kpt,         psps, psp_positions)
-        P_minus_q = build_projection_vectors(basis, kpt_minus_q, psps, psp_positions)
-        ∂αsP         = build_dprojection_vectors(basis, kpt, psps, psp_groups, α, s)
-        ∂αsP_minus_q = build_dprojection_vectors(basis, kpt_minus_q, psps, psp_groups,
-                                                 α, s)
-        (  ∂αsP * (D * (P_minus_q'    * ψk))
-         + P    * (D * (∂αsP_minus_q' * ψk)))
-    end
+        derivative_wrt_αs(model.positions, α, s) do positions_αs
+            PDPψk(basis, positions_αs, psp_groups, kpt, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk)
+        end
+    end  # δHψ
 end
