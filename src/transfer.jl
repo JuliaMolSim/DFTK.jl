@@ -205,7 +205,7 @@ end
 Return the Fourier coefficients for the Bloch waves ``f^{\rm real}_{q} ψ_{k-q}`` in an
 element of `basis.kpoints` equivalent to ``k-q``.
 """
-function multiply_ψ_by_blochwave(basis::PlaneWaveBasis, ψ, f_real, q)
+@views function multiply_ψ_by_blochwave(basis::PlaneWaveBasis, ψ, f_real, q)
     fψ = zero.(ψ)
     # First, express ψ_{[k-q]} in the basis of k-q points…
     ψ_minus_q = multiply_by_expiqr(basis, ψ, -q)
@@ -238,7 +238,7 @@ function multiply_ψ_by_blochwave_operator(apply, basis::PlaneWaveBasis, ψ, q)
 end
 
 # TODO: Add docstring
-function multiply_by_expiqr(basis, ψ, q)
+@views function multiply_by_expiqr(basis, ψ, q)
     k_to_k_plus_q = k_to_kpq_permutation(basis, q)
     map(enumerate(basis.kpoints)) do (ik, kpt)
         # Express ψ_{[k-q]} in the basis of k-q points.

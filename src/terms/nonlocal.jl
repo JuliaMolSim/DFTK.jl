@@ -79,8 +79,8 @@ end
                     dPdR = [-2T(π)*im*p[α] for p in G_plus_k] .* P
                     ψk = ψ[ik]
                     δHψk = P * (C * (dPdR' * ψk))
-                    -sum(occupation[ik][iband] * basis.kweights[ik]
-                            * 2real(dot(ψk[:, iband], δHψk[:, iband]))
+                    -sum(occupation[ik][iband] * basis.kweights[ik] *
+                             2real(dot(ψk[:, iband], δHψk[:, iband]))
                          for iband=1:size(ψk, 2))
                 end  # α
             end  # r
@@ -206,7 +206,7 @@ end
 # Phonon: Second-order perturbation of the projection vectors with respect to a displacement
 # on the directions α and β of the atoms s and t.
 function build_ddprojection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint, psps, psp_groups,
-                                    α, β, s, t) where {T}
+                                    β, t, α, s) where {T}
     positions = basis.model.positions
     displacement = zero.(positions)
     displacement[t] = setindex(displacement[t], one(T), β)
@@ -358,7 +358,7 @@ end
             P = build_projection_vectors(basis, kpt, psps, psp_positions)
             ∂αsP = build_dprojection_vectors(basis, kpt, psps, psp_groups, α, s)
             ∂βsP = build_dprojection_vectors(basis, kpt, psps, psp_groups, β, s)
-            ∂αs∂βsP = build_ddprojection_vectors(basis, kpt, psps, psp_groups, α, β, s, s)
+            ∂αs∂βsP = build_ddprojection_vectors(basis, kpt, psps, psp_groups, β, s, α, s)
             (  ∂αs∂βsP * (D * (P'       * ψk))
                + P       * (D * (∂αs∂βsP' * ψk))
                + ∂βsP    * (D * (∂αsP'    * ψk))
