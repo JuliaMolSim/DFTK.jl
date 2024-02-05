@@ -212,7 +212,7 @@ element of `basis.kpoints` equivalent to ``k-q``.
     for (ik, kpt) in enumerate(basis.kpoints)
         # … then perform the multiplication with f in real space and get the Fourier
         # coefficients.
-        for n in axes(ψ[ik], 2)
+        for n = 1:size(ψ[ik], 2)
             fψ[ik][:, n] = fft(basis, kpt,
                                ifft(basis, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk[:, n])
                                  .* f_real[:, :, :, kpt.spin])

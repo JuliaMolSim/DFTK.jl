@@ -70,15 +70,18 @@ end
     end
     range = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
 
-    # We return the δψk in the basis k+q which are associated to a displacement of the ψk.
+    # The variation of the orbital ψ_k defined in the basis ℬ_k is δψ_{[k-q]} in ℬ_{[k-q]},
+    # where [k-q] is equivalent to the basis k-q (see find_equivalent_kpt).
+    # The perturbation of the density
+    #   |ψ_{n,k}|² is 2 ψ_{n,k} * δψ_{n,k+q}.
+    # Hence, we first get the δψ_{[k-q]} as δψ_{k+q}…
     δψ_plus_k = multiply_by_expiqr(basis, δψ, q)
     storages = parallel_loop_over_range(allocate_local_storage, range) do storage, kn
         (ik, n) = kn
 
         kpt = basis.kpoints[ik]
         ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n])
-        # The perturbation of the density
-        #   |ψ_nk|² is 2 ψ_{n,k} * δψ_{n,k+q}.
+        # … and then we compute the real Fourier transform in the adequate basis.
         ifft!(storage.δψnk_real, basis, δψ_plus_k[ik].kpt, δψ_plus_k[ik].ψk[:, n])
 
         storage.δρ[:, :, :, kpt.spin] .+= real_qzero(
@@ -103,7 +106,7 @@ end
     dαψnk_real = zeros(complex(eltype(basis)), basis.fft_size)
     for (ik, kpt) in enumerate(basis.kpoints)
         G_plus_k = [[p[α] for p in Gplusk_vectors_cart(basis, kpt)] for α = 1:3]
-        for n in axes(ψ[ik], 2), α = 1:3
+        for n = 1:size(ψ[ik], 2), α = 1:3
             ifft!(dαψnk_real, basis, kpt, im .* G_plus_k[α] .* ψ[ik][:, n])
             @. τ[:, :, :, kpt.spin] += occupation[ik][n] * basis.kweights[ik] / 2 * abs2(dαψnk_real)
         end

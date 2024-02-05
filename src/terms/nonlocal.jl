@@ -82,7 +82,7 @@ end
                     δHψk = P * (C * (dPdR' * ψk))
                     -sum(occupation[ik][iband] * basis.kweights[ik] *
                              2real(dot(ψk[:, iband], δHψk[:, iband]))
-                         for iband in axes(ψk, 2))
+                         for iband=1:size(ψk, 2))
                 end  # α
             end  # r
         end  # kpt
@@ -261,17 +261,16 @@ function compute_dynmat_δH(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, 
     # Early return if no pseudopotential atoms.
     isempty(psp_groups) && return nothing
 
-    forces = [zero(Vec3{S}) for _ = 1:length(model.positions)]
+    δforces = [zero(Vec3{S}) for _ = 1:length(model.positions)]
     for group in psp_groups
-        ψ_plus_q = multiply_by_expiqr(basis, δψ, q)
+        δψ_plus_q = multiply_by_expiqr(basis, δψ, q)
         for (ik, kpt) in enumerate(basis.kpoints)
             ψk = ψ[ik]
-            δψk_plus_q = ψ_plus_q[ik].ψk
-            kpt_plus_q = ψ_plus_q[ik].kpt
+            δψk_plus_q = δψ_plus_q[ik].ψk
+            kpt_plus_q = δψ_plus_q[ik].kpt
 
-            # We compute the forces from the irreductible BZ; they are symmetrized later.
             for idx in group
-                forces[idx] += map(1:3) do α
+                δforces[idx] += map(1:3) do α
                     δHψk = derivative_wrt_αs(model.positions, α, idx) do positions_αs
                         PDPψk(basis, positions_αs, psp_groups, kpt_plus_q, kpt, ψ[ik])
                     end
@@ -282,14 +281,13 @@ function compute_dynmat_δH(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, 
                                * dot(δψk_plus_q[:, iband], δHψk[:, iband])
                          + δoccupation[ik][iband]  * basis.kweights[ik]
                                * 2real(dot(ψk[:, iband], δHψk_plus_q[:, iband]))
-                         for iband in axes(ψk, 2))
+                         for iband=1:size(ψk, 2))
                 end
             end
         end
     end
 
-    mpi_sum!(forces, basis.comm_kpts)
-    symmetrize_forces(basis, forces)
+    mpi_sum!(δforces, basis.comm_kpts)
 end
 
 @views function compute_dynmat(term::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, occupation;
@@ -327,7 +325,7 @@ end
             end
             dynmat_δ²H[β, s, α, s] += sum(occupation[ik][n] * basis.kweights[ik] *
                                               dot(ψ[ik][:, n], δ²Hψ[ik][:, n])
-                                          for n in axes(ψ[ik], 2))
+                                          for n=1:size(ψ[ik], 2))
         end
     end
 
