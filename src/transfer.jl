@@ -43,7 +43,7 @@ of kpt_in, then ψk_out is an eigenfunction of kpt_out. Beware: this is a lossy 
 function transfer_mapping(basis_in::PlaneWaveBasis,  kpt_in::Kpoint,
                           basis_out::PlaneWaveBasis, kpt_out::Kpoint)
     @assert basis_in.model.lattice == basis_out.model.lattice
-    ΔG = kpt_out.coordinate .- kpt_in.coordinate # kpt_out = kpt_in + ΔG
+    ΔG = kpt_out.coordinate .- kpt_in.coordinate  # kpt_out = kpt_in + ΔG
     @assert all(is_approx_integer.(ΔG))
     ΔG = round.(Int, ΔG)
 
@@ -51,7 +51,7 @@ function transfer_mapping(basis_in::PlaneWaveBasis,  kpt_in::Kpoint,
     kpt_in == kpt_out && return idcs_in, idcs_in
 
     # Get indices of the G vectors of the old basis inside the new basis.
-    idcs_out = index_G_vectors.(Ref(basis_out), G_vectors(basis_in, kpt_in) -+ Ref(ΔG))
+    idcs_out = index_G_vectors.(Ref(basis_out), G_vectors(basis_in, kpt_in) .- Ref(ΔG))
 
     # In the case where G_vectors(basis_in.kpoints[ik]) are bigger than vectors
     # in the fft_size box of basis_out, we need to filter out the "nothings" to
@@ -99,7 +99,8 @@ function compute_transfer_matrix(basis_in::PlaneWaveBasis, basis_out::PlaneWaveB
 end
 
 """
-Transfer an array `ψk` defined on basis_in ``k``-point kpt_in to basis_out ``k``-point kpt_out; see transfer_mapping.
+Transfer an array `ψk` defined on basis_in ``k``-point kpt_in to basis_out ``k``-point
+`kpt_out`; see [`transfer_mapping`](@ref).
 """
 function transfer_blochwave_kpt(ψk_in, basis_in::PlaneWaveBasis, kpt_in::Kpoint,
                                 basis_out::PlaneWaveBasis, kpt_out::Kpoint)

@@ -44,7 +44,7 @@ function phonon_modes(basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where
     (; modes.mass_matrix, modes.frequencies, dynmat, dynmat_cart, vectors, modes.vectors_cart)
 end
 # Compute the frequencies and vectors. Internal because of the potential misuse:
-# the diagonalization of the phonon modes has to be done in cartesian coordinates
+# the diagonalization of the phonon modes has to be done in Cartesian coordinates.
 function _phonon_modes(basis::PlaneWaveBasis{T}, dynmat_cart) where {T}
     n_atoms = length(basis.model.positions)
     M = reshape(mass_matrix(T, basis.model.atoms), 3*n_atoms, 3*n_atoms)
