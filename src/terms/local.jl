@@ -158,16 +158,6 @@ end
     forces
 end
 
-# ∫ρδ²V
-function compute_dynmat_δ²H(::TermAtomicLocal, basis, ρ_fourier, β, t, α, s)
-    δ²V = derivative_wrt_αs(basis.model.positions, β, t) do positions_βt
-        derivative_wrt_αs(positions_βt, α, s) do positions_βtαs
-            compute_local_potential(basis; positions=positions_βtαs)
-        end
-    end
-    sum(conj(ρ_fourier) .* fft(basis, δ²V))
-end
-
 @views function compute_dynmat(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occupation;
                                ρ, δρs, q=zero(Vec3{T}), kwargs...) where {T}
     S = complex(T)
@@ -188,7 +178,12 @@ end
     dynmat_δ²H = zeros(S, 3, n_atoms, 3, n_atoms)
     ρ_fourier = fft(basis, total_density(ρ))
     for s = 1:n_atoms, α = 1:n_dim, β = 1:n_dim  # zero if s ≠ t
-        dynmat_δ²H[β, s, α, s] = compute_dynmat_δ²H(term, basis, ρ_fourier, β, s, α, s)
+        δ²V = derivative_wrt_αs(basis.model.positions, β, s) do positions_βs
+            derivative_wrt_αs(positions_βs, α, s) do positions_βsαs
+                compute_local_potential(basis; positions=positions_βsαs)
+            end
+        end
+        dynmat_δ²H[β, s, α, s] += sum(conj(ρ_fourier) .* fft(basis, δ²V))
     end
 
     dynmat_δH + dynmat_δ²H
