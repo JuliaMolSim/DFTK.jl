@@ -13,7 +13,10 @@ abstract type AbstractBasis{T <: Real} end
 """
 Discretization information for ``k``-point-dependent quantities such as orbitals.
 More generally, a ``k``-point is a block of the Hamiltonian;
-eg collinear spin is treated by doubling the number of kpoints.
+e.g. collinear spin is treated by doubling the number of ``k``-points.
+
+Be careful if you need to create them as we make no assumption on the order of its vector
+fields.
 """
 struct Kpoint{T <: Real, GT <: AbstractVector{Vec3{Int}}}
     spin::Int                     # Spin component can be 1 or 2 as index into what is
@@ -151,8 +154,8 @@ function Kpoint(basis::PlaneWaveBasis, coordinate::AbstractVector, spin::Int)
     Kpoint(spin, coordinate, basis.model.recip_lattice, basis.fft_size, basis.Ecut;
            basis.variational, basis.architecture)
 end
-# Construct the kpoint with coordinate equivalent_kpt.coordinate + ΔG
-# Equivalent to (but faster than) Kpoint(equivalent_kpt.coordinate + ΔG)
+# Construct the kpoint with coordinate equivalent_kpt.coordinate + ΔG.
+# Equivalent to (but faster than) Kpoint(equivalent_kpt.coordinate + ΔG).
 function construct_from_equivalent_kpt(basis, equivalent_kpt, coordinate, ΔG)
     linear = LinearIndices(basis.fft_size)
     # Mapping is the same as if created from scratch, although it is not ordered.
