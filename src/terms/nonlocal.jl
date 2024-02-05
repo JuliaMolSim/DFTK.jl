@@ -290,8 +290,9 @@ function compute_dynmat_δH(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, 
     mpi_sum!(δforces, basis.comm_kpts)
 end
 
-@views function compute_dynmat(term::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, occupation;
-                               δψs, δoccupations, q=zero(Vec3{T}), kwargs...) where {T}
+@views function compute_dynmat(term::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ,
+                               occupation; δψs, δoccupations, q=zero(Vec3{T}),
+                               kwargs...) where {T}
     S = complex(T)
     model = basis.model
     positions = model.positions
