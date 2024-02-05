@@ -62,7 +62,9 @@ breaks_symmetries(::Anyonic) = true
 compute_forces(::Term, ::AbstractBasis, ψ, occupation; kwargs...) = nothing
 # dynamical matrix for phonons computations (array dynmat[3, n_atom, 3, n_atom])
 compute_dynmat(::Term, ::AbstractBasis, ψ, occupation; kwargs...) = nothing
-# variation of the Hamiltonian applied to orbitals for phonons computations
+# Get δH ψ, with δH the perturbation of the Hamiltonian due to a position displacement
+# e^{iq·r} of the α coordinate of atom s.
+# δHψ[ik] is δH ψ_{k-q}, expressed in basis.kpoints[ik].
 compute_δHψ_αs(::Term, ::AbstractBasis, ψ, α, s, q; kwargs...) = nothing
 
 @doc raw"""

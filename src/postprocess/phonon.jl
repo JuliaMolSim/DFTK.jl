@@ -2,26 +2,19 @@
 function dynmat_red_to_cart(model::Model, dynmat)
     inv_lattice = model.inv_lattice
 
-    # The dynamical matrix `D` acts on vectors `dr` and gives a covector `dF`:
-    #   dF = D · dr.
-    # Thus the transformation between reduced and Cartesian coordinates is not a comatrix.
-    # To transform `dynamical_matrix` from reduced coordinates to `dynmat_cart` in Cartesian
-    # coordinates, we write
-    #   dr_cart = lattice · dr_red,
-    #   ⇒ dr_redᵀ · D_red · dr_red = dr_cartᵀ · lattice⁻ᵀ · D_red · lattice⁻¹ · dr_cart
-    #                              = dr_cartᵀ · D_cart · dr_cart
-    #   ⇒ D_cart = lattice⁻ᵀ · D_red · lattice⁻¹.
-
+    # The dynamical matrix `D` acts on vectors `δr` and gives a covector `δF`:
+    #   δF = D δr
+    # We have δr_cart = lattice * δr_red, δF_cart = lattice⁻ᵀ δF_red, so
+    #   δF_cart = lattice⁻ᵀ D_red lattice⁻¹ δr_cart
     dynmat_cart = zero.(dynmat)
-    for s = 1:size(dynmat_cart, 2), α = 1:size(dynmat_cart, 4)
+    for s in axes(dynmat_cart, 2), α in axes(dynmat_cart, 4)
         dynmat_cart[:, α, :, s] = inv_lattice' * dynmat[:, α, :, s] * inv_lattice
     end
     dynmat_cart
 end
 
-# Create a ``3×n_{\rm atoms}×3×n_{\rm atoms}`` tensor (for consistency with the format of
-# dynamical matrices) equivalent to a diagonal matrix with the atomic masses of the atoms in
-# a.u. on the diagonal.
+# Create a ``3×n_{\rm atoms}×3×n_{\rm atoms}`` tensor equivalent to a diagonal matrix with
+# the atomic masses of the atoms in a.u. on the diagonal.
 function mass_matrix(T, atoms)
     n_atoms = length(atoms)
     atoms_mass = atomic_mass.(atoms)
@@ -34,26 +27,42 @@ function mass_matrix(T, atoms)
 end
 mass_matrix(model::Model{T}) where {T} = mass_matrix(T, model.atoms)
 
-@doc raw"""
-Solve the eigenproblem for a dynamical matrix: returns the `frequencies` and eigenvectors
-(`vectors`).
 """
-function phonon_modes(basis::PlaneWaveBasis{T}, dynmat) where {T}
+Get phonon quantities. We return the frequencies, the mass matrix and reduced and Cartesian
+eigenvectors and dynamical matrices.
+"""
+function phonon_modes(basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where {T}
+    dynmat = compute_dynmat(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
+    dynmat_cart = dynmat_red_to_cart(basis.model, dynmat)
+
+    modes = _phonon_modes(basis, dynmat_cart)
+    vectors = similar(modes.vectors_cart)
+    for s in axes(vectors, 2), t in axes(vectors, 4)
+        vectors[:, s, :, t] = vector_cart_to_red(basis.model, modes.vectors_cart[:, s, :, t])
+    end
+
+    (; modes.mass_matrix, modes.frequencies, dynmat, dynmat_cart, vectors, modes.vectors_cart)
+end
+# Compute the frequencies and vectors. Internal because of the potential misuse:
+# the diagonalization of the phonon modes has to be done in Cartesian coordinates.
+function _phonon_modes(basis::PlaneWaveBasis{T}, dynmat_cart) where {T}
     n_atoms = length(basis.model.positions)
     M = reshape(mass_matrix(T, basis.model.atoms), 3*n_atoms, 3*n_atoms)
 
-    res = eigen(reshape(dynmat, 3*n_atoms, 3*n_atoms), M)
+    res = eigen(reshape(dynmat_cart, 3*n_atoms, 3*n_atoms), M)
     maximum(abs, imag(res.values)) > sqrt(eps(T)) &&
-        @warn "Some eigenvalues of the dynamical matrix have a large imaginary part"
+        @warn "Some eigenvalues of the dynamical matrix have a large imaginary part."
 
     signs = sign.(real(res.values))
     frequencies = signs .* sqrt.(abs.(real(res.values)))
 
-    (; frequencies, res.vectors)
+    vectors_cart = 
+    (; mass_matrix=M, frequencies, vectors_cart=reshape(res.vectors, 3, n_atoms, 3, n_atoms))
 end
-function phonon_modes_cart(basis::PlaneWaveBasis{T}, dynmat) where {T}
-    dynmat_cart = dynmat_red_to_cart(basis.model, dynmat)
-    phonon_modes(basis, dynmat_cart)
+# For convenience
+function phonon_modes(scfres::NamedTuple; kwargs...)
+    phonon_modes(scfres.basis, scfres.ψ, scfres.occupation; scfres.ρ, scfres.ham,
+                 scfres.occupation_threshold, scfres.εF, scfres.eigenvalues, kwargs...)
 end
 
 @doc raw"""
@@ -69,15 +78,17 @@ in reduced coordinates.
     δoccupations = [zero.(occupation) for _ = 1:3, _ = 1:n_atoms]
     δψs = [zero.(ψ) for _ = 1:3, _ = 1:n_atoms]
     for s = 1:n_atoms, α = 1:basis.model.n_dim
+        # Get δH ψ
         δHψs_αs = compute_δHψ_αs(basis, ψ, α, s, q)
         isnothing(δHψs_αs) && continue
+        # Response solver to get δψ
         (; δψ, δρ, δoccupation) = solve_ΩplusK_split(ham, ρ, ψ, occupation, εF, eigenvalues,
                                                      -δHψs_αs; q, kwargs...)
         δoccupations[α, s] = δoccupation
         δρs[α, s] = δρ
         δψs[α, s] = δψ
     end
-
+    # Query each energy term for their contribution to the dynamical matrix.
     dynmats_per_term = [compute_dynmat(term, basis, ψ, occupation; ρ, δψs, δρs,
                                        δoccupations, q)
                         for term in basis.terms]
@@ -85,28 +96,9 @@ in reduced coordinates.
 end
 
 """
-Cartesian form of [`compute_dynmat`](@ref).
-"""
-function compute_dynmat_cart(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
-    dynmats_reduced = compute_dynmat(basis, ψ, occupation; kwargs...)
-    dynmat_red_to_cart(basis.model, dynmats_reduced)
-end
-
-function compute_dynmat(scfres::NamedTuple; kwargs...)
-    compute_dynmat(scfres.basis, scfres.ψ, scfres.occupation; scfres.ρ, scfres.ham,
-                   scfres.occupation_threshold, scfres.εF, scfres.eigenvalues, kwargs...)
-end
-
-function compute_dynmat_cart(scfres; kwargs...)
-    compute_dynmat_cart(scfres.basis, scfres.ψ, scfres.occupation; scfres.ρ, scfres.ham,
-                        scfres.occupation_threshold, scfres.εF, scfres.eigenvalues, kwargs...)
-end
-
-# TODO: Document relation to non-local potential in future phonon PR.
-"""
-Assemble the right-hand side term for the Sternheimer equation for all relevant quantities:
-Compute the perturbation of the Hamiltonian with respect to a variation of the local
-potential produced by a displacement of the atom s in the direction α.
+Get ``δH·ψ``, with ``δH`` the perturbation of the Hamiltonian with respect to a position
+displacement ``e^{iq·r}`` of the ``α`` coordinate of atom ``s``.
+`δHψ[ik]` is ``δH·ψ_{k-q}``, expressed in `basis.kpoints[ik]`.
 """
 @timing function compute_δHψ_αs(basis::PlaneWaveBasis, ψ, α, s, q)
     δHψ_per_term = [compute_δHψ_αs(term, basis, ψ, α, s, q) for term in basis.terms]
