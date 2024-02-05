@@ -75,7 +75,7 @@ end
     # The perturbation of the density
     #   |ψ_{n,k}|² is 2 ψ_{n,k} * δψ_{n,k+q}.
     # Hence, we first get the δψ_{[k-q]} as δψ_{k+q}…
-    δψ_plus_k = multiply_by_expiqr(basis, δψ, q)
+    δψ_plus_k = transfer_blochwave_equivalent_to_actual(basis, δψ, q)
     storages = parallel_loop_over_range(allocate_local_storage, range) do storage, kn
         (ik, n) = kn
 

@@ -263,7 +263,7 @@ function compute_dynmat_δH(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, 
 
     δforces = [zero(Vec3{S}) for _ = 1:length(model.positions)]
     for group in psp_groups
-        δψ_plus_q = multiply_by_expiqr(basis, δψ, q)
+        δψ_plus_q = transfer_blochwave_equivalent_to_actual(basis, δψ, q)
         for (ik, kpt) in enumerate(basis.kpoints)
             ψk = ψ[ik]
             δψk_plus_q = δψ_plus_q[ik].ψk
@@ -340,7 +340,7 @@ function compute_δHψ_αs(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, �
     psp_groups = [group for group in model.atom_groups
                   if model.atoms[first(group)] isa ElementPsp]
 
-    ψ_minus_q = multiply_by_expiqr(basis, ψ, -q)
+    ψ_minus_q = transfer_blochwave_equivalent_to_actual(basis, ψ, -q)
     map(enumerate(basis.kpoints)) do (ik, kpt)
         derivative_wrt_αs(model.positions, α, s) do positions_αs
             PDPψk(basis, positions_αs, psp_groups, kpt, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk)

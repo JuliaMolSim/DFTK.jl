@@ -190,7 +190,7 @@ function find_equivalent_kpt(basis::PlaneWaveBasis{T}, kcoord, spin; tol=sqrt(ep
 end
 
 """
-Returns a permutation `indices` of the kpoints in `basis` such that
+Returns a permutation `indices` of the ``k``-points in `basis` such that
 `kpoints[ik].coordinate + q` is equivalent to `kpoints[indices[ik]].coordinate`.
 """
 function k_to_kpq_permutation(basis::PlaneWaveBasis, q)
@@ -208,7 +208,7 @@ element of `basis.kpoints` equivalent to ``k-q``.
 @views function multiply_ψ_by_blochwave(basis::PlaneWaveBasis, ψ, f_real, q)
     fψ = zero.(ψ)
     # First, express ψ_{[k-q]} in the basis of k-q points…
-    ψ_minus_q = multiply_by_expiqr(basis, ψ, -q)
+    ψ_minus_q = transfer_blochwave_equivalent_to_actual(basis, ψ, -q)
     for (ik, kpt) in enumerate(basis.kpoints)
         # … then perform the multiplication with f in real space and get the Fourier
         # coefficients.
@@ -222,18 +222,16 @@ element of `basis.kpoints` equivalent to ``k-q``.
 end
 
 """
-Return the Fourier coefficients corresponding to the multiplication in real-space of the
-wave-functions by ``e^{i q·r}``.
-For `ψk` defined on a basis `k`, return the Fourier coefficients of `ψk · e^{i q·r}` in the
-basis of `k+q`.
+For Bloch waves ``ψ`` such that `ψ[ik]` is defined in a point in `basis.kpoints` equivalent
+to `basis.kpoints[ik] + q`, return the Bloch waves `ψ_plus_q[ik]` defined on `kpt_plus_q[ik]`.
 """
-@views function multiply_by_expiqr(basis, ψ, q)
+@views function transfer_blochwave_equivalent_to_actual(basis, ψ_plus_q_equivalent, q)
     k_to_k_plus_q = k_to_kpq_permutation(basis, q)
     map(enumerate(basis.kpoints)) do (ik, kpt)
-        # Express ψ_{[k-q]} in the basis of k-q points.
+        # Express ψ_plus_q_equivalent_{[k-q]} in the basis of k-q points.
         kpt_plus_q, equivalent_kpt_plus_q = get_kpoint(basis, kpt.coordinate + q, kpt.spin)
-        ψk_plus_q = transfer_blochwave_kpt(ψ[k_to_k_plus_q[ik]], basis, equivalent_kpt_plus_q,
-                                           basis, kpt_plus_q)
+        ψk_plus_q = transfer_blochwave_kpt(ψ_plus_q_equivalent[k_to_k_plus_q[ik]], basis,
+                                           equivalent_kpt_plus_q, basis, kpt_plus_q)
         (; kpt=kpt_plus_q, ψk=ψk_plus_q)
     end
 end
