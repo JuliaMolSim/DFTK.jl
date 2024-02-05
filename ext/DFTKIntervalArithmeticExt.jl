@@ -22,10 +22,6 @@ DFTK.cis2pi(x::Interval) = exp(2 * (pi * (im * x)))
 
 DFTK.value_type(::Type{<:Interval{T}}) where {T} = T
 
-function DFTK._kpoint_phonon_key(coordinate::AbstractArray{<: Interval}, spin::Int)
-    DFTK._kpoint_phonon_key(Vec3(IntervalArithmetic.mid.(coordinate)), spin)
-end
-
 function compute_Glims_fast(lattice::AbstractMatrix{<:Interval}, args...; kwargs...)
     # This is done to avoid a call like ceil(Int, ::Interval)
     # in the above implementation of compute_fft_size,

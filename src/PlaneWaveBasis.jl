@@ -83,11 +83,6 @@ struct PlaneWaveBasis{T,
     kpoints::Vector{Kpoint{T, T_kpt_G_vecs}}
     # BZ integration weights, summing up to model.n_spin_components
     kweights::Vector{T}
-    # Phonon: Memoization not to recompute kpoint + q each time
-    kpoints_phonon::IdDict{Tuple{Vec3, Int},
-                           NamedTuple{(:kpt, :equivalent_kpt),
-                                      Tuple{Kpoint{T, T_kpt_G_vecs},
-                                            Kpoint{T, T_kpt_G_vecs}}}}
 
     ## (MPI-global) information on the k-point grid
     ## These fields are not actually used in computation, but can be used to reconstruct a basis
@@ -156,25 +151,18 @@ function Kpoint(basis::PlaneWaveBasis, coordinate::AbstractVector, spin::Int)
     Kpoint(spin, coordinate, basis.model.recip_lattice, basis.fft_size, basis.Ecut;
            basis.variational, basis.architecture)
 end
-# If coordinate is in basis, return it, otherwise, get equivalent kpoint and return
-# construct_equivalent_kpoint(kpt_equiv, ΔG)
+# If coordinate is in basis, return the corresponding k-point, otherwise, get equivalent
+# k-point create the new one from it. We also return the equivalent k-point.
+# Faster than computing it from scratch.
 function get_kpoint(basis::PlaneWaveBasis{T}, coordinate, spin) where {T}
-    key = _kpoint_phonon_key(coordinate, spin)
-    if !haskey(basis.kpoints_phonon, key)
-        index, ΔG = find_equivalent_kpt(basis, coordinate, spin)
-        @assert !iszero(ΔG)  # otherwise is is present in basis.kpoints
-        basis.kpoints_phonon[key] = (; kpt=Kpoint(basis, coordinate, spin),
-                                     equivalent_kpt=basis.kpoints[index])
+    index, ΔG = find_equivalent_kpt(basis, coordinate, spin)
+    equivalent_kpt = basis.kpoints[index]
+    if iszero(ΔG)
+        kpt = equivalent_kpt
+    else
+        kpt =  construct_from_equivalent_kpoint(equivalent_kpt, basis, coordinate, ΔG)
     end
-    basis.kpoints_phonon[key]
-end
-# To prevent dictionary miss due to precision.
-function _kpoint_phonon_key(coordinate::AbstractArray{T}, spin::Int) where {T}
-    digits = floor(Int, -log10(100eps(T)))
-    (Vec3(round.(coordinate; digits) .+ eps(T)), spin)
-end
-function _kpoint_phonon_key(coordinate::AbstractArray{<: ForwardDiff.Dual}, spin::Int)
-    _kpoint_phonon_key(Vec3(ForwardDiff.value.(coordinate)), spin)
+    (; kpt, equivalent_kpt)
 end
 
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
@@ -316,14 +304,6 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
     krange_thisproc = krange_allprocs[1 + MPI.Comm_rank(comm_kpts)]
     krange_thisproc_allspin = reduce(vcat, krange_thisproc)
 
-    # By default kpoints_phonon has only kpoints
-    kpoints_phonon = IdDict{Tuple{Vec3, Int},
-                            NamedTuple{(:kpt, :equivalent_kpt), Tuple{Kpoint, Kpoint}}}()
-    for kpt in kpoints
-        key = _kpoint_phonon_key(kpt.coordinate, kpt.spin)
-        kpoints_phonon[key] = (; kpt, equivalent_kpt=kpt)
-    end
-
     @assert mpi_sum(sum(kweights), comm_kpts) ≈ model.n_spin_components
     @assert length(kpoints) == length(kweights)
     @assert length(kpoints) == sum(length, krange_thisproc)
@@ -347,7 +327,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
         opFFT, ipFFT, opBFFT, ipBFFT,
         fft_normalization, ifft_normalization,
         Gs, r_vectors,
-        kpoints, kweights, kpoints_phonon, kgrid,
+        kpoints, kweights, kgrid,
         kcoords_global, kweights_global,
         comm_kpts, krange_thisproc, krange_allprocs, krange_thisproc_allspin,
         architecture, symmetries, symmetries_respect_rgrid,
