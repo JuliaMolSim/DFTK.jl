@@ -153,14 +153,13 @@ function Kpoint(basis::PlaneWaveBasis, coordinate::AbstractVector, spin::Int)
 end
 # If coordinate is in basis, return the corresponding k-point, otherwise, get equivalent
 # k-point create the new one from it. We also return the equivalent k-point.
-# Faster than computing it from scratch.
 function get_kpoint(basis::PlaneWaveBasis{T}, coordinate, spin) where {T}
     index, ΔG = find_equivalent_kpt(basis, coordinate, spin)
     equivalent_kpt = basis.kpoints[index]
     if iszero(ΔG)
         kpt = equivalent_kpt
     else
-        kpt =  construct_from_equivalent_kpoint(equivalent_kpt, basis, coordinate, ΔG)
+        kpt =  construct_from_equivalent_kpt(equivalent_kpt, basis, coordinate, ΔG)
     end
     (; kpt, equivalent_kpt)
 end

@@ -189,8 +189,10 @@ function find_equivalent_kpt(basis::PlaneWaveBasis{T}, kcoord, spin; tol=sqrt(ep
     return (; index, ΔG)
 end
 
-function construct_from_equivalent_kpoint(equivalent_kpt, basis, coordinate, ΔG)
+# Construct a k-point from it's equivalent, i.e., 
+function construct_from_equivalent_kpt(equivalent_kpt, basis, coordinate, ΔG)
     linear = LinearIndices(basis.fft_size)
+    # Mapping is the same as if created from scratch, although it is not ordered.
     mapping = map(CartesianIndices(basis.fft_size)[equivalent_kpt.mapping]) do G
         linear[CartesianIndex(mod1.(Tuple(G + CartesianIndex(ΔG...)), basis.fft_size))]
     end
