@@ -94,9 +94,7 @@ end
     δρ = sum(getfield.(storages, :δρ))
 
     mpi_sum!(δρ, basis.comm_kpts)
-    δρ = symmetrize_ρ(basis, δρ; do_lowpass=false)
-
-    δρ
+    symmetrize_ρ(basis, δρ; do_lowpass=false)
 end
 
 @views @timing function compute_kinetic_energy_density(basis::PlaneWaveBasis, ψ, occupation)
