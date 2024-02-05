@@ -326,7 +326,7 @@ end
                 end
             end
             dynmat_δ²H[β, s, α, s] += sum(occupation[ik][n] * basis.kweights[ik] *
-                                          dot(ψ[ik][:, n], δ²Hψ[ik][:, n])
+                                              dot(ψ[ik][:, n], δ²Hψ[ik][:, n])
                                           for n in axes(ψ[ik], 2))
         end
     end
