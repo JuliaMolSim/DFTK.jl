@@ -177,13 +177,14 @@ end
     # dynmat_δ²H, which is ∫ρδ²V.
     dynmat_δ²H = zeros(S, 3, n_atoms, 3, n_atoms)
     ρ_fourier = fft(basis, total_density(ρ))
+    δ²V_fourier = similar(ρ_fourier)
     for s = 1:n_atoms, α = 1:n_dim, β = 1:n_dim  # zero if s ≠ t
         δ²V = derivative_wrt_αs(basis.model.positions, β, s) do positions_βs
             derivative_wrt_αs(positions_βs, α, s) do positions_βsαs
                 compute_local_potential(basis; positions=positions_βsαs)
             end
         end
-        dynmat_δ²H[β, s, α, s] += sum(conj(ρ_fourier) .* fft(basis, δ²V))
+        dynmat_δ²H[β, s, α, s] += sum(conj(ρ_fourier) .* fft!(δ²V_fourier, basis, δ²V))
     end
 
     dynmat_δH + dynmat_δ²H
