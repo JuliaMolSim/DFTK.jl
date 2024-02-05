@@ -151,15 +151,27 @@ function Kpoint(basis::PlaneWaveBasis, coordinate::AbstractVector, spin::Int)
     Kpoint(spin, coordinate, basis.model.recip_lattice, basis.fft_size, basis.Ecut;
            basis.variational, basis.architecture)
 end
-# If coordinate is in basis, return the corresponding k-point, otherwise, get equivalent
-# k-point create the new one from it. We also return the equivalent k-point.
-function get_kpoint(basis::PlaneWaveBasis{T}, coordinate, spin) where {T}
-    index, ΔG = find_equivalent_kpt(basis, coordinate, spin)
+# Construct the kpoint with coordinate equivalent_kpt.coordinate + ΔG
+# Equivalent to (but faster than) Kpoint(equivalent_kpt.coordinate + ΔG)
+function construct_from_equivalent_kpt(basis, equivalent_kpt, coordinate, ΔG)
+    linear = LinearIndices(basis.fft_size)
+    # Mapping is the same as if created from scratch, although it is not ordered.
+    mapping = map(CartesianIndices(basis.fft_size)[equivalent_kpt.mapping]) do G
+        linear[CartesianIndex(mod1.(Tuple(G + CartesianIndex(ΔG...)), basis.fft_size))]
+    end
+    mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
+    Kpoint(equivalent_kpt.spin, Vec3(coordinate), mapping, mapping_inv,
+           equivalent_kpt.G_vectors .+ Ref(ΔG))
+end
+# Returns the kpoint at given coordinate. If outside the Brillouin zone, it is created
+# from an equivalent kpoint in the basis (also returned)
+function get_kpoint(basis::PlaneWaveBasis{T}, kcoord, spin) where {T}
+    index, ΔG = find_equivalent_kpt(basis, kcoord, spin)
     equivalent_kpt = basis.kpoints[index]
     if iszero(ΔG)
         kpt = equivalent_kpt
     else
-        kpt =  construct_from_equivalent_kpt(basis, equivalent_kpt, coordinate, ΔG)
+        kpt =  construct_from_equivalent_kpt(basis, equivalent_kpt, kcoord, ΔG)
     end
     (; kpt, equivalent_kpt)
 end
