@@ -14,11 +14,10 @@ abstract type AbstractBasis{T <: Real} end
 Discretization information for ``k``-point-dependent quantities such as orbitals.
 More generally, a ``k``-point is a block of the Hamiltonian;
 e.g. collinear spin is treated by doubling the number of ``k``-points.
-
-Be careful if you need to create them as we make no assumption on the order of its vector
-fields.
 """
 struct Kpoint{T <: Real, GT <: AbstractVector{Vec3{Int}}}
+    # Be careful if you need to create them as we make no assumption on the order of its
+    # vector fields.
     spin::Int                     # Spin component can be 1 or 2 as index into what is
     #                             # returned by the `spin_components` function
     coordinate::Vec3{T}           # Fractional coordinate of k-point
