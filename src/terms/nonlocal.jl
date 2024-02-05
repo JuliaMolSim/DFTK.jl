@@ -342,19 +342,17 @@ end
 
     # dynmat_δ²H
     dynmat_δ²H = zeros(S, 3, n_atoms, 3, n_atoms)
-    δ²Hψ = zero.(ψ)
     for s = 1:n_atoms, α = 1:n_dim, β = 1:n_dim  # zero if s ≠ t
         for (ik, kpt) in enumerate(basis.kpoints)
-            δ²Hψ[ik] .= derivative_wrt_αs(basis.model.positions, β, s) do positions_βs
+            δ²Hψ = derivative_wrt_αs(basis.model.positions, β, s) do positions_βs
                 derivative_wrt_αs(positions_βs, α, s) do positions_βsαs
                     PDPψk(basis, positions_βsαs, psp_groups, kpt, kpt, ψ[ik])
                 end
             end
-        end
-        dynmat_δ²H[β, s, α, s] += sum(sum(occupation[ik][n] * basis.kweights[ik] *
-                                              dot(ψ[ik][:, n], δ²Hψ[ik][:, n])
+            dynmat_δ²H[β, s, α, s] += sum(occupation[ik][n] * basis.kweights[ik] *
+                                              dot(ψ[ik][:, n], δ²Hψ[:, n])
                                           for n in axes(ψ[ik], 2))
-                                      for ik = 1:length(ψ))
+        end
     end
 
     dynmat_δH + dynmat_δ²H
