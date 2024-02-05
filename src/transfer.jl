@@ -193,7 +193,7 @@ end
 Construct a k-point from its equivalent (in the meaning of [`find_equivalent_kpt`](@ref)).
 Faster than computing it from scratch.
 """
-function construct_from_equivalent_kpt(equivalent_kpt, basis, coordinate, ΔG)
+function construct_from_equivalent_kpt(basis, equivalent_kpt, coordinate, ΔG)
     linear = LinearIndices(basis.fft_size)
     # Mapping is the same as if created from scratch, although it is not ordered.
     mapping = map(CartesianIndices(basis.fft_size)[equivalent_kpt.mapping]) do G
