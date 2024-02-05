@@ -4,7 +4,6 @@ function derivative_wrt_αs(f, positions::AbstractVector{Vec3{T}}, α, s) where 
     displacement = zero.(positions)
     displacement[s] = setindex(displacement[s], one(T), α)
     ForwardDiff.derivative(zero(T)) do ε
-        positions = ε*displacement .+ positions
-        f(positions)
+        f(ε*displacement .+ positions)
     end
 end
