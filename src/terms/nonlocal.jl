@@ -272,13 +272,13 @@ function compute_dynmat_δH(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, 
     # energy terms are of the form <psi, P C P' psi>, where P(G) = form_factor(G) * structure_factor(G)
     forces = [zero(Vec3{S}) for _ = 1:length(model.positions)]
 
-    ordering(kdata) = kdata[k_to_equivalent_kpq_permutation(basis, q)]
+    k_to_k_plus_q = k_to_kpq_permutation(basis, q)
     for group in psp_groups
         element = model.atoms[first(group)]
 
         C = build_projection_coefficients(S, element.psp)
         for (ik, kpt) in enumerate(basis.kpoints)
-            kpt_plus_q = Kpoint(basis, kpt.coordinate + q, kpt.spin)
+            kpt_plus_q = get_kpoint(basis, kpt.coordinate + q, kpt.spin).kpt
 
             # we compute the forces from the irreductible BZ; they are symmetrized later
             G_plus_k  = Gplusk_vectors(basis, kpt)
@@ -302,8 +302,11 @@ function compute_dynmat_δH(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, 
                     dPdR        = [-2S(π)*im*p[α] for p in G_plus_k]  .* P
                     dPdR_plus_q = [-2S(π)*im*p[α] for p in G_plus_kq] .* P_plus_q
                     ψk = ψ[ik]
-                    δψk_plus_q = kpq_equivalent_blochwave_to_kpq(basis, kpt, q,
-                                                                 ordering(δψ)[ik]).ψk
+                    kpt_plus_q, equivalent_kpt_plus_q = get_kpoint(basis, kpt.coordinate + q,
+                                                                   kpt.spin)
+                    δψk_plus_q = transfer_blochwave_kpt(δψ[k_to_k_plus_q[ik]], basis,
+                                                        equivalent_kpt_plus_q, basis,
+                                                        kpt_plus_q)
 
                     δHψk        = (  dPdR_plus_q * (C * (P'    * ψk))
                                    + P_plus_q    * (C * (dPdR' * ψk)))
@@ -384,7 +387,7 @@ function compute_δHψ_αs(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, �
 
     multiply_ψ_by_blochwave_operator(basis, ψ, q) do ik, ψk
         kpt = basis.kpoints[ik]
-        kpt_minus_q = Kpoint(basis, kpt.coordinate - q, kpt.spin)
+        kpt_minus_q = get_kpoint(basis, kpt.coordinate - q, kpt.spin).kpt
         P         = build_projection_vectors(basis, kpt,         psps, psp_positions)
         P_minus_q = build_projection_vectors(basis, kpt_minus_q, psps, psp_positions)
         ∂αsP         = build_dprojection_vectors(basis, kpt, psps, psp_groups, α, s)
