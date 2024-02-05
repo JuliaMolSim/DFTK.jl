@@ -157,7 +157,8 @@ where ``\widehat{\rm proj}_i(p) = ∫_{ℝ^3} {\rm proj}_i(r) e^{-ip·r} dr``.
 We store ``\frac{1}{\sqrt Ω} \widehat{\rm proj}_i(k+G)`` in `proj_vectors`.
 """
 function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
-                                  psps, psp_positions) where {T}
+                                  psps::AbstractVector{<: NormConservingPsp},
+                                  psp_positions) where {T}
     unit_cell_volume = basis.model.unit_cell_volume
     n_proj = count_n_proj(psps, psp_positions)
     n_G    = length(G_vectors(basis, kpt))
@@ -239,15 +240,17 @@ function build_projection_coefficients(basis::PlaneWaveBasis{T}, psp_groups) whe
     psp_positions = [basis.model.positions[group] for group in psp_groups]
     build_projection_coefficients(T, psps, psp_positions)
 end
-function build_projection_vectors(basis, kpt, psp_groups; positions=basis.model.positions)
+function build_projection_vectors(basis::PlaneWaveBasis, kpt::Kpoint,
+                                  psp_groups::AbstractVector{<: AbstractVector{<: Int}},
+                                  positions)
     psps          = [basis.model.atoms[first(group)].psp for group in psp_groups]
     psp_positions = [positions[group] for group in psp_groups]
     build_projection_vectors(basis, kpt, psps, psp_positions)
 end
 function PDPψk(basis, positions, psp_groups, kpt, kpt_minus_q, ψk)
     D = build_projection_coefficients(basis, psp_groups)
-    P = build_projection_vectors(basis, kpt, psp_groups; positions)
-    P_minus_q = build_projection_vectors(basis, kpt_minus_q, psp_groups; positions)
+    P = build_projection_vectors(basis, kpt, psp_groups, positions)
+    P_minus_q = build_projection_vectors(basis, kpt_minus_q, psp_groups, positions)
     P * (D * P_minus_q' * ψk)
 end
 
