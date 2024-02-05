@@ -189,7 +189,10 @@ function find_equivalent_kpt(basis::PlaneWaveBasis{T}, kcoord, spin; tol=sqrt(ep
     return (; index, ΔG)
 end
 
-# Construct a k-point from it's equivalent, i.e., 
+"""
+Construct a k-point from its equivalent (in the meaning of [`find_equivalent_kpt`](@ref)).
+Faster than computing it from scratch.
+"""
 function construct_from_equivalent_kpt(equivalent_kpt, basis, coordinate, ΔG)
     linear = LinearIndices(basis.fft_size)
     # Mapping is the same as if created from scratch, although it is not ordered.
