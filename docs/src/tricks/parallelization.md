@@ -190,7 +190,7 @@ BLAS.set_num_threads(N)
 where `N` is the number of threads you desire.
 To **check the number of BLAS threads** currently used, you can use
 ```julia
-Int(ccall((BLAS.@blasfunc(openblas_get_num_threads), BLAS.libblas), Cint, ()))
+BLAS.get_num_threads()
 ```
 or (from Julia 1.6) simply `BLAS.get_num_threads()`.
 
