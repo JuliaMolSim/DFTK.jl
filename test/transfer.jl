@@ -92,7 +92,8 @@ end
     end
 end
 
-@testitem "Construct k-point from equivalent" begin
+# Don't test MPI for now, as the processor that has k-point k may not have k+p.
+@testitem "Construct k-point from equivalent" tags=[:dont_test_mpi] begin
     using DFTK
     using DFTK: get_kpoint
     using LinearAlgebra
