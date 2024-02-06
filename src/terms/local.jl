@@ -127,7 +127,7 @@ end
 (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T} =
     TermAtomicLocal(compute_local_potential(basis))
 
-function compute_forces(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occupation;
+function compute_forces(::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occupation;
                         ρ, kwargs...) where {T}
     S = promote_type(T, real(eltype(ψ[1])))
     forces_local(S, basis, ρ, zero(Vec3{T}))
@@ -158,7 +158,7 @@ end
     forces
 end
 
-@views function compute_dynmat(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occupation;
+@views function compute_dynmat(::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occupation;
                                ρ, δρs, q=zero(Vec3{T}), kwargs...) where {T}
     S = complex(T)
     model = basis.model
@@ -192,7 +192,7 @@ end
 
 # δH is the perturbation of the local potential due to a position displacement e^{iq·r} of
 # the α coordinate of atom s.
-function compute_δHψ_αs(term::TermAtomicLocal, basis::PlaneWaveBasis, ψ, α, s, q)
+function compute_δHψ_αs(::TermAtomicLocal, basis::PlaneWaveBasis, ψ, α, s, q)
     δV_αs = similar(ψ[1], basis.fft_size..., basis.model.n_spin_components)
     # Perturbation of the local potential with respect to a displacement on the direction α
     # of the atom s. All spin components get the same.
