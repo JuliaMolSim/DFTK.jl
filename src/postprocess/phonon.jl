@@ -7,7 +7,7 @@ function dynmat_red_to_cart(model::Model, dynmat)
     # We have δr_cart = lattice * δr_red, δF_cart = lattice⁻ᵀ δF_red, so
     #   δF_cart = lattice⁻ᵀ D_red lattice⁻¹ δr_cart
     dynmat_cart = zero.(dynmat)
-    for s in axes(dynmat_cart, 2), α in axes(dynmat_cart, 4)
+    for s = 1:size(dynmat_cart, 2), α = 1:size(dynmat_cart, 4)
         dynmat_cart[:, α, :, s] = inv_lattice' * dynmat[:, α, :, s] * inv_lattice
     end
     dynmat_cart
@@ -37,7 +37,7 @@ function phonon_modes(basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where
 
     modes = _phonon_modes(basis, dynmat_cart)
     vectors = similar(modes.vectors_cart)
-    for s in axes(vectors, 2), t in axes(vectors, 4)
+    for s = 1:size(vectors, 2), t = 1:size(vectors, 4)
         vectors[:, s, :, t] = vector_cart_to_red(basis.model, modes.vectors_cart[:, s, :, t])
     end
 

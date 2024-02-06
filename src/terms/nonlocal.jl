@@ -55,17 +55,19 @@ end
     psp_groups = [group for group in model.atom_groups
                   if model.atoms[first(group)] isa ElementPsp]
 
-    # early return if no pseudopotential atoms
+    # Early return if no pseudopotential atoms.
     isempty(psp_groups) && return nothing
 
-    # energy terms are of the form <psi, P C P' psi>, where P(G) = form_factor(G) * structure_factor(G)
+    # Energy terms are of the form <ψ, P C P' ψ>, where
+    #   P(G) = form_factor(G) * structure_factor(G).
     forces = [zero(Vec3{T}) for _ = 1:length(model.positions)]
+
     for group in psp_groups
         element = model.atoms[first(group)]
 
         C = build_projection_coefficients(T, element.psp)
         for (ik, kpt) in enumerate(basis.kpoints)
-            # we compute the forces from the irreductible BZ; they are symmetrized later
+            # We compute the forces from the irreductible BZ; they are symmetrized later.
             G_plus_k = Gplusk_vectors(basis, kpt)
             G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
             form_factors = build_form_factors(element.psp, G_plus_k_cart)
@@ -77,9 +79,9 @@ end
                 forces[idx] += map(1:3) do α
                     dPdR = [-2T(π)*im*p[α] for p in G_plus_k] .* P
                     ψk = ψ[ik]
-                    dHψk = P * (C * (dPdR' * ψk))
+                    δHψk = P * (C * (dPdR' * ψk))
                     -sum(occupation[ik][iband] * basis.kweights[ik] *
-                         2real(dot(ψk[:, iband], dHψk[:, iband]))
+                             2real(dot(ψk[:, iband], δHψk[:, iband]))
                          for iband=1:size(ψk, 2))
                 end  # α
             end  # r
@@ -155,11 +157,12 @@ where ``\widehat{\rm proj}_i(p) = ∫_{ℝ^3} {\rm proj}_i(r) e^{-ip·r} dr``.
 We store ``\frac{1}{\sqrt Ω} \widehat{\rm proj}_i(k+G)`` in `proj_vectors`.
 """
 function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
-                                  psps, psp_positions) where {T}
+                                  psps::AbstractVector{<: NormConservingPsp},
+                                  psp_positions) where {T}
     unit_cell_volume = basis.model.unit_cell_volume
     n_proj = count_n_proj(psps, psp_positions)
     n_G    = length(G_vectors(basis, kpt))
-    proj_vectors = zeros(Complex{T}, n_G, n_proj)
+    proj_vectors = zeros(Complex{eltype(psp_positions[1][1])}, n_G, n_proj)
     G_plus_k = to_cpu(Gplusk_vectors(basis, kpt))
 
     # Compute the columns of proj_vectors = 1/√Ω \hat proj_i(k+G)
@@ -229,4 +232,121 @@ function build_form_factors(psp, G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
         @assert count == count_n_proj(psp) + 1
     end
     form_factors
+end
+
+# Helpers for phonon computations.
+function build_projection_coefficients(basis::PlaneWaveBasis{T}, psp_groups) where {T}
+    psps          = [basis.model.atoms[first(group)].psp for group in psp_groups]
+    psp_positions = [basis.model.positions[group] for group in psp_groups]
+    build_projection_coefficients(T, psps, psp_positions)
+end
+function build_projection_vectors(basis::PlaneWaveBasis, kpt::Kpoint,
+                                  psp_groups::AbstractVector{<: AbstractVector{<: Int}},
+                                  positions)
+    psps          = [basis.model.atoms[first(group)].psp for group in psp_groups]
+    psp_positions = [positions[group] for group in psp_groups]
+    build_projection_vectors(basis, kpt, psps, psp_positions)
+end
+function PDPψk(basis, positions, psp_groups, kpt, kpt_minus_q, ψk)
+    D = build_projection_coefficients(basis, psp_groups)
+    P = build_projection_vectors(basis, kpt, psp_groups, positions)
+    P_minus_q = build_projection_vectors(basis, kpt_minus_q, psp_groups, positions)
+    P * (D * P_minus_q' * ψk)
+end
+
+function compute_dynmat_δH(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, occupation,
+                           δψ, δoccupation, q) where {T}
+    S = complex(T)
+    model = basis.model
+    psp_groups = [group for group in model.atom_groups
+                  if model.atoms[first(group)] isa ElementPsp]
+
+    # Early return if no pseudopotential atoms.
+    isempty(psp_groups) && return nothing
+
+    δforces = [zero(Vec3{S}) for _ = 1:length(model.positions)]
+    for group in psp_groups
+        δψ_plus_q = transfer_blochwave_equivalent_to_actual(basis, δψ, q)
+        for (ik, kpt) in enumerate(basis.kpoints)
+            ψk = ψ[ik]
+            δψk_plus_q = δψ_plus_q[ik].ψk
+            kpt_plus_q = δψ_plus_q[ik].kpt
+
+            for idx in group
+                δforces[idx] += map(1:3) do α
+                    δHψk = derivative_wrt_αs(model.positions, α, idx) do positions_αs
+                        PDPψk(basis, positions_αs, psp_groups, kpt_plus_q, kpt, ψ[ik])
+                    end
+                    δHψk_plus_q = derivative_wrt_αs(model.positions, α, idx) do positions_αs
+                        PDPψk(basis, positions_αs, psp_groups, kpt, kpt, ψ[ik])
+                    end
+                    -sum(  2occupation[ik][iband] * basis.kweights[ik]
+                               * dot(δψk_plus_q[:, iband], δHψk[:, iband])
+                         + δoccupation[ik][iband]  * basis.kweights[ik]
+                               * 2real(dot(ψk[:, iband], δHψk_plus_q[:, iband]))
+                         for iband=1:size(ψk, 2))
+                end
+            end
+        end
+    end
+
+    mpi_sum!(δforces, basis.comm_kpts)
+end
+
+@views function compute_dynmat(term::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ,
+                               occupation; δψs, δoccupations, q=zero(Vec3{T}),
+                               kwargs...) where {T}
+    S = complex(T)
+    model = basis.model
+    positions = model.positions
+    n_atoms = length(positions)
+    n_dim = model.n_dim
+
+    # Two contributions: dynmat_δH and dynmat_δ²H.
+
+    # dynmat_δH
+    dynmat_δH = zeros(S, 3, n_atoms, 3, n_atoms)
+    for s = 1:n_atoms, α = 1:n_dim
+        dynmat_δH[:, :, α, s] .-= stack(
+            compute_dynmat_δH(term, basis, ψ, occupation, δψs[α, s], δoccupations[α, s], q)
+        )
+    end
+
+    psp_groups = [group for group in model.atom_groups
+                  if model.atoms[first(group)] isa ElementPsp]
+    # Early return if no pseudopotential atoms.
+    isempty(psp_groups) && return dynmat_δH
+
+    # dynmat_δ²H
+    dynmat_δ²H = zeros(S, 3, n_atoms, 3, n_atoms)
+    δ²Hψ = zero.(ψ)
+    for s = 1:n_atoms, α = 1:n_dim, β = 1:n_dim  # zero if s ≠ t
+        for (ik, kpt) in enumerate(basis.kpoints)
+            δ²Hψ[ik] = derivative_wrt_αs(basis.model.positions, β, s) do positions_βs
+                derivative_wrt_αs(positions_βs, α, s) do positions_βsαs
+                    PDPψk(basis, positions_βsαs, psp_groups, kpt, kpt, ψ[ik])
+                end
+            end
+            dynmat_δ²H[β, s, α, s] += sum(occupation[ik][n] * basis.kweights[ik] *
+                                              dot(ψ[ik][:, n], δ²Hψ[ik][:, n])
+                                          for n=1:size(ψ[ik], 2))
+        end
+    end
+
+    dynmat_δH + dynmat_δ²H
+end
+
+# δH is the Fourier transform perturbation of the nonlocal potential due to a position
+# displacement e^{iq·r} of the α coordinate of atom s.
+function compute_δHψ_αs(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, α, s, q) where {T}
+    model = basis.model
+    psp_groups = [group for group in model.atom_groups
+                  if model.atoms[first(group)] isa ElementPsp]
+
+    ψ_minus_q = transfer_blochwave_equivalent_to_actual(basis, ψ, -q)
+    map(enumerate(basis.kpoints)) do (ik, kpt)
+        derivative_wrt_αs(model.positions, α, s) do positions_αs
+            PDPψk(basis, positions_αs, psp_groups, kpt, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk)
+        end
+    end
 end

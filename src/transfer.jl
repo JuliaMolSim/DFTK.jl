@@ -37,8 +37,10 @@ the transfer from `ψk_in` (defined on `basis_in` and `kpt_in`) to `ψk_out`
 (defined on `basis_out` and `kpt_out`).
 
 Note that `kpt_out` does not have to belong to `basis_out` as long as it is equivalent to
-some other point in it. In that case, the transfer is done such that, if ψk_in is an eigenfunction
-of kpt_in, then ψk_out is an eigenfunction of kpt_out. Beware: this is a lossy conversion in general.
+some other point in it (kpt_out = kpt_in + ΔG).
+In that case, the transfer does not change the Bloch wave ψ.
+It does change the periodic part u: e^ikx uk(x) = e^i(k+ΔG)x (e^-iΔGx uk(x)).
+Beware: this is a lossy conversion in general.
 """
 function transfer_mapping(basis_in::PlaneWaveBasis,  kpt_in::Kpoint,
                           basis_out::PlaneWaveBasis, kpt_out::Kpoint)
@@ -190,8 +192,8 @@ function find_equivalent_kpt(basis::PlaneWaveBasis{T}, kcoord, spin; tol=sqrt(ep
 end
 
 """
-Returns a permutation `indices` of the kpoints in `basis` such that
-kpoints[ik].coordinate + q is equivalent to kpoints[indices[ik]].coordinate
+Returns a permutation `indices` of the ``k``-points in `basis` such that
+`kpoints[ik].coordinate + q` is equivalent to `kpoints[indices[ik]].coordinate`.
 """
 function k_to_kpq_permutation(basis::PlaneWaveBasis, q)
     kpoints = basis.kpoints
@@ -205,21 +207,33 @@ end
 Return the Fourier coefficients for the Bloch waves ``f^{\rm real}_{q} ψ_{k-q}`` in an
 element of `basis.kpoints` equivalent to ``k-q``.
 """
-function multiply_ψ_by_blochwave(basis::PlaneWaveBasis, ψ, f_real, q)
-    k_to_k_minus_q = k_to_kpq_permutation(basis, -q)
+@views function multiply_ψ_by_blochwave(basis::PlaneWaveBasis, ψ, f_real, q)
     fψ = zero.(ψ)
+    # First, express ψ_{[k-q]} in the basis of k-q points…
+    ψ_minus_q = transfer_blochwave_equivalent_to_actual(basis, ψ, -q)
     for (ik, kpt) in enumerate(basis.kpoints)
-        # First, express ψ_{[k-q]} in the basis of k-q points…
-        kpt_minus_q, equivalent_kpt_minus_q = get_kpoint(basis, kpt.coordinate - q, kpt.spin)
-        ψk_minus_q = transfer_blochwave_kpt(ψ[k_to_k_minus_q[ik]], basis, equivalent_kpt_minus_q,
-                                            basis, kpt_minus_q)
         # … then perform the multiplication with f in real space and get the Fourier
         # coefficients.
-        for n in axes(ψ[ik], 2)
+        for n = 1:size(ψ[ik], 2)
             fψ[ik][:, n] = fft(basis, kpt,
-                               ifft(basis, kpt_minus_q, ψk_minus_q[:, n])
+                               ifft(basis, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk[:, n])
                                  .* f_real[:, :, :, kpt.spin])
         end
     end
     fψ
+end
+
+"""
+For Bloch waves ``ψ`` such that `ψ[ik]` is defined in a point in `basis.kpoints` equivalent
+to `basis.kpoints[ik] + q`, return the Bloch waves `ψ_plus_q[ik]` defined on `kpt_plus_q[ik]`.
+"""
+@views function transfer_blochwave_equivalent_to_actual(basis, ψ_plus_q_equivalent, q)
+    k_to_k_plus_q = k_to_kpq_permutation(basis, q)
+    map(enumerate(basis.kpoints)) do (ik, kpt)
+        # Express ψ_plus_q_equivalent_{[k-q]} in the basis of k-q points.
+        kpt_plus_q, equivalent_kpt_plus_q = get_kpoint(basis, kpt.coordinate + q, kpt.spin)
+        ψk_plus_q = transfer_blochwave_kpt(ψ_plus_q_equivalent[k_to_k_plus_q[ik]], basis,
+                                           equivalent_kpt_plus_q, basis, kpt_plus_q)
+        (; kpt=kpt_plus_q, ψk=ψk_plus_q)
+    end
 end

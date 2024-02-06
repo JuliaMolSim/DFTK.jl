@@ -230,7 +230,7 @@ function compute_dynmat(ewald::TermEwald, basis::PlaneWaveBasis{T}, ψ, occupati
     n_dim = model.n_dim
     charges = T.(charge_ionic.(model.atoms))
 
-    dynmat = zeros(complex(T), n_dim, n_atoms, n_dim, n_atoms)
+    dynmat = zeros(complex(T), 3, n_atoms, 3, n_atoms)
     # Real part
     for s = 1:n_atoms, α = 1:n_dim
         displacement = zero.(model.positions)

@@ -44,6 +44,7 @@ include("common/norm.jl")
 include("common/quadrature.jl")
 include("common/hankel.jl")
 include("common/hydrogenic.jl")
+include("common/derivatives.jl")
 
 export PspHgh
 export PspUpf
