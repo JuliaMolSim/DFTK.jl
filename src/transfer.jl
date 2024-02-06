@@ -37,8 +37,10 @@ the transfer from `ψk_in` (defined on `basis_in` and `kpt_in`) to `ψk_out`
 (defined on `basis_out` and `kpt_out`).
 
 Note that `kpt_out` does not have to belong to `basis_out` as long as it is equivalent to
-some other point in it. In that case, the transfer is done such that, if ψk_in is an eigenfunction
-of kpt_in, then ψk_out is an eigenfunction of kpt_out. Beware: this is a lossy conversion in general.
+some other point in it (kpt_out = kpt_in + ΔG).
+In that case, the transfer does not change the Bloch wave ψ.
+It does change the periodic part u: e^ikx uk(x) = e^i(k+ΔG)x (e^-iΔGx uk(x)).
+Beware: this is a lossy conversion in general.
 """
 function transfer_mapping(basis_in::PlaneWaveBasis,  kpt_in::Kpoint,
                           basis_out::PlaneWaveBasis, kpt_out::Kpoint)
