@@ -156,7 +156,7 @@ function B_ortho!(X, BX)
     rdiv!(BX, U)
 end
 
-normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
+normest(M) = maximum(abs, diag(M)) + norm(M - Diagonal(diag(M)))
 # Orthogonalizes X to tol
 # Returns the new X, the number of Cholesky factorizations algorithm, and the
 # growth factor by which small perturbations of X can have been

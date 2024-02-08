@@ -53,21 +53,25 @@ function compute_projected_gradient(basis::PlaneWaveBasis, ψ, occupation)
     ρ = compute_density(basis, ψ, occupation)
     H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
 
-    [proj_tangent_kpt(H.blocks[ik] * ψk, ψk) for (ik, ψk) in enumerate(ψ)]
+    [proj_tangent_kpt(H.basis, H.basis.kpoints[ik], H.blocks[ik] * ψk, ψk)
+     for (ik, ψk) in enumerate(ψ)]
 end
 
 # Projections on the space tangent to ψ
-function proj_tangent_kpt!(δψk, ψk)
+function proj_tangent_kpt!(δψk, basis::PlaneWaveBasis, kpt::Kpoint, ψk)
     # δψk = δψk - ψk * (ψk'δψk)
-    mul!(δψk, ψk, ψk'δψk, -1, 1)
+    ψk_σG = to_composite_σG(basis, kpt, ψk)
+    δψk_σG = to_composite_σG(basis, kpt, δψk)
+    mul!(δψk_σG, ψk_σG, ψk_σG'δψk_σG, -1, 1)
+    δψk
 end
-proj_tangent_kpt(δψk, ψk) = proj_tangent_kpt!(deepcopy(δψk), ψk)
+proj_tangent_kpt(basis, kpt, δψk, ψk) = proj_tangent_kpt!(deepcopy(δψk), basis, kpt, ψk)
 
-function proj_tangent(δψ, ψ)
-    [proj_tangent_kpt(δψ[ik], ψk) for (ik, ψk) in enumerate(ψ)]
+function proj_tangent(basis::PlaneWaveBasis, δψ, ψ)
+    [proj_tangent_kpt(basis, basis.kpoints[ik], δψ[ik], ψk) for (ik, ψk) in enumerate(ψ)]
 end
-function proj_tangent!(δψ, ψ)
-    [proj_tangent_kpt!(δψ[ik], ψk) for (ik, ψk) in enumerate(ψ)]
+function proj_tangent!(δψ, basis::PlaneWaveBasis, ψ)
+    [proj_tangent_kpt!(δψ[ik], basis, basis.kpoints[ik], ψk) for (ik, ψk) in enumerate(ψ)]
 end
 
 
@@ -79,8 +83,7 @@ end
 Newton algorithm. Be careful that the starting point needs to be not too far
 from the solution.
 """
-function newton(basis::PlaneWaveBasis{T}, ψ0;
-                tol=1e-6, tol_cg=tol / 100, maxiter=20,
+function newton(basis::PlaneWaveBasis{T}, ψ0; tol=1e-6, tol_cg=tol / 100, maxiter=20,
                 callback=ScfDefaultCallback(),
                 is_converged=ScfConvergenceDensity(tol)) where {T}
 
@@ -93,7 +96,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
     filled_occ = filled_occupation(model)
     n_spin = model.n_spin_components
     n_bands = div(model.n_electrons, n_spin * filled_occ, RoundUp)
-    @assert n_bands == size(ψ0[1], 2)
+    @assert all([n_bands == size(ψk, 3) for ψk in ψ0])
 
     # number of kpoints and occupation
     Nk = length(basis.kpoints)
@@ -119,7 +122,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
         res = compute_projected_gradient(basis, ψ, occupation)
         # solve (Ω+K) δψ = -res so that the Newton step is ψ <- ψ + δψ
         δψ = solve_ΩplusK(basis, ψ, -res, occupation; tol=tol_cg).δψ
-        ψ  = [ortho_qr(ψ[ik] + δψ[ik]) for ik = 1:Nk]
+        ψ  = [ortho_qr(basis, basis.kpoints[ik], ψ[ik] + δψ[ik]) for ik = 1:Nk]
 
         ρout        = compute_density(basis, ψ, occupation)
         energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρout)
@@ -136,12 +139,12 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
     end
 
     # Rayleigh-Ritz
-    eigenvalues = []
-    for ik = 1:Nk
-        Hψk = H.blocks[ik] * ψ[ik]
-        F = eigen(Hermitian(ψ[ik]'Hψk))
-        push!(eigenvalues, F.values)
-        ψ[ik] .= ψ[ik] * F.vectors
+    eigenvalues = map(enumerate(zip(ψ, H * ψ))) do (ik, (ψk, Hψk))
+        ψk = to_composite_σG(basis, basis.kpoints[ik], ψk)
+        Hψk = to_composite_σG(basis, basis.kpoints[ik], Hψk)
+        F = eigen(Hermitian(ψk'Hψk))
+        ψk .= ψk * F.vectors
+        F.values
     end
 
     εF = nothing  # does not necessarily make sense here, as the

@@ -175,7 +175,7 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     function R_ldiv!(x, y)
         x .= R(precon \ R(y))
     end
-    J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
+    J = LinearMap{eltype(ψk)}(RAR, size(ψk, 1))
     res = cg(J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
              callback=cg_callback)
     !res.converged && @warn("Sternheimer CG not converged", res.n_iter,
@@ -188,7 +188,7 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     # Note that αkn is an empty array if there is no extra bands.
     αkn = ψk_exHψk_ex \ ψk_extra' * (b - H(δψknᴿ))
 
-    δψkn = ψk_extra * αkn + δψknᴿ
+    ψk_extra * αkn + δψknᴿ  # δψkn
 end
 
 # Apply the four-point polarizability operator χ0_4P = -Ω^-1
@@ -252,7 +252,7 @@ The derivatives of the occupations are in-place stored in δocc.
 The tuple (; δocc, δεF) is returned. It is assumed the passed `δocc`
 are initialised to zero.
 """
-function compute_δocc!(δocc, basis::PlaneWaveBasis{T}, ψ, εF, ε, δHψ) where {T}
+@views function compute_δocc!(δocc, basis::PlaneWaveBasis{T}, ψ, εF, ε, δHψ) where {T}
     model = basis.model
     temperature = model.temperature
     smearing = model.smearing
@@ -266,7 +266,7 @@ function compute_δocc!(δocc, basis::PlaneWaveBasis{T}, ψ, εF, ε, δHψ) whe
         D = zero(T)
         for ik = 1:Nk, (n, εnk) in enumerate(ε[ik])
             enred = (εnk - εF) / temperature
-            δεnk = real(dot(ψ[ik][:, n], δHψ[ik][:, n]))
+            δεnk = real(dot(ψ[ik][:, :, n], δHψ[ik][:, :, n]))
             fpnk = filled_occ * Smearing.occupation_derivative(smearing, enred) / temperature
             δocc[ik][n] = δεnk * fpnk
             D += fpnk * basis.kweights[ik]
@@ -292,9 +292,9 @@ a Sternheimer equation for each `k`-points. It is assumed the passed `δψ` are 
 to zero.
 For phonon, `δHψ[ik]` is ``δH·ψ_{k-q}``, expressed in `basis.kpoints[ik]`.
 """
-function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε_minus_q=ε;
-                     ψ_extra=[zeros_like(ψk, size(ψk,1), 0) for ψk in ψ],
-                     q=zero(Vec3{T}), kwargs_sternheimer...) where {T}
+@views function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε_minus_q=ε;
+                            ψ_extra=[zeros_like(ψk, size(ψk)[1:2]..., 0) for ψk in ψ],
+                            q=zero(Vec3{T}), kwargs_sternheimer...) where {T}
     # We solve the Sternheimer equation
     #   (H_k - ε_{n,k-q}) δψ_{n,k} = - (1 - P_{k}) δHψ_{n, k-q},
     # where P_{k} is the projector on ψ_{k} and with the conventions:
@@ -315,9 +315,6 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
         δψk = δψ[ik]
         εk_minus_q = ε_minus_q[ik]
 
-        ψk_extra = ψ_extra[ik]
-        Hψk_extra = Hk * ψk_extra
-        εk_extra  = diag(real.(ψk_extra' * Hψk_extra))
         for n = 1:length(εk_minus_q)
             fnk_minus_q = filled_occ * Smearing.occupation(smearing, (εk_minus_q[n]-εF) / temperature)
 
@@ -330,12 +327,22 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
                 ddiff = Smearing.occupation_divided_difference
                 ratio = filled_occ * ddiff(smearing, εk[m], εk_minus_q[n], εF, temperature)
                 αmn = compute_αmn(fmk, fnk_minus_q, ratio)  # fnk_minus_q * αmn + fmk * αnm = ratio
-                δψk[:, n] .+= ψk[:, m] .* αmn .* dot(ψk[:, m], δHψ[ik][:, n])
+                δψk[:, :, n] .+= ψk[:, :, m] .* αmn .* dot(ψk[:, :, m], δHψ[ik][:, :, n])
             end
 
-            # Sternheimer contribution
-            δψk[:, n] .+= sternheimer_solver(Hk, ψk, εk_minus_q[n], δHψ[ik][:, n]; ψk_extra,
-                                             εk_extra, Hψk_extra, kwargs_sternheimer...)
+            # Sternheimer contribution:
+            #   First, reinterpret the quantities to solve the equation as a generic
+            #   matrix/vector problem…
+            kpt = basis.kpoints[ik]
+            ψk_σG = to_composite_σG(basis, kpt, ψk)
+            δHψkn = to_composite_σG(basis, kpt, δHψ[ik][:, :, n])
+            ψk_extra = to_composite_σG(basis, kpt, ψ_extra[ik])
+            Hψk_extra = to_composite_σG(basis, kpt, Hk * ψ_extra[ik])
+            εk_extra = diag(real.(ψk_extra'Hψk_extra))
+            δψkn = to_composite_σG(basis, kpt, δψk[:, :, n])
+            #   … then, solve the problem.
+            δψkn .+= sternheimer_solver(Hk, ψk_σG, εk_minus_q[n], δHψkn; ψk_extra, εk_extra,
+                                        Hψk_extra, kwargs_sternheimer...)
         end
     end
 end
@@ -356,10 +363,10 @@ end
     mask_occ   = map(occk -> findall(occnk -> abs(occnk) ≥ occ_thresh, occk), occupation)
     mask_extra = map(occk -> findall(occnk -> abs(occnk) < occ_thresh, occk), occupation)
 
-    ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
-    ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
+    ψ_occ   = [ψ[ik][:, :, maskk] for (ik, maskk) in enumerate(mask_occ)]
+    ψ_extra = [ψ[ik][:, :, maskk] for (ik, maskk) in enumerate(mask_extra)]
     ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-    δHψ_minus_q_occ = [δHψ[ik][:, mask_occ[k_to_k_minus_q[ik]]] for ik = 1:length(basis.kpoints)]
+    δHψ_minus_q_occ = [δHψ[ik][:, :, mask_occ[k_to_k_minus_q[ik]]] for ik = 1:length(basis.kpoints)]
     # Only needed for phonon calculations.
     ε_minus_q_occ  = [eigenvalues[k_to_k_minus_q[ik]][mask_occ[k_to_k_minus_q[ik]]]
                       for ik = 1:length(basis.kpoints)]
@@ -383,7 +390,7 @@ end
     # Then we compute δψ (again in-place into a zero-padded array) with elements of
     # `basis.kpoints` that are equivalent to `k+q`.
     δψ = zero.(δHψ)
-    δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ[k_to_k_minus_q])]
+    δψ_occ = [δψ[ik][:, :, maskk] for (ik, maskk) in enumerate(mask_occ[k_to_k_minus_q])]
     compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, ε_minus_q_occ;
                 ψ_extra, q, kwargs_sternheimer...)
 

@@ -24,12 +24,14 @@ function DFTK.save_scfres(::Val{:vts}, filename::AbstractString, scfres::NamedTu
         ψblock = gather_kpts_block(scfres.basis, ψblock_dist)
 
         if mpi_master()
-            for ik = 1:length(basis.kpoints), n = 1:size(ψblock, 2)
-                kpt_n_G = length(G_vectors(basis, basis.kpoints[ik]))
-                ψnk_real = ifft(basis, basis.kpoints[ik], ψblock[1:kpt_n_G, n, ik])
-                prefix = @sprintf "ψ_k%03i_n%03i" ik n
-                vtkfile["$(prefix)_real"] = real.(ψnk_real)
-                vtkfile["$(prefix)_imag"] = imag.(ψnk_real)
+            for ik = 1:length(basis.kpoints)
+                for σ = 1:basis.model.n_components, n = 1:size(ψblock, 3)
+                    kpt_n_G = length(G_vectors(basis, basis.kpoints[ik]))
+                    ψσnk_real = ifft(basis, basis.kpoints[ik], ψblock[:, 1:kpt_n_G, n, ik])
+                    prefix = @sprintf "ψ_k%03i_n%03i_σ%03i" ik n σ
+                    vtkfile["$(prefix)_real"] = real.(ψσnk_real)
+                    vtkfile["$(prefix)_imag"] = imag.(ψσnk_real)
+                end
             end
         end
     end
