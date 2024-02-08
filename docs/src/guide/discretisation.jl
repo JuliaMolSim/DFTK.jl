@@ -109,7 +109,8 @@ scfres.energies
 # We can also get the first eigenvector (in the plane wave basis) and plot it
 using Plots
 
-ψ_fourier = scfres.ψ[1][:, 1];    # first k-point, all G components, first eigenvector
+ψ_fourier = scfres.ψ[1][1, :, 1];  # first k-point, first (and only) component,
+                                   #   all G components, first eigenvector
 ## Transform the wave function to real space
 ψ = ifft(basis, basis.kpoints[1], ψ_fourier)[:, 1, 1]
 ## Eigenvectors are only defined up to a phase. We fix it by imposing that psi(0) is real

@@ -89,6 +89,12 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict)
                             "($(jld["n_spin_components"])) and supplied basis " *
                             "($(basis.model.n_spin_components))")
             end
+            if jld["n_components"] != basis.model.n_components
+                consistent_kpts = false
+                errormsg = ("Mismatch in number of spin components between file " *
+                            "($(jld["n_components"])) and supplied basis " *
+                            "($(basis.model.n_components))")
+            end
         end
         errormsg = MPI.bcast(errormsg, 0, MPI.COMM_WORLD)
         isempty(errormsg) || error(errormsg)

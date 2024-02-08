@@ -26,7 +26,7 @@ end
 
     @test isapprox(
         real(dot(ϕ, solve_ΩplusK(basis, ψ, rhs, occupation).δψ)),
-        real(dot(solve_ΩplusK(basis, ψ, ϕ, occupation).δψ, rhs)),
+        real(dot(solve_ΩplusK(basis, ψ, ϕ, occupation).δψ, rhs));
         atol=1e-7
     )
 end
@@ -40,12 +40,16 @@ end
 
     H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
     # Rayleigh-coefficients
-    Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ, H * ψ)]
+    Λ = map(enumerate(zip(ψ, H * ψ))) do (ik, (ψk, Hψk))
+        ψk = to_composite_σG(basis, basis.kpoints[ik], ψk)
+        Hψk = to_composite_σG(basis, basis.kpoints[ik], Hψk)
+        from_composite_σG(basis, basis.kpoints[ik], ψk'Hψk)
+    end
 
     # Ω is complex-linear and so self-adjoint as a complex operator.
     @test isapprox(
         dot(ϕ, apply_Ω(rhs, ψ, H, Λ)),
-        dot(apply_Ω(ϕ, ψ, H, Λ), rhs),
+        dot(apply_Ω(ϕ, ψ, H, Λ), rhs);
         atol=1e-7
     )
 end
@@ -60,7 +64,7 @@ end
     # hence we test using the real dot product.
     @test isapprox(
         real(dot(ϕ, apply_K(basis, rhs, ψ, ρ, occupation))),
-        real(dot(apply_K(basis, ϕ, ψ, ρ, occupation), rhs)),
+        real(dot(apply_K(basis, ϕ, ψ, ρ, occupation), rhs));
         atol=1e-7
     )
 end
@@ -81,7 +85,7 @@ end
 
     @testset "self-adjointness of solve_ΩplusK_split" begin
         @test isapprox(real(dot(ϕ, solve_ΩplusK_split(scfres, rhs).δψ)),
-                        real(dot(solve_ΩplusK_split(scfres, ϕ).δψ, rhs)),
+                        real(dot(solve_ΩplusK_split(scfres, ϕ).δψ, rhs));
                         atol=1e-7)
     end
 
@@ -114,7 +118,7 @@ end
 
     @testset "self-adjointness of solve_ΩplusK_split" begin
         @test isapprox(real(dot(ϕ, solve_ΩplusK_split(scfres, rhs).δψ)),
-                        real(dot(solve_ΩplusK_split(scfres, ϕ).δψ, rhs)),
+                        real(dot(solve_ΩplusK_split(scfres, ϕ).δψ, rhs));
                         atol=1e-7)
     end
 end

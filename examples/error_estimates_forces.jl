@@ -85,50 +85,60 @@ res, occ = DFTK.select_occupied_orbitals(basis_ref, res, scfres.occupation)
 #   size ``N×N`` (``N`` being the number of electrons) whose solution is
 #   ``U = S(S^*S)^{-1/2}`` where ``S`` is the overlap matrix ``ψ^*ϕ``.
 function compute_error(basis, ϕ, ψ)
-    map(zip(ϕ, ψ)) do (ϕk, ψk)
+    ϕ = to_composite_σG(basis, ϕ)
+    ψ = to_composite_σG(basis, ψ)
+    map(zip(basis.kpoints, ϕ, ψ)) do (kpt, ϕk, ψk)
         S = ψk'ϕk
         U = S*(S'S)^(-1/2)
-        ϕk - ψk*U
+        from_composite_σG(basis, kpt, ϕk - ψk*U)
     end
 end
 err = compute_error(basis_ref, ψr, ψ_ref);
 
 # - Compute ``{\boldsymbol M}^{-1}R(P)`` with ``{\boldsymbol M}^{-1}`` defined in [^CDKL2021]:
 P = [PreconditionerTPA(basis_ref, kpt) for kpt in basis_ref.kpoints]
-map(zip(P, ψr)) do (Pk, ψk)
-    DFTK.precondprep!(Pk, ψk)
+map(zip(P, ψr, basis_ref.kpoints)) do (Pk, ψk, kpt)
+    DFTK.precondprep!(Pk, to_composite_σG(basis_ref, kpt, ψk))
 end
-function apply_M(φk, Pk, δφnk, n)
-    DFTK.proj_tangent_kpt!(δφnk, φk)
-    δφnk = sqrt.(Pk.mean_kin[n] .+ Pk.kin) .* δφnk
-    DFTK.proj_tangent_kpt!(δφnk, φk)
-    δφnk = sqrt.(Pk.mean_kin[n] .+ Pk.kin) .* δφnk
-    DFTK.proj_tangent_kpt!(δφnk, φk)
+function apply_M(basis, kpt, φk, Pk, δφnk, n)
+    fact = reshape(sqrt.(Pk.mean_kin[n] .+ Pk.kin), size(δφnk)...)
+    DFTK.proj_tangent_kpt!(δφnk, basis, kpt, φk)
+    δφnk = fact .* δφnk
+    DFTK.proj_tangent_kpt!(δφnk, basis, kpt, φk)
+    δφnk = fact .* δφnk
+    DFTK.proj_tangent_kpt!(δφnk, basis, kpt, φk)
 end
-function apply_inv_M(φk, Pk, δφnk, n)
-    DFTK.proj_tangent_kpt!(δφnk, φk)
-    op(x) = apply_M(φk, Pk, x, n)
-    function f_ldiv!(x, y)
-        x .= DFTK.proj_tangent_kpt(y, φk)
-        x ./= (Pk.mean_kin[n] .+ Pk.kin)
-        DFTK.proj_tangent_kpt!(x, φk)
+function apply_inv_M(basis, kpt, φk, Pk, δφnk, n)
+    DFTK.proj_tangent_kpt!(δφnk, basis, kpt, φk)
+    op(x) = let
+        x = from_composite_σG(basis, kpt, x)
+        to_composite_σG(basis, kpt, apply_M(basis, kpt, φk, Pk, x, n))
     end
-    J = LinearMap{eltype(φk)}(op, size(δφnk, 1))
-    δφnk = cg(J, δφnk; Pl=DFTK.FunctionPreconditioner(f_ldiv!),
-              verbose=false, reltol=0, abstol=1e-15)
-    DFTK.proj_tangent_kpt!(δφnk, φk)
+    function f_ldiv!(x, y)
+        x_σG = from_composite_σG(basis, kpt, x)
+        y_σG = from_composite_σG(basis, kpt, y)
+        x_σG .= DFTK.proj_tangent_kpt(basis, kpt, y_σG, φk)
+        x ./= (Pk.mean_kin[n] .+ Pk.kin)
+        DFTK.proj_tangent_kpt!(x_σG, basis, kpt, φk)
+        x
+    end
+    J = LinearMap{eltype(φk)}(op, prod(size(δφnk)[1:2]))
+    δφnk_vec = to_composite_σG(basis, kpt, δφnk)
+    δφnk_vec = cg(J, δφnk_vec; Pl=DFTK.FunctionPreconditioner(f_ldiv!),
+                  verbose=false, reltol=0, abstol=1e-15)
+    DFTK.proj_tangent_kpt!(δφnk, basis, kpt, φk)
 end
-function apply_metric(φ, P, δφ, A::Function)
+function apply_metric(basis, φ, P, δφ, A::Function)
     map(enumerate(δφ)) do (ik, δφk)
         Aδφk = similar(δφk)
         φk = φ[ik]
-        for n = 1:size(δφk,2)
-            Aδφk[:,n] = A(φk, P[ik], δφk[:,n], n)
+        for n = 1:size(δφk, 3)
+            Aδφk[:, :, n] = A(basis, basis.kpoints[ik], φk, P[ik], δφk[:, :, n], n)
         end
         Aδφk
     end
 end
-Mres = apply_metric(ψr, P, res, apply_inv_M);
+Mres = apply_metric(basis, ψr, P, res, apply_inv_M);
 
 # We can now compute the modified residual ``R_{\rm Schur}(P)`` using a Schur
 # complement to approximate the error on low-frequencies[^CDKL2021]:
@@ -151,14 +161,14 @@ resLF = DFTK.transfer_blochwave(res, basis_ref, basis)
 resHF = res - DFTK.transfer_blochwave(resLF, basis, basis_ref);
 
 # - Compute ``{\boldsymbol M}^{-1}_{22}R_2(P)``:
-e2 = apply_metric(ψr, P, resHF, apply_inv_M);
+e2 = apply_metric(basis, ψr, P, resHF, apply_inv_M);
 
 # - Compute the right hand side of the Schur system:
 ## Rayleigh coefficients needed for `apply_Ω`
-Λ = map(enumerate(ψr)) do (ik, ψk)
-    Hk = hamr.blocks[ik]
-    Hψk = Hk * ψk
-    ψk'Hψk
+Λ = map(enumerate(zip(ψr, hamr * ψr))) do (ik, (ψk, Hψk))
+    ψk = to_composite_σG(basis, basis.kpoints[ik], ψk)
+    Hψk = to_composite_σG(basis, basis.kpoints[ik], Hψk)
+    from_composite_σG(basis, basis.kpoints[ik], ψk'Hψk)
 end
 ΩpKe2 = DFTK.apply_Ω(e2, ψr, hamr, Λ) .+ DFTK.apply_K(basis_ref, e2, ψr, ρr, occ)
 ΩpKe2 = DFTK.transfer_blochwave(ΩpKe2, basis_ref, basis)
@@ -204,7 +214,7 @@ end;
 #   the actual error ``P-P_*``. Usually this is of course not the case, but this
 #   is the "best" improvement we can hope for with a linearisation, so we are
 #   aiming for this precision.
-df_err = df(basis_ref, occ, ψr, DFTK.proj_tangent(err, ψr), ρr)
+df_err = df(basis_ref, occ, ψr, DFTK.proj_tangent(basis, err, ψr), ρr)
 forces["F(P) - df(P)⋅(P-P_*)"]   = f - df_err
 relerror["F(P) - df(P)⋅(P-P_*)"] = compute_relerror(f - df_err);
 

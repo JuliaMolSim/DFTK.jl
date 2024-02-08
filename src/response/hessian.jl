@@ -26,9 +26,14 @@ Compute the application of Ω defined at ψ to δψ. H is the Hamiltonian comput
 from ψ and Λ is the set of Rayleigh coefficients ψk' * Hk * ψk at each k-point.
 """
 @timing function apply_Ω(δψ, ψ, H::Hamiltonian, Λ)
-    δψ = proj_tangent(δψ, ψ)
-    Ωδψ = [H.blocks[ik] * δψk - δψk * Λ[ik] for (ik, δψk) in enumerate(δψ)]
-    proj_tangent!(Ωδψ, ψ)
+    δψ = proj_tangent(H.basis, δψ, ψ)
+    Ωδψ = map(enumerate(zip(δψ, H * δψ))) do (ik, (δψk, Hδψk))
+        δψk = to_composite_σG(H.basis, H.basis.kpoints[ik], δψ[ik])
+        Λk = to_composite_σG(H.basis, H.basis.kpoints[ik], Λ[ik])
+        δψΛk = from_composite_σG(H.basis, H.basis.kpoints[ik], δψk * Λk)
+        Hδψk - δψΛk
+    end
+    proj_tangent!(Ωδψ, H.basis, ψ)
 end
 
 """
@@ -38,7 +43,7 @@ Compute the application of K defined at ψ to δψ. ρ is the density issued fro
 δψ also generates a δρ, computed with `compute_δρ`.
 """
 @views @timing function apply_K(basis::PlaneWaveBasis, δψ, ψ, ρ, occupation)
-    δψ = proj_tangent(δψ, ψ)
+    δψ = proj_tangent(basis, δψ, ψ)
     δρ = compute_δρ(basis, ψ, δψ, occupation)
     δV = apply_kernel(basis, δρ; ρ)
 
@@ -46,15 +51,18 @@ Compute the application of K defined at ψ to δψ. ρ is the density issued fro
         kpt = basis.kpoints[ik]
         δVψk = similar(ψk)
 
-        for n = 1:size(ψk, 2)
-            ψnk_real = ifft(basis, kpt, ψk[:, n])
-            δVψnk_real = δV[:, :, :, kpt.spin] .* ψnk_real
-            δVψk[:, n] = fft(basis, kpt, δVψnk_real)
+        for n = 1:size(ψk, 3)
+            ψnk_real = ifft(basis, kpt, ψk[:, :, n])
+            δVψnk_real = similar(ψnk_real)
+            for σ = 1:basis.model.n_components
+                δVψnk_real[σ, :, :, :] = δV[:, :, :, kpt.spin] .* ψnk_real[σ, :, :, :]
+            end
+            δVψk[:, :, n] = fft(basis, kpt, δVψnk_real)
         end
         δVψk
     end
     # ensure projection onto the tangent space
-    proj_tangent!(Kδψ, ψ)
+    proj_tangent!(Kδψ, basis, ψ)
 end
 
 """
@@ -83,24 +91,28 @@ Return δψ where (Ω+K) δψ = rhs
     unsafe_unpack(x) = unsafe_unpack_ψ(reinterpret_complex(x), size.(ψ))
 
     # project rhs on the tangent space before starting
-    proj_tangent!(rhs, ψ)
+    proj_tangent!(rhs, basis, ψ)
     rhs_pack = pack(rhs)
 
     # preconditioner
     Pks = [PreconditionerTPA(basis, kpt) for kpt in basis.kpoints]
     for ik = 1:length(Pks)
-        precondprep!(Pks[ik], ψ[ik])
+        precondprep!(Pks[ik], to_composite_σG(basis, basis.kpoints[ik], ψ[ik]))
     end
     function f_ldiv!(x, y)
         δψ = unpack(y)
-        proj_tangent!(δψ, ψ)
-        Pδψ = [ Pks[ik] \ δψk for (ik, δψk) in enumerate(δψ)]
-        proj_tangent!(Pδψ, ψ)
+        proj_tangent!(δψ, basis, ψ)
+        Pδψ = [Pks[ik] \ δψk for (ik, δψk) in enumerate(δψ)]
+        proj_tangent!(Pδψ, basis, ψ)
         x .= pack(Pδψ)
     end
 
     # Rayleigh-coefficients
-    Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ, H * ψ)]
+    Λ = map(enumerate(zip(ψ, H * ψ))) do (ik, (ψk, Hψk))
+        ψk = to_composite_σG(basis, basis.kpoints[ik], ψk)
+        Hψk = to_composite_σG(basis, basis.kpoints[ik], Hψk)
+        from_composite_σG(basis, basis.kpoints[ik], ψk'Hψk)
+    end
 
     # mapping of the linear system on the tangent space
     function ΩpK(x)
@@ -114,7 +126,7 @@ Return δψ where (Ω+K) δψ = rhs
     # solve (Ω+K) δψ = rhs on the tangent space with CG
     function proj(x)
         δψ = unpack(x)
-        proj_tangent!(δψ, ψ)
+        proj_tangent!(δψ, basis, ψ)
         pack(δψ)
     end
     res = cg(J, rhs_pack; precon=FunctionPreconditioner(f_ldiv!), proj, tol,
@@ -134,10 +146,10 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
     - `δVind`: Change in potential induced by `δρ` (the term needed on top of `δHextψ`
       to get `δHψ`).
 """
-@timing function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
-                                    eigenvalues, rhs; tol=1e-8, tol_sternheimer=tol/10,
-                                    verbose=false, occupation_threshold, q=zero(Vec3{real(T)}),
-                                    kwargs...) where {T}
+@timing function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF, 
+                                     eigenvalues, rhs; tol=1e-8, tol_sternheimer=tol/10, 
+                                     verbose=false, occupation_threshold, q=zero(Vec3{real(T)}), 
+                                     kwargs...) where {T}
     # Using χ04P = -Ω^-1, E extension operator (2P->4P) and R restriction operator:
     # (Ω+K)^-1 =  Ω^-1 ( 1 -   K   (1 + Ω^-1 K  )^-1    Ω^-1  )
     #          = -χ04P ( 1 -   K   (1 - χ04P K  )^-1   (-χ04P))
@@ -177,7 +189,7 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
 
     # Compute total change in eigenvalues
     δeigenvalues = map(ψ, δHψ) do ψk, δHψk
-        map(eachcol(ψk), eachcol(δHψk)) do ψnk, δHψnk
+        map(eachslice(ψk; dims=3), eachslice(δHψk; dims=3)) do ψnk, δHψnk
             real(dot(ψnk, δHψnk))  # δε_{nk} = <ψnk | δH | ψnk>
         end
     end
