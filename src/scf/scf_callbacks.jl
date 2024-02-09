@@ -38,6 +38,7 @@ function ScfDefaultCallback(; show_damping=true, show_time=true)
     ScfDefaultCallback(show_damping, show_time, Ref(0))
 end
 function (cb::ScfDefaultCallback)(info)
+    old_logger = global_logger(default_logger())
     # If first iteration clear a potentially cached previous time
     info.n_iter ≤ 1 && (cb.prev_time[] = 0)
 
@@ -99,6 +100,7 @@ function (cb::ScfDefaultCallback)(info)
 
     line = @sprintf "% 3d   %s   %s   %s" info.n_iter Estr ΔE Δρstr
     @info line * "$Mstr $αstr $diagstr $tstr"
+    global_logger(old_logger)
 
     flush(stdout)
     info

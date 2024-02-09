@@ -33,8 +33,8 @@ end
 using Logging
 using DFTK
 
-# Don't print anything below warning level.
-DFTK.default_logger() = DFTK.DFTKLogger(; io=stdout, min_level=Warn)
+# Don't print anything below or at warning level.
+DFTK.default_logger() = DFTK.DFTKLogger(; io=stdout, min_level=LogLevel(1001))
 #@set_preferences!("min_log_level" => "1001"; export_prefs=false)
 with_logger(DFTK.default_logger()) do
     @run_package_tests filter=dftk_testfilter verbose=true

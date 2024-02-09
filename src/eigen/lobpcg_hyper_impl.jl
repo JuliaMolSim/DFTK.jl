@@ -321,6 +321,7 @@ end
 @timing function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100;
                         miniter=1, ortho_tol=2eps(real(eltype(X))),
                         n_conv_check=nothing, display_progress=false)
+    old_logger = global_logger(default_logger())
     N, M = size(X)
 
     # If N is too small, we will likely get in trouble
@@ -530,6 +531,7 @@ end
         niter < maxiter || break
         niter = niter + 1
     end
+    global_logger(old_logger)
 
     final_retval(full_X, full_AX, full_BX, resid_history, maxiter, n_matvec)
 end
