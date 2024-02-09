@@ -39,10 +39,6 @@
 ## TODO it seems there is a lack of orthogonalization immediately after locking, maybe investigate this to save on some choleskys
 ## TODO debug orthogonalizations when A=I
 
-# TODO Use @debug for this
-# vprintln(args...) = println(args...)  # Uncomment for output
-vprintln(args...) = nothing
-
 using LinearAlgebra
 import LinearAlgebra: BlasFloat
 import Base: *
@@ -180,7 +176,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
             success = true
         catch err
             @assert isa(err, PosDefException)
-            vprintln("fail")
+            @debug "fail"
             # see https://arxiv.org/pdf/1809.11085.pdf for a nice analysis
             # We are not being very clever here; but this should very rarely happen
             # so it should be OK
@@ -220,7 +216,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
         # condR = 1/LAPACK.trcon!('I', 'U', 'N', Array(R))
         condR = normest(R)*norminvR  # in practice this seems to be an OK estimate
 
-        vprintln("Ortho(X) success? $success ", eps(real(T))*condR^2, " < $tol")
+        @debug "Ortho(X) success? $success ", eps(real(T))*condR^2, " < $tol"
 
         # a good a posteriori error is that X'X - I is eps()*κ(R)^2;
         # in practice this seems to be sometimes very overconservative
@@ -289,7 +285,7 @@ end
         niter > 10 && error("Ortho(X,Y) is failing badly, this should never happen")
         niter += 1
     end
-    vprintln("ortho choleskys: ", ninners)  # get how many Choleskys are performed
+    @debug "ortho choleskys: ", ninners  # get how many Choleskys are performed
 
     # @assert (norm(BY'X)) < tol
     # @assert (norm(X'X-I)) < tol
@@ -411,7 +407,7 @@ end
                 resid_history[i + nlocked, niter+1] = norm(new_R[:, i])
             end
         end
-        vprintln(niter, "   ", resid_history[:, niter+1])
+        @debug niter, "   ", resid_history[:, niter+1]
 
         # it is actually a good question of knowing when to
         # precondition. Here seems sensible, but it could plausibly be
@@ -429,7 +425,7 @@ end
             for i=nlocked+1:M
                 if resid_history[i, niter+1] < tol
                     nlocked += 1
-                    vprintln("locked $nlocked")
+                    @debug "locked $nlocked"
                 else
                     # We lock in order, assuming that the lowest
                     # eigenvectors converge first; might be tricky otherwise
@@ -439,8 +435,8 @@ end
         end
 
         if display_progress
-            println("Iter $niter, converged $(nlocked)/$(n_conv_check), resid ",
-                    norm(resid_history[1:n_conv_check, niter+1]))
+            @info "Iter $niter, converged $(nlocked)/$(n_conv_check), resid " *
+                  "$(norm(resid_history[1:n_conv_check, niter+1]))"
         end
 
         if nlocked >= n_conv_check  # Converged!

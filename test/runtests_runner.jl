@@ -2,7 +2,6 @@
 # This is needed to play nicely with MPI parallelised tests
 #
 using TestItemRunner
-using Suppressor
 
 include("runtests_parser.jl")
 (; base_tag, excluded, included) = parse_test_args()
@@ -31,29 +30,8 @@ function dftk_testfilter(ti)
     end
 end
 
-function run_tests()
-    output = @capture_out try
-        @run_package_tests filter=dftk_testfilter verbose=true
-    catch err
-        Base.showerror(stderr, err, Base.catch_backtrace())
-    end
+using Logging
 
-    lines = split(output, "\n")
-    # Print failed tests.
-    println()
-    for id in findall(occursin.("Test Failed", lines))
-        id_context = id
-        while !isempty(lines[id_context])
-            println(lines[id_context])
-            id_context += 1
-        end
-        println()
-    end
-    # Print the summary.
-    idx = findfirst(occursin.(r"^Test Summary:", lines))
-    if !isnothing(idx)
-        println(join(lines[idx:end], "\n"))
-    end
+with_logger(ConsoleLogger(stdout, LogLevel(1))) do
+    @run_package_tests filter=dftk_testfilter verbose=true
 end
-
-run_tests()

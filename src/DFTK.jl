@@ -26,6 +26,7 @@ export Mat3
 export mpi_nprocs
 export mpi_master
 export setup_threading, disable_threading
+include("common/logging.jl")
 include("common/timer.jl")
 include("common/constants.jl")
 include("common/ortho.jl")
