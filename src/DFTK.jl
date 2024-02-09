@@ -231,13 +231,6 @@ include("workarounds/dummy_inplace_fft.jl")
 include("workarounds/forwarddiff_rules.jl")
 include("workarounds/gpu_arrays.jl")
 
-function __init__()
-    # We need to wait to have access to stdout.
-    # But now local to the REPL…
-    default_logger = DFTKLogger(; io=Base.stdout)
-    global_logger(default_logger)
-end
-
 # Precompilation block with a basic workflow
 @setup_workload begin
     # very artificial silicon ground state example

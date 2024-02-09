@@ -31,8 +31,11 @@ function dftk_testfilter(ti)
 end
 
 using Logging
+using DFTK
 
-# Don't print anything below or equal to warning level.
-with_logger(ConsoleLogger(stdout, LogLevel(1001))) do
+# Don't print anything below warning level.
+DFTK.default_logger() = DFTK.DFTKLogger(; io=stdout, min_level=Warn)
+#@set_preferences!("min_log_level" => "1001"; export_prefs=false)
+with_logger(DFTK.default_logger()) do
     @run_package_tests filter=dftk_testfilter verbose=true
 end

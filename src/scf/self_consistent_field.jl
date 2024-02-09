@@ -199,7 +199,9 @@ Overview of parameters:
 
         converged = is_converged(info)
         converged = MPI.bcast(converged, 0, MPI.COMM_WORLD)  # Ensure same converged
-        callback(merge(info, (; converged)))
+        with_logger(default_logger()) do
+            callback(merge(info, (; converged)))
+        end
 
         ρin + T(damping) .* mix_density(mixing, basis, Δρ; info...)
     end
@@ -218,6 +220,8 @@ Overview of parameters:
             ρ=ρout, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
             n_iter, ψ, info.diagonalization, stage=:finalize, history_Δρ, history_Etot,
             runtime_ns=time_ns() - start_ns, algorithm="SCF")
-    callback(info)
+    with_logger(default_logger()) do
+        callback(info)
+    end
     info
 end

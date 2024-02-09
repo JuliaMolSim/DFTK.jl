@@ -3,6 +3,7 @@
     using DFTK
     using ForwardDiff
     using LinearAlgebra
+    using Logging
     silicon = TestCases.silicon
 
     function compute_force(ε1, ε2; metal=false, tol=1e-10)
@@ -17,7 +18,7 @@
         end
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 
-        response     = ResponseOptions(; verbose=true)
+        response     = ResponseOptions(; verbose=DFTK.default_logger().min_level ≤ Info)
         is_converged = DFTK.ScfConvergenceForce(tol)
         scfres = self_consistent_field(basis; is_converged, response)
         compute_forces_cart(scfres)
@@ -61,6 +62,7 @@ end
     using ForwardDiff
     using LinearAlgebra
     using ComponentArrays
+    using Logging
     aluminium = TestCases.aluminium
 
     function compute_band_energies(ε::T) where {T}
@@ -76,9 +78,10 @@ end
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
+        response = ResponseOptions(; verbose=DFTK.default_logger().min_level ≤ Info)
         scfres = self_consistent_field(basis; is_converged, mixing=KerkerMixing(),
                                        nbandsalg=FixedBands(; n_bands_converge=10),
-                                       damping=0.6, response=ResponseOptions(; verbose=true))
+                                       damping=0.6, response)
 
         ComponentArray(
            eigenvalues=stack([ev[1:10] for ev in scfres.eigenvalues]),
@@ -103,6 +106,7 @@ end
     using LinearAlgebra
     using ComponentArrays
     using DftFunctionals
+    using Logging
     silicon = TestCases.silicon
 
     function compute_force(ε1::T) where {T}
@@ -115,8 +119,8 @@ end
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
-        scfres = self_consistent_field(basis; is_converged,
-                                       response=ResponseOptions(; verbose=true))
+        response = ResponseOptions(; verbose=DFTK.default_logger().min_level ≤ Info)
+        scfres = self_consistent_field(basis; is_converged, response)
         compute_forces_cart(scfres)
     end
 
@@ -146,6 +150,7 @@ end
     using DFTK
     using ForwardDiff
     using LinearAlgebra
+    using Logging
 
     function compute_force(ε::T) where {T}
         # solve the 1D Gross-Pitaevskii equation with ElementGaussian potential
@@ -160,8 +165,8 @@ end
         basis = PlaneWaveBasis(model; Ecut=500, kgrid=(1, 1, 1))
         ρ = zeros(Float64, basis.fft_size..., 1)
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
-        scfres = self_consistent_field(basis; ρ, is_converged,
-                                       response=ResponseOptions(; verbose=true))
+        response = ResponseOptions(; verbose=DFTK.default_logger().min_level ≤ Info)
+        scfres = self_consistent_field(basis; ρ, is_converged, response)
         compute_forces_cart(scfres)
     end
     derivative_ε = let ε = 1e-5

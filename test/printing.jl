@@ -13,7 +13,7 @@
                           disable_electrostatics_check=true, modelargs...)
         basis = PlaneWaveBasis(model; basisargs...)
 
-        io = current_logger().min_level > Info ? devnull : stdout
+        io = DFTK.default_logger().min_level > Info ? devnull : stdout
 
         @info model
         show(io, "text/plain", model)
@@ -32,7 +32,7 @@
         scfres = self_consistent_field(basis; nbandsalg=FixedBands(; n_bands_converge=6),
                                        tol=1e-3)
 
-        io = current_logger().min_level > Info ? devnull : stdout
+        io = DFTK.default_logger().min_level > Info ? devnull : stdout
 
         @info scfres.energies
         show(io, "text/plain", scfres.energies)

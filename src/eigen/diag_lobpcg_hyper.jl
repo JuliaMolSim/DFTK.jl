@@ -6,7 +6,9 @@ function lobpcg_hyper(A, X0; maxiter=100, prec=nothing,
     prec === nothing && (prec = I)
 
     @assert !largest "Only seeking the smallest eigenpairs is implemented."
-    result = LOBPCG(A, X0, I, prec, tol, maxiter; n_conv_check, kwargs...)
+    result = with_logger(default_logger()) do
+        LOBPCG(A, X0, I, prec, tol, maxiter; n_conv_check, kwargs...)
+    end
 
     n_conv_check === nothing && (n_conv_check = size(X0, 2))
     converged = maximum(result.residual_norms[1:n_conv_check]) < tol
