@@ -19,7 +19,7 @@ function disable_threading()
         "JULIA_NUM_THREADS is unset and julia does not get the `-t` flag passed."
     )
     @assert n_julia == 1  # To exit in non-master MPI nodes
-    setup_threading(;n_fft=1, n_blas=1)
+    setup_threading(; n_fft=1, n_blas=1)
 end
 
 # Parallelization loop breaking range into chunks.

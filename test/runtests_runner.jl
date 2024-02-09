@@ -32,6 +32,7 @@ end
 
 using Logging
 
-with_logger(ConsoleLogger(stdout, LogLevel(1))) do
+# Don't print anything below or equal to warning level.
+with_logger(ConsoleLogger(stdout, LogLevel(1001))) do
     @run_package_tests filter=dftk_testfilter verbose=true
 end
