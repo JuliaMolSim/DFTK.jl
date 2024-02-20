@@ -4,18 +4,16 @@
 # maxiter), where f(x) is the fixed-point map. It must return an
 # object supporting res.sol and res.converged
 
-# TODO max_iter could go to the solver generator function arguments
-
 """
 Create a damped SCF solver updating the density as
 `x = β * x_new + (1 - β) * x`
 """
 function scf_damping_solver(β=0.2)
-    function fp_solver(f, x0, max_iter; tol=1e-6)
+    function fp_solver(f, x0, maxiter; tol=1e-6)
         β = convert(eltype(x0), β)
         converged = false
         x = copy(x0)
-        for i = 1:max_iter
+        for i = 1:maxiter
             x_new = f(x)
 
             if norm(x_new - x) < tol
@@ -36,13 +34,13 @@ Create a simple anderson-accelerated SCF solver. `m` specifies the number
 of steps to keep the history of.
 """
 function scf_anderson_solver(m=10; kwargs...)
-    function anderson(f, x0, max_iter; tol=1e-6)
+    function anderson(f, x0, maxiter; tol=1e-6)
         T = eltype(x0)
         x = x0
 
         converged = false
         acceleration = AndersonAcceleration(; m, kwargs...)
-        for n = 1:max_iter
+        for n = 1:maxiter
             residual = f(x) - x
             converged = norm(residual) < tol
             converged && break
@@ -57,7 +55,7 @@ CROP-accelerated root-finding iteration for `f`, starting from `x0` and keeping
 a history of `m` steps. Optionally `warming` specifies the number of non-accelerated
 steps to perform for warming up the history.
 """
-function CROP(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
+function CROP(f, x0, m::Int, maxiter::Int, tol::Real, warming=0)
     # CROP iterates maintain xn and fn (/!\ fn != f(xn)).
     # xtn+1 = xn + fn
     # ftn+1 = f(xtn+1)
@@ -70,7 +68,7 @@ function CROP(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
 
     # Cheat support for multidimensional arrays
     if length(size(x0)) != 1
-        x, conv= CROP(x -> vec(f(reshape(x, size(x0)...))), vec(x0), m, max_iter, tol, warming)
+        x, conv= CROP(x -> vec(f(reshape(x, size(x0)...))), vec(x0), m, maxiter, tol, warming)
         return (; fixpoint=reshape(x, size(x0)...), converged=conv)
     end
     N = size(x0,1)
@@ -79,10 +77,10 @@ function CROP(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
     fs = zeros(T, N, m+1)  # newest to oldest
     xs[:,1] = x0
     fs[:,1] = f(x0)        # Residual
-    errs = zeros(max_iter)
+    errs = zeros(maxiter)
     err = Inf
 
-    for n = 1:max_iter
+    for n = 1:maxiter
         xtnp1 = xs[:, 1] + fs[:, 1]  # Richardson update
         ftnp1 = f(xtnp1)             # Residual
         err = norm(ftnp1)
@@ -112,4 +110,4 @@ function CROP(f, x0, m::Int, max_iter::Int, tol::Real, warming=0)
     end
     (; fixpoint=xs[:, 1], converged=err < tol)
 end
-scf_CROP_solver(m=10) = (f, x0, max_iter; tol=1e-6) -> CROP(x -> f(x) - x, x0, m, max_iter, tol)
+scf_CROP_solver(m=10) = (f, x0, maxiter; tol=1e-6) -> CROP(x -> f(x) - x, x0, m, maxiter, tol)

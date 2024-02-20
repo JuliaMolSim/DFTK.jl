@@ -1,53 +1,67 @@
-@testitem "Phonon: Ewald: comparison to ref testcase" #=
-    =#    tags=[:phonon, :dont_test_mpi] setup=[Phonon, TestCases] begin
-    using DFTK
+@testsetup module PhononEwald
+using DFTK
 
-    testcase = TestCases.silicon
-    terms = [Ewald()]
-    ω_ref = [ -0.2442311083805831
-              -0.24423110838058237
-              -0.23442208238107232
-              -0.23442208238107184
-              -0.1322944535508822
-              -0.13229445355088176
-              -0.10658869539441493
-              -0.10658869539441468
-              -0.10658869539441346
-              -0.10658869539441335
-              -4.891274318712944e-16
-              -3.773447798738169e-17
-               1.659776058962626e-15
-               0.09553958285993536
-               0.18062696253387409
-               0.18062696253387464
-               0.4959725605665635
-               0.4959725605665648
-               0.49597256056656597
-               0.5498259359834827
-               0.5498259359834833
-               0.6536453595829087
-               0.6536453595829091
-               0.6536453595829103
-               0.6536453595829105
-               0.6961890494198791
-               0.6961890494198807
-               0.7251587593311752
-               0.7251587593311782
-               0.9261195383192374
-               0.9261195383192381
-               1.2533843205271504
-               1.2533843205271538
-               1.7010950724885228
-               1.7010950724885254
-               1.752506588801463 ]
-    Phonon.test_frequencies(testcase, terms, ω_ref)
+function model_tested(lattice::AbstractMatrix, atoms::Vector{<:DFTK.Element},
+                      positions::Vector{<:AbstractVector}; kwargs...)
+    terms = [Kinetic(),
+             Ewald()]
+    if :temperature in keys(kwargs) && kwargs[:temperature] != 0
+        terms = [terms..., Entropy()]
+    end
+    Model(lattice, atoms, positions; model_name="atomic", terms, kwargs...)
+end
+end
+
+@testitem "Phonon: Ewald: comparison to ref testcase" #=
+    =#    tags=[:phonon, :dont_test_mpi] setup=[Phonon, PhononEwald, TestCases] begin
+    using DFTK
+    using .Phonon: test_frequencies
+    using .PhononEwald: model_tested
+
+    ω_ref = [ -3.720615299046614e-12
+               1.969314371029982e-11
+               1.9739956911274832e-11
+               0.00029302379784864935
+               0.0002930237978486494
+               0.000293023797851601
+               0.0002930237978516018
+               0.0005105451353059533
+               0.0005105451353059533
+               0.000510545135311239
+               0.0005105451353112397
+               0.0005676024288436319
+               0.000591265950289604
+               0.0005912659502958081
+               0.0007328535013566558
+               0.0007328535013566561
+               0.0008109743140779055
+               0.0008109743140779056
+               0.000938673782810113
+               0.000987619635716976
+               0.0009876196357169761
+               0.0010949497272589232
+               0.0011998186659486743
+               0.0011998186659486745
+               0.001523238357971607
+               0.0019593679918607546
+               0.0022394777249719524
+               0.0022394777249719524
+               0.0024681196094789985
+               0.0024681196094789993
+               0.0024809296524054506
+               0.0025805236057819345
+               0.002614761988704579
+               0.002614761988704579
+               0.0026807773193116675
+               0.0026807773193116675 ]
+    test_frequencies(model_tested, TestCases.magnesium; ω_ref)
 end
 
 @testitem "Phonon: Ewald: comparison to automatic differentiation" #=
-    =#    tags=[:phonon, :slow, :dont_test_mpi] setup=[Phonon, TestCases] begin
+    =#    tags=[:phonon, :slow, :dont_test_mpi] setup=[Phonon, PhononEwald, TestCases] begin
     using DFTK
-    testcase = TestCases.silicon
+    using .Phonon: test_frequencies
+    using .PhononEwald: model_tested
 
-    terms = [Ewald()]
-    Phonon.test_rand_frequencies(testcase, terms)
+    test_frequencies(model_tested, TestCases.magnesium)
 end

@@ -66,14 +66,14 @@ function compute_scf!(system::AbstractSystem, calculator::DFTKCalculator, state:
 end
 
 AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
-        system::AbstractSystem, calculator::DFTKCalculator; state = calculator.state,
+        system::AbstractSystem, calculator::DFTKCalculator; state = DFTKState(),
         kwargs...)
     compute_scf!(system, calculator, state)
     calculator.state.scfres.energies.total
 end
 
 AtomsCalculators.@generate_interface function AtomsCalculators.forces(
-        system::AbstractSystem, calculator::DFTKCalculator; state = calculator.state,
+        system::AbstractSystem, calculator::DFTKCalculator; state = DFTKState(),
         kwargs...)
     compute_scf!(system, calculator, state)
     compute_forces_cart(calculator.state.scfres)

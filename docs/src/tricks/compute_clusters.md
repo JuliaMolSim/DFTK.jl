@@ -1,12 +1,15 @@
 # Using DFTK on compute clusters
 
-This chapter summarises a few tips and tricks for running on compute clusters.
+This chapter summarises a few tips and tricks for running DFTK on compute clusters.
 It assumes you have already installed Julia on the machine in question
 (see [Julia downloads](https://julialang.org/downloads/)
 and [Julia installation instructions](https://julialang.org/downloads/platform/)).
+For a general presentation of using Julia on HPC systems from both the user
+and the admin perspective,
+see [JuliaOnHPCClusters](https://juliahpc.github.io/JuliaOnHPCClusters/).
 
-We will use [EPFL's scitas clusters](https://scitas-doc.epfl.ch/) as examples,
-but the basic principles should apply to other systems as well.
+In this presentation we use [EPFL's scitas clusters](https://scitas-doc.epfl.ch/)
+as the example to explain the basic principles.
 
 ## Julia depot path
 By default on Linux-based systems
@@ -24,7 +27,7 @@ the `JULIA_DEPOT_PATH` to be a subdirectory of `/scratch`.
 **EPFL scitas.**
 On scitas the right thing to do is to insert
 ```
-export JULIA_DEPOT_PATH="/scratch/$USER/.julia"
+export JULIA_DEPOT_PATH="$JULIA_DEPOT_PATH:/scratch/$USER/.julia"
 ```
 into your `~/.bashrc`.
 
@@ -148,6 +151,23 @@ using MPIPreferences
 MPIPreferences.use_system_binary()
 ```
 
+## Using the `--heap-size-hint` flag
+Julia uses dynamic memory management,
+which means that unused memory may not be directly released back to the operating system.
+Much rather a garbage collection takes care of doing such cleanup periodically.
+If you are in a memory-bound situation,
+it can thus be helpful to employ the `--heap-size-hint` flag,
+which provides Julia with a hint of the maximal memory Julia may use.
+For example the call
+```
+julia --heap-size-hint 40G
+```
+tells Julia to optimise the garbage collection,
+such that the overall memory consumption remains below `40G`.
+Note, however that this is just a *hint*,
+i.e. no hard limits are enforced.
+Furthermore using too small a heap size hint can have a negative impact on performance.
+
 ## Running slurm jobs
 This example shows how to run a DFTK calculation on a slurm-based system
 such as scitas. We use the MKL for FFTW and BLAS and the system-provided MPI.
@@ -241,7 +261,7 @@ Finally the jobscript `job.sh` for a slurm job looks like this:
 
 # IMPORTANT: Set Julia's depot path to be a local scratch
 # direction (not your home !).
-export JULIA_DEPOT_PATH="/scratch/$USER/.julia"
+export JULIA_DEPOT_PATH="$JULIA_DEPOT_PATH:/scratch/$USER/.julia"
 
 # Load modules to setup julia (this is specific to EPFL scitas systems)
 module purge

@@ -33,7 +33,7 @@
 
     # Run other SCFs with SAD guess
     ρ0 = guess_density(basis)
-    for solver in (scf_anderson_solver(), scf_damping_solver(1.0), scf_CROP_solver())
+    for solver in (scf_anderson_solver(), scf_damping_solver(), scf_CROP_solver())
         @testset "Testing $solver" begin
             ρ_alg = self_consistent_field(basis; ρ=ρ0, solver, tol).ρ
             @test maximum(abs, ρ_alg - ρ_def) < 50tol
