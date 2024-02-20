@@ -39,8 +39,7 @@ end
 
         n_electrons = testcase.n_electrons
         n_bands = div(n_electrons, 2, RoundUp)
-        ψ = [Matrix(qr(randn(ComplexF64, length(G_vectors(basis, kpt)), n_bands)).Q)
-             for kpt in basis.kpoints]
+        ψ = [DFTK.random_orbitals(basis, kpt, n_bands) for kpt in basis.kpoints]
         filled_occ = DFTK.filled_occupation(model)
         occupation = [filled_occ * rand(n_bands) for _ = 1:length(basis.kpoints)]
         occ_scaling = n_electrons / sum(sum(occupation))
