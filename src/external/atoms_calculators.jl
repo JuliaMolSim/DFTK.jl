@@ -80,7 +80,7 @@ AtomsCalculators.@generate_interface function AtomsCalculators.forces(
 end
 
 AtomsCalculators.@generate_interface function AtomsCalculators.virial(
-        system::AbstractSystem, calculator::DFTKCalculator; state = calculator.state,
+        system::AbstractSystem, calculator::DFTKCalculator; state = DFTKState(),
         kwargs...)
     compute_scf!(system, calculator, state)
     - (compute_stresses_cart(calculator.state.scfres)
