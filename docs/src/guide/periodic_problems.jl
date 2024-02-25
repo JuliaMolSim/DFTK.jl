@@ -1,9 +1,12 @@
-# # [Problems and plane-wave discretisations](@id periodic-problems)
+# # [Periodic problems and plane-wave discretisations](@id periodic-problems)
 
 # In this example we want to show how DFTK can be used to solve simple one-dimensional
 # periodic problems. Along the lines this notebook serves as a concise introduction into
 # the underlying theory and jargon for solving periodic problems using plane-wave
-# discretizations.
+# discretizations. This example provides a high-level overview focused on plane-wave
+# discretisations. For a more hands-on introduction walking you through some exercises
+# on these topics see [Comparing discretization techniques](@ref) and
+# [Modelling atomic chains](@ref).
 
 # ## Periodicity and lattices
 # A periodic problem is characterized by being invariant to certain translations.
@@ -328,3 +331,10 @@ plot_bandstructure(basis; n_bands=6, kline_density=500)
 #    (the degree to which they are free-electron-like) is highly related to the delocalization
 #    of electrons in these bands: The more curved the more delocalized. In some sense
 #    "free electrons" correspond to perfect delocalization.
+#
+#  - Try playing with the parameters of the Gaussian potentials by setting
+#    ```julia
+#    nucleus   = ElementGaussian(α, L)
+#    ```
+#    with different $α$ and $L$. You should notice the influence on the bands. Pay particular
+#    attention to the relation between the depth of the potential and the shape of the bands.
