@@ -365,7 +365,7 @@ plot!(p, x -> ε(χ0_SiO2, x),  label="silica (SiO₂)", ls=:dashdot)
 # Note that $\chi_0(r, r')$ has unit-cell internal fluctuations, but is overall diagonal dominant
 #
 #md # <img src="chi0.png" width=400 />
-#nd # <img src="https://docs.dftk.org/stable/guide/chi0.png" width=400 />
+#nb # <img src="https://docs.dftk.org/stable/guide/chi0.png" width=400 />
 #
 # Starting from the Adler-Wiser formula
 # ```math
