@@ -17,9 +17,11 @@ PAGES = [
     "Home" => "index.md",
     "features.md",
     "Getting started" => [
-        # Installing DFTK, tutorial, theoretical background
         "guide/installation.md",
         "guide/tutorial.jl",
+    ],
+    "Background" => [
+        # Theoretical background
         "guide/periodic_problems.jl",
         "guide/discretisation.jl",
         "guide/atomic_chains.jl",
