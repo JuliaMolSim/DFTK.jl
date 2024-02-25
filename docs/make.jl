@@ -22,12 +22,12 @@ PAGES = [
     ],
     "Background" => [
         # Theoretical background
+        "guide/introductory_resources.md",
         "guide/periodic_problems.jl",
         "guide/discretisation.jl",
         "guide/atomic_chains.jl",
         "guide/density_functional_theory.md",
         "guide/self_consistent_field.jl",
-        "guide/introductory_resources.md",
         "school2022.md",
     ],
     "Basic DFT calculations" => [
