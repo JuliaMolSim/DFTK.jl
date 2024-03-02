@@ -44,6 +44,7 @@ include("common/norm.jl")
 include("common/quadrature.jl")
 include("common/hankel.jl")
 include("common/hydrogenic.jl")
+include("common/derivatives.jl")
 
 export PspHgh
 export PspUpf
@@ -222,9 +223,6 @@ include("response/hessian.jl")
 export compute_current
 include("postprocess/current.jl")
 export phonon_modes
-export phonon_modes_cart
-export compute_dynmat
-export compute_dynmat_cart
 include("postprocess/phonon.jl")
 
 # Workarounds

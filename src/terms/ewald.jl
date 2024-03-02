@@ -30,23 +30,6 @@ function ene_ops(term::TermEwald, basis::PlaneWaveBasis, ψ, occupation; kwargs.
 end
 compute_forces(term::TermEwald, ::PlaneWaveBasis, ψ, occupation; kwargs...) = term.forces
 
-"""
-Standard computation of energy and forces.
-"""
-function energy_forces_ewald(lattice::AbstractArray{T}, charges::AbstractArray,
-                             positions; kwargs...) where {T}
-    energy_forces_ewald(T, lattice, charges, positions, zero(Vec3{T}), nothing)
-end
-
-"""
-Computation for phonons; required to build the dynamical matrix.
-"""
-function energy_forces_ewald(lattice::AbstractArray{T}, charges, positions, q,
-                             ph_disp; kwargs...) where{T}
-    S = promote_type(complex(T), eltype(ph_disp[1]))
-    energy_forces_ewald(S, lattice, charges, positions, q, ph_disp; kwargs...)
-end
-
 # To compute the electrostatics of the system, we use the Ewald splitting method due to the
 # slow convergence of the energy in ``1/r``.
 # It uses the the identity ``1/r ≡ erf(η·r)/r + erfc(η·r)/r``, where the first (smooth) part
@@ -60,14 +43,7 @@ function default_η(lattice::AbstractArray{T}) where {T}
     sqrt(sqrt(T(1.69) * norm(recip_lattice ./ 2T(π)) / norm(lattice))) / 2
 end
 
-# This could be merged with Pairwise, but its use of `atom_types` would slow down this
-# computationally intensive Ewald sums. So we leave it as it for now.
-# Phonons:
-# Computes the local energy and forces on the atoms of the reference unit cell 0, for an
-# infinite array of atoms at positions r_{iR} = positions[i] + R + ph_disp[i]*e^{-iq·R}.
-# `q` is the phonon `q`-point (`Vec3`), and `ph_disp` a list of `Vec3` displacements to
-# compute the Fourier transform of (only the direct part of) the force constant matrix.
-"""
+@doc raw"""
 Compute the electrostatic energy and forces. The energy is the electrostatic interaction
 energy per unit cell between point charges in a uniform background of compensating charge to
 yield net neutrality. The forces is the opposite of the derivative of the energy with
@@ -78,9 +54,17 @@ point charges and their positions (as an array of arrays) in fractional coordina
 
 For now this function returns zero energy and force on non-3D systems. Use a pairwise
 potential term if you want to customise this treatment.
+
+For phonon (`q` ≠ 0), this computes the local energy and forces on the atoms of the
+reference unit cell 0, for an infinite array of atoms at positions
+``r_{iR} = {\rm positions}_i + R + {\rm ph_disp}_i e^{-iq·R}``.
+`q` is the phonon `q`-point, and `ph_disp` a list of displacements to compute the Fourier
+transform of (only the direct part of) the force constant matrix.
 """
 function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q, ph_disp;
                              η=default_η(lattice)) where {T}
+    # This could be merged with Pairwise, but its use of `symbols` would slow down this
+    # computationally intensive Ewald sums. So we leave it as it for now.
     @assert length(charges) == length(positions)
     if isempty(charges)
         return (; energy=zero(T), forces=zero(positions))
@@ -183,6 +167,16 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
     (; energy=(sum_recip + sum_real) / 2,  # divide by 2 (because of double counting)
        forces=forces_recip .+ forces_real)
 end
+# For convenience
+function energy_forces_ewald(lattice::AbstractArray{T}, charges::AbstractArray,
+                             positions; kwargs...) where {T}
+    energy_forces_ewald(T, lattice, charges, positions, zero(Vec3{T}), nothing)
+end
+function energy_forces_ewald(lattice::AbstractArray{T}, charges, positions, q,
+                             ph_disp; kwargs...) where{T}
+    S = promote_type(complex(T), eltype(ph_disp[1]))
+    energy_forces_ewald(S, lattice, charges, positions, q, ph_disp; kwargs...)
+end
 
 # TODO: See if there is a way to express this with AD.
 function dynmat_ewald_recip(model::Model{T}, s, t; η, q=zero(Vec3{T})) where {T}
@@ -236,7 +230,7 @@ function compute_dynmat(ewald::TermEwald, basis::PlaneWaveBasis{T}, ψ, occupati
     n_dim = model.n_dim
     charges = T.(charge_ionic.(model.atoms))
 
-    dynmat = zeros(complex(T), n_dim, n_atoms, n_dim, n_atoms)
+    dynmat = zeros(complex(T), 3, n_atoms, 3, n_atoms)
     # Real part
     for s = 1:n_atoms, α = 1:n_dim
         displacement = zero.(model.positions)
