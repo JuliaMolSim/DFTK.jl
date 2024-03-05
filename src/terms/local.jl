@@ -96,7 +96,7 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
     # Pre-compute the form factors at unique values of |G| to speed up
     # the potential Fourier transform (by a lot). Using a hash map gives O(1)
     # lookup.
-    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
+    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatibility
     for G in Gqs_cart
         p = norm(G)
         for (igroup, group) in enumerate(model.atom_groups)
@@ -127,7 +127,7 @@ end
 (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T} =
     TermAtomicLocal(compute_local_potential(basis))
 
-function compute_forces(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occupation;
+function compute_forces(::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occupation;
                         ρ, kwargs...) where {T}
     S = promote_type(T, real(eltype(ψ[1])))
     forces_local(S, basis, ρ, zero(Vec3{T}))
@@ -158,60 +158,46 @@ end
     forces
 end
 
-# Phonon: Perturbation of the local potential with respect to a displacement on the
-# direction α of the atom s.
-function compute_δV_αs(::TermAtomicLocal, basis::PlaneWaveBasis{T}, α, s; q=zero(Vec3{T}),
-                       positions=basis.model.positions) where {T}
-    S = iszero(q) ? T : complex(T)
-    displacement = zero.(positions)
-    displacement[s] = setindex(displacement[s], one(T), α)
-    ForwardDiff.derivative(zero(T)) do ε
-        positions = ε*displacement .+ positions
-        compute_local_potential(basis; q, positions)
-    end
-end
-
-# Phonon: Second-order perturbation of the local potential with respect to a displacement on
-# the directions α and β of the atoms s and t.
-function compute_δ²V_βtαs(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, β, t, α, s) where {T}
-    positions = basis.model.positions
-    displacement = zero.(positions)
-    displacement[t] = setindex(displacement[t], one(T), β)
-    ForwardDiff.derivative(zero(T)) do ε
-        positions = ε*displacement .+ positions
-        compute_δV_αs(term, basis, α, s; positions)
-    end
-end
-
-function compute_dynmat(term::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occupation; ρ,
-                        δρs, q=zero(Vec3{T}), kwargs...) where {T}
+@views function compute_dynmat(::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occupation;
+                               ρ, δρs, q=zero(Vec3{T}), kwargs...) where {T}
     S = complex(T)
     model = basis.model
     positions = model.positions
     n_atoms = length(positions)
     n_dim = model.n_dim
 
-    ∫δρδV = zeros(S, 3, n_atoms, 3, n_atoms)
+    # Two contributions: dynmat_δH and dynmat_δ²H
+
+    # dynmat_δH, which is ∫δρδV.
+    dynmat_δH = zeros(S, 3, n_atoms, 3, n_atoms)
     for s = 1:n_atoms, α = 1:n_dim
-        ∫δρδV[:, :, α, s] .-= stack(forces_local(S, basis, δρs[α, s], q))
+        dynmat_δH[:, :, α, s] .-= stack(forces_local(S, basis, δρs[α, s], q))
     end
 
-    ∫ρδ²V = zeros(S, 3, n_atoms, 3, n_atoms)
+    # dynmat_δ²H, which is ∫ρδ²V.
+    dynmat_δ²H = zeros(S, 3, n_atoms, 3, n_atoms)
     ρ_fourier = fft(basis, total_density(ρ))
     δ²V_fourier = similar(ρ_fourier)
-    for s = 1:n_atoms, α = 1:n_dim
-        for t = 1:n_atoms, β = 1:n_dim
-            fft!(δ²V_fourier, basis, compute_δ²V_βtαs(term, basis, β, t, α, s))
-            ∫ρδ²V[β, t, α, s] = sum(conj(ρ_fourier) .* δ²V_fourier)
+    for s = 1:n_atoms, α = 1:n_dim, β = 1:n_dim  # zero if s ≠ t
+        δ²V = derivative_wrt_αs(basis.model.positions, β, s) do positions_βs
+            derivative_wrt_αs(positions_βs, α, s) do positions_βsαs
+                compute_local_potential(basis; positions=positions_βsαs)
+            end
         end
+        dynmat_δ²H[β, s, α, s] += sum(conj(ρ_fourier) .* fft!(δ²V_fourier, basis, δ²V))
     end
 
-    ∫δρδV + ∫ρδ²V
+    dynmat_δH + dynmat_δ²H
 end
 
-function compute_δHψ_αs(term::TermAtomicLocal, basis::PlaneWaveBasis, ψ, α, s, q)
+# δH is the perturbation of the local potential due to a position displacement e^{iq·r} of
+# the α coordinate of atom s.
+function compute_δHψ_αs(::TermAtomicLocal, basis::PlaneWaveBasis, ψ, α, s, q)
     δV_αs = similar(ψ[1], basis.fft_size..., basis.model.n_spin_components)
-    # All spin components get the same potential.
-    δV_αs .= compute_δV_αs(term, basis, α, s; q)
+    # Perturbation of the local potential with respect to a displacement on the direction α
+    # of the atom s. All spin components get the same.
+    δV_αs .= derivative_wrt_αs(basis.model.positions, α, s) do positions_αs
+        compute_local_potential(basis; q, positions=positions_αs)
+    end
     multiply_ψ_by_blochwave(basis, ψ, δV_αs, q)
 end

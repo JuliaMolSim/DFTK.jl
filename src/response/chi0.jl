@@ -290,6 +290,7 @@ end
 Perform in-place computations of the derivatives of the wave functions by solving
 a Sternheimer equation for each `k`-points. It is assumed the passed `δψ` are initialised
 to zero.
+For phonon, `δHψ[ik]` is ``δH·ψ_{k-q}``, expressed in `basis.kpoints[ik]`.
 """
 function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε_minus_q=ε;
                      ψ_extra=[zeros_like(ψk, size(ψk,1), 0) for ψk in ψ],
@@ -299,7 +300,7 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
     # where P_{k} is the projector on ψ_{k} and with the conventions:
     # * δψ_{k} is the variation of ψ_{k-q}, which implies (for ℬ_{k} the `basis.kpoints`)
     #     δψ_{k-q} ∈ ℬ_{k-q} and δHψ_{k-q} ∈ ℬ_{k};
-    # * δHψ[ik] = δHψ_{k-q};
+    # * δHψ[ik] = δH ψ_{k-q};
     # * ε_minus_q[ik] = ε_{·, k-q}.
     model = basis.model
     temperature = model.temperature
@@ -343,7 +344,7 @@ end
                                     occupation_threshold, q=zero(Vec3{eltype(ham.basis)}),
                                     kwargs_sternheimer...)
     basis = ham.basis
-    ordering(kdata) = kdata[k_to_equivalent_kpq_permutation(basis, -q)]
+    k_to_k_minus_q = k_to_kpq_permutation(basis, -q)
 
     # We first select orbitals with occupation number higher than
     # occupation_threshold for which we compute the associated response δψn,
@@ -358,9 +359,10 @@ end
     ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
     ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
     ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-    δHψ_minus_q_occ = [δHψ[ik][:, maskk] for (ik, maskk) in enumerate(ordering(mask_occ))]
+    δHψ_minus_q_occ = [δHψ[ik][:, mask_occ[k_to_k_minus_q[ik]]] for ik = 1:length(basis.kpoints)]
     # Only needed for phonon calculations.
-    ε_minus_q_occ  = ordering([eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)])
+    ε_minus_q_occ  = [eigenvalues[k_to_k_minus_q[ik]][mask_occ[k_to_k_minus_q[ik]]]
+                      for ik = 1:length(basis.kpoints)]
 
     # First we compute δoccupation. We only need to do this for the actually occupied
     # orbitals. So we make a fresh array padded with zeros, but only alter the elements
@@ -371,15 +373,17 @@ end
     δoccupation = zero.(occupation)
     if iszero(q)
         δocc_occ = [δoccupation[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-        δεF = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_minus_q_occ).δεF
+        (; δεF) = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_minus_q_occ)
     else
+        # When δH is not periodic, δH ψnk is a Bloch wave at k+q and ψnk at k,
+        # so that δεnk = <ψnk|δH|ψnk> = 0 and there is no occupation shift
         δεF = zero(εF)
     end
 
     # Then we compute δψ (again in-place into a zero-padded array) with elements of
     # `basis.kpoints` that are equivalent to `k+q`.
-    δψ = zero.(δHψ)  # δHψ ≠ δHψ_minus_q
-    δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(ordering(mask_occ))]
+    δψ = zero.(δHψ)
+    δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ[k_to_k_minus_q])]
     compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, ε_minus_q_occ;
                 ψ_extra, q, kwargs_sternheimer...)
 

@@ -17,11 +17,17 @@ PAGES = [
     "Home" => "index.md",
     "features.md",
     "Getting started" => [
-        # Installing DFTK, tutorial, theoretical background
         "guide/installation.md",
-        "Tutorial" => "guide/tutorial.jl",
-        "guide/periodic_problems.jl",
+        "guide/tutorial.jl",
+    ],
+    "Background" => [
+        # Theoretical background
         "guide/introductory_resources.md",
+        "guide/periodic_problems.jl",
+        "guide/discretisation.jl",
+        "guide/atomic_chains.jl",
+        "guide/density_functional_theory.md",
+        "guide/self_consistent_field.jl",
         "school2022.md",
     ],
     "Basic DFT calculations" => [
@@ -40,7 +46,6 @@ PAGES = [
     "Response and properties" => [
         "examples/polarizability.jl",
         "examples/forwarddiff.jl",
-        "examples/dielectric.jl",
     ],
     "Ecosystem integration" => [
         # This concerns the discussion of interfaces, IO and integration
@@ -60,6 +65,7 @@ PAGES = [
         "examples/custom_solvers.jl",
         "examples/scf_callbacks.jl",
         "examples/compare_solvers.jl",
+        "examples/analysing_scf_convergence.jl",
     ],
     "Nonstandard models" => [
         "examples/gross_pitaevskii.jl",

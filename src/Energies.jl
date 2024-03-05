@@ -27,7 +27,7 @@ Base.iterate(energies::Energies, state) = iterate(pairs(energies), state)
 Base.length(energies::Energies)         = length(energies.keys)
 Base.haskey(energies::Energies, key)    = !isnothing(findfirst(isequal(key), energies.keys))
 
-Base.propertynames(energies::Energies, ::Bool=false) = append!(Symbol.(energies.keys), :total)
+Base.propertynames(energies::Energies, ::Bool=false) = vcat(Symbol.(energies.keys), :total)
 function Base.getproperty(energies::Energies{T}, x::Symbol) where {T}
     if x === :total
         sum(energies.values, init=zero(T))

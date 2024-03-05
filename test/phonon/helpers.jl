@@ -2,7 +2,7 @@
 @testsetup module Phonon
 using Test
 using DFTK
-using DFTK: normalize_kpoint_coordinate
+using DFTK: normalize_kpoint_coordinate, _phonon_modes, dynmat_red_to_cart
 using LinearAlgebra
 using ForwardDiff
 using FiniteDifferences
@@ -55,8 +55,7 @@ function test_frequencies(model_tested, testcase; ω_ref=nothing, Ecut=7, kgrid=
     scfres = self_consistent_field(basis; scf_kwargs...)
 
     ω_uc = sort!(reduce(vcat, map(qpoints) do q
-        dynamical_matrix = compute_dynmat(scfres; q, tol=χ0_tol)
-        phonon_modes_cart(basis, dynamical_matrix).frequencies
+        phonon_modes(scfres; q, tol=χ0_tol).frequencies
     end))
 
     !isnothing(ω_ref) && return test_approx_frequencies(ω_uc, ω_ref; tol=10scf_tol)
@@ -70,15 +69,14 @@ function test_frequencies(model_tested, testcase; ω_ref=nothing, Ecut=7, kgrid=
     basis_supercell = PlaneWaveBasis(model_supercell; Ecut, kgrid=[1, 1, 1])
     scfres_supercell = self_consistent_field(basis_supercell; scf_kwargs...)
 
-    dynamical_matrix_sc = compute_dynmat(scfres_supercell; tol=χ0_tol)
-    ω_sc = sort(phonon_modes_cart(basis_supercell, dynamical_matrix_sc).frequencies)
+    ω_sc = sort(phonon_modes(scfres_supercell; tol=χ0_tol).frequencies)
     test_approx_frequencies(ω_uc, ω_sc; tol=10scf_tol)
 
     isnothing(compute_ref) && return
 
     dynamical_matrix_ref = compute_dynmat_ref(scfres_supercell.basis, model_tested; Ecut,
                                               kgrid=[1, 1, 1], scf_tol, method=compute_ref)
-    ω_ref = sort(phonon_modes_cart(basis_supercell, dynamical_matrix_ref).frequencies)
+    ω_ref = sort(_phonon_modes(basis_supercell, dynamical_matrix_ref).frequencies)
 
     test_approx_frequencies(ω_uc, ω_ref; tol=10scf_tol)
 end
@@ -117,6 +115,6 @@ function compute_dynmat_ref(basis, model_tested; Ecut=5, kgrid=[1,1,1], scf_tol,
             stack(forces)
         end
     end
-    dynmat
+    dynmat_red_to_cart(model, dynmat)
 end
 end

@@ -58,8 +58,6 @@ end
     Tδρ = iszero(q) ? real(Tψ) : Tψ
     real_qzero = iszero(q) ? real : identity
 
-    ordering(kdata) = kdata[k_to_equivalent_kpq_permutation(basis, q)]
-
     # occupation should be on the CPU as we are going to be doing scalar indexing.
     occupation = [to_cpu(oc) for oc in occupation]
     mask_occ = [findall(occnk -> abs(occnk) ≥ occupation_threshold, occk)
@@ -72,17 +70,19 @@ end
     end
     range = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
 
+    # The variation of the orbital ψ_k defined in the basis ℬ_k is δψ_{[k+q]} in ℬ_{[k+q]},
+    # where [k+q] is equivalent to the basis k+q (see find_equivalent_kpt).
+    # The perturbation of the density
+    #   |ψ_{n,k}|² is 2 ψ_{n,k} * δψ_{n,k+q}.
+    # Hence, we first get the δψ_{[k+q]} as δψ_{k+q}…
+    δψ_plus_k = transfer_blochwave_equivalent_to_actual(basis, δψ, q)
     storages = parallel_loop_over_range(allocate_local_storage, range) do storage, kn
         (ik, n) = kn
 
         kpt = basis.kpoints[ik]
         ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n])
-        # We return the δψk in the basis k+q which are associated to a displacement of the ψk.
-        kpt_plus_q, δψk_plus_q = kpq_equivalent_blochwave_to_kpq(basis, kpt, q,
-                                                                 ordering(δψ)[ik])
-        # The perturbation of the density
-        #   |ψ_nk|² is 2 ψ_{n,k} * δψ_{n,k+q}.
-        ifft!(storage.δψnk_real, basis, kpt_plus_q, δψk_plus_q[:, n])
+        # … and then we compute the real Fourier transform in the adequate basis.
+        ifft!(storage.δψnk_real, basis, δψ_plus_k[ik].kpt, δψ_plus_k[ik].ψk[:, n])
 
         storage.δρ[:, :, :, kpt.spin] .+= real_qzero(
             2 .* occupation[ik][n] .* basis.kweights[ik] .* conj(storage.ψnk_real)
@@ -94,9 +94,7 @@ end
     δρ = sum(getfield.(storages, :δρ))
 
     mpi_sum!(δρ, basis.comm_kpts)
-    δρ = symmetrize_ρ(basis, δρ; do_lowpass=false)
-
-    δρ
+    symmetrize_ρ(basis, δρ; do_lowpass=false)
 end
 
 @views @timing function compute_kinetic_energy_density(basis::PlaneWaveBasis, ψ, occupation)
