@@ -17,7 +17,7 @@
 
     energy = AtomsCalculators.potential_energy(silicon, calculator)
     ref_energy = -7.86059
-    @test austrip.(energy) ≈ ref_energy rtol=1e-3
+    @test austrip(energy) ≈ ref_energy rtol=1e-3
 end
 
 @testitem "Test AtomsCalculators energy forces interface" setup=[TestCases] begin
