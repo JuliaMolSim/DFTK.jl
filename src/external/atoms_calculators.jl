@@ -86,5 +86,5 @@ AtomsCalculators.@generate_interface function AtomsCalculators.virial(
         kwargs...)
     compute_scf!(system, calculator, state)
     - (compute_stresses_cart(calculator.state.scfres)
-     * calculator. state.scfres.basis.model.unit_cell_volume) * u"hartree"
+     * calculator.state.scfres.basis.model.unit_cell_volume) * u"hartree"
 end
