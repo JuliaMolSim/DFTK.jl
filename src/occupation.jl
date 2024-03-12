@@ -1,4 +1,5 @@
 import Roots
+#import MPI
 
 # Functions for finding the Fermi level and occupation numbers for bands
 # The goal is to find εF so that
@@ -137,34 +138,45 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
                              temperature, smearing, tol_n_elec) where {T}
     filled_occ  = filled_occupation(basis.model)
     n_electrons = basis.model.n_electrons
-    n_spin = basis.model.n_spin_components
     @assert iszero(temperature)
 
     # Sanity check that we can indeed fill the appropriate number of states
-    if n_electrons % (n_spin * filled_occ) != 0
+    if n_electrons % (filled_occ) != 0
         error("$n_electrons electrons cannot be attained by filling states with " *
               "occupation $filled_occ. Typically this indicates that you need to put " *
               "a temperature or switch to a calculation with collinear spin polarization.")
     end
-    n_fill = div(n_electrons, n_spin * filled_occ, RoundUp)
 
-    # For zero temperature, two cases arise: either there are as many bands
-    # as electrons, in which case we set εF to the highest energy level
-    # reached, or there are unoccupied conduction bands and we take
-    # εF as the midpoint between valence and conduction bands.
-    if n_fill == length(eigenvalues[1])
-        εF = maximum(maximum, eigenvalues) + 1
-        εF = mpi_max(εF, basis.comm_kpts)
+    # Gathering the eigenvalues distributed over the kpoints in MPI
+    n_bands = length(eigenvalues[1])   # assuming that the same number of bands are computed for each kpoint
+    counts = [ Int32(n_bands*length(basis.krange_allprocs[rank])) for rank in 1:MPI.Comm_size(basis.comm_kpts)]
+    all_eigenvalues = MPI.Allgatherv(vcat(eigenvalues...), counts, basis.comm_kpts)
+        
+    # Bisection method to find the index of the eigenvalue such that excess_n_electrons = 0
+    all_eigenvalues = sort(all_eigenvalues)
+    i_min = 1
+    i_max = length(all_eigenvalues)
+
+    if excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_max]; temperature, smearing) == 0
+        εF = all_eigenvalues[i_max]
     else
-        # highest occupied energy level
-        HOMO = maximum([εk[n_fill] for εk in eigenvalues])
-        HOMO = mpi_max(HOMO, basis.comm_kpts)
-        # lowest unoccupied energy level, be careful that not all k-points
-        # might have at least n_fill+1 energy levels so we have to take care
-        # of that by specifying init to minimum
-        LUMO = minimum(minimum.([εk[n_fill+1:end] for εk in eigenvalues]; init=T(Inf)))
-        LUMO = mpi_min(LUMO, basis.comm_kpts)
-        εF = (HOMO + LUMO) / 2
+        while i_max - i_min > 1
+            i = div(i_min+i_max, 2)
+            εF = all_eigenvalues[i]
+            if excess_n_electrons(basis, eigenvalues, εF; temperature, smearing) <= 0
+                i_min = i
+            else 
+                i_max = i
+            end
+        end
+        εF = 1/2*(all_eigenvalues[i_min]+all_eigenvalues[i_max])
+    end
+
+    occ = compute_occupation(basis, eigenvalues, εF; temperature, smearing).occupation
+    merged_spin_occupations = sum([occ[krange_spin(basis, i)] for i in 1:basis.model.n_spin_components])
+    if !allequal(merged_spin_occupations)
+        @warn("Not all kpoints have the same number of occupied states, which could mean "*
+              "that a metallic system is treated at zero temperature.")
     end
 
     excess(εF) = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
