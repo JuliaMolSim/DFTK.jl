@@ -387,6 +387,7 @@ function unfold_bz(basis::PlaneWaveBasis)
         return PlaneWaveBasis(basis.model, basis.Ecut, basis.fft_size,
                               basis.variational, basis.kgrid,
                               basis.symmetries_respect_rgrid,
+                              basis.symmetries_respect_basis,
                               use_symmetry_for_kpoint_reduction,
                               basis.comm_kpts, basis.architecture)
     end
