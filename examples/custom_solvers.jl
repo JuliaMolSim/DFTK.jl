@@ -16,12 +16,12 @@ model = model_LDA(lattice, atoms, positions)
 basis = PlaneWaveBasis(model; Ecut=5, kgrid=[1, 1, 1]);
 
 # We define our custom fix-point solver: simply a damped fixed-point
-function my_fp_solver(f, x0, info0, max_iter; tol)
+function my_fp_solver(f, x0, info0, maxiter; tol)
     mixing_factor = .7
     x = x0
     info = info0
     fx, info = f(x, info)
-    for n = 1:max_iter
+    for n = 1:maxiter
         inc = fx - x
         if norm(inc) < tol
             break
