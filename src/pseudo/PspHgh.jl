@@ -13,6 +13,8 @@ struct PspHgh{T} <: NormConservingPsp
     description::String   # Descriptive string
 end
 charge_ionic(psp::PspHgh) = psp.Zion
+has_valence_density(psp::PspHgh) = false
+has_core_density(psp::PspHgh) = false
 
 """
     PspHgh(path[, identifier, description])
@@ -20,7 +22,7 @@ charge_ionic(psp::PspHgh) = psp.Zion
 Construct a Hartwigsen, Goedecker, Teter, Hutter separable dual-space Gaussian
 pseudopotential (1998) from file.
 """
-function PspHgh(path; identifier=path)
+function PspHgh(path; identifier=path, kwargs...)
     lines = readlines(path)
     description = lines[1]
 
@@ -46,7 +48,7 @@ function PspHgh(path; identifier=path)
     h = Vector{Matrix{Float64}}(undef, lmax + 1)
     cur = 5  # Current line to parse
 
-    for l in 0:lmax
+    for l = 0:lmax
         # loop over all AM channels and extract projectors,
         # these are given in blocks like
         #
@@ -75,8 +77,8 @@ function PspHgh(path; identifier=path)
         # Else we have to parse the extra parts of the hcoeff matrix.
         # This is done here.
         hcoeff = [parse(Float64, part) for part in split(m[3])]
-        for i in 1:nproj
-            for j in i:nproj
+        for i = 1:nproj
+            for j = i:nproj
                 h[l + 1][j, i] = h[l + 1][i, j] = hcoeff[j - i + 1]
             end
 
@@ -107,7 +109,7 @@ end
 @doc raw"""
 The local potential of a HGH pseudopotentials in reciprocal space
 can be brought to the form ``Q(t) / (t^2 exp(t^2 / 2))``
-where ``t = r_\text{loc} q`` and `Q`
+where ``t = r_\text{loc} p`` and `Q`
 is a polynomial of at most degree 8. This function returns `Q`.
 """
 @inline function psp_local_polynomial(T, psp::PspHgh, t=Polynomial(T[0, 1]))
@@ -125,18 +127,18 @@ is a polynomial of at most degree 8. This function returns `Q`.
 end
 
 # [GTH98] (6) except they do it with plane waves normalized by 1/sqrt(Ω).
-function eval_psp_local_fourier(psp::PspHgh, q::T) where {T <: Real}
-    t::T = q * psp.rloc
+function eval_psp_local_fourier(psp::PspHgh, p::T) where {T <: Real}
+    t::T = p * psp.rloc
     psp_local_polynomial(T, psp, t) * exp(-t^2 / 2) / t^2
 end
 
 
 @doc raw"""
-Estimate an upper bound for the argument `q` after which
-`abs(eval_psp_local_fourier(psp, q))` is a strictly decreasing function.
+Estimate an upper bound for the argument `p` after which
+`abs(eval_psp_local_fourier(psp, p))` is a strictly decreasing function.
 """
-function qcut_psp_local(psp::PspHgh{T}) where {T}
-    Q = psp_local_polynomial(T, psp)  # polynomial in t = q * rloc
+function pcut_psp_local(psp::PspHgh{T}) where {T}
+    Q = psp_local_polynomial(T, psp)  # polynomial in t = p * rloc
 
     # Find the roots of the derivative polynomial:
     res = roots(Polynomial([0, 1]) * derivative(Q) - Polynomial([2, 0, 1]) * Q)
@@ -159,7 +161,7 @@ end
 
 @doc raw"""
 The nonlocal projectors of a HGH pseudopotentials in reciprocal space
-can be brought to the form ``Q(t) exp(-t^2 / 2)`` where ``t = r_l q``
+can be brought to the form ``Q(t) exp(-t^2 / 2)`` where ``t = r_l p``
 and `Q` is a polynomial. This function returns `Q`.
 """
 @inline function psp_projector_polynomial(T, psp::PspHgh, i, l, t=Polynomial(T[0, 1]))
@@ -189,11 +191,11 @@ end
 
 
 @doc raw"""
-Estimate an upper bound for the argument `q` after which
-`eval_psp_projector_fourier(psp, q)` is a strictly decreasing function.
+Estimate an upper bound for the argument `p` after which
+`eval_psp_projector_fourier(psp, p)` is a strictly decreasing function.
 """
-function qcut_psp_projector(psp::PspHgh{T}, i, l) where {T}
-    Q = psp_projector_polynomial(T, psp, i, l)  # polynomial in q * rp[l + 1]
+function pcut_psp_projector(psp::PspHgh{T}, i, l) where {T}
+    Q = psp_projector_polynomial(T, psp, i, l)  # polynomial in p * rp[l + 1]
 
     # Find the roots of the derivative polynomial:
     res = roots(derivative(Q) - Polynomial([0, 1]) * Q)
@@ -203,8 +205,8 @@ end
 
 
 # [HGH98] (7-15) except they do it with plane waves normalized by 1/sqrt(Ω).
-function eval_psp_projector_fourier(psp::PspHgh, i, l, q::T) where {T <: Real}
-    t::T = q * psp.rp[l + 1]
+function eval_psp_projector_fourier(psp::PspHgh, i, l, p::T) where {T <: Real}
+    t::T = p * psp.rp[l + 1]
     psp_projector_polynomial(T, psp, i, l, t) * exp(-t^2 / 2)
 end
 

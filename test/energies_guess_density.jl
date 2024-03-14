@@ -1,13 +1,11 @@
-using Test
-using DFTK
-
-include("testcases.jl")
-
 # TODO Once we have converged SCF densities in a file it would be better to instead / also
 #      test the energies of these densities and compare them directly to the reference
 #      energies obtained in the data files
 
-@testset "Evaluate energies of guess density" begin
+@testitem "Evaluate energies of guess density" setup=[TestCases] begin
+    using DFTK
+    silicon = TestCases.silicon
+
     Ecut = 15
     n_bands = 8
     fft_size = [27, 27, 27]
@@ -18,7 +16,7 @@ include("testcases.jl")
                       [:lda_x, :lda_c_vwn]; symmetries=false)
     basis = PlaneWaveBasis(model; Ecut, kgrid, fft_size, kshift)
 
-    ρ0 = guess_density(basis)
+    ρ0 = guess_density(basis, ValenceDensityGaussian())
     E, H = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0)
 
     @test E["Hartree"] ≈  0.3527293727197568  atol=5e-8
@@ -27,7 +25,7 @@ include("testcases.jl")
     # Run one diagonalization and compute energies
     res = diagonalize_all_kblocks(lobpcg_hyper, H, n_bands, tol=1e-9)
     occupation = [[2.0, 2.0, 2.0, 2.0, 0.0, 0.0, 0.0, 0.0]
-                  for i in 1:length(basis.kpoints)]
+                  for i = 1:length(basis.kpoints)]
     ρ = compute_density(H.basis, res.X, occupation)
     E, H = energy_hamiltonian(basis, res.X, occupation; ρ)
 

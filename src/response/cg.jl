@@ -28,14 +28,21 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
     # p is the descent direction
     p = copy(c)
     n_iter = 0
-    residual_norm = zero(real(T))
+    residual_norm = norm(r)
 
     # convergence history
     converged = false
 
     # preconditioned conjugate gradient
     while n_iter < maxiter
+        # output
+        info = (; A, b, n_iter, x, r, residual_norm, converged, stage=:iterate)
+        callback(info)
         n_iter += 1
+        if (n_iter ≥ miniter) && residual_norm ≤ tol
+            converged = true
+            break
+        end
         mul!(c, A, p)
         α = γ / dot(p, c)
 
@@ -44,21 +51,13 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
         r .= proj(r .- α .* c)
         residual_norm = norm(r)
 
-        # output
-        info = (; A, b, n_iter, x, r, residual_norm, converged, stage=:iterate)
-        callback(info)
-        if (n_iter > miniter) && residual_norm <= tol
-            converged = true
-            break
-        end
-
         # apply preconditioner and prepare next iteration
         ldiv!(c, precon, r)
         γ_prev, γ = γ, dot(r, c)
         β = γ / γ_prev
         p .= proj(c .+ β .* p)
     end
-    info = (; x, converged, tol, residual_norm, iterations=n_iter, maxiter, stage=:finalize)
+    info = (; x, converged, tol, residual_norm, n_iter, maxiter, stage=:finalize)
     callback(info)
     info
 end

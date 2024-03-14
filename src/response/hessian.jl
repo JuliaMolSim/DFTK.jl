@@ -25,7 +25,7 @@
 Compute the application of Ω defined at ψ to δψ. H is the Hamiltonian computed
 from ψ and Λ is the set of Rayleigh coefficients ψk' * Hk * ψk at each k-point.
 """
-function apply_Ω(δψ, ψ, H::Hamiltonian, Λ)
+@timing function apply_Ω(δψ, ψ, H::Hamiltonian, Λ)
     δψ = proj_tangent(δψ, ψ)
     Ωδψ = [H.blocks[ik] * δψk - δψk * Λ[ik] for (ik, δψk) in enumerate(δψ)]
     proj_tangent!(Ωδψ, ψ)
@@ -37,7 +37,7 @@ end
 Compute the application of K defined at ψ to δψ. ρ is the density issued from ψ.
 δψ also generates a δρ, computed with `compute_δρ`.
 """
-@views function apply_K(basis::PlaneWaveBasis, δψ, ψ, ρ, occupation)
+@views @timing function apply_K(basis::PlaneWaveBasis, δψ, ψ, ρ, occupation)
     δψ = proj_tangent(δψ, ψ)
     δρ = compute_δρ(basis, ψ, δψ, occupation)
     δV = apply_kernel(basis, δρ; ρ)
@@ -63,12 +63,16 @@ end
 
 Return δψ where (Ω+K) δψ = rhs
 """
-function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
-                      callback=identity, tol=1e-10) where {T}
-    @assert mpi_nprocs() == 1  # Distributed implementation not yet available
+@timing function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
+                              callback=identity, tol=1e-10) where {T}
     filled_occ = filled_occupation(basis.model)
     # for now, all orbitals have to be fully occupied -> need to strip them beforehand
     @assert all(all(occ_k .== filled_occ) for occ_k in occupation)
+
+    # To mpi-parallelise we have to deal with the fact that the linear algebra
+    # in the CG (dot products, norms) couples k-Points. Maybe take a look at
+    # the PencilArrays.jl package to get this done automatically.
+    @assert mpi_nprocs() == 1  # Distributed implementation not yet available
 
     # compute quantites at the point which define the tangent space
     ρ = compute_density(basis, ψ, occupation)
@@ -116,7 +120,7 @@ function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
     res = cg(J, rhs_pack; precon=FunctionPreconditioner(f_ldiv!), proj, tol,
              callback)
     (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norm,
-     res.iterations)
+     res.n_iter)
 end
 
 
@@ -130,9 +134,10 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
     - `δVind`: Change in potential induced by `δρ` (the term needed on top of `δHextψ`
       to get `δHψ`).
 """
-function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
-                            eigenvalues, rhs; tol=1e-8, tol_sternheimer=tol/10,
-                            verbose=false, occupation_threshold, kwargs...) where {T}
+@timing function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
+                                    eigenvalues, rhs; tol=1e-8, tol_sternheimer=tol/10,
+                                    verbose=false, occupation_threshold, q=zero(Vec3{real(T)}),
+                                    kwargs...) where {T}
     # Using χ04P = -Ω^-1, E extension operator (2P->4P) and R restriction operator:
     # (Ω+K)^-1 =  Ω^-1 ( 1 -   K   (1 + Ω^-1 K  )^-1    Ω^-1  )
     #          = -χ04P ( 1 -   K   (1 - χ04P K  )^-1   (-χ04P))
@@ -143,21 +148,21 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
 
     # compute δρ0 (ignoring interactions)
     δψ0, δoccupation0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
-                                    tol=tol_sternheimer, occupation_threshold,
+                                    tol=tol_sternheimer, occupation_threshold, q,
                                     kwargs...)  # = -χ04P * rhs
-    δρ0 = compute_δρ(basis, ψ, δψ0, occupation, δoccupation0; occupation_threshold)
+    δρ0 = compute_δρ(basis, ψ, δψ0, occupation, δoccupation0; occupation_threshold, q)
 
     # compute total δρ
     pack(δρ)   = vec(δρ)
     unpack(δρ) = reshape(δρ, size(ρ))
     function eps_fun(δρ)
         δρ = unpack(δρ)
-        δV = apply_kernel(basis, δρ; ρ)
+        δV = apply_kernel(basis, δρ; ρ, q)
         # TODO
         # Would be nice to play with abstol / reltol etc. to avoid over-solving
         # for the initial GMRES steps.
         χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
-                        occupation_threshold, tol=tol_sternheimer, kwargs...)
+                        occupation_threshold, tol=tol_sternheimer, q, kwargs...)
         pack(δρ - χ0δV)
     end
     J = LinearMap{T}(eps_fun, prod(size(δρ0)))
@@ -165,11 +170,10 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
     δρ = unpack(δρ)
 
     # Compute total change in Hamiltonian applied to ψ
-    δVind = apply_kernel(basis, δρ; ρ)  # Change in potential induced by δρ
-    δHψ = @views map(basis.kpoints, ψ, rhs) do kpt, ψk, rhsk
-        δVindψk = RealSpaceMultiplication(basis, kpt, δVind[:, :, :, kpt.spin]) * ψk
-        δVindψk - rhsk
-    end
+    δVind = apply_kernel(basis, δρ; ρ, q)  # Change in potential induced by δρ
+    # For phonon calculations, assemble
+    #   δHψ_k = δV_{q} · ψ_{k-q}.
+    δHψ = multiply_ψ_by_blochwave(basis, ψ, δVind, q) .- rhs
 
     # Compute total change in eigenvalues
     δeigenvalues = map(ψ, δHψ) do ψk, δHψk
@@ -178,9 +182,9 @@ function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupat
         end
     end
 
-    δψ, δoccupation, δεF = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                                       occupation_threshold, tol=tol_sternheimer,
-                                       kwargs...)
+    (; δψ, δoccupation, δεF) = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+                                           occupation_threshold, tol=tol_sternheimer, q,
+                                           kwargs...)
 
     (; δψ, δρ, δHψ, δVind, δeigenvalues, δoccupation, δεF, history)
 end

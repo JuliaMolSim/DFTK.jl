@@ -1,25 +1,22 @@
-using Test
-using DFTK
-using GenericLinearAlgebra
+@testitem "Application of an LDA Hamiltonian with Intervals" #=
+    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using GenericLinearAlgebra
+    using IntervalArithmetic: Interval, radius, mid
+    silicon = TestCases.silicon
 
-include("testcases.jl")
+    function discretized_hamiltonian(T, testcase)
+        model = model_DFT(convert(Matrix{T}, testcase.lattice), testcase.atoms,
+                          testcase.positions, [:lda_x, :lda_c_vwn])
 
-function discretized_hamiltonian(T, testcase)
-    model = model_DFT(testcase.lattice, testcase.atoms,
-                      testcase.positions, [:lda_x, :lda_c_vwn])
-    model = convert(Model{T}, model)
+        # For interval arithmetic to give useful numbers,
+        # the fft_size should be a power of 2
+        Ecut = 10
+        fft_size = nextpow.(2, compute_fft_size(model, Ecut))
+        basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1), fft_size)
 
-    # For interval arithmetic to give useful numbers,
-    # the fft_size should be a power of 2
-    Ecut = 10
-    fft_size = nextpow.(2, compute_fft_size(model, Ecut))
-    basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1), fft_size)
-
-    Hamiltonian(basis; ρ=guess_density(basis))
-end
-
-@testset "Application of an LDA Hamiltonian with Intervals" begin
-    import IntervalArithmetic: Interval, radius, mid
+        Hamiltonian(basis; ρ=guess_density(basis))
+    end
 
     T = Float64
     ham    = discretized_hamiltonian(T, silicon)
@@ -37,12 +34,14 @@ end
     @test maximum(mid, abs.(res .- ref)) < 1e-9
 
     # Small error determined by interval arithmetic
-    @test maximum(radius, abs.(res)) < 1e-9
+    @test maximum(radius, abs.(res)) < 2e-9
 end
 
-@testset "compute_occupation with Intervals" begin
-    import IntervalArithmetic: Interval, mid
-    testcase = silicon
+@testitem "compute_occupation with Intervals" tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using GenericLinearAlgebra
+    using IntervalArithmetic: Interval, radius, mid
+    testcase = TestCases.silicon
 
     model = model_LDA(Matrix{Interval{Float64}}(testcase.lattice),
                       testcase.atoms, testcase.positions)

@@ -47,7 +47,7 @@ The `tol_n_elec` gives the accuracy on the electron count which should be at lea
 """
 function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues::AbstractVector,
                             fermialg::AbstractFermiAlgorithm=default_fermialg(basis.model);
-                            tol_n_elec=default_occupation_threshold(),
+                            tol_n_elec=default_occupation_threshold(T),
                             temperature=basis.model.temperature,
                             smearing=basis.model.smearing) where {T}
     if !isnothing(basis.model.εF)  # fixed Fermi level

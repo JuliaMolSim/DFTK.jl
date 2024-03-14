@@ -4,8 +4,6 @@
 # fp_solver(f, x0, info0, tol, maxiter), where f(x, info) is the fixed-point map. 
 # It must return an object supporting res.fixpoint, res.info and res.converged
 
-# TODO max_iter could go to the solver generator function arguments
-
 """
 Create a damped SCF solver updating the density as
 `x = β * x_new + (1 - β) * x`
@@ -89,7 +87,7 @@ function CROP(f, x0, info0, m::Int, max_iter::Int, tol::Real, warming=0)
     errs = zeros(max_iter)
     err = Inf
 
-    for n = 1:max_iter
+    for n = 1:maxiter
         xtnp1 = xs[:, 1] + fs[:, 1]  # Richardson update
         ftnp1, info = f(xtnp1, info)             # Residual
         err = norm(ftnp1)

@@ -1,5 +1,8 @@
-include("run_scf_and_compare.jl")
-include("testcases.jl")
+@testsetup module IronPBE
+using Test
+using DFTK
+using ..RunSCF: run_scf_and_compare
+using ..TestCases: iron_bcc
 
 function run_iron_pbe(T; kwargs...)
     # These values were computed using ABINIT with the same kpoints as testcases.jl
@@ -47,26 +50,22 @@ function run_iron_pbe(T; kwargs...)
     ref_magn = 2.98199463
 
     # Produce reference data and guess for this configuration
-    Fe = ElementPsp(iron_bcc.atnum, psp=load_psp("hgh/lda/Fe-q8.hgh"))
-    atoms, positions = [Fe], [zeros(3)]
     magnetic_moments = [4.0]
     model = model_PBE(iron_bcc.lattice, iron_bcc.atoms, iron_bcc.positions;
                       temperature=0.01, magnetic_moments)
     model = convert(Model{T}, model)
-    basis = PlaneWaveBasis(model; Ecut=20, fft_size=[20, 20, 20],
-                           kgrid=[4, 4, 4], kshift=[1/2, 1/2, 1/2])
+    basis = PlaneWaveBasis(model; Ecut=20, fft_size=[20, 20, 20], kgrid=[4, 4, 4],
+                           kshift=[1/2, 1/2, 1/2])
 
     scfres = run_scf_and_compare(T, basis, ref_evals, ref_etot;
-                                 ρ=guess_density(basis, magnetic_moments),
-                                 kwargs...)
+                                 ρ=guess_density(basis, magnetic_moments), kwargs...)
 
     magnetisation = sum(spin_density(scfres.ρ)) * basis.dvol
     @test magnetisation ≈ ref_magn atol=5e-5
 end
+end
 
 
-if !isdefined(Main, :FAST_TESTS) || !FAST_TESTS
-    @testset "Iron PBE (Float64)" begin
-        run_iron_pbe(Float64, test_tol=5e-6, scf_tol=1e-12)
-    end
+@testitem "Iron PBE (Float64)" tags=[:slow] setup=[RunSCF, TestCases, IronPBE] begin
+    IronPBE.run_iron_pbe(Float64; test_tol=5e-6, scf_ene_tol=1e-12)
 end

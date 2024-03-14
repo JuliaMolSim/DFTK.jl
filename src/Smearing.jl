@@ -29,7 +29,7 @@ Derivative of the occupation function, approximation to minus the delta function
 occupation_derivative(S::SmearingFunction, x) = ForwardDiff.derivative(x -> occupation(S, x), x)
 
 """
-(f(x) - f(y))/(x - y), computed stably in the case where x and y are close
+`(f(x) - f(y))/(x - y)`, computed stably in the case where `x` and `y` are close
 """
 function occupation_divided_difference(S::SmearingFunction, x, y, εF, temp)
     if temp == 0
@@ -43,10 +43,10 @@ function occupation_divided_difference(S::SmearingFunction, x, y, εF, temp)
     else
         f(z) = occupation(S, (z-εF) / temp)
         fder(z) = occupation_derivative(S, (z-εF)/temp) / temp
-        divided_difference_(f, fder, x, y)
+        divided_difference(f, fder, x, y)
     end
 end
-function divided_difference_(f, fder, x::T, y) where {T}
+function divided_difference(f, fder, x::T, y) where {T}
     # (f(x) - f(y))/(x - y) is accurate to ε/|x-y|
     # so for x ~= y we use the approximation (f'(x)+f'(y))/2,
     # which is accurate to |x-y|^2, and therefore better when |x-y| ≤ cbrt(ε)
@@ -57,15 +57,17 @@ end
 
 """
 Entropy. Note that this is a function of the energy `x`, not of `occupation(x)`.
-This function satisfies s' = x f' (see https://www.vasp.at/vasp-workshop/k-points.pdf
-p. 12 and https://arxiv.org/pdf/1805.07144.pdf p. 18.
+This function satisfies `s' = x f'` (see <https://www.vasp.at/vasp-workshop/k-points.pdf>
+p. 12 and <https://arxiv.org/pdf/1805.07144.pdf> p. 18.
 """
 entropy(S::SmearingFunction, x) = error()
 
+"""No smearing"""
 struct None <: SmearingFunction end
 occupation(S::None, x) = x > 0 ? zero(x) : one(x)
 entropy(S::None, x) = zero(x)
 
+"""Fermi dirac smearing"""
 struct FermiDirac <: SmearingFunction end
 occupation(S::FermiDirac, x) = 1 / (1 + exp(x))
 function xlogx(x)
@@ -86,7 +88,7 @@ function occupation_divided_difference(S::FermiDirac, x, y, εF, temp)
     large_float = floatmax(typeof(x)) / 1e4 # conservative
     will_exp_overflow(z1, z2) = abs((z1-z2)/temp) > log(large_float)
     if x == y || will_exp_overflow(x, y) || will_exp_overflow(x, εF) || will_exp_overflow(y, εF)
-        divided_difference_(f, fder, x, y)
+        divided_difference(f, fder, x, y)
     else
         Δfxy = f(x) * f(y) * exp((x-εF)/temp) * expm1((y-x)/temp)
         Δfyx = f(x) * f(y) * exp((y-εF)/temp) * expm1((x-y)/temp)
@@ -94,20 +96,24 @@ function occupation_divided_difference(S::FermiDirac, x, y, εF, temp)
     end
 end
 
+"""Gaussian Smearing"""
 struct Gaussian <: SmearingFunction end
 occupation(S::Gaussian, x) = erfc(x) / 2
 entropy(S::Gaussian, x::T) where {T} = 1 / (2 * sqrt(T(π))) * exp(-x^2)
 
-# NB: the Fermi energy with Marzari-Vanderbilt smearing is __not__ unique
+"""
+Marzari Vanderbilt cold smearing.
+NB: The Fermi energy with Marzari-Vanderbilt smearing is **not** unique.
+"""
 struct MarzariVanderbilt <: SmearingFunction end
 function occupation(S::MarzariVanderbilt, x::T) where {T}
-    return (
+    (
         -erf(x + 1/sqrt(T(2))) / 2
         + 1/sqrt(2*T(π)) * exp(-(-x - 1/sqrt(T(2)))^2) + 1/T(2)
     )
 end
 function entropy(S::MarzariVanderbilt, x::T) where {T}
-    return 1/sqrt(2*T(π)) * (x + 1/sqrt(T(2))) * exp(-(-x - 1/sqrt(T(2)))^2)
+    1/sqrt(2*T(π)) * (x + 1/sqrt(T(2))) * exp(-(-x - 1/sqrt(T(2)))^2)
 end
 
 """
@@ -128,19 +134,22 @@ function H(x, n)
     end
 end
 
-# NB: the Fermi energy with Methfessel-Paxton smearing is __not__ unique
+"""
+Methfessel-Paxton smearing of a given `order`.
+NB: The Fermi energy with Methfessel-Paxton smearing is **not** unique.
+"""
 struct MethfesselPaxton <: SmearingFunction
     order::Int
 end
 function occupation(S::MethfesselPaxton, x::T) where {T}
-    x == Inf && return zero(x)
+    x ==  Inf && return zero(x)
     x == -Inf && return one(x)
     f₀ = erfc(x) / 2  # 0-order Methfessel-Paxton smearing is Gaussian smearing
     Σfₙ = sum(i -> A(T, i) * H(x, 2i - 1), 1:S.order)
-    return f₀ + Σfₙ * exp(-x^2)
+    f₀ + Σfₙ * exp(-x^2)
 end
 function entropy(S::MethfesselPaxton, x::T) where {T}
-    return sum(i -> A(T, i) * (H(x, 2i) / 2 + 2i * H(x, 2i - 2)), 0:S.order) * exp(-x^2)
+    sum(i -> A(T, i) * (H(x, 2i) / 2 + 2i * H(x, 2i - 2)), 0:S.order) * exp(-x^2)
 end
 
 

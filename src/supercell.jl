@@ -3,7 +3,7 @@ Construct a supercell of size `supercell_size` from a unit cell described by its
 `atoms` and their `positions`.
 """
 function create_supercell(lattice, atoms, positions, supercell_size)
-    lattice_supercell = reduce(hcat, supercell_size .* eachcol(lattice))
+    lattice_supercell = stack(supercell_size .* eachcol(lattice))
 
     # Compute atoms reduced coordinates in the supercell
     atoms_supercell = eltype(atoms)[]
@@ -12,8 +12,8 @@ function create_supercell(lattice, atoms, positions, supercell_size)
 
     for (atom, position) in zip(atoms, positions)
         append!(positions_supercell, [(position .+ [i;j;k]) ./ [nx, ny, nz]
-                                      for i in 0:nx-1, j in 0:ny-1, k in 0:nz-1])
-        append!(atoms_supercell, vcat([atom for _ in 1:nx*ny*nz]...))
+                                      for i = 0:nx-1, j = 0:ny-1, k = 0:nz-1])
+        append!(atoms_supercell, reduce(vcat, [atom for _ = 1:nx*ny*nz]))
     end
 
     (; lattice=lattice_supercell, atoms=atoms_supercell, positions=positions_supercell)
@@ -24,31 +24,30 @@ Construct a plane-wave basis whose unit cell is the supercell associated to
 an input basis ``k``-grid. All other parameters are modified so that the respective physical
 systems associated to both basis are equivalent.
 """
-function cell_to_supercell(basis::PlaneWaveBasis)
-    iszero(basis.kshift) || error("Only kshift of 0 implemented.")
+function cell_to_supercell(basis::PlaneWaveBasis{T}) where {T}
+    @assert basis.kgrid isa MonkhorstPack
+    iszero(basis.kgrid.kshift) || error("Only kshift of 0 implemented.")
     model = basis.model
 
     # Compute supercell model and basis parameters
-    supercell_size = basis.kgrid
+    supercell_size = basis.kgrid.kgrid_size
     supercell = create_supercell(model.lattice, model.atoms, model.positions, supercell_size)
-    supercell_fft_size = basis.fft_size .* supercell_size
+    supercell_fft_size = Tuple{Int,Int,Int}(basis.fft_size .* supercell_size)
     if isnothing(model.n_electrons)
         n_electrons_supercell = nothing
     else
         n_electrons_supercell = prod(supercell_size) * model.n_electrons
     end
+    supercell_kgrid = MonkhorstPack([1, 1, 1], basis.kgrid.kshift)
 
     # Assemble new model and new basis
-    model_supercell = Model(model; supercell.lattice, supercell.atoms, supercell.positions,
+    supercell_model = Model(model; supercell.lattice, supercell.atoms, supercell.positions,
                             n_electrons=n_electrons_supercell, symmetries=false)
-    symmetries_respect_rgrid = false  # single point symmetry
-    PlaneWaveBasis(model_supercell, basis.Ecut, supercell_fft_size,
-                   basis.variational,
-                   [zeros(Float64, 3)],  # kcoords
-                   [one(Float64)],       # kweights
-                   ones(3),              # kgrid = Γ point only
-                   basis.kshift,         # kshift
-                   symmetries_respect_rgrid,
+    symmetries_respect_rgrid = true
+    use_symmetries_for_kpoint_reduction = true
+    PlaneWaveBasis(supercell_model, basis.Ecut, supercell_fft_size,
+                   basis.variational, supercell_kgrid, symmetries_respect_rgrid,
+                   use_symmetries_for_kpoint_reduction,
                    basis.comm_kpts, basis.architecture)
 end
 
@@ -71,7 +70,7 @@ The output `ψ_supercell` have a single component at ``Γ``-point, such that
 function cell_to_supercell(ψ, basis::PlaneWaveBasis{T},
                            basis_supercell::PlaneWaveBasis{T}) where {T <: Real}
     # Ensure that the basis is unfolded.
-    prod(basis.kgrid) != length(basis.kpoints) && error("basis must be unfolded")
+    length(basis.kgrid) != length(basis.kpoints) && error("basis must be unfolded")
 
     num_kpG   = sum(size.(ψ, 1))
     num_bands = size(ψ[1], 2)
@@ -85,12 +84,12 @@ function cell_to_supercell(ψ, basis::PlaneWaveBasis{T},
     # Transfer all ψ[k] independantly and return the hcat of all blocs
     ψ_out_blocs = []
     for (ik, kpt) in enumerate(basis.kpoints)
-        ψk_supercell = zeros(ComplexF64, num_kpG, num_bands)
+        ψk_supercell = zeros(complex(T), num_kpG, num_bands)
         ψk_supercell[cell_supercell_mapping(kpt), :] .= ψ[ik]
         push!(ψ_out_blocs, ψk_supercell)
     end
     # Note that each column is normalize since each ψ[ik][:,n] is.
-    hcat(ψ_out_blocs...)
+    reduce(hcat, ψ_out_blocs)
 end
 
 @doc raw"""
@@ -112,7 +111,7 @@ function cell_to_supercell(scfres::NamedTuple)
     # Compute supercell basis, ψ, occupations and ρ
     basis_supercell = cell_to_supercell(basis)
     ψ_supercell     = [cell_to_supercell(ψ, basis, basis_supercell)]
-    eigs_supercell  = [vcat(scfres_unfold.eigenvalues...)]
+    eigs_supercell  = [reduce(vcat, scfres_unfold.eigenvalues)]
     occ_supercell   = compute_occupation(basis_supercell, eigs_supercell, scfres.εF).occupation
     ρ_supercell     = compute_density(basis_supercell, ψ_supercell, occ_supercell;
                                       scfres.occupation_threshold)

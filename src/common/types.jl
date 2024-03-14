@@ -1,4 +1,5 @@
 using StaticArrays
+using StaticArrays: setindex
 
 # Deduce the value type (floating-point type for storing plain an static data
 # in Model and PlaneWaveBasis) from e.g. an interval or a dual type.

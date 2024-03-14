@@ -1,0 +1,44 @@
+&CONTROL
+    calculation = 'scf'
+    verbosity = 'high'
+    tstress = .true.
+    tprnfor = .true.
+    outdir = './'
+    prefix = 'silicon_NLCC'
+    disk_io = 'nowf'
+    pseudo_dir = './'
+/
+
+&SYSTEM
+    ibrav = 0
+    nat = 2
+    ntyp = 1
+    nbnd = 8
+    ecutwfc = 50.0
+    occupations = 'fixed'
+    input_dft = 'xc-001l-012l'  ! lda_x + lda_c_pw
+/
+
+&ELECTRONS
+    electron_maxstep = 100
+    conv_thr = 2.0d-11
+/
+
+ATOMIC_SPECIES
+    Si 28.085 Si.upf
+
+ATOMIC_POSITIONS crystal
+    Si  0.125  0.125  0.125
+    Si -0.125 -0.125 -0.125
+
+K_POINTS crystal
+4
+     0.000000000000000  0.000000000000000  0.0000000000000000 0.0370370370370370
+     0.333333333333333  0.000000000000000  0.0000000000000000 0.2962962962962963
+     0.333333333333333  0.333333333333333  0.0000000000000000 0.2222222222222222
+    -0.333333333333333  0.333333333333333  0.0000000000000000 0.4444444444444444
+
+CELL_PARAMETERS bohr
+     0.000000000000000  5.131570667152971  5.131570667152971
+     5.131570667152971  0.000000000000000  5.131570667152971
+     5.131570667152971  5.131570667152971  0.000000000000000

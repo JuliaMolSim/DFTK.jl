@@ -25,7 +25,7 @@ function ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis, f_fourier::Abstrac
     f_real .*= basis.ifft_normalization
 end
 function ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-                 kpt::Kpoint, f_fourier::AbstractVector; normalize=true)
+               kpt::Kpoint, f_fourier::AbstractVector; normalize=true)
     @assert length(f_fourier) == length(kpt.mapping)
     @assert size(f_real) == basis.fft_size
 
@@ -55,16 +55,15 @@ function ifft(basis::PlaneWaveBasis, f_fourier::AbstractArray)
     end
     f_real
 end
-"""
-Perform a real valued iFFT; see [`ifft`](@ref).
-"""
-function irfft(basis::PlaneWaveBasis{T}, f_fourier::AbstractArray; check=Val(true)) where {T}
-    f_real = ifft(basis, f_fourier)
-    (check == Val(true)) && @assert norm(imag(f_real)) < max(1e-12, sqrt(eps(T)))
-    real(f_real)
-end
 function ifft(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector; kwargs...)
     ifft!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier; kwargs...)
+end
+"""
+Perform a real valued iFFT; see [`ifft`](@ref). Note that this function
+silently drops the imaginary part.
+"""
+function irfft(basis::PlaneWaveBasis{T}, f_fourier::AbstractArray) where {T}
+    real(ifft(basis, f_fourier))
 end
 
 
@@ -80,7 +79,7 @@ function fft!(f_fourier::AbstractArray3, basis::PlaneWaveBasis, f_real::Abstract
     f_fourier .*= basis.fft_normalization
 end
 function fft!(f_fourier::AbstractVector, basis::PlaneWaveBasis,
-                 kpt::Kpoint, f_real::AbstractArray3; normalize=true)
+              kpt::Kpoint, f_real::AbstractArray3; normalize=true)
     @assert size(f_real) == basis.fft_size
     @assert length(f_fourier) == length(kpt.mapping)
 
@@ -151,13 +150,14 @@ represented in the spherical basis sets, `supersampling` should be at least `2`.
 
 If `factors` is not empty, ensure that the resulting fft_size contains all the factors
 """
-function compute_fft_size(model::Model{T}, Ecut, kcoords=nothing;
+function compute_fft_size(model::Model{T}, Ecut, kgrid=nothing;
                           ensure_smallprimes=true, algorithm=:fast, factors=1,
                           kwargs...) where {T}
     if algorithm == :fast
         Glims = compute_Glims_fast(model.lattice, Ecut; kwargs...)
     elseif algorithm == :precise
-        @assert !isnothing(kcoords)
+        @assert !isnothing(kgrid)
+        kcoords = reducible_kcoords(kgrid).kcoords
 
         # We build a temporary set of k-points here
         # We don't reuse this k-point construction for the pwbasis
@@ -166,7 +166,8 @@ function compute_fft_size(model::Model{T}, Ecut, kcoords=nothing;
         # fft_size needs to be final at k-point construction time
         Glims_temp    = compute_Glims_fast(model.lattice, Ecut; kwargs...)
         fft_size_temp = Tuple{Int, Int, Int}(2 .* Glims_temp .+ 1)
-        kpoints_temp  = build_kpoints(model, fft_size_temp, kcoords, Ecut; architecture=CPU())
+        kpoints_temp  = build_kpoints(model, fft_size_temp, kcoords, Ecut;
+                                      architecture=CPU())
 
         Glims = compute_Glims_precise(model.lattice, Ecut, kpoints_temp; kwargs...)
     else
@@ -185,6 +186,9 @@ function compute_fft_size(model::Model{T}, Ecut, kcoords=nothing;
     fft_size = Vec3(2 .* Glims .+ 1)
     fft_size = next_compatible_fft_size(fft_size; factors, smallprimes)
     Tuple{Int, Int, Int}(fft_size)
+end
+function compute_fft_size(model::Model, Ecut::Quantity, kgrid=nothing; kwargs...)
+    compute_fft_size(model, austrip(Ecut), kgrid; kwargs...)
 end
 
 """
@@ -210,7 +214,8 @@ end
 # This uses a more precise and slower algorithm than the one above,
 # simply enumerating all G vectors and seeing where their difference
 # is. It needs the kpoints to do so.
-@timing function compute_Glims_precise(lattice::AbstractMatrix{T}, Ecut, kpoints; supersampling=2) where {T}
+@timing function compute_Glims_precise(lattice::AbstractMatrix{T}, Ecut, kpoints;
+                                       supersampling=2) where {T}
     recip_lattice  = compute_recip_lattice(lattice)
     recip_diameter = diameter(recip_lattice)
     Glims = [0, 0, 0]
@@ -245,7 +250,8 @@ end
 end
 
 # Fast implementation, but sometimes larger than necessary.
-function compute_Glims_fast(lattice::AbstractMatrix{T}, Ecut; supersampling=2, tol=sqrt(eps(T))) where {T}
+function compute_Glims_fast(lattice::AbstractMatrix{T}, Ecut;
+                            supersampling=2, tol=sqrt(eps(T))) where {T}
     Gmax = supersampling * sqrt(2 * Ecut)
     recip_lattice = compute_recip_lattice(lattice)
     Glims = estimate_integer_lattice_bounds(recip_lattice, Gmax; tol)

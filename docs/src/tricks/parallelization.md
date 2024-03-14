@@ -9,7 +9,7 @@ a = 10.26  # Silicon lattice constant in Bohr
 lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
-Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
+Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
 atoms = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
 
@@ -46,10 +46,9 @@ as a breakdown over individual routines.
     alter the way stack traces look making it sometimes harder to find
     errors when debugging.
     For this reason timing measurements can be disabled completely
-    (i.e. not even compiled into the code) by setting the environment variable
-    `DFTK_TIMING` to `"0"` or `"false"`.
-    For this to take effect recompiling all DFTK (including the precompile cache)
-    is needed.
+    (i.e. not even compiled into the code) by setting the package-level preference
+    `DFTK.set_timer_enabled!(false)`. You will need to restart your Julia session
+    afterwards to take this into account.
 
 ## Rough timing estimates
 A very (very) rough estimate of the time per SCF step (in seconds)
@@ -189,11 +188,7 @@ using LinearAlgebra
 BLAS.set_num_threads(N)
 ```
 where `N` is the number of threads you desire.
-To **check the number of BLAS threads** currently used, you can use
-```julia
-Int(ccall((BLAS.@blasfunc(openblas_get_num_threads), BLAS.libblas), Cint, ()))
-```
-or (from Julia 1.6) simply `BLAS.get_num_threads()`.
+To **check the number of BLAS threads** currently used, you can use `BLAS.get_num_threads()`.
 
 ### Julia threads
 On top of BLAS threading DFTK uses Julia threads (`Thread.@threads`)

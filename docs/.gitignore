@@ -5,5 +5,12 @@ src/guide/tutorial.md
 src/guide/tutorial.ipynb
 src/guide/periodic_problems.ipynb
 src/guide/periodic_problems.md
+src/guide/atomic_chains.ipynb
+src/guide/atomic_chains.md
+src/guide/self_consistent_field.ipynb
+src/guide/self_consistent_field.md
+src/guide/discretisation.ipynb
+src/guide/discretisation.md
 src/tricks/scf_checkpoints.ipynb
 src/tricks/scf_checkpoints.md
+/Artifacts.toml

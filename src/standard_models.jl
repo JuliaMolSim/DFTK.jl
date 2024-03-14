@@ -43,11 +43,17 @@ function model_DFT(lattice::AbstractMatrix,
                    kwargs...)
     model_DFT(lattice, atoms, positions, Xc(functionals); kwargs...)
 end
-
+function model_DFT(lattice::AbstractMatrix,
+                   atoms::Vector{<:Element},
+                   positions::Vector{<:AbstractVector};
+                   functionals::AbstractVector,
+                   kwargs...)
+    model_DFT(lattice, atoms, positions, functionals; kwargs...)
+end
 
 """
 Build an LDA model (Perdew & Wang parametrization) from the specified atoms.
-DOI:10.1103/PhysRevB.45.13244
+<https://doi.org/10.1103/PhysRevB.45.13244>
 """
 function model_LDA(lattice::AbstractMatrix, atoms::Vector{<:Element},
                    positions::Vector{<:AbstractVector}; kwargs...)
@@ -57,7 +63,7 @@ end
 
 """
 Build an PBE-GGA model from the specified atoms.
-DOI:10.1103/PhysRevLett.77.3865
+<https://doi.org/10.1103/PhysRevLett.77.3865>
 """
 function model_PBE(lattice::AbstractMatrix, atoms::Vector{<:Element},
                    positions::Vector{<:AbstractVector}; kwargs...)
@@ -67,7 +73,7 @@ end
 
 """
 Build a SCAN meta-GGA model from the specified atoms.
-DOI:10.1103/PhysRevLett.115.036402
+<https://doi.org/10.1103/PhysRevLett.115.036402>
 """
 function model_SCAN(lattice::AbstractMatrix, atoms::Vector{<:Element},
                     positions::Vector{<:AbstractVector}; kwargs...)
@@ -78,7 +84,6 @@ end
 # Generate equivalent functions for AtomsBase
 for fun in (:model_atomic, :model_DFT, :model_LDA, :model_PBE, :model_SCAN)
     @eval function $fun(system::AbstractSystem, args...; kwargs...)
-        @assert !(:magnetic_moments in keys(kwargs))
         parsed = parse_system(system)
         $fun(parsed.lattice, parsed.atoms, parsed.positions, args...;
              parsed.magnetic_moments, kwargs...)

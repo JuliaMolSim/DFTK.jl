@@ -14,7 +14,7 @@ using ForwardDiff
 function make_basis(ε::T; a=10., Ecut=30) where {T}
     lattice=T(a) * I(3)  # lattice is a cube of ``a`` Bohrs
     ## Helium at the center of the box
-    atoms     = [ElementPsp(:He, psp=load_psp("hgh/lda/He-q2"))]
+    atoms     = [ElementPsp(:He; psp=load_psp("hgh/lda/He-q2"))]
     positions = [[1/2, 1/2, 1/2]]
 
     model = model_DFT(lattice, atoms, positions, [:lda_x, :lda_c_vwn];

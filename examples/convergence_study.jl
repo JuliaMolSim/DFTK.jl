@@ -25,14 +25,14 @@ using LinearAlgebra
 using Statistics
 
 function run_scf(; a=5.0, Ecut, nkpt, tol)
-    atoms    = [ElementPsp(:Pt, psp = load_psp("hgh/lda/Pt-q10"))]
+    atoms    = [ElementPsp(:Pt; psp=load_psp("hgh/lda/Pt-q10"))]
     position = [zeros(3)]
     lattice  = a * Matrix(I, 3, 3)
 
     model  = model_LDA(lattice, atoms, position; temperature=1e-2)
     basis  = PlaneWaveBasis(model; Ecut, kgrid=(nkpt, nkpt, nkpt))
     println("nkpt = $nkpt Ecut = $Ecut")
-    self_consistent_field(basis; is_converged=DFTK.ScfConvergenceEnergy(tol))
+    self_consistent_field(basis; is_converged=ScfConvergenceEnergy(tol))
 end;
 
 # Moreover we define some parameters. To make the calculations run fast for the

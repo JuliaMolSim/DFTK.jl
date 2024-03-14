@@ -10,7 +10,7 @@ using LinearAlgebra
 # Calculation parameters
 kgrid = [1, 1, 1]
 Ecut = 15  # 30 in the paper
-Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
+Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
 atoms     = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
 
@@ -31,7 +31,7 @@ function my_callback(info)
 end
 my_isconverged = info -> norm(info.ρout - info.ρin) < tol
 opts = (; callback=my_callback, is_converged=my_isconverged, maxiter, tol,
-        determine_diagtol=info -> diagtol)
+        diagtolalg=AdaptiveDiagtol(; diagtol_max=diagtol))
 
 global errs = []
 global gaps = []

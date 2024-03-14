@@ -1,6 +1,4 @@
 # # Tutorial
-#md # [![](https://mybinder.org/badge_logo.svg)](@__BINDER_ROOT_URL__/guide/@__NAME__.ipynb)
-#md # [![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)](@__NBVIEWER_ROOT_URL__/guide/@__NAME__.ipynb)
 
 #nb # DFTK is a Julia package for playing with plane-wave
 #nb # density-functional theory algorithms. In its basic formulation it
@@ -48,7 +46,7 @@ lattice = a / 2 * [[0 1 1.];  # Silicon lattice vectors
 # [UnitfulAtomic.jl package](https://github.com/sostock/UnitfulAtomic.jl).
 
 ## Load HGH pseudopotential for Silicon
-Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
+Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
 
 ## Specify type and positions of atoms
 atoms     = [Si, Si]
@@ -71,11 +69,9 @@ scfres = self_consistent_field(basis, tol=1e-5);
 scfres.energies
 
 # Eigenvalues:
-hcat(scfres.eigenvalues...)
+stack(scfres.eigenvalues)
 # `eigenvalues` is an array (indexed by k-points) of arrays (indexed by
-# eigenvalue number). The "splatting" operation `...` calls `hcat`
-# with all the inner arrays as arguments, which collects them into a
-# matrix.
+# eigenvalue number).
 #
 # The resulting matrix is 7 (number of computed eigenvalues) by 8
 # (number of irreducible k-points). There are 7 eigenvalues per
@@ -91,17 +87,24 @@ hcat(scfres.eigenvalues...)
 # for details).
 #
 # We can check the occupations ...
-hcat(scfres.occupation...)
+stack(scfres.occupation)
 # ... and density, where we use that the density objects in DFTK are
-# indexed as ρ[iσ, ix, iy, iz], i.e. first in the spin component and then
-# in the 3-dimensional real-space grid.
+# indexed as ρ[ix, iy, iz, iσ], i.e. first in the 3-dimensional real-space grid
+# and then in the spin component.
 rvecs = collect(r_vectors(basis))[:, 1, 1]  # slice along the x axis
 x = [r[1] for r in rvecs]                   # only keep the x coordinate
 plot(x, scfres.ρ[1, :, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
 
 # We can also perform various postprocessing steps:
-# for instance compute a band structure
-plot_bandstructure(scfres; kline_density=10)
-# or get the cartesian forces (in Hartree / Bohr)
+# We can get the Cartesian forces (in Hartree / Bohr):
 compute_forces_cart(scfres)
 # As expected, they are numerically zero in this highly symmetric configuration.
+# We could also compute a band structure,
+plot_bandstructure(scfres; kline_density=10)
+# or plot a density of states, for which we increase the kgrid a bit
+# to get smoother plots:
+bands = compute_bands(scfres, MonkhorstPack(6, 6, 6))
+plot_dos(bands; temperature=1e-3, smearing=Smearing.FermiDirac())
+# Note that directly employing the `scfres` also works, but the results
+# are much cruder:
+plot_dos(scfres; temperature=1e-3, smearing=Smearing.FermiDirac())

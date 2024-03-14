@@ -6,7 +6,7 @@ function diag_full(A, X0; kwargs...)
     λ = E.values[1:Neig]
     (; λ, X,
      residual_norms=zeros(Neig),
-     iterations=0,
+     n_iter=0,
      converged=true,
      n_matvec=0)
 end

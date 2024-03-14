@@ -1,8 +1,7 @@
-using Test
-using DFTK
-import DFTK: AdaptiveDamping, ensure_damping_within_range
+@testitem "Damping adjustment in adaptive damping" begin
+    using DFTK
+    using DFTK: AdaptiveDamping, ensure_damping_within_range
 
-@testset "Damping adjustment in adaptive damping" begin
     damping = AdaptiveDamping(;α_min=0.05,
                                α_max=1.0,
                                α_trial_init=0.8,

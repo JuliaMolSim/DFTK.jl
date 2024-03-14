@@ -78,7 +78,7 @@ second_system = atomic_system(model)
 lattice = 5.431u"Å" / 2 * [[0 1 1.];
                            [1 0 1.];
                            [1 1 0.]];
-Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
+Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
 atoms     = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
 

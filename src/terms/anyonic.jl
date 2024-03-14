@@ -55,7 +55,7 @@ function make_div_free(basis::PlaneWaveBasis{T}, A) where {T}
         end
     end
     # TODO: forcing real-valued ifft; should be enforced at creation of array
-    [irfft(basis, out[α]; check=Val(false)) for α = 1:2]
+    [irfft(basis, out[α]) for α = 1:2]
 end
 
 struct Anyonic
@@ -121,8 +121,8 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occupation;
         end
     end
     # TODO: forcing real-valued ifft; should be enforced at creation of array
-    Areal = [irfft(basis, A1; check=Val(false)) + term.Aref[1],
-             irfft(basis, A2; check=Val(false)) + term.Aref[2],
+    Areal = [irfft(basis, A1) + term.Aref[1],
+             irfft(basis, A2) + term.Aref[2],
              zeros(T, basis.fft_size)]
 
     # 2 hbar β (-i∇)⋅A + β^2 |A|^2
@@ -149,7 +149,7 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occupation;
         end
     end
     # TODO: forcing real-valued ifft; should be enforced at creation of array
-    eff_pot_real = irfft(basis, eff_pot_fourier; check=Val(false))
+    eff_pot_real = irfft(basis, eff_pot_fourier)
     ops_ham = [ops_energy..., RealSpaceMultiplication(basis, basis.kpoints[1], eff_pot_real)]
 
     E = zero(T)

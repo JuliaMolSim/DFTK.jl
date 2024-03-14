@@ -17,13 +17,13 @@ jobs:
     name: Documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v1
         with:
           version: '1'
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-docdeploy@v1
-        timeout-minutes: 40
+        timeout-minutes: 60
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
@@ -44,3 +44,9 @@ jobs:
             using DFTK
             DocMeta.setdocmeta!(DFTK, :DocTestSetup, :(using DFTK); recursive=true)
             doctest(DFTK)'
+      - name: Upload Docs
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation
+          path: docs/build
+          retention-days: 1

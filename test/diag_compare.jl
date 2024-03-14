@@ -1,7 +1,6 @@
-using Test
-using DFTK
+@testitem "Comparison of diagonalisaton procedures" begin
+    using DFTK
 
-@testset "Comparison of diagonalisaton procedures" begin
     function test_solver(reference, eigensolver, prec_type)
         @testset "$eigensolver with $prec_type" begin
             nev = length(reference.λ[1])

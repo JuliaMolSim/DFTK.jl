@@ -23,8 +23,8 @@ using IterativeSolvers
 # ## Setup
 # We setup manually the ``{\rm TiO}_2`` configuration from
 # [Materials Project](https://materialsproject.org/materials/mp-2657/).
-Ti = ElementPsp(:Ti, psp=load_psp("hgh/lda/ti-q4.hgh"))
-O  = ElementPsp(:O, psp=load_psp("hgh/lda/o-q6.hgh"))
+Ti = ElementPsp(:Ti; psp=load_psp("hgh/lda/ti-q4.hgh"))
+O  = ElementPsp(:O; psp=load_psp("hgh/lda/o-q6.hgh"))
 atoms     = [Ti, Ti, O, O, O, O]
 positions = [[0.5,     0.5,     0.5],  # Ti
              [0.0,     0.0,     0.0],  # Ti
@@ -54,8 +54,7 @@ tol = 1e-5;
 # We compute the reference solution ``P_*`` from which we will compute the
 # references forces.
 scfres_ref = self_consistent_field(basis_ref; tol, callback=identity)
-ψ_ref, _ = DFTK.select_occupied_orbitals(basis_ref, scfres_ref.ψ,
-                                         scfres_ref.occupation);
+ψ_ref = DFTK.select_occupied_orbitals(basis_ref, scfres_ref.ψ, scfres_ref.occupation).ψ;
 
 # We compute a variational approximation of the reference solution with
 # smaller `Ecut`. `ψr`, `ρr` and `Er` are the quantities computed with `Ecut`
@@ -79,7 +78,7 @@ Er, hamr = energy_hamiltonian(basis_ref, ψr, scfres.occupation; ρ=ρr);
 #   in [`src/scf/newton.jl`](https://github.com/JuliaMolSim/DFTK.jl/blob/fedc720dab2d194b30d468501acd0f04bd4dd3d6/src/scf/newton.jl#L121).
 res = DFTK.compute_projected_gradient(basis_ref, ψr, scfres.occupation)
 res, occ = DFTK.select_occupied_orbitals(basis_ref, res, scfres.occupation)
-ψr, _ = DFTK.select_occupied_orbitals(basis_ref, ψr, scfres.occupation);
+ψr = DFTK.select_occupied_orbitals(basis_ref, ψr, scfres.occupation).ψ;
 
 # - Compute the error ``P-P_*`` on the associated orbitals ``ϕ-ψ`` after aligning
 #   them: this is done by solving ``\min |ϕ - ψU|`` for ``U`` unitary matrix of
@@ -94,7 +93,7 @@ function compute_error(basis, ϕ, ψ)
 end
 err = compute_error(basis_ref, ψr, ψ_ref);
 
-# - Compute ``{\bm M}^{-1}R(P)`` with ``{\bm M}^{-1}`` defined in [^CDKL2021]:
+# - Compute ``{\boldsymbol M}^{-1}R(P)`` with ``{\boldsymbol M}^{-1}`` defined in [^CDKL2021]:
 P = [PreconditionerTPA(basis_ref, kpt) for kpt in basis_ref.kpoints]
 map(zip(P, ψr)) do (Pk, ψk)
     DFTK.precondprep!(Pk, ψk)
@@ -115,7 +114,7 @@ function apply_inv_M(φk, Pk, δφnk, n)
         DFTK.proj_tangent_kpt!(x, φk)
     end
     J = LinearMap{eltype(φk)}(op, size(δφnk, 1))
-    δφnk = cg(J, δφnk, Pl=DFTK.FunctionPreconditioner(f_ldiv!),
+    δφnk = cg(J, δφnk; Pl=DFTK.FunctionPreconditioner(f_ldiv!),
               verbose=false, reltol=0, abstol=1e-15)
     DFTK.proj_tangent_kpt!(δφnk, φk)
 end
@@ -136,8 +135,8 @@ Mres = apply_metric(ψr, P, res, apply_inv_M);
 #
 # ```math
 # \begin{bmatrix}
-# (\bm Ω + \bm K)_{11} & (\bm Ω + \bm K)_{12} \\
-# 0 & {\bm M}_{22}
+# (\boldsymbol Ω + \boldsymbol K)_{11} & (\boldsymbol Ω + \boldsymbol K)_{12} \\
+# 0 & {\boldsymbol M}_{22}
 # \end{bmatrix}
 # \begin{bmatrix}
 # P_{1} - P_{*1} \\ P_{2}-P_{*2}
@@ -151,7 +150,7 @@ Mres = apply_metric(ψr, P, res, apply_inv_M);
 resLF = DFTK.transfer_blochwave(res, basis_ref, basis)
 resHF = res - DFTK.transfer_blochwave(resLF, basis, basis_ref);
 
-# - Compute ``{\bm M}^{-1}_{22}R_2(P)``:
+# - Compute ``{\boldsymbol M}^{-1}_{22}R_2(P)``:
 e2 = apply_metric(ψr, P, resHF, apply_inv_M);
 
 # - Compute the right hand side of the Schur system:
@@ -166,9 +165,9 @@ end
 rhs = resLF - ΩpKe2;
 
 # - Solve the Schur system to compute ``R_{\rm Schur}(P)``: this is the most
-#   costly step, but inverting ``\bm{Ω} + \bm{K}`` on the small space has
+#   costly step, but inverting ``\boldsymbol{Ω} + \boldsymbol{K}`` on the small space has
 #   the same cost than the full SCF cycle on the small grid.
-ψ, _ = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
+(; ψ) = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
 e1 = DFTK.solve_ΩplusK(basis, ψ, rhs, occ; tol).δψ
 e1 = DFTK.transfer_blochwave(e1, basis, basis_ref)
 res_schur = e1 + Mres;

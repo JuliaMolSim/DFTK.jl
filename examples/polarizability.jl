@@ -22,7 +22,7 @@ using LinearAlgebra
 a = 10.
 lattice = a * I(3)  # cube of ``a`` bohrs
 ## Helium at the center of the box
-atoms     = [ElementPsp(:He, psp=load_psp("hgh/lda/He-q2"))]
+atoms     = [ElementPsp(:He; psp=load_psp("hgh/lda/He-q2"))]
 positions = [[1/2, 1/2, 1/2]]
 
 

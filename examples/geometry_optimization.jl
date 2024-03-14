@@ -13,7 +13,7 @@ Ecut = 5                # kinetic energy cutoff in Hartree
 tol = 1e-8              # tolerance for the optimization routine
 a = 10                  # lattice constant in Bohr
 lattice = a * I(3)
-H = ElementPsp(:H, psp=load_psp("hgh/lda/h-q1"));
+H = ElementPsp(:H; psp=load_psp("hgh/lda/h-q1"));
 atoms = [H, H];
 
 # We define a Bloch wave and a density to be used as global variables so that we
@@ -25,7 +25,7 @@ atoms = [H, H];
 
 # First, we create a function that computes the solution associated to the
 # position ``x ∈ ℝ^6`` of the atoms in reduced coordinates
-# (cf. [Reduced and cartesian coordinates](@ref) for more
+# (cf. [Reduced and Cartesian coordinates](@ref) for more
 # details on the coordinates system).
 # They are stored as a vector: `x[1:3]` represents the position of the
 # first atom and `x[4:6]` the position of the second.
@@ -38,7 +38,7 @@ function compute_scfres(x)
     if isnothing(ρ)
         ρ = guess_density(basis)
     end
-    is_converged = DFTK.ScfConvergenceForce(tol / 10)
+    is_converged = ScfConvergenceForce(tol / 10)
     scfres = self_consistent_field(basis; ψ, ρ, is_converged, callback=identity)
     ψ = scfres.ψ
     ρ = scfres.ρ
@@ -68,7 +68,7 @@ end;
 
 x0 = vcat(lattice \ [0., 0., 0.], lattice \ [1.4, 0., 0.])
 xres = optimize(Optim.only_fg!(fg!), x0, LBFGS(),
-                Optim.Options(show_trace=true, f_tol=tol))
+                Optim.Options(; show_trace=true, f_tol=tol))
 xmin = Optim.minimizer(xres)
 dmin = norm(lattice*xmin[1:3] - lattice*xmin[4:6])
 @printf "\nOptimal bond length for Ecut=%.2f: %.3f Bohr\n" Ecut dmin
