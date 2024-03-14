@@ -37,7 +37,7 @@
 # ```
 # with lattice constant ``a``. Each cell of the lattice is an identical periodic image of
 # any of its neighbors. For finding ``f`` it is thus sufficient to consider only the
-# problem inside a **unit cell** ``[-a/2, a/2)`` (this is the convention used by DFTK, but this is arbitrary, and for instance ``[0,a)`` would have worked just as well).
+# problem inside a **unit cell** ``[-a/2, a/2)`` (this is arbitrary, and for instance ``[0,a)`` would have worked just as well, which is the convention used by DFTK).
 #
 # ## Periodic operators and the Bloch transform
 # Not only functions, but also operators can feature periodicity.
@@ -281,11 +281,11 @@ plot(r -> DFTK.local_potential_real(nucleus, norm(r)), xlims=(-50, 50))
 
 # With this element at hand we can easily construct a setting
 # where two potentials of this form are located at positions
-# ``20`` and ``80`` inside the lattice ``[0, 100]``:
+# ``20`` and ``80`` inside the lattice ``[0, 100)``:
 
 using LinearAlgebra
 
-## Define the 1D lattice [0, 100]
+## Define the 1D lattice [0, 100)
 lattice = diagm([100., 0, 0])
 
 ## Place them at 20 and 80 in *fractional coordinates*,
