@@ -171,30 +171,32 @@ Overview of parameters:
 
         # Update info with results gathered so far
         info_next = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
-                ρin, ρout, α=damping, n_iter, nbandsalg.occupation_threshold,
-                runtime_ns=time_ns() - start_ns, nextstate...,
-                diagonalization=[nextstate.diagonalization])
+                       ρin, α=damping, n_iter, nbandsalg.occupation_threshold,
+                       runtime_ns=time_ns() - start_ns, nextstate...,
+                       diagonalization=[nextstate.diagonalization])
 
         # Compute the energy of the new state
         if compute_consistent_energies
             energies = energy_hamiltonian(basis, ψ, occupation;
                                           ρ=ρout, eigenvalues, εF).energies
         end
-        info = merge(info, (; energies))
+        history_Etot = vcat(info.history_Etot, energies.total)
+        history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
+        info_next = merge(info_next, (; energies, history_Etot, history_Δρ))
 
         # Apply mixing and pass it the full info as kwargs
-        δρ = mix_density(mixing, basis, ρout - ρin; info...)
-        ρnext = ρin .+ T(damping) .* δρ
-        info = merge(info, (; ρnext))
+        ρnext = ρin .+ T(damping) .* mix_density(mixing, basis, Δρ; info_next...)
 
-        callback(info)
-        is_converged(info) && (converged = true)
+        callback(info_next)
+        if is_converged(info_next)
+            info_next = merge(info_next, (; converged=true))
+        end
 
-        ρnext
+        ρnext, info_next
     end
 
     info_init = (; ρin=ρ, ψ=ψ, occupation=nothing, eigenvalues=nothing, εF=nothing, 
-                   n_iter=0, converged=false)
+                   n_iter=0, converged=false, history_Etot=T[], history_Δρ=T[])
 
     # Tolerance and maxiter are only dummy here: Convergence is flagged by is_converged
     # inside the fixpoint_map.
@@ -208,10 +210,10 @@ Overview of parameters:
 
     # Callback is run one last time with final state to allow callback to clean up
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
-            ρ=ρout, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
-            n_iter, ψ, info.diagonalization, stage=:finalize,
-            info.history_Δρ, info.history_Etot,
-            runtime_ns=time_ns() - start_ns, algorithm="SCF")
+                ρ=ρout, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
+                info.n_iter, ψ, info.diagonalization, stage=:finalize,
+                info.history_Δρ, info.history_Etot,
+                runtime_ns=time_ns() - start_ns, algorithm="SCF")
     callback(scfres)
     scfres
 end
