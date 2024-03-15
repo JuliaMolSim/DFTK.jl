@@ -304,9 +304,10 @@ function final_retval(X, AX, resid_history, niter, n_matvec)
     if !issorted(λ)
         p = sortperm(λ)
         λ = λ[p]
-        residuals = residuals[p]
+        residuals = residuals[:, p]
         X = X[:, p]
         AX = AX[:, p]
+        resid_history = resid_history[p, :]
     end
     (; λ, X,
      residual_norms=[norm(residuals[:, i]) for i = 1:size(residuals, 2)],
