@@ -301,6 +301,13 @@ end
 function final_retval(X, AX, resid_history, niter, n_matvec)
     λ = real(diag(X' * AX))
     residuals = AX .- X*Diagonal(λ)
+    if !issorted(λ)
+        p = sortperm(λ)
+        λ = λ[p]
+        residuals = residuals[p]
+        X = X[:, p]
+        AX = AX[:, p]
+    end
     (; λ, X,
      residual_norms=[norm(residuals[:, i]) for i = 1:size(residuals, 2)],
      residual_history=resid_history[:, 1:niter+1], n_matvec)
