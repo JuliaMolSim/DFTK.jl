@@ -68,21 +68,21 @@ function compute_scf!(system::AbstractSystem, calculator::DFTKCalculator, state:
 end
 
 AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
-        system::AbstractSystem, calculator::DFTKCalculator; state = DFTKState(),
+        system::AbstractSystem, calculator::DFTKCalculator; state=DFTKState(),
         kwargs...)
     compute_scf!(system, calculator, state)
     calculator.state.scfres.energies.total * u"hartree"
 end
 
 AtomsCalculators.@generate_interface function AtomsCalculators.forces(
-        system::AbstractSystem, calculator::DFTKCalculator; state = DFTKState(),
+        system::AbstractSystem, calculator::DFTKCalculator; state=DFTKState(),
         kwargs...)
     compute_scf!(system, calculator, state)
     compute_forces_cart(calculator.state.scfres) * u"hartree/bohr"
 end
 
 AtomsCalculators.@generate_interface function AtomsCalculators.virial(
-        system::AbstractSystem, calculator::DFTKCalculator; state = DFTKState(),
+        system::AbstractSystem, calculator::DFTKCalculator; state=DFTKState(),
         kwargs...)
     compute_scf!(system, calculator, state)
     - (compute_stresses_cart(calculator.state.scfres)
