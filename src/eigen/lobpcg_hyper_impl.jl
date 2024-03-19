@@ -299,12 +299,12 @@ end
 
 
 function final_retval(X, AX, BX, resid_history, niter, n_matvec)
-    λ = @views [(X[:, n]'*AX[:, n]) / (X[:, n]'BX[:, n]) for n=1:size(X, 2)]
-    λ = real(oftype(X[:, 1], λ))  # Offload to GPU if needed
+    λ = @views [real((X[:, n]'*AX[:, n]) / (X[:, n]'BX[:, n])) for n=1:size(X, 2)]
     residuals = AX .- BX .* λ'
     if !issorted(λ)
         p = sortperm(λ)
         λ = λ[p]
+        λ = real(oftype(X[:, 1], λ))  # Offload to GPU if needed
         residuals = residuals[:, p]
         X = X[:, p]
         AX = AX[:, p]
