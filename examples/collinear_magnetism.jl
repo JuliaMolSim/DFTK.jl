@@ -39,7 +39,7 @@ scfres_nospin.energies
 # electrons at each centre to the `Model` and the guess density functions.
 # In this case we seek the state with as many spin-parallel
 # ``d``-electrons as possible. In our pseudopotential model the 8 valence
-# electrons are 2 pair of ``s``-electrons, 1 pair of ``d``-electrons
+# electrons are 1 pair of ``s``-electrons, 1 pair of ``d``-electrons
 # and 4 unpaired ``d``-electrons giving a desired magnetic moment of `4` at the iron centre.
 # The structure (i.e. pair mapping and order) of the `magnetic_moments` array needs to agree
 # with the `atoms` array and `0` magnetic moments need to be specified as well.
