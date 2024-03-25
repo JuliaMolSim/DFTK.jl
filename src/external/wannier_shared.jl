@@ -340,6 +340,10 @@ Shared file writing code for Wannier.jl and Wannier90.
     # TODO None of the routines consider spin at the moment
     @assert scfres.basis.model.spin_polarization in (:none, :spinless)
     @assert length(projections) == n_wannier
+    if n_bands > scfres.n_bands_converge
+        @warn("n_bands (=$n_bands) > scfres.n_bands_converge (=$(scfres.n_bands_converge)). " *
+              "This could make the wannierisation unclean. Reduce `n_bands` to prevent this.")
+    end
 
     # TODO Use band_data_to_dict to get this easily MPI compatible.
 

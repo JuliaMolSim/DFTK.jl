@@ -150,7 +150,8 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
     # return results and call callback one last time with final state for clean
     # up
     info = (; ham=H, basis, energies, converged, ρ, eigenvalues, occupation, εF, n_iter, ψ,
-            stage=:finalize, algorithm="Newton", runtime_ns=time_ns() - start_ns)
+            stage=:finalize, algorithm="Newton", runtime_ns=time_ns() - start_ns,
+            n_bands_converge=n_bands)
     callback(info)
     info
 end
