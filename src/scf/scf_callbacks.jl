@@ -38,6 +38,7 @@ function ScfDefaultCallback(; show_damping=true, show_time=true)
     ScfDefaultCallback(show_damping, show_time, Ref(0))
 end
 function (cb::ScfDefaultCallback)(info)
+    old_logger = global_logger(default_logger())
     # If first iteration clear a potentially cached previous time
     info.n_iter ≤ 1 && (cb.prev_time[] = 0)
 
@@ -67,10 +68,10 @@ function (cb::ScfDefaultCallback)(info)
         label_damp = show_damp ? ("   α   ", "   ----") : ("", "")
         label_diag = show_diag ? ("   Diag", "   ----") : ("", "")
         label_time = show_time ? ("   Δtime", "   ------") : ("", "")
-        @printf "n     Energy            log10(ΔE)   log10(Δρ)"
-        println(label_magn[1], label_damp[1], label_diag[1], label_time[1])
-        @printf "---   ---------------   ---------   ---------"
-        println(label_magn[2], label_damp[2], label_diag[2], label_time[2])
+        @info "n     Energy            log10(ΔE)   log10(Δρ)" *
+              "$(label_magn[1]) $(label_damp[1]) $(label_diag[1]) $(label_time[1])"
+        @info "---   ---------------   ---------   ---------" *
+              "$(label_magn[2]) $(label_damp[2]) $(label_diag[2]) $(label_time[2])"
     end
     E    = isnothing(info.energies) ? Inf : info.energies.total
     magn = sum(spin_density(info.ρout)) * info.basis.dvol
@@ -97,8 +98,9 @@ function (cb::ScfDefaultCallback)(info)
     αstr = ""
     show_damp && (αstr = isnan(info.α) ? "       " : @sprintf "  % 4.2f" info.α)
 
-    @printf "% 3d   %s   %s   %s" info.n_iter Estr ΔE Δρstr
-    println(Mstr, αstr, diagstr, tstr)
+    line = @sprintf "% 3d   %s   %s   %s" info.n_iter Estr ΔE Δρstr
+    @info line * "$Mstr $αstr $diagstr $tstr"
+    global_logger(old_logger)
 
     flush(stdout)
     info

@@ -3,6 +3,8 @@
 # rather to ensure that the code does not randomly stop working.
 @testitem "Test printing" setup=[TestCases] begin
     using DFTK
+    using Logging
+
     magnesium = TestCases.magnesium
 
     function test_basis_printing(; modelargs=(; temperature=1e-3),
@@ -11,14 +13,16 @@
                           disable_electrostatics_check=true, modelargs...)
         basis = PlaneWaveBasis(model; basisargs...)
 
-        println(model)
-        show(stdout, "text/plain", model)
+        io = DFTK.default_logger().min_level > Info ? devnull : stdout
 
-        println(basis)
-        show(stdout, "text/plain", basis)
+        @info model
+        show(io, "text/plain", model)
 
-        println(basis.kpoints[1])
-        show(stdout, "text/plain", basis.kpoints[1])
+        @info basis
+        show(io, "text/plain", basis)
+
+        @info basis.kpoints[1]
+        show(io, "text/plain", basis.kpoints[1])
 
         basis
     end
@@ -28,8 +32,10 @@
         scfres = self_consistent_field(basis; nbandsalg=FixedBands(; n_bands_converge=6),
                                        tol=1e-3)
 
-        println(scfres.energies)
-        show(stdout, "text/plain", scfres.energies)
+        io = DFTK.default_logger().min_level > Info ? devnull : stdout
+
+        @info scfres.energies
+        show(io, "text/plain", scfres.energies)
     end
 
     test_scfres_printing()
