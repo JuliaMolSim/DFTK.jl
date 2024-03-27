@@ -13,6 +13,7 @@ using GPUArraysCore
 using Random
 using ChainRulesCore
 using PrecompileTools
+using AtomsCalculators
 
 @template METHODS =
 """
@@ -194,7 +195,7 @@ include("pseudo/attach_psp.jl")
 
 export atomic_system, periodic_system  # Reexport from AtomsBase
 export run_wannier90
-export DFTKCalculator
+export DFTKCalculator, calculator_state, update_state
 include("external/atomsbase.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
 include("external/wannier_shared.jl")
