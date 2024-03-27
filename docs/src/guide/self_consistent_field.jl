@@ -102,7 +102,7 @@
 #   ```
 #   Thus the smaller the condition number, the better the convergence.
 #
-# **Note:** If the preconditoner is very bad, the eigenvalues of
+# **Note:** If the preconditioner is very bad, the eigenvalues of
 # $(P^{-1} \varepsilon^\dagger)$ might even be worse than $\varepsilon^\dagger$, such
 # that convergence is actually hampered by the preconditioner.
 
