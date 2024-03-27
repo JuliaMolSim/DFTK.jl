@@ -124,7 +124,7 @@ end
 ## Feed to Wannier via the `projections` as before...
 
 # This example assumes that Wannier.jl version 0.3.2 is used,
-# and may need to be updated to accomodate for changes in Wannier.jl.
+# and may need to be updated to accommodate for changes in Wannier.jl.
 #
 # Note: Some parameters supported by Wannier90 may have to be passed to Wannier.jl differently,
 # for example the max number of iterations is passed to `disentangle` in Wannier.jl,

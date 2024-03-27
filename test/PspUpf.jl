@@ -132,7 +132,7 @@ end
     using SpecialFunctions: sphericalbesselj
     using QuadGK
 
-    # The integrand for performing the spherical Hankel transfrom,
+    # The integrand for performing the spherical Hankel transform,
     # i.e. compute the radial part of the projector in Fourier space
     function integrand(psp, i, l, p, r)
         4π * r^2 * eval_psp_projector_real(psp, i, l, r) * sphericalbesselj(l, p * r)

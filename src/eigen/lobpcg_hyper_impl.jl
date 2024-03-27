@@ -35,8 +35,8 @@
 
 
 ## TODO micro-optimization of buffer reuse
-## TODO write a version that doesn't assume that B is well-conditionned, and doesn't reuse B applications at all
-## TODO it seems there is a lack of orthogonalization immediately after locking, maybe investigate this to save on some choleskys
+## TODO write a version that doesn't assume that B is well-conditioned, and doesn't reuse B applications at all
+## TODO it seems there is a lack of orthogonalization immediately after locking, maybe investigate this to save on some Choleskys
 ## TODO debug orthogonalizations when A=I
 
 # TODO Use @debug for this
