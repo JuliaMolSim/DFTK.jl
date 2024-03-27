@@ -29,21 +29,21 @@ end
 DFTK.default_primes(::Any) = (2, )
 
 # Generic fallback function, Float32 and Float64 specialization in fft.jl
-function DFTK.build_fft_plans!(tmp::AbstractArray{<:Complex})
+function DFTK.build_fft_plans!(tmp::AbstractArray{<:Complex}; region=1:ndims(tmp))
     # Note: FourierTransforms has no support for in-place FFTs at the moment
     # ... also it's extension to multi-dimensional arrays is broken and
     #     the algo only works for some cases
     @assert all(ispow2, size(tmp))
 
-    # opFFT = AbstractFFTs.plan_fft(tmp)   # TODO When multidim works
+    # opFFT = AbstractFFTs.plan_fft(tmp)     # TODO When multidim works
     # opBFFT = inv(opFFT).p
-    opFFT  = generic_plan_fft(tmp)               # Fallback for now
+    opFFT  = generic_plan_fft(tmp)           # Fallback for now
     opBFFT = generic_plan_bfft(tmp)
     # TODO Can be cut once FourierTransforms supports AbstractFFTs properly
     ipFFT  = DummyInplace{typeof(opFFT)}(opFFT)
     ipBFFT = DummyInplace{typeof(opBFFT)}(opBFFT)
 
-    ipFFT, opFFT, ipBFFT, opBFFT
+    (; ipFFT, opFFT, ipBFFT, opBFFT)
 end
 
 struct GenericPlan{T}
@@ -51,7 +51,7 @@ struct GenericPlan{T}
     factor::T
 end
 
-function Base.:*(p::GenericPlan, X::AbstractArray)
+function Base.:*(p::GenericPlan, X::AbstractArray{T, 3}) where {T}
     pl1, pl2, pl3 = p.subplans
     ret = similar(X)
     for i = 1:size(X, 1), j = 1:size(X, 2)
@@ -84,6 +84,20 @@ function generic_plan_bfft(data::AbstractArray{T, 3}) where {T}
     GenericPlan{T}([plan_bfft(data[:, 1, 1]),
                     plan_bfft(data[1, :, 1]),
                     plan_bfft(data[1, 1, :])], T(1))
+end
+
+# TODO: Let's not bother with multicomponents yet.
+function generic_plan_fft(data::AbstractArray{T, 4}) where {T}
+    @assert size(data, 1) == 1
+    generic_plan_fft(data[1, :, :, :])
+end
+function generic_plan_bfft(data::AbstractArray{T, 4}) where {T}
+    @assert size(data, 1) == 1
+    generic_plan_bfft(data[1, :, :, :])
+end
+function Base.:*(p::GenericPlan, X::AbstractArray{T, 4}) where {T}
+    @assert size(X, 1) == 1
+    reshape(p * X[1, :, :, :], size(X)...)
 end
 
 end

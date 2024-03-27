@@ -140,9 +140,12 @@ For example let us check the normalization of the first eigenfunction
 at the first ``k``-point in reciprocal space:
 
 ```@example data_structures
-ψtest = scfres.ψ[1][:, 1]
+ψtest = scfres.ψ[1][:, :, 1]
 sum(abs2.(ψtest))
 ```
+
+The first index of `ψtest` is the component (e.g., the spin) and the second is the
+``G``-component.
 
 We now perform an IFFT to get ψ in real space. The ``k``-point has to be
 passed because ψ is expressed on the ``k``-dependent basis.

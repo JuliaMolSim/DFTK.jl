@@ -80,7 +80,7 @@ end
     if mpi_nprocs() == 1  # Distributed implementation not yet available
         @testset "Direct minimization" begin
             ρ_dm = direct_minimization(basis; ψ, tol).ρ
-            @test maximum(abs.(ρ_dm - ρ_def)) < 10tol
+            @test maximum(abs, ρ_dm - ρ_def) < 10tol
         end
     end
 
@@ -88,7 +88,7 @@ end
     if mpi_nprocs() == 1  # Distributed implementation not yet available
         @testset "Newton" begin
             ρ_newton = newton(basis, ψ; tol).ρ
-            @test maximum(abs.(ρ_newton - ρ_def)) < 10tol
+            @test maximum(abs, ρ_newton - ρ_def) < 10tol
         end
     end
 end

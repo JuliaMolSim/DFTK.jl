@@ -12,7 +12,7 @@ abstract type RealFourierOperator end
 
 # Unoptimized fallback, intended for exploratory use only.
 # For performance, call through Hamiltonian which saves FFTs.
-function LinearAlgebra.mul!(Hψ::AbstractVector, op::RealFourierOperator, ψ::AbstractVector)
+function LinearAlgebra.mul!(Hψ::AbstractMatrix, op::RealFourierOperator, ψ::AbstractMatrix)
     ψ_real = ifft(op.basis, op.kpoint, ψ)
     Hψ_fourier = similar(ψ)
     Hψ_real = similar(ψ_real)
@@ -24,13 +24,20 @@ function LinearAlgebra.mul!(Hψ::AbstractVector, op::RealFourierOperator, ψ::Ab
     Hψ .= Hψ_fourier .+ fft(op.basis, op.kpoint, Hψ_real)
     Hψ
 end
-function LinearAlgebra.mul!(Hψ::AbstractMatrix, op::RealFourierOperator, ψ::AbstractMatrix)
-    @views for i = 1:size(ψ, 2)
-        mul!(Hψ[:, i], op, ψ[:, i])
+function LinearAlgebra.mul!(Hψ::AbstractArray3, op::RealFourierOperator, ψ::AbstractArray3)
+    @views for n = 1:size(ψ, 3)
+        mul!(Hψ[:, :, n], op, ψ[:, :, n])
     end
     Hψ
 end
 Base.:*(op::RealFourierOperator, ψ) = mul!(similar(ψ), op, ψ)
+# Default transformation: from two components tensors to diagonal matrices for each
+# reciprocal vector.
+function Matrix(op::RealFourierOperator)
+    n_Gk = length(G_vectors(op.basis, op.kpoint))
+    n_components = op.basis.model.n_components
+    reshape(Array(op), n_components*n_Gk, n_components*n_Gk)
+end
 
 """
 Noop operation: don't do anything.
@@ -41,9 +48,10 @@ struct NoopOperator{T <: Real} <: RealFourierOperator
     kpoint::Kpoint{T}
 end
 apply!(Hψ, op::NoopOperator, ψ) = nothing
-function Matrix(op::NoopOperator)
+function Array(op::NoopOperator)
     n_Gk = length(G_vectors(op.basis, op.kpoint))
-    zeros_like(op.basis.G_vectors, eltype(op.basis), n_Gk, n_Gk)
+    n_components = op.basis.model.n_components
+    zeros_like(op.basis.G_vectors, eltype(op.basis), n_components, n_Gk, n_components, n_Gk)
 end
 
 """
@@ -58,22 +66,28 @@ struct RealSpaceMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOpe
     potential::AT
 end
 function apply!(Hψ, op::RealSpaceMultiplication, ψ)
-    Hψ.real .+= op.potential .* ψ.real
+    @views for σ = 1:op.basis.model.n_components
+        Hψ.real[σ, :, :, :] .+= op.potential .* ψ.real[σ, :, :, :]
+    end
+    Hψ.real
 end
-function Matrix(op::RealSpaceMultiplication)
+function Array(op::RealSpaceMultiplication)
     # V(G, G') = <eG|V|eG'> = 1/sqrt(Ω) <e_{G-G'}|V>
     pot_fourier = fft(op.basis, op.potential)
     n_G = length(G_vectors(op.basis, op.kpoint))
-    H = zeros(complex(eltype(op.basis)), n_G, n_G)
-    for (j, G′) in enumerate(G_vectors(op.basis, op.kpoint))
-        for (i, G) in enumerate(G_vectors(op.basis, op.kpoint))
-            # G_vectors(basis)[ind_ΔG] = G - G'
-            ind_ΔG = index_G_vectors(op.basis, G - G′)
-            if isnothing(ind_ΔG)
-                error("For full matrix construction, the FFT size must be " *
-                      "large enough so that Hamiltonian applications are exact")
+    n_components = op.basis.model.n_components
+    H = zeros(complex(eltype(op.basis)), n_components, n_G, n_components, n_G)
+    for σ = 1:n_components
+        for (j, G′) in enumerate(G_vectors(op.basis, op.kpoint))
+            for (i, G) in enumerate(G_vectors(op.basis, op.kpoint))
+                # G_vectors(basis)[ind_ΔG] = G - G'
+                ind_ΔG = index_G_vectors(op.basis, G - G′)
+                if isnothing(ind_ΔG)
+                    error("For full matrix construction, the FFT size must be " *
+                          "large enough so that Hamiltonian applications are exact")
+                end
+                H[σ, i, σ, j] = pot_fourier[ind_ΔG] / sqrt(op.basis.model.unit_cell_volume)
             end
-            H[i, j] = pot_fourier[ind_ΔG] / sqrt(op.basis.model.unit_cell_volume)
         end
     end
     H
@@ -91,9 +105,17 @@ struct FourierMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOpera
     multiplier::AT
 end
 function apply!(Hψ, op::FourierMultiplication, ψ)
-    Hψ.fourier .+= op.multiplier .* ψ.fourier
+    @views for σ = 1:op.basis.model.n_components
+        Hψ.fourier[σ, :] .+= op.multiplier .* ψ.fourier[σ, :]
+    end
+    Hψ.fourier
 end
-Matrix(op::FourierMultiplication) = Array(Diagonal(op.multiplier))
+function Array(op::FourierMultiplication)
+    n_Gk = length(G_vectors(op.basis, op.kpoint))
+    n_components = op.basis.model.n_components
+    D = Diagonal(op.multiplier)
+    reshape(kron(D, I(n_components)), n_components, n_Gk, n_components, n_Gk)
+end
 
 """
 Nonlocal operator in Fourier space in Kleinman-Bylander format,
@@ -108,9 +130,20 @@ struct NonlocalOperator{T <: Real, PT, DT} <: RealFourierOperator
     D::DT
 end
 function apply!(Hψ, op::NonlocalOperator, ψ)
-    Hψ.fourier .+= op.P * (op.D * (op.P' * ψ.fourier))
+    @views for σ = 1:op.basis.model.n_components
+        Hψ.fourier[σ, :, :] .+= op.P * (op.D * (op.P' * ψ.fourier[σ, :, :]))
+    end
+    Hψ.fourier
 end
-Matrix(op::NonlocalOperator) = op.P * op.D * op.P'
+function Array(op::NonlocalOperator)
+    n_Gk = length(G_vectors(op.basis, op.kpoint))
+    n_components = op.basis.model.n_components
+    H = zeros(complex(eltype(op.basis)), n_components, n_Gk, n_components, n_Gk)
+    for σ = 1:op.basis.model.n_components
+        H[σ, :, σ, :] = op.P * op.D * op.P'
+    end
+    H
+end
 
 """
 Magnetic field operator A⋅(-i∇).
@@ -122,15 +155,20 @@ struct MagneticFieldOperator{T <: Real, AT} <: RealFourierOperator
 end
 function apply!(Hψ, op::MagneticFieldOperator, ψ)
     # TODO this could probably be better optimized
-    for α = 1:3
+    @views for α = 1:3
         iszero(op.Apot[α]) && continue
         pα = [p[α] for p in Gplusk_vectors_cart(op.basis, op.kpoint)]
-        ∂αψ_fourier = pα .* ψ.fourier
+        ∂αψ_fourier = similar(ψ.fourier)
+        for σ = 1:op.basis.model.n_components
+            ∂αψ_fourier[σ, :] = pα .* ψ.fourier[σ, :]
+        end
         ∂αψ_real = ifft(op.basis, op.kpoint, ∂αψ_fourier)
-        Hψ.real .+= op.Apot[α] .* ∂αψ_real
+        for σ = 1:op.basis.model.n_components
+            Hψ.real[σ, :, :, :] .+= op.Apot[α] .* ∂αψ_real[σ, :, :, :]
+        end
     end
 end
-# TODO Implement  Matrix(op::MagneticFieldOperator)
+# TODO Implement  Array(op::MagneticFieldOperator)
 
 @doc raw"""
 Nonlocal "divAgrad" operator ``-½ ∇ ⋅ (A ∇)`` where ``A`` is a scalar field on the
@@ -143,17 +181,27 @@ struct DivAgradOperator{T <: Real, AT} <: RealFourierOperator
     A::AT
 end
 function apply!(Hψ, op::DivAgradOperator, ψ;
-                ψ_scratch=zeros(complex(eltype(op.basis)), op.basis.fft_size...))
+                ψ_scratch=zeros(complex(eltype(op.basis)),
+                                op.basis.model.n_components, op.basis.fft_size...))
     # TODO: Performance improvements: Unscaled plans, avoid remaining allocations
     #       (which are only on the small k-point-specific Fourier grid
     G_plus_k = [[p[α] for p in Gplusk_vectors_cart(op.basis, op.kpoint)] for α = 1:3]
-    for α = 1:3
-        ∂αψ_real = ifft!(ψ_scratch, op.basis, op.kpoint, im .* G_plus_k[α] .* ψ.fourier)
-        A∇ψ      = fft(op.basis, op.kpoint, ∂αψ_real .* op.A)
-        Hψ.fourier .-= im .* G_plus_k[α] .* A∇ψ ./ 2
+    @views for α = 1:3
+        ∂αψ_fourier = similar(ψ.fourier)
+        for σ = 1:op.basis.model.n_components
+            ∂αψ_fourier[σ, :] = im .* G_plus_k[α] .* ψ.fourier[σ, :]
+        end
+        ∂αψ_real = ifft!(ψ_scratch, op.basis, op.kpoint, ∂αψ_fourier)
+        for σ = 1:op.basis.model.n_components
+            ∂αψ_real[σ, :, :, :] .*= op.A
+        end
+        A∇ψ = fft(op.basis, op.kpoint, ∂αψ_real)
+        for σ = 1:op.basis.model.n_components
+            Hψ.fourier[σ, :] .-= im .* G_plus_k[α] .* A∇ψ[σ, :] ./ 2
+        end
     end
 end
-# TODO Implement  Matrix(op::DivAgrad)
+# TODO Implement  Array(op::DivAgrad)
 
 
 # Optimize RFOs by combining terms that can be combined

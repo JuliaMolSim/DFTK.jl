@@ -37,9 +37,11 @@ end
 
     E = zero(T)
     for (ik, ψk) in enumerate(ψ)
-        Pψk = term.ops[ik].P' * ψk  # nproj x nband
-        band_enes = dropdims(sum(real.(conj.(Pψk) .* (term.ops[ik].D * Pψk)), dims=1), dims=1)
-        E += basis.kweights[ik] * sum(band_enes .* occupation[ik])
+        for σ = 1:basis.model.n_components
+            Pψk = term.ops[ik].P' * ψk[σ, :, :]  # nproj x nband
+            band_enes = dropdims(sum(real.(conj.(Pψk) .* (term.ops[ik].D * Pψk)), dims=1), dims=1)
+            E += basis.kweights[ik] * sum(band_enes .* occupation[ik])
+        end
     end
     E = mpi_sum(E, basis.comm_kpts)
 
@@ -76,13 +78,15 @@ end
                 structure_factors = [cis2pi(-dot(p, r)) for p in G_plus_k]
                 P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
 
-                forces[idx] += map(1:3) do α
+                @views forces[idx] += map(1:3) do α
                     dPdR = [-2T(π)*im*p[α] for p in G_plus_k] .* P
-                    ψk = ψ[ik]
-                    δHψk = P * (C * (dPdR' * ψk))
-                    -sum(occupation[ik][iband] * basis.kweights[ik] *
-                             2real(dot(ψk[:, iband], δHψk[:, iband]))
-                         for iband=1:size(ψk, 2))
+                    mapreduce(+, 1:model.n_components) do σ
+                        ψkσ = ψ[ik][σ, :, :]
+                        δHψkσ = P * (C * (dPdR' * ψkσ))
+                        -sum(occupation[ik][iband] * basis.kweights[ik] *
+                                 2real(dot(ψkσ[:, iband], δHψkσ[:, iband]))
+                             for iband=1:size(ψkσ, 2))
+                    end
                 end  # α
             end  # r
         end  # kpt
@@ -251,11 +255,11 @@ function PDPψk(basis, positions, psp_groups, kpt, kpt_minus_q, ψk)
     D = build_projection_coefficients(basis, psp_groups)
     P = build_projection_vectors(basis, kpt, psp_groups, positions)
     P_minus_q = build_projection_vectors(basis, kpt_minus_q, psp_groups, positions)
-    P * (D * P_minus_q' * ψk)
+    stack([P * (D * P_minus_q' * ψkσ) for ψkσ in eachslice(ψk; dims=1)]; dims=1)
 end
 
-function compute_dynmat_δH(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, occupation,
-                           δψ, δoccupation, q) where {T}
+@views function compute_dynmat_δH(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ,
+                                  occupation, δψ, δoccupation, q) where {T}
     S = complex(T)
     model = basis.model
     psp_groups = [group for group in model.atom_groups
@@ -275,16 +279,18 @@ function compute_dynmat_δH(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, 
             for idx in group
                 δforces[idx] += map(1:3) do α
                     δHψk = derivative_wrt_αs(model.positions, α, idx) do positions_αs
-                        PDPψk(basis, positions_αs, psp_groups, kpt_plus_q, kpt, ψ[ik])
+                        PDPψk(basis, positions_αs, psp_groups, kpt_plus_q, kpt, ψk)
                     end
                     δHψk_plus_q = derivative_wrt_αs(model.positions, α, idx) do positions_αs
-                        PDPψk(basis, positions_αs, psp_groups, kpt, kpt, ψ[ik])
+                        PDPψk(basis, positions_αs, psp_groups, kpt, kpt, ψk)
                     end
-                    -sum(  2occupation[ik][iband] * basis.kweights[ik]
-                               * dot(δψk_plus_q[:, iband], δHψk[:, iband])
-                         + δoccupation[ik][iband]  * basis.kweights[ik]
-                               * 2real(dot(ψk[:, iband], δHψk_plus_q[:, iband]))
-                         for iband=1:size(ψk, 2))
+                    mapreduce(+, 1:basis.model.n_components) do σ
+                        -sum(  2occupation[ik][iband] * basis.kweights[ik]
+                                   * dot(δψk_plus_q[σ, :, iband], δHψk[σ, :, iband])
+                             + δoccupation[ik][iband]  * basis.kweights[ik]
+                                   * 2real(dot(ψk[σ, :, iband], δHψk_plus_q[σ, :, iband]))
+                             for iband=1:size(ψk, 3))
+                    end
                 end
             end
         end
@@ -327,9 +333,10 @@ end
                     PDPψk(basis, positions_βsαs, psp_groups, kpt, kpt, ψ[ik])
                 end
             end
-            dynmat_δ²H[β, s, α, s] += sum(occupation[ik][n] * basis.kweights[ik] *
-                                              dot(ψ[ik][:, n], δ²Hψ[ik][:, n])
-                                          for n=1:size(ψ[ik], 2))
+            dynmat_δ²H[β, s, α, s] += mapreduce(+, 1:basis.model.n_components) do σ
+                sum(occupation[ik][n] * basis.kweights[ik] * dot(ψ[ik][σ, :, n], δ²Hψ[ik][σ, :, n])
+                    for n=1:size(ψ[ik], 3))
+            end
         end
     end
 
@@ -342,6 +349,7 @@ function compute_δHψ_αs(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, �
     model = basis.model
     psp_groups = [group for group in model.atom_groups
                   if model.atoms[first(group)] isa ElementPsp]
+    isempty(psp_groups) && return nothing
 
     ψ_minus_q = transfer_blochwave_equivalent_to_actual(basis, ψ, -q)
     map(enumerate(basis.kpoints)) do (ik, kpt)
