@@ -144,29 +144,18 @@ Overview of parameters:
     compute_consistent_energies=true,
     response=ResponseOptions(),  # Dummy here, only for AD
 ) where {T}
-    # All these variables will get updated by fixpoint_map
     if !isnothing(ψ)
         @assert length(ψ) == length(basis.kpoints)
     end
-    occupation = nothing
-    eigenvalues = nothing
-    ρout = ρ
-    εF = nothing
-    n_iter = 0
-    energies = nothing
-    ham = nothing
     start_ns = time_ns()
     end_time = Dates.now() + maxtime
-    info = (; n_iter=0, ρin=ρ)  # Populate info with initial values
-    history_Etot = T[]
-    history_Δρ   = T[]
-    converged = false
 
     # We do density mixing in the real representation
     # TODO support other mixing types
-    function fixpoint_map(ρin)
-        converged && return ρin  # No more iterations if convergence flagged
-        MPI.bcast(Dates.now() ≥ end_time, MPI.COMM_WORLD) && return ρin
+    function fixpoint_map(ρin, info)
+        (; ψ, occupation, eigenvalues, εF, n_iter, converged) = info
+        converged && return ρin, info  # No more iterations if convergence flagged
+        MPI.bcast(Dates.now() ≥ end_time, MPI.COMM_WORLD) && return ρin, info
         n_iter += 1
 
         # Note that ρin is not the density of ψ, and the eigenvalues
@@ -181,43 +170,50 @@ Overview of parameters:
         Δρ = ρout - ρin
 
         # Update info with results gathered so far
-        info = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
-                ρin, ρout, α=damping, n_iter, nbandsalg.occupation_threshold,
-                runtime_ns=time_ns() - start_ns, nextstate...,
-                diagonalization=[nextstate.diagonalization])
+        info_next = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
+                       ρin, α=damping, n_iter, nbandsalg.occupation_threshold,
+                       runtime_ns=time_ns() - start_ns, nextstate...,
+                       diagonalization=[nextstate.diagonalization])
 
         # Compute the energy of the new state
         if compute_consistent_energies
             energies = energy_hamiltonian(basis, ψ, occupation;
                                           ρ=ρout, eigenvalues, εF).energies
         end
+        history_Etot = vcat(info.history_Etot, energies.total)
+        history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
+        info_next = merge(info_next, (; energies, history_Etot, history_Δρ))
 
-        # Push energy and density change of this step.
-        push!(history_Etot, energies.total)
-        push!(history_Δρ,   norm(Δρ) * sqrt(basis.dvol))
-        info = merge(info, (; energies, history_Δρ, history_Etot, converged))
+        # Apply mixing and pass it the full info as kwargs
+        ρnext = ρin .+ T(damping) .* mix_density(mixing, basis, Δρ; info_next...)
 
-        converged = is_converged(info)
-        converged = MPI.bcast(converged, 0, MPI.COMM_WORLD)  # Ensure same converged
-        callback(merge(info, (; converged)))
+        callback(info_next)
+        if is_converged(info_next)
+            info_next = merge(info_next, (; converged=true))
+        end
 
-        ρin + T(damping) .* mix_density(mixing, basis, Δρ; info...)
+        ρnext, info_next
     end
+
+    info_init = (; ρin=ρ, ψ=ψ, occupation=nothing, eigenvalues=nothing, εF=nothing, 
+                   n_iter=0, converged=false, history_Etot=T[], history_Δρ=T[])
 
     # Tolerance and maxiter are only dummy here: Convergence is flagged by is_converged
     # inside the fixpoint_map.
-    solver(fixpoint_map, ρout, maxiter; tol=eps(T))
-
+    _, info = solver(fixpoint_map, ρ, info_init, maxiter; tol=eps(T)) # TODO ?? why dummy?
+    
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρout, so we return that. We also perform a last energy computation
     # to return a correct variational energy
+    (; ρin, ρout, ψ, occupation, eigenvalues, εF, converged) = info
     energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρout, eigenvalues, εF)
 
     # Callback is run one last time with final state to allow callback to clean up
-    info = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
-            ρ=ρout, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
-            n_iter, ψ, info.diagonalization, stage=:finalize, history_Δρ, history_Etot,
-            runtime_ns=time_ns() - start_ns, algorithm="SCF")
-    callback(info)
-    info
+    scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
+                ρ=ρout, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
+                info.n_iter, ψ, info.diagonalization, stage=:finalize,
+                info.history_Δρ, info.history_Etot,
+                runtime_ns=time_ns() - start_ns, algorithm="SCF")
+    callback(scfres)
+    scfres
 end
