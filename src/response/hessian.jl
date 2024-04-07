@@ -166,7 +166,7 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
         pack(δρ - χ0δV)
     end
     J = LinearMap{T}(eps_fun, prod(size(δρ0)))
-    δρ, history = gmres(J, pack(δρ0); reltol=0, abstol=tol, verbose, log=true)
+    δρ, history = IterativeSolvers.gmres(J, pack(δρ0); reltol=0, abstol=tol, verbose, log=true)
     δρ = unpack(δρ)
 
     # Compute total change in Hamiltonian applied to ψ

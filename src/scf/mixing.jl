@@ -233,7 +233,7 @@ end
     DC_δF = mean(δF)
     δF .-= DC_δF
     ε  = LinearMap{T}(dielectric_adjoint, length(δF))
-    δρ = devec(gmres(ε, vec(δF); mixing.verbose, reltol=T(mixing.reltol)))
+    δρ = devec(IterativeSolvers.gmres(ε, vec(δF); mixing.verbose, reltol=T(mixing.reltol)))
     δρ .+= DC_δF  # Set DC from δF
     δρ
 end
