@@ -344,11 +344,11 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
             if flag
                 kwargs_sternheimer = merge(kwargs_sternheimer, Dict(:tol => tol_sternheimer / CG_tol_scale[ik][n]))
             end
-            # δψk[:, n] .+= sternheimer_solver(Hk, ψk, εk_minus_q[n], δHψ[ik][:, n]; ψk_extra,
-            #     εk_extra, Hψk_extra, kwargs_sternheimer...)
+            δψk[:, n] .+= sternheimer_solver(Hk, ψk, εk_minus_q[n], δHψ[ik][:, n]; ψk_extra,
+                εk_extra, Hψk_extra, kwargs_sternheimer...)
 
             # do not use schur trick
-            δψk[:, n] .+= sternheimer_solver(Hk, ψk, εk_minus_q[n], δHψ[ik][:, n];kwargs_sternheimer...)
+            #δψk[:, n] .+= sternheimer_solver(Hk, ψk, εk_minus_q[n], δHψ[ik][:, n];kwargs_sternheimer...)
         end
     end
 end
