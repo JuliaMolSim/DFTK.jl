@@ -140,7 +140,7 @@ end
         x == 0 ? zero(T) : sqrt(π/2x) * besselj(n+1/2, x)
     end
 
-    # The integrand for performing the spherical Hankel transfrom,
+    # The integrand for performing the spherical Hankel transform,
     # i.e. compute the radial part of the projector in Fourier space
     function integrand(psp, i, l, p, x)
         4π * x^2 * eval_psp_projector_real(psp, i, l, x) * j(l, p*x)

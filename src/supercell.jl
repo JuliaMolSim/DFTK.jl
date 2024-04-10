@@ -81,7 +81,7 @@ function cell_to_supercell(ψ, basis::PlaneWaveBasis{T},
                          Gplusk_vectors_in_supercell(basis, basis_supercell, kpt))
     end
 
-    # Transfer all ψ[k] independantly and return the hcat of all blocs
+    # Transfer all ψ[k] independently and return the hcat of all blocs
     ψ_out_blocs = []
     for (ik, kpt) in enumerate(basis.kpoints)
         ψk_supercell = zeros(complex(T), num_kpG, num_bands)

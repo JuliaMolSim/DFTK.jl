@@ -89,8 +89,8 @@ stack(scfres.eigenvalues)
 # We can check the occupations ...
 stack(scfres.occupation)
 # ... and density, where we use that the density objects in DFTK are
-# indexed as ρ[iσ, ix, iy, iz], i.e. first in the spin component and then
-# in the 3-dimensional real-space grid.
+# indexed as ρ[ix, iy, iz, iσ], i.e. first in the 3-dimensional real-space grid
+# and then in the spin component.
 rvecs = collect(r_vectors(basis))[:, 1, 1]  # slice along the x axis
 x = [r[1] for r in rvecs]                   # only keep the x coordinate
 plot(x, scfres.ρ[1, :, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
