@@ -4,7 +4,7 @@ function gmres(operators::Function, b::AbstractVector{T};
     x₀=nothing,
     maxiter=min(100, size(operators(0), 1)),
     restart=min(20, size(operators(0), 1)),
-    tol=1e-6, s_guess=1, d_factor = 10,
+    tol=1e-6, s_guess=0.5, d_factor = 4.0,
     verbose=0, debug=false) where {T}
     # pass s/3m 1/\|r_tilde\| tol to operators()
     
@@ -72,7 +72,9 @@ function gmres(operators::Function, b::AbstractVector{T};
         # and restart the algorithm with the new lm and new s_guess
         minsvdvals[j] = svdvals(H[1:i+1, 1:i])[end]
         if minsvdvals[j] < s_guess
+            print("s_guess = ", s_guess, " > minsvdval = ", minsvdvals[j])
             s_guess = minsvdvals[j] / d_factor
+            println(", restart with new s_guess = ", s_guess)
             lm = lm / d_factor
             early_restart = true
         end
