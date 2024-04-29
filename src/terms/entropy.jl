@@ -1,6 +1,6 @@
 """
-Entropy term -TS, where S is the electronic entropy.
-Turns the energy E into the free energy F=E-TS.
+Entropy term ``-TS``, where ``S`` is the electronic entropy.
+Turns the energy ``E`` into the free energy ``F=E-TS``.
 This is in particular useful because the free energy,
 not the energy, is minimized at self-consistency.
 """

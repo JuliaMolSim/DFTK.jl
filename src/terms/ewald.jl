@@ -30,23 +30,6 @@ function ene_ops(term::TermEwald, basis::PlaneWaveBasis, ψ, occupation; kwargs.
 end
 compute_forces(term::TermEwald, ::PlaneWaveBasis, ψ, occupation; kwargs...) = term.forces
 
-"""
-Standard computation of energy and forces.
-"""
-function energy_forces_ewald(lattice::AbstractArray{T}, charges::AbstractArray,
-                             positions; kwargs...) where {T}
-    energy_forces_ewald(T, lattice, charges, positions, zero(Vec3{T}), nothing)
-end
-
-"""
-Computation for phonons; required to build the dynamical matrix.
-"""
-function energy_forces_ewald(lattice::AbstractArray{T}, charges, positions, q,
-                             ph_disp; kwargs...) where{T}
-    S = promote_type(complex(T), eltype(ph_disp[1]))
-    energy_forces_ewald(S, lattice, charges, positions, q, ph_disp; kwargs...)
-end
-
 # To compute the electrostatics of the system, we use the Ewald splitting method due to the
 # slow convergence of the energy in ``1/r``.
 # It uses the the identity ``1/r ≡ erf(η·r)/r + erfc(η·r)/r``, where the first (smooth) part
@@ -60,14 +43,7 @@ function default_η(lattice::AbstractArray{T}) where {T}
     sqrt(sqrt(T(1.69) * norm(recip_lattice ./ 2T(π)) / norm(lattice))) / 2
 end
 
-# This could be merged with Pairwise, but its use of `atom_types` would slow down this
-# computationally intensive Ewald sums. So we leave it as it for now.
-# Phonons:
-# Computes the local energy and forces on the atoms of the reference unit cell 0, for an
-# infinite array of atoms at positions r_{iR} = positions[i] + R + ph_disp[i]*e^{-iq·R}.
-# `q` is the phonon `q`-point (`Vec3`), and `ph_disp` a list of `Vec3` displacements to
-# compute the Fourier transform of (only the direct part of) the force constant matrix.
-"""
+@doc raw"""
 Compute the electrostatic energy and forces. The energy is the electrostatic interaction
 energy per unit cell between point charges in a uniform background of compensating charge to
 yield net neutrality. The forces is the opposite of the derivative of the energy with
@@ -78,9 +54,17 @@ point charges and their positions (as an array of arrays) in fractional coordina
 
 For now this function returns zero energy and force on non-3D systems. Use a pairwise
 potential term if you want to customise this treatment.
+
+For phonon (`q` ≠ 0), this computes the local energy and forces on the atoms of the
+reference unit cell 0, for an infinite array of atoms at positions
+``r_{iR} = {\rm positions}_i + R + {\rm ph_disp}_i e^{-iq·R}``.
+`q` is the phonon `q`-point, and `ph_disp` a list of displacements to compute the Fourier
+transform of (only the direct part of) the force constant matrix.
 """
 function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q, ph_disp;
                              η=default_η(lattice)) where {T}
+    # This could be merged with Pairwise, but its use of `symbols` would slow down this
+    # computationally intensive Ewald sums. So we leave it as it for now.
     @assert length(charges) == length(positions)
     if isempty(charges)
         return (; energy=zero(T), forces=zero(positions))
@@ -112,7 +96,7 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
     # In the real-space term we have erfc(η ||A(rj - rk - R)||),
     # where A is the real-space lattice, rj and rk are atomic positions and
     # thus use the bound  ||A(rj - rk - R)|| * η ≤ max_erfc_arg
-    poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i in 1:3]
+    poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i = 1:3]
     Rlims = estimate_integer_lattice_bounds(lattice, max_erfc_arg / η, poslims)
 
     #
@@ -183,9 +167,19 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
     (; energy=(sum_recip + sum_real) / 2,  # divide by 2 (because of double counting)
        forces=forces_recip .+ forces_real)
 end
+# For convenience
+function energy_forces_ewald(lattice::AbstractArray{T}, charges::AbstractArray,
+                             positions; kwargs...) where {T}
+    energy_forces_ewald(T, lattice, charges, positions, zero(Vec3{T}), nothing)
+end
+function energy_forces_ewald(lattice::AbstractArray{T}, charges, positions, q,
+                             ph_disp; kwargs...) where{T}
+    S = promote_type(complex(T), eltype(ph_disp[1]))
+    energy_forces_ewald(S, lattice, charges, positions, q, ph_disp; kwargs...)
+end
 
 # TODO: See if there is a way to express this with AD.
-function dynmat_ewald_recip(model::Model{T}, τ, σ; η, q=zero(Vec3{T})) where {T}
+function dynmat_ewald_recip(model::Model{T}, s, t; η, q=zero(Vec3{T})) where {T}
     # Numerical cutoffs to obtain meaningful contributions. These are very conservative.
     # The largest argument to the exp(-x) function
     max_exp_arg = -log(eps(T)) + 5  # add some wiggle room
@@ -201,25 +195,25 @@ function dynmat_ewald_recip(model::Model{T}, τ, σ; η, q=zero(Vec3{T})) where 
     charges   = T.(charge_ionic.(model.atoms))
     positions = model.positions
     @assert length(charges) == length(positions)
-    pτ = positions[τ]
-    pσ = positions[σ]
+    ps = positions[s]
+    pt = positions[t]
 
     dynmat_recip = zeros(complex(T), length(q), length(q))
     for G1 in -Glims[1]:Glims[1], G2 in -Glims[2]:Glims[2], G3 in -Glims[3]:Glims[3]
         G = Vec3(G1, G2, G3)
         if !iszero(G + q)
             Gsqq = sum(abs2, recip_lattice * (G + q))
-            term = exp(-Gsqq / 4η^2) / Gsqq * charges[σ] * charges[τ]
-            term *= cis2pi(dot(G + q, pσ - pτ))
+            term = exp(-Gsqq / 4η^2) / Gsqq * charges[t] * charges[s]
+            term *= cis2pi(dot(G + q, pt - ps))
             term *= (2T(π) * (G + q)) * transpose(2T(π) * (G + q))
             dynmat_recip += term
         end
 
-        (iszero(G) || σ ≢ τ) && continue
+        (iszero(G) || t ≢ s) && continue
         Gsq = sum(abs2, recip_lattice * G)
 
-        strucfac = sum(Z * cos2pi(dot(pσ - r, G)) for (r, Z) in zip(positions, charges))
-        dsum = charges[σ] * strucfac
+        strucfac = sum(Z * cos2pi(dot(pt - r, G)) for (r, Z) in zip(positions, charges))
+        dsum = charges[t] * strucfac
         dsum *= (2T(π) * G) * transpose(2T(π) * G)
         dynmat_recip -= exp(-Gsq / 4η^2) / Gsq * dsum
     end
@@ -236,27 +230,23 @@ function compute_dynmat(ewald::TermEwald, basis::PlaneWaveBasis{T}, ψ, occupati
     n_dim = model.n_dim
     charges = T.(charge_ionic.(model.atoms))
 
-    dynmat = zeros(complex(T), n_dim, n_atoms, n_dim, n_atoms)
+    dynmat = zeros(complex(T), 3, n_atoms, 3, n_atoms)
     # Real part
-    for τ in 1:n_atoms
-        for γ in 1:n_dim
-            displacement = zero.(model.positions)
-            displacement[τ] = setindex(displacement[τ], one(T), γ)
-            real_part = -ForwardDiff.derivative(zero(T)) do ε
-                ph_disp = ε .* displacement
-                forces = energy_forces_ewald(model.lattice, charges, model.positions,
-                                             q, ph_disp; ewald.η).forces
-                reduce(hcat, forces)
-            end
-
-            dynmat[:, :, γ, τ] = real_part[1:n_dim, :]
+    for s = 1:n_atoms, α = 1:n_dim
+        displacement = zero.(model.positions)
+        displacement[s] = setindex(displacement[s], one(T), α)
+        real_part = -ForwardDiff.derivative(zero(T)) do ε
+            ph_disp = ε .* displacement
+            forces = energy_forces_ewald(model.lattice, charges, model.positions, q,
+                                         ph_disp; ewald.η).forces
+            stack(forces)
         end
+
+        dynmat[:, :, α, s] = real_part
     end
     # Reciprocal part
-    for τ in 1:n_atoms
-        for σ in 1:n_atoms
-            dynmat[:, σ, :, τ] += dynmat_ewald_recip(model, σ, τ; ewald.η, q)
-        end
+    for s = 1:n_atoms, t = 1:n_atoms
+        dynmat[:, t, :, s] += dynmat_ewald_recip(model, t, s; ewald.η, q)
     end
     dynmat
 end

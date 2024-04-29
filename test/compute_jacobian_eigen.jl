@@ -22,7 +22,7 @@ function eigen_ΩplusK(basis::PlaneWaveBasis{T}, ψ, occupation, numval) where {
         precondprep!(Pks[ik], ψk)
     end
     function f_ldiv!(x, y)
-        for n in 1:size(y, 2)
+        for n = 1:size(y, 2)
             δψ = unpack(y[:, n])
             proj_tangent!(δψ, ψ)
             Pδψ = [ Pks[ik] \ δψk for (ik, δψk) in enumerate(δψ)]
@@ -41,7 +41,7 @@ function eigen_ΩplusK(basis::PlaneWaveBasis{T}, ψ, occupation, numval) where {
         end
         pack(proj_tangent(initial, ψ))
     end
-    x0 = hcat(x0...)
+    x0 = stack(x0)
 
     # Rayleigh-coefficients
     Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ, H * ψ)]

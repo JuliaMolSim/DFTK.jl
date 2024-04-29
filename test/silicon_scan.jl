@@ -20,7 +20,8 @@
     Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/pbe/Si-q4"))
     model = model_SCAN(silicon.lattice, [Si, Si], silicon.positions)
     basis = PlaneWaveBasis(Model{T}(model); Ecut=15, fft_size=(27, 27, 27), kgrid=(3, 3, 3))
-    run_scf_and_compare(T, basis, ref_scan, ref_etot; scf_tol=1e-9, test_tol=5e-5, n_ignored=1)
+    run_scf_and_compare(T, basis, ref_scan, ref_etot; scf_ene_tol=1e-9, test_tol=5e-5,
+                        n_ignored=1)
 end
 
 

@@ -101,11 +101,14 @@ idown = iup + length(scfres.basis.kpoints) ÷ 2
 
 # We can observe the spin-polarization by looking at the density of states (DOS)
 # around the Fermi level, where the spin-up and spin-down DOS differ.
-
 using Plots
-plot_dos(scfres)
+bands_666 = compute_bands(scfres, MonkhorstPack(6, 6, 6))  # Increase kgrid to get nicer DOS.
+plot_dos(bands_666)
+# Note that if same k-grid as SCF should be employed, a simple `plot_dos(scfres)`
+# is sufficient.
 
 # Similarly the band structure shows clear differences between both spin components.
 using Unitful
 using UnitfulAtomic
-plot_bandstructure(scfres; kline_density=6)
+bands_kpath = compute_bands(scfres; kline_density=6)
+plot_bandstructure(bands_kpath)

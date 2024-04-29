@@ -3,9 +3,9 @@
 
 """
 Linear operators that act on tuples (real, fourier)
-The main entry point is `apply!(out, op, in)` which performs the operation out += op*in
-where out and in are named tuples (real, fourier)
-They also implement mul! and Matrix(op) for exploratory use.
+The main entry point is `apply!(out, op, in)` which performs the operation `out += op*in`
+where `out` and `in` are named tuples `(; real, fourier)`.
+They also implement `mul!` and `Matrix(op)` for exploratory use.
 """
 abstract type RealFourierOperator end
 # RealFourierOperator contain fields `basis` and `kpoint`
@@ -18,7 +18,9 @@ function LinearAlgebra.mul!(Hψ::AbstractVector, op::RealFourierOperator, ψ::Ab
     Hψ_real = similar(ψ_real)
     Hψ_fourier .= 0
     Hψ_real .= 0
-    apply!((real=Hψ_real, fourier=Hψ_fourier), op, (real=ψ_real, fourier=ψ))
+    apply!((; real=Hψ_real, fourier=Hψ_fourier),
+           op,
+           (; real=ψ_real, fourier=ψ))
     Hψ .= Hψ_fourier .+ fft(op.basis, op.kpoint, Hψ_real)
     Hψ
 end
@@ -46,7 +48,9 @@ end
 
 """
 Real space multiplication by a potential:
+```math
 (Hψ)(r) = V(r) ψ(r).
+```
 """
 struct RealSpaceMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
@@ -75,9 +79,11 @@ function Matrix(op::RealSpaceMultiplication)
     H
 end
 
-"""
+@doc raw"""
 Fourier space multiplication, like a kinetic energy term:
-(Hψ)(G) = multiplier(G) ψ(G).
+```math
+(Hψ)(G) = {\rm multiplier}(G) ψ(G).
+```
 """
 struct FourierMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
@@ -112,13 +118,13 @@ Magnetic field operator A⋅(-i∇).
 struct MagneticFieldOperator{T <: Real, AT} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
     kpoint::Kpoint{T}
-    Apot::AT  # Apot[α][i,j,k] is the A field in (cartesian) direction α
+    Apot::AT  # Apot[α][i,j,k] is the A field in (Cartesian) direction α
 end
 function apply!(Hψ, op::MagneticFieldOperator, ψ)
     # TODO this could probably be better optimized
     for α = 1:3
         iszero(op.Apot[α]) && continue
-        pα = [Gk[α] for Gk in Gplusk_vectors_cart(op.basis, op.kpoint)]
+        pα = [p[α] for p in Gplusk_vectors_cart(op.basis, op.kpoint)]
         ∂αψ_fourier = pα .* ψ.fourier
         ∂αψ_real = ifft(op.basis, op.kpoint, ∂αψ_fourier)
         Hψ.real .+= op.Apot[α] .* ∂αψ_real
@@ -136,23 +142,22 @@ struct DivAgradOperator{T <: Real, AT} <: RealFourierOperator
     kpoint::Kpoint{T}
     A::AT
 end
-function apply!(Hψ, op::DivAgradOperator, ψ,
+function apply!(Hψ, op::DivAgradOperator, ψ;
                 ψ_scratch=zeros(complex(eltype(op.basis)), op.basis.fft_size...))
     # TODO: Performance improvements: Unscaled plans, avoid remaining allocations
     #       (which are only on the small k-point-specific Fourier grid
-    G_plus_k = [[Gk[α] for Gk in Gplusk_vectors_cart(op.basis, op.kpoint)] for α in 1:3]
+    G_plus_k = [[p[α] for p in Gplusk_vectors_cart(op.basis, op.kpoint)] for α = 1:3]
     for α = 1:3
         ∂αψ_real = ifft!(ψ_scratch, op.basis, op.kpoint, im .* G_plus_k[α] .* ψ.fourier)
         A∇ψ      = fft(op.basis, op.kpoint, ∂αψ_real .* op.A)
         Hψ.fourier .-= im .* G_plus_k[α] .* A∇ψ ./ 2
-
     end
 end
 # TODO Implement  Matrix(op::DivAgrad)
 
 
 # Optimize RFOs by combining terms that can be combined
-function optimize_operators_(ops)
+function optimize_operators(ops)
     ops = [op for op in ops if !(op isa NoopOperator)]
     RSmults = [op for op in ops if op isa RealSpaceMultiplication]
     isempty(RSmults) && return ops

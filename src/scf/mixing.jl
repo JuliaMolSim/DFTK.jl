@@ -73,7 +73,7 @@ end
     δFtot_fourier  = total_density(δF_fourier)
     δFspin_fourier = spin_density(δF_fourier)
     δρtot_fourier = δFtot_fourier .* G² ./ (kTF.^2 .+ G²)
-    enforce_real!(basis, δρtot_fourier)
+    enforce_real!(δρtot_fourier, basis)
     δρtot = irfft(basis, δρtot_fourier)
 
     # Copy DC component, otherwise it never gets updated
@@ -83,7 +83,7 @@ end
         ρ_from_total_and_spin(δρtot, nothing)
     else
         δρspin_fourier = @. δFspin_fourier - δFtot_fourier * (4π * ΔDOS_Ω) / (kTF^2 + G²)
-        enforce_real!(basis, δρspin_fourier)
+        enforce_real!(δρspin_fourier, basis)
         δρspin = irfft(basis, δρspin_fourier)
         ρ_from_total_and_spin(δρtot, δρspin)
     end
@@ -113,7 +113,7 @@ end
 end
 
 @doc raw"""
-We use a simplification of the Resta model DOI 10.1103/physrevb.16.2717 and set
+We use a simplification of the [Resta model](https://doi.org/10.1103/physrevb.16.2717) and set
 ``χ_0(q) = \frac{C_0 G^2}{4π (1 - C_0 G^2 / k_{TF}^2)}``
 where ``C_0 = 1 - ε_r`` with ``ε_r`` being the macroscopic relative permittivity.
 We neglect ``K_\text{xc}``, such that
@@ -155,7 +155,7 @@ where ``C_0 = 1 - ε_r``, ``D_\text{loc}`` is the local density of states,
 ``D`` is the density of states and
 the same convention for parameters are used as in [`DielectricMixing`](@ref).
 Additionally there is the real-space localization function `L(r)`.
-For details see Herbst, Levitt 2020 arXiv:2009.01665
+For details see  [Herbst, Levitt 2020](https://arxiv.org/abs/2009.01665).
 
 Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `RPA`: Is the random-phase approximation used for the kernel (i.e. only Hartree kernel is
@@ -163,7 +163,7 @@ Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `verbose`: Run the GMRES in verbose mode.
 - `reltol`: Relative tolerance for GMRES
 """
-function HybridMixing(;εr=1.0, kTF=0.8, localization=identity,
+function HybridMixing(; εr=10.0, kTF=0.8, localization=identity,
                       adjust_temperature=IncreaseMixingTemperature(), kwargs...)
     χ0terms = [DielectricModel(; εr, kTF, localization),
                LdosModel(;adjust_temperature)]
@@ -179,7 +179,8 @@ The model for the susceptibility is
 \end{aligned}
 ```
 where ``D_\text{loc}`` is the local density of states,
-``D`` is the density of states. For details see Herbst, Levitt 2020 arXiv:2009.01665.
+``D`` is the density of states.
+For details see [Herbst, Levitt 2020](https://arxiv.org/abs/2009.01665).
 
 Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `RPA`: Is the random-phase approximation used for the kernel (i.e. only Hartree kernel is

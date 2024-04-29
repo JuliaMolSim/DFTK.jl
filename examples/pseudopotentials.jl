@@ -92,7 +92,7 @@ function run_bands(psp)
     basis = PlaneWaveBasis(model; Ecut=12, kgrid=(4, 4, 4))
 
     scfres   = self_consistent_field(basis; tol=1e-4)
-    bandplot = plot_bandstructure(scfres)
+    bandplot = plot_bandstructure(compute_bands(scfres))
     (; scfres, bandplot)
 end;
 

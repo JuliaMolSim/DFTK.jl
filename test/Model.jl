@@ -1,4 +1,4 @@
-@testitem "Test reduced / cartesian conversion" setup=[TestCases] begin
+@testitem "Test reduced / Cartesian conversion" setup=[TestCases] begin
     using DFTK
     using LinearAlgebra
     silicon = TestCases.silicon
@@ -9,15 +9,15 @@
 
     rred = randn(3)  # reduced "position"
     fred = randn(3)  # reduced "force"
-    qred = randn(3)  # reduced "reciprocal vector"
+    pred = randn(3)  # reduced "reciprocal vector"
     @test(  dot(DFTK.covector_red_to_cart(model, fred), DFTK.vector_red_to_cart(model, rred))
           ≈ dot(fred, rred))
-    @test(dot(DFTK.vector_red_to_cart(model, rred), DFTK.recip_vector_red_to_cart(model, qred))
-          ≈ 2π * dot(rred, qred))
+    @test(dot(DFTK.vector_red_to_cart(model, rred), DFTK.recip_vector_red_to_cart(model, pred))
+          ≈ 2π * dot(rred, pred))
 
     @test DFTK.vector_cart_to_red(model, DFTK.vector_red_to_cart(model, rred)) ≈ rred
     @test DFTK.covector_cart_to_red(model, DFTK.covector_red_to_cart(model, fred)) ≈ fred
-    @test DFTK.recip_vector_cart_to_red(model, DFTK.recip_vector_red_to_cart(model, qred)) ≈ qred
+    @test DFTK.recip_vector_cart_to_red(model, DFTK.recip_vector_red_to_cart(model, pred)) ≈ pred
 
     rcart = randn(3)
     fcart = randn(3)

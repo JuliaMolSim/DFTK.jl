@@ -14,15 +14,15 @@ import LinearAlgebra: mul!
 precondprep!(P, X) = P  # This API is also used in Optim.jl
 
 """
-No preconditioning
+No preconditioning.
 """
 struct PreconditionerNone end
 PreconditionerNone(::PlaneWaveBasis, ::Kpoint) = I
 PreconditionerNone(::HamiltonianBlock) = I
 
 """
-(simplified version of) Tetter-Payne-Allan preconditioning
-↑ M.P. Teter, M.C. Payne and D.C. Allan, Phys. Rev. B 40, 12255 (1989).
+(Simplified version of)
+[Tetter-Payne-Allan preconditioning](https://doi.org/10.1103/physrevb.40.12255).
 """
 mutable struct PreconditionerTPA{T <: Real}
     basis::PlaneWaveBasis
@@ -43,7 +43,7 @@ function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=
     PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
 end
 function PreconditionerTPA(ham::HamiltonianBlock; kwargs...)
-    PreconditionerTPA(ham.basis, ham.kpoint)
+    PreconditionerTPA(ham.basis, ham.kpoint; kwargs...)
 end
 
 @views function ldiv!(Y, P::PreconditionerTPA, R)
@@ -72,6 +72,8 @@ ldiv!(P::PreconditionerTPA, R) = ldiv!(R, P, R)
 end
 (Base.:*)(P::PreconditionerTPA, R) = mul!(copy(R), P, R)
 
-function precondprep!(P::PreconditionerTPA, X)
+function precondprep!(P::PreconditionerTPA, X::AbstractArray)
     P.mean_kin = [real(dot(x, Diagonal(P.kin), x)) for x in eachcol(X)]
 end
+precondprep!(P::PreconditionerTPA, ::Nothing) = 1  # fallback for edge cases
+

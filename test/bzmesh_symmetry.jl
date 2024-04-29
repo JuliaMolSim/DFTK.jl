@@ -4,11 +4,11 @@
     using LinearAlgebra
     testcase = TestCases.silicon
 
-    args = ((kgrid=[2, 2, 2], kshift=[1/2, 0, 0]),
-            (kgrid=[2, 2, 2], kshift=[1/2, 1/2, 0]),
-            (kgrid=[2, 2, 2], kshift=[0, 0, 0]),
-            (kgrid=[3, 2, 3], kshift=[0, 0, 0]),
-            (kgrid=[3, 2, 3], kshift=[0, 1/2, 1/2]))
+    args = ((; kgrid=[2, 2, 2], kshift=[1/2, 0, 0]),
+            (; kgrid=[2, 2, 2], kshift=[1/2, 1/2, 0]),
+            (; kgrid=[2, 2, 2], kshift=[0, 0, 0]),
+            (; kgrid=[3, 2, 3], kshift=[0, 0, 0]),
+            (; kgrid=[3, 2, 3], kshift=[0, 1/2, 1/2]))
     for case in args
         model_nosym = model_LDA(testcase.lattice, testcase.atoms, testcase.positions;
                                 symmetries=false)

@@ -13,7 +13,7 @@
         scfres.energies.total, DFTK.compute_forces(scfres)
     end
 
-    E, forces = energy_forces(Ecut=5, tol=1e-10)
+    E, forces = energy_forces(; Ecut=5, tol=1e-10)
     @test E ≈ -1.5869009433016852 atol=1e-12
     @test norm(forces) < 1e-7
 end

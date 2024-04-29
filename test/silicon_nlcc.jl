@@ -21,7 +21,6 @@ function run_silicon_nlcc(T; Ecut=5, grid_size=15, spin_polarization=:none, kwar
 
     ref_etot = -8.50167205710043
 
-    fft_size = fill(grid_size, 3)
     Si = ElementPsp(silicon.atnum;
                     psp=load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Si.upf"))
     atoms = [Si, Si]
@@ -33,13 +32,12 @@ function run_silicon_nlcc(T; Ecut=5, grid_size=15, spin_polarization=:none, kwar
     end
     model = model_DFT(Array{T}(silicon.lattice), atoms, silicon.positions,
                       [:lda_x, :lda_c_pw]; spin_polarization, magnetic_moments)
-    basis = PlaneWaveBasis(model, Ecut, silicon.kcoords, silicon.kweights; fft_size)
+    basis = PlaneWaveBasis(model; Ecut, kgrid=(3, 3, 3), fft_size=fill(grid_size, 3))
 
     spin_polarization == :collinear && (ref_nlcc = vcat(ref_nlcc, ref_nlcc))
     run_scf_and_compare(T, basis, ref_nlcc, ref_etot; ρ=guess_density(basis), kwargs...)
 end
 end
-
 
 @testitem "Silicon NLCC (small, Float64)" setup=[RunSCF, TestCases, SiliconNLCC] begin
     SiliconNLCC.run_silicon_nlcc(Float64; Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17)
@@ -47,8 +45,8 @@ end
 
 @testitem "Silicon NLCC (large, Float64)" #=
     =#    tags=[:slow] setup=[RunSCF, TestCases, SiliconNLCC] begin
-    SiliconNLCC.run_silicon_nlcc(Float64; Ecut=25, test_tol=3e-5, n_ignored=0, grid_size=36,
-                                 scf_tol=1e-11)
+    SiliconNLCC.run_silicon_nlcc(Float64; Ecut=25, test_tol=6e-5, n_ignored=0, grid_size=36,
+                                 scf_ene_tol=1e-11)
 end
 
 @testitem "Silicon NLCC (small, collinear spin)" setup=[RunSCF, TestCases, SiliconNLCC] begin
@@ -58,6 +56,6 @@ end
 
 @testitem "Silicon NLCC (large, collinear spin)" #=
     =#    tags=[:slow] setup=[RunSCF, TestCases, SiliconNLCC] begin
-    SiliconNLCC.run_silicon_nlcc(Float64; Ecut=25, test_tol=3e-5, n_ignored=0, grid_size=36,
-                                 scf_tol=1e-11, spin_polarization=:collinear)
+    SiliconNLCC.run_silicon_nlcc(Float64; Ecut=25, test_tol=6e-5, n_ignored=0, grid_size=36,
+                                 scf_ene_tol=1e-11, spin_polarization=:collinear)
 end
