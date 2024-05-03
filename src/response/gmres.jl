@@ -4,10 +4,15 @@ function gmres(operators::Function, b::AbstractVector{T};
     x₀=nothing,
     maxiter=min(100, size(operators(0), 1)),
     restart=min(20, size(operators(0), 1)),
-    tol=1e-6, s_guess=0.5, d_factor = 4.0,
-    verbose=0, debug=false) where {T}
+    tol=1e-6, s_guess=1.0, verbose=1, debug=false) where {T}
     # pass s/3m 1/\|r_tilde\| tol to operators()
-    
+    normb = norm(b)
+    b = b ./ normb
+    tol = tol / normb
+    if tol < 0.5*eps(T)
+        #throw a warning
+        @warn "The effective tolerance is smaller than half of the machine epsilon, the requested accuracy may not be achieved."
+    end
 
     n_size = length(b)
 
@@ -35,17 +40,18 @@ function gmres(operators::Function, b::AbstractVector{T};
     # if x0 is zero, set r0 = b
     x0iszero = isnothing(x₀)
     if x0iszero
-        β₀ = norm(b)
-        V[:, 1] = b / β₀
+        β₀ = 1.0
+        V[:, 1] = b #/ β₀
         tol_new = tol / 2
         lm = s_guess / restart / 2 * tol
     else
+        # assert x₀ is a vector of the right size
+        @assert length(x₀) == n_size
+        x₀ ./= normb
         x0iszero = false
         tol_new = tol / 3
         A0_tol = tol / 3
         lm = s_guess / restart / 3 * tol
-        # assert x₀ is a vector of the right size
-        @assert length(x₀) == n_size
         push!(MvTime, @elapsed r₀ = operators(A0_tol) * x₀)
         r₀ = b - r₀
         β₀ = norm(r₀)
@@ -53,7 +59,6 @@ function gmres(operators::Function, b::AbstractVector{T};
     end
 
     Ai_tol = lm / β₀ 
-    early_restart = false
     i = 0 # iteration counter, set to 0 when restarted
     for j = 1:maxiter
         i += 1
@@ -67,17 +72,8 @@ function gmres(operators::Function, b::AbstractVector{T};
         H[i+1, i] = norm(w)
         V[:, i+1] = w / H[i+1, i]
 
-        # if new minsvdval is smaller than the working s_guess
-        # update the working s_guess to be 1/d_factor of the new s_guess
-        # and restart the algorithm with the new lm and new s_guess
+        # compute the min singular value of the upper Hessenberg matrix
         minsvdvals[j] = svdvals(H[1:i+1, 1:i])[end]
-        if minsvdvals[j] < s_guess
-            print("s_guess = ", s_guess, " > minsvdval = ", minsvdvals[j])
-            s_guess = minsvdvals[j] / d_factor
-            println(", restart with new s_guess = ", s_guess)
-            lm = lm / d_factor
-            early_restart = true
-        end
     
         # update residual history
         if i == 1
@@ -89,10 +85,12 @@ function gmres(operators::Function, b::AbstractVector{T};
         residuals[j] = β₀ / sqrt(denominator2)
         Ai_tol = lm / residuals[j]
 
-        (verbose > 0) && println("restart = ", numrestarts + 1, ", iteration = ", i, ", res = ", residuals[j], "\n")
+        (verbose > 0) && println("restart = ", numrestarts + 1, ", iteration = ", i, ", res = ", residuals[j]*normb, "\n")
 
-        happy = residuals[j] < tol_new
-        needrestart = (i == restart) || early_restart
+        # when converged without updating the s_guess, restart once
+        converged = residuals[j] < tol_new
+        happy = converged && ((numrestarts > 0) || (s_guess <= minsvdvals[j]))
+        needrestart = (i == restart) || (converged && !happy) # equal to converged && (numrestarts == 0) && (s_guess > minsvdvals[j])
         reachmaxiter = (j == maxiter)
         exitloop = (happy || reachmaxiter)
 
@@ -110,19 +108,23 @@ function gmres(operators::Function, b::AbstractVector{T};
             
             if exitloop
                 if debug
-                    return (; x=X[:, 1:j], residuals=residuals[1:j], MvTime=MvTime, restart_inds=restart_inds, minsvdvals=minsvdvals[1:j])
+                    return (; x=X[:, 1:j].*normb, residuals=residuals[1:j].*normb, MvTime=MvTime, restart_inds=restart_inds, minsvdvals=minsvdvals[1:j])
                 else
-                    return (; x=xᵢ, residuals=residuals[1:j], MvTime=MvTime, restart_inds=restart_inds)
+                    return (; x=xᵢ.*normb, residuals=residuals[1:j].*normb, MvTime=MvTime, restart_inds=restart_inds)
                 end
             end
 
             if needrestart
                 i = 0
-                early_restart = false
-                if x0iszero == true
-                    x0iszero = false
-                    lm = s_guess / restart / 3 * tol
+                x0iszero = false
+                # whenever restart, update the guess of the smallest singular value
+                if s_guess > minimum(minsvdvals[j])
+                    verbose > 0 && println("current s_guess = ", s_guess, "> minsvdval = ", minimum(minsvdvals[j]), ", restart with s_guess = minsvdval")
+                    s_guess = minimum(minsvdvals[j])
+                else
+                    verbose > 0 && println("current s_guess = ", s_guess, "≤ minsvdval = ", minimum(minsvdvals[j]), ", restart with the same s_guess")
                 end
+                lm = s_guess / restart / 3 * tol
                 tol_new = tol / 3
                 A0_tol = tol / 3
                 
