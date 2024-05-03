@@ -118,12 +118,13 @@ function gmres(operators::Function, b::AbstractVector{T};
                 i = 0
                 x0iszero = false
                 # whenever restart, update the guess of the smallest singular value
-                if s_guess > minimum(minsvdvals[j])
-                    verbose > 0 && println("current s_guess = ", s_guess, "> minsvdval = ", minimum(minsvdvals[j]), ", restart with s_guess = minsvdval")
-                    s_guess = minimum(minsvdvals[j])
+                min_s = minimum(minsvdvals[1:j])
+                if s_guess > min_s
+                    verbose > 0 && println("current s_guess = ", s_guess, "> minsvdval = ", min_s, ", restart with s_guess = minsvdval")
                 else
-                    verbose > 0 && println("current s_guess = ", s_guess, "≤ minsvdval = ", minimum(minsvdvals[j]), ", restart with the same s_guess")
+                    verbose > 0 && println("current s_guess = ", s_guess, "≤ minsvdval = ", min_s, ", restart with s_guess = minsvdval")
                 end
+                s_guess = min_s
                 lm = s_guess / restart / 3 * tol
                 tol_new = tol / 3
                 A0_tol = tol / 3
