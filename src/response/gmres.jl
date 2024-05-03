@@ -4,7 +4,7 @@ function gmres(operators::Function, b::AbstractVector{T};
     x₀=nothing,
     maxiter=min(100, size(operators(0), 1)),
     restart=min(20, size(operators(0), 1)),
-    tol=1e-6, s_guess=1.0, verbose=1, debug=false) where {T}
+    tol=1e-6, s_guess=0.8, verbose=1, debug=false) where {T}
     # pass s/3m 1/\|r_tilde\| tol to operators()
     normb = norm(b)
     b = b ./ normb
