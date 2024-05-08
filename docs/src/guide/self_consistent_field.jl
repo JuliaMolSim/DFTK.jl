@@ -17,11 +17,11 @@
 # In this chapter we will investigate the convergence properties of density-mixing SCF algorithms,
 # that is **damped, preconditioned fixed-point iterations**
 # ```math
-# rho_{n+1} = \rho_n + \alpha P^{-1} (D(V(\rho_n)) - \rho_n),
+# \rho_{n+1} = \rho_n + \alpha P^{-1} (D(V(\rho_n)) - \rho_n),
 # ```
 # where
-# * $\alpha$ is a damping parameter, typically chosen between $0$ and $1$.
-# * $P^{-1}$ is a preconditioner, which aims to improve convergence (details discussed further down).
+# *   $\alpha$ is a damping parameter, typically chosen between $0$ and $1$.
+# *   $P^{-1}$ is a preconditioner, which aims to improve convergence (details discussed further down).
 # * the iterations start from an initial guess $\rho_0$.
 # Our presentation follows [^HL2021], where more details can be found.
 #
@@ -29,7 +29,7 @@
 #
 # We investigate the convergence properties of damped, preconditioned
 # iterations, in order to understand the choices for the preconditioning
-# strategy $P^{-1}$ as well as the damping parameter $\alpha$ to be made.
+# stratege $P^{-1}$ as well as the damping parameter $\alpha$ to be made.
 #
 # Near the fixed point $\rho_\ast = D(V(\rho_\ast))$ the error $e_n = \rho_n - \rho_\ast$ is small and we can expand to first order:
 # ```math
@@ -252,7 +252,7 @@ end;
 #
 # ```julia
 # repeat = 1
-# self_consistent_field(aluminium_setup_ex2(repeat);
+# self_consistent_field(aluminium_setup(repeat);
 #                       solver=anderson_iteration,
 #                       damping=0.8, maxiter=40,
 #                       mixing=SimpleMixing());

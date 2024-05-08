@@ -300,18 +300,18 @@ end
 
 function final_retval(X, AX, BX, resid_history, niter, n_matvec)
     λ = @views [real((X[:, n]'*AX[:, n]) / (X[:, n]'BX[:, n])) for n=1:size(X, 2)]
-    residuals = AX .- BX .* λ'
+    λ_device = oftype(X[:, 1], λ)  # Offload to GPU if needed
+    residuals = AX .- BX .* λ_device'
     if !issorted(λ)
         p = sortperm(λ)
         λ = λ[p]
-        λ = real(oftype(X[:, 1], λ))  # Offload to GPU if needed
         residuals = residuals[:, p]
         X = X[:, p]
         AX = AX[:, p]
         BX = BX[:, p]
         resid_history = resid_history[p, :]
     end
-    (; λ, X, AX, BX,
+    (; λ=λ_device, X, AX, BX,
      residual_norms=norm.(eachcol(residuals)),
      residual_history=resid_history[:, 1:niter+1], n_matvec)
 end
@@ -367,13 +367,13 @@ end
     end
     nlocked = 0
     niter = 0  # the first iteration is fake
-    λs = @views [(X[:, n]'*AX[:, n]) / (X[:, n]'BX[:, n]) for n=1:M]
-    λs = real(oftype(X[:, 1], λs))  # Offload to GPU if needed
-    new_X = X
+    λs = @views [real((X[:, n]'*AX[:, n]) / (X[:, n]'BX[:, n])) for n=1:M]
+    λs = oftype(X[:, 1], λs)  # Offload to GPU if needed
+    new_X  = X
     new_AX = AX
     new_BX = BX
     # The full_ arrays contain all the vectors, the others only get the active ones
-    full_X = X
+    full_X  = X
     full_AX = AX
     full_BX = BX
 
