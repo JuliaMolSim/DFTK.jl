@@ -1,5 +1,3 @@
-import PeriodicTable
-
 """Return the data directory with pseudopotential files"""
 datadir_psp() = normpath(joinpath(@__DIR__, "..", "..", "data", "psp"))
 

@@ -40,7 +40,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
 
         ψ = [Matrix(qr(randn(ComplexF64, length(G_vectors(basis, kpt)), n_bands)).Q)
              for kpt in basis.kpoints]
-        occupation = [filled_occ * rand(n_bands) for _ in 1:length(basis.kpoints)]
+        occupation = [filled_occ * rand(n_bands) for _ = 1:length(basis.kpoints)]
         occ_scaling = n_electrons / sum(sum(occupation))
         occupation = [occ * occ_scaling for occ in occupation]
         ρ = with_logger(NullLogger()) do
@@ -63,7 +63,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         diff = (compute_E(ε) - compute_E(-ε)) / (2ε)
 
         diff_predicted = 0.0
-        for ik in 1:length(basis.kpoints)
+        for ik = 1:length(basis.kpoints)
             Hψk = ham.blocks[ik]*ψ[ik]
             test_matrix_repr_operator(ham.blocks[ik], ψ[ik]; atol)
             δψkHψk = sum(occupation[ik][iband] * real(dot(δψ[ik][:, iband], Hψk[:, iband]))

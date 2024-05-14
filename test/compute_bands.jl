@@ -123,20 +123,19 @@ end
     Ecut = 7
     n_bands = 8
 
-    model    = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
-    kinter   = interpolate(irrfbz_path(model), density=3)
-    kweights = ones(length(kinter)) ./ length(kinter)
-    basis    = PlaneWaveBasis(model, Ecut, kinter, kweights)
+    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
+    kgrid = ExplicitKpoints(interpolate(irrfbz_path(model), density=3))
+    basis = PlaneWaveBasis(model; Ecut, kgrid)
 
     # Check that plain diagonalization and compute_bands agree
     ρ   = guess_density(basis)
     ham = Hamiltonian(basis; ρ)
-    band_data = compute_bands(basis, kinter; ρ, n_bands)
+    band_data = compute_bands(basis, kgrid; ρ, n_bands)
 
     eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands + 3,
                                      n_conv_check=n_bands, tol=1e-5)
-    for ik in 1:length(basis.kpoints)
-        @test eigres.λ[ik][1:n_bands] ≈ band_data.λ[ik] atol=1e-5
+    for ik = 1:length(basis.kpoints)
+        @test eigres.λ[ik][1:n_bands] ≈ band_data.eigenvalues[ik] atol=1e-5
     end
 end
 
@@ -149,27 +148,26 @@ end
     model    = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
     kpath    = irrfbz_path(model)
     kinter   = interpolate(irrfbz_path(model), density=3)
-    kweights = ones(length(kinter)) ./ length(kinter)
-    basis    = PlaneWaveBasis(model, 5, kinter, kweights)
+    basis    = PlaneWaveBasis(model; Ecut=5, kgrid=ExplicitKpoints(kinter))
 
     # Setup some dummy data
-    λ = [10ik .+ collect(1:4) for ik = 1:length(kinter)]
-    λerror = [λ[ik]./100 for ik = 1:length(kinter)]
-    band_data = (; basis, λ, λerror)
-    ret = DFTK.data_for_plotting(kinter, band_data)
+    eigenvalues = [10ik .+ collect(1:4)        for ik = 1:length(kinter)]
+    eigenvalues_error = [eigenvalues[ik]./100  for ik = 1:length(kinter)]
+    band_data = (; basis, eigenvalues, eigenvalues_error, kinter)
+    ret = DFTK.data_for_plotting(band_data)
 
     @test ret.n_spin   == 1
     @test ret.n_kcoord == 8
     @test ret.n_bands  == 4
 
-    for iband in 1:4
-        @test ret.λ[:, iband, 1] == [10ik .+ iband for ik in 1:8]
-        @test ret.λerror[:, iband, 1] == ret.λ[:, iband, 1] ./ 100
+    for iband = 1:4
+        @test ret.eigenvalues[:, iband, 1] == [10ik .+ iband for ik = 1:8]
+        @test ret.eigenvalues_error[:, iband, 1] == ret.eigenvalues[:, iband, 1] ./ 100
     end
 
     B = model.recip_lattice
     ref_kdist = [0.0]
-    for ik in 2:8
+    for ik = 2:8
         if ik != 4
             push!(ref_kdist, ref_kdist[end] + norm(B * (kinter[ik-1] - kinter[ik])))
         else

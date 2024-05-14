@@ -29,10 +29,8 @@ function silicon_scf(guess_method)
     model = model_LDA(lattice, atoms, positions)
     basis = PlaneWaveBasis(model; Ecut=12, kgrid=[4, 4, 4])
 
-    ρguess = guess_density(basis, guess_method)
-
-    is_converged = DFTK.ScfConvergenceEnergy(1e-10)
-    self_consistent_field(basis; is_converged, ρ=ρguess)
+    self_consistent_field(basis; ρ=guess_density(basis, guess_method),
+                          is_converged=ScfConvergenceEnergy(1e-10))
 end;
 
 results = Dict();

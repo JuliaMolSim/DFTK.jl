@@ -1,6 +1,6 @@
 ## TODO switch this to a [:,:,:,α] representation?
-"""
-Computes the *probability* (not charge) current, ∑ fn Im(ψn* ∇ψn)
+@doc raw"""
+Computes the *probability* (not charge) current, ``∑_n f_n \Im(ψ_n · ∇ψ_n)``.
 """
 function compute_current(basis::PlaneWaveBasis, ψ, occupation)
     @assert length(basis.symmetries) == 1  # TODO lift this

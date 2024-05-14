@@ -73,9 +73,9 @@ psp_upf  = load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf");
 # numeric pseudopotentials tend to be softer than analytical pseudos because of the
 # flexibility of sampling arbitrary functions on a grid.
 
-# Next, to see that the different pseudopotentials give reasonbly similar results,
+# Next, to see that the different pseudopotentials give reasonably similar results,
 # we'll look at the bandstructures calculated using the HGH and UPF PSPs. Even though
-# the convered cutoffs are higher, we perform these calculations with a cutoff of
+# the converged cutoffs are higher, we perform these calculations with a cutoff of
 # 12 Ha for both PSPs.
 
 function run_bands(psp)
@@ -92,7 +92,7 @@ function run_bands(psp)
     basis = PlaneWaveBasis(model; Ecut=12, kgrid=(4, 4, 4))
 
     scfres   = self_consistent_field(basis; tol=1e-4)
-    bandplot = plot_bandstructure(scfres)
+    bandplot = plot_bandstructure(compute_bands(scfres))
     (; scfres, bandplot)
 end;
 

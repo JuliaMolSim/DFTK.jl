@@ -42,7 +42,7 @@
     - Integration with [ASE](https://wiki.fysik.dtu.dk/ase/) and
       [AtomsBase](https://github.com/JuliaMolSim/AtomsBase.jl) for passing
       atomic structures (see [AtomsBase integration](@ref)).
-    - [Wannierization using Wannier90](@ref)
+    - [Wannierization using Wannier.jl or Wannier90](@ref)
 
 
 * Runs out of the box on Linux, macOS and Windows

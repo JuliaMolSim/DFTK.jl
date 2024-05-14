@@ -1,21 +1,21 @@
 # This file contains functions to handle the symetries.
 # The type SymOp is defined in Symop.jl
 
-import Spglib
+include("external/spglib.jl")
 
 # A symmetry (W, w) (or (S, τ)) induces a symmetry in the Brillouin zone that the
 # Hamiltonian at S k is unitary equivalent to that at k, which we exploit to reduce
 # computations. The relationship is
 #   S = W'
 #   τ = -W^-1 w
-# (valid both in reduced and cartesian coordinates). In our notation the rotation matrix
+# (valid both in reduced and Cartesian coordinates). In our notation the rotation matrix
 # W and translation w are such that, for each atom of type A at position a, W a + w is also
 # an atom of type A.
 
 # The full (reducible) Brillouin zone is implicitly represented by a set of (irreducible)
 # kpoints (see explanation in docs). Each irreducible k-point k comes with a list of
 # symmetry operations (S, τ) (containing at least the trivial operation (I, 0)), where S is
-# a unitary matrix (/!\ in cartesian but not in reduced coordinates) and τ a translation
+# a unitary matrix (/!\ in Cartesian but not in reduced coordinates) and τ a translation
 # vector. The k-point is then used to represent implicitly the information at all the
 # kpoints Sk. The relationship between the Hamiltonians is
 #   H_{Sk} = U H_k U*, with
@@ -64,42 +64,13 @@ function symmetry_operations(hall_number::Integer)
     [SymOp(W, w) for (W, w) in zip(Ws, ws)]
 end
 
-# Temporary workaround until Spglib.jl exports this function
-function spglib_get_symmetry_with_collinear_spin(cell::Spglib.SpglibCell, symprec=1e-5)
-    lattice, positions, atoms, spins = Spglib._unwrap_convert(cell)
-    num_atom = length(cell.magmoms)
-    # See https://github.com/spglib/spglib/blob/42527b0/python/spglib/spglib.py#L270
-    max_size = 96num_atom  # 96 = 48 × 2 since we have spins
-    rotations = Array{Cint,3}(undef, 3, 3, max_size)
-    translations = Matrix{Cdouble}(undef, 3, max_size)
-    equivalent_atoms = Vector{Cint}(undef, num_atom)
-    num_sym = @ccall Spglib.libsymspg.spg_get_symmetry_with_collinear_spin(
-        rotations::Ptr{Cint},
-        translations::Ptr{Cdouble},
-        equivalent_atoms::Ptr{Cint},
-        max_size::Cint,
-        lattice::Ptr{Cdouble},
-        positions::Ptr{Cdouble},
-        atoms::Ptr{Cint},
-        spins::Ptr{Cdouble},
-        num_atom::Cint,
-        symprec::Cdouble,
-    )::Cint
-    Spglib.check_error()
-    rotations = map(
-        SMatrix{3,3,Int32,9} ∘ transpose, eachslice(rotations[:, :, 1:num_sym]; dims=3)
-    )  # Remember to transpose, see https://github.com/singularitti/Spglib.jl/blob/8aed6e0/src/core.jl#L195-L198
-    translations = map(SVector{3,Float64}, eachcol(translations[:, 1:num_sym]))
-    return rotations, translations, equivalent_atoms
-end
-
-
 @doc raw"""
 Return the symmetries given an atomic structure with optionally designated magnetic moments
 on each of the atoms. The symmetries are determined using spglib.
 """
 @timing function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
-                                     tol_symmetry=SYMMETRY_TOLERANCE, check_symmetry=true)
+                                     tol_symmetry=SYMMETRY_TOLERANCE,
+                                     check_symmetry=SYMMETRY_CHECK)
     spin_polarization = determine_spin_polarization(magnetic_moments)
     dimension   = count(!iszero, eachcol(lattice))
     if isempty(atoms) || dimension != 3
@@ -119,9 +90,7 @@ on each of the atoms. The symmetries are determined using spglib.
         if spin_polarization == :none
             Spglib.get_symmetry(cell, tol_symmetry)
         elseif spin_polarization == :collinear
-            # rotations, translations, _ = Spglib.get_symmetry_with_collinear_spin(cell, tol_symmetry)
-            rotations, translations, _ = spglib_get_symmetry_with_collinear_spin(cell, tol_symmetry)
-            rotations, translations
+            Spglib.get_symmetry_with_collinear_spin(cell, tol_symmetry)
         end
     catch e
         if e isa Spglib.SpglibError
@@ -145,8 +114,9 @@ function symmetry_operations(system::AbstractSystem; kwargs...)
                         parsed.magnetic_moments; kwargs...)
 end
 
-function _check_symmetries(symmetries::AbstractVector{<:SymOp}, lattice, atom_groups, positions;
-                          tol_symmetry=SYMMETRY_TOLERANCE)
+@timing function _check_symmetries(symmetries::AbstractVector{<:SymOp},
+                                   lattice, atom_groups, positions;
+                                   tol_symmetry=SYMMETRY_TOLERANCE)
     # Check (W, w) maps atoms to equivalent atoms in the lattice
     for symop in symmetries
         W, w = symop.W, symop.w
@@ -162,7 +132,7 @@ function _check_symmetries(symmetries::AbstractVector{<:SymOp}, lattice, atom_gr
             for coord in group_positions
                 # If all elements of a difference in diffs is integer, then
                 # W * coord + w and pos are equivalent lattice positions
-                if !any(c -> is_approx_integer(W * coord + w - c; tol=tol_symmetry), group_positions)
+                if !any(c -> is_approx_integer(W * coord + w - c; atol=tol_symmetry), group_positions)
                     error("Issue in symmetry determination: Cannot map the atom at position " *
                           "$coord to another atom of the same element under the symmetry " *
                           "operation (W, w):\n($W, $w)")
@@ -173,8 +143,8 @@ function _check_symmetries(symmetries::AbstractVector{<:SymOp}, lattice, atom_gr
 end
 
 # Approximate in; can be performance-critical, so we optimize in case of rationals
-is_approx_in_(x::AbstractArray{<:Rational}, X)  = any(isequal(x), X)
-is_approx_in_(x::AbstractArray{T}, X) where {T} = any(y -> isapprox(x, y; atol=sqrt(eps(T))), X)
+_is_approx_in(x::AbstractArray{<:Rational}, X)  = any(isequal(x), X)
+_is_approx_in(x::AbstractArray{T}, X) where {T} = any(y -> isapprox(x, y; atol=sqrt(eps(T))), X)
 
 """
 Filter out the symmetry operations that don't respect the symmetries of the discrete BZ grid
@@ -182,10 +152,31 @@ Filter out the symmetry operations that don't respect the symmetries of the disc
 function symmetries_preserving_kgrid(symmetries, kcoords)
     kcoords_normalized = normalize_kpoint_coordinate.(kcoords)
     function preserves_grid(symop)
-        all(is_approx_in_(normalize_kpoint_coordinate(symop.S * k), kcoords_normalized)
+        all(_is_approx_in(normalize_kpoint_coordinate(symop.S * k), kcoords_normalized)
             for k in kcoords_normalized)
     end
     filter(preserves_grid, symmetries)
+end
+function symmetries_preserving_kgrid(symmetries, kgrid::ExplicitKpoints)
+    # First apply symmetries as the provides k-points can be arbitrary
+    # (e.g. only along a line or similar)
+    all_kcoords = unfold_kcoords(kgrid.kcoords, symmetries)
+    symmetries_preserving_kgrid(symmetries, all_kcoords)
+end
+function symmetries_preserving_kgrid(symmetries, kgrid::MonkhorstPack)
+    if all(isone, kgrid.kgrid_size)
+        # TODO Keeping this special casing from version of the code before refactor
+        [one(SymOp)]
+    else
+        # if k' = Rk
+        # then
+        #    R' = diag(kgrid) R diag(kgrid)^-1
+        # should be integer where
+
+        # TODO This can certainly be improved by knowing this is an MP grid,
+        #      see symmetries_preserving_rgrid below for ideas
+        symmetries_preserving_kgrid(symmetries, reducible_kcoords(kgrid).kcoords)
+    end
 end
 
 """
@@ -243,8 +234,8 @@ function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
         all(isinteger, basis.kpoints[idx].coordinate - Sk)
     end
     if isnothing(ikfull)
-        # Build a new k-point datastructure:
-        Skpoint = build_kpoints(basis, [Sk])[1]
+        # Build new k-point datastructure
+        Skpoint = Kpoint(basis, Sk, kpoint.spin)
     else
         Skpoint = basis.kpoints[ikfull]
         @assert Skpoint.coordinate ≈ Sk
@@ -257,7 +248,7 @@ function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
     invS = Mat3{Int}(inv(S))
     Gs_full = [G + kshift for G in G_vectors(basis, Skpoint)]
     ψSk = zero(ψk)
-    for iband in 1:size(ψk, 2)
+    for iband = 1:size(ψk, 2)
         for (ig, G_full) in enumerate(Gs_full)
             igired = index_G_vectors(basis, kpoint, invS * G_full)
             @assert igired !== nothing
@@ -326,7 +317,8 @@ end
 """
 Symmetrize a density by applying all the basis (by default) symmetries and forming the average.
 """
-@views @timing function symmetrize_ρ(basis, ρ; symmetries=basis.symmetries, do_lowpass=true)
+@views @timing function symmetrize_ρ(basis, ρ::AbstractArray{T};
+                                     symmetries=basis.symmetries, do_lowpass=true) where {T}
     ρin_fourier  = to_cpu(fft(basis, ρ))
     ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρ, 4)
@@ -334,11 +326,12 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
                                     ρin_fourier[:, :, :, σ], basis, symmetries)
         do_lowpass && lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
     end
-    irfft(basis, to_device(basis.architecture, ρout_fourier) ./ length(symmetries))
+    inv_fft = T <: Real ? irfft : ifft
+    inv_fft(basis, to_device(basis.architecture, ρout_fourier) ./ length(symmetries))
 end
 
 """
-Symmetrize the stress tensor, given as a Matrix in cartesian coordinates
+Symmetrize the stress tensor, given as a Matrix in Cartesian coordinates
 """
 function symmetrize_stresses(model::Model, stresses; symmetries)
     # see (A.28) of https://arxiv.org/pdf/0906.2569.pdf
@@ -356,7 +349,7 @@ end
 
 """
 Symmetrize the forces in *reduced coordinates*, forces given as an
-array forces[iel][α,i]
+array `forces[iel][α,i]`.
 """
 function symmetrize_forces(model::Model, forces; symmetries)
     symmetrized_forces = zero(forces)
@@ -368,7 +361,7 @@ function symmetrize_forces(model::Model, forces; symmetries)
             # (but careful that our symmetries are r -> Wr+w, not R(r+f))
             other_at = W \ (position - w)
             i_other_at = findfirst(a -> is_approx_integer(a - other_at), positions_group)
-            # (A.27) is in cartesian coordinates, and since Wcart is orthogonal,
+            # (A.27) is in Cartesian coordinates, and since Wcart is orthogonal,
             # Fsymcart = Wcart * Fcart <=> Fsymred = inv(Wred') Fred
             symmetrized_forces[idx] += inv(W') * forces[group[i_other_at]]
         end
@@ -388,12 +381,14 @@ function unfold_bz(basis::PlaneWaveBasis)
     if length(basis.symmetries) == 1
         return basis
     else
-        kcoords = unfold_kcoords(basis.kcoords_global, basis.symmetries)
-        return PlaneWaveBasis(basis.model,
-                              basis.Ecut, basis.fft_size, basis.variational,
-                              kcoords, [1/length(kcoords) for _ in kcoords],
-                              basis.kgrid, basis.kshift,
-                              basis.symmetries_respect_rgrid, basis.comm_kpts, basis.architecture)
+        # TODO This can be optimised much better by avoiding the recomputation
+        #      of the terms wherever possible.
+        use_symmetry_for_kpoint_reduction = false
+        return PlaneWaveBasis(basis.model, basis.Ecut, basis.fft_size,
+                              basis.variational, basis.kgrid,
+                              basis.symmetries_respect_rgrid,
+                              use_symmetry_for_kpoint_reduction,
+                              basis.comm_kpts, basis.architecture)
     end
 end
 
@@ -412,7 +407,7 @@ function unfold_mapping(basis_irred, kpt_unfolded)
     error("Invalid unfolding of BZ")
 end
 
-function unfold_array_(basis_irred, basis_unfolded, data, is_ψ)
+function unfold_array(basis_irred, basis_unfolded, data, is_ψ)
     if basis_irred == basis_unfolded
         return data
     end
@@ -420,7 +415,7 @@ function unfold_array_(basis_irred, basis_unfolded, data, is_ψ)
         error("Brillouin zone symmetry unfolding not supported with MPI yet")
     end
     data_unfolded = similar(data, length(basis_unfolded.kpoints))
-    for ik_unfolded in 1:length(basis_unfolded.kpoints)
+    for ik_unfolded = 1:length(basis_unfolded.kpoints)
         kpt_unfolded = basis_unfolded.kpoints[ik_unfolded]
         ik_irred, symop = unfold_mapping(basis_irred, kpt_unfolded)
         if is_ψ
@@ -440,9 +435,9 @@ end
 
 function unfold_bz(scfres)
     basis_unfolded = unfold_bz(scfres.basis)
-    ψ = unfold_array_(scfres.basis, basis_unfolded, scfres.ψ, true)
-    eigenvalues = unfold_array_(scfres.basis, basis_unfolded, scfres.eigenvalues, false)
-    occupation = unfold_array_(scfres.basis, basis_unfolded, scfres.occupation, false)
+    ψ = unfold_array(scfres.basis, basis_unfolded, scfres.ψ, true)
+    eigenvalues = unfold_array(scfres.basis, basis_unfolded, scfres.eigenvalues, false)
+    occupation = unfold_array(scfres.basis, basis_unfolded, scfres.occupation, false)
     energies, ham = energy_hamiltonian(basis_unfolded, ψ, occupation;
                                        scfres.ρ, eigenvalues, scfres.εF)
     @assert energies.total ≈ scfres.energies.total
@@ -468,6 +463,6 @@ end
 Ensure its real-space equivalent of passed Fourier-space representation is entirely real by
 removing wavevectors `G` that don't have a `-G` counterpart in the basis.
 """
-@timing function enforce_real!(basis, fourier_coeffs)
+@timing function enforce_real!(fourier_coeffs, basis::PlaneWaveBasis)
     lowpass_for_symmetry!(fourier_coeffs, basis; symmetries=[SymOp(-Mat3(I), Vec3(0, 0, 0))])
 end

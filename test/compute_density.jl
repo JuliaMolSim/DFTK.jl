@@ -14,7 +14,7 @@
         kwargs = ()
         n_bands = div(testcase.n_electrons, 2, RoundUp)
         if testcase.temperature !== nothing
-            kwargs = (temperature=testcase.temperature, smearing=DFTK.Smearing.FermiDirac())
+            kwargs = (; testcase.temperature, smearing=DFTK.Smearing.FermiDirac())
             n_bands = div(testcase.n_electrons, 2, RoundUp) + 4
         end
 
@@ -27,7 +27,7 @@
         occ, εF = DFTK.compute_occupation(basis, res.λ, FermiBisection())
         ρnew = compute_density(basis, res.X, occ)
 
-        for it in 1:n_rounds
+        for it = 1:n_rounds
             ham = Hamiltonian(basis; ρ=ρnew)
             res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol, ψguess=res.X)
 

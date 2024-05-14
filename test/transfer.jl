@@ -62,7 +62,7 @@ end
         # not be an identity. To prevent this we use enforce_real! to explicitly set
         # the non-matched Fourier component to zero.
         ρ = random_density(basis, 1)
-        ρ_fourier_purified = DFTK.enforce_real!(basis, fft(basis, ρ))
+        ρ_fourier_purified = DFTK.enforce_real!(fft(basis, ρ), basis)
         ρ = irfft(basis, ρ_fourier_purified)
 
         ρ_b  = transfer_density(ρ,   basis,     basis_big)
@@ -89,5 +89,26 @@ end
                 @test abs(Δρ_fourier[iG]) < 10eps(eltype(basis))
             end
         end
+    end
+end
+
+# Don't test MPI for now, as the processor that has k-point k may not have k+p.
+@testitem "Construct k-point from equivalent" tags=[:dont_test_mpi] begin
+    using DFTK
+    using DFTK: get_kpoint
+    using LinearAlgebra
+
+    model = Model(diagm(ones(3)))
+    k = 10
+
+    basis = PlaneWaveBasis(model; Ecut=100, kgrid=[k for _ in 1:3])
+    coordinate = [rand(1:k) for _ in 1:3] ./ [k for _ in 1:3]
+    for kpt in basis.kpoints
+        kpt_new = get_kpoint(basis, kpt.coordinate + coordinate, kpt.spin).kpt
+        kpt_ref = Kpoint(basis, kpt.coordinate + coordinate, kpt.spin)
+        @test kpt_new.spin == kpt_ref.spin
+        @test kpt_new.coordinate ≈ kpt_ref.coordinate
+        @test sort(kpt_new.mapping) == kpt_ref.mapping
+        @test sort(kpt_new.G_vectors) == sort(kpt_ref.G_vectors)
     end
 end

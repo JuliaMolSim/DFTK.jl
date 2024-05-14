@@ -157,7 +157,7 @@ function atomic_density_superposition(basis::PlaneWaveBasis{T},
         ρ_iG / sqrt(model.unit_cell_volume)
     end
     ρ = to_device(basis.architecture, ρ_cpu)
-    enforce_real!(basis, ρ)  # Symmetrize Fourier coeffs to have real iFFT
+    enforce_real!(ρ, basis)  # Symmetrize Fourier coeffs to have real iFFT
     irfft(basis, ρ)
 end
 
@@ -165,7 +165,7 @@ function atomic_density_form_factors(basis::PlaneWaveBasis{T},
                                      method::AtomicDensity
                                      )::IdDict{Tuple{Int,T},T} where {T<:Real}
     model = basis.model
-    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
+    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatibility
     for G in to_cpu(G_vectors_cart(basis))
         Gnorm = norm(G)
         for (igroup, group) in enumerate(model.atom_groups)

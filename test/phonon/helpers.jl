@@ -2,41 +2,10 @@
 @testsetup module Phonon
 using Test
 using DFTK
-using DFTK: compute_dynmat_cart, setindex, dynmat_red_to_cart, normalize_kpoint_coordinate
-using Random
+using DFTK: normalize_kpoint_coordinate, _phonon_modes, dynmat_red_to_cart
 using LinearAlgebra
 using ForwardDiff
-
-# We do not take the square root to compare eigenvalues with machine precision.
-function compute_squared_frequencies(matrix)
-    n, m = size(matrix, 1), size(matrix, 2)
-    Ω = eigvals(reshape(matrix, n*m, n*m))
-    real(Ω)
-end
-
-# Reference against automatic differentiation.
-function ph_compute_reference(basis_supercell)
-    model_supercell = basis_supercell.model
-    n_atoms = length(model_supercell.positions)
-    n_dim = model_supercell.n_dim
-    T = eltype(model_supercell.lattice)
-    dynmat_ad = zeros(T, 3, n_atoms, 3, n_atoms)
-    for τ in 1:n_atoms, γ in 1:n_dim
-        displacement = zero.(model_supercell.positions)
-        displacement[τ] = setindex(displacement[τ], one(T), γ)
-        dynmat_ad[:, :, γ, τ] = -ForwardDiff.derivative(zero(T)) do ε
-            lattice = convert(Matrix{eltype(ε)}, model_supercell.lattice)
-            positions = ε*displacement .+ model_supercell.positions
-            model_disp = Model(convert(Model{eltype(ε)}, model_supercell); lattice, positions)
-            # TODO: Would be cleaner with PR #675.
-            basis_disp_bs = PlaneWaveBasis(model_disp; Ecut=5)
-            forces = compute_forces(basis_disp_bs, nothing, nothing)
-            reduce(hcat, forces)
-        end
-    end
-    hessian_ad = dynmat_red_to_cart(model_supercell, dynmat_ad)
-    sort(compute_squared_frequencies(hessian_ad))
-end
+using FiniteDifferences
 
 function generate_random_supercell(; max_length=6)
     n_max = min(max_length, 5)
@@ -51,57 +20,101 @@ end
 function generate_supercell_qpoints(; supercell_size=generate_random_supercell())
     qpoints_list = Iterators.product([1:n_sc for n_sc in supercell_size]...)
     qpoints = map(qpoints_list) do n_sc
-        normalize_kpoint_coordinate.([n_sc[i] / supercell_size[i] for i in 1:3])
+        normalize_kpoint_coordinate.([n_sc[i] / supercell_size[i] for i = 1:3])
     end |> vec
 
     (; supercell_size, qpoints)
 end
 
-# Test against a reference array.
-function test_frequencies(testcase, terms, ω_ref; tol=1e-9)
-    model = Model(testcase.lattice, testcase.atoms, testcase.positions; terms)
-    basis_bs = PlaneWaveBasis(model; Ecut=5)
+function test_approx_frequencies(ω_uc, ω_ref; tol=1e-10)
+    # Because three eigenvalues should be close to zero and the square root near
+    # zero decrease machine accuracy, we expect at least ``3×2×2 - 3 = 9``
+    # eigenvalues to have norm related to the accuracy of the SCF convergence
+    # parameter and the rest to be larger.
+    n_dim = 3
+    n_atoms = length(ω_uc) ÷ 3
 
-    supercell_size = [2, 1, 3]
-    phonon = (; supercell_size, generate_supercell_qpoints(; supercell_size).qpoints)
-
-    ω_uc = []
-    for q in phonon.qpoints
-        hessian = compute_dynmat_cart(basis_bs, nothing, nothing; q)
-        push!(ω_uc, compute_squared_frequencies(hessian))
-    end
-    ω_uc = sort!(collect(Iterators.flatten(ω_uc)))
-
-    @test norm(ω_uc - ω_ref) < tol
+    @test count(abs.(ω_uc - ω_ref) .< sqrt(tol)) ≥ n_dim*n_atoms - n_dim
+    @test count(sqrt(tol) .< abs.(ω_uc - ω_ref) .< tol) ≤ n_dim
 end
 
-# Random test. Slow but more robust than against some reference.
-# TODO: Will need rework for local term in future PR.
-function test_rand_frequencies(testcase, terms; tol=1e-9)
-    Random.seed!()
-    model = Model(testcase.lattice, testcase.atoms, testcase.positions; terms)
-    basis_bs = PlaneWaveBasis(model; Ecut=5)
+function test_frequencies(model_tested, testcase; ω_ref=nothing, Ecut=7, kgrid=[2, 1, 3],
+                          tol=1e-12, randomize=false, compute_ref=nothing)
+    supercell_size = randomize ? generate_random_supercell() : kgrid
+    qpoints = generate_supercell_qpoints(; supercell_size).qpoints
+    scf_tol = tol
+    χ0_tol  = scf_tol/10
+    scf_kwargs = (; is_converged=ScfConvergenceDensity(scf_tol),
+                  diagtolalg=AdaptiveDiagtol(; diagtol_max=scf_tol))
 
-    supercell_size = supercell_size=generate_random_supercell()
-    phonon = (; supercell_size, generate_supercell_qpoints(; supercell_size).qpoints)
+    model = model_tested(testcase.lattice, testcase.atoms, testcase.positions;
+                         symmetries=false, testcase.temperature)
+    nbandsalg = AdaptiveBands(model; occupation_threshold=1e-10)
+    scf_kwargs = merge(scf_kwargs, (; nbandsalg))
+    basis = PlaneWaveBasis(model; Ecut, kgrid)
+    scfres = self_consistent_field(basis; scf_kwargs...)
 
-    ω_uc = []
-    for q in phonon.qpoints
-        hessian = compute_dynmat_cart(basis_bs, nothing, nothing; q)
-        push!(ω_uc, compute_squared_frequencies(hessian))
-    end
-    ω_uc = sort!(collect(Iterators.flatten(ω_uc)))
+    ω_uc = sort!(reduce(vcat, map(qpoints) do q
+        phonon_modes(scfres; q, tol=χ0_tol).frequencies
+    end))
+
+    !isnothing(ω_ref) && return test_approx_frequencies(ω_uc, ω_ref; tol=10scf_tol)
 
     supercell = create_supercell(testcase.lattice, testcase.atoms, testcase.positions,
-                                 phonon.supercell_size)
-    model_supercell = Model(supercell.lattice, supercell.atoms, supercell.positions; terms)
-    basis_supercell_bs = PlaneWaveBasis(model_supercell; Ecut=5)
-    hessian_supercell = compute_dynmat_cart(basis_supercell_bs, nothing, nothing)
-    ω_supercell = sort(compute_squared_frequencies(hessian_supercell))
-    @test norm(ω_uc - ω_supercell) < tol
+                                 supercell_size)
+    model_supercell = model_tested(supercell.lattice, supercell.atoms, supercell.positions;
+                               symmetries=false, testcase.temperature)
+    nbandsalg = AdaptiveBands(model_supercell; occupation_threshold=1e-10)
+    scf_kwargs = merge(scf_kwargs, (; nbandsalg))
+    basis_supercell = PlaneWaveBasis(model_supercell; Ecut, kgrid=[1, 1, 1])
+    scfres_supercell = self_consistent_field(basis_supercell; scf_kwargs...)
 
-    ω_ad = ph_compute_reference(basis_supercell_bs)
+    ω_sc = sort(phonon_modes(scfres_supercell; tol=χ0_tol).frequencies)
+    test_approx_frequencies(ω_uc, ω_sc; tol=10scf_tol)
 
-    @test norm(ω_ad - ω_supercell) < tol
+    isnothing(compute_ref) && return
+
+    dynamical_matrix_ref = compute_dynmat_ref(scfres_supercell.basis, model_tested; Ecut,
+                                              kgrid=[1, 1, 1], scf_tol, method=compute_ref)
+    ω_ref = sort(_phonon_modes(basis_supercell, dynamical_matrix_ref).frequencies)
+
+    test_approx_frequencies(ω_uc, ω_ref; tol=10scf_tol)
+end
+
+# Reference results using finite differences or automatic differentiation.
+# This should be run by hand to obtain the reference values of the quick computations of the
+# tests, as they are too slow for CI runs.
+function compute_dynmat_ref(basis, model_tested; Ecut=5, kgrid=[1,1,1], scf_tol, method=:ad)
+    # TODO: Cannot use symmetries: https://github.com/JuliaMolSim/DFTK.jl/issues/817
+    @assert isone(only(basis.model.symmetries))
+    @assert method ∈ [:ad, :fd]
+
+    model = basis.model
+    n_atoms = length(model.positions)
+    n_dim = model.n_dim
+    T = eltype(model.lattice)
+    dynmat = zeros(T, 3, n_atoms, 3, n_atoms)
+    scf_kwargs = (; is_converged=ScfConvergenceDensity(scf_tol),
+                  diagtolalg=AdaptiveDiagtol(; diagtol_max=scf_tol))
+
+    diff_fn = method == :ad ? ForwardDiff.derivative : FiniteDifferences.central_fdm(5, 1)
+    for s = 1:n_atoms, α = 1:n_dim
+        displacement = zero.(model.positions)
+        displacement[s] = DFTK.setindex(displacement[s], one(T), α)
+        dynmat[:, :, α, s] = -diff_fn(zero(T)) do ε
+            lattice = convert(Matrix{eltype(ε)}, model.lattice)
+            positions = ε*displacement .+ model.positions
+            model_disp = model_tested(lattice, model.atoms, positions; symmetries=false,
+                                      model.temperature)
+            # TODO: Would be cleaner with PR #675.
+            basis_disp = PlaneWaveBasis(model_disp; Ecut, kgrid)
+            nbandsalg = AdaptiveBands(model_disp; occupation_threshold=1e-10)
+            scf_kwargs = merge(scf_kwargs, (; nbandsalg))
+            scfres_disp = self_consistent_field(basis_disp; scf_kwargs...)
+            forces = compute_forces(scfres_disp)
+            stack(forces)
+        end
+    end
+    dynmat_red_to_cart(model, dynmat)
 end
 end

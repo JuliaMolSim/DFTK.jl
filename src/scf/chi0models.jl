@@ -12,7 +12,7 @@ Represents the LDOS-based ``χ_0`` model
 χ_0(r, r') = (-D_\text{loc}(r) δ(r, r') + D_\text{loc}(r) D_\text{loc}(r') / D)
 ```
 where ``D_\text{loc}`` is the local density of states and ``D`` the density of states.
-For details see Herbst, Levitt 2020 arXiv:2009.01665
+For details see [Herbst, Levitt 2020](https://arxiv.org/abs/2009.01665).
 """
 @kwdef struct LdosModel <: χ0Model
     adjust_temperature = IncreaseMixingTemperature()

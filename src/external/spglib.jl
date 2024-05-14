@@ -5,6 +5,8 @@
 import Spglib
 
 function spglib_cell(lattice, atom_groups, positions, magnetic_moments)
+    magnetic_moments = normalize_magnetic_moment.(magnetic_moments)
+
     spg_atoms     = Int[]
     spg_magmoms   = Float64[]
     spg_positions = Vector{Float64}[]

@@ -48,23 +48,23 @@ end
 for P in [:Plan, :ScaledPlan]  # need ScaledPlan to avoid ambiguities
     @eval begin
         Base.:*(p::AbstractFFTs.$P, x::AbstractArray{<:ForwardDiff.Dual}) =
-            _apply_plan(p, x)
+            apply_plan(p, x)
 
         Base.:*(p::AbstractFFTs.$P, x::AbstractArray{<:Complex{<:ForwardDiff.Dual}}) =
-            _apply_plan(p, x)
+            apply_plan(p, x)
 
         LinearAlgebra.mul!(Y::AbstractArray, p::AbstractFFTs.$P, X::AbstractArray{<:ForwardDiff.Dual}) =
-            (Y .= _apply_plan(p, X))
+            (Y .= apply_plan(p, X))
 
         LinearAlgebra.mul!(Y::AbstractArray, p::AbstractFFTs.$P, X::AbstractArray{<:Complex{<:ForwardDiff.Dual}}) =
-            (Y .= _apply_plan(p, X))
+            (Y .= apply_plan(p, X))
     end
 end
 
 LinearAlgebra.mul!(Y::AbstractArray{<:Complex{<:ForwardDiff.Dual}}, p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, X::AbstractArray{<:ComplexF64}) where {T,P} =
-    (Y .= _apply_plan(p, X))
+    (Y .= apply_plan(p, X))
 
-function _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where {T}
+function apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where {T}
     # TODO do we want x::AbstractArray{<:ForwardDiff.Dual{T}} too?
     xtil = p * ForwardDiff.value.(x)
     dxtils = ntuple(ForwardDiff.npartials(eltype(x))) do n
@@ -78,15 +78,15 @@ function _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardD
     end
 end
 
-function _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray) where {T,P}
-    _apply_plan(p.p, p.scale * x) # for when p.scale is Dual, need out-of-place
+function apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray) where {T,P}
+    apply_plan(p.p, p.scale * x) # for when p.scale is Dual, need out-of-place
 end
 
 # this is to avoid method ambiguities between these two:
-#   _apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where {T}
-#   _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray) where {T,P}
-function _apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{Tg}}}) where {T,P,Tg}
-    _apply_plan(p.p, p.scale * x)
+#   apply_plan(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{T}}}) where {T}
+#   apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray) where {T,P}
+function apply_plan(p::AbstractFFTs.ScaledPlan{T,P,<:ForwardDiff.Dual}, x::AbstractArray{<:Complex{<:ForwardDiff.Dual{Tg}}}) where {T,P,Tg}
+    apply_plan(p.p, p.scale * x)
 end
 
 # Convert and strip off duals if that's the only way
@@ -156,7 +156,7 @@ function construct_value(model::Model{T}) where {T <: ForwardDiff.Dual}
 end
 
 construct_value(el::Element) = el
-construct_value(el::ElementPsp) = ElementPsp(el.Z, el.symbol, construct_value(el.psp))
+construct_value(el::ElementPsp) = ElementPsp(el.Z, el.symbol, el.mass, construct_value(el.psp))
 construct_value(psp::PspHgh) = psp
 function construct_value(psp::PspHgh{T}) where {T <: ForwardDiff.Dual}
     PspHgh(psp.Zion,
@@ -171,17 +171,18 @@ end
 
 
 function construct_value(basis::PlaneWaveBasis{T}) where {T <: ForwardDiff.Dual}
-    new_kshift = isnothing(basis.kshift) ? nothing : ForwardDiff.value.(basis.kshift)
+    # NOTE: This is a pretty slow function as it *recomputes* basically
+    #       everything instead of just extracting the primal data contained
+    #       already in the dualised PlaneWaveBasis data structure.
     PlaneWaveBasis(construct_value(basis.model),
                    ForwardDiff.value(basis.Ecut),
-                   map(v -> ForwardDiff.value.(v), basis.kcoords_global),
-                   ForwardDiff.value.(basis.kweights_global);
+                   basis.fft_size,
+                   basis.variational,
+                   basis.kgrid,
                    basis.symmetries_respect_rgrid,
-                   fft_size=basis.fft_size,
-                   kgrid=basis.kgrid,
-                   kshift=new_kshift,
-                   variational=basis.variational,
-                   comm_kpts=basis.comm_kpts)
+                   basis.use_symmetries_for_kpoint_reduction,
+                   basis.comm_kpts,
+                   basis.architecture)
 end
 
 
@@ -211,7 +212,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     response.verbose && println("Solving response problem")
     δresults = ntuple(ForwardDiff.npartials(T)) do α
         δHextψ = [ForwardDiff.partials.(δHextψk, α) for δHextψk in Hψ_dual]
-        solve_ΩplusK_split(scfres, -δHextψ; tol=scfres.norm_Δρ, response.verbose)
+        solve_ΩplusK_split(scfres, -δHextψ; tol=last(scfres.history_Δρ), response.verbose)
     end
 
     ## Convert and combine
@@ -242,7 +243,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
        response=getfield.(δresults, :history),
        scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter,
        scfres.n_bands_converge, scfres.diagonalization, scfres.stage,
-       scfres.algorithm, scfres.norm_Δρ)
+       scfres.algorithm, scfres.runtime_ns)
 end
 
 # other workarounds

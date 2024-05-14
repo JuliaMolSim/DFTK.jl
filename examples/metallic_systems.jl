@@ -41,7 +41,7 @@ smearing = DFTK.Smearing.FermiDirac() # Smearing method
 
 model = model_DFT(lattice, atoms, positions, [:gga_x_pbe, :gga_c_pbe];
                   temperature, smearing)
-kgrid = kgrid_from_minimal_spacing(lattice, kspacing)
+kgrid = kgrid_from_maximal_spacing(lattice, kspacing)
 basis = PlaneWaveBasis(model; Ecut, kgrid);
 
 # Finally we run the SCF. Two magnesium atoms in
@@ -60,4 +60,7 @@ scfres.energies
 
 # The fact that magnesium is a metal is confirmed
 # by plotting the density of states around the Fermi level.
-plot_dos(scfres)
+# To get better plots, we decrease the k spacing a bit for this step
+kgrid_dos = kgrid_from_maximal_spacing(lattice, 0.7 / u"Å")
+bands = compute_bands(scfres, kgrid_dos)
+plot_dos(bands)

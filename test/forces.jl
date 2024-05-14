@@ -2,7 +2,6 @@
 @testitem "Forces on silicon" setup=[TestCases] begin
     using DFTK
     using DFTK: mpi_mean!
-    using Random
     using MPI
     using LinearAlgebra
     silicon = TestCases.silicon
@@ -48,13 +47,12 @@ end
 @testitem "Forces on silicon with non-linear core correction" setup=[TestCases] begin
     using DFTK
     using DFTK: mpi_mean!
-    using Random
     using MPI
     using LinearAlgebra
     silicon = TestCases.silicon
 
     function energy_forces(positions)
-        Si = ElementPsp(silicon.atnum, :Si, load_psp(silicon.psp_upf))
+        Si = ElementPsp(silicon.atnum, :Si, silicon.mass, load_psp(silicon.psp_upf))
         atoms = fill(Si, length(silicon.atoms))
         model = model_DFT(silicon.lattice, atoms, positions, [:lda_x, :lda_c_pw])
         basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0],
@@ -96,7 +94,6 @@ end
 @testitem "Forces on silicon with spin and temperature" setup=[TestCases] begin
     using DFTK
     using DFTK: mpi_mean!
-    using Random
     using MPI
     using LinearAlgebra
     silicon = TestCases.silicon
@@ -128,7 +125,6 @@ end
 @testitem "Forces on oxygen with spin and temperature" setup=[TestCases] begin
     using DFTK
     using DFTK: mpi_mean!
-    using Random
     using MPI
     using LinearAlgebra
     o2molecule = TestCases.o2molecule

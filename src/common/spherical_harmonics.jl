@@ -2,8 +2,8 @@
 #      which should be used, once it's ready.
 
 """
-Returns the (l,m) real spherical harmonic Y_lm(r). Consistent with
-https://en.wikipedia.org/wiki/Table_of_spherical_harmonics#Real_spherical_harmonics
+Returns the ``(l,m)`` real spherical harmonic ``Y_l^m(r)``. Consistent with
+[Wikipedia](https://en.wikipedia.org/wiki/Table_of_spherical_harmonics#Real_spherical_harmonics).
 """
 function ylm_real(l::Integer, m::Integer, rvec::AbstractVector{T}) where {T}
     @assert 0 ≤ l

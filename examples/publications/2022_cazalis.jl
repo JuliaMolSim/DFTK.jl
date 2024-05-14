@@ -25,12 +25,12 @@ end
 
 ## define electron-nuclei interaction
 struct Element2DCoulomb <: DFTK.Element end
-function DFTK.local_potential_fourier(el::Element2DCoulomb, q::Real)
-    ## = ∫ V(r) exp(-ix⋅q) dx
-    if q == 0
-        zero(q)
+function DFTK.local_potential_fourier(el::Element2DCoulomb, p::Real)
+    ## = ∫ V(r) exp(-ix⋅p) dx
+    if p == 0
+        zero(p)
     else
-        -2π/q
+        -2π/p
     end
 end
 
@@ -60,8 +60,9 @@ basis = PlaneWaveBasis(model; Ecut, kgrid)
 scfres = self_consistent_field(basis, is_converged=DFTK.ScfConvergenceEnergy(1e-10))
 
 ## Plot bands
-sgnum = 13  # Graphene space group number
-p = plot_bandstructure(scfres, irrfbz_path(model; sgnum); n_bands=5)
+kpath = irrfbz_path(model; dim=2, space_group_number=13)
+bands = compute_bands(scfres, kpath; n_bands=5)
+p = plot_bandstructure(bands)
 Plots.hline!(p, [scfres.εF], label="", color="black")
 Plots.ylims!(p, (-Inf, Inf))
 p

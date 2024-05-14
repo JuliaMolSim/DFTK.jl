@@ -2,7 +2,6 @@
     using DFTK
     using DFTK: energy_forces_pairwise
     using LinearAlgebra
-    using Random
 
     a = 5.131570667152971
     lattice = a .* [0 1 1; 1 0 1; 1 1 0]

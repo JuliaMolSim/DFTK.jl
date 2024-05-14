@@ -49,5 +49,5 @@ end
 
 
 @testitem "Iron LDA (Float64)" tags=[:core] setup=[RunSCF, TestCases, IronLDA] begin
-    IronLDA.run_iron_lda(Float64; test_tol=5e-6, scf_tol=1e-11)
+    IronLDA.run_iron_lda(Float64; test_tol=5e-6, scf_ene_tol=1e-11)
 end

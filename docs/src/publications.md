@@ -22,8 +22,9 @@ Additionally the following publications describe DFTK or one of its algorithms:
 
 - E. Cancès, M. Hassan and L. Vidal.
   [*Modified-Operator Method for the Calculation of Band Diagrams of Crystalline Materials.*](https://arxiv.org/abs/2210.00442)
-  (Submitted).
+  Mathematics of Computation (2023).
   [ArXiv:2210.00442](https://arxiv.org/abs/2210.00442).
+  ([Supplementary material and computational scripts](https://github.com/LaurentVidal95/ModifiedOp).
 
 - E. Cancès, M. F. Herbst, G. Kemlin, A. Levitt and B. Stamm.
   [*Numerical stability and efficiency of response property calculations in density functional theory*](https://arxiv.org/abs/2210.04512)

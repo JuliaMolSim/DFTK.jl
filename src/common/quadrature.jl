@@ -14,7 +14,7 @@ trapezoidal
     n == length(y) || error("vectors `x` and `y` must have the same number of elements")
     n == 1 && return zero(promote_type(eltype(x), eltype(y)))
     I = (x[2] - x[1]) * y[1]
-    @turbo for i in 2:(n-1)
+    @turbo for i = 2:(n-1)
         # dx[i] + dx[i - 1] = (x[i + 1] - x[i]) + (x[i] - x[i - 1])
         #                   = x[i + 1] - x[i - 1]
         I += (x[i + 1] - x[i - 1]) * y[i]
@@ -34,11 +34,11 @@ simpson
     n == length(y) || error("vectors `x` and `y` must have the same number of elements")
     n == 1 && return zero(promote_type(eltype(x), eltype(y)))
     n <= 4 && return trapezoidal(x, y)
-    (x[2] - x[1]) ≈ (x[3] - x[2]) && return _simpson_uniform(x, y)
-    return _simpson_nonuniform(x, y)
+    (x[2] - x[1]) ≈ (x[3] - x[2]) && return simpson_uniform(x, y)
+    return simpson_nonuniform(x, y)
 end
 
-@inbounds function _simpson_uniform(x::AbstractVector, y::AbstractVector)
+@inbounds function simpson_uniform(x::AbstractVector, y::AbstractVector)
     dx = x[2] - x[1]
     n = length(x)
     n_intervals = n - 1
@@ -46,10 +46,10 @@ end
     istop = isodd(n_intervals) ? n - 1 : n - 2
 
     I = 1 / 3 * dx * y[1]
-    @turbo for i in 2:2:istop
+    @turbo for i = 2:2:istop
         I += 4 / 3 * dx * y[i]
     end
-    @turbo for i in 3:2:istop
+    @turbo for i = 3:2:istop
         I += 2 / 3 * dx * y[i]
     end
 
@@ -62,7 +62,7 @@ end
     return I
 end
 
-@inbounds function _simpson_nonuniform(x::AbstractVector, y::AbstractVector)
+@inbounds function simpson_nonuniform(x::AbstractVector, y::AbstractVector)
     n = length(x)
     n_intervals = n - 1
 
@@ -70,7 +70,7 @@ end
 
     I = zero(promote_type(eltype(x), eltype(y)))
     # This breaks when @turbo'd
-    @simd for i in 1:2:istop
+    @simd for i = 1:2:istop
         dx0 = x[i + 1] - x[i]
         dx1 = x[i + 2] - x[i + 1]
         c = (dx0 + dx1) / 6
