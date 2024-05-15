@@ -190,13 +190,13 @@ BLAS.set_num_threads(N)
 where `N` is the number of threads you desire.
 To **check the number of BLAS threads** currently used, you can use `BLAS.get_num_threads()`.
 
-### Julia threads
-On top of BLAS threading DFTK uses Julia threads (`Thread.@threads`)
+### DFTK threads
+On top of BLAS threading DFTK uses Julia threads
 in a couple of places to parallelize over ``k``-points (density computation)
 or bands (Hamiltonian application).
-The number of threads used for these aspects is controlled by the
+The number of threads used for these aspects is controlled by default by the
 flag `-t` passed to Julia or the *environment variable* `JULIA_NUM_THREADS`.
-To **check the number of Julia threads** use `Threads.nthreads()`.
+It can also be set through `setup_threading(; n_DFTK)`.
 
 ### FFT threads
 Since FFT threading is only used in DFTK inside the regions already parallelized

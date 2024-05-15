@@ -250,7 +250,7 @@ end
 # Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
 @timing "ortho! X vs Y" function ortho!(X::AbstractArray{T}, Y, BY; tol=2eps(real(T))) where {T}
     # normalize to try to cheaply improve conditioning
-    Threads.@threads for i=1:size(X,2)
+    parallel_loop_over_range(() -> nothing, 1:size(X, 2)) do i
         n = norm(@views X[:,i])
         @views X[:,i] ./= n
     end
