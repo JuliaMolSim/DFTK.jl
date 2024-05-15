@@ -31,28 +31,45 @@ function set_DFTK_threads!()
 end
 
 """
-Parallelize a loop, calling `fun(st, i)` for side effects for all i in `range`. 
+Parallelize a loop, calling `fun(i)` for side effects for all i in `range`.
+If allocate_local_storage is not nothing, `fun` is called as `fun(i, st)` where
 `st` is a thread-local temporary storage allocated by `allocate_local_storage()`.
 """
-function parallel_loop_over_range(fun, allocate_local_storage::Function, range)
+function parallel_loop_over_range(fun, range; allocate_local_storage=nothing)
     nthreads = @load_preference("DFTK_threads", Threads.nthreads())
-    storages = [allocate_local_storage() for _ = 1:nthreads]
-    parallel_loop_over_range(fun, storages, range)
+    if !isnothing(allocate_local_storage)
+        storages = [allocate_local_storage() for _ = 1:nthreads]
+    else
+        storages = nothing
+    end
+    parallel_loop_over_range(fun, range, storages)
 end
-function parallel_loop_over_range(fun, storages::AbstractVector, range)
+# private interface to be called
+function parallel_loop_over_range(fun, range, storages)
     nthreads = length(storages)
     chunk_length = cld(length(range), nthreads)
 
+    # this tensorized if is ugly, but this is potentially
+    # performance critical and factoring it is more trouble
+    # than it's worth
     if nthreads == 1
         for i in range
-            fun(storages[1], i)
+            if isnothing(storages)
+                fun(i)
+            else
+                fun(i, storages[1])
+            else
         end
     elseif length(range) == 0
         # do nothing
     else
         @sync for (ichunk, chunk) in enumerate(Iterators.partition(range, chunk_length))
-        Threads.@spawn for idc in chunk  # spawn a task per chunk
-            fun(storages[ichunk], idc)
+        Threads.@spawn for i in chunk  # spawn a task per chunk
+            if isnothing(storages)
+                fun(i)
+            else
+                fun(i, storages[ichunk])
+            else
         end
     end
 

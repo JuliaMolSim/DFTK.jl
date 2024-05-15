@@ -26,7 +26,7 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     # We split the total iteration range (ik, n) in chunks, and parallelize over them.
     range = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
 
-    storages = parallel_loop_over_range(allocate_local_storage, range) do storage, kn
+    storages = parallel_loop_over_range(range; allocate_local_storage) do kn, storage
         (ik, n) = kn
         kpt = basis.kpoints[ik]
 
@@ -76,7 +76,7 @@ end
     #   |ψ_{n,k}|² is 2 ψ_{n,k} * δψ_{n,k+q}.
     # Hence, we first get the δψ_{[k+q]} as δψ_{k+q}…
     δψ_plus_k = transfer_blochwave_equivalent_to_actual(basis, δψ, q)
-    storages = parallel_loop_over_range(allocate_local_storage, range) do storage, kn
+    storages = parallel_loop_over_range(range; allocate_local_storage) do kn, storage
         (ik, n) = kn
 
         kpt = basis.kpoints[ik]
