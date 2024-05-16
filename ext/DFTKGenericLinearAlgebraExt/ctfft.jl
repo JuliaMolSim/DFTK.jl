@@ -350,7 +350,7 @@ mulconj(z::Complex, w::Complex) =
 
 # Analogous to FFTW's twiddle codelets, we also generate solvers that
 # perform *in-place* FFTs of small fixed sizes where the data is
-# pre-multipled by a precomputed 2d array `W[j+1,i+1]` of twiddle
+# pre-multiplied by a precomputed 2d array `W[j+1,i+1]` of twiddle
 # factors (with `W[1,_] = 1`).  These are of the form `twiddle_N(vn, X,
 # x0, xs, xvs, W)`, and the meaning of the parameter is otherwise
 # identical to the nontwiddle codelets with `Y=X`.   The twiddle array
