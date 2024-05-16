@@ -1,7 +1,5 @@
 @testsetup module TestCases
 using DFTK
-using AtomsBase
-using AtomsCalculators
 using Unitful
 using UnitfulAtomic
 using LinearAlgebra: Diagonal, diagm
@@ -27,7 +25,6 @@ silicon = (;
                              [-1/3, 1/3, 0]],
                             [1/27, 8/27, 6/27, 12/27]),
 )
-
 silicon = merge(silicon,
                 (; atoms=fill(ElementPsp(silicon.atnum; psp=load_psp(silicon.psp_hgh)), 2)))
 
