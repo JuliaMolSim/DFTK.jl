@@ -8,7 +8,7 @@ function setup_threading(; n_fft=1, n_blas=Threads.nthreads(), n_DFTK=nothing)
     n_DFTK = @load_preference("DFTK_threads", Threads.nthreads())
     FFTW.set_num_threads(n_fft)
     BLAS.set_num_threads(n_blas)
-    mpi_master() && @info "Threading setup: $n_julia Julia threads, $n_DFTK DFTK threads, $n_fft FFT threads, $n_blas BLAS threads"
+    mpi_master() && @info "Threading setup: $(Threads.nthreads()) Julia threads, $n_DFTK DFTK threads, $n_fft FFT threads, $n_blas BLAS threads"
 
 end
 
@@ -22,12 +22,20 @@ end
 
 function set_DFTK_threads!(n)
     if @load_preference("DFTK_threads", nothing) != n
-        @info "DFTK_threads preference changed. Restart julia to see the effect."
+        @info "DFTK_threads preference changed. This is a permanent change, restart julia to see the effect."
     end
     @set_preferences!("DFTK_threads" => n)
 end
 function set_DFTK_threads!()
     @delete_preferences!("DFTK_threads")
+end
+# nothing means use Threads.nthreads()
+function get_DFTK_threads()
+    nthreads = @load_preference("DFTK_threads", nothing)
+    if nthreads == nothing
+        nthreads = Threads.nthreads()
+    end
+    nthreads
 end
 
 """
@@ -36,7 +44,7 @@ If allocate_local_storage is not nothing, `fun` is called as `fun(i, st)` where
 `st` is a thread-local temporary storage allocated by `allocate_local_storage()`.
 """
 function parallel_loop_over_range(fun, range; allocate_local_storage=nothing)
-    nthreads = @load_preference("DFTK_threads", Threads.nthreads())
+    nthreads = get_DFTK_threads()
     if !isnothing(allocate_local_storage)
         storages = [allocate_local_storage() for _ = 1:nthreads]
     else
@@ -46,7 +54,8 @@ function parallel_loop_over_range(fun, range; allocate_local_storage=nothing)
 end
 # private interface to be called
 function parallel_loop_over_range(fun, range, storages)
-    nthreads = length(storages)
+    nthreads = get_DFTK_threads()
+    storages != nothing && @assert length(storages) >= nthreads
     chunk_length = cld(length(range), nthreads)
 
     # this tensorized if is ugly, but this is potentially
@@ -58,18 +67,19 @@ function parallel_loop_over_range(fun, range, storages)
                 fun(i)
             else
                 fun(i, storages[1])
-            else
+            end
         end
     elseif length(range) == 0
         # do nothing
     else
         @sync for (ichunk, chunk) in enumerate(Iterators.partition(range, chunk_length))
-        Threads.@spawn for i in chunk  # spawn a task per chunk
-            if isnothing(storages)
-                fun(i)
-            else
-                fun(i, storages[ichunk])
-            else
+            Threads.@spawn for i in chunk  # spawn a task per chunk
+                if isnothing(storages)
+                    fun(i)
+                else
+                    fun(i, storages[ichunk])
+                end
+            end
         end
     end
 
