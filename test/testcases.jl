@@ -28,18 +28,8 @@ silicon = (;
                             [1/27, 8/27, 6/27, 12/27]),
 )
 
-model_kwargs = (; temperature=1e-3, functionals=[:lda_x, :lda_c_pw])
-basis_kwargs = (; kgrid=[4, 4, 4], Ecut=5.0)
-scf_kwargs = (; tol=1e-7)
-calculator = DFTKCalculator(; model_kwargs, basis_kwargs, scf_kwargs, verbose=true)
-
-perturbed_system = periodic_system(silicon.lattice, fill(ElementPsp(silicon.atnum; psp=load_psp(silicon.psp_hgh)), 2),
-                                   [silicon.positions[1] + [0.05, 0, 0], silicon.positions[2]])
-
 silicon = merge(silicon,
-                (; atoms=fill(ElementPsp(silicon.atnum; psp=load_psp(silicon.psp_hgh)), 2),
-                   calculator, perturbed_system))
-    
+                (; atoms=fill(ElementPsp(silicon.atnum; psp=load_psp(silicon.psp_hgh)), 2)))
 
 magnesium = (;
     lattice = [-3.0179389205999998 -3.0179389205999998 0.0000000000000000;

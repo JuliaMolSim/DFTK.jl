@@ -24,6 +24,12 @@ mutable struct DFTKCalculator
     state::DFTKState
 end
 
+function AtomsCalculators.promote_force_type(::Any, calc::DFTKCalculator)
+    # Not exactly correct as in principle the floating-point type could
+    # be different from Float64
+    typeof(Vec3([1.0, 1.0, 1.0]) * u"hartree/bohr")
+end
+
 """
 Construct a [AtomsCalculators](https://github.com/JuliaMolSim/AtomsCalculators.jl)
 compatible calculator for DFTK. The `model_kwargs` are passed onto the
@@ -85,6 +91,7 @@ AtomsCalculators.@generate_interface function AtomsCalculators.virial(
         system::AbstractSystem, calculator::DFTKCalculator; state=DFTKState(),
         kwargs...)
     compute_scf!(system, calculator, state)
-    - (compute_stresses_cart(calculator.state.scfres)
-     * calculator.state.scfres.basis.model.unit_cell_volume) * u"hartree"
+    scfres = calculator.state.scfres
+    stress = compute_stresses_cart(scfres)
+    - (stress * scfres.basis.model.unit_cell_volume) * u"hartree"
 end
