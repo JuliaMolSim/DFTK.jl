@@ -150,26 +150,29 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
     # Gathering the eigenvalues distributed over the kpoints in MPI
     n_bands = length(eigenvalues[1])   # assuming that the same number of bands are computed for each kpoint
     counts = [ Int32(n_bands*length(basis.krange_allprocs[rank])) for rank in 1:MPI.Comm_size(basis.comm_kpts)]
-    all_eigenvalues = MPI.Allgatherv(vcat(eigenvalues...), counts, basis.comm_kpts)
-        
+    all_eigenvalues = MPI.Allgatherv(reduce(vcat, eigenvalues), counts, basis.comm_kpts)
+        # mapreduce to sort better
     # Bisection method to find the index of the eigenvalue such that excess_n_electrons = 0
     all_eigenvalues = sort(all_eigenvalues)
     i_min = 1
     i_max = length(all_eigenvalues)
-
     if excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_max]; temperature, smearing) == 0
         εF = all_eigenvalues[i_max]
     else
         while i_max - i_min > 1
             i = div(i_min+i_max, 2)
             εF = all_eigenvalues[i]
-            if excess_n_electrons(basis, eigenvalues, εF; temperature, smearing) <= 0
+            excess = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
+            if excess < 0
                 i_min = i
+            elseif excess > 0
+                i_max = i
             else 
+                i_min = i
                 i_max = i
             end
         end
-        εF = 1/2*(all_eigenvalues[i_min]+all_eigenvalues[i_max])
+        εF = all_eigenvalues[i_min]+1/2*(all_eigenvalues[i_max]-all_eigenvalues[i_min])
     end
 
     occ = compute_occupation(basis, eigenvalues, εF; temperature, smearing).occupation
@@ -178,9 +181,8 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
         @warn("Not all kpoints have the same number of occupied states, which could mean "*
               "that a metallic system is treated at zero temperature.")
     end
-
-    excess(εF) = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
-    if abs(excess(εF)) > tol_n_elec
+    excess = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
+    if abs(excess) > tol_n_elec
         error("Unable to find non-fractional occupations that have the " *
               "correct number of electrons. You should add a temperature.")
     end
