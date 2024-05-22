@@ -162,7 +162,7 @@ and never increases.
     ratio_ρdiff   = 0.2
     diagtol_min   = nothing  # Minimal tolerance (autodetermined from number type if unset)
     diagtol_max   = 0.005    # Maximal tolerance
-    diagtol_first = 0.03     # Relaxed tolerance used on first iteration
+    diagtol_first = 6diagtol_max  # Relaxed tolerance used on first iteration
 end
 function determine_diagtol(alg::AdaptiveDiagtol, info)
     info.n_iter ≤ 1 && return min(alg.diagtol_first, 5alg.diagtol_max)
