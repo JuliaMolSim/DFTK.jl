@@ -1,4 +1,4 @@
-@testitem "DFTK -> AbstractSystem -> DFTK" begin
+@testitem "DFTK -> AbstractSystem -> DFTK" tags=[:atomsbase] begin
     using DFTK
     using Unitful
     using UnitfulAtomic
@@ -61,7 +61,7 @@
     end
 end
 
-@testitem "DFTK -> AbstractSystem (noncollinear)" begin
+@testitem "DFTK -> AbstractSystem (noncollinear)" tags=[:atomsbase] begin
     using DFTK
     using AtomsBase
 
@@ -73,7 +73,7 @@ end
     @test system[:, :magnetic_moment] == magnetic_moments
 end
 
-@testitem "charged AbstractSystem -> DFTK" begin
+@testitem "charged AbstractSystem -> DFTK" tags=[:atomsbase] begin
     using DFTK
     using Unitful
     using UnitfulAtomic
@@ -104,7 +104,7 @@ end
     end
 end
 
-@testitem "AbstractSystem -> DFTK" begin
+@testitem "AbstractSystem -> DFTK" tags=[:atomsbase] begin
     using DFTK
     using Unitful
     using UnitfulAtomic
@@ -172,7 +172,7 @@ end
 end
 
 
-@testitem "Check attach_psp routine selectively" begin
+@testitem "Check attach_psp routine selectively" tags=[:atomsbase] begin
     using DFTK
     using AtomsBase
 
@@ -193,7 +193,7 @@ end
     @test newsys[4, :pseudopotential] == "hgh/pbe/c-q4.hgh"
 end
 
-@testitem "AbstractSystem (unusual symbols and masses) -> DFTK" begin
+@testitem "AbstractSystem (unusual symbols and masses) -> DFTK" tags=[:atomsbase] begin
     using DFTK
     using Unitful
     using UnitfulAtomic
