@@ -212,7 +212,8 @@ Build form factors (Fourier transforms of projectors) for an atom centered at 0.
         if !haskey(radials, p_norm_val)
             radials_p = Matrix{T}(undef, n_proj_max, psp.lmax + 1)
             for l = 0:psp.lmax, iproj_l = 1:count_n_proj_radial(psp, l)
-                # TODO This would be way faster if we do this in batches of l
+                # TODO This might  be faster if we do this in batches of l
+                #      (i.e. make the inner loop run over k-points and G_plus_k)
                 #      and did recursion over l to compute the spherical bessels
                 radials_p[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, p_norm)
             end
