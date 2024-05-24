@@ -113,7 +113,7 @@ heatmap(mode_xy', c=:RdBu_11, aspect_ratio=1, grid=false,
 maximum(real.(λ_Kerker))
 
 # Since the smallest eigenvalue in this case remains of similar size (it is now
-# around 0.8), this implies that the conditioning improves noticably when
+# around 0.8), this implies that the conditioning improves noticeably when
 # `KerkerMixing` is used.
 #
 # **Note:** Since LdosMixing requires solving a linear system at each

@@ -7,7 +7,7 @@ and `positions` in the underlying [`Model`](@ref).
 """
 @timing function compute_forces(basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where {T}
     # no explicit symmetrization is performed here, it is the
-    # responsability of each term to return symmetric forces
+    # responsibility of each term to return symmetric forces
     forces_per_term = [compute_forces(term, basis, ψ, occupation; kwargs...)
                        for term in basis.terms]
     sum(filter(!isnothing, forces_per_term))

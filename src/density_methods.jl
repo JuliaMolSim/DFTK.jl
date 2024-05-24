@@ -165,7 +165,7 @@ function atomic_density_form_factors(basis::PlaneWaveBasis{T},
                                      method::AtomicDensity
                                      )::IdDict{Tuple{Int,T},T} where {T<:Real}
     model = basis.model
-    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
+    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatibility
     for G in to_cpu(G_vectors_cart(basis))
         Gnorm = norm(G)
         for (igroup, group) in enumerate(model.atom_groups)
