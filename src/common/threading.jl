@@ -35,11 +35,10 @@ end
 # If unset, use nthreads() threads
 function get_DFTK_threads()
     nthreads = @load_preference("DFTK_threads", nothing)
-    if nthreads > Threads.nthreads()
-        error("You set your preference for $n_DFTK DFTK threads, but only ran julia with $(Threads.nthreads()) threads.")
-    end
-    if nthreads == nothing
+    if isnothing(nthreads)
         nthreads = Threads.nthreads()
+    elseif nthreads > Threads.nthreads()
+        error("You set your preference for $n_DFTK DFTK threads, but only ran julia with $(Threads.nthreads()) threads.")
     end
     nthreads
 end
