@@ -148,31 +148,35 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
     end
 
     # Gathering the eigenvalues distributed over the kpoints in MPI
-    n_bands = length(eigenvalues[1])   # assuming that the same number of bands are computed for each kpoint
-    counts = [ Int32(n_bands*length(basis.krange_allprocs[rank])) for rank in 1:MPI.Comm_size(basis.comm_kpts)]
-    all_eigenvalues = MPI.Allgatherv(reduce(vcat, eigenvalues), counts, basis.comm_kpts)
-        # mapreduce to sort better
+    #n_bands = length(eigenvalues[1])   # assuming that the same number of bands are computed for each kpoint
+    #counts = [ Int32(n_bands*length(basis.krange_allprocs[rank])) for rank in 1:MPI.Comm_size(basis.comm_kpts)]
+    #all_eigenvalues = similar(reduce(vcat, eigenvalues))
+    #all_eigenvalues_vbuf = MPI.VBuffer(all_eigenvalues, counts)
+    #MPI.Allgatherv!(reduce(vcat, eigenvalues), all_eigenvalues_vbuf, basis.comm_kpts)
+    #all_eigenvalues = MPI.Allgatherv(reduce(vcat, eigenvalues), counts, basis.comm_kpts)
+    
+    all_eigenvalues = reduce(vcat, eigenvalues)
+    
     # Bisection method to find the index of the eigenvalue such that excess_n_electrons = 0
-    all_eigenvalues = sort(all_eigenvalues)
+    unique!(sort!((all_eigenvalues)))
     i_min = 1
     i_max = length(all_eigenvalues)
-    if excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_max]; temperature, smearing) == 0
-        εF = all_eigenvalues[i_max]
+    if abs(excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_max] + T(1); temperature, smearing)) < tol_n_elec
+        εF = all_eigenvalues[i_max] + T(1)
     else
-        while i_max - i_min > 1
+        while i_max - i_min > 0
             i = div(i_min+i_max, 2)
-            εF = all_eigenvalues[i]
+            εF = all_eigenvalues[i] + T(1/2)*(all_eigenvalues[i+1]-all_eigenvalues[i])
             excess = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
-            if excess < 0
+            if excess < -tol_n_elec
                 i_min = i
-            elseif excess > 0
+            elseif excess > tol_n_elec
                 i_max = i
             else 
                 i_min = i
                 i_max = i
             end
         end
-        εF = all_eigenvalues[i_min]+1/2*(all_eigenvalues[i_max]-all_eigenvalues[i_min])
     end
 
     occ = compute_occupation(basis, eigenvalues, εF; temperature, smearing).occupation
@@ -186,6 +190,5 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
         error("Unable to find non-fractional occupations that have the " *
               "correct number of electrons. You should add a temperature.")
     end
-
     εF
 end
