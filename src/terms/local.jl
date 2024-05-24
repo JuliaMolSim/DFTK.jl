@@ -96,13 +96,14 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
     # Pre-compute the form factors at unique values of |G| to speed up
     # the potential Fourier transform (by a lot). Using a hash map gives O(1)
     # lookup.
-    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatibility
+    form_factors = Dict{Tuple{Int,value_type(T)},T}()  # IdDict for Dual compatibility
     for G in Gqs_cart
         p = norm(G)
+        p_val = ForwardDiff.value(p)
         for (igroup, group) in enumerate(model.atom_groups)
-            if !haskey(form_factors, (igroup, p))
+            if !haskey(form_factors, (igroup, p_val))
                 element = model.atoms[first(group)]
-                form_factors[(igroup, p)] = local_potential_fourier(element, p)
+                form_factors[(igroup, p_val)] = local_potential_fourier(element, p)
             end
         end
     end
@@ -110,9 +111,10 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
     Gqs = [G + q for G in to_cpu(G_vectors(basis))]  # TODO Again for GPU compatibility
     pot_fourier = map(enumerate(Gqs)) do (iG, G)
         p = norm(Gqs_cart[iG])
+        p_val = ForwardDiff.value(p)
         pot = sum(enumerate(model.atom_groups)) do (igroup, group)
             structure_factor = sum(r -> cis2pi(-dot(G, r)), @view positions[group])
-            form_factors[(igroup, p)] * structure_factor
+            form_factors[(igroup, p_val)] * structure_factor
         end
         pot / sqrt(model.unit_cell_volume)
     end

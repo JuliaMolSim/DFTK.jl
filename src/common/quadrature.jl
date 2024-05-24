@@ -35,7 +35,7 @@ simpson
     n == 1 && return zero(promote_type(eltype(x), eltype(y)))
     n <= 4 && return trapezoidal(x, y)
     (x[2] - x[1]) ≈ (x[3] - x[2]) && return simpson_uniform(x, y)
-    return simpson_nonuniform(x, y)
+    simpson_nonuniform(x, y)
 end
 
 @inbounds function simpson_uniform(x::AbstractVector, y::AbstractVector)

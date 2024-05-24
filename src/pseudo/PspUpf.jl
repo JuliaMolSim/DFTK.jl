@@ -168,7 +168,7 @@ function eval_psp_projector_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     ircut_proj = min(psp.ircut, length(psp.r2_projs[l+1][i]))
     rgrid = @view psp.rgrid[1:ircut_proj]
     r2_proj = @view psp.r2_projs[l+1][i][1:ircut_proj]
-    return hankel(rgrid, r2_proj, l, p)
+    hankel(rgrid, r2_proj, l, p)
 end
 
 function eval_psp_pswfc_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
@@ -180,7 +180,7 @@ function eval_psp_pswfc_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     # quantities. They are the reason that PseudoDojo UPF files have a much
     # larger radial grid than their psp8 counterparts.
     # If issues arise, try cutting them off too.
-    return hankel(psp.rgrid, psp.r2_pswfcs[l+1][i], l, p)
+    hankel(psp.rgrid, psp.r2_pswfcs[l+1][i], l, p)
 end
 
 eval_psp_local_real(psp::PspUpf, r::T) where {T<:Real} = psp.vloc_interp(r)

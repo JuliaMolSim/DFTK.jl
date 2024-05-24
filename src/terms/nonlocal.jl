@@ -173,7 +173,7 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     for (psp, positions) in zip(psps, psp_positions)
         # Compute position-independent form factors
         G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
-        form_factors = build_form_factors(psp, G_plus_k_cart)
+        form_factors  = build_form_factors(psp, G_plus_k_cart)
 
         # Combine with structure factors
         for r in positions
@@ -195,7 +195,7 @@ end
 """
 Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 """
-function build_form_factors(psp, G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
+@timing function build_form_factors(psp, G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
     T = real(TT)
 
     # Pre-compute the radial parts of the non-local projectors at unique |p| to speed up
@@ -205,21 +205,24 @@ function build_form_factors(psp, G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
     # for a given `p` can be stored in an `nproj x (lmax + 1)` matrix.
     n_proj_max = maximum(l -> count_n_proj_radial(psp, l), 0:psp.lmax; init=0)
 
-    radials = IdDict{T,Matrix{T}}()  # IdDict for Dual compatibility
+    radials = Dict{value_type(T),Matrix{T}}()
     for p in G_plus_k
         p_norm = norm(p)
-        if !haskey(radials, p_norm)
+        p_norm_val = ForwardDiff.value(p_norm)
+        if !haskey(radials, p_norm_val)
             radials_p = Matrix{T}(undef, n_proj_max, psp.lmax + 1)
             for l = 0:psp.lmax, iproj_l = 1:count_n_proj_radial(psp, l)
+                # TODO This would be way faster if we do this in batches of l
+                #      and did recursion over l to compute the spherical bessels
                 radials_p[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, p_norm)
             end
-            radials[p_norm] = radials_p
+            radials[p_norm_val] = radials_p
         end
     end
 
     form_factors = Matrix{Complex{T}}(undef, length(G_plus_k), count_n_proj(psp))
     for (ip, p) in enumerate(G_plus_k)
-        radials_p = radials[norm(p)]
+        radials_p = radials[norm(ForwardDiff.value.(p))]
         count = 1
         for l = 0:psp.lmax, m = -l:l
             # see "Fourier transforms of centered functions" in the docs for the formula

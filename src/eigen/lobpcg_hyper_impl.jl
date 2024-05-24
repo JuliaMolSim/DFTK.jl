@@ -306,7 +306,7 @@ function final_retval(X, AX, BX, resid_history, niter, n_matvec)
         p = sortperm(λ)
         λ = λ[p]
         residuals = residuals[:, p]
-        X = X[:, p]
+        X  = X[:, p]
         AX = AX[:, p]
         BX = BX[:, p]
         resid_history = resid_history[p, :]
