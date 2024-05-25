@@ -140,18 +140,18 @@ end
 # Perform an atomic density superposition. The density is constructed in reciprocal space
 # using the provided atomic form-factors and coefficients and applying an inverse Fourier
 # transform to yield the real-space density.
-function atomic_density_superposition(basis::PlaneWaveBasis{T},
-                                      form_factors::IdDict{Tuple{Int,T},T};
+function atomic_density_superposition(basis::PlaneWaveBasis{T,VT},
+                                      form_factors::Dict{Tuple{Int,VT},T};
                                       coefficients=ones(T, length(basis.model.atoms))
-                                      ) where {T}
+                                      ) where {T,VT}
     model = basis.model
     G_cart = to_cpu(G_vectors_cart(basis))
     ρ_cpu = map(enumerate(to_cpu(G_vectors(basis)))) do (iG, G)
-        Gnorm = norm(G_cart[iG])
+        G_val = ForwardDiff.value(norm(G_cart[iG]))
         ρ_iG = sum(enumerate(model.atom_groups); init=zero(complex(T))) do (igroup, group)
             sum(group) do iatom
                 structure_factor = cis2pi(-dot(G, model.positions[iatom]))
-                coefficients[iatom] * form_factors[(igroup, Gnorm)] * structure_factor
+                coefficients[iatom] * form_factors[(igroup, G_val)] * structure_factor
             end
         end
         ρ_iG / sqrt(model.unit_cell_volume)
@@ -161,18 +161,19 @@ function atomic_density_superposition(basis::PlaneWaveBasis{T},
     irfft(basis, ρ)
 end
 
-function atomic_density_form_factors(basis::PlaneWaveBasis{T},
+function atomic_density_form_factors(basis::PlaneWaveBasis{T,VT},
                                      method::AtomicDensity
-                                     )::IdDict{Tuple{Int,T},T} where {T<:Real}
+                                    )::Dict{Tuple{Int,VT}, T} where {T<:Real, VT}
     model = basis.model
-    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatibility
+    form_factors = Dict{Tuple{Int,VT},T}()
     for G in to_cpu(G_vectors_cart(basis))
         Gnorm = norm(G)
+        G_val = ForwardDiff.value(Gnorm)
         for (igroup, group) in enumerate(model.atom_groups)
-            if !haskey(form_factors, (igroup, Gnorm))
+            if !haskey(form_factors, (igroup, G_val))
                 element = model.atoms[first(group)]
                 form_factor = atomic_density(element, Gnorm, method)
-                form_factors[(igroup, Gnorm)] = form_factor
+                form_factors[(igroup, G_val)] = form_factor
             end
         end
     end
