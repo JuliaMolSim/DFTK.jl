@@ -71,14 +71,6 @@ end
 
 next_working_fft_size(::Type{<:Dual}, size::Int) = size
 
-function build_fft_plans!(tmp::AbstractArray{Complex{T}}) where {T<:Dual}
-    opFFT  = AbstractFFTs.plan_fft(tmp)
-    opBFFT = AbstractFFTs.plan_bfft(tmp)
-    ipFFT  = DummyInplace{typeof(opFFT)}(opFFT)
-    ipBFFT = DummyInplace{typeof(opBFFT)}(opBFFT)
-    ipFFT, opFFT, ipBFFT, opBFFT
-end
-
 # determine symmetry operations only from primal lattice values
 function symmetry_operations(lattice::AbstractMatrix{<:Dual},
                              atoms, positions, magnetic_moments=[]; kwargs...)
