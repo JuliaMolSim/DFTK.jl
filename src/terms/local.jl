@@ -96,7 +96,7 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
     # Pre-compute the form factors at unique values of |G| to speed up
     # the potential Fourier transform (by a lot). Using a hash map gives O(1)
     # lookup.
-    form_factors = Dict{Tuple{Int,value_type(T)},T}()  # IdDict for Dual compatibility
+    form_factors = Dict{Tuple{Int,value_type(T)},T}()
     for G in Gqs_cart
         p = norm(G)
         p_val = ForwardDiff.value(p)

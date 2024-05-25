@@ -10,9 +10,13 @@ grid `basis`, where the individual k-points are occupied according to `occupatio
 It is possible to ask only for occupations higher than a certain level to be computed by
 using an optional `occupation_threshold`. By default all occupation numbers are considered.
 """
-@views @timing function compute_density(basis::PlaneWaveBasis{T}, ψ, occupation;
-                                        occupation_threshold=zero(T)) where {T}
-    Tρ = promote_type(T, real(eltype(ψ[1])))
+@views @timing function compute_density(basis::PlaneWaveBasis{T,VT}, ψ, occupation;
+                                        occupation_threshold=zero(T)) where {T,VT}
+    Tρ = promote_type(T,  real(eltype(ψ[1])))
+    Tψ = promote_type(VT, real(eltype(ψ[1])))
+    # Note, that we special-case Tψ, since when T is Dual and eltype(ψ[1]) is not
+    # (e.g. stress calculation), then only the normalisation factor introduces
+    # dual numbers, but not yet the FFT
 
     # Occupation should be on the CPU as we are going to be doing scalar indexing.
     occupation = [to_cpu(oc) for oc in occupation]
@@ -21,7 +25,7 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
 
     function allocate_local_storage()
         (; ρ=zeros_like(basis.G_vectors, Tρ, basis.fft_size..., basis.model.n_spin_components),
-         ψnk_real=zeros_like(basis.G_vectors, complex(Tρ), basis.fft_size...))
+         ψnk_real=zeros_like(basis.G_vectors, complex(Tψ), basis.fft_size...))
     end
     # We split the total iteration range (ik, n) in chunks, and parallelize over them.
     range = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
@@ -29,10 +33,10 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     storages = parallel_loop_over_range(range; allocate_local_storage) do kn, storage
         (ik, n) = kn
         kpt = basis.kpoints[ik]
-
-        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n])
+        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n]; normalize=false)
         storage.ρ[:, :, :, kpt.spin] .+= (occupation[ik][n] .* basis.kweights[ik]
-                                              .* abs2.(storage.ψnk_real))
+                                          .* (basis.ifft_normalization)^2
+                                          .* abs2.(storage.ψnk_real))
 
         synchronize_device(basis.architecture)
     end

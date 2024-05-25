@@ -33,8 +33,7 @@ function ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis,
     fill!(f_real, 0)
     f_real[kpt.mapping] = f_fourier
 
-    # Perform an IFFT
-    mul!(f_real, basis.ipBFFT, f_real)
+    mul!(f_real, basis.ipBFFT, f_real)  # perform IFFT
     normalize && (f_real .*= basis.ifft_normalization)
     f_real
 end
