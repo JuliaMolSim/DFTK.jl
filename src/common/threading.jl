@@ -1,6 +1,14 @@
 import FFTW
 using LinearAlgebra
 
+"""
+Setup the number of threads used by DFTK's own threading (`n_DFTK`), by BLAS (`n_blas`) 
+and by FFTW (`n_fft`). This is independent from the number of Julia threads (`Threads.nthreads()`).
+DFTK and FFTW threading are upper bounded by `Threads.nthreads()`, but not BLAS,
+which uses its own threading system.
+By default, use 1 FFT thread, and `Threads.nthreads()` BLAS and DFTK threads
+Changing `n_DFTK` requires a restart of Julia.
+"""
 function setup_threading(; n_fft=1, n_blas=Threads.nthreads(), n_DFTK=nothing)
     if n_DFTK != nothing
         set_DFTK_threads!(n_DFTK)
@@ -8,8 +16,8 @@ function setup_threading(; n_fft=1, n_blas=Threads.nthreads(), n_DFTK=nothing)
     n_DFTK = @load_preference("DFTK_threads", Threads.nthreads())
     FFTW.set_num_threads(n_fft)
     BLAS.set_num_threads(n_blas)
-    mpi_master() && @info "Threading setup: $(Threads.nthreads()) Julia threads, $n_DFTK DFTK threads, $n_fft FFT threads, $n_blas BLAS threads"
-
+    njulia = Threads.nthreads()
+    mpi_master() && @info "Threading setup: " Threads.nthreads() Threads.nthreads() n_DFTK n_fft n_blas
 end
 
 """
