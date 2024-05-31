@@ -17,7 +17,7 @@ function setup_threading(; n_fft=1, n_blas=Threads.nthreads(), n_DFTK=nothing)
     FFTW.set_num_threads(n_fft)
     BLAS.set_num_threads(n_blas)
     njulia = Threads.nthreads()
-    mpi_master() && @info "Threading setup: " Threads.nthreads() Threads.nthreads() n_DFTK n_fft n_blas
+    mpi_master() && @info "Threading setup: " Threads.nthreads() n_DFTK n_fft n_blas
 end
 
 """
