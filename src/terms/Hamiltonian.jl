@@ -102,7 +102,7 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
            ψ_real  = similar(ψ, complex(T), H.basis.fft_size...),
            Hψ_real = similar(Hψ, complex(T), H.basis.fft_size...))
     end
-    parallel_loop_over_range(allocate_local_storage, 1:size(ψ, 2)) do storage, iband
+    parallel_loop_over_range(1:size(ψ, 2); allocate_local_storage) do iband, storage
         to = TimerOutput()  # Thread-local timer output
 
         # Take ψi, IFFT it to ψ_real, apply each term to Hψ_fourier and Hψ_real, and add it
@@ -140,7 +140,7 @@ end
     # Notice that we use unnormalized plans for extra speed
     potential = H.local_op.potential / prod(H.basis.fft_size)
 
-    parallel_loop_over_range(H.scratch, 1:n_bands) do storage, iband
+    parallel_loop_over_range(1:n_bands, H.scratch) do iband, storage
         to = TimerOutput()  # Thread-local timer output
         ψ_real = storage.ψ_reals
 
