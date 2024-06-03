@@ -64,13 +64,16 @@ end
 
     for group in psp_groups
         element = model.atoms[first(group)]
+        lmax = element.psp.lmax
+        n_funs_per_l = [count_n_proj_radial(element.psp, l) for l in 0:lmax]
+        eval_psp_fourier(i, l, p) = eval_psp_projector_fourier(element.psp, i, l, p)
 
         C = build_projection_coefficients(T, element.psp)
         for (ik, kpt) in enumerate(basis.kpoints)
             # We compute the forces from the irreductible BZ; they are symmetrized later.
             G_plus_k = Gplusk_vectors(basis, kpt)
             G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
-            form_factors = build_form_factors(element.psp, G_plus_k_cart)
+            form_factors = atomic_centered_function_form_factors(eval_psp_fourier, G_plus_k_cart, lmax, n_funs_per_l)
             for idx in group
                 r = model.positions[idx]
                 structure_factors = [cis2pi(-dot(p, r)) for p in G_plus_k]
@@ -164,6 +167,7 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     n_G    = length(G_vectors(basis, kpt))
     proj_vectors = zeros(Complex{eltype(psp_positions[1][1])}, n_G, n_proj)
     G_plus_k = to_cpu(Gplusk_vectors(basis, kpt))
+    G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
 
     # Compute the columns of proj_vectors = 1/√Ω \hat proj_i(k+G)
     # Since the proj_i are translates of each others, \hat proj_i(k+G) decouples as
@@ -172,8 +176,10 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     offset = 0  # offset into proj_vectors
     for (psp, positions) in zip(psps, psp_positions)
         # Compute position-independent form factors
-        G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
-        form_factors = build_form_factors(psp, G_plus_k_cart)
+        lmax = psp.lmax
+        n_funs_per_l = [count_n_proj_radial(psp, l) for l in 0:lmax]
+        eval_psp_fourier(i, l, p) = eval_psp_projector_fourier(psp, i, l, p)
+        form_factors = atomic_centered_function_form_factors(eval_psp_fourier, G_plus_k_cart, lmax, n_funs_per_l)
 
         # Combine with structure factors
         for r in positions
@@ -193,45 +199,61 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
 end
 
 """
-Build form factors (Fourier transforms of projectors) for an atom centered at 0.
+Build Fourier transform factors of a atomic function centered at 0.
 """
-function build_form_factors(psp, G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
+function atomic_centered_function_form_factors(fun::Function,
+                                               G_plus_ks::AbstractVector{<:AbstractVector{Vec3{TT}}},
+                                               lmax, n_funs_per_l) where {TT}
     T = real(TT)
 
-    # Pre-compute the radial parts of the non-local projectors at unique |p| to speed up
+    # Pre-compute the radial parts of the non-local atomic functions at unique |p| to speed up
     # the form factor calculation (by a lot). Using a hash map gives O(1) lookup.
 
-    # Maximum number of projectors over angular momenta so that form factors
-    # for a given `p` can be stored in an `nproj x (lmax + 1)` matrix.
-    n_proj_max = maximum(l -> count_n_proj_radial(psp, l), 0:psp.lmax; init=0)
+    # Maximum number of atomic functions over angular momenta so that form factors
+    # for a given `p` can be stored in an `nfuns x (lmax + 1)` matrix.
+    n_funs_max = maximum(n_funs_per_l)
 
     radials = IdDict{T,Matrix{T}}()  # IdDict for Dual compatibility
-    for p in G_plus_k
-        p_norm = norm(p)
-        if !haskey(radials, p_norm)
-            radials_p = Matrix{T}(undef, n_proj_max, psp.lmax + 1)
-            for l = 0:psp.lmax, iproj_l = 1:count_n_proj_radial(psp, l)
-                radials_p[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, p_norm)
+    for G_plus_k in G_plus_ks
+        for p in G_plus_k
+            p_norm = norm(p)
+            if !haskey(radials, p_norm)
+                radials_p = Matrix{T}(undef, n_funs_max, lmax + 1)
+                for l = 0:lmax, ifuns_l = 1:n_funs_per_l[l+1]
+                    radials_p[ifuns_l, l+1] = fun( ifuns_l, l, p_norm)
+                end
+                radials[p_norm] = radials_p
             end
-            radials[p_norm] = radials_p
         end
     end
 
-    form_factors = Matrix{Complex{T}}(undef, length(G_plus_k), count_n_proj(psp))
-    for (ip, p) in enumerate(G_plus_k)
-        radials_p = radials[norm(p)]
-        count = 1
-        for l = 0:psp.lmax, m = -l:l
-            # see "Fourier transforms of centered functions" in the docs for the formula
-            angular = (-im)^l * ylm_real(l, m, p)
-            for iproj_l = 1:count_n_proj_radial(psp, l)
-                form_factors[ip, count] = radials_p[iproj_l, l+1] * angular
-                count += 1
+    form_factors = Vector{Matrix{Complex{T}}}(undef, length(G_plus_ks))
+    n_funs = sum(l -> n_funs_per_l[l+1] * (2l + 1), 0:lmax; init=0)::Int
+    for (ik, G_plus_k) in enumerate(G_plus_ks)
+        form_factors_ik = Matrix{Complex{T}}(undef, length(G_plus_k), n_funs)
+        for (ip, p) in enumerate(G_plus_k)
+            radials_p = radials[norm(p)]
+            count = 1
+            for l = 0:lmax, m = -l:l
+                # see "Fourier transforms of centered functions" in the docs for the formula
+                angular = (-im)^l * ylm_real(l, m, p)
+                for ifuns_l = 1:n_funs_per_l[l+1]
+                    form_factors_ik[ip, count] = radials_p[ifuns_l, l+1] * angular
+                    count += 1
+                end
             end
+            @assert count == n_funs + 1
         end
-        @assert count == count_n_proj(psp) + 1
+        form_factors[ik] = form_factors_ik
     end
+
     form_factors
+end
+
+function atomic_centered_function_form_factors(fun::Function, 
+                                               G_plus_k::AbstractVector{Vec3{TT}},
+                                               lmax, n_funs_per_l) where {TT}
+    atomic_centered_function_form_factors(fun, [G_plus_k], lmax, n_funs_per_l)[1]
 end
 
 # Helpers for phonon computations.
