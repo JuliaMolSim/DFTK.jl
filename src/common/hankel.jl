@@ -15,7 +15,8 @@ function hankel(r::AbstractVector, r2_f::AbstractVector, l::Integer, p::T)::T wh
 end
 
 
-# This custom rule makes sure we can use loop vectorisation in the innermost (simpson) loop.
+# This custom rule makes sure we can use loop vectorisation in the innermost (simpson) loop
+# and that we avoid allocating a Vector{<:Dual} each time hankel( ) is called
 function hankel(r::AbstractVector, r2_f::AbstractVector, l::Integer, p::TT) where {TT <: ForwardDiff.Dual}
     # Note that
     #   d H[f] / dp = 4\pi \int_0^∞ r^2 f(r) j_l'(p⋅r)⋅r dr
