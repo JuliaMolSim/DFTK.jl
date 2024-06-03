@@ -157,6 +157,7 @@ function todict!(dict, basis::PlaneWaveBasis)
     dict["Ecut"]         = basis.Ecut
     dict["variational"]  = basis.variational
     dict["symmetries_respect_rgrid"] = basis.symmetries_respect_rgrid
+    dict["symmetries_respect_basis"] = basis.symmetries_respect_basis
     dict["use_symmetries_for_kpoint_reduction"] = basis.use_symmetries_for_kpoint_reduction
 
     # Update the symmetry as discretisation might have broken some symmetries
