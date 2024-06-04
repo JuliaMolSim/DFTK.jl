@@ -195,7 +195,7 @@ end
 """
 Build form factors (Fourier transforms of projectors) for an atom centered at 0.
 """
-@timing function build_form_factors(psp, G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
+function build_form_factors(psp, G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
     T = real(TT)
 
     # Pre-compute the radial parts of the non-local projectors at unique |p| to speed up
