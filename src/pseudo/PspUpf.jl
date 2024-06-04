@@ -161,7 +161,7 @@ function eval_psp_projector_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
     psp.r2_projs_interp[l+1][i](r) / r^2
 end
 
-@timing function eval_psp_projector_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
+function eval_psp_projector_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     # The projectors may have been cut off before the end of the radial mesh
     # by PseudoPotentialIO because UPFs list a radial cutoff index for these
     # functions after which they are strictly zero in the file.
