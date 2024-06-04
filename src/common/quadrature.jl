@@ -72,7 +72,7 @@ simpson(y::AbstractArray, x::AbstractArray) = simpson((i, xi) -> y[i], x)
     end
 
     if isodd(n_intervals)
-        I += 5 / 6 * dx * integrand(n, x[n-1])
+        I += 5 / 6 * dx * integrand(n-1, x[n-1])
         I += 1 / 2 * dx * integrand(n, x[n])
     else
         I += 1 / 3 * dx * integrand(n, x[n])
