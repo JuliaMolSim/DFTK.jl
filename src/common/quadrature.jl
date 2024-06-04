@@ -47,7 +47,7 @@ end
 
     istop = isodd(n_intervals) ? n - 1 : n - 2
 
-    I = 1 / 3 * dx * integrand(1, x[1])
+    I = 1 / 3 * dx * integrand(1, x[1], args...)
     # Note: We used @turbo here before, but actually the allocation overhead
     #       needed to get all the data into an array is worse than what one gains
     #       with LoopVectorization
