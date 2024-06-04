@@ -219,17 +219,9 @@ end
 Faster version than energy_hamiltonian for cases where only the energy is needed.
 """
 @timing function energy(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
-    # Right now the speed gain mostly comes from not having to allocate the
-    # Hamiltonian scratch array, which hurts in particular for ForwardDiff
-
-    # TODO If needed improve this further by enabling terms to provide only an energy()
-    #      function as well.
-    @timing "ene_ops" ene_ops_arr = [ene_ops(term, basis, ψ, occupation; kwargs...)
-                                     for term in basis.terms]
+    energy_values = [energy(term, basis, ψ, occupation; kwargs...) for term in basis.terms]
     term_names = [string(nameof(typeof(term))) for term in basis.model.term_types]
-    energy_values  = [eh.E for eh in ene_ops_arr]
-    energies = Energies(term_names, energy_values)
-    (; energies )
+    (; energies=Energies(term_names, energy_values))
 end
 
 function Hamiltonian(basis::PlaneWaveBasis; ψ=nothing, occupation=nothing, kwargs...)
