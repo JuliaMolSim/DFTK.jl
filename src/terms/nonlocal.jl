@@ -205,11 +205,10 @@ Build form factors (Fourier transforms of projectors) for an atom centered at 0.
     # for a given `p` can be stored in an `nproj x (lmax + 1)` matrix.
     n_proj_max = maximum(l -> count_n_proj_radial(psp, l), 0:psp.lmax; init=0)
 
-    radials = Dict{value_type(T),Matrix{T}}()
+    radials = IdDict{T,Matrix{T}}()  # IdDict for Dual compatibility
     for p in G_plus_k
         p_norm = norm(p)
-        p_norm_val = ForwardDiff.value(p_norm)
-        if !haskey(radials, p_norm_val)
+        if !haskey(radials, p_norm)
             radials_p = Matrix{T}(undef, n_proj_max, psp.lmax + 1)
             for l = 0:psp.lmax, iproj_l = 1:count_n_proj_radial(psp, l)
                 # TODO This might  be faster if we do this in batches of l
@@ -217,13 +216,13 @@ Build form factors (Fourier transforms of projectors) for an atom centered at 0.
                 #      and did recursion over l to compute the spherical bessels
                 radials_p[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, p_norm)
             end
-            radials[p_norm_val] = radials_p
+            radials[p_norm] = radials_p
         end
     end
 
     form_factors = Matrix{Complex{T}}(undef, length(G_plus_k), count_n_proj(psp))
     for (ip, p) in enumerate(G_plus_k)
-        radials_p = radials[norm(ForwardDiff.value.(p))]
+        radials_p = radials[norm(p)]
         count = 1
         for l = 0:psp.lmax, m = -l:l
             # see "Fourier transforms of centered functions" in the docs for the formula
