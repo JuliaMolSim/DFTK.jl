@@ -9,7 +9,7 @@ is given by
 \end{array}
 \right) = \frac{1}{|Ω|} \left. \frac{dE[ (I+ϵ) * L]}{dϵ}\right|_{ϵ=0}
 ```
-where ``ϵ`` is the strain.
+where ``ϵ`` is the strain tensor.
 See [O. Nielsen, R. Martin Phys. Rev. B. **32**, 3792 (1985)](https://doi.org/10.1103/PhysRevB.32.3792)
 for details. In Voigt notation one would use the vector
 ``[σ_{xx} σ_{yy} σ_{zz} σ_{zy} σ_{zx} σ_{yx}]``.
@@ -32,30 +32,32 @@ for details. In Voigt notation one would use the vector
     L  = scfres.basis.model.lattice
     Ω  = scfres.basis.model.unit_cell_volume
 
-    # Define f(ϵ) = E[ (I+ϵ) * L]. Since the strain is symmetric (same as σ) it has only
-    # 6 free components which we collect as in Voigt notation
-    #    M = [ϵ_{xx} ϵ_{yy} ϵ_{zz} ϵ_{zy} ϵ_{zx} ϵ_{yx}]
-    # Then
-    function HF_energy_voigt(M)
-        D = [1+M[1]   M[6]   M[5];  # Lattice distortion matrix
-               M[6] 1+M[2]   M[4];
-               M[5]   M[4] 1+M[3]]
-        HF_energy(D * L)
-    end
-    # The derivative of this function wrt. M is by the chain rule
-    #    [df/dϵ_{xx}, df/dϵ_{yy}, df/dϵ_{zz},
-    #     df/dϵ_{zy}+df/dϵ_{yz}, df/dϵ_{zx}+df/dϵ_{xz}, df/dϵ_{yx}+df/dϵ_{xy}]
-    # Therefore
-    stress_voigt = 1/Ω * ForwardDiff.gradient(HF_energy_voigt, zeros(eltype(L), 6))
-    symmetrize_stresses(scfres.basis, voigt_to_full(stress_voigt))
+    # Note that both strain and stress are symmetric, therefore we only do
+    # AD with respect to the 6 free Voigt strain components. Note, that the
+    # conversion from Voigt strain to 3x3 strain adds the ones on the diagonal
+    stress_voigt = 1/Ω * ForwardDiff.gradient(
+        v -> HF_energy(voigt_strain_to_full(v) * L), zeros(eltype(L), 6)
+    )::Vector{eltype(L)}
+    symmetrize_stresses(scfres.basis, voigt_stress_to_full(stress_voigt))
 end
-function voigt_to_full(v::AbstractVector{T}) where {T}
-    @SArray[v[1]       v[6]/T(2)  v[5]/T(2);
-            v[6]/T(2)  v[2]       v[4]/T(2);
-            v[5]/T(2)  v[4]/T(2)  v[3]     ]
+function voigt_stress_to_full(v::AbstractVector{T}) where {T}
+    @SArray[v[1] v[6] v[5];
+            v[6] v[2] v[4];
+            v[5] v[4] v[3]]
 end
-function full_to_voigt(ε::AbstractMatrix{T}) where {T}
-    @SVector[ε[1, 1], ε[2, 2], ε[3, 3],
+function full_stress_to_voigt(σ::AbstractMatrix{T}) where {T}
+    @SVector[σ[1, 1], σ[2, 2], σ[3, 3],
+             (σ[3, 2] + σ[2, 3]) / T(2),
+             (σ[3, 1] + σ[1, 3]) / T(2),
+             (σ[1, 2] + σ[2, 1]) / T(2)]
+end
+function voigt_strain_to_full(v::AbstractVector{T}) where {T}
+    @SArray[1 + v[1]           v[6]/T(2)       v[5]/T(2);
+                v[6]/T(2)  1 + v[2]            v[4]/T(2);
+                v[5]/T(2)      v[4]/T(2)   1 + v[3]     ]
+end
+function full_strain_to_voigt(ε::AbstractVector{T}) where {T}
+    @SVector[ε[1, 1] - 1, ε[2, 2] - 1, ε[3, 3] - 1,
              ε[3, 2] + ε[2, 3],
              ε[3, 1] + ε[1, 3],
              ε[1, 2] + ε[2, 1]]
