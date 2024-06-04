@@ -16,7 +16,7 @@ trapezoidal
     # Note: We used @turbo here before, but actually the allocation overhead
     #       needed to get all the data into an array is worse than what one gains
     #       with LoopVectorization
-    @simd for i = 2:(n-1)
+    @fastmath @simd for i = 2:(n-1)
         # dx[i] + dx[i-1] = (x[i+1] - x[i]) + (x[i] - x[i-1])
         #                 = x[i+1] - x[i-1]
         I += @inline (x[i+1] - x[i-1]) * integrand(i, x[i])
@@ -64,10 +64,10 @@ simpson(y::AbstractArray, x::AbstractArray) = simpson((i, xi) -> y[i], x)
     # Note: We used @turbo here before, but actually the allocation overhead
     #       needed to get all the data into an array is worse than what one gains
     #       with LoopVectorization
-    @simd for i = 2:2:istop
+    @fastmath @simd for i = 2:2:istop
         I += @inline 4 / 3 * dx * integrand(i, x[i])
     end
-    @simd for i = 3:2:istop
+    @fastmath @simd for i = 3:2:istop
         I += @inline 2 / 3 * dx * integrand(i, x[i])
     end
 
@@ -88,7 +88,7 @@ end
 
     Tint = eltype(integrand(1, x[1]))
     I = zero(promote_type(eltype(x), Tint))
-    @simd for i = 1:2:istop
+    @fastmath @simd for i = 1:2:istop
         dx0 = x[i + 1] - x[i]
         dx1 = x[i+2] - x[i+1]
         c = (dx0 + dx1) / 6
