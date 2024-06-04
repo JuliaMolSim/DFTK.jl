@@ -55,8 +55,8 @@ function voigt_to_full(v::AbstractVector{T}) where {T}
             v[5]/T(2)  v[4]/T(2)  v[3]     ]
 end
 function full_to_voigt(ε::AbstractMatrix{T}) where {T}
-    [ε[1, 1], ε[2, 2], ε[3, 3],
-     ε[3, 2] + ε[2, 3],
-     ε[3, 1] + ε[1, 3],
-     ε[1, 2] + ε[2, 1]]
+    @SVector[ε[1, 1], ε[2, 2], ε[3, 3],
+             ε[3, 2] + ε[2, 3],
+             ε[3, 1] + ε[1, 3],
+             ε[1, 2] + ε[2, 1]]
 end

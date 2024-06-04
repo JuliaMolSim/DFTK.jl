@@ -220,16 +220,14 @@ function hankel(r::AbstractVector, r2_f::AbstractVector, l::Integer, p::TT) wher
     pv = ForwardDiff.value(p)
 
     jl = sphericalbesselj_fast.(l, pv .* r)
-    value = 4T(π) * simpson((i, r, r2_f, jl) -> r2_f[i] * jl[i], r, r2_f, jl)
+    value = 4T(π) * simpson((i, r) -> r2_f[i] * jl[i], r)
 
     if iszero(pv)
         return TT(value, zero(T) * ForwardDiff.partials(p))
     end
-
-    function derivative_value(i, r, r2_f, jl, pv)
+    derivative = 4T(π) * simpson(r) do i, r
         (r2_f[i] * (l * jl[i] / pv - r .* sphericalbesselj_fast(l+1, pv * r)))
     end
-    derivative = 4T(π) * simpson(derivative_value, r, r2_f, jl, pv)
     TT(value, derivative * ForwardDiff.partials(p))
 end
 
