@@ -45,7 +45,7 @@ function parse_system(system::AbstractSystem{D}) where {D}
         magnetic_moments = normalize_magnetic_moment.(magnetic_moments)
     end
 
-    sum_atomic_charge = sum(atom -> get(atom, :charge, 0.0u"e_au"), system)
+    sum_atomic_charge = sum(atom -> get(atom, :charge, 0.0u"e_au"), system; init=0.0u"e_au")
     if abs(sum_atomic_charge) > 1e-6u"e_au"
         error("Charged systems not yet supported in DFTK.")
     end
