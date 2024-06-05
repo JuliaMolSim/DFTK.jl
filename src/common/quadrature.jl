@@ -1,90 +1,111 @@
-using LoopVectorization
-
 # NumericalIntegration.jl also implements this (in a slightly different way)
 # however, it is unmaintained and has stale, conflicting version requirements
 # for Interpolations.jl
 """
-    trapezoidal(x, y)
-
-Integrate y(x) over x using trapezoidal method quadrature.
+Integrate the `integrand` function using the nodal points `x`
+using the trapezoidal rule.
+The function will be called as `integrand(i, x[i])` for each integrand
+point `i` (not necessarily in order).
 """
 trapezoidal
-@inbounds function trapezoidal(x::AbstractVector, y::AbstractVector)
+@inbounds function trapezoidal(integrand, x::AbstractVector)
     n = length(x)
-    n == length(y) || error("vectors `x` and `y` must have the same number of elements")
-    n == 1 && return zero(promote_type(eltype(x), eltype(y)))
-    I = (x[2] - x[1]) * y[1]
-    @turbo for i = 2:(n-1)
-        # dx[i] + dx[i - 1] = (x[i + 1] - x[i]) + (x[i] - x[i - 1])
-        #                   = x[i + 1] - x[i - 1]
-        I += (x[i + 1] - x[i - 1]) * y[i]
+    Tint = eltype(integrand(1, x[1]))
+    n == 1 && return zero(promote_type(eltype(x), Tint))
+    I = (x[2] - x[1]) * integrand(1, x[1])
+    # Note: We used @turbo here before, but actually the allocation overhead
+    #       needed to get all the data into an array is worse than what one gains
+    #       with LoopVectorization
+    @fastmath @simd for i = 2:(n-1)
+        # dx[i] + dx[i-1] = (x[i+1] - x[i]) + (x[i] - x[i-1])
+        #                 = x[i+1] - x[i-1]
+        I += @inline (x[i+1] - x[i-1]) * integrand(i, x[i])
     end
-    I += (x[n] - x[n - 1]) * y[n]
+    I += (x[n] - x[n-1]) * integrand(n, x[n])
     I / 2
 end
 
 """
-    simpson(x, y)
+Integrate a function represented by the nodal points and function values
+given by the arrays `x`, `y`. Note the order (`y` comes first).
+"""
+trapezoidal(y::AbstractArray, x::AbstractArray) = trapezoidal((i, xi) -> y[i], x)
 
-Integrate y(x) over x using Simpson's method quadrature.
+"""
+Integrate the `integrand` function using the nodal points `x` using Simpson's rule.
+The function will be called as `integrand(i, x[i])` for each integrand
+point `i` (not necessarily in order).
 """
 simpson
-@inbounds function simpson(x::AbstractVector, y::AbstractVector)
+@inbounds function simpson(integrand, x::AbstractVector)
     n = length(x)
-    n == length(y) || error("vectors `x` and `y` must have the same number of elements")
-    n == 1 && return zero(promote_type(eltype(x), eltype(y)))
-    n <= 4 && return trapezoidal(x, y)
-    (x[2] - x[1]) ≈ (x[3] - x[2]) && return simpson_uniform(x, y)
-    return simpson_nonuniform(x, y)
+    n <= 4 && return trapezoidal(integrand, x)
+    if (x[2] - x[1]) ≈ (x[3] - x[2])
+        simpson_uniform(integrand, x)
+    else
+        simpson_nonuniform(integrand, x)
+    end
 end
 
-@inbounds function simpson_uniform(x::AbstractVector, y::AbstractVector)
+"""
+Integrate a function represented by the nodal points and function values
+given by the arrays `x`, `y`. Note the order (`y` comes first).
+"""
+simpson(y::AbstractArray, x::AbstractArray) = simpson((i, xi) -> y[i], x)
+
+@inbounds function simpson_uniform(integrand, x::AbstractVector)
     dx = x[2] - x[1]
     n = length(x)
     n_intervals = n - 1
 
     istop = isodd(n_intervals) ? n - 1 : n - 2
 
-    I = 1 / 3 * dx * y[1]
-    @turbo for i = 2:2:istop
-        I += 4 / 3 * dx * y[i]
+    I = 1 / 3 * dx * integrand(1, x[1])
+    # Note: We used @turbo here before, but actually the allocation overhead
+    #       needed to get all the data into an array is worse than what one gains
+    #       with LoopVectorization
+    @fastmath @simd for i = 2:2:istop
+        I += @inline 4 / 3 * dx * integrand(i, x[i])
     end
-    @turbo for i = 3:2:istop
-        I += 2 / 3 * dx * y[i]
+    @fastmath @simd for i = 3:2:istop
+        I += @inline 2 / 3 * dx * integrand(i, x[i])
     end
 
     if isodd(n_intervals)
-        I += 5 / 6 * dx * y[n - 1]
-        I += 1 / 2 * dx * y[n]
+        I += 5 / 6 * dx * integrand(n-1, x[n-1])
+        I += 1 / 2 * dx * integrand(n, x[n])
     else
-        I += 1 / 3 * dx * y[n]
+        I += 1 / 3 * dx * integrand(n, x[n])
     end
     return I
 end
 
-@inbounds function simpson_nonuniform(x::AbstractVector, y::AbstractVector)
+@inbounds function simpson_nonuniform(integrand, x::AbstractVector)
     n = length(x)
-    n_intervals = n - 1
+    n_intervals = n-1
 
-    istop = isodd(n_intervals) ? n - 3 : n - 2
+    istop = isodd(n_intervals) ? n-3 : n-2
 
-    I = zero(promote_type(eltype(x), eltype(y)))
-    # This breaks when @turbo'd
-    @simd for i = 1:2:istop
+    Tint = eltype(integrand(1, x[1]))
+    I = zero(promote_type(eltype(x), Tint))
+    @fastmath @simd for i = 1:2:istop
         dx0 = x[i + 1] - x[i]
-        dx1 = x[i + 2] - x[i + 1]
+        dx1 = x[i+2] - x[i+1]
         c = (dx0 + dx1) / 6
-        I += c * (2 - dx1 / dx0) * y[i]
-        I += c * (dx0 + dx1)^2 / (dx0 * dx1) * y[i + 1]
-        I += c * (2 - dx0 / dx1) * y[i + 2]
+        @inline begin
+            I += c * (2 - dx1 / dx0) * integrand(i, x[i])
+            I += c * (dx0 + dx1)^2 / (dx0 * dx1) * integrand(i+1, x[i+1])
+            I += c * (2 - dx0 / dx1) * integrand(i+2, x[i+2])
+        end
+
     end
 
     if isodd(n_intervals)
-        dxn = x[end] - x[end - 1]
-        dxnm1 = x[end - 1] - x[end - 2]
-        I += (2 * dxn^2 + 3 * dxn * dxnm1) / (6 * (dxnm1 + dxn)) * y[end]
-        I += (dxn^2 + 3 * dxn * dxnm1) / (6 * dxnm1) * y[end - 1]
-        I -= dxn^3 / (6 * dxnm1 * (dxnm1 + dxn)) * y[end - 2]
+        dxn = x[end] - x[end-1]
+        dxnm1 = x[end - 1] - x[end-2]
+        I += (2 * dxn^2 + 3 * dxn * dxnm1) / (6 * (dxnm1 + dxn)) * integrand(n, x[n])
+        I += (dxn^2 + 3 * dxn * dxnm1) / (6 * dxnm1) * integrand(n-1, x[n-1])
+        I -= dxn^3 / (6 * dxnm1 * (dxnm1 + dxn)) * integrand(n-2, x[n-2])
     end
 
     return I

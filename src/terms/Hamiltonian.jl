@@ -33,7 +33,7 @@ struct DftHamiltonianBlock <: HamiltonianBlock
     scratch  # Pre-allocated scratch arrays for fast application
 end
 
-function HamiltonianBlock(basis, kpoint, operators; scratch=_ham_allocate_scratch(basis))
+function HamiltonianBlock(basis, kpoint, operators; scratch=nothing)
     optimized_operators = optimize_operators(operators)
     fourier_ops  = filter(o -> o isa FourierMultiplication,   optimized_operators)
     real_ops     = filter(o -> o isa RealSpaceMultiplication, optimized_operators)
@@ -45,6 +45,7 @@ function HamiltonianBlock(basis, kpoint, operators; scratch=_ham_allocate_scratc
                   && length(nonlocal_ops) < 2 && length(divAgrad_ops) < 2
                   && n_ops_grouped == length(optimized_operators))
     if is_dft_ham
+        scratch = @something scratch _ham_allocate_scratch(basis)
         nonlocal_op = isempty(nonlocal_ops) ? nothing : only(nonlocal_ops)
         divAgrad_op = isempty(divAgrad_ops) ? nothing : only(divAgrad_ops)
         DftHamiltonianBlock(basis, kpoint, operators,
@@ -180,9 +181,11 @@ end
 end
 
 
-# Get energies and Hamiltonian
-# kwargs is additional info that might be useful for the energy terms to precompute
-# (eg the density ρ)
+"""
+Get energies and Hamiltonian
+kwargs is additional info that might be useful for the energy terms to precompute
+(eg the density ρ)
+"""
 @timing function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
     # it: index into terms, ik: index into kpoints
     @timing "ene_ops" ene_ops_arr = [ene_ops(term, basis, ψ, occupation; kwargs...)
@@ -203,14 +206,24 @@ end
         end
         ret
     end
+    scratch = _ham_allocate_scratch(basis)
     hks_per_k = [flatten([blocks[ik] for blocks in operators])
                  for ik = 1:length(basis.kpoints)]      # hks_per_k[ik][it]
-
-    ham = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks)
+    ham = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks; scratch)
                               for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
     energies = Energies(term_names, energy_values)
     (; energies, ham)
 end
+
+"""
+Faster version than energy_hamiltonian for cases where only the energy is needed.
+"""
+@timing function energy(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
+    energy_values = [energy(term, basis, ψ, occupation; kwargs...) for term in basis.terms]
+    term_names = [string(nameof(typeof(term))) for term in basis.model.term_types]
+    (; energies=Energies(term_names, energy_values))
+end
+
 function Hamiltonian(basis::PlaneWaveBasis; ψ=nothing, occupation=nothing, kwargs...)
     energy_hamiltonian(basis, ψ, occupation; kwargs...).ham
 end

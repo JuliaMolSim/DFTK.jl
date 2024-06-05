@@ -302,7 +302,7 @@ function final_retval(X, AX, BX, λ, resid_history, niter, n_matvec)
     if !issorted(λ)
         p = sortperm(λ)
         λ = λ[p]
-        X = X[:, p]
+        X  = X[:, p]
         AX = AX[:, p]
         BX = BX[:, p]
         resid_history = resid_history[p, :]
