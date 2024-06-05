@@ -54,7 +54,7 @@ The following publications report research employing DFTK as a core component.
 Feel free to drop us a line if you want your work to be added here.
 
 - J. Cazalis.
-  [*Dirac cones for a mean-field model of graphene*](https//doi.org/10.2140/paa.2024.6.129)
+  [*Dirac cones for a mean-field model of graphene*](https://doi.org/10.2140/paa.2024.6.129)
   Pure and Appl. Anal., **6**, 1 (2024).
   [ArXiv:2207.09893](https://arxiv.org/abs/2207.09893).
   ([Computational script](https://github.com/JuliaMolSim/DFTK.jl/blob/f7fcc31c79436b2582ac1604d4ed8ac51a6fd3c8/examples/publications/2022_cazalis.jl)).
