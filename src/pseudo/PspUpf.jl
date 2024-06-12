@@ -194,7 +194,7 @@ function eval_psp_local_fourier(psp::PspUpf, p::T)::T where {T<:Real}
     # C(r) = -Z/r; H[-Z/r] = -Z/p^2
     rgrid = @view psp.rgrid[1:psp.ircut]
     vloc  = @view psp.vloc[1:psp.ircut]
-    I = trapezoidal(rgrid) do i, r
+    I = simpson(rgrid) do i, r
          r * (r * vloc[i] - -psp.Zion * erf(r)) * sphericalbesselj_fast(0, p * r)
     end
     4T(π) * (I + -psp.Zion / p^2 * exp(-p^2 / T(4)))
@@ -223,7 +223,7 @@ end
 function eval_psp_energy_correction(T, psp::PspUpf, n_electrons)
     rgrid = @view psp.rgrid[1:psp.ircut]
     vloc = @view psp.vloc[1:psp.ircut]
-    4T(π) * n_electrons * trapezoidal(rgrid) do i, r
+    4T(π) * n_electrons * simpson(rgrid) do i, r
         r * (r * vloc[i] - -psp.Zion)
     end
 end
