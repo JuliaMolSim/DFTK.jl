@@ -161,13 +161,28 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
     unique!(sort!((all_eigenvalues)))
     i_min = 1
     i_max = length(all_eigenvalues)
-    if abs(excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_max] + T(1); temperature, smearing)) < tol_n_elec
+    excess_min = excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_min] + T(1/2)
+                                    *(all_eigenvalues[i_min+1]-all_eigenvalues[i_min]);
+                                    temperature, smearing)
+    excess_max = excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_max] + T(1); 
+                                    temperature, smearing)
+
+    @show length(all_eigenvalues)
+    @show excess_min, excess_max
+
+    if abs(excess_max) < tol_n_elec     # Try to fill all the bands
         εF = all_eigenvalues[i_max] + T(1)
-    else
-        while i_max - i_min > 0
+    elseif abs(excess_min) < tol_n_elec # Try to fill only the smallest eigenvalues
+        εF = all_eigenvalues[i_min] + T(1/2)
+             *(all_eigenvalues[i_min+1]-all_eigenvalues[i_min])
+
+    elseif excess_min < -tol_n_elec && excess_max > tol_n_elec
+        # If excess_min < 0 and excess_max > 0 we can start the bisection method
+        while i_max - i_min > 1
             i = div(i_min+i_max, 2)
             εF = all_eigenvalues[i] + T(1/2)*(all_eigenvalues[i+1]-all_eigenvalues[i])
             excess = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
+            
             if excess < -tol_n_elec
                 i_min = i
             elseif excess > tol_n_elec
@@ -176,11 +191,22 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
                 i_min = i
                 i_max = i
             end
+
+        end
+
+    else
+        if excess_max < -tol_n_elec
+            error("Could not obtain required number of electrons by filling every state. " *
+                  "Increase n_bands.")
+        else    # excess_min > tol_n_elec
+            error("Unable to find non-fractional occupations that have the " *
+                  "correct number of electrons. You should add a temperature.")
         end
     end
 
     occ = compute_occupation(basis, eigenvalues, εF; temperature, smearing).occupation
-    merged_spin_occupations = sum([occ[krange_spin(basis, i)] for i in 1:basis.model.n_spin_components])
+    merged_spin_occupations = sum([ occ[krange_spin(basis, i)] 
+                                   for i in 1:basis.model.n_spin_components ])
     if !allequal(merged_spin_occupations)
         @warn("Not all kpoints have the same number of occupied states, which could mean "*
               "that a metallic system is treated at zero temperature.")
