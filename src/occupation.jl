@@ -148,14 +148,13 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
     end
 
     # Gathering the eigenvalues distributed over the kpoints in MPI
-    #n_bands = length(eigenvalues[1])   # assuming that the same number of bands are computed for each kpoint
-    #counts = [ Int32(n_bands*length(basis.krange_allprocs[rank])) for rank in 1:MPI.Comm_size(basis.comm_kpts)]
-    #all_eigenvalues = similar(reduce(vcat, eigenvalues))
-    #all_eigenvalues_vbuf = MPI.VBuffer(all_eigenvalues, counts)
-    #MPI.Allgatherv!(reduce(vcat, eigenvalues), all_eigenvalues_vbuf, basis.comm_kpts)
-    #all_eigenvalues = MPI.Allgatherv(reduce(vcat, eigenvalues), counts, basis.comm_kpts)
-    
-    all_eigenvalues = reduce(vcat, eigenvalues)
+    n_bands = length(eigenvalues[1])   # assuming that the same number of bands 
+                                       # are computed for each kpoint
+    counts = [ Int32(n_bands*length(basis.krange_allprocs[rank][])) 
+               for rank in 1:MPI.Comm_size(basis.comm_kpts) ]
+    all_eigenvalues = Array{T}(undef, sum(counts))
+    all_eigenvalues_vbuf = MPI.VBuffer(all_eigenvalues, counts)
+    MPI.Allgatherv!(reduce(vcat, eigenvalues), all_eigenvalues_vbuf, basis.comm_kpts)
     
     # Bisection method to find the index of the eigenvalue such that excess_n_electrons = 0
     unique!(sort!((all_eigenvalues)))
@@ -166,9 +165,6 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
                                     temperature, smearing)
     excess_max = excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_max] + T(1); 
                                     temperature, smearing)
-
-    @show length(all_eigenvalues)
-    @show excess_min, excess_max
 
     if abs(excess_max) < tol_n_elec     # Try to fill all the bands
         εF = all_eigenvalues[i_max] + T(1)
