@@ -1,20 +1,21 @@
-# these provide fixed-point solvers that can be passed to scf()
+# these provide fixed-point solvers that can be passed to self_consistent_field()
 
-# the fp_solver function must accept being called like fp_solver(f, x0, tol,
-# maxiter), where f(x) is the fixed-point map. It must return an
-# object supporting res.sol and res.converged
+# the fp_solver function must accept being called like
+# fp_solver(f, x0, info0, tol, maxiter), where f(x, info) is the fixed-point map. 
+# It must return an object supporting res.fixpoint, res.info and res.converged
 
 """
 Create a damped SCF solver updating the density as
 `x = β * x_new + (1 - β) * x`
 """
 function scf_damping_solver(β=0.2)
-    function fp_solver(f, x0, maxiter; tol=1e-6)
+    function fp_solver(f, x0, info0, maxiter; tol=1e-6)
         β = convert(eltype(x0), β)
         converged = false
         x = copy(x0)
-        for i = 1:maxiter
-            x_new = f(x)
+        info = info0
+        for i in 1:maxiter
+            x_new, info = f(x, info)
 
             if norm(x_new - x) < tol
                 x = x_new
@@ -24,7 +25,7 @@ function scf_damping_solver(β=0.2)
 
             x = @. β * x_new + (1 - β) * x
         end
-        (; fixpoint=x, converged)
+        (; fixpoint=x, info, converged)
     end
     fp_solver
 end
@@ -34,19 +35,21 @@ Create a simple anderson-accelerated SCF solver. `m` specifies the number
 of steps to keep the history of.
 """
 function scf_anderson_solver(m=10; kwargs...)
-    function anderson(f, x0, maxiter; tol=1e-6)
+    function anderson(f, x0, info0, maxiter; tol=1e-6)
         T = eltype(x0)
         x = x0
+        info = info0
 
         converged = false
         acceleration = AndersonAcceleration(; m, kwargs...)
         for n = 1:maxiter
-            residual = f(x) - x
+            fx, info = f(x, info)
+            residual = fx - x
             converged = norm(residual) < tol
             converged && break
             x = acceleration(x, one(T), residual)
         end
-        (; fixpoint=x, converged)
+        (; fixpoint=x, info, converged)
     end
 end
 
@@ -55,7 +58,7 @@ CROP-accelerated root-finding iteration for `f`, starting from `x0` and keeping
 a history of `m` steps. Optionally `warming` specifies the number of non-accelerated
 steps to perform for warming up the history.
 """
-function CROP(f, x0, m::Int, maxiter::Int, tol::Real, warming=0)
+function CROP(f, x0, info0, m::Int, maxiter::Int, tol::Real, warming=0)
     # CROP iterates maintain xn and fn (/!\ fn != f(xn)).
     # xtn+1 = xn + fn
     # ftn+1 = f(xtn+1)
@@ -68,21 +71,25 @@ function CROP(f, x0, m::Int, maxiter::Int, tol::Real, warming=0)
 
     # Cheat support for multidimensional arrays
     if length(size(x0)) != 1
-        x, conv= CROP(x -> vec(f(reshape(x, size(x0)...))), vec(x0), m, maxiter, tol, warming)
-        return (; fixpoint=reshape(x, size(x0)...), converged=conv)
+        function vec_f(x, info)
+            x, info = f(reshape(x, size(x0)...), info)
+            vec(x), info
+        end
+        x, info, conv = CROP(vec_f, vec(x0), info0, m, maxiter, tol, warming)
+        return (; fixpoint=reshape(x, size(x0)...), info, converged=conv)
     end
-    N = size(x0,1)
+    N = size(x0, 1)
     T = eltype(x0)
     xs = zeros(T, N, m+1)  # Ring buffers storing the iterates
     fs = zeros(T, N, m+1)  # newest to oldest
     xs[:,1] = x0
-    fs[:,1] = f(x0)        # Residual
+    fs[:,1], info = f(x0, info0)        # Residual
     errs = zeros(maxiter)
     err = Inf
 
     for n = 1:maxiter
         xtnp1 = xs[:, 1] + fs[:, 1]  # Richardson update
-        ftnp1 = f(xtnp1)             # Residual
+        ftnp1, info = f(xtnp1, info)             # Residual
         err = norm(ftnp1)
         errs[n] = err
         if err < tol
@@ -108,6 +115,15 @@ function CROP(f, x0, m::Int, maxiter::Int, tol::Real, warming=0)
         fs[:,1] = ftnp1
         # fs[:,1] = f(xs[:,1])
     end
-    (; fixpoint=xs[:, 1], converged=err < tol)
+    (; fixpoint=xs[:, 1], info, converged=err < tol)
 end
-scf_CROP_solver(m=10) = (f, x0, maxiter; tol=1e-6) -> CROP(x -> f(x) - x, x0, m, maxiter, tol)
+function scf_CROP_solver(m=10)
+    function crop_solver(f, x0, info0, maxiter; tol=1e-6)
+        function residual_f(x, info)
+            fx, info = f(x, info)
+            (fx - x, info)
+        end
+        CROP(residual_f, x0, info0, m, maxiter, tol)
+    end
+    crop_solver
+end
