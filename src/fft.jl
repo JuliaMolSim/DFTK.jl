@@ -24,8 +24,8 @@ function ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis, f_fourier::Abstrac
     mul!(f_real, basis.opBFFT, f_fourier)
     f_real .*= basis.ifft_normalization
 end
-function ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis,
-               kpt::Kpoint, f_fourier::AbstractVector; normalize=true)
+function ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis, kpt::Kpoint,
+               f_fourier::AbstractVector; normalize=true)
     @assert length(f_fourier) == length(kpt.mapping)
     @assert size(f_real) == basis.fft_size
 
@@ -34,6 +34,25 @@ function ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis,
     f_real[kpt.mapping] = f_fourier
 
     mul!(f_real, basis.ipBFFT, f_real)  # perform IFFT
+    normalize && (f_real .*= basis.ifft_normalization)
+    f_real
+end
+function ifft!(f_real::AbstractArray4, basis::PlaneWaveBasis, f_fourier::AbstractMatrix)
+    mul!(f_real, basis.opBFFT_mc, f_fourier)
+    f_real .*= basis.ifft_normalization
+end
+function ifft!(f_real::AbstractArray4, basis::PlaneWaveBasis, kpt::Kpoint,
+               f_fourier::AbstractMatrix; normalize=true)
+    n_components = basis.model.n_components
+    @assert length(f_fourier) == n_components*length(kpt.mapping)
+    @assert size(f_real)[2:end] == basis.fft_size
+
+    # Pad the input data
+    fill!(f_real, 0)
+    reshape(f_real, n_components, :)[:, kpt.mapping] = f_fourier
+
+    # Perform an IFFT
+    mul!(f_real, basis.ipBFFT_mc, f_real)
     normalize && (f_real .*= basis.ifft_normalization)
     f_real
 end
@@ -57,6 +76,11 @@ end
 function ifft(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector; kwargs...)
     ifft!(similar(f_fourier, basis.fft_size...), basis, kpt, f_fourier; kwargs...)
 end
+function ifft(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractMatrix; kwargs...)
+    ifft!(similar(f_fourier, basis.model.n_components, basis.fft_size...),
+          basis, kpt, f_fourier; kwargs...)
+end
+
 """
 Perform a real valued iFFT; see [`ifft`](@ref). Note that this function
 silently drops the imaginary part.
@@ -77,8 +101,8 @@ function fft!(f_fourier::AbstractArray3, basis::PlaneWaveBasis, f_real::Abstract
     mul!(f_fourier, basis.opFFT, f_real)
     f_fourier .*= basis.fft_normalization
 end
-function fft!(f_fourier::AbstractVector, basis::PlaneWaveBasis,
-              kpt::Kpoint, f_real::AbstractArray3; normalize=true)
+function fft!(f_fourier::AbstractVector, basis::PlaneWaveBasis, kpt::Kpoint,
+              f_real::AbstractArray3; normalize=true)
     @assert size(f_real) == basis.fft_size
     @assert length(f_fourier) == length(kpt.mapping)
 
@@ -87,6 +111,28 @@ function fft!(f_fourier::AbstractVector, basis::PlaneWaveBasis,
 
     # Truncate
     f_fourier .= view(f_real, kpt.mapping)
+    normalize && (f_fourier .*= basis.fft_normalization)
+    f_fourier
+end
+function fft!(f_fourier::AbstractArray4, basis::PlaneWaveBasis, f_real::AbstractArray4)
+    if eltype(f_real) <: Real
+        f_real = complex.(f_real)
+    end
+    mul!(f_fourier, basis.opFFT_mc, f_real)
+    f_fourier .*= basis.fft_normalization
+end
+function fft!(f_fourier::AbstractMatrix, basis::PlaneWaveBasis, kpt::Kpoint,
+              f_real::AbstractArray4; normalize=true)
+    @assert size(f_real)[2:end] == basis.fft_size
+    @assert length(f_fourier) == basis.model.n_components * length(kpt.mapping)
+
+    # FFT
+    mul!(f_real, basis.ipFFT_mc, f_real)
+
+    # Truncate
+    for σ = 1:basis.model.n_components
+        f_fourier[σ, :] .= @view(f_real[σ, :, :, :][kpt.mapping])
+    end
     normalize && (f_fourier .*= basis.fft_normalization)
     f_fourier
 end
@@ -111,6 +157,10 @@ end
 # TODO optimize this
 function fft(basis::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray3; kwargs...)
     fft!(similar(f_real, length(kpt.mapping)), basis, kpt, copy(f_real); kwargs...)
+end
+function fft(basis::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray4; kwargs...)
+    fft!(similar(f_real, basis.model.n_components, length(kpt.mapping)), basis, kpt,
+         copy(f_real); kwargs...)
 end
 
 # returns matrix representations of the ifft and fft matrices. For debug purposes.
@@ -261,25 +311,32 @@ end
 Plan a FFT of type `T` and size `fft_size`, spending some time on finding an
 optimal algorithm. (Inplace, out-of-place) x (forward, backward) FFT plans are returned.
 """
-function build_fft_plans!(tmp::Array{Complex{Float64}})
-    ipFFT = FFTW.plan_fft!(tmp; flags=FFTW.MEASURE)
-    opFFT = FFTW.plan_fft(tmp;  flags=FFTW.MEASURE)
+function build_fft_plans!(tmp::Array{Complex{Float64}}; region=1:ndims(tmp))
+    ipFFT = FFTW.plan_fft!(tmp, region; flags=FFTW.MEASURE)
+    opFFT = FFTW.plan_fft(tmp, region;  flags=FFTW.MEASURE)
     # backwards-FFT by inverting and stripping off normalizations
-    ipFFT, opFFT, inv(ipFFT).p, inv(opFFT).p
+    ipBFFT = inv(ipFFT).p
+    opBFFT = inv(opFFT).p
+    (; ipFFT, opFFT, ipBFFT, opBFFT)
 end
-function build_fft_plans!(tmp::Array{Complex{Float32}})
+function build_fft_plans!(tmp::Array{Complex{Float32}}; region=1:ndims(tmp))
     # For Float32 there are issues with aligned FFTW plans, so we
     # fall back to unaligned FFTW plans (which are generally discouraged).
-    ipFFT = FFTW.plan_fft!(tmp; flags=FFTW.MEASURE | FFTW.UNALIGNED)
-    opFFT = FFTW.plan_fft(tmp;  flags=FFTW.MEASURE | FFTW.UNALIGNED)
+    ipFFT = FFTW.plan_fft!(tmp, region; flags=FFTW.MEASURE | FFTW.UNALIGNED)
+    opFFT = FFTW.plan_fft(tmp, region;  flags=FFTW.MEASURE | FFTW.UNALIGNED)
     # backwards-FFT by inverting and stripping off normalizations
-    ipFFT, opFFT, inv(ipFFT).p, inv(opFFT).p
+    ipBFFT = inv(ipFFT).p
+    opBFFT = inv(opFFT).p
+    (; ipFFT, opFFT, ipBFFT, opBFFT)
 end
-function build_fft_plans!(tmp::AbstractArray{Complex{T}}) where {T<:Union{Float32,Float64}}
-    ipFFT = AbstractFFTs.plan_fft!(tmp)
-    opFFT = AbstractFFTs.plan_fft(tmp)
+function build_fft_plans!(tmp::AbstractArray{Complex{T}};
+                          region=1:ndims(tmp)) where {T<:Union{Float32,Float64}}
+    ipFFT = AbstractFFTs.plan_fft!(tmp, region)
+    opFFT = AbstractFFTs.plan_fft(tmp, region)
     # backwards-FFT by inverting and stripping off normalizations
-    ipFFT, opFFT, inv(ipFFT).p, inv(opFFT).p
+    ipBFFT = inv(ipFFT).p
+    opBFFT = inv(opFFT).p
+    (; ipFFT, opFFT, ipBFFT, opBFFT)
 end
 
 # TODO Some grid sizes are broken in the generic FFT implementation

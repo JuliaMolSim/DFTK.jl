@@ -8,6 +8,8 @@ using DFTK: precondprep!, FunctionPreconditioner
 using LinearMaps
 
 function eigen_ΩplusK(basis::PlaneWaveBasis{T}, ψ, occupation, numval) where {T}
+    n_components = basis.model.n_components
+    @assert n_components == 1
 
     pack(ψ) = reinterpret_real(pack_ψ(ψ))
     unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ))
@@ -18,33 +20,36 @@ function eigen_ΩplusK(basis::PlaneWaveBasis{T}, ψ, occupation, numval) where {
 
     # preconditioner
     Pks = [PreconditionerTPA(basis, kpt) for kpt in basis.kpoints]
-    for (ik, ψk) in enumerate(ψ)
-        precondprep!(Pks[ik], ψk)
+    for ik = 1:length(Pks)
+        precondprep!(Pks[ik], to_composite_σG(basis, basis.kpoints[ik], ψ[ik]))
     end
     function f_ldiv!(x, y)
         for n = 1:size(y, 2)
             δψ = unpack(y[:, n])
-            proj_tangent!(δψ, ψ)
-            Pδψ = [ Pks[ik] \ δψk for (ik, δψk) in enumerate(δψ)]
-            proj_tangent!(Pδψ, ψ)
+            proj_tangent!(δψ, basis, ψ)
+            Pδψ = [Pks[ik] \ δψk for (ik, δψk) in enumerate(δψ)]
+            proj_tangent!(Pδψ, basis, ψ)
             x[:, n] .= pack(Pδψ)
         end
         x
     end
 
     # random starting point on the tangent space to avoid eigenvalue 0
-    n_bands = size(ψ[1], 2)
     x0 = map(1:numval) do _
-        initial = map(basis.kpoints) do kpt
+        initial = map(enumerate(basis.kpoints)) do (ik, kpt)
             n_Gk = length(G_vectors(basis, kpt))
-            randn(Complex{eltype(basis)}, n_Gk, n_bands)
+            randn(Complex{T}, n_components, n_Gk, size(ψ[ik], 3))
         end
-        pack(proj_tangent(initial, ψ))
+        pack(proj_tangent(basis, initial, ψ))
     end
     x0 = stack(x0)
 
     # Rayleigh-coefficients
-    Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ, H * ψ)]
+    Λ = map(enumerate(zip(ψ, H * ψ))) do (ik, (ψk, Hψk))
+        ψk = to_composite_σG(basis, basis.kpoints[ik], ψk)
+        Hψk = to_composite_σG(basis, basis.kpoints[ik], Hψk)
+        from_composite_σG(basis, basis.kpoints[ik], ψk'Hψk)
+    end
 
     # mapping of the linear system on the tangent space
     function ΩpK(x)

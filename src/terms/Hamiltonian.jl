@@ -56,7 +56,8 @@ function HamiltonianBlock(basis, kpoint, operators; scratch=nothing)
     end
 end
 function _ham_allocate_scratch(basis::PlaneWaveBasis{T}) where {T}
-    [(; ψ_reals=zeros_like(basis.G_vectors, complex(T), basis.fft_size...))
+    [(; ψ_reals=zeros_like(basis.G_vectors, complex(T),
+                           basis.model.n_components, basis.fft_size...))
      for _ = 1:Threads.nthreads()]
 end
 
@@ -90,37 +91,48 @@ function LinearAlgebra.mul!(Hψ, H::Hamiltonian, ψ)
     Hψ
 end
 # need `deepcopy` here to copy the elements of the array of arrays ψ (not just pointers)
-Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
+Base.:*(H::Hamiltonian, ψ::AbstractArray) = mul!(deepcopy(ψ), H, ψ)
+
+# Serves as a wrapper around the specialized multiplication functions for LOBPCG as it
+# expects to work on vectors or matrices. Explicitely create a 3-tensor to prevent ambiguity.
+@timing function LinearAlgebra.mul!(Hψ_σG::AbstractVecOrMat, H::HamiltonianBlock,
+                                    ψ_σG::AbstractVecOrMat)
+    Hψ = unfold_from_composite_σG(H.basis, H.kpoint, Hψ_σG)
+    ψ = unfold_from_composite_σG(H.basis, H.kpoint, ψ_σG)
+    mul!(Hψ, H, ψ)
+    Hψ_σG
+end
 
 # Loop through bands, IFFT to get ψ in real space, loop through terms, FFT and accumulate into Hψ
 # For the common DftHamiltonianBlock there is an optimized version below
-@views @timing "Hamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray,
+@views @timing "Hamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray3,
                                                                         H::GenericHamiltonianBlock,
-                                                                        ψ::AbstractArray)
+                                                                        ψ::AbstractArray3)
+    basis = H.basis
     function allocate_local_storage()
-        T = eltype(H.basis)
-        (; Hψ_fourier = similar(Hψ[:, 1]),
-           ψ_real  = similar(ψ, complex(T), H.basis.fft_size...),
-           Hψ_real = similar(Hψ, complex(T), H.basis.fft_size...))
+        T = eltype(basis)
+        (; Hψ_fourier = similar(Hψ[:, :, 1]),
+           ψ_real  = similar(ψ, complex(T), basis.model.n_components, basis.fft_size...),
+           Hψ_real = similar(Hψ, complex(T), basis.model.n_components, basis.fft_size...))
     end
-    parallel_loop_over_range(1:size(ψ, 2); allocate_local_storage) do iband, storage
+    parallel_loop_over_range(1:size(ψ, 3); allocate_local_storage) do iband, storage
         to = TimerOutput()  # Thread-local timer output
 
         # Take ψi, IFFT it to ψ_real, apply each term to Hψ_fourier and Hψ_real, and add it
         # to Hψ.
         storage.Hψ_real .= 0
         storage.Hψ_fourier .= 0
-        ifft!(storage.ψ_real, H.basis, H.kpoint, ψ[:, iband])
+        ifft!(storage.ψ_real, basis, H.kpoint, ψ[:, :, iband])
         for op in H.optimized_operators
             @timeit to "$(nameof(typeof(op)))" begin
                 apply!((; fourier=storage.Hψ_fourier, real=storage.Hψ_real),
                        op,
-                       (; fourier=ψ[:, iband], real=storage.ψ_real))
+                       (; fourier=ψ[:, :, iband], real=storage.ψ_real))
             end
         end
-        Hψ[:, iband] .= storage.Hψ_fourier
-        fft!(storage.Hψ_fourier, H.basis, H.kpoint, storage.Hψ_real)
-        Hψ[:, iband] .+= storage.Hψ_fourier
+        Hψ[:, :, iband] .= storage.Hψ_fourier
+        fft!(storage.Hψ_fourier, basis, H.kpoint, storage.Hψ_real)
+        Hψ[:, :, iband] .+= storage.Hψ_fourier
 
         if Threads.threadid() == 1
             merge!(DFTK.timer, to; tree_point=[t.name for t in DFTK.timer.timer_stack])
@@ -131,10 +143,10 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
 end
 
 # Fast version, specialized on DFT models. Minimizes the number of FFTs and allocations
-@views @timing "DftHamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray,
+@views @timing "DftHamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray3,
                                                                            H::DftHamiltonianBlock,
-                                                                           ψ::AbstractArray)
-    n_bands = size(ψ, 2)
+                                                                           ψ::AbstractArray3)
+    n_bands = size(ψ, 3)
     iszero(n_bands) && return Hψ  # Nothing to do if ψ empty
     have_divAgrad = !isnothing(H.divAgrad_op)
 
@@ -146,17 +158,21 @@ end
         ψ_real = storage.ψ_reals
 
         @timeit to "local+kinetic" begin
-            ifft!(ψ_real, H.basis, H.kpoint, ψ[:, iband]; normalize=false)
-            ψ_real .*= potential
-            fft!(Hψ[:, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
-            Hψ[:, iband] .+= H.fourier_op.multiplier .* ψ[:, iband]
+            ifft!(ψ_real, H.basis, H.kpoint, ψ[:, :, iband]; normalize=false)
+            for σ = 1:H.basis.model.n_components
+                ψ_real[σ, :, :, :] .*= potential
+            end
+            fft!(Hψ[:, :, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
+            for σ = 1:H.basis.model.n_components
+                Hψ[σ, :, iband] .+= H.fourier_op.multiplier .* ψ[σ, :, iband]
+            end
         end
 
         if have_divAgrad
             @timeit to "divAgrad" begin
-                apply!((; fourier=Hψ[:, iband], real=nothing),
+                apply!((; fourier=Hψ[:, :, iband], real=nothing),
                        H.divAgrad_op,
-                       (; fourier=ψ[:, iband], real=nothing);
+                       (; fourier=ψ[:, :, iband], real=nothing);
                        ψ_scratch=ψ_real)
             end
         end
@@ -180,11 +196,10 @@ end
     Hψ
 end
 
-
 """
 Get energies and Hamiltonian
 kwargs is additional info that might be useful for the energy terms to precompute
-(eg the density ρ)
+(e.g., the density ρ)
 """
 @timing function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
     # it: index into terms, ik: index into kpoints

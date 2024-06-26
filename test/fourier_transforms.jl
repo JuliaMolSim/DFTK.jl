@@ -17,15 +17,15 @@
         f2_R = ifft(pw, f2_G)
         f3_G = fft!(similar(f_R), pw, f_R)
 
-        @test maximum(abs.(f2_G - f_G)) < 1e-12
-        @test maximum(abs.(f2_R - f_R)) < 1e-12
-        @test maximum(abs.(f3_G - f_G)) < 1e-12
+        @test maximum(abs, f2_G - f_G) < 1e-12
+        @test maximum(abs, f2_R - f_R) < 1e-12
+        @test maximum(abs, f3_G - f_G) < 1e-12
 
         ifft_mat = DFTK.ifft_matrix(pw)
         fft_mat = DFTK.fft_matrix(pw)
-        @test maximum(abs.(ifft_mat * fft_mat - I)) < 1e-12
-        @test maximum(abs.(ifft_mat * vec(f_G) - vec(f_R))) < 1e-12
-        @test maximum(abs.(fft_mat * vec(f_R) - vec(f_G))) < 1e-12
+        @test maximum(abs, ifft_mat * fft_mat - I) < 1e-12
+        @test maximum(abs, ifft_mat * vec(f_G) - vec(f_R)) < 1e-12
+        @test maximum(abs, fft_mat * vec(f_R) - vec(f_G)) < 1e-12
     end
 
     @testset "Transformation on the spherical basis set" begin
@@ -41,7 +41,7 @@
         f2_R = similar(f_R)
         ifft!(f2_R, pw, kpt, f2_G)
 
-        @test maximum(abs.(f2_G - f_G)) < 1e-12
-        @test maximum(abs.(f2_R - f_R)) < 1e-12
+        @test maximum(abs, f2_G - f_G) < 1e-12
+        @test maximum(abs, f2_R - f_R) < 1e-12
     end
 end
