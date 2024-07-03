@@ -414,7 +414,7 @@ plot!(p, x -> ε(χ0_SiO2, x),  label="silica (SiO₂)", ls=:dashdot)
 # metal, such that `KerkerMixing` is indeed appropriate. We will thus employ it as
 # the preconditioner $P$ in the setting
 # ```math
-# rho_{n+1} = \rho_n + \alpha P^{-1} (D(V(\rho_n)) - \rho_n),
+# \rho_{n+1} = \rho_n + \alpha P^{-1} (D(V(\rho_n)) - \rho_n),
 # ```
 # In DFTK this is done by running an SCF as follows:
 # ```julia

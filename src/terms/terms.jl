@@ -21,6 +21,11 @@ abstract type TermNonlinear <: Term end
 ### Builders are objects X that store the term parameters, and produce a
 # XTerm <: Term when instantiated with a `basis`
 
+# TODO If needed improve this further by specialising energy() for certain terms
+function energy(term::Term, basis::AbstractBasis, ψ, occupation; kwargs...)
+    ene_ops(term, basis, ψ, occupation; kwargs...).E
+end
+
 
 """
 A term with a constant zero energy.

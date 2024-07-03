@@ -54,7 +54,7 @@ PAGES = [
         "examples/input_output.jl",
         "examples/wannier.jl",
     ],
-    "Tipps and tricks" => [
+    "Tips and tricks" => [
         # Resolving convergence issues, what solver to use, improving performance or
         # reliability of calculations.
         "tricks/parallelization.md",

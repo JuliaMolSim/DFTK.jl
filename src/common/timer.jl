@@ -21,5 +21,5 @@ end
 
 function set_timer_enabled!(state=true)
     @set_preferences!("timer_enabled" => string(state))
-    @info "timer_enabled preference changed. Restart julia to see the effect."
+    @info "timer_enabled preference changed. This is a permanent change, restart julia to see the effect."
 end
