@@ -155,48 +155,22 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
     all_eigenvalues = Array{T}(undef, sum(counts))
     all_eigenvalues_vbuf = MPI.VBuffer(all_eigenvalues, counts)
     MPI.Allgatherv!(reduce(vcat, eigenvalues), all_eigenvalues_vbuf, basis.comm_kpts)
-    @show counts
-    # Bisection method to find the index of the eigenvalue such that excess_n_electrons = 0
+    
+    # Searching for the Fermi level in between the eigenvalues
     unique!(sort!((all_eigenvalues)))
-    i_min = 1
-    i_max = length(all_eigenvalues)
-    excess_min = excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_min] + T(1/2)
-                                    *(all_eigenvalues[i_min+1]-all_eigenvalues[i_min]);
-                                    temperature, smearing)
-    excess_max = excess_n_electrons(basis, eigenvalues, all_eigenvalues[i_max] + T(1); 
-                                    temperature, smearing)
-
-    if abs(excess_max) < tol_n_elec     # Try to fill all the bands
-        εF = all_eigenvalues[i_max] + T(1)
-    elseif abs(excess_min) < tol_n_elec # Try to fill only the smallest eigenvalues
-        εF = all_eigenvalues[i_min] + T(1/2)
-             *(all_eigenvalues[i_min+1]-all_eigenvalues[i_min])
-
-    elseif excess_min < -tol_n_elec && excess_max > tol_n_elec
-        # If excess_min < 0 and excess_max > 0 we can start the bisection method
-        while i_max - i_min > 1
-            i = div(i_min+i_max, 2)
-            εF = all_eigenvalues[i] + T(1/2)*(all_eigenvalues[i+1]-all_eigenvalues[i])
-            excess = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
-            if excess < -tol_n_elec
-                i_min = i
-            elseif excess > tol_n_elec
-                i_max = i
-            else 
-                i_min = i
-                i_max = i
-            end
-
-        end
-
-    else
-        if excess_max < -tol_n_elec
+    εFs = [ all_eigenvalues[i] + T(1/2)*(all_eigenvalues[i+1]-all_eigenvalues[i]) 
+            for i=1:length(all_eigenvalues)-1 ]
+    i = searchsortedfirst( map(εF -> excess_n_electrons(basis, eigenvalues, εF; 
+                               temperature, smearing), εFs), 0)
+    if i > length(εFs)
+        εF = last(all_eigenvalues) + T(1)
+        excess = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
+        if excess < 0
             error("Could not obtain required number of electrons by filling every state. " *
                   "Increase n_bands.")
-        else    # excess_min > tol_n_elec
-            error("Unable to find non-fractional occupations that have the " *
-                  "correct number of electrons. You should add a temperature.")
         end
+    else
+        εF = εFs[i]
     end
 
     occ = compute_occupation(basis, eigenvalues, εF; temperature, smearing).occupation
