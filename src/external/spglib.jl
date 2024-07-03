@@ -5,6 +5,7 @@
 import Spglib
 
 function spglib_cell(lattice, atom_groups, positions, magnetic_moments)
+    @assert !isempty(atom_groups)  # Otherwise spglib cannot work properly
     magnetic_moments = normalize_magnetic_moment.(magnetic_moments)
 
     spg_atoms     = Int[]

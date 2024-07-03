@@ -21,8 +21,8 @@ The current DFTK reference paper to cite is
 Additionally the following publications describe DFTK or one of its algorithms:
 
 - E. Cancès, M. Hassan and L. Vidal.
-  [*Modified-Operator Method for the Calculation of Band Diagrams of Crystalline Materials.*](https://arxiv.org/abs/2210.00442)
-  Mathematics of Computation (2023).
+  [*Modified-Operator Method for the Calculation of Band Diagrams of Crystalline Materials.*](https://doi.org/10.1090/mcom/3897)
+  Math. Comp. **93**, 1203 (2024).
   [ArXiv:2210.00442](https://arxiv.org/abs/2210.00442).
   ([Supplementary material and computational scripts](https://github.com/LaurentVidal95/ModifiedOp).
 
@@ -54,10 +54,15 @@ The following publications report research employing DFTK as a core component.
 Feel free to drop us a line if you want your work to be added here.
 
 - J. Cazalis.
-  [*Dirac cones for a mean-field model of graphene*](https://arxiv.org/abs/2207.09893)
-  (Submitted).
+  [*Dirac cones for a mean-field model of graphene*](https://doi.org/10.2140/paa.2024.6.129)
+  Pure and Appl. Anal., **6**, 1 (2024).
   [ArXiv:2207.09893](https://arxiv.org/abs/2207.09893).
   ([Computational script](https://github.com/JuliaMolSim/DFTK.jl/blob/f7fcc31c79436b2582ac1604d4ed8ac51a6fd3c8/examples/publications/2022_cazalis.jl)).
+
+- E. Cancès, G. Kemlin, A. Levitt.
+  [*A Priori Error Analysis of Linear and Nonlinear Periodic Schr\"{o}dinger Equations with Analytic Potentials*](https://doi.org/10.1007/s10915-023-02421-0)
+  J. Sci. Comp., **98**, 25 (2024).
+  [ArXiv:2206.04954](https://arxiv.org/abs/2206.04954).
 
 - E. Cancès, L. Garrigue, D. Gontier.
   [*A simple derivation of moiré-scale continuous models for twisted bilayer graphene*](https://doi.org/10.1103/PhysRevB.107.155403)

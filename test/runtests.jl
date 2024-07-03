@@ -1,6 +1,6 @@
 #
 # This test suite supports test arguments. For example:
-#     Pkg.test("DFTK"; test_args = ["fast"])
+#     Pkg.test("DFTK"; test_args = ["core"])
 # only runs the "fast" tests (i.e. not the expensive ones)
 #     Pkg.test("DFTK"; test_args = ["gpu"])
 # runs only the tests tagged as "gpu" and

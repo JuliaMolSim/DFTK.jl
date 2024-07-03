@@ -165,8 +165,8 @@ More than two FFT threads is rarely useful.
 
 ## Advanced threading tweaks
 The default threading setup done by `setup_threading` is to select
-one FFT thread and the same number of BLAS and Julia threads.
-This section provides some info in case you want to change these defaults.
+one FFT thread, and use `Threads.nthreads()` to determine the number of DFTK
+and BLAS threads. This section provides some info in case you want to change these defaults.
 
 ### BLAS threads
 All BLAS calls in Julia go through a parallelized OpenBlas
@@ -190,13 +190,18 @@ BLAS.set_num_threads(N)
 where `N` is the number of threads you desire.
 To **check the number of BLAS threads** currently used, you can use `BLAS.get_num_threads()`.
 
-### Julia threads
-On top of BLAS threading DFTK uses Julia threads (`Thread.@threads`)
-in a couple of places to parallelize over ``k``-points (density computation)
-or bands (Hamiltonian application).
-The number of threads used for these aspects is controlled by the
-flag `-t` passed to Julia or the *environment variable* `JULIA_NUM_THREADS`.
-To **check the number of Julia threads** use `Threads.nthreads()`.
+### DFTK threads
+On top of BLAS threading DFTK uses Julia threads in a couple of places
+to parallelize over ``k``-points (density computation) or bands
+(Hamiltonian application). The number of threads used for these
+aspects is controlled by default by `Threads.nthreads()`, which can be
+set using the flag `-t` passed to Julia or the *environment variable*
+`JULIA_NUM_THREADS`. Optionally, you can use `setup_threading(; n_DFTK)`
+to set an upper bound to the number of threads used by DFTK,
+regardless of `Threads.nthreads()` (for instance, if you want to
+thread several DFTK runs and don't want DFTK's threading to
+interfere with that). This is done through `Preferences.jl` and
+requires a restart of Julia.
 
 ### FFT threads
 Since FFT threading is only used in DFTK inside the regions already parallelized

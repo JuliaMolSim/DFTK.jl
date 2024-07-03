@@ -173,7 +173,7 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     for (psp, positions) in zip(psps, psp_positions)
         # Compute position-independent form factors
         G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
-        form_factors = build_form_factors(psp, G_plus_k_cart)
+        form_factors  = build_form_factors(psp, G_plus_k_cart)
 
         # Combine with structure factors
         for r in positions
@@ -211,6 +211,9 @@ function build_form_factors(psp, G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
         if !haskey(radials, p_norm)
             radials_p = Matrix{T}(undef, n_proj_max, psp.lmax + 1)
             for l = 0:psp.lmax, iproj_l = 1:count_n_proj_radial(psp, l)
+                # TODO This might  be faster if we do this in batches of l
+                #      (i.e. make the inner loop run over k-points and G_plus_k)
+                #      and did recursion over l to compute the spherical bessels
                 radials_p[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, p_norm)
             end
             radials[p_norm] = radials_p

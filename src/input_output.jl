@@ -109,6 +109,7 @@ function Base.show(io::IO, ::MIME"text/plain", basis::PlaneWaveBasis)
     showfieldln(io, "architecture", basis.architecture)
     showfieldln(io, "num. mpi processes", mpi_nprocs(basis.comm_kpts))
     showfieldln(io, "num. julia threads", Threads.nthreads())
+    showfieldln(io, "num. DFTK  threads", get_DFTK_threads())
     showfieldln(io, "num. blas  threads", BLAS.get_num_threads())
     showfieldln(io, "num. fft   threads", FFTW.get_num_threads())
     println(io)
@@ -306,7 +307,9 @@ function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true, save_ρ=true)
 
     # These are either already done above or will be ignored or dealt with below.
     special = (:ham, :basis, :energies, :stage,
-               :ρ, :ψ, :eigenvalues, :occupation, :εF, :diagonalization)
+               :ρ, :ψ, :eigenvalues, :occupation, :εF, :diagonalization,
+               :optim_res # from direct_minimization, ignore it as it can be huge
+               )
     propmap = Dict(:α => :damping_value, )  # compatibility mapping
     if mpi_master()
         if save_ρ
