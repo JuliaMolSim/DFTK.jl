@@ -146,8 +146,7 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
               "occupation $filled_occ. Typically this indicates that you need to put " *
               "a temperature or switch to a calculation with collinear spin polarization.")
     end
-
-    # Gathering the eigenvalues distributed over the kpoints in MPI
+    # Gather the eigenvalues distributed over the kpoints in MPI
     n_bands = length(eigenvalues[1])   # assuming that the same number of bands 
                                        # are computed for each kpoint
     counts = [ Int32(n_bands*sum(length.(basis.krange_allprocs[rank]))) 
@@ -156,12 +155,18 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
     all_eigenvalues_vbuf = MPI.VBuffer(all_eigenvalues, counts)
     MPI.Allgatherv!(reduce(vcat, eigenvalues), all_eigenvalues_vbuf, basis.comm_kpts)
     
-    # Searching for the Fermi level in between the eigenvalues
-    unique!(sort!((all_eigenvalues)))
+    # Search for the Fermi level in between the eigenvalues
+    sort!((all_eigenvalues))
     εFs = [ all_eigenvalues[i] + T(1/2)*(all_eigenvalues[i+1]-all_eigenvalues[i]) 
             for i=1:length(all_eigenvalues)-1 ]
-    i = searchsortedfirst( map(εF -> excess_n_electrons(basis, eigenvalues, εF; 
-                               temperature, smearing), εFs), -tol_n_elec)
+    # Remove candidate Fermi levels that are between two identical eigenvalues
+    # (at machine precision)
+    εFs = εFs[ [abs(all_eigenvalues[i+1]-all_eigenvalues[i]) > all_eigenvalues[i]*2*eps(T) 
+               for i=1:length(all_eigenvalues)-1] ]
+    excess_εFs_only(εF) = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
+    excess_εFs_only(x::NamedTuple) = x.val    # To apply "by" only to searched array εFs ...
+    # First index such that excess(εFs[i]) > -tol_n_elec
+    i = searchsortedfirst( εFs, (;val=-tol_n_elec); by=excess_εFs_only)
     if i > length(εFs)
         εF = last(all_eigenvalues) + T(1)
         excess = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
