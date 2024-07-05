@@ -146,6 +146,7 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
               "occupation $filled_occ. Typically this indicates that you need to put " *
               "a temperature or switch to a calculation with collinear spin polarization.")
     end
+
     # Gather the eigenvalues distributed over the kpoints in MPI
     n_bands = length(eigenvalues[1])   # assuming that the same number of bands 
                                        # are computed for each kpoint
@@ -163,21 +164,38 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
     # (at machine precision)
     εFs = εFs[ [abs(all_eigenvalues[i+1]-all_eigenvalues[i]) > all_eigenvalues[i]*2*eps(T) 
                for i=1:length(all_eigenvalues)-1] ]
-    excess_εFs_only(εF) = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
-    excess_εFs_only(x::NamedTuple) = x.val    # To apply "by" only to searched array εFs ...
-    # First index such that excess(εFs[i]) > -tol_n_elec
-    i = searchsortedfirst( εFs, (;val=-tol_n_elec); by=excess_εFs_only)
-    if i > length(εFs)
-        εF = last(all_eigenvalues) + T(1)
-        excess = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
-        if excess < -tol_n_elec
+    push!(εFs, last(all_eigenvalues) + T(1))
+    
+    # Bisection method to find εF such that abs(excess) < tol_n_elec
+    i_min = 1
+    i_max = length(εFs)
+    excess_min = excess_n_electrons(basis, eigenvalues, εFs[1]; temperature, smearing)
+    excess_max = excess_n_electrons(basis, eigenvalues, last(εFs); temperature, smearing)
+    if excess_max =< tol_n_elec     # Try to fill all the bands
+        εF = last(εFs)
+        if excess_max < -tol_n_elec
             error("Could not obtain required number of electrons by filling every state. " *
                   "Increase n_bands.")
         end
+    elseif excess_min >= -tol_n_elec # Try to fill only the smallest band(s)
+        εF = εFs[1]
     else
-        εF = εFs[i]
-    end
+        while i_max - i_min > 1
+            i = div(i_min+i_max, 2)
+            εF = εFs[i]
+            excess = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
+            if excess < -tol_n_elec
+                i_min = i
+            elseif excess > tol_n_elec
+                i_max = i
+            else 
+                i_min = i
+                i_max = i
+            end
 
+        end
+    end
+    
     occ = compute_occupation(basis, eigenvalues, εF; temperature, smearing).occupation
     merged_spin_occupations = sum([ occ[krange_spin(basis, i)] 
                                    for i in 1:basis.model.n_spin_components ])
