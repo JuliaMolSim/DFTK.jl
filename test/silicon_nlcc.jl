@@ -1,4 +1,4 @@
-@testsetup module SiliconNLCC
+@testmodule SiliconNLCC begin
 using DFTK
 using LazyArtifacts
 using ..RunSCF: run_scf_and_compare

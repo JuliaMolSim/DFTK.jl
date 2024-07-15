@@ -1,4 +1,4 @@
-@testsetup module IronLDA
+@testmodule IronLDA begin
 using DFTK
 using ..RunSCF: run_scf_and_compare
 using ..TestCases: iron_bcc

@@ -1,4 +1,4 @@
-@testsetup module RunSCF
+@testmodule RunSCF begin
 using Test
 using DFTK
 using DFTK: mpi_sum

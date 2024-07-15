@@ -1,4 +1,4 @@
-@testsetup module DictAgreement
+@testmodule DictAgreement begin
 using Test
 using DFTK
 using MPI
