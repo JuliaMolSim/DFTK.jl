@@ -1,4 +1,4 @@
-@testsetup module mPspUpf  # PspUpf already exported by DFTK
+@testmodule mPspUpf begin  # PspUpf already exported by DFTK
 using DFTK
 using LazyArtifacts
 

@@ -1,5 +1,5 @@
 # Distributed implementation not yet available
-@testsetup module CompJacEig
+@testmodule CompJacEig begin
 using DFTK
 using DFTK: ortho_qr, pack_ψ, unpack_ψ, reinterpret_real, reinterpret_complex
 using DFTK: proj_tangent, proj_tangent!

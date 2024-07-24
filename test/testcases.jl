@@ -1,4 +1,4 @@
-@testsetup module TestCases
+@testmodule TestCases begin
 using DFTK
 using Unitful
 using UnitfulAtomic
