@@ -1,4 +1,4 @@
-@testsetup module Occupation
+@testmodule Occupation begin
 using DFTK
 
 smearing_methods = (

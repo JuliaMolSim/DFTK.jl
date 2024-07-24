@@ -1,5 +1,5 @@
 # Helpers functions for tests.
-@testsetup module Phonon
+@testmodule Phonon begin
 using Test
 using DFTK
 using DFTK: normalize_kpoint_coordinate, _phonon_modes, dynmat_red_to_cart

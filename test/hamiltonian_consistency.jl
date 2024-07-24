@@ -1,4 +1,4 @@
-@testsetup module HamConsistency
+@testmodule HamConsistency begin
 using Test
 using DFTK
 using Logging

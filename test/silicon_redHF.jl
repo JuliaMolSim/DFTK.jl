@@ -1,4 +1,4 @@
-@testsetup module SiliconRedHF
+@testmodule SiliconRedHF begin
 using DFTK
 using ..RunSCF: run_scf_and_compare
 using ..TestCases: silicon

@@ -1,4 +1,4 @@
-@testsetup module Chi0
+@testmodule Chi0 begin
 using Test
 using DFTK
 using DFTK: mpi_mean!
