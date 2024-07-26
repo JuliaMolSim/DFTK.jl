@@ -50,7 +50,7 @@ end
     if P.mean_kin === nothing
         ldiv!(Y, Diagonal(P.kin .+ P.default_shift), R)
     else
-        Threads.@threads for n = 1:size(Y, 2)
+    parallel_loop_over_range(1:size(Y, 2)) do n
             Y[:, n] .= P.mean_kin[n] ./ (P.mean_kin[n] .+ P.kin) .* R[:, n]
         end
     end
@@ -64,7 +64,7 @@ ldiv!(P::PreconditionerTPA, R) = ldiv!(R, P, R)
     if P.mean_kin === nothing
         mul!(Y, Diagonal(P.kin .+ P.default_shift), R)
     else
-        Threads.@threads for n = 1:size(Y, 2)
+        parallel_loop_over_range(1:size(Y, 2)) do n
             Y[:, n] .= (P.mean_kin[n] .+ P.kin) ./ P.mean_kin[n] .* R[:, n]
         end
     end

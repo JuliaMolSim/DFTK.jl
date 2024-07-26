@@ -177,8 +177,7 @@ Overview of parameters:
 
         # Compute the energy of the new state
         if compute_consistent_energies
-            energies = energy_hamiltonian(basis, ψ, occupation;
-                                          ρ=ρout, eigenvalues, εF).energies
+            (; energies) = energy(basis, ψ, occupation; ρ=ρout, eigenvalues, εF)
         end
         history_Etot = vcat(info.history_Etot, energies.total)
         history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))

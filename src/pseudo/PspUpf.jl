@@ -168,7 +168,7 @@ function eval_psp_projector_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     ircut_proj = min(psp.ircut, length(psp.r2_projs[l+1][i]))
     rgrid = @view psp.rgrid[1:ircut_proj]
     r2_proj = @view psp.r2_projs[l+1][i][1:ircut_proj]
-    return hankel(rgrid, r2_proj, l, p)
+    hankel(rgrid, r2_proj, l, p)
 end
 
 function eval_psp_pswfc_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
@@ -180,7 +180,7 @@ function eval_psp_pswfc_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     # quantities. They are the reason that PseudoDojo UPF files have a much
     # larger radial grid than their psp8 counterparts.
     # If issues arise, try cutting them off too.
-    return hankel(psp.rgrid, psp.r2_pswfcs[l+1][i], l, p)
+    hankel(psp.rgrid, psp.r2_pswfcs[l+1][i], l, p)
 end
 
 eval_psp_local_real(psp::PspUpf, r::T) where {T<:Real} = psp.vloc_interp(r)
@@ -193,12 +193,10 @@ function eval_psp_local_fourier(psp::PspUpf, p::T)::T where {T<:Real}
     # ABINIT uses a more 'pure' Coulomb term with the same asymptotic behavior
     # C(r) = -Z/r; H[-Z/r] = -Z/p^2
     rgrid = @view psp.rgrid[1:psp.ircut]
-    vloc = @view psp.vloc[1:psp.ircut]
-    f = (
-        rgrid .* (rgrid .* vloc .- -psp.Zion * erf.(rgrid))
-        .* sphericalbesselj_fast.(0, p .* rgrid)
-    )
-    I = trapezoidal(rgrid, f)
+    vloc  = @view psp.vloc[1:psp.ircut]
+    I = simpson(rgrid) do i, r
+         r * (r * vloc[i] - -psp.Zion * erf(r)) * sphericalbesselj_fast(0, p * r)
+    end
     4T(π) * (I + -psp.Zion / p^2 * exp(-p^2 / T(4)))
 end
 
@@ -225,6 +223,7 @@ end
 function eval_psp_energy_correction(T, psp::PspUpf, n_electrons)
     rgrid = @view psp.rgrid[1:psp.ircut]
     vloc = @view psp.vloc[1:psp.ircut]
-    f = rgrid .* (rgrid .* vloc .- -psp.Zion)
-    4T(π) * n_electrons * trapezoidal(rgrid, f)
+    4T(π) * n_electrons * simpson(rgrid) do i, r
+        r * (r * vloc[i] - -psp.Zion)
+    end
 end

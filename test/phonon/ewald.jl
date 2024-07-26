@@ -1,4 +1,4 @@
-@testsetup module PhononEwald
+@testmodule PhononEwald begin
 using DFTK
 
 function model_tested(lattice::AbstractMatrix, atoms::Vector{<:DFTK.Element},

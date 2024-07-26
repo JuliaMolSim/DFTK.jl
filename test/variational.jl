@@ -1,4 +1,4 @@
-@testsetup module Variational
+@testmodule Variational begin
 using DFTK
 
 function get_scf_energies(testcase, supersampling, functionals)

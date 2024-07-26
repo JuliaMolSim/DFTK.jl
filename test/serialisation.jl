@@ -1,4 +1,4 @@
-@testsetup module ScfresAgreement
+@testmodule ScfresAgreement begin
 using Test
 using DFTK
 

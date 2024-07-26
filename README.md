@@ -4,7 +4,7 @@
 
 | **Documentation**                                                                 | **Build Status**                                |  **License**                     |
 |:--------------------------------------------------------------------------------- |:----------------------------------------------- |:-------------------------------- |
-| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][slack-img]][slack-url] | [![][ci-img]][ci-url] [![][cigpu-img]][cigpu-url] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
+| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][chat-img]][chat-url] | [![][ci-img]][ci-url] [![][cigpu-img]][cigpu-url] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
 
 [ddocs-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [ddocs-url]: https://docs.dftk.org/dev
@@ -12,8 +12,8 @@
 [docs-img]: https://img.shields.io/badge/docs-stable-blue.svg
 [docs-url]: https://docs.dftk.org/stable
 
-[slack-img]: https://img.shields.io/badge/chat-on_julia_slack-808493.svg?logo=slack
-[slack-url]: https://julialang.slack.com/archives/C05KJB8MPQR
+[chat-img]: https://img.shields.io/badge/chat-on_zulip-808493.svg?logo=zulip
+[chat-url]: https://juliamolsim.zulipchat.com/#narrow/stream/332493-dftk
 
 [ci-img]: https://github.com/JuliaMolSim/DFTK.jl/workflows/CI/badge.svg?branch=master&event=push
 [ci-url]: https://github.com/JuliaMolSim/DFTK.jl/actions
@@ -82,5 +82,4 @@ at the list of issues tagged [good first issue](https://github.com/JuliaMolSim/D
 (relatively easy tasks suitable for newcomers) or [help wanted](https://github.com/JuliaMolSim/DFTK.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 (more sizeable but well-defined and isolated).
 Don't hesitate to ask for help, through github,
-email or the [Julia slack][slack-url]
-channel `#juliamolsim`.
+email or the [JuliaMolSim zulip][chat-url] channel `#dftk`.

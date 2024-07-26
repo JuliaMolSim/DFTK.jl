@@ -1,4 +1,4 @@
-@testsetup module Hessian
+@testmodule Hessian begin
 using DFTK
 using DFTK: select_occupied_orbitals, compute_projected_gradient
 

@@ -10,7 +10,7 @@
  /
 
  &SYSTEM
-    ibrav = 1,
+    ibrav = 0,
     celldm(1) = 5.42,
     nat = 2,
     ntyp = 2,
@@ -29,6 +29,11 @@
  &ELECTRONS
  /
 
+CELL_PARAMETERS "alat"
+  1 0 0
+  0 1 0
+  0 0 1
+
 ATOMIC_SPECIES
 # the second field, atomic mass, is not actually used
 # except for MD calculations
@@ -37,7 +42,7 @@ ATOMIC_SPECIES
 
 ATOMIC_POSITIONS crystal
    Fe1 0.0  0.0  0.0
-   Fe2 0.5  0.5  0.0
+   Fe2 0.5  0.5  0.5
 ! this is a comment that the code will ignore
 
 K_POINTS automatic

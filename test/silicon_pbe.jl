@@ -1,4 +1,4 @@
-@testsetup module SiliconPBE
+@testmodule SiliconPBE begin
 using DFTK
 using ..RunSCF: run_scf_and_compare
 using ..TestCases: silicon

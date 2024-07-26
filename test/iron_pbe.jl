@@ -1,4 +1,4 @@
-@testsetup module IronPBE
+@testmodule IronPBE begin
 using Test
 using DFTK
 using ..RunSCF: run_scf_and_compare
