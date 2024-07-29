@@ -38,15 +38,12 @@
         @test austrip.(virial) ≈ hcat(ref_virial...) rtol=1e-3
     end
 
-    # TODO The AtomsBase tests currently fail due to requiring too strong agreement
-    #      between two invocations of the forces call.
-    #      See https://github.com/JuliaMolSim/AtomsCalculators.jl/issues/15
-    # let
-    #     calculator_cheap = DFTKCalculator(;
-    #         model_kwargs=(; temperature=1e-3, functionals=[:lda_x, :lda_c_pw]),
-    #         basis_kwargs=(; kgrid=[1, 1, 1], Ecut=5.0),
-    #         scf_kwargs=(; tol=1e-4),
-    #     )
-    #     test_energy_forces_virial(perturbed_system, calculator_cheap)
-    # end
+    let
+        calculator_cheap = DFTKCalculator(;
+            model_kwargs=(; temperature=1e-3, functionals=[:lda_x, :lda_c_pw]),
+            basis_kwargs=(; kgrid=[1, 1, 1], Ecut=5.0),
+            scf_kwargs=(; tol=1e-4),
+        )
+        test_energy_forces_virial(perturbed_system, calculator_cheap)
+    end
 end
