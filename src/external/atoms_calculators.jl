@@ -35,7 +35,7 @@ julia> DFTKCalculator(; model_kwargs=(; functionals=[:lda_x, :lda_c_vwn]),
                         scf_kwargs=(; tol=1e-4))
 ```
 """
-function DFTKCalculator(; verbose=false, model_kwargs, basis_kwargs, scf_kwargs,
+function DFTKCalculator(; verbose=false, model_kwargs, basis_kwargs, scf_kwargs=(; ),
                           st=nothing)
     if !verbose
         scf_kwargs = merge(scf_kwargs, (; callback=identity))
