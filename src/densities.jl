@@ -1,6 +1,8 @@
 # Densities (and potentials) are represented by arrays
 # ρ[ix,iy,iz,iσ] in real space, where iσ ∈ [1:n_spin_components]
 
+# TODO: We reduce all components for the density. Will need to be though again when we merge
+# the components and the spins.
 """
     compute_density(basis::PlaneWaveBasis, ψ::AbstractVector, occupation::AbstractVector)
 
@@ -17,6 +19,8 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     # Note, that we special-case Tψ, since when T is Dual and eltype(ψ[1]) is not
     # (e.g. stress calculation), then only the normalisation factor introduces
     # dual numbers, but not yet the FFT
+    Tρ = promote_type(T, real(eltype(ψ[1])))
+    n_components = basis.model.n_components
 
     # Occupation should be on the CPU as we are going to be doing scalar indexing.
     occupation = [to_cpu(oc) for oc in occupation]
@@ -25,7 +29,7 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
 
     function allocate_local_storage()
         (; ρ=zeros_like(basis.G_vectors, Tρ, basis.fft_size..., basis.model.n_spin_components),
-         ψnk_real=zeros_like(basis.G_vectors, complex(Tψ), basis.fft_size...))
+         ψnk_real=zeros_like(basis.G_vectors, complex(Tρ), n_components, basis.fft_size...))
     end
     # We split the total iteration range (ik, n) in chunks, and parallelize over them.
     range = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
@@ -33,10 +37,12 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     storages = parallel_loop_over_range(range; allocate_local_storage) do kn, storage
         (ik, n) = kn
         kpt = basis.kpoints[ik]
-        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n]; normalize=false)
-        storage.ρ[:, :, :, kpt.spin] .+= (occupation[ik][n] .* basis.kweights[ik]
-                                          .* (basis.ifft_normalization)^2
-                                          .* abs2.(storage.ψnk_real))
+        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, :, n]; normalize=false)
+        for σ = 1:n_components
+            storage.ρ[:, :, :, kpt.spin] .+= (occupation[ik][n] .* basis.kweights[ik]
+                                                  .* (basis.ifft_normalization)^2
+                                                  .* abs2.(storage.ψnk_real[σ, :, :, :]))
+        end
 
         synchronize_device(basis.architecture)
     end
@@ -61,6 +67,7 @@ end
     # δρ is expected to be real when computations are not phonon-related.
     Tδρ = iszero(q) ? real(Tψ) : Tψ
     real_qzero = iszero(q) ? real : identity
+    n_components = basis.model.n_components
 
     # occupation should be on the CPU as we are going to be doing scalar indexing.
     occupation = [to_cpu(oc) for oc in occupation]
@@ -69,8 +76,8 @@ end
 
     function allocate_local_storage()
         (; δρ=zeros_like(basis.G_vectors, Tδρ, basis.fft_size..., basis.model.n_spin_components),
-          ψnk_real=zeros_like(basis.G_vectors, Tψ, basis.fft_size...),
-         δψnk_real=zeros_like(basis.G_vectors, Tψ, basis.fft_size...))
+          ψnk_real=zeros_like(basis.G_vectors, Tψ, n_components, basis.fft_size...),
+         δψnk_real=zeros_like(basis.G_vectors, Tψ, n_components, basis.fft_size...))
     end
     range = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
 
@@ -84,14 +91,18 @@ end
         (ik, n) = kn
 
         kpt = basis.kpoints[ik]
-        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n])
+        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, :, n])
         # … and then we compute the real Fourier transform in the adequate basis.
-        ifft!(storage.δψnk_real, basis, δψ_plus_k[ik].kpt, δψ_plus_k[ik].ψk[:, n])
+        ifft!(storage.δψnk_real, basis, δψ_plus_k[ik].kpt, δψ_plus_k[ik].ψk[:, :, n])
 
-        storage.δρ[:, :, :, kpt.spin] .+= real_qzero(
-            2 .* occupation[ik][n] .* basis.kweights[ik] .* conj(storage.ψnk_real)
-                                                         .* storage.δψnk_real
-                .+ δoccupation[ik][n] .* basis.kweights[ik] .* abs2.(storage.ψnk_real))
+        for σ = 1:basis.model.n_components
+            storage.δρ[:, :, :, kpt.spin] .+= real_qzero(
+                2 .* occupation[ik][n] .* basis.kweights[ik]
+                                       .* conj(storage.ψnk_real[σ, :, :, :])
+                                       .* storage.δψnk_real[σ, :, :, :]
+                 .+ δoccupation[ik][n] .* basis.kweights[ik]
+                                       .* abs2.(storage.ψnk_real[σ, :, :, :]))
+        end
 
         synchronize_device(basis.architecture)
     end
@@ -101,16 +112,18 @@ end
     symmetrize_ρ(basis, δρ; do_lowpass=false)
 end
 
-@views @timing function compute_kinetic_energy_density(basis::PlaneWaveBasis, ψ, occupation)
-    T = promote_type(eltype(basis), real(eltype(ψ[1])))
+@views @timing function compute_kinetic_energy_density(basis::PlaneWaveBasis{TT}, ψ,
+                                                       occupation) where {TT}
+    @assert basis.model.n_components == 1
+    T = promote_type(TT, real(eltype(ψ[1])))
     τ = similar(ψ[1], T, (basis.fft_size..., basis.model.n_spin_components))
     τ .= 0
-    dαψnk_real = zeros(complex(eltype(basis)), basis.fft_size)
+    dαψσnk_real = zeros(complex(T), basis.fft_size)
     for (ik, kpt) in enumerate(basis.kpoints)
         G_plus_k = [[p[α] for p in Gplusk_vectors_cart(basis, kpt)] for α = 1:3]
-        for n = 1:size(ψ[ik], 2), α = 1:3
-            ifft!(dαψnk_real, basis, kpt, im .* G_plus_k[α] .* ψ[ik][:, n])
-            @. τ[:, :, :, kpt.spin] += occupation[ik][n] * basis.kweights[ik] / 2 * abs2(dαψnk_real)
+        for n = 1:size(ψ[ik], 3), σ = 1:basis.model.n_components, α = 1:3
+            ifft!(dαψσnk_real, basis, kpt, im .* G_plus_k[α] .* ψ[ik][σ, :, n])
+            @. τ[:, :, :, kpt.spin] += occupation[ik][n] * basis.kweights[ik] / 2 * abs2(dαψσnk_real)
         end
     end
     mpi_sum!(τ, basis.comm_kpts)

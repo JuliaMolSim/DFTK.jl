@@ -1,9 +1,9 @@
 @testmodule HamConsistency begin
 using Test
 using DFTK
-using Logging
-using DFTK: mpi_sum
+using DFTK: mpi_sum, filled_occupation, DivAgradOperator, MagneticFieldOperator
 using LinearAlgebra
+using Logging
 using ..TestCases: silicon
 testcase = silicon
 
@@ -11,10 +11,9 @@ function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
     for operator in hamk.operators
         try
             operator_matrix = Matrix(operator)
-            @test norm(operator_matrix*ψk - operator*ψk) < atol
-        catch e
-            allowed_missing_operators = Union{DFTK.DivAgradOperator,
-                                              DFTK.MagneticFieldOperator}
+            @test norm(operator_matrix*ψk[1, :, :] - (operator*ψk)[1, :, :]) < atol
+        catch
+            allowed_missing_operators = Union{DivAgradOperator, MagneticFieldOperator}
             @assert operator isa allowed_missing_operators
             @info "Matrix of operator $(nameof(typeof(operator))) not yet supported" maxlog=1
         end
@@ -36,10 +35,12 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
 
         n_electrons = testcase.n_electrons
         n_bands = div(n_electrons, 2, RoundUp)
-        filled_occ = DFTK.filled_occupation(model)
+        filled_occ = filled_occupation(model)
 
-        ψ = [Matrix(qr(randn(ComplexF64, length(G_vectors(basis, kpt)), n_bands)).Q)
-             for kpt in basis.kpoints]
+        ψ = map(basis.kpoints) do kpt
+            Q = Matrix(qr(randn(ComplexF64, length(G_vectors(basis, kpt)), n_bands)).Q)
+            from_composite_σG(basis, kpt, Q)
+        end
         occupation = [filled_occ * rand(n_bands) for _ = 1:length(basis.kpoints)]
         occ_scaling = n_electrons / sum(sum(occupation))
         occupation = [occ * occ_scaling for occ in occupation]
@@ -63,10 +64,11 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         diff = (compute_E(ε) - compute_E(-ε)) / (2ε)
 
         diff_predicted = 0.0
-        for ik = 1:length(basis.kpoints)
-            Hψk = ham.blocks[ik]*ψ[ik]
+        for (ik, kpt) in enumerate(basis.kpoints)
             test_matrix_repr_operator(ham.blocks[ik], ψ[ik]; atol)
-            δψkHψk = sum(occupation[ik][iband] * real(dot(δψ[ik][:, iband], Hψk[:, iband]))
+            δψk = to_composite_σG(basis, kpt, δψ[ik])
+            Hψk = to_composite_σG(basis, kpt, ham.blocks[ik]*ψ[ik])
+            δψkHψk = sum(occupation[ik][iband] * real(dot(δψk[:, iband], Hψk[:, iband]))
                          for iband=1:n_bands)
             diff_predicted += 2 * basis.kweights[ik] * δψkHψk
         end

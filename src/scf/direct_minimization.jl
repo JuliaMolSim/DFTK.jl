@@ -96,6 +96,8 @@ function direct_minimization(basis::PlaneWaveBasis{T};
     pack(ψ) = copy(reinterpret_real(pack_ψ(ψ)))
     unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ))
     unsafe_unpack(x) = unsafe_unpack_ψ(reinterpret_complex(x), size.(ψ))
+    ψ_σG = to_composite_σG(basis, ψ)
+    unsafe_unpack_σG(x) = unsafe_unpack_ψ(reinterpret_complex(x), size.(ψ_σG))
 
     # This will get updated along the iterations
     ρ    = nothing
@@ -116,7 +118,8 @@ function direct_minimization(basis::PlaneWaveBasis{T};
         # the next step would be ρout - ρ. We thus record convergence, but let Optim do
         # one more step.
         δψ = unsafe_unpack(optim_state.s)
-        ψ_next = [ortho_qr(ψ[ik] - δψ[ik]) for ik in 1:Nk]
+        ψ_next = [ortho_qr(basis, kpt, ψ[ik] - δψ[ik])
+                  for (ik, kpt) in enumerate(basis.kpoints)]
         compute_density(basis, ψ_next, occupation)
     end
 
@@ -155,9 +158,9 @@ function direct_minimization(basis::PlaneWaveBasis{T};
         energies.total
     end
 
-    manifold = DMManifold(Nk, unsafe_unpack)
+    manifold = DMManifold(Nk, unsafe_unpack_σG)
     Pks = [prec_type(basis, kpt) for kpt in basis.kpoints]
-    P = DMPreconditioner(Nk, Pks, unsafe_unpack)
+    P = DMPreconditioner(Nk, Pks, unsafe_unpack_σG)
 
     optim_options = Optim.Options(; allow_f_increases=true,
                                   callback=optim_callback,
@@ -172,12 +175,12 @@ function direct_minimization(basis::PlaneWaveBasis{T};
     ψ = unpack(Optim.minimizer(res))
 
     # Final Rayleigh-Ritz (not strictly necessary, but sometimes useful)
-    eigenvalues = Vector{T}[]
-    for ik = 1:Nk
-        Hψk = ham[ik] * ψ[ik]
-        F = eigen(Hermitian(ψ[ik]'Hψk))
-        push!(eigenvalues, F.values)
-        ψ[ik] .= ψ[ik] * F.vectors
+    eigenvalues::Vector{Vector{T}} = map(enumerate(zip(ψ, ham * ψ))) do (ik, (ψk, Hψk))
+        ψk = to_composite_σG(basis, basis.kpoints[ik], ψk)
+        Hψk = to_composite_σG(basis, basis.kpoints[ik], Hψk)
+        F = eigen(Hermitian(ψk'Hψk))
+        ψk .= ψk * F.vectors
+        F.values
     end
 
     εF = nothing  # does not necessarily make sense here, as the

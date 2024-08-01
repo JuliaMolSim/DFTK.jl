@@ -26,7 +26,7 @@ PreconditionerNone(::HamiltonianBlock) = I
 """
 mutable struct PreconditionerTPA{T <: Real}
     basis::PlaneWaveBasis
-    kpt::Kpoint
+    kpoint::Kpoint
     kin::AbstractVector{T}  # kinetic energy of every G
     mean_kin::Union{Nothing, Vector{T}}  # mean kinetic energy of every band
     default_shift::T  # if mean_kin is not set by `precondprep!`, this will be used for the shift
@@ -46,12 +46,23 @@ function PreconditionerTPA(ham::HamiltonianBlock; kwargs...)
     PreconditionerTPA(ham.basis, ham.kpoint; kwargs...)
 end
 
-@views function ldiv!(Y, P::PreconditionerTPA, R)
+@views function ldiv!(Y, P::PreconditionerTPA, R::AbstractArray)
     if P.mean_kin === nothing
         ldiv!(Y, Diagonal(P.kin .+ P.default_shift), R)
+    elseif ndims(R) == 3
+        Threads.@threads for n = 1:size(Y, 3)
+            for σ = 1:size(Y, 1)
+                Y[σ, :, n] .= P.mean_kin[n] ./ (P.mean_kin[n] .+ P.kin) .* R[σ, :, n]
+            end
+        end
     else
-    parallel_loop_over_range(1:size(Y, 2)) do n
-            Y[:, n] .= P.mean_kin[n] ./ (P.mean_kin[n] .+ P.kin) .* R[:, n]
+        # Fallback for LOBPCG as it works on matrices.
+        R_σG = from_composite_σG(P.basis, P.kpoint, R)
+        Y_σG = from_composite_σG(P.basis, P.kpoint, Y)
+        parallel_loop_over_range(1:size(Y, 2)) do n
+            for σ = 1:P.basis.model.n_components
+                Y_σG[σ, :, n] .= P.mean_kin[n] ./ (P.mean_kin[n] .+ P.kin) .* R_σG[σ, :, n]
+            end
         end
     end
     Y
@@ -73,7 +84,10 @@ end
 (Base.:*)(P::PreconditionerTPA, R) = mul!(copy(R), P, R)
 
 function precondprep!(P::PreconditionerTPA, X::AbstractArray)
-    P.mean_kin = [real(dot(x, Diagonal(P.kin), x)) for x in eachcol(X)]
+    P.mean_kin = map(eachcol(X)) do x
+        x = from_composite_σG(P.basis, P.kpoint, x)
+        sum(real(dot(x[σ, :, :], Diagonal(P.kin), x[σ, :, :]))
+            for σ = 1:P.basis.model.n_components)
+    end
 end
 precondprep!(P::PreconditionerTPA, ::Nothing) = 1  # fallback for edge cases
-

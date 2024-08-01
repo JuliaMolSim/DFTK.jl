@@ -23,11 +23,12 @@
     ψ_bb = transfer_blochwave(ψ_b, bigger_basis, basis)
     @test norm(ψ - ψ_bb) < eps(eltype(basis))
 
-    T    = compute_transfer_matrix(basis, bigger_basis)  # transfer
-    Tᵇ   = compute_transfer_matrix(bigger_basis, basis)  # back-transfer
-    Tψ   = [Tk * ψk   for (Tk, ψk)   in zip(T, ψ)]
-    TᵇTψ = [Tᵇk * Tψk for (Tᵇk, Tψk) in zip(Tᵇ, Tψ)]
-    @test norm(ψ - TᵇTψ) < eps(eltype(basis))
+    T     = compute_transfer_matrix(basis, bigger_basis)  # transfer
+    Tᵇ    = compute_transfer_matrix(bigger_basis, basis)  # back-transfer
+    ψ_σG  = to_composite_σG(basis, ψ)
+    Tψ    = [Tk * ψk   for (Tk, ψk)   in zip(T, ψ_σG)]
+    TᵇTψ  = [Tᵇk * Tψk for (Tᵇk, Tψk) in zip(Tᵇ, Tψ)]
+    @test norm(ψ_σG - TᵇTψ) < eps(eltype(basis))
 
     # TᵇT should be the identity and TTᵇ should be a projection
     TᵇT = [Tᵇk * Tk  for (Tk, Tᵇk) in zip(T, Tᵇ)]
@@ -40,7 +41,7 @@
     bigger_basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
     ψ_b = transfer_blochwave(ψ, basis, bigger_basis)
     ψ_bb = transfer_blochwave(ψ_b, bigger_basis, basis)
-    @test norm(ψ-ψ_bb) < eps(eltype(basis))
+    @test norm(ψ - ψ_bb) < eps(eltype(basis))
 end
 
 @testitem "Transfer of density" begin

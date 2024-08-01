@@ -108,13 +108,14 @@ Transfer an array `ψk` defined on basis_in ``k``-point kpt_in to basis_out ``k`
 function transfer_blochwave_kpt(ψk_in, basis_in::PlaneWaveBasis, kpt_in::Kpoint,
                                 basis_out::PlaneWaveBasis, kpt_out::Kpoint)
     kpt_in == kpt_out && return copy(ψk_in)
-    @assert length(G_vectors(basis_in, kpt_in)) == size(ψk_in, 1)
+    @assert length(G_vectors(basis_in, kpt_in)) == size(ψk_in, 2)
     idcsk_in, idcsk_out = transfer_mapping(basis_in, kpt_in, basis_out, kpt_out)
 
-    n_bands = size(ψk_in, 2)
-    ψk_out  = similar(ψk_in, length(G_vectors(basis_out, kpt_out)), n_bands)
+    n_bands      = size(ψk_in, 3)
+    n_components = basis_in.model.n_components
+    ψk_out  = similar(ψk_in, n_components, length(G_vectors(basis_out, kpt_out)), n_bands)
     ψk_out .= 0
-    ψk_out[idcsk_out, :] .= ψk_in[idcsk_in, :]
+    ψk_out[:, idcsk_out, :] .= ψk_in[:, idcsk_in, :]
 
     ψk_out
 end
@@ -124,6 +125,7 @@ Transfer Bloch wave between two basis sets. Limited feature set.
 """
 function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis, basis_out::PlaneWaveBasis)
     @assert basis_in.model.lattice == basis_out.model.lattice
+    @assert basis_in.model.n_components == basis_out.model.n_components
     @assert length(basis_in.kpoints) == length(basis_out.kpoints)
     @assert all(basis_in.kpoints[ik].coordinate == basis_out.kpoints[ik].coordinate
                 for ik = 1:length(basis_in.kpoints))
@@ -215,10 +217,12 @@ element of `basis.kpoints` equivalent to ``k-q``.
     for (ik, kpt) in enumerate(basis.kpoints)
         # … then perform the multiplication with f in real space and get the Fourier
         # coefficients.
-        for n = 1:size(ψ[ik], 2)
-            fψ[ik][:, n] = fft(basis, kpt,
-                               ifft(basis, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk[:, n])
-                                 .* f_real[:, :, :, kpt.spin])
+        for n = 1:size(ψ[ik], 3)
+            ψkn_minus_q_real = ifft(basis, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk[:, :, n])
+            for σ = 1:basis.model.n_components
+                fψ[ik][σ, :, n] = fft(basis, kpt, ψkn_minus_q_real[σ, :, :, :]
+                                                      .* f_real[:, :, :, kpt.spin])
+            end
         end
     end
     fψ

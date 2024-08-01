@@ -8,10 +8,11 @@ function test_agreement_bands(band_data, dict; explicit_reshape=false, test_ψ=t
 
     basis = band_data.basis
     model = basis.model
-    n_kpoints = length(basis.kcoords_global)
-    n_spin    = model.n_spin_components
-    n_bands   = length(band_data.eigenvalues[1])
-    max_n_G   = DFTK.mpi_max(maximum(kpt -> length(G_vectors(basis, kpt)), basis.kpoints),
+    n_kpoints    = length(basis.kcoords_global)
+    n_spin       = model.n_spin_components
+    n_bands      = length(band_data.eigenvalues[1])
+    n_components = model.n_components
+    max_n_G      = DFTK.mpi_max(maximum(kpt -> length(G_vectors(basis, kpt)), basis.kpoints),
                              basis.comm_kpts)
     rotations       = [symop.W for symop in basis.symmetries]
     translations    = [symop.w for symop in basis.symmetries]
@@ -38,6 +39,7 @@ function test_agreement_bands(band_data, dict; explicit_reshape=false, test_ψ=t
         @test dict["n_bands"]           == n_bands
         @test dict["n_kpoints"]         == n_kpoints
         @test dict["n_atoms"]           == length(model.atoms)
+        @test dict["n_components"]      == n_components
         @test dict["n_spin_components"] == n_spin
         @test dict["model_name"]        == model.model_name
         @test dict["temperature"]       ≈  model.temperature  atol=1e-12
@@ -68,7 +70,7 @@ function test_agreement_bands(band_data, dict; explicit_reshape=false, test_ψ=t
         if test_ψ
             n_G_resh    = condreshape(dict["kpt_n_G_vectors"],  (n_kpoints, n_spin))
             G_vecs_resh = condreshape(dict["kpt_G_vectors"],    (3, max_n_G, n_kpoints, n_spin))
-            ψ_resh      = condreshape(dict["ψ"], (max_n_G, n_bands, n_kpoints, n_spin))
+            ψ_resh      = condreshape(dict["ψ"], (n_components, max_n_G, n_bands, n_kpoints, n_spin))
         end
     end
     n_iter_resh      = MPI.bcast(n_iter_resh,      0, MPI.COMM_WORLD)
@@ -92,7 +94,7 @@ function test_agreement_bands(band_data, dict; explicit_reshape=false, test_ψ=t
             @test n_G_resh[ikgl, σ] == length(basis.kpoints[ik].G_vectors)
             @test all(G_vecs_resh[:, iG, ikgl, σ] == G
                       for (iG, G) in enumerate(basis.kpoints[ik].G_vectors))
-            @test ψ_resh[1:n_G_resh[ikgl, σ], :, ikgl, σ] ≈ band_data.ψ[ik] atol=1e-12
+            @test ψ_resh[:, 1:n_G_resh[ikgl, σ], :, ikgl, σ] ≈ band_data.ψ[ik] atol=1e-12
         end
     end
 end  # function

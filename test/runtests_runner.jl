@@ -29,4 +29,34 @@ function dftk_testfilter(ti)
         return false
     end
 end
+
+using Test
+function TestItemRunner.run_testitem(filepath, use_default_usings, setups, package_name,
+                                     original_code, line, column, test_setup_module_set)
+    mod = Core.eval(Main, :(module $(gensym()) end))
+
+    if use_default_usings
+        Core.eval(mod, :(using Test))
+
+        if package_name!=""
+            Core.eval(mod, :(using $(Symbol(package_name))))
+        end
+    end
+
+    for m in setups
+        Core.eval(mod, Expr(:using, Expr(:., :., :., nameof(test_setup_module_set.setupmodule), m)))
+    end
+
+    code = string('\n'^line, ' '^column, original_code)
+
+    TestItemRunner.withpath(filepath) do
+        # Replace the test by the current testset.
+        description = Test.pop_testset().description
+        @testset "$(description)" begin
+            Base.invokelatest(include_string, mod, code, filepath)
+        end
+        Test.push_testset(Test.FallbackTestSet())  # so the parent pops nothing
+    end
+end
+
 @run_package_tests filter=dftk_testfilter verbose=true

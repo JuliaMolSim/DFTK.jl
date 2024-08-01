@@ -72,6 +72,7 @@ function (A::Anyonic)(basis)
     @assert basis.model.lattice[2, 1] == basis.model.lattice[1, 2] == 0
     @assert basis.model.lattice[1, 1] == basis.model.lattice[2, 2]
     @assert basis.model.n_spin_components == 1
+    @assert basis.model.n_components == 1
 
     TermAnyonic(basis, eltype(basis)(A.hbar), eltype(basis)(A.β))
 end
@@ -103,7 +104,7 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occupation;
                  ρ, kwargs...) where {T}
     hbar = term.hbar
     β = term.β
-    @assert ψ !== nothing # the hamiltonian depends explicitly on ψ
+    @assert !isnothing(ψ)  # the hamiltonian depends explicitly on ψ
 
     # Compute A in Fourier domain
     # curl A = 2π ρ, ∇⋅A = 0
@@ -153,8 +154,9 @@ function ene_ops(term::TermAnyonic, basis::PlaneWaveBasis{T}, ψ, occupation;
     ops_ham = [ops_energy..., RealSpaceMultiplication(basis, basis.kpoints[1], eff_pot_real)]
 
     E = zero(T)
-    for iband = 1:size(ψ[1], 2)
-        ψnk = @views ψ[1][:, iband]
+    @assert length(ψ) == 1
+    for iband = 1:size(ψ[1], 3)
+        ψnk = @views ψ[1][:, :, iband]
         # TODO optimize this
         for op in ops_energy
             E += occupation[1][iband] * real(dot(ψnk, op * ψnk))
