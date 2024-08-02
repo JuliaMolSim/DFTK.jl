@@ -200,9 +200,8 @@ Overview of parameters:
     info_init = (; ρin=ρ, ψ=ψ, occupation=nothing, eigenvalues=nothing, εF=nothing, 
                    n_iter=0, converged=false, history_Etot=T[], history_Δρ=T[])
 
-    # Tolerance and maxiter are only dummy here: Convergence is flagged by is_converged
-    # inside the fixpoint_map.
-    _, info = solver(fixpoint_map, ρ, info_init, maxiter; tol=eps(T)) # TODO ?? why dummy?
+    # Convergence is flagged by is_converged inside the fixpoint_map.
+    _, info = solver(fixpoint_map, ρ, info_init; maxiter)
     
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρout, so we return that. We also perform a last energy computation

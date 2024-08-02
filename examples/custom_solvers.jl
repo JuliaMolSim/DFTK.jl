@@ -16,20 +16,18 @@ model = model_LDA(lattice, atoms, positions)
 basis = PlaneWaveBasis(model; Ecut=5, kgrid=[1, 1, 1]);
 
 # We define our custom fix-point solver: simply a damped fixed-point
-function my_fp_solver(f, x0, info0, maxiter; tol)
+function my_fp_solver(f, x0, info0; maxiter)
     mixing_factor = .7
     x = x0
     info = info0
-    fx, info = f(x, info)
     for n = 1:maxiter
-        inc = fx - x
-        if norm(inc) < tol
+        fx, info = f(x, info)
+        if info.converged
             break
         end
-        x = x + mixing_factor * inc
-        fx, info = f(x, info)
+        x = x + mixing_factor * (fx - x)
     end
-    (fixpoint=x, info, converged=norm(fx-x) < tol)
+    (; fixpoint=x, info)
 end;
 
 # Our eigenvalue solver just forms the dense matrix and diagonalizes
