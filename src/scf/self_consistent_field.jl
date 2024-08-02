@@ -186,10 +186,13 @@ Overview of parameters:
         # Apply mixing and pass it the full info as kwargs
         ρnext = ρin .+ T(damping) .* mix_density(mixing, basis, Δρ; info_next...)
 
-        callback(info_next)
-        if is_converged(info_next)
-            info_next = merge(info_next, (; converged=true))
+        
+        converged = is_converged(info_next)
+        converged = MPI.bcast(converged, 0, MPI.COMM_WORLD)
+        if converged
+            info_next = merge(info_next, (; converged))
         end
+        callback(info_next)
 
         ρnext, info_next
     end
