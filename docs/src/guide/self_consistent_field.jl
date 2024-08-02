@@ -123,26 +123,24 @@
 
 using DFTK
 using LinearAlgebra
-function fixed_point_iteration(F, ρ0, info0, maxiter; tol)
+
+function fixed_point_iteration(F, ρ0, info0; maxiter)
     ## F:        The SCF step function
     ## ρ0:       The initial guess density
     ## info0:    The initial metadata
     ## maxiter:  The maximal number of iterations to be performed
-    ## tol:      The selected convergence tolerance
 
     ρ = ρ0
-    Fρ, info = F(ρ, info0)
     for n = 1:maxiter
-        ## If change less than tolerance, break iterations:
-        if norm(Fρ - ρ) < tol
+        Fρ, info = F(ρ, info0)
+        if info.converged
             break
         end
         ρ = Fρ
-        Fρ, info = F(ρ, info)
     end
 
     ## Return some stuff DFTK needs ...
-    (; fixpoint=ρ, info, converged=norm(Fρ-ρ) < tol)
+    (; fixpoint=ρ, info)
 end;
 
 # To test this algorithm we use the following simple setting, which builds and discretises
@@ -214,23 +212,22 @@ self_consistent_field(aluminium_setup(1); solver=fixed_point_iteration, damping=
 # ```
 # In terms of an algorithm Anderson iteration is
 
-function anderson_iteration(F, ρ0, info0, maxiter; tol)
+function anderson_iteration(F, ρ0, info0; maxiter)
     ## F:        The SCF step function
     ## ρ0:       The initial guess density
     ## info0:    The initial metadata
     ## maxiter:  The maximal number of iterations to be performed
-    ## tol:      The selected convergence tolerance
 
-    converged = false
     info = info0
     ρ  = ρ0
     ρs = []
     Rs = []
     for n = 1:maxiter
         Fρ, info = F(ρ, info)
+        if info.converged
+            break
+        end
         Rρ = Fρ - ρ
-        converged = norm(Rρ) < tol
-        converged && break
 
         ρnext = vec(ρ) .+ vec(Rρ)
         if !isempty(Rs)
@@ -248,7 +245,7 @@ function anderson_iteration(F, ρ0, info0, maxiter; tol)
     end
 
     ## Return some stuff DFTK needs ...
-    (; fixpoint=ρ, info, converged)
+    (; fixpoint=ρ, info)
 end;
 
 # To work with this algorithm we will use DFTK's intrinsic mechanism to choose a damping. The syntax for this is
