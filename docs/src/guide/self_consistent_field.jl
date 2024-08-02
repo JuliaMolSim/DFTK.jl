@@ -131,8 +131,9 @@ function fixed_point_iteration(F, ρ0, info0; maxiter)
     ## maxiter:  The maximal number of iterations to be performed
 
     ρ = ρ0
+    info = info0
     for n = 1:maxiter
-        Fρ, info = F(ρ, info0)
+        Fρ, info = F(ρ, info)
         if info.converged
             break
         end
