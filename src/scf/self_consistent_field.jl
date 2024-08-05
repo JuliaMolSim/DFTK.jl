@@ -148,14 +148,14 @@ Overview of parameters:
         @assert length(ψ) == length(basis.kpoints)
     end
     start_ns = time_ns()
-    end_time = Dates.now() + maxtime
+    timeout_date = Dates.now() + maxtime
 
     # We do density mixing in the real representation
     # TODO support other mixing types
     function fixpoint_map(ρin, info)
-        (; ψ, occupation, eigenvalues, εF, n_iter, converged) = info
+        (; ψ, occupation, eigenvalues, εF, n_iter, converged, timeout) = info
         converged && return ρin, info  # No more iterations if convergence flagged
-        MPI.bcast(Dates.now() ≥ end_time, MPI.COMM_WORLD) && return ρin, info
+        timeout && return ρin, info
         n_iter += 1
 
         # Note that ρin is not the density of ψ, and the eigenvalues
@@ -189,16 +189,18 @@ Overview of parameters:
         
         converged = is_converged(info_next)
         converged = MPI.bcast(converged, 0, MPI.COMM_WORLD)
-        if converged
-            info_next = merge(info_next, (; converged))
-        end
+        info_next = merge(info_next, (; converged))
+        
+        timeout = MPI.bcast(Dates.now() ≥ timeout_date, MPI.COMM_WORLD)
+        info_next = merge(info_next, (; timeout))
+
         callback(info_next)
 
         ρnext, info_next
     end
 
     info_init = (; ρin=ρ, ψ=ψ, occupation=nothing, eigenvalues=nothing, εF=nothing, 
-                   n_iter=0, converged=false, history_Etot=T[], history_Δρ=T[])
+                   n_iter=0, timeout=false, converged=false, history_Etot=T[], history_Δρ=T[])
 
     # Convergence is flagged by is_converged inside the fixpoint_map.
     _, info = solver(fixpoint_map, ρ, info_init; maxiter)
@@ -213,7 +215,7 @@ Overview of parameters:
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
                 ρ=ρout, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
                 info.n_iter, ψ, info.diagonalization, stage=:finalize,
-                info.history_Δρ, info.history_Etot,
+                info.history_Δρ, info.history_Etot, info.timeout,
                 runtime_ns=time_ns() - start_ns, algorithm="SCF")
     callback(scfres)
     scfres
