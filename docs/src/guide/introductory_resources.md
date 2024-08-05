@@ -38,7 +38,7 @@ see [Publications](@ref).
 - [Density Functional Theory](https://doi.org/10.1007/978-3-031-22340-2)
   edited by Eric Cancès and Gero Friesecke (Springer, 2023):
   Up to date textbook accessible to an interdisciplinary audience with contributions
-  by mathematicians and application researches. Particularly relevant are:
+  by mathematicians and application researchers. Particularly relevant are:
     * [Chapter 1: Review of Approximations for the Exchange-Correlation Energy in Density-Functional Theory](http://arxiv.org/abs/2103.02645v1)
     * [Chapter 7: Numerical Methods for Kohn–Sham Models: Discretization, Algorithms, and Error Analysis](https://doi.org/10.1007/978-3-031-22340-2_7)
 
