@@ -16,11 +16,11 @@
 
 """
 Create a damped SCF solver updating the density as
-`x = β * x_new + (1 - β) * x`
+`x = damping * x_new + (1 - damping) * x`
 """
-function scf_damping_solver(β=0.2)
+function scf_damping_solver(; damping=0.2)
     function fp_solver(f, x0, info0; maxiter)
-        β = convert(eltype(x0), β)
+        β = convert(eltype(x0), damping)
         x = copy(x0)
         info = info0
         for i = 1:maxiter
@@ -37,15 +37,14 @@ function scf_damping_solver(β=0.2)
 end
 
 """
-Create a simple anderson-accelerated SCF solver. `m` specifies the number
-of steps to keep the history of.
+Create a simple anderson-accelerated SCF solver.
 """
-function scf_anderson_solver(m=10; kwargs...)
+function scf_anderson_solver(; kwargs...)
     function anderson(f, x0, info0; maxiter)
         T = eltype(x0)
         x = x0
         info = info0
-        acceleration = AndersonAcceleration(; m, kwargs...)
+        acceleration = AndersonAcceleration(; kwargs...)
         for i = 1:maxiter
             fx, info = f(x, info)
             if info.converged || info.timedout
