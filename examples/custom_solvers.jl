@@ -1,4 +1,4 @@
-# # Custom solvers
+# # [Custom solvers](@id custom-solvers)
 # In this example, we show how to define custom solvers. Our system
 # will again be silicon, because we are not very imaginative
 using DFTK, LinearAlgebra

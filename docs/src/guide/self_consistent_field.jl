@@ -124,7 +124,7 @@
 using DFTK
 using LinearAlgebra
 
-function fixed_point_iteration(F, ρ0, info0; maxiter)
+function fixed_point_iteration(F, ρ0, info0; maxiter, tol=1e-10)
     ## F:        The SCF step function
     ## ρ0:       The initial guess density
     ## info0:    The initial metadata
@@ -134,7 +134,8 @@ function fixed_point_iteration(F, ρ0, info0; maxiter)
     info = info0
     for n = 1:maxiter
         Fρ, info = F(ρ, info)
-        if info.converged
+        ## If the change is less than the tolerance, break iteration.
+        if norm(Fρ - ρ) < tol
             break
         end
         ρ = Fρ
@@ -143,6 +144,14 @@ function fixed_point_iteration(F, ρ0, info0; maxiter)
     ## Return some stuff DFTK needs ...
     (; fixpoint=ρ, info)
 end;
+
+# !!! note "Convergence checks in DFTK"
+#     The ad-hoc convergence criterion in the example above is included only for
+#     pedagogical purposes. It does not yet include the correct scaling,
+#     which depends on the discretization.
+#     It is preferred to use the provided DFTK utilities for specifiying
+#     convergence, that can be shared across different solvers. For the more
+#     advanced version, see the tutorial on [custom SCF solvers](@ref custom-solvers).
 
 # To test this algorithm we use the following simple setting, which builds and discretises
 # a PBE model for an aluminium supercell.
