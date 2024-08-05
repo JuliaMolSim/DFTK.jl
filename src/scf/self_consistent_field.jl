@@ -154,8 +154,6 @@ Overview of parameters:
     # TODO support other mixing types
     function fixpoint_map(ρin, info)
         (; ψ, occupation, eigenvalues, εF, n_iter, converged, timedout) = info
-        converged && return ρin, info  # No more iterations if convergence flagged
-        timedout && return ρin, info
         n_iter += 1
 
         # Note that ρin is not the density of ψ, and the eigenvalues
