@@ -22,13 +22,18 @@ function my_fp_solver(f, x0, info0; maxiter)
     info = info0
     for n = 1:maxiter
         fx, info = f(x, info)
-        if info.converged
+        if info.converged || info.timedout
             break
         end
         x = x + mixing_factor * (fx - x)
     end
     (; fixpoint=x, info)
 end;
+# Note that the fixpoint map `f` operates on an auxiliary variable `info` for
+# state bookkeeping. Early termination criteria are flagged from inside
+# the function `f` using boolean flags `info.converged` and `info.timedout`.
+# For control over these criteria, see the `is_converged` and `maxtime`
+# keyword arguments of `self_consistent_field`.
 
 # Our eigenvalue solver just forms the dense matrix and diagonalizes
 # it explicitly (this only works for very small systems)
@@ -68,8 +73,31 @@ scfres = self_consistent_field(basis;
                                eigensolver=my_eig_solver,
                                mixing=MyMixing());
 # Note that the default convergence criterion is the difference in
-# density. When this gets below `tol`, the
-# "driver" `self_consistent_field` artificially makes the fixed-point
-# solver think it's converged by forcing `f(x) = x`. You can customize
-# this with the `is_converged` keyword argument to
-# `self_consistent_field`.
+# density. When this gets below `tol`, the fixed-point solver terminates.
+# You can also customize this with the `is_converged` keyword argument to
+# `self_consistent_field`, as shown below.
+
+# ## Customizing the convergence criterion
+# Here is an example of a defining a custom convergence criterion and specifying
+# it using the `is_converged` keyword to `self_consistent_field`.
+
+mutable struct ScfConvergenceStress
+    tolerance
+    previous_stress
+end
+ScfConvergenceStress(tolerance) = ScfConvergenceStress(tolerance, nothing)
+function (conv::ScfConvergenceStress)(info)
+    # If first iteration clear a potentially cached previous stress
+    info.n_iter ≤ 1 && (conv.previous_stress = nothing)
+    (; basis, ψ, occupation, eigenvalues, εF, ρout) = info
+    stress = compute_stresses_cart((; basis, ψ, occupation, eigenvalues, εF, ρ=ρout))
+    error = isnothing(conv.previous_stress) ? NaN : norm(conv.previous_stress - stress)
+    conv.previous_stress = stress
+    error < conv.tolerance
+end
+
+scfres2 = self_consistent_field(basis;
+                                solver=my_fp_solver,
+                                is_converged=ScfConvergenceStress(1e-8),
+                                eigensolver=my_eig_solver,
+                                mixing=MyMixing());
