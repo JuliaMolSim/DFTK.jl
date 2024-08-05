@@ -1,6 +1,7 @@
 @testitem "Timeout of SCF" setup=[TestCases] begin
     using DFTK
     using Dates
+    using Logging
     silicon = TestCases.silicon
 
     model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
@@ -13,9 +14,17 @@
     end
     callback = ScfDefaultCallback() ∘ sleep_callback
 
-    @test_warn "SCF not converged." begin
+    scfres = with_logger(NullLogger()) do
         maxtime = Dates.Millisecond(10)
-        scfres = self_consistent_field(basis; is_converged, callback, maxtime)
-        @test scfres.timeout
-    end    
+        self_consistent_field(basis; is_converged, callback, maxtime)
+    end
+    @test scfres.timedout
+    @test !scfres.converged
+
+    scfres = with_logger(NullLogger()) do
+        self_consistent_field(basis; is_converged, callback, maxiter=2)
+    end
+    @test !scfres.timedout
+    @test !scfres.converged
+    @test scfres.n_iter == 2
 end

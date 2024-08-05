@@ -13,9 +13,9 @@ function scf_damping_solver(β=0.2)
         β = convert(eltype(x0), β)
         x = copy(x0)
         info = info0
-        for i in 1:maxiter
+        for i = 1:maxiter
             x_new, info = f(x, info)
-            if info.converged || info.timeout
+            if info.converged || info.timedout
                 x = x_new
                 break
             end
@@ -36,9 +36,9 @@ function scf_anderson_solver(m=10; kwargs...)
         x = x0
         info = info0
         acceleration = AndersonAcceleration(; m, kwargs...)
-        for n = 1:maxiter
+        for i = 1:maxiter
             fx, info = f(x, info)
-            if info.converged || info.timeout
+            if info.converged || info.timedout
                 break
             end
             residual = fx - x

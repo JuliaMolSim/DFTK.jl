@@ -153,9 +153,9 @@ Overview of parameters:
     # We do density mixing in the real representation
     # TODO support other mixing types
     function fixpoint_map(ρin, info)
-        (; ψ, occupation, eigenvalues, εF, n_iter, converged, timeout) = info
+        (; ψ, occupation, eigenvalues, εF, n_iter, converged, timedout) = info
         converged && return ρin, info  # No more iterations if convergence flagged
-        timeout && return ρin, info
+        timedout && return ρin, info
         n_iter += 1
 
         # Note that ρin is not the density of ψ, and the eigenvalues
@@ -191,8 +191,8 @@ Overview of parameters:
         converged = MPI.bcast(converged, 0, MPI.COMM_WORLD)
         info_next = merge(info_next, (; converged))
         
-        timeout = MPI.bcast(Dates.now() ≥ timeout_date, MPI.COMM_WORLD)
-        info_next = merge(info_next, (; timeout))
+        timedout = MPI.bcast(Dates.now() ≥ timeout_date, MPI.COMM_WORLD)
+        info_next = merge(info_next, (; timedout))
 
         callback(info_next)
 
@@ -200,7 +200,7 @@ Overview of parameters:
     end
 
     info_init = (; ρin=ρ, ψ=ψ, occupation=nothing, eigenvalues=nothing, εF=nothing, 
-                   n_iter=0, timeout=false, converged=false, history_Etot=T[], history_Δρ=T[])
+                   n_iter=0, timedout=false, converged=false, history_Etot=T[], history_Δρ=T[])
 
     # Convergence is flagged by is_converged inside the fixpoint_map.
     _, info = solver(fixpoint_map, ρ, info_init; maxiter)
@@ -215,7 +215,7 @@ Overview of parameters:
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
                 ρ=ρout, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
                 info.n_iter, ψ, info.diagonalization, stage=:finalize,
-                info.history_Δρ, info.history_Etot, info.timeout,
+                info.history_Δρ, info.history_Etot, info.timedout,
                 runtime_ns=time_ns() - start_ns, algorithm="SCF")
     callback(scfres)
     scfres
