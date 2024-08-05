@@ -79,25 +79,20 @@ scfres = self_consistent_field(basis;
 
 # ## Customizing the convergence criterion
 # Here is an example of a defining a custom convergence criterion and specifying
-# it using the `is_converged` keyword to `self_consistent_field`.
+# it using the `is_converged` callback keyword to `self_consistent_field`.
 
-mutable struct ScfConvergenceStress
-    tolerance
-    previous_stress
-end
-ScfConvergenceStress(tolerance) = ScfConvergenceStress(tolerance, nothing)
-function (conv::ScfConvergenceStress)(info)
-    # If first iteration clear a potentially cached previous stress
-    info.n_iter ≤ 1 && (conv.previous_stress = nothing)
-    (; basis, ψ, occupation, eigenvalues, εF, ρout) = info
-    stress = compute_stresses_cart((; basis, ψ, occupation, eigenvalues, εF, ρ=ρout))
-    error = isnothing(conv.previous_stress) ? NaN : norm(conv.previous_stress - stress)
-    conv.previous_stress = stress
-    error < conv.tolerance
+function my_convergence_criterion(info)
+    tol = 1e-10
+    if last(info.history_Δρ) > 10sqrt(conv.tolerance)
+        return false  # The ρ change should also be small to avoid the SCF being just stuck
+    end
+    length(info.history_Etot) < 2 && return false
+    ΔE = (info.history_Etot[end-1] - info.history_Etot[end])
+    ΔE < tol
 end
 
 scfres2 = self_consistent_field(basis;
                                 solver=my_fp_solver,
-                                is_converged=ScfConvergenceStress(1e-8),
+                                is_converged=my_convergence_criterion,
                                 eigensolver=my_eig_solver,
                                 mixing=MyMixing());
