@@ -167,6 +167,7 @@ include("scf/self_consistent_field.jl")
 include("scf/direct_minimization.jl")
 include("scf/newton.jl")
 include("scf/scfres.jl")
+include("scf/anderson.jl")
 include("scf/potential_mixing.jl")
 
 export symmetry_operations
