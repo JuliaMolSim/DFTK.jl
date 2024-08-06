@@ -68,8 +68,7 @@ end
 @generate_interface function AtomsCalculators.calculate(::AtomsCalculators.Energy,
         system::AbstractSystem, calc::DFTKCalculator, ps=nothing, st=nothing; kwargs...)
     scfres = compute_scf(system, calc, st)
-    (; energy=scfres.energies.total * u"hartree",
-       state=scfres)
+    (; energy=scfres.energies.total * u"hartree", state=scfres)
 end
 
 @generate_interface function AtomsCalculators.calculate(::AtomsCalculators.Forces,

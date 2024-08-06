@@ -50,11 +50,11 @@ PAGES = [
     "Ecosystem integration" => [
         # This concerns the discussion of interfaces, IO and integration
         # options we have
-        "examples/atomsbase.jl",
-        "examples/atomscalculators.jl",
-        "examples/input_output.jl",
-        "examples/atomistic_simulation_environment.jl",
-        "examples/wannier.jl",
+        "ecosystem/atomsbase.jl",
+        "ecosystem/atomscalculators.jl",
+        "ecosystem/input_output.jl",
+        "ecosystem/atomistic_simulation_environment.md",
+        "ecosystem/wannier.jl",
     ],
     "Tips and tricks" => [
         # Resolving convergence issues, what solver to use, improving performance or

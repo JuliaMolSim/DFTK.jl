@@ -21,9 +21,8 @@
 #     Therefore results are far from converged.
 #     Tighter thresholds and larger grids should be used for more realistic results.
 #
-# For our discussion we will use the classic example of
-# computing the LDA ground state of the
-# [silicon crystal](https://www.materialsproject.org/materials/mp-149).
+# For our discussion we will use the classic example of computing the LDA ground state
+# of the [silicon crystal](https://www.materialsproject.org/materials/mp-149).
 # Performing such a calculation roughly proceeds in three steps.
 
 using DFTK
@@ -51,6 +50,10 @@ Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
 ## Specify type and positions of atoms
 atoms     = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
+
+# Note that DFTK supports a few other ways to supply atomistic structures,
+# see for example the sections on [AtomsBase integration](@ref)
+# and [Input and output formats](@ref) for details.
 
 ## 2. Select model and basis
 model = model_LDA(lattice, atoms, positions)

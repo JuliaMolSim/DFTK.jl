@@ -1,0 +1,56 @@
+# # AtomsCalculators integration
+#
+# [AtomsCalculators.jl](https://github.com/JuliaMolSim/AtomsCalculators.jl) is an interface
+# for doing standard computations (energies, forces, stresses, hessians) on atomistic
+# structures. It is very much inspired by the calculator objects in the
+# [atomistic simulation environment](https://wiki.fysik.dtu.dk/ase/index.html).
+#
+# DFTK by default ships a datastructure called a [`DFTKCalculator`](@ref),
+# which implements the AtomsCalculators interface. A `DFTKCalculator`
+# can be constructed by passing three different named tuples,
+# the `model_kwargs`, the `basis_kwargs` and the `scf_kwargs`.
+# These three named tuples are employed when constructing the [`Model`](@ref)
+# and the [`PlaneWaveBasis`](@ref) to define the DFT problem and when running the
+# [`self_consistent_field`](@ref) function on these objects to solve the problem
+# numerically. Thus when using the `DFTKCalculator` the user is expected to
+# pass these objects exactly the keyword argument one would pass when constructing
+# a `model` and `basis` and when calling `self_consistent_field`.
+#
+# For example, to perform the calculation of the [Tutorial](@ref) using
+# the AtomsCalculators interface we define the calculator as such:
+
+model_kwargs = (; functionals=[:lda_x, :lda_c_pw])  # xc functionals employed by model_LDA
+basis_kwargs = (; kgrid=[4, 4, 4], Ecut=7)
+scf_kwargs   = (; tol=1e-5)
+calc = DFTKCalculator(; model_kwargs, basis_kwargs, scf_kwargs)
+
+# Note, that the `scf_kwargs` is optional and can be missing
+# (then the defaults of `self_consistent_field` are used).
+#
+# Based on this `calc` object we can perform a DFT calculation on bulk silicon
+# according to the
+# [`AtomsCalculators` interface](https://juliamolsim.github.io/AtomsCalculators.jl/stable/interface/),
+# e.g.
+
+using AtomsBuilder
+using AtomsCalculators
+AC = AtomsCalculators
+
+silicon = bulk(:Si)                 # Build the bulk silicon system of the Tutorial
+AC.potential_energy(silicon, calc)  # Compute the total energy
+
+# or we can compute the energy and forces:
+
+results = AC.calculate((AC.Energy(), AC.Forces()), silicon, calc)
+results.energy
+#-
+results.forces
+
+# Note that the `results` object returned by the call to `AtomsCalculators.calculate`
+# also contains a `state`, which is a DFTK `scfres`. This can be used to speed up
+# subsequent computations:
+
+## This is basically for free, since already computed:
+results2 = @time AC.calculate((AC.Energy(), AC.Forces()), silicon, calc, nothing, results.state);
+
+# For an example using the `DFTKCalculator`, see [Geometry optimization](@ref).

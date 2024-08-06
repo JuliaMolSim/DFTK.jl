@@ -20,7 +20,7 @@
 # may choose not to use `AtomsIOPython`.
 #
 # As an example we start the calculation of a simple antiferromagnetic iron crystal
-# using a Quantum-Espresso input file, [Fe_afm.pwi](Fe_afm.pwi).
+# using a Quantum-Espresso input file, [Fe_afm.pwi](../Fe_afm.pwi).
 # For more details about calculations on magnetic systems
 # using collinear spin, see [Collinear spin and magnetic systems](@ref).
 #
@@ -32,7 +32,7 @@
 
 using AtomsIO        # Use Julia-only IO parsers
 using AtomsIOPython  # Use python-based IO parsers (e.g. ASE)
-system = load_system("Fe_afm.pwi")
+system = load_system("../Fe_afm.pwi")
 
 # Next we attach pseudopotential information, since currently the parser is not
 # yet capable to read this information from the file.
