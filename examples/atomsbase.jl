@@ -7,18 +7,16 @@
 using DFTK
 
 # ## Feeding an AtomsBase AbstractSystem to DFTK
-# In this example we construct a silicon system using the `ase.build.bulk` routine
-# from the [atomistic simulation environment](https://wiki.fysik.dtu.dk/ase/index.html)
-# (ASE), which is exposed by [ASEconvert](https://github.com/mfherbst/ASEconvert.jl)
-# as an AtomsBase `AbstractSystem`.
+#
+# In this example we construct a bulk silicon system using the `bulk` function
+# from [AtomsBuilder](https://github.com/JuliaMolSim/AtomsBuilder.jl). This function
+# uses tabulated data to set up a reasonable starting geometry and lattice for bulk silicon.
 
-## Construct bulk system and convert to an AbstractSystem
-using ASEconvert
-system_ase = ase.build.bulk("Si")
-system = pyconvert(AbstractSystem, system_ase)
+system = bulk(:Si)
 
-# To use an AbstractSystem in DFTK, we attach pseudopotentials, construct a DFT model,
-# discretise and solve:
+# By default the atoms of an `AbstractSystem` employ the bare Coulomb potential.
+# To make calculations feasible for plane-wave DFT we thus attach pseudopotential information,
+# before passing the `systom` to construct a DFT model, discretise and solve:
 system = attach_psp(system; Si="hgh/lda/si-q4")
 
 model  = model_LDA(system; temperature=1e-3)

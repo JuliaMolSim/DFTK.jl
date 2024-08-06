@@ -51,7 +51,9 @@ PAGES = [
         # This concerns the discussion of interfaces, IO and integration
         # options we have
         "examples/atomsbase.jl",
+        "examples/atomscalculators.jl",
         "examples/input_output.jl",
+        "examples/atomistic_simulation_environment.jl",
         "examples/wannier.jl",
     ],
     "Tips and tricks" => [

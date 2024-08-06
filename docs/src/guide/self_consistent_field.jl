@@ -149,20 +149,20 @@ end;
 #     The ad-hoc convergence criterion in the example above is included only for
 #     pedagogical purposes. It does not yet include the correct scaling,
 #     which depends on the discretization.
-#     It is preferred to use the provided DFTK utilities for specifiying
+#     It is preferred to use the provided DFTK utilities for specifying
 #     convergence, that can be shared across different solvers. For the more
 #     advanced version, see the tutorial on [custom SCF solvers](@ref custom-solvers).
 
-# To test this algorithm we use the following simple setting, which builds and discretises
+# To test this algorithm we use the following simple setting, which builds and discretizes
 # a PBE model for an aluminium supercell.
 
-using ASEconvert
+using AtomsBuilder
 using LazyArtifacts
 import Main: @artifact_str # hide
 
 function aluminium_setup(repeat=1; Ecut=13.0, kgrid=[2, 2, 2])
-    ase_Al = ase.build.bulk("Al"; cubic=true) * pytuple((repeat, 1, 1))
-    system = attach_psp(pyconvert(AbstractSystem, ase_Al);
+    al_supercell = bulk(:Al; cubic=true) * (repeat, 1, 1)
+    system = attach_psp(al_supercell;
                         Al=artifact"pd_nc_sr_pbe_standard_0.4.1_upf/Al.upf")
     model = model_PBE(system; temperature=1e-3, symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid)

@@ -23,13 +23,13 @@
 #
 # For our investigation we consider a crude aluminium setup:
 
-using ASEconvert
+using AtomsBuilder
 using DFTK
 using LazyArtifacts
 import Main: @artifact_str # hide
 
-ase_Al    = ase.build.bulk("Al"; cubic=true) * pytuple((4, 1, 1))
-system_Al = attach_psp(pyconvert(AbstractSystem, ase_Al);
+al_supercell = bulk(:Al) * (4, 1, 1)
+system_Al = attach_psp(al_supercell;
                        Al=artifact"pd_nc_sr_pbe_standard_0.4.1_upf/Al.upf")
 
 # and we discretise:

@@ -28,18 +28,16 @@ end
 @testitem "MonkhorstPack irreducible_kcoords is correct reduction" #=
     =#    tags=[:dont_test_mpi] setup=[TestCases] begin
     using Logging
-    using ASEconvert
+    using AtomsBuilder
     (; silicon, magnesium, platinum_hcp) = TestCases.all_testcases
 
     function test_reduction(testcase, kgrid_size, kirredsize;
                             supercell=(1, 1, 1), kshift=[0, 0, 0])
         system = atomic_system(testcase.lattice, testcase.atoms, testcase.positions)
-
-        # Make supercell
-        if supercell != (1, 1, 1)
-            ase_atoms = with_logger(() -> convert_ase(system), NullLogger())
-            system = pyconvert(AbstractSystem, ase_atoms * pytuple(supercell))
+        if supercell != (1, 1, 1)  # Make supercell
+            system = system * supercell
         end
+
         kgrid = MonkhorstPack(kgrid_size, kshift)
         symmetries = symmetry_operations(system)
         sym_preserving_grid = DFTK.symmetries_preserving_kgrid(symmetries, kgrid)
@@ -69,8 +67,8 @@ end
     test_reduction(silicon, [ 3,  3,  3], 6, kshift=[1//2, 0, 1//2])
     test_reduction(silicon, [ 3,  3,  3], 6, kshift=[0, 1//2, 0])
 
-    test_reduction(silicon, [ 1,  4,  4],    7, supercell=[2, 1, 1])
-    test_reduction(silicon, [ 1,  16,  16], 73, supercell=[4, 1, 1])
+    test_reduction(silicon, [ 1,  4,  4],    7, supercell=(2, 1, 1))
+    test_reduction(silicon, [ 1,  16,  16], 73, supercell=(4, 1, 1))
 
     test_reduction(magnesium, [ 2,  3,  2],   8)
     test_reduction(magnesium, [ 3,  3,  3],   6)
