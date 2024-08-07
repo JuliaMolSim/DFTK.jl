@@ -27,6 +27,12 @@ calc = DFTKCalculator(; model_kwargs, basis_kwargs, scf_kwargs)
 # Note, that the `scf_kwargs` is optional and can be missing
 # (then the defaults of `self_consistent_field` are used).
 #
+# !!! tip "Kpoints from kpoint density"
+#     Note that DFTK's [`kgrid_from_maximal_spacing`](@ref) function can also be used with
+#     `AbstractSystem` objects to determine an appropriate `kgrid` paramter for the `basis_kwargs`.
+#     E.g. `kgrid_from_maximal_spacing(system, 0.25u"1/Å")` gives a k-point spacing of
+#     `0.25` per Angström for the passed system.
+#
 # Based on this `calc` object we can perform a DFT calculation on bulk silicon
 # according to the
 # [`AtomsCalculators` interface](https://juliamolsim.github.io/AtomsCalculators.jl/stable/interface/),

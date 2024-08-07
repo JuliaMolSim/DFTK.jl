@@ -14,12 +14,11 @@ using Random
 using ChainRulesCore
 using PrecompileTools
 
-@template METHODS =
-"""
-$(TYPEDSIGNATURES)
-
-$(DOCSTRING)
-"""
+@template (FUNCTIONS, METHODS, MACROS) = 
+    """
+    $(TYPEDSIGNATURES)
+    $(DOCSTRING)
+    """
 
 export Vec3
 export Mat3
