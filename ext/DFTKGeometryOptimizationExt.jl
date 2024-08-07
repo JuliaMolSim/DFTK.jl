@@ -15,9 +15,10 @@ function GO.minimize_energy!(system, calc::DFTKCalculator, solver;
                   "unless keyword argument `autoadjust_calculator=false` is passed.")
         end
 
-        # TODO I have no idea
+        # TODO Hardly tested, whether these heuristics are reasonable
         tol = min(austrip(tol_viral), austrip(tol_force), sqrt(austrip(tol_energy))) / 10
-        scf_kwargs = merge(calc.ps.scf_kwargs, (; is_converged=ScfConvergenceDensity(tol), ))
+
+        scf_kwargs = merge(calc.ps.scf_kwargs, (; miniter=2, is_converged=ScfConvergenceDensity(tol), ))
         params = DFTKParameters(; calc.ps.model_kwargs, calc.ps.basis_kwargs, scf_kwargs)
         calc = DFTKCalculator(params, calc.st)
     end

@@ -109,6 +109,7 @@ Overview of parameters:
   to flag convergence. Default is `1e-6`.
 - `is_converged`: Convergence control callback. Typical objects passed here are
   `ScfConvergenceDensity(tol)` (the default), `ScfConvergenceEnergy(tol)` or `ScfConvergenceForce(tol)`.
+- `miniter`: Minimal number of SCF iterations
 - `maxiter`: Maximal number of SCF iterations
 - `maxtime`: Maximal time to run the SCF for. If this is reached without
    convergence, the SCF stops.
@@ -131,6 +132,7 @@ Overview of parameters:
     ψ=nothing,
     tol=1e-6,
     is_converged=ScfConvergenceDensity(tol),
+    miniter=0,
     maxiter=100,
     maxtime=Year(1),
     mixing=LdosMixing(),
@@ -184,11 +186,10 @@ Overview of parameters:
         # Apply mixing and pass it the full info as kwargs
         ρnext = ρin .+ T(damping) .* mix_density(mixing, basis, Δρ; info_next...)
 
-        
-        converged = is_converged(info_next)
+        converged = n_iter ≥ miniter && is_converged(info_next)
         converged = MPI.bcast(converged, 0, MPI.COMM_WORLD)
         info_next = merge(info_next, (; converged))
-        
+
         timedout = MPI.bcast(Dates.now() ≥ timeout_date, MPI.COMM_WORLD)
         info_next = merge(info_next, (; timedout))
 
@@ -202,7 +203,7 @@ Overview of parameters:
 
     # Convergence is flagged by is_converged inside the fixpoint_map.
     _, info = solver(fixpoint_map, ρ, info_init; maxiter)
-    
+
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρout, so we return that. We also perform a last energy computation
     # to return a correct variational energy
