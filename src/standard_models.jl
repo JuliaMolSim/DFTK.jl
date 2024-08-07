@@ -26,6 +26,17 @@ end
 
 """
 Build a DFT model from the specified atoms, with the specified functionals.
+
+# Examples
+```julia-repl
+julia> model_DFT(system, LDA(); temperature=0.01)
+```
+builds an [`LDA`](@ref) model for a passed system with specified smearing temperature.
+
+```julia-repl
+julia> model_DFT(system; functionals=LDA(), temperature=0.01)
+```
+Alternative syntax achieving exactly the same.
 """
 function model_DFT(lattice::AbstractMatrix,
                    atoms::Vector{<:Element},
@@ -46,46 +57,50 @@ end
 function model_DFT(lattice::AbstractMatrix,
                    atoms::Vector{<:Element},
                    positions::Vector{<:AbstractVector};
-                   functionals::AbstractVector,
-                   kwargs...)
+                   functionals, kwargs...)
     model_DFT(lattice, atoms, positions, functionals; kwargs...)
-end
-
-"""
-Build an LDA model (Perdew & Wang parametrization) from the specified atoms.
-<https://doi.org/10.1103/PhysRevB.45.13244>
-"""
-function model_LDA(lattice::AbstractMatrix, atoms::Vector{<:Element},
-                   positions::Vector{<:AbstractVector}; kwargs...)
-    model_DFT(lattice, atoms, positions, [:lda_x, :lda_c_pw]; kwargs...)
-end
-
-
-"""
-Build an PBE-GGA model from the specified atoms.
-<https://doi.org/10.1103/PhysRevLett.77.3865>
-"""
-function model_PBE(lattice::AbstractMatrix, atoms::Vector{<:Element},
-                   positions::Vector{<:AbstractVector}; kwargs...)
-    model_DFT(lattice, atoms, positions, [:gga_x_pbe, :gga_c_pbe]; kwargs...)
-end
-
-
-"""
-Build a SCAN meta-GGA model from the specified atoms.
-<https://doi.org/10.1103/PhysRevLett.115.036402>
-"""
-function model_SCAN(lattice::AbstractMatrix, atoms::Vector{<:Element},
-                    positions::Vector{<:AbstractVector}; kwargs...)
-    model_DFT(lattice, atoms, positions, [:mgga_x_scan, :mgga_c_scan]; kwargs...)
 end
 
 
 # Generate equivalent functions for AtomsBase
-for fun in (:model_atomic, :model_DFT, :model_LDA, :model_PBE, :model_SCAN)
+for fun in (:model_atomic, :model_DFT)
     @eval function $fun(system::AbstractSystem, args...; kwargs...)
         parsed = parse_system(system)
         $fun(parsed.lattice, parsed.atoms, parsed.positions, args...;
              parsed.magnetic_moments, kwargs...)
     end
 end
+
+#
+# Convenient shorthands for frequently used functionals
+#
+
+"""
+Specify an LDA model (Perdew & Wang parametrization) in conjunction with [`model_DFT`](@ref)
+<https://doi.org/10.1103/PhysRevB.45.13244>
+"""
+LDA(; kwargs...) = Xc([:lda_x, :lda_c_pw]; kwargs...)
+
+"""
+Specify an PBE-GGA model in conjunction with [`model_DFT`](@ref)
+<https://doi.org/10.1103/PhysRevLett.77.3865>
+"""
+PBE(; kwargs...) = Xc([:gga_x_pbe, :gga_c_pbe]; kwargs...)
+
+"""
+Specify a SCAN meta-GGA model in conjunction with [`model_DFT`](@ref)
+<https://doi.org/10.1103/PhysRevLett.115.036402>
+"""
+SCAN(; kwargs...) = Xc([:mgga_x_scan, :mgga_c_scan]; kwargs...)
+
+
+@deprecate(model_LDA(lattice::AbstractMatrix, atoms::Vector{<:Element},
+                     positions::Vector{<:AbstractVector}; kwargs...),
+           model_DFT(lattice, atoms, positions, LDA(); kwargs...))
+@deprecate(model_PBE(lattice::AbstractMatrix, atoms::Vector{<:Element},
+                     positions::Vector{<:AbstractVector}; kwargs...),
+           model_DFT(lattice, atoms, positions, PBE(); kwargs...))
+
+@deprecate(model_SCAN(lattice::AbstractMatrix, atoms::Vector{<:Element},
+                      positions::Vector{<:AbstractVector}; kwargs...),
+           model_DFT(lattice, atoms, positions, SCAN(); kwargs...))
