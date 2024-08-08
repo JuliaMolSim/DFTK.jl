@@ -34,6 +34,14 @@ see [Publications](@ref).
   in particular the [summary of DFT theory](https://michael-herbst.com/teaching/2022-mit-workshop-dftk/2022-mit-workshop-dftk/DFT_Theory.pdf).
 
 ## Textbooks
+
+- [Density Functional Theory](https://doi.org/10.1007/978-3-031-22340-2)
+  edited by Eric Cancès and Gero Friesecke (Springer, 2023):
+  Up to date textbook accessible to an interdisciplinary audience with contributions
+  by mathematicians and application researchers. Particularly relevant are:
+    * [Chapter 1: Review of Approximations for the Exchange-Correlation Energy in Density-Functional Theory](http://arxiv.org/abs/2103.02645v1)
+    * [Chapter 7: Numerical Methods for Kohn–Sham Models: Discretization, Algorithms, and Error Analysis](https://doi.org/10.1007/978-3-031-22340-2_7)
+
 - [Electronic Structure: Basic theory and practical methods](https://doi.org/10.1017/CBO9780511805769)
   by R. M. Martin (Cambridge University Press, 2004):
   Standard textbook introducing

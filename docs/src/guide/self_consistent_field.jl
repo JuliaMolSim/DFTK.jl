@@ -123,26 +123,35 @@
 
 using DFTK
 using LinearAlgebra
-function fixed_point_iteration(F, ρ₀, maxiter; tol)
-    ## F:        The SCF step function
-    ## ρ₀:       The initial guess density
-    ## maxiter:  The maximal number of iterations to be performed
-    ## tol:      The selected convergence tolerance
 
-    ρ  = ρ₀
-    Fρ = F(ρ)
+function fixed_point_iteration(F, ρ0, info0; maxiter, tol=1e-10)
+    ## F:        The SCF step function
+    ## ρ0:       The initial guess density
+    ## info0:    The initial metadata
+    ## maxiter:  The maximal number of iterations to be performed
+
+    ρ = ρ0
+    info = info0
     for n = 1:maxiter
-        ## If change less than tolerance, break iterations:
+        Fρ, info = F(ρ, info)
+        ## If the change is less than the tolerance, break iteration.
         if norm(Fρ - ρ) < tol
             break
         end
-        ρ  = Fρ
-        Fρ = F(ρ)
+        ρ = Fρ
     end
 
     ## Return some stuff DFTK needs ...
-    (fixpoint=ρ, converged=norm(Fρ-ρ) < tol)
+    (; fixpoint=ρ, info)
 end;
+
+# !!! note "Convergence checks in DFTK"
+#     The ad-hoc convergence criterion in the example above is included only for
+#     pedagogical purposes. It does not yet include the correct scaling,
+#     which depends on the discretization.
+#     It is preferred to use the provided DFTK utilities for specifiying
+#     convergence, that can be shared across different solvers. For the more
+#     advanced version, see the tutorial on [custom SCF solvers](@ref custom-solvers).
 
 # To test this algorithm we use the following simple setting, which builds and discretises
 # a PBE model for an aluminium supercell.
@@ -213,21 +222,22 @@ self_consistent_field(aluminium_setup(1); solver=fixed_point_iteration, damping=
 # ```
 # In terms of an algorithm Anderson iteration is
 
-function anderson_iteration(F, ρ₀, maxiter; tol)
+function anderson_iteration(F, ρ0, info0; maxiter)
     ## F:        The SCF step function
-    ## ρ₀:       The initial guess density
+    ## ρ0:       The initial guess density
+    ## info0:    The initial metadata
     ## maxiter:  The maximal number of iterations to be performed
-    ## tol:      The selected convergence tolerance
 
-    converged = false
-    ρ  = ρ₀
+    info = info0
+    ρ  = ρ0
     ρs = []
     Rs = []
     for n = 1:maxiter
-        Fρ = F(ρ)
+        Fρ, info = F(ρ, info)
+        if info.converged
+            break
+        end
         Rρ = Fρ - ρ
-        converged = norm(Rρ) < tol
-        converged && break
 
         ρnext = vec(ρ) .+ vec(Rρ)
         if !isempty(Rs)
@@ -241,11 +251,11 @@ function anderson_iteration(F, ρ₀, maxiter; tol)
 
         push!(ρs, vec(ρ))
         push!(Rs, vec(Rρ))
-        ρ = reshape(ρnext, size(ρ₀)...)
+        ρ = reshape(ρnext, size(ρ0)...)
     end
 
     ## Return some stuff DFTK needs ...
-    (fixpoint=ρ, converged=converged)
+    (; fixpoint=ρ, info)
 end;
 
 # To work with this algorithm we will use DFTK's intrinsic mechanism to choose a damping. The syntax for this is
