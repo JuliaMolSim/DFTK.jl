@@ -63,7 +63,7 @@ end;
 # !!! tip "Exercise 2"
 #     Show that
 #     ```math
-#        \langle e_G, e_{G'}\rangle = ∫_0^{2π} e_G(x) e_{G'}(x) d x = δ_{G, G'}
+#        \langle e_G, e_{G'}\rangle = ∫_0^{2π} e_G\ast(x) e_{G'}(x) d x = δ_{G, G'}
 #     ```
 #     and (assuming $V(x) = \cos(x)$)
 #     ```math

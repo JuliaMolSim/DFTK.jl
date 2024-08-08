@@ -15,77 +15,77 @@
 # ending in *.jl will be processed to *.md with Literate.
 PAGES = [
     "Home" => "index.md",
-    "features.md",
+    # "features.md",
     "Getting started" => [
-        "guide/installation.md",
-        "guide/tutorial.jl",
+    #     "guide/installation.md",
+    #     "guide/tutorial.jl",
     ],
     "Background" => [
         # Theoretical background
-        "guide/introductory_resources.md",
-        "guide/periodic_problems.jl",
+        # "guide/introductory_resources.md",
+        # "guide/periodic_problems.jl",
         "guide/discretisation.jl",
-        "guide/atomic_chains.jl",
-        "guide/density_functional_theory.md",
-        "guide/self_consistent_field.jl",
-        "school2022.md",
+        # "guide/atomic_chains.jl",
+        # "guide/density_functional_theory.md",
+        # "guide/self_consistent_field.jl",
+        # "school2022.md",
     ],
     "Basic DFT calculations" => [
         # Ground-state DFT calculations, standard problems and modelling techniques
         # Some basic show cases; may feature integration of DFTK with other packages.
-        "examples/metallic_systems.jl",
-        "examples/collinear_magnetism.jl",
-        "examples/convergence_study.jl",
-        "examples/pseudopotentials.jl",
-        "examples/supercells.jl",
-        "examples/gaas_surface.jl",
-        "examples/graphene.jl",
-        "examples/geometry_optimization.jl",
-        "examples/energy_cutoff_smearing.jl",
+        # "examples/metallic_systems.jl",
+        # "examples/collinear_magnetism.jl",
+        # "examples/convergence_study.jl",
+        # "examples/pseudopotentials.jl",
+        # "examples/supercells.jl",
+        # "examples/gaas_surface.jl",
+        # "examples/graphene.jl",
+        # "examples/geometry_optimization.jl",
+        # "examples/energy_cutoff_smearing.jl",
     ],
     "Response and properties" => [
-        "examples/polarizability.jl",
-        "examples/forwarddiff.jl",
+        # "examples/polarizability.jl",
+        # "examples/forwarddiff.jl",
     ],
     "Ecosystem integration" => [
-        # This concerns the discussion of interfaces, IO and integration
-        # options we have
-        "examples/atomsbase.jl",
-        "examples/input_output.jl",
-        "examples/wannier.jl",
+    #     # This concerns the discussion of interfaces, IO and integration
+    #     # options we have
+    #     "examples/atomsbase.jl",
+    #     "examples/input_output.jl",
+    #   #  "examples/wannier.jl",
     ],
     "Tips and tricks" => [
         # Resolving convergence issues, what solver to use, improving performance or
         # reliability of calculations.
-        "tricks/parallelization.md",
-        "tricks/scf_checkpoints.jl",
-        "tricks/compute_clusters.md",
+        # "tricks/parallelization.md",
+        # "tricks/scf_checkpoints.jl",
+        # "tricks/compute_clusters.md",
     ],
     "Solvers" => [
-        "examples/custom_solvers.jl",
-        "examples/scf_callbacks.jl",
-        "examples/compare_solvers.jl",
-        "examples/analysing_scf_convergence.jl",
+        # "examples/custom_solvers.jl",
+        # "examples/scf_callbacks.jl",
+        # "examples/compare_solvers.jl",
+        # "examples/analysing_scf_convergence.jl",
     ],
     "Nonstandard models" => [
-        "examples/gross_pitaevskii.jl",
-        "examples/gross_pitaevskii_2D.jl",
-        "examples/custom_potential.jl",
-        "examples/cohen_bergstresser.jl",
-        "examples/anyons.jl",
+        # "examples/gross_pitaevskii.jl",
+        # "examples/gross_pitaevskii_2D.jl",
+        # "examples/custom_potential.jl",
+        # "examples/cohen_bergstresser.jl",
+        # "examples/anyons.jl",
     ],
     "Error control" => [
-        "examples/arbitrary_floattype.jl",
-        "examples/error_estimates_forces.jl",
+        # "examples/arbitrary_floattype.jl",
+        # "examples/error_estimates_forces.jl",
     ],
     "Developer resources" => [
-        "developer/setup.md",
-        "developer/conventions.md",
-        "developer/style_guide.md",
-        "developer/data_structures.md",
-        "developer/useful_formulas.md",
-        "developer/symmetries.md",
-        "developer/gpu_computations.md",
+    #     "developer/setup.md",
+    #     "developer/conventions.md",
+    #     "developer/style_guide.md",
+    #     "developer/data_structures.md",
+    #     "developer/useful_formulas.md",
+    #     "developer/symmetries.md",
+    #     "developer/gpu_computations.md",
     ],
     "api.md",
     "publications.md",
@@ -98,7 +98,7 @@ EXAMPLE_ASSETS = ["examples/Fe_afm.pwi", "examples/Si.extxyz"]
 #
 # Configuration and setup
 #
-DEBUG = false  # Set to true to disable some checks and cleanup
+DEBUG = true # Set to true to disable some checks and cleanup
 
 import LibGit2
 import Pkg
