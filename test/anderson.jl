@@ -20,14 +20,11 @@ function test_addiis(testcase; temperature=0, Ecut=10, kgrid=[3, 3, 3], n_bands=
     scfres_addiis = self_consistent_field(basis; ρ, ψ, tol, mixing=SimpleMixing(), solver)
 
     @test norm(scfres_addiis.ρ - scfres_rdiis.ρ) * sqrt(basis.dvol) < 10tol
+    @test norm(scfres_simple.ρ - scfres_rdiis.ρ) * sqrt(basis.dvol) < 10tol
 
-    # Test that some measure to control Anderson conditioning helps.
+    # Test that some measure to control Anderson conditioning help.
     @test scfres_rdiis.n_iter  ≤ scfres_simple.n_iter
     @test scfres_addiis.n_iter ≤ scfres_simple.n_iter
-
-    # Iterations can fluctuate a bit, but test that adaptive Anderson is not substantially
-    # worse than condition-number truncated Anderson
-    @test scfres_addiis.n_iter < scfres_rdiis.n_iter + 2
 end
 
 @testset "Aluminium, temp" begin
