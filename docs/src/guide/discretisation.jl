@@ -17,9 +17,9 @@
 # ## Finite differences
 # We approximate functions $ψ$ on $[0, 2\pi]$ by their values at grid points
 # $x_k = 2\pi \frac{k}{N}$, $k=1, \dots, N$.
-# The boundary conditions are imposed by $ψ(x_0) = ψ(x_N), ψ(x_{N+1}) = ψ(x_0)$. We then have
+# The boundary conditions are imposed by $ψ(x_0) = ψ(x_N), ψ(x_{N+1}) = ψ(x_1)$. We then have
 # ```math
-#    \big(Hψ\big)(x_k) \approx \frac 1 2 \frac{-ψ_{k-1} + 2 ψ_k - ψ_{k+1}}{2 δx^2}
+#    \big(Hψ\big)(x_k) \approx \frac 1 2 \frac{-ψ_{k-1} + 2 ψ_k - ψ_{k+1}}{δx^2}
 #    + V(x_k) ψ(x_k)
 # ```
 # with $δx = \frac{2π}{N}$.
@@ -63,7 +63,7 @@ end;
 # !!! tip "Exercise 2"
 #     Show that
 #     ```math
-#        \langle e_G, e_{G'}\rangle = ∫_0^{2π} e_G(x) e_{G'}(x) d x = δ_{G, G'}
+#        \langle e_G, e_{G'}\rangle = ∫_0^{2π} e_G(x)\ast e_{G'}(x) d x = δ_{G, G'}
 #     ```
 #     and (assuming $V(x) = \cos(x)$)
 #     ```math
@@ -118,7 +118,8 @@ plot(real(ψ); label="")
 
 # Again this should match with the result above.
 #
-# **Exercise 4:** Look at the Fourier coefficients of $\psi$ ($\psi$_fourier)
+# !!! "Exercise 4"
+# Look at the Fourier coefficients of $\psi$_fourier
 # and compare with the result above.
 
 # ## The DFTK Hamiltonian
@@ -167,7 +168,7 @@ Array(H)
 # such that overall
 # ```math
 # f''(x) \simeq \frac{f(x + 2δx) - f(x + δx) - f(x + δx) + f(x)}{δx^2}
-#        = \frac{f(x + 2δx) - 2f(x + δx) f(x)}{δx^2}
+#        = \frac{f(x + 2δx) - 2f(x + δx) + f(x)}{δx^2}
 # ```
 # In finite differences we consider a stick basis of vectors
 # ```math
@@ -180,7 +181,7 @@ Array(H)
 # !!! note "TODO More details"
 #     More details needed
 #
-# We start off with $N = 500$ to obtain
+# We start off with $N = 100$ to obtain
 
 Hfd = build_finite_differences_matrix(cos, 100)
 L, V = eigen(Hfd)
