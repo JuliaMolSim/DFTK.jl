@@ -39,15 +39,14 @@ Examples are
   [AtomsIOPython](https://github.com/mfherbst/AtomsIO.jl),
   which allow you to read (and write) a large range of standard file formats
   for atomistic structures. In particular AtomsIO is lightweight and highly recommended.
-- [ASEconvert](https://github.com/mfherbst/ASEconvert.jl),
-  which integrates DFTK with a number of convenience features of the
-  atomistic simulation environment (ASE), see [Atomistic simulation environment](@ref)
-  for more details.
+- [AtomsBuilder](https://github.com/JuliaMolSim/AtomsBuilder.jl),
+  which provides a few convenience functions for setting up initial structures,
+  see [AtomsBase integration](@ref) for more details.
 
 You can install these packages using
 ```julia
 import Pkg
-Pkg.add(["AtomsIO", "AtomsIOPython", "ASEconvert"])
+Pkg.add(["AtomsIO", "AtomsIOPython", "AtomsBuilder"])
 ```
 
 !!! tip "Python dependencies in Julia"

@@ -5,6 +5,7 @@
 # structures to run a calculation as is demonstrated here.
 
 using DFTK
+using AtomsBuilder
 
 # ## Feeding an AtomsBase AbstractSystem to DFTK
 #
@@ -16,7 +17,7 @@ system = bulk(:Si)
 
 # By default the atoms of an `AbstractSystem` employ the bare Coulomb potential.
 # To make calculations feasible for plane-wave DFT we thus attach pseudopotential information,
-# before passing the `systom` to construct a DFT model, discretise and solve:
+# before passing the `system` to construct a DFT model, discretise and solve:
 system = attach_psp(system; Si="hgh/lda/si-q4")
 
 model  = model_LDA(system; temperature=1e-3)
