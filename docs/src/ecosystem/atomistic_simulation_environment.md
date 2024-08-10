@@ -20,10 +20,11 @@ An example of this workflow is given in [Modelling a gallium arsenide surface](@
 ## Using DFTK as a calculator in ASE
 
 !!! warning "Experimental feature"
-    This feature is hardly tested and there will likely be rough edges.
-    There is a chance that even this example has stopped working since we made it.
-    If you want to give this a try and encounter issues, we really appreciate
-    if you let us know by opening an issue. As always PRs are also welcome !
+    This feature is basically untested and at the moment mainly serves as a
+    pointer to the expert user how a DFTK integration into ASE could be achieved.
+    If you are interested in trying this and ironing out the rough edges,
+    please open an issue or a PR to polish this towards a state where it can
+    be helpful for others.
 
 The [AtomsCalculatorsUtilities](https://github.com/JuliaMolSim/AtomsCalculatorsUtilities.jl)
 package contains an implementation of the [i-PI protocol](https://github.com/i-pi/i-pi)

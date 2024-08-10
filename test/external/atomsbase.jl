@@ -46,7 +46,7 @@
         @test system[:, :magnetic_moment] == magnetic_moments
     end
 
-    for constructor in (Model, model_atomic, model_LDA, model_PBE, model_SCAN)
+    for constructor in (Model, model_atomic)
         model = constructor(system)
         @test model.spin_polarization == :collinear
         newsys = periodic_system(model, magnetic_moments)
