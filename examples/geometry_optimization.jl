@@ -6,8 +6,8 @@
 # for which we use the LDA model just like in the [Tutorial](@ref) for silicon.
 
 calc = DFTKCalculator(;
-    model_kwargs = (; functionals=[:lda_x, :lda_c_pw]),  # xc functionals employed by model_LDA
-    basis_kwargs = (; kgrid=[1, 1, 1], Ecut=10)          # Crude numerical parameters
+    model_kwargs = (; functionals=LDA()),        # xc functionals
+    basis_kwargs = (; kgrid=[1, 1, 1], Ecut=10)  # Crude numerical parameters
 )
 
 # Next we set up an initial hydrogen molecule within a box of vacuum:

@@ -34,7 +34,7 @@ system_Al = attach_psp(al_supercell;
 
 # and we discretise:
 
-model_Al = model_LDA(system_Al; temperature=1e-3, symmetries=false)
+model_Al = model_DFT(system_Al, LDA(); temperature=1e-3, symmetries=false)
 basis_Al = PlaneWaveBasis(model_Al; Ecut=7, kgrid=[1, 1, 1]);
 
 # On aluminium (a metal) already for moderate system sizes (like the 8 layers

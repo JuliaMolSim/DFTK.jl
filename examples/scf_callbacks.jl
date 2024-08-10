@@ -15,7 +15,7 @@
 using DFTK
 using AtomsBuilder
 
-model  = model_LDA(attach_psp(bulk(:Si); Si="hgh/pbe/si-q4.hgh"))
+model  = model_DFT(attach_psp(bulk(:Si), LDA(); Si="hgh/pbe/si-q4.hgh"))
 basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3]);
 
 # DFTK already defines a few callback functions for standard
