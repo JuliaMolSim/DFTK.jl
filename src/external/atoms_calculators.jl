@@ -15,10 +15,16 @@ struct DFTKCalculator{T}
     #       hence we do not expose them with `AtomsCalculators.get_parameters`
     params::DFTKParameters
     st::T
-    enforce_convergence::Bool
+    #
+    # Calculator counters
+    counter_n_iter::Ref{Int}
+    counter_matvec::Ref{Int}
+    #
+    # Calculator parameters
+    enforce_convergence::Bool  # If true, throws an error exception on non-convergence
 
     function DFTKCalculator(params::DFTKParameters, st=nothing; enforce_convergence=true)
-        new{Nothing}(params, st, enforce_convergence)
+        new{Nothing}(params, st, Ref(0), Ref(0), enforce_convergence)
     end
 end
 AtomsCalculators.energy_unit(::DFTKCalculator) = u"hartree"
@@ -41,7 +47,7 @@ Calculator-specific keyword arguments are:
 
 ## Example
 ```julia-repl
-julia> DFTKCalculator(; model_kwargs=(; functionals=[:lda_x, :lda_c_vwn]),
+julia> DFTKCalculator(; model_kwargs=(; functionals=LDA()),
                         basis_kwargs=(; Ecut=10, kgrid=(2, 2, 2)),
                         scf_kwargs=(; tol=1e-4))
 ```
@@ -75,6 +81,8 @@ function compute_scf(system::AbstractSystem, calc::DFTKCalculator, oldstate)
     ψ = get(oldstate, :ψ, nothing)
     scfres = self_consistent_field(basis; ρ, ψ, calc.params.scf_kwargs...)
     calc.enforce_convergence && !scfres.converged && error("SCF not converged.")
+    calc.counter_n_iter[] += scfres.n_iter
+    calc.counter_matvec[] += scfres.n_matvec
     scfres
 end
 function compute_scf(system::AbstractSystem, calc::DFTKCalculator, ::Nothing)

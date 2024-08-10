@@ -92,7 +92,8 @@ function next_density(ham::Hamiltonian,
 
     ρout = compute_density(ham.basis, eigres.X, occupation; nbandsalg.occupation_threshold)
     (; ψ=eigres.X, eigenvalues=eigres.λ, occupation, εF, ρout, diagonalization=eigres,
-     n_bands_converge, nbandsalg.occupation_threshold)
+     n_bands_converge, nbandsalg.occupation_threshold,
+     n_matvec=mpi_sum(eigres.n_matvec, ham.basis.comm_kpts))
 end
 
 
@@ -168,10 +169,11 @@ Overview of parameters:
                                  tol=determine_diagtol(diagtolalg, info))
         (; ψ, eigenvalues, occupation, εF, ρout) = nextstate
         Δρ = ρout - ρin
+        n_matvec = info.n_matvec + nextstate.n_matvec
 
         # Update info with results gathered so far
         info_next = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
-                       ρin, α=damping, n_iter, nbandsalg.occupation_threshold,
+                       ρin, α=damping, n_iter, n_matvec, nbandsalg.occupation_threshold,
                        runtime_ns=time_ns() - start_ns, nextstate...,
                        diagonalization=[nextstate.diagonalization])
 
@@ -199,7 +201,8 @@ Overview of parameters:
     end
 
     info_init = (; ρin=ρ, ψ=ψ, occupation=nothing, eigenvalues=nothing, εF=nothing, 
-                   n_iter=0, timedout=false, converged=false, history_Etot=T[], history_Δρ=T[])
+                   n_iter=0, n_matvec=0, timedout=false, converged=false,
+                   history_Etot=T[], history_Δρ=T[])
 
     # Convergence is flagged by is_converged inside the fixpoint_map.
     _, info = solver(fixpoint_map, ρ, info_init; maxiter)
@@ -213,7 +216,7 @@ Overview of parameters:
     # Callback is run one last time with final state to allow callback to clean up
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
                 ρ=ρout, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
-                info.n_iter, ψ, info.diagonalization, stage=:finalize,
+                info.n_iter, info.n_matvec, ψ, info.diagonalization, stage=:finalize,
                 info.history_Δρ, info.history_Etot, info.timedout,
                 runtime_ns=time_ns() - start_ns, algorithm="SCF")
     callback(scfres)
