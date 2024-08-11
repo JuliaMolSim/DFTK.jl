@@ -5,6 +5,12 @@ using UnitfulAtomic
 import GeometryOptimization
 GO = GeometryOptimization
 
+# For DFTK use LBFGS as default algorithm
+# TODO Benchmark this heuristics
+function GO.setup_solver(system, calc::DFTKCalculator, ::GO.Autoselect; kwargs...)
+    GO.setup_solver(system, calc, GO.OptimLBFGS(); kwargs...)
+end
+
 function GO.minimize_energy!(system, calc::DFTKCalculator, solver;
                              autoadjust_calculator=true,
                              tol_energy=Inf*u"eV",

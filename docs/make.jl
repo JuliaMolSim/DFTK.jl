@@ -82,6 +82,7 @@ PAGES = [
     ],
     "Developer resources" => [
         "developer/setup.md",
+        "developer/testsystem.md",
         "developer/conventions.md",
         "developer/style_guide.md",
         "developer/data_structures.md",
