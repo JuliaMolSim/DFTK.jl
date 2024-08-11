@@ -82,10 +82,16 @@ Specify an LDA model (Perdew & Wang parametrization) in conjunction with [`model
 LDA(; kwargs...) = Xc([:lda_x, :lda_c_pw]; kwargs...)
 
 """
-Specify an PBE-GGA model in conjunction with [`model_DFT`](@ref)
+Specify an PBE GGA model in conjunction with [`model_DFT`](@ref)
 <https://doi.org/10.1103/PhysRevLett.77.3865>
 """
 PBE(; kwargs...) = Xc([:gga_x_pbe, :gga_c_pbe]; kwargs...)
+
+"""
+Specify an PBEsol GGA model in conjunction with [`model_DFT`](@ref)
+<https://doi.org/10.1103/physrevlett.100.136406>
+"""
+PBEsol(; kwargs...) = Xc([:gga_x_pbe_soL, :gga_c_pbe_sol]; kwargs...)
 
 """
 Specify a SCAN meta-GGA model in conjunction with [`model_DFT`](@ref)
@@ -100,7 +106,9 @@ SCAN(; kwargs...) = Xc([:mgga_x_scan, :mgga_c_scan]; kwargs...)
 @deprecate(model_PBE(lattice::AbstractMatrix, atoms::Vector{<:Element},
                      positions::Vector{<:AbstractVector}; kwargs...),
            model_DFT(lattice, atoms, positions, PBE(); kwargs...))
-
 @deprecate(model_SCAN(lattice::AbstractMatrix, atoms::Vector{<:Element},
                       positions::Vector{<:AbstractVector}; kwargs...),
            model_DFT(lattice, atoms, positions, SCAN(); kwargs...))
+@deprecate model_LDA(system::AbstractSystem; kwargs...)  model_DFT(system, LDA();  kwargs...)
+@deprecate model_PBE(system::AbstractSystem; kwargs...)  model_DFT(system, PBE();  kwargs...)
+@deprecate model_SCAN(system::AbstractSystem; kwargs...) model_DFT(system, SCAN(); kwargs...)
