@@ -19,6 +19,8 @@
 # For example, to perform the calculation of the [Tutorial](@ref) using
 # the AtomsCalculators interface we define the calculator as such:
 
+using DFTK
+
 model_kwargs = (; functionals=[:lda_x, :lda_c_pw])  # xc functionals employed by model_LDA
 basis_kwargs = (; kgrid=[4, 4, 4], Ecut=7)
 scf_kwargs   = (; tol=1e-5)
