@@ -42,9 +42,8 @@ results.system  # Print final system
 
 # Compute final bond length:
 
-using Printf
 rmin = norm(position(results.system[1]) - position(results.system[2]))
-@printf "Optimal bond length: %.3f Bohr\n" austrip(rmin)
+println("Optimal bond length: ", rmin)
 
 # Our results (1.486 Bohr) agrees with the
 # [equivalent tutorial from ABINIT](https://docs.abinit.org/tutorial/base1/).
