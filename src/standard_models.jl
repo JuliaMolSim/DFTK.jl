@@ -37,6 +37,11 @@ builds an [`LDA`](@ref) model for a passed system with specified smearing temper
 julia> model_DFT(system; functionals=LDA(), temperature=0.01)
 ```
 Alternative syntax achieving exactly the same.
+
+```julia-repl
+julia> model_DFT(system; functionals=[:lda_x, :lda_c_pw], temperature=0.01)
+```
+Same thing again, manually specifying the functionals to be employed.
 """
 function model_DFT(lattice::AbstractMatrix,
                    atoms::Vector{<:Element},
@@ -49,16 +54,13 @@ function model_DFT(lattice::AbstractMatrix,
 end
 function model_DFT(lattice::AbstractMatrix,
                    atoms::Vector{<:Element},
-                   positions::Vector{<:AbstractVector},
-                   functionals;
-                   kwargs...)
-    model_DFT(lattice, atoms, positions, Xc(functionals); kwargs...)
-end
-function model_DFT(lattice::AbstractMatrix,
-                   atoms::Vector{<:Element},
                    positions::Vector{<:AbstractVector};
                    functionals, kwargs...)
-    model_DFT(lattice, atoms, positions, functionals; kwargs...)
+    if functionals isa Xc
+        model_DFT(lattice, atoms, positions, functionals; kwargs...)
+    else
+        model_DFT(lattice, atoms, positions, Xc(functionals); kwargs...)
+    end
 end
 
 
@@ -109,6 +111,12 @@ SCAN(; kwargs...) = Xc([:mgga_x_scan, :mgga_c_scan]; kwargs...)
 @deprecate(model_SCAN(lattice::AbstractMatrix, atoms::Vector{<:Element},
                       positions::Vector{<:AbstractVector}; kwargs...),
            model_DFT(lattice, atoms, positions, SCAN(); kwargs...))
+@deprecate(model_DFT(lattice::AbstractMatrix, atoms::Vector{<:Element},
+                   positions::Vector{<:AbstractVector}, functionals; kwargs...),
+           model_DFT(lattice, atoms, positions; functionals, kwargs...))
+
 @deprecate model_LDA(system::AbstractSystem; kwargs...)  model_DFT(system, LDA();  kwargs...)
 @deprecate model_PBE(system::AbstractSystem; kwargs...)  model_DFT(system, PBE();  kwargs...)
 @deprecate model_SCAN(system::AbstractSystem; kwargs...) model_DFT(system, SCAN(); kwargs...)
+@deprecate(model_DFT(system::AbstractSystem, functionals; kwargs...),
+           model_DFT(system; functionals, kwargs...))

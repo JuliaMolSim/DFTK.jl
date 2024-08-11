@@ -54,10 +54,11 @@ system = attach_psp(pyconvert(AbstractSystem, surface);
 # to ease convergence. Try lowering the SCF convergence tolerance (`tol`)
 # or the `temperature` or try `mixing=KerkerMixing()`
 # to see the full challenge of this system.
-model = model_DFT(system, [:gga_x_pbe, :gga_c_pbe],
+model = model_DFT(system;
+                  functionals=PBE(),
                   temperature=0.001, smearing=DFTK.Smearing.Gaussian())
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 
-scfres = self_consistent_field(basis, tol=1e-4, mixing=LdosMixing());
+scfres = self_consistent_field(basis; tol=1e-4, mixing=LdosMixing());
 #-
 scfres.energies
