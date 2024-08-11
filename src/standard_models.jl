@@ -49,12 +49,6 @@ julia> model_DFT(system; functionals=[:lda_x, :lda_c_pw], temperature=0.01)
 ```
 Alternative syntax specifying the functionals directly
 via their libxc codes.
-
-```julia-repl
-julia> model_DFT(system, LDA(); temperature=0.01)
-```
-Third possible syntax employing the `LDA` shorthand as an additional
-positional argument.
 """
 function model_DFT(lattice::AbstractMatrix,
                    atoms::Vector{<:Element},
@@ -75,6 +69,13 @@ function model_DFT(lattice::AbstractMatrix,
     model_atomic(lattice, atoms, positions;
                  extra_terms=[Hartree(), xc, extra_terms...], model_name, kwargs...)
 end
+
+# The idea is for the functionals keyword argument to be pretty smart in the long run,
+# such that things like
+#  - `model_DFT(system; functionals=B3LYP())`
+#  - `model_DFT(system; functionals=[LibxcFunctional(:lda_x)])`
+#  - `model_DFT(system; functionals=[:lda_x, :lda_c_pw, HubbardU(data)])`
+# will all work.
 
 
 # Generate equivalent functions for AtomsBase
