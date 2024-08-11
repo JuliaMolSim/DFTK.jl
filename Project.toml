@@ -122,7 +122,7 @@ Unitful = "1"
 UnitfulAtomic = "1"
 Wannier = "0.3.2"
 WriteVTK = "1"
-julia = "1.9"
+julia = "1.10"
 wannier90_jll = "3.1"
 
 [extras]
