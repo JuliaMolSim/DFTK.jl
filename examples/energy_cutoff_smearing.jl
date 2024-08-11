@@ -32,7 +32,7 @@ a_list = range(a0 - 1/2, a0 + 1/2; length=20)
 
 function compute_ground_state_energy(a; Ecut, kgrid, kinetic_blowup, kwargs...)
     system = attach_psp(bulk(:Si); Si="hgh/pbe/Si-q4")
-    model  = model_DFT(system, PBE(); kinetic_blowup)
+    model  = model_DFT(system; functionals=PBE(), kinetic_blowup)
     basis  = PlaneWaveBasis(model; Ecut, kgrid)
     self_consistent_field(basis; callback=identity, kwargs...).energies.total
 end

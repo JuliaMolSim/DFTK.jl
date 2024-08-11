@@ -3,7 +3,8 @@
 #       to external/atomsbase.jl
 
 """
-Convenience constructor, which builds a standard atomic (kinetic + atomic potential) model.
+Convenience constructor around [`Model`](@ref),
+which builds a standard atomic (kinetic + atomic potential) model.
 Use `extra_terms` to add additional terms.
 """
 function model_atomic(lattice::AbstractMatrix,
@@ -25,33 +26,36 @@ end
 
 
 """
-Build a DFT model from the specified atoms, with the specified functionals.
+Build a DFT model from the specified atoms with the specified XC functionals.
+With the `functionals` keyword argument any
+[functional from libxc](https://libxc.gitlab.io/functionals/) can be
+specified. If this parameter is passed an empty list (`functionals=[]`)
+then a reduced Hartree-Fock model is constructed.
+
+Note, that most functionals require two symbols (one for
+the exchange and one for the correlation part). All keyword arguments
+but `functional` are passed to [`model_atomic`](@ref) and from
+there to [`Model`](@ref).
 
 # Examples
 ```julia-repl
-julia> model_DFT(system, LDA(); temperature=0.01)
-```
-builds an [`LDA`](@ref) model for a passed system with specified smearing temperature.
-
-```julia-repl
 julia> model_DFT(system; functionals=LDA(), temperature=0.01)
 ```
-Alternative syntax achieving exactly the same.
+builds an [`LDA`](@ref) model for a passed system
+with specified smearing temperature.
 
 ```julia-repl
 julia> model_DFT(system; functionals=[:lda_x, :lda_c_pw], temperature=0.01)
 ```
-Same thing again, manually specifying the functionals to be employed.
+Alternative syntax specifying the functionals directly
+via their libxc codes.
+
+```julia-repl
+julia> model_DFT(system, LDA(); temperature=0.01)
+```
+Third possible syntax employing the `LDA` shorthand as an additional
+positional argument.
 """
-function model_DFT(lattice::AbstractMatrix,
-                   atoms::Vector{<:Element},
-                   positions::Vector{<:AbstractVector},
-                   xc::Xc;
-                   extra_terms=[], kwargs...)
-    model_name = isempty(xc.functionals) ? "rHF" : join(string.(xc.functionals), "+")
-    model_atomic(lattice, atoms, positions;
-                 extra_terms=[Hartree(), xc, extra_terms...], model_name, kwargs...)
-end
 function model_DFT(lattice::AbstractMatrix,
                    atoms::Vector{<:Element},
                    positions::Vector{<:AbstractVector};
@@ -61,6 +65,15 @@ function model_DFT(lattice::AbstractMatrix,
     else
         model_DFT(lattice, atoms, positions, Xc(functionals); kwargs...)
     end
+end
+function model_DFT(lattice::AbstractMatrix,
+                   atoms::Vector{<:Element},
+                   positions::Vector{<:AbstractVector},
+                   xc::Xc;
+                   extra_terms=[], kwargs...)
+    model_name = isempty(xc.functionals) ? "rHF" : join(string.(xc.functionals), "+")
+    model_atomic(lattice, atoms, positions;
+                 extra_terms=[Hartree(), xc, extra_terms...], model_name, kwargs...)
 end
 
 
@@ -104,13 +117,13 @@ SCAN(; kwargs...) = Xc([:mgga_x_scan, :mgga_c_scan]; kwargs...)
 
 @deprecate(model_LDA(lattice::AbstractMatrix, atoms::Vector{<:Element},
                      positions::Vector{<:AbstractVector}; kwargs...),
-           model_DFT(lattice, atoms, positions, LDA(); kwargs...))
+           model_DFT(lattice, atoms, positions; functionals=LDA(), kwargs...))
 @deprecate(model_PBE(lattice::AbstractMatrix, atoms::Vector{<:Element},
                      positions::Vector{<:AbstractVector}; kwargs...),
-           model_DFT(lattice, atoms, positions, PBE(); kwargs...))
+           model_DFT(lattice, atoms, positions; functionals=PBE(), kwargs...))
 @deprecate(model_SCAN(lattice::AbstractMatrix, atoms::Vector{<:Element},
                       positions::Vector{<:AbstractVector}; kwargs...),
-           model_DFT(lattice, atoms, positions, SCAN(); kwargs...))
+           model_DFT(lattice, atoms, positions; functionals=SCAN(), kwargs...))
 @deprecate(model_DFT(lattice::AbstractMatrix, atoms::Vector{<:Element},
                    positions::Vector{<:AbstractVector}, functionals; kwargs...),
            model_DFT(lattice, atoms, positions; functionals, kwargs...))

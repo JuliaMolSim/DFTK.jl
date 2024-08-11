@@ -56,7 +56,7 @@ positions = [ones(3)/8, -ones(3)/8]
 # and [Input and output formats](@ref) for details.
 
 ## 2. Select model and basis
-model = model_DFT(lattice, atoms, positions, LDA())
+model = model_DFT(lattice, atoms, positions; functionals=LDA())
 kgrid = [4, 4, 4]     # k-point grid (Regular Monkhorst-Pack grid)
 Ecut = 7              # kinetic energy cutoff
 ## Ecut = 190.5u"eV"  # Could also use eV or other energy-compatible units

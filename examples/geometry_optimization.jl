@@ -8,8 +8,8 @@
 using DFTK
 
 calc = DFTKCalculator(;
-    model_kwargs = (; functionals=LDA()),        # xc functionals
-    basis_kwargs = (; kgrid=[1, 1, 1], Ecut=10)  # Crude numerical parameters
+    model_kwargs = (; functionals=LDA()),        # model_DFT keyword arguments
+    basis_kwargs = (; kgrid=[1, 1, 1], Ecut=10)  # PlaneWaveBasis keyword arguments
 )
 
 # Next we set up an initial hydrogen molecule within a box of vacuum.

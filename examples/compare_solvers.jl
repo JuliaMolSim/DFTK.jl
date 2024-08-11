@@ -9,7 +9,7 @@ using DFTK
 using LinearAlgebra
 
 system = attach_psp(bulk(:Si); Si="hgh/lda/Si-q4")
-model  = model_DFT(system, LDA())
+model  = model_DFT(system; functionals=LDA())
 basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3])
 
 ## Convergence we desire in the density

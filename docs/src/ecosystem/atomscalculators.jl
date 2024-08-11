@@ -9,9 +9,11 @@
 # which implements the AtomsCalculators interface. A `DFTKCalculator`
 # can be constructed by passing three different named tuples,
 # the `model_kwargs`, the `basis_kwargs` and the `scf_kwargs`.
-# These three named tuples are employed when constructing the [`Model`](@ref)
-# and the [`PlaneWaveBasis`](@ref) to define the DFT problem and when running the
-# [`self_consistent_field`](@ref) function on these objects to solve the problem
+# The first two named tuples are passed as keyword arguments when constructing
+# the DFT model using [`model_DFT`](@ref) and its discretization using
+# the [`PlaneWaveBasis`](@ref). The last one is used as keyword arguments
+# when running the
+# [`self_consistent_field`](@ref) function on the resulting basis to solve the problem
 # numerically. Thus when using the `DFTKCalculator` the user is expected to
 # pass these objects exactly the keyword argument one would pass when constructing
 # a `model` and `basis` and when calling `self_consistent_field`.

@@ -27,7 +27,7 @@ function aluminium_setup(repeat=1; Ecut=7.0, kgrid=[2, 2, 2])
     ## Note: We disable symmetries explicitly here. Otherwise the problem sizes
     ##       we are able to run on the CI are too simple to observe the numerical
     ##       instabilities we want to trigger here.
-    model = model_DFT(supercell, LDA(); temperature=1e-3, symmetries=false)
+    model = model_DFT(supercell; functionals=LDA(), temperature=1e-3, symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid)
 end;
 

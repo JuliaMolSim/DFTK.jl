@@ -19,7 +19,7 @@ UPF_PSEUDO = artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf"
 
 function silicon_scf(guess_method)
     system = attach_psp(bulk(:Si); Si=UPF_PSEUDO)
-    model  = model_DFT(system, LDA())
+    model  = model_DFT(system; functionals=LDA())
     basis  = PlaneWaveBasis(model; Ecut=12, kgrid=[4, 4, 4])
 
     self_consistent_field(basis; ρ=guess_density(basis, guess_method),

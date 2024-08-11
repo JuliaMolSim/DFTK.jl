@@ -101,14 +101,14 @@ objects as in [Tutorial](@ref) and to reach a fast execution, we take a small `E
 and a `[4, 4, 4]` Monkhorst-Pack grid.
 First we perform the DFT calculation disabling symmetry handling
 ```@example symmetries
-model_nosym = model_DFT(lattice, atoms, positions, LDA(); symmetries=false)
+model_nosym = model_DFT(lattice, atoms, positions; functionals=LDA(), symmetries=false)
 basis_nosym = PlaneWaveBasis(model_nosym; Ecut=5, kgrid=[4, 4, 4])
 scfres_nosym = @time self_consistent_field(basis_nosym, tol=1e-6)
 nothing  # hide
 ```
 and then redo it using symmetry (the default):
 ```@example symmetries
-model_sym = model_DFT(lattice, atoms, positions, LDA())
+model_sym = model_DFT(lattice, atoms, positions; functionals=LDA())
 basis_sym = PlaneWaveBasis(model_sym; Ecut=5, kgrid=[4, 4, 4])
 scfres_sym = @time self_consistent_field(basis_sym, tol=1e-6)
 nothing  # hide

@@ -57,8 +57,7 @@ By mixing and matching these terms, the user can create custom models
 not limited to DFT. Convenience constructors are provided for common cases:
 
 - `model_DFT`: Assemble a DFT model using any of the LDA or GGA functionals of the
-   [libxc](https://tddft.org/programs/libxc/functionals/) library,
-   for example:
+   [libxc](https://libxc.gitlab.io/functionals/) library, for example:
    ```
    model_DFT(lattice, atoms, positions, LDA())
    model_DFT(lattice, atoms, positions; functionals=LDA())

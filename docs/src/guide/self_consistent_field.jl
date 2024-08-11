@@ -164,7 +164,7 @@ function aluminium_setup(repeat=1; Ecut=13.0, kgrid=[2, 2, 2])
     al_supercell = bulk(:Al; cubic=true) * (repeat, 1, 1)
     system = attach_psp(al_supercell;
                         Al=artifact"pd_nc_sr_pbe_standard_0.4.1_upf/Al.upf")
-    model = model_DFT(system, PBE(); temperature=1e-3, symmetries=false)
+    model = model_DFT(system; functionals=PBE(), temperature=1e-3, symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid)
 end;
 

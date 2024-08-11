@@ -83,7 +83,7 @@ function run_bands(psp)
     system = attach_psp(bulk(:Si; a=10.26u"bohr"); Si=psp)
 
     ## These are (as you saw above) completely unconverged parameters
-    model = model_DFT(system, LDA(); temperature=1e-2)
+    model = model_DFT(system; functionals=LDA(), temperature=1e-2)
     basis = PlaneWaveBasis(model; Ecut=12, kgrid=(4, 4, 4))
 
     scfres   = self_consistent_field(basis; tol=1e-4)
