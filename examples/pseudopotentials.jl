@@ -35,6 +35,7 @@
 
 using DFTK
 using Unitful
+using UnitfulAtomic
 using Plots
 using LazyArtifacts
 import Main: @artifact_str # hide
