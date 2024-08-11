@@ -33,6 +33,7 @@
 # Then, we will compare the bandstructure at the converged parameters calculated
 # using the two PSPs.
 
+using AtomsBuilder
 using DFTK
 using Unitful
 using UnitfulAtomic
