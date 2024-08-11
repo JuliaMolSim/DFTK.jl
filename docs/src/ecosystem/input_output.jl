@@ -42,7 +42,7 @@ system = attach_psp(system, Fe="hgh/pbe/fe-q16.hgh")
 
 # Finally we make use of DFTK's [AtomsBase integration](@ref) to run the calculation.
 
-model = model_LDA(system; temperature=0.01)
+model = model_DFT(system, LDA(); temperature=0.01)
 basis = PlaneWaveBasis(model; Ecut=10, kgrid=(2, 2, 2))
 ρ0 = guess_density(basis, system)
 scfres = self_consistent_field(basis, ρ=ρ0);

@@ -20,7 +20,7 @@ system = bulk(:Si)
 # before passing the `system` to construct a DFT model, discretise and solve:
 system = attach_psp(system; Si="hgh/lda/si-q4")
 
-model  = model_LDA(system; temperature=1e-3)
+model  = model_DFT(system, LDA(); temperature=1e-3)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 scfres = self_consistent_field(basis, tol=1e-8);
 
@@ -37,7 +37,7 @@ system = load_system("Si.extxyz")
 
 ## Now run the LDA calculation:
 system = attach_psp(system; Si="hgh/lda/si-q4")
-model  = model_LDA(system; temperature=1e-3)
+model  = model_DFT(system, LDA(); temperature=1e-3)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 scfres = self_consistent_field(basis, tol=1e-8);
 
@@ -61,7 +61,7 @@ system = periodic_system(atoms, lattice; fractional=true)
 
 ## Now run the LDA calculation:
 system = attach_psp(system; Si="hgh/lda/si-q4")
-model  = model_LDA(system; temperature=1e-3)
+model  = model_DFT(system, LDA(); temperature=1e-3)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 scfres = self_consistent_field(basis, tol=1e-4);
 
