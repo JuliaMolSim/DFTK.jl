@@ -87,7 +87,7 @@ of `PlaneWaveBasis`, the latter is controlled by the
 cutoff energy parameter `Ecut`:
 
 ```@example data_structures
-PlaneWaveBasis(model; Ecut, kgrid)
+PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 ```
 
 The `PlaneWaveBasis` by default uses symmetry to reduce the number of

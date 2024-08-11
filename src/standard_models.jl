@@ -5,8 +5,19 @@
 """
 Convenience constructor around [`Model`](@ref),
 which builds a standard atomic (kinetic + atomic potential) model.
-Use `extra_terms` to add additional terms.
+
+## Keyword arguments
+- `extra_terms`: Specify additional terms to be passed to the
+  [`Model`](@ref) constructor.
+- `kinetic_blowup`: Specify a blowup function for the kinetic
+  energy term, see e.g [`BlowupCHV`](@ref).
+
 """
+function model_atomic(system::AbstractSystem; kwargs...)
+    parsed = parse_system(system)
+    model_atomic(parsed.lattice, parsed.atoms, parsed.positions;
+                 parsed.magnetic_moments, kwargs...)
+end
 function model_atomic(lattice::AbstractMatrix,
                       atoms::Vector{<:Element},
                       positions::Vector{<:AbstractVector};
@@ -27,13 +38,17 @@ end
 
 """
 Build a DFT model from the specified atoms with the specified XC functionals.
-With the `functionals` keyword argument any
-[functional from libxc](https://libxc.gitlab.io/functionals/) can be
-specified. If this parameter is passed an empty list (`functionals=[]`)
-then a reduced Hartree-Fock model is constructed.
 
-Note, that most functionals require two symbols (one for
-the exchange and one for the correlation part). All keyword arguments
+The `functionals` keyword argument takes either an [`Xc`](@ref) object,
+a list of objects subtyping `DftFunctionals.Functional` or a list of
+`Symbol`s. For the latter any [functional symbol from libxc](https://libxc.gitlab.io/functionals/)
+can be specified, see examples below.
+Note, that most DFT models require two symbols in the `functionals` list
+(one for the exchange and one for the correlation part).
+
+If `functionals=[]` (empty list), then a reduced Hartree-Fock model is constructed.
+
+All other keyword arguments
 but `functional` are passed to [`model_atomic`](@ref) and from
 there to [`Model`](@ref).
 
@@ -50,42 +65,31 @@ julia> model_DFT(system; functionals=[:lda_x, :lda_c_pw], temperature=0.01)
 Alternative syntax specifying the functionals directly
 via their libxc codes.
 """
+function model_DFT(system::AbstractSystem; functionals, kwargs...)
+    parsed = parse_system(system)
+    model_DFT(parsed.lattice, parsed.atoms, parsed.positions;
+              parsed.magnetic_moments, functionals, kwargs...)
+end
 function model_DFT(lattice::AbstractMatrix,
                    atoms::Vector{<:Element},
                    positions::Vector{<:AbstractVector};
                    functionals, kwargs...)
-    if functionals isa Xc
-        model_DFT(lattice, atoms, positions, functionals; kwargs...)
-    else
-        model_DFT(lattice, atoms, positions, Xc(functionals); kwargs...)
-    end
+    # The idea is for the functionals keyword argument to be pretty smart in the long run,
+    # such that things like
+    #  - `model_DFT(system; functionals=B3LYP())`
+    #  - `model_DFT(system; functionals=[LibxcFunctional(:lda_x)])`
+    #  - `model_DFT(system; functionals=[:lda_x, :lda_c_pw, HubbardU(data)])`
+    # will all work.
+    _model_DFT(functionals, lattice, atoms, positions; kwargs...)
 end
-function model_DFT(lattice::AbstractMatrix,
-                   atoms::Vector{<:Element},
-                   positions::Vector{<:AbstractVector},
-                   xc::Xc;
-                   extra_terms=[], kwargs...)
+function _model_DFT(functionals::AbstractVector, args...; kwargs...)
+    _model_DFT(Xc(functionals), args...; kwargs...)
+end
+function _model_DFT(xc::Xc, args...; extra_terms=[], kwargs...)
     model_name = isempty(xc.functionals) ? "rHF" : join(string.(xc.functionals), "+")
-    model_atomic(lattice, atoms, positions;
-                 extra_terms=[Hartree(), xc, extra_terms...], model_name, kwargs...)
+    model_atomic(args...; extra_terms=[Hartree(), xc, extra_terms...], model_name, kwargs...)
 end
 
-# The idea is for the functionals keyword argument to be pretty smart in the long run,
-# such that things like
-#  - `model_DFT(system; functionals=B3LYP())`
-#  - `model_DFT(system; functionals=[LibxcFunctional(:lda_x)])`
-#  - `model_DFT(system; functionals=[:lda_x, :lda_c_pw, HubbardU(data)])`
-# will all work.
-
-
-# Generate equivalent functions for AtomsBase
-for fun in (:model_atomic, :model_DFT)
-    @eval function $fun(system::AbstractSystem, args...; kwargs...)
-        parsed = parse_system(system)
-        $fun(parsed.lattice, parsed.atoms, parsed.positions, args...;
-             parsed.magnetic_moments, kwargs...)
-    end
-end
 
 #
 # Convenient shorthands for frequently used functionals
@@ -129,8 +133,8 @@ SCAN(; kwargs...) = Xc([:mgga_x_scan, :mgga_c_scan]; kwargs...)
                    positions::Vector{<:AbstractVector}, functionals; kwargs...),
            model_DFT(lattice, atoms, positions; functionals, kwargs...))
 
-@deprecate model_LDA(system::AbstractSystem; kwargs...)  model_DFT(system, LDA();  kwargs...)
-@deprecate model_PBE(system::AbstractSystem; kwargs...)  model_DFT(system, PBE();  kwargs...)
-@deprecate model_SCAN(system::AbstractSystem; kwargs...) model_DFT(system, SCAN(); kwargs...)
+@deprecate model_LDA(system::AbstractSystem; kwargs...)  model_DFT(system; functionals=LDA(),  kwargs...)
+@deprecate model_PBE(system::AbstractSystem; kwargs...)  model_DFT(system; functionals=PBE(),  kwargs...)
+@deprecate model_SCAN(system::AbstractSystem; kwargs...) model_DFT(system; functionals=SCAN(), kwargs...)
 @deprecate(model_DFT(system::AbstractSystem, functionals; kwargs...),
            model_DFT(system; functionals, kwargs...))

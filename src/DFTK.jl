@@ -242,8 +242,9 @@ include("workarounds/gpu_arrays.jl")
     magnetic_moments = [2, -2]
 
     @compile_workload begin
-        model = model_DFT(lattice, atoms, positions, LDA();
-                          magnetic_moments, temperature=0.1, spin_polarization=:collinear)
+        model = model_DFT(lattice, atoms, positions;
+                          functionals=LDA(), magnetic_moments,
+                          temperature=0.1, spin_polarization=:collinear)
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
         ρ0 = guess_density(basis, magnetic_moments)
         scfres = self_consistent_field(basis; ρ=ρ0, tol=1e-2, maxiter=3, callback=identity)

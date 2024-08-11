@@ -208,7 +208,7 @@ end
     @test atomic_mass(system_psp) == [-1u"u", -2u"u"]
 
     pos_lattice = austrip.(stack(lattice))
-    let model = model_DFT(system_psp, LDA())
+    let model = model_DFT(system_psp; functionals=LDA())
         @test model.lattice   == pos_lattice
         @test model.lattice * model.positions[1] * u"bohr" ≈ atoms[1].position
         @test model.lattice * model.positions[2] * u"bohr" ≈ atoms[2].position

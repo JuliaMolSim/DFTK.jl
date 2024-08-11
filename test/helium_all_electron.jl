@@ -6,7 +6,7 @@
         lattice = 10 * Matrix{Float64}(I, 3, 3)
         atoms = [ElementCoulomb(:He)]
         positions = [zeros(3)]
-        model = model_DFT(lattice, atoms, positions, [], n_electrons=2)
+        model = model_DFT(lattice, atoms, positions; functionals=[])
         basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
 
         scfres = self_consistent_field(basis; tol)

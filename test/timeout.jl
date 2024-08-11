@@ -4,7 +4,8 @@
     using Logging
     silicon = TestCases.silicon
 
-    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, LDA())
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                      functionals=LDA())
     basis = PlaneWaveBasis(model; Ecut=7, kgrid=(1, 1, 1))
     is_converged = DFTK.ScfConvergenceDensity(1e-11)
 

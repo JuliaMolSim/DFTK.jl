@@ -5,7 +5,8 @@
     silicon = TestCases.silicon
     tol = 1e-7
 
-    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, LDA())
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                      functionals=LDA())
     basis = PlaneWaveBasis(model; Ecut=3, silicon.kgrid, fft_size=(9, 9, 9))
 
     # Run default solver without guess
@@ -69,7 +70,8 @@ end
     tol = 1e-7
 
     magnetic_moments = [1, 1]
-    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, LDA(); magnetic_moments)
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                      functionals=LDA(), magnetic_moments)
     basis = PlaneWaveBasis(model; Ecut=3, silicon.kgrid, fft_size=(9, 9, 9))
     ρ0    = guess_density(basis, magnetic_moments)
     ρ_def = self_consistent_field(basis; tol, ρ=ρ0).ρ
@@ -99,8 +101,8 @@ end
     silicon = TestCases.silicon
     tol = 1e-7
 
-    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, LDA();
-                      temperature=0.01, smearing=Smearing.Gaussian())
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                      functionals=LDA(), temperature=0.01, smearing=Smearing.Gaussian())
     basis = PlaneWaveBasis(model; Ecut=3, silicon.kgrid, fft_size=(9, 9, 9))
 
     # Reference: Default algorithm
@@ -126,8 +128,9 @@ end
     tol = 1e-7
 
     magnetic_moments = [4.0]
-    model = model_DFT(iron_bcc.lattice, iron_bcc.atoms, iron_bcc.positions, LDA();
-                      temperature=0.01, magnetic_moments, spin_polarization=:collinear)
+    model = model_DFT(iron_bcc.lattice, iron_bcc.atoms, iron_bcc.positions;
+                      functionals=LDA(), temperature=0.01, magnetic_moments,
+                      spin_polarization=:collinear)
     basis = PlaneWaveBasis(model; Ecut=11, fft_size=[13, 13, 13], kgrid=[3, 3, 3])
 
     # Reference: Default algorithm

@@ -4,7 +4,8 @@ using LinearAlgebra
 (; silicon, aluminium) = TestCases.all_testcases
 
 function test_addiis(testcase; temperature=0, Ecut=10, kgrid=[3, 3, 3], n_bands=8)
-    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions, LDA(); temperature)
+    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                      functionals=LDA(), temperature)
     basis = PlaneWaveBasis(model; kgrid, Ecut)
     tol   = 1e-10
     ρ = guess_density(basis)

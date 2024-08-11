@@ -17,6 +17,7 @@ calc = DFTKCalculator(;
 # [equivalent tutorial from ABINIT](https://docs.abinit.org/tutorial/base1/),
 # that is a simulation box of 10 bohr times 10 bohr times 10 bohr and a
 # pseudodojo pseudopotential.
+using LinearAlgebra
 using LazyArtifacts
 import Main: @artifact_str # hide
 

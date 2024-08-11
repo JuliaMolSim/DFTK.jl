@@ -105,7 +105,8 @@ end
     silicon = TestCases.silicon
 
     Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/lda/si-q4"))
-    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, :lda_xc_teter93)
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                      functionals=[:lda_xc_teter93])
     basis = PlaneWaveBasis(model; Ecut=2, silicon.kgrid)
     ham = Hamiltonian(basis; ρ=guess_density(basis))
 
