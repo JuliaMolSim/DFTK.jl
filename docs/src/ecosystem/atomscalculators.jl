@@ -46,8 +46,9 @@ using AtomsBuilder
 using AtomsCalculators
 AC = AtomsCalculators
 
-silicon = bulk(:Si)                 # Build the bulk silicon system of the Tutorial
-AC.potential_energy(silicon, calc)  # Compute the total energy
+## Bulk silicon system of the Tutorial
+silicon = attach_psp(bulk(:Si); Si="hgh/lda/si-q4")
+AC.potential_energy(silicon, calc)  # Compute total energy
 
 # or we can compute the energy and forces:
 

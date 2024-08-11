@@ -59,14 +59,13 @@ not limited to DFT. Convenience constructors are provided for common cases:
 - `model_DFT`: Assemble a DFT model using any of the LDA or GGA functionals of the
    [libxc](https://libxc.gitlab.io/functionals/) library, for example:
    ```
-   model_DFT(lattice, atoms, positions, LDA())
    model_DFT(lattice, atoms, positions; functionals=LDA())
    model_DFT(lattice, atoms, positions; functionals=[:lda_x, :lda_c_pw])
    model_DFT(lattice, atoms, positions; functionals=[:gga_x_pbe, :gga_c_pbe])
    ```
    For common functional combinations DFTK additionally offers shorthands.
    E.g. in the above example specifying [`LDA`](@ref) expands to
-   `[:lda_x, :lda_c_pw]`, such that the first three examples are identical.
+   `[:lda_x, :lda_c_pw]`, such that the first two examples are identical.
    Note, that specifying no functional is the reduced Hartree-Fock model:
    ```
    model_DFT(lattice, atoms, positions; functionals=[])

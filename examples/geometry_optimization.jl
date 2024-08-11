@@ -42,6 +42,7 @@ results.system  # Print final system
 
 # Compute final bond length:
 
+using Printf
 rmin = norm(position(results.system[1]) - position(results.system[2]))
 @printf "\nOptimal bond length for Ecut=%.2f: %.3f Bohr\n" Ecut austrip(rmin)
 
