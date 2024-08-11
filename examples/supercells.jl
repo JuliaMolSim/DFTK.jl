@@ -9,6 +9,7 @@
 #
 # The following code achieves this for aluminium:
 
+using AtomsBuilder
 using DFTK
 using LinearAlgebra
 using Unitful
