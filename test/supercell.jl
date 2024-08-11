@@ -6,7 +6,7 @@
     Ecut    = 4
     kgrid   = [2, 3, 1]
 
-    model = model_LDA(magnesium.lattice, magnesium.atoms, magnesium.positions;
+    model = model_DFT(magnesium.lattice, magnesium.atoms, magnesium.positions, LDA();
                       magnesium.temperature, εF=0.5, spin_polarization=:spinless,
                       disable_electrostatics_check=true)
     basis = PlaneWaveBasis(model; Ecut, kgrid)
@@ -27,7 +27,7 @@ end
     kshift  = zeros(3)
     tol     = 1e-10
 
-    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, LDA())
     basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
     basis_supercell = cell_to_supercell(basis)
 

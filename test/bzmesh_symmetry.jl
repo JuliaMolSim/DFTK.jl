@@ -10,7 +10,7 @@
             (; kgrid=[3, 2, 3], kshift=[0, 0, 0]),
             (; kgrid=[3, 2, 3], kshift=[0, 1/2, 1/2]))
     for case in args
-        model_nosym = model_LDA(testcase.lattice, testcase.atoms, testcase.positions;
+        model_nosym = model_DFT(testcase.lattice, testcase.atoms, testcase.positions, LDA();
                                 symmetries=false)
         basis = PlaneWaveBasis(model_nosym; Ecut=5, case...)
         DFTK.check_group(basis.symmetries)
@@ -19,7 +19,7 @@
         ρ1 = scfres.ρ
         E1 = scfres.energies.total
 
-        model_sym = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
+        model_sym = model_DFT(testcase.lattice, testcase.atoms, testcase.positions, LDA())
         basis = PlaneWaveBasis(model_sym; Ecut=5, case...)
         DFTK.check_group(basis.symmetries)
         scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-10))

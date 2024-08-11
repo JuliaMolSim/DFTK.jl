@@ -46,7 +46,7 @@ end
     o2molecule = TestCases.o2molecule
 
     magnetic_moments = [1., 1.]
-    model = model_PBE(o2molecule.lattice, o2molecule.atoms, o2molecule.positions;
+    model = model_DFT(o2molecule.lattice, o2molecule.atoms, o2molecule.positions, PBE();
                       temperature=0.02, smearing=Smearing.Gaussian(),
                       magnetic_moments, symmetries=false)
 
@@ -83,7 +83,7 @@ end
 
     function test_serialisation(testcase, label; modelargs=(; ),
                                 basisargs=(; Ecut=5, kgrid=(2, 3, 4)))
-        model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions; modelargs...)
+        model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions, LDA(); modelargs...)
 
         basis = PlaneWaveBasis(model; basisargs...)
         nbandsalg = FixedBands(; n_bands_converge=20)

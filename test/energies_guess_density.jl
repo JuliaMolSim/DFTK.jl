@@ -41,7 +41,7 @@
     # Now we have a reasonable set of ψ, we make up a crazy model, and check the energies
     V(x, p) = 4*p.ε * ((p.σ/x)^12 - (p.σ/x)^6)
     params = Dict( (:Si, :Si) => (; ε=1e5, σ=0.5) )
-    model = model_PBE(silicon.lattice, silicon.atoms, silicon.positions;
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, PBE();
                       extra_terms=[ExternalFromReal(X -> cos(1.2 * (X[1] + X[3]))),
                                    ExternalFromFourier(X -> cos(1.3 * (X[1] + X[3]))),
                                    LocalNonlinearity(ρ -> 1.2 * ρ^2.4),

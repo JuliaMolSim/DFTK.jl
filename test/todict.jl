@@ -151,7 +151,7 @@ function test_todict(label; spin_polarization=:none, Ecut=7, temperature=0.0, kg
     else
         magnetic_moments = []
     end
-    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions;
+    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions, LDA();
                       spin_polarization, temperature, magnetic_moments)
     basis = PlaneWaveBasis(model; Ecut, kgrid, use_symmetries_for_kpoint_reduction=false)
     nbandsalg = FixedBands(; n_bands_converge=8)

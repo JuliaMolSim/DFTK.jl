@@ -131,7 +131,7 @@ end
 
     function oxygen_energy_forces(positions)
         magnetic_moments = [1.0, 1.0]
-        model = model_PBE(diagm([7.0, 7.0, 7.0]), o2molecule.atoms, positions;
+        model = model_DFT(diagm([7.0, 7.0, 7.0]), o2molecule.atoms, positions, PBE();
                           temperature=0.02, smearing=Smearing.Gaussian(), magnetic_moments)
         basis = PlaneWaveBasis(model; Ecut=4, kgrid=[1, 1, 1])
 

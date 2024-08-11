@@ -51,7 +51,7 @@ function run_iron_pbe(T; kwargs...)
 
     # Produce reference data and guess for this configuration
     magnetic_moments = [4.0]
-    model = model_PBE(iron_bcc.lattice, iron_bcc.atoms, iron_bcc.positions;
+    model = model_DFT(iron_bcc.lattice, iron_bcc.atoms, iron_bcc.positions, PBE();
                       temperature=0.01, magnetic_moments)
     model = convert(Model{T}, model)
     basis = PlaneWaveBasis(model; Ecut=20, fft_size=[20, 20, 20], kgrid=[4, 4, 4],

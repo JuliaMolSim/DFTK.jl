@@ -3,7 +3,7 @@
     silicon = TestCases.silicon
 
     function build_basis(atoms, spin_polarization)
-        model = model_LDA(silicon.lattice, atoms, silicon.positions; spin_polarization,
+        model = model_DFT(silicon.lattice, atoms, silicon.positions; spin_polarization, LDA();
                           temperature=0.01)
         PlaneWaveBasis(model; Ecut=7, kgrid=[3, 3, 3], kshift=[1, 1, 1] / 2)
     end

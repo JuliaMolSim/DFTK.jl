@@ -13,7 +13,7 @@
             model = model_DFT(Matrix{T}(silicon.lattice), silicon.atoms, pos, [];
                               temperature=1e-3)
         else
-            model = model_LDA(Matrix{T}(silicon.lattice), silicon.atoms, pos)
+            model = model_DFT(Matrix{T}(silicon.lattice), silicon.atoms, pos, LDA())
         end
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 
@@ -71,7 +71,7 @@ end
                         psp.cloc, psp.rp .+ [0, ε], psp.h;
                         psp.identifier, psp.description)
         atoms = fill(ElementPsp(aluminium.atnum; psp=pspmod), length(aluminium.positions))
-        model = model_LDA(Matrix{T}(aluminium.lattice), atoms, aluminium.positions,
+        model = model_DFT(Matrix{T}(aluminium.lattice), atoms, aluminium.positions, LDA();
                           temperature=1e-2, smearing=Smearing.Gaussian())
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
 

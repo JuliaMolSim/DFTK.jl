@@ -43,8 +43,8 @@ end
     using IntervalArithmetic: Interval, radius, mid
     testcase = TestCases.silicon
 
-    model = model_LDA(Matrix{Interval{Float64}}(testcase.lattice),
-                      testcase.atoms, testcase.positions)
+    model = model_DFT(Matrix{Interval{Float64}}(testcase.lattice),
+                      testcase.atoms, testcase.positions, LDA())
     basis = PlaneWaveBasis(model; Ecut=10, kgrid=(2, 1, 1))
 
     fermialg = DFTK.default_fermialg(basis.model)

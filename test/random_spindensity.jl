@@ -4,7 +4,7 @@
     silicon = TestCases.silicon
 
     function run_silicon(spin_polarization)
-        model = model_PBE(silicon.lattice, silicon.atoms, silicon.positions;
+        model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, PBE();
                           spin_polarization, temperature=0.01)
         basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[1, 1, 1] / 2)
 
