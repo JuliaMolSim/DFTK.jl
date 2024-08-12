@@ -19,7 +19,7 @@ calc = DFTKCalculator(;
 # pseudodojo pseudopotential.
 using LinearAlgebra
 using LazyArtifacts
-import Main: @artifact_str # hide
+import Main: @artifact_str  # hide
 
 r0 = 1.4   # Initial bond length in Bohr
 a  = 10.0  # Box size in Bohr
@@ -38,6 +38,7 @@ h2_crude = periodic_system(lattice, atoms, positions)
 
 using GeometryOptimization
 results = minimize_energy!(h2_crude, calc; tol_forces=2e-6, verbosity=2)
+nothing  # hide
 
 # Structure after optimisation (note that the atom has wrapped around)
 
