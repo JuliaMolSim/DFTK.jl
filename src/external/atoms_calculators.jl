@@ -17,6 +17,9 @@ struct DFTKCalculator{T}
     st::T
     #
     # Calculator counters
+    # TODO The Ref thingies feel a little wrong, somehow this should be part of the
+    #      state, but this may make it hard to keep track during geometry optimisation
+    #      or similar. In any case don't rely on this for now, it may disappear.
     counter_n_iter::Ref{Int}
     counter_matvec::Ref{Int}
     #
