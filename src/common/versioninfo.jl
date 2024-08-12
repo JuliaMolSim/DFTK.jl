@@ -1,4 +1,4 @@
-using PkgVersion
+using PkgVersion  # TODO Can this be replaced by pkgversion(DFTK) ?
 
 
 """
@@ -10,6 +10,7 @@ function versioninfo(io::IO=stdout)
     indent = "  "
     println(io, "DFTK Version      ", PkgVersion.@Version)
     println(io, "Julia Version     ", VERSION)
+    println(io, "libxc Version     ", Libxc.libxc_version)
     println(io, "FFTW.jl provider  ", FFTW.get_provider(), " v$(FFTW.version)")
     println(io)
 

@@ -50,9 +50,9 @@ scfres = self_consistent_field(basis, ρ=ρ0);
 # !!! warning "DFTK data formats are not yet fully matured"
 #     The data format in which DFTK saves data as well as the general interface
 #     of the [`load_scfres`](@ref) and [`save_scfres`](@ref) pair of functions
-#     are not yet fully matured. If you use the functions or the produced files
-#     expect that you need to adapt your routines in the future even with patch
-#     version bumps.
+#     are not yet fully matured. They have become fairly stable, but we reserve
+#     the right to change them incompatibly between DFTK versions (including
+#     patch versions) at this point.
 
 # ## Writing VTK files for visualization
 # For visualizing the density or the Kohn-Sham orbitals DFTK supports storing

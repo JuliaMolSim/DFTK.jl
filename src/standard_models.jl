@@ -111,7 +111,7 @@ PBE(; kwargs...) = Xc([:gga_x_pbe, :gga_c_pbe]; kwargs...)
 Specify an PBEsol GGA model in conjunction with [`model_DFT`](@ref)
 <https://doi.org/10.1103/physrevlett.100.136406>
 """
-PBEsol(; kwargs...) = Xc([:gga_x_pbe_soL, :gga_c_pbe_sol]; kwargs...)
+PBEsol(; kwargs...) = Xc([:gga_x_pbe_sol, :gga_c_pbe_sol]; kwargs...)
 
 """
 Specify a SCAN meta-GGA model in conjunction with [`model_DFT`](@ref)

@@ -38,7 +38,10 @@ h2_crude = periodic_system(lattice, atoms, positions)
 
 using GeometryOptimization
 results = minimize_energy!(h2_crude, calc; tol_forces=2e-6, verbosity=2)
-results.system  # Print final system
+
+# Structure after optimisation (note that the atom has wrapped around)
+
+results.system
 
 # Compute final bond length:
 

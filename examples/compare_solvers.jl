@@ -9,7 +9,7 @@ using DFTK
 using LinearAlgebra
 
 system = attach_psp(bulk(:Si); Si="hgh/lda/Si-q4")
-model  = model_DFT(system; functionals=LDA())
+model  = model_DFT(system; functionals=PBEsol())
 basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3])
 
 ## Convergence we desire in the density
@@ -22,9 +22,7 @@ scfres_scf = self_consistent_field(basis; tol);
 scfres_scfv = DFTK.scf_potential_mixing(basis; tol);
 
 # ## Direct minimization
-# Note: Unlike the other algorithms, tolerance for this one is in the energy,
-# thus we square the density tolerance value to be roughly equivalent.
-scfres_dm = direct_minimization(basis; tol=tol^2);
+scfres_dm = direct_minimization(basis; tol);
 
 # ## Newton algorithm
 

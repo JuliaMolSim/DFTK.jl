@@ -30,6 +30,8 @@ end
 AtomsCalculators.energy_unit(::DFTKCalculator) = u"hartree"
 AtomsCalculators.length_unit(::DFTKCalculator) = u"bohr"
 
+# TODO DFTKCalculator needs a custom show function (both brief and detailed)
+
 """
 Construct a [AtomsCalculators](https://github.com/JuliaMolSim/AtomsCalculators.jl)
 compatible calculator for DFTK. The `model_kwargs` are passed onto the

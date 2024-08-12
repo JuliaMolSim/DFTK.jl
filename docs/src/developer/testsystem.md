@@ -30,7 +30,8 @@ the `@run_package_tests` macro from `TestItemRunner` manually. For instance:
 using TestEnv       # Optional: automatically installs required packages
 TestEnv.activate()  # for tests in a temporary environment.
 using TestItemRunner
-cd("test")          # By default, the following macro runs everything from the parent folder.
+using DFTK
+cd(joinpath(pkgdir(DFTK), "test"))
 @run_package_tests filter = ti -> occursin("serialisation.jl", ti.filename)
 ```
 would only run the tests of the particular unit test file `serialisation.jl`.
