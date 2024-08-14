@@ -158,7 +158,7 @@ function atomic_density_superposition(basis::PlaneWaveBasis{T},
     end
     ρ = to_device(basis.architecture, ρ_cpu)
     enforce_real!(ρ, basis)  # Symmetrize Fourier coeffs to have real iFFT
-    irfft(basis, ρ)
+    irfft(basis.fft_bundle, ρ)
 end
 
 function atomic_density_form_factors(basis::PlaneWaveBasis{T},

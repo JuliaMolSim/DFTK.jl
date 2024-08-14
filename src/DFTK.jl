@@ -69,6 +69,7 @@ include("SymOp.jl")
 
 export Smearing
 export Model
+export FFTBundle
 export MonkhorstPack, ExplicitKpoints
 export PlaneWaveBasis
 export compute_fft_size
@@ -85,8 +86,9 @@ include("Smearing.jl")
 include("Model.jl")
 include("structure.jl")
 include("bzmesh.jl")
-include("PlaneWaveBasis.jl")
+include("Kpoint.jl")
 include("fft.jl")
+include("PlaneWaveBasis.jl")
 include("orbitals.jl")
 include("input_output.jl")
 

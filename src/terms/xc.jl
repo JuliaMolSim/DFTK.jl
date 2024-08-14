@@ -116,8 +116,8 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
             @warn "Meta-GGAs with a Δρ term have not yet been thoroughly tested." maxlog=1
             mG² = .-norm2.(G_vectors_cart(basis))
             Vl  = to_device(basis.architecture, reshape(terms.Vl, n_spin, basis.fft_size...))
-            Vl_fourier = fft(basis, Vl[s, :, :, :])
-            potential[:, :, :, s] .+= irfft(basis, mG² .* Vl_fourier)  # ΔVl
+            Vl_fourier = fft(basis.fft_bundle, Vl[s, :, :, :])
+            potential[:, :, :, s] .+= irfft(basis.fft_bundle, mG² .* Vl_fourier)  # ΔVl
         end
     end
 
@@ -161,9 +161,9 @@ end
     Vxc_real = xc_potential_real(term, basis, ψ, occupation; ρ, τ).potential
     # TODO: the factor of 2 here should be associated with the density, not the potential
     if basis.model.spin_polarization in (:none, :spinless)
-        Vxc_fourier = fft(basis, Vxc_real[:,:,:,1])
+        Vxc_fourier = fft(basis.fft_bundle, Vxc_real[:,:,:,1])
     else
-        Vxc_fourier = fft(basis, mean(Vxc_real, dims=4))
+        Vxc_fourier = fft(basis.fft_bundle, mean(Vxc_real, dims=4))
     end
 
     model = basis.model
@@ -293,7 +293,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
     # compute ρ_real and possibly ρ_fourier
     ρ_real = permutedims(ρ, (4, 1, 2, 3))  # ρ[x, y, z, σ] -> ρ_real[σ, x, y, z]
     if max_derivative > 0
-        ρf = fft(basis, ρ)
+        ρf = fft(basis.fft_bundle, ρ)
         ρ_fourier = permutedims(ρf, (4, 1, 2, 3))  # ρ_fourier[σ, x, y, z]
     end
 
@@ -306,7 +306,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
         for α = 1:3
             iGα = map(G -> im * G[α], G_vectors_cart(basis))
             for σ = 1:n_spin
-                ∇ρ_real[σ, :, :, :, α] .= irfft(basis, iGα .* @view ρ_fourier[σ, :, :, :])
+                ∇ρ_real[σ, :, :, :, α] .= irfft(basis.fft_bundle, iGα .* @view ρ_fourier[σ, :, :, :])
             end
         end
 
@@ -326,7 +326,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
         Δρ_real = similar(ρ_real, n_spin, basis.fft_size...)
         mG² = .-norm2.(G_vectors_cart(basis))
         for σ = 1:n_spin
-            Δρ_real[σ, :, :, :] .= irfft(basis, mG² .* @view ρ_fourier[σ, :, :, :])
+            Δρ_real[σ, :, :, :] .= irfft(basis.fft_bundle, mG² .* @view ρ_fourier[σ, :, :, :])
         end
     end
 
@@ -521,10 +521,10 @@ The divergence is also returned as a real-space array.
 """
 function divergence_real(operand, basis)
     gradsum = sum(1:3) do α
-        operand_α = fft(basis, operand(α))
+        operand_α = fft(basis.fft_bundle, operand(α))
         map(G_vectors_cart(basis), operand_α) do G, operand_αG
             im * G[α] * operand_αG  # ∇_α * operand_α
         end
     end
-    irfft(basis, gradsum)
+    irfft(basis.fft_bundle, gradsum)
 end

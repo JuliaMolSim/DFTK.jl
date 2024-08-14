@@ -162,14 +162,14 @@ function transfer_density(ρ_in, basis_in::PlaneWaveBasis{T},
     @assert basis_in.model.lattice == basis_out.model.lattice
     @assert length(size(ρ_in)) ∈ (3, 4)
 
-    ρ_freq_in  = fft(basis_in, ρ_in)
+    ρ_freq_in  = fft(basis_in.fft_bundle, ρ_in)
     ρ_freq_out = zeros_like(ρ_freq_in, basis_out.fft_size..., size(ρ_in, 4))
 
     for (block_in, block_out) in transfer_mapping(basis_in, basis_out)
         ρ_freq_out[block_out, :] .= ρ_freq_in[block_in, :]
     end
 
-    irfft(basis_out, ρ_freq_out)
+    irfft(basis_out.fft_bundle, ρ_freq_out)
 end
 
 """
@@ -216,8 +216,8 @@ element of `basis.kpoints` equivalent to ``k-q``.
         # … then perform the multiplication with f in real space and get the Fourier
         # coefficients.
         for n = 1:size(ψ[ik], 2)
-            fψ[ik][:, n] = fft(basis, kpt,
-                               ifft(basis, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk[:, n])
+            fψ[ik][:, n] = fft(basis.fft_bundle, kpt,
+                               ifft(basis.fft_bundle, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk[:, n])
                                  .* f_real[:, :, :, kpt.spin])
         end
     end
