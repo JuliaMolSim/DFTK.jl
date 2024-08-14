@@ -67,7 +67,7 @@ function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
         convert_dual(complex(T), external.potential(G) / sqrt(unit_cell_volume))
     end
     enforce_real!(pot_fourier, basis)  # Symmetrize Fourier coeffs to have real iFFT
-    TermExternal(irfft(basis, pot_fourier))
+    TermExternal(irfft(basis.fft_bundle, pot_fourier))
 end
 
 
@@ -119,9 +119,9 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
 
     if iszero(q)
         enforce_real!(pot_fourier, basis)  # Symmetrize coeffs to have real iFFT
-        return irfft(basis, to_device(basis.architecture, pot_fourier))
+        return irfft(basis.fft_bundle, to_device(basis.architecture, pot_fourier))
     else
-        return ifft(basis, to_device(basis.architecture, pot_fourier))
+        return ifft(basis.fft_bundle, to_device(basis.architecture, pot_fourier))
     end
 end
 (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T} =
@@ -135,7 +135,7 @@ end
 @timing "forces: local" function forces_local(S, basis::PlaneWaveBasis{T}, ρ, q) where {T}
     model = basis.model
     recip_lattice = model.recip_lattice
-    ρ_fourier = fft(basis, total_density(ρ))
+    ρ_fourier = fft(basis.fft_bundle, total_density(ρ))
     real_ifSreal = S <: Real ? real : identity
 
     # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
@@ -176,7 +176,7 @@ end
 
     # dynmat_δ²H, which is ∫ρδ²V.
     dynmat_δ²H = zeros(S, 3, n_atoms, 3, n_atoms)
-    ρ_fourier = fft(basis, total_density(ρ))
+    ρ_fourier = fft(basis.fft_bundle, total_density(ρ))
     δ²V_fourier = similar(ρ_fourier)
     for s = 1:n_atoms, α = 1:n_dim, β = 1:n_dim  # zero if s ≠ t
         δ²V = derivative_wrt_αs(basis.model.positions, β, s) do positions_βs
@@ -184,7 +184,7 @@ end
                 compute_local_potential(basis; positions=positions_βsαs)
             end
         end
-        dynmat_δ²H[β, s, α, s] += sum(conj(ρ_fourier) .* fft!(δ²V_fourier, basis, δ²V))
+        dynmat_δ²H[β, s, α, s] += sum(conj(ρ_fourier) .* fft!(δ²V_fourier, basis.fft_bundle, δ²V))
     end
 
     dynmat_δH + dynmat_δ²H

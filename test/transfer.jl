@@ -62,8 +62,8 @@ end
         # not be an identity. To prevent this we use enforce_real! to explicitly set
         # the non-matched Fourier component to zero.
         ρ = random_density(basis, 1)
-        ρ_fourier_purified = DFTK.enforce_real!(fft(basis, ρ), basis)
-        ρ = irfft(basis, ρ_fourier_purified)
+        ρ_fourier_purified = DFTK.enforce_real!(fft(basis.fft_bundle, ρ), basis)
+        ρ = irfft(basis.fft_bundle, ρ_fourier_purified)
 
         ρ_b  = transfer_density(ρ,   basis,     basis_big)
         ρ_bb = transfer_density(ρ_b, basis_big, basis    )
@@ -81,7 +81,7 @@ end
         ρ_s  = transfer_density(ρ,   basis_big, basis    )
         ρ_ss = transfer_density(ρ_s, basis,     basis_big)
 
-        Δρ_fourier = fft(basis_big, ρ - ρ_ss)
+        Δρ_fourier = fft(basis_big.fft_bundle, ρ - ρ_ss)
         for (iG, G) in enumerate(G_vectors(basis_big))
             idx          = DFTK.index_G_vectors(basis,  G)
             idx_matching = DFTK.index_G_vectors(basis, -G)

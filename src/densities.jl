@@ -33,9 +33,9 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     storages = parallel_loop_over_range(range; allocate_local_storage) do kn, storage
         (ik, n) = kn
         kpt = basis.kpoints[ik]
-        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n]; normalize=false)
+        ifft!(storage.ψnk_real, basis.fft_bundle, kpt, ψ[ik][:, n]; normalize=false)
         storage.ρ[:, :, :, kpt.spin] .+= (occupation[ik][n] .* basis.kweights[ik]
-                                          .* (basis.ifft_normalization)^2
+                                          .* (basis.fft_bundle.ifft_normalization)^2
                                           .* abs2.(storage.ψnk_real))
 
         synchronize_device(basis.architecture)
@@ -84,9 +84,9 @@ end
         (ik, n) = kn
 
         kpt = basis.kpoints[ik]
-        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n])
+        ifft!(storage.ψnk_real, basis.fft_bundle, kpt, ψ[ik][:, n])
         # … and then we compute the real Fourier transform in the adequate basis.
-        ifft!(storage.δψnk_real, basis, δψ_plus_k[ik].kpt, δψ_plus_k[ik].ψk[:, n])
+        ifft!(storage.δψnk_real, basis.fft_bundle, δψ_plus_k[ik].kpt, δψ_plus_k[ik].ψk[:, n])
 
         storage.δρ[:, :, :, kpt.spin] .+= real_qzero.(
             2 .* occupation[ik][n] .* basis.kweights[ik] .* conj.(storage.ψnk_real)
@@ -109,7 +109,7 @@ end
     for (ik, kpt) in enumerate(basis.kpoints)
         G_plus_k = [[p[α] for p in Gplusk_vectors_cart(basis, kpt)] for α = 1:3]
         for n = 1:size(ψ[ik], 2), α = 1:3
-            ifft!(dαψnk_real, basis, kpt, im .* G_plus_k[α] .* ψ[ik][:, n])
+            ifft!(dαψnk_real, basis.fft_bundle, kpt, im .* G_plus_k[α] .* ψ[ik][:, n])
             @. τ[:, :, :, kpt.spin] += occupation[ik][n] * basis.kweights[ik] / 2 * abs2(dαψnk_real)
         end
     end
