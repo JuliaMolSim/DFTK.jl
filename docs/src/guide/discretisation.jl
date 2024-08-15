@@ -148,7 +148,12 @@ Array(H)
 # !!! tip "Exercise 6"
 #     Increase the size of the problem, and compare the time spent
 #     by DFTK's internal diagonalization algorithms to a full diagonalization of `Array(H)`.  
-#     *Hint:* The `@benchmark` macro is handy for this task.
+#     *Hint:* The `@benchmark` macro (from the [BenchmarkTools](https://github.com/JuliaCI/BenchmarkTools.jl) package) is handy for this task. Note that there are some subtleties with global variables (see the BenchmarkTools docs for details). E.g. to use it to benchmark a function like `eigen(H)` run it as
+#     ```  
+#     using BenchmarkTools  
+#     [@benchmark](https://github.com/benchmark) eigen($H)  
+#     ```  
+#     (note the `$`). 
 
 # ## Solutions
 #
@@ -178,9 +183,6 @@ Array(H)
 # Keeping in mind the periodic boundary conditions (i.e. $e_0 = e_N$) projecting the
 # Hamiltonian $H$ onto this basis thus yields the proposed structure.
 #
-# !!! note "TODO More details"
-#     More details needed
-#
 # We start off with $N = 100$ to obtain
 
 Hfd = build_finite_differences_matrix(cos, 100)
@@ -199,52 +201,29 @@ Nrange = 10:10:100
 plot(Nrange, abs.(fconv.(Nrange) .- fconv(200)); yaxis=:log, legend=false)
 
 # ### Exercise 2
-#      ```math
-#         \bullet \langle e_G, e_{G'}\rangle = ∫_0^{2π} e_G^\ast(x) e_{G'}(x) d x = 1/2π ∫_0^{2π} e^i(G'-G)x d x
-#      ```
-# if G≠G', since the function is periodic over $[0, 2\pi]$:
-#      ```math
-#         \langle e_G, e_{G'}\rangle = \frac 1 {i2π(G'-G)}  ∫_0^{2π} (e^{ix})^{G'-G} d x = 0
-#      ```
+#- \langle e_G, e_{G'}\rangle = ∫_0^{2π} e_G^\ast(x) e_{G'}(x) d x = 1/2π ∫_0^{2π} e^i(G'-G)x d x$
+# Since `e^{iy}` is a periodic function with period $2\pi$, $\int_0^{2\pi} e^{i m y} = \delta_{0,m}$. Therefore:
+# if G≠G':
+#$\langle e_G, e_{G'}\rangle = 0$
 # if G=G':
-#     ```math
-#        \langle e_G, e_{G'}\rangle =  \frac 1 {2π} ∫_0^{2π} d x = 1
-#     ```
+#$\langle e_G, e_{G'}\rangle = 1$
 # Therefore:
-#      ```math
-#         \langle e_G, e_{G'}\rangle = δ_{G, G'}
-#      ```
-#         \bullet Assuming $V(x) = \cos(x)$:
-#     ```math
-#        \langle e_G, H e_{G'}\rangle = \frac 1 2 ∫_0^{2π} e_G^\ast(x) H e_{G'}(x) d x \left(|G|^2 \delta_{G,G'} + \delta_{G, G'+1} + \delta_{G, G'-1}\right).
-#     ```
+#$\langle e_G, e_{G'}\rangle = δ_{G, G'}$
+#- Assuming $V(x) = \cos(x)$:
+#$\langle e_G, H e_{G'}\rangle = \frac 1 2 ∫_0^{2π} e_G^\ast(x) H e_{G'}(x) d x$
 # We start by applying the Hamiltonian on the corresponding function:
-#      ```math
-#         H e_{G'}(x) = - \frac 1 2 (-|G|^2) \frac 1 {\sqrt{2π}} e^{iG'x) + cos(x) \frac 1 {\sqrt{2π}} e{iG'x}
-#      ```
-# Then, using the previous result and the fact that :
-#      ```math
-#         cos(x) = \frac 1 2 \left(e{ix} + e{-ix})
-#      ```
-# We get:
-#      ```math
-#         \langle e_G, H e_{G'}\rangle = \frac 1 2 G^2  δ_{G, G'} + \frac 1 {4π} \left(∫_0^{2π} (e^{ix})^{G'-G+1} d x + ∫_0^{2π} (e^{ix})^{G'-G-1} d x)
-#         = \frac 1 2 \left(|G|^2 \delta_{G,G'} + \delta_{G, G'+1} + \delta_{G, G'-1}\right)
-#      ```
-#         \bullet A more general $V(x)$ has to be periodic over $[0, 2\pi]$, therefore the complex eponential Fourier series can be used:
-#      ```math
-#         V(x) = sum_{n=- \infty}^{\infty} v_n e{-inx}
-#      ```
+#$H e_{G'}(x) = - \frac 1 2 (-|G|^2) \frac 1 {\sqrt{2π}} e^{iG'x) + cos(x) \frac 1 {\sqrt{2π}} e{iG'x}$
+# Then, using the previous result and the fact that $cos(x) = \frac 1 2 \left(e{ix} + e{-ix})$, we get:
+#$\langle e_G, H e_{G'}\rangle = \frac 1 2 G^2  δ_{G, G'} + \frac 1 {4π} \left(∫_0^{2π} (e^{ix})^{G'-G+1} d x + ∫_0^{2π} (e^{ix})^{G'-G-1} d x)$
+#$= \frac 1 2 \left(|G|^2 \delta_{G,G'} + \delta_{G, G'+1} + \delta_{G, G'-1}\right)$
+#- A more general $V(x)$ has to be periodic over $[0, 2\pi]$, therefore the complex eponential Fourier series can be used:
+#$V(x) = sum_{n=- \infty}^{\infty} v_n e{-inx}$
 # One can think of it as changing the basis of the potential function to the plane wave basis. Therefore :
-#      ```math
-#         | v_n, e{iG'} \rangle = frac 1 {\sqrt{2π}} sum_{n=- \infty}^{\infty} v_n e^{i(G'-n)x}
-#         \langle e_G, V e_{G'}\rangle = frac 1 {2π} sum_{n=- \infty}^{\infty} ∫_0^{2π} v_n e{i(G'-G-n)x} d x 
-#         = \frac 1 {2π} sum_{n=- \infty}^{\infty} v_n delta_{G, G'- n}
-#      ```
+#$| v_n, e{iG'} \rangle = frac 1 {\sqrt{2π}} sum_{n=- \infty}^{\infty} v_n e^{i(G'-n)x}$
+#$\langle e_G, V e_{G'}\rangle = frac 1 {2π} sum_{n=- \infty}^{\infty} ∫_0^{2π} v_n e{i(G'-G-n)x} d x$
+#$= \frac 1 {2π} sum_{n=- \infty}^{\infty} v_n delta_{G, G'- n}$
 # Therefore :
-#      ```math
-#         \langle e_G, H e_{G'}\rangle = \frac 1 2 |G|^2 \delta_{G,G'} + sum_{n=0}^{\infty} v_n delta_{G, G' \pm n}
-#      ```
+#$\langle e_G, H e_{G'}\rangle = \frac 1 2 |G|^2 \delta_{G,G'} + sum_{n=0}^{\infty} v_n delta_{G, G' \pm n}$
 #
 # ### Exercise 3
 # The Hamiltonian matrix for the plane waves method can be found this way:
