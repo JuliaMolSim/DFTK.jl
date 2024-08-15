@@ -53,9 +53,9 @@ Compute the application of K defined at ψ to δψ. ρ is the density issued fro
         δVψk = similar(ψk)
 
         for n = 1:size(ψk, 2)
-            ifft!(ψnk_real, basis.fft_bundle, kpt, ψk[:, n])
+            ifft!(ψnk_real, basis, kpt, ψk[:, n])
             ψnk_real .*= δV[:, :, :, kpt.spin]
-            fft!(δVψk[:, n], basis.fft_bundle, kpt, ψnk_real)
+            fft!(δVψk[:, n], basis, kpt, ψnk_real)
         end
         δVψk
     end

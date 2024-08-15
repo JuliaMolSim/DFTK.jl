@@ -56,7 +56,7 @@ function HamiltonianBlock(basis, kpoint, operators; scratch=nothing)
     end
 end
 function _ham_allocate_scratch(basis::PlaneWaveBasis{T}) where {T}
-    [(; ψ_reals=zeros_like(basis.G_vectors, complex(T), basis.fft_size...))
+    [(; ψ_reals=zeros_like(G_vectors(basis), complex(T), basis.fft_size...))
      for _ = 1:Threads.nthreads()]
 end
 
@@ -110,7 +110,7 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
         # to Hψ.
         storage.Hψ_real .= 0
         storage.Hψ_fourier .= 0
-        ifft!(storage.ψ_real, H.basis.fft_bundle, H.kpoint, ψ[:, iband])
+        ifft!(storage.ψ_real, H.basis, H.kpoint, ψ[:, iband])
         for op in H.optimized_operators
             @timeit to "$(nameof(typeof(op)))" begin
                 apply!((; fourier=storage.Hψ_fourier, real=storage.Hψ_real),
@@ -119,7 +119,7 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
             end
         end
         Hψ[:, iband] .= storage.Hψ_fourier
-        fft!(storage.Hψ_fourier, H.basis.fft_bundle, H.kpoint, storage.Hψ_real)
+        fft!(storage.Hψ_fourier, H.basis, H.kpoint, storage.Hψ_real)
         Hψ[:, iband] .+= storage.Hψ_fourier
 
         if Threads.threadid() == 1
@@ -146,9 +146,9 @@ end
         ψ_real = storage.ψ_reals
 
         @timeit to "local+kinetic" begin
-            ifft!(ψ_real, H.basis.fft_bundle, H.kpoint, ψ[:, iband]; normalize=false)
+            ifft!(ψ_real, H.basis, H.kpoint, ψ[:, iband]; normalize=false)
             ψ_real .*= potential
-            fft!(Hψ[:, iband], H.basis.fft_bundle, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
+            fft!(Hψ[:, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
             Hψ[:, iband] .+= H.fourier_op.multiplier .* ψ[:, iband]
         end
 

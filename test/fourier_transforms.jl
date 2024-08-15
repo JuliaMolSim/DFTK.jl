@@ -13,8 +13,8 @@
         f_R = Array{ComplexF64}(undef, pw.fft_size...)
         ifft!(f_R, pw, f_G)
 
-        f2_G = fft(pw.fft_bundle, f_R)
-        f2_R = ifft(pw.fft_bundle, f2_G)
+        f2_G = fft(pw, f_R)
+        f2_R = ifft(pw, f2_G)
         f3_G = fft!(similar(f_R), pw, f_R)
 
         @test maximum(abs.(f2_G - f_G)) < 1e-12

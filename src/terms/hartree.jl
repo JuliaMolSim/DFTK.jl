@@ -50,9 +50,9 @@ end
 
 @timing "ene_ops: hartree" function ene_ops(term::TermHartree, basis::PlaneWaveBasis{T},
                                             ψ, occupation; ρ, kwargs...) where {T}
-    ρtot_fourier = fft(basis.fft_bundle, total_density(ρ))
+    ρtot_fourier = fft(basis, total_density(ρ))
     pot_fourier = term.poisson_green_coeffs .* ρtot_fourier
-    pot_real = irfft(basis.fft_bundle, pot_fourier)
+    pot_real = irfft(basis, pot_fourier)
     E = real(dot(pot_fourier, ρtot_fourier) / 2)
 
     ops = [RealSpaceMultiplication(basis, kpt, pot_real) for kpt in basis.kpoints]
@@ -72,11 +72,11 @@ function apply_kernel(term::TermHartree, basis::PlaneWaveBasis{T}, δρ::Abstrac
     δρtot = total_density(δρ)
     if iszero(q)
         # Note broadcast here: δV is 4D, and all its spin components get the same potential.
-        δV .= irfft(basis.fft_bundle, term.poisson_green_coeffs .* fft(basis.fft_bundle, δρtot))  # Note the irfft
+        δV .= irfft(basis, term.poisson_green_coeffs .* fft(basis, δρtot))  # Note the irfft
     else
         # Coefficients with q != 0 not in memory => recompute
         coeffs = compute_poisson_green_coeffs(basis, term.scaling_factor; q)
-        δV .= ifft(basis.fft_bundle, coeffs .* fft(basis.fft_bundle, δρtot))  # Note the ifft
+        δV .= ifft(basis, coeffs .* fft(basis, δρtot))  # Note the ifft
     end
     δV
 end

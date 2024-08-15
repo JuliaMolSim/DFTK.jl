@@ -24,8 +24,8 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
                 for occk in occupation]
 
     function allocate_local_storage()
-        (; ρ=zeros_like(basis.G_vectors, Tρ, basis.fft_size..., basis.model.n_spin_components),
-         ψnk_real=zeros_like(basis.G_vectors, complex(Tψ), basis.fft_size...))
+        (; ρ=zeros_like(G_vectors(basis), Tρ, basis.fft_size..., basis.model.n_spin_components),
+         ψnk_real=zeros_like(G_vectors(basis), complex(Tψ), basis.fft_size...))
     end
     # We split the total iteration range (ik, n) in chunks, and parallelize over them.
     range = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
@@ -33,9 +33,9 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     storages = parallel_loop_over_range(range; allocate_local_storage) do kn, storage
         (ik, n) = kn
         kpt = basis.kpoints[ik]
-        ifft!(storage.ψnk_real, basis.fft_bundle, kpt, ψ[ik][:, n]; normalize=false)
+        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n]; normalize=false)
         storage.ρ[:, :, :, kpt.spin] .+= (occupation[ik][n] .* basis.kweights[ik]
-                                          .* (basis.fft_bundle.ifft_normalization)^2
+                                          .* (basis.fft_grid.ifft_normalization)^2
                                           .* abs2.(storage.ψnk_real))
 
         synchronize_device(basis.architecture)
@@ -68,9 +68,9 @@ end
                 for occk in occupation]
 
     function allocate_local_storage()
-        (; δρ=zeros_like(basis.G_vectors, Tδρ, basis.fft_size..., basis.model.n_spin_components),
-          ψnk_real=zeros_like(basis.G_vectors, Tψ, basis.fft_size...),
-         δψnk_real=zeros_like(basis.G_vectors, Tψ, basis.fft_size...))
+        (; δρ=zeros_like(G_vectors(basis), Tδρ, basis.fft_size..., basis.model.n_spin_components),
+          ψnk_real=zeros_like(G_vectors(basis), Tψ, basis.fft_size...),
+         δψnk_real=zeros_like(G_vectors(basis), Tψ, basis.fft_size...))
     end
     range = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
 
@@ -84,9 +84,9 @@ end
         (ik, n) = kn
 
         kpt = basis.kpoints[ik]
-        ifft!(storage.ψnk_real, basis.fft_bundle, kpt, ψ[ik][:, n])
+        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n])
         # … and then we compute the real Fourier transform in the adequate basis.
-        ifft!(storage.δψnk_real, basis.fft_bundle, δψ_plus_k[ik].kpt, δψ_plus_k[ik].ψk[:, n])
+        ifft!(storage.δψnk_real, basis, δψ_plus_k[ik].kpt, δψ_plus_k[ik].ψk[:, n])
 
         storage.δρ[:, :, :, kpt.spin] .+= real_qzero.(
             2 .* occupation[ik][n] .* basis.kweights[ik] .* conj.(storage.ψnk_real)
@@ -109,7 +109,7 @@ end
     for (ik, kpt) in enumerate(basis.kpoints)
         G_plus_k = [[p[α] for p in Gplusk_vectors_cart(basis, kpt)] for α = 1:3]
         for n = 1:size(ψ[ik], 2), α = 1:3
-            ifft!(dαψnk_real, basis.fft_bundle, kpt, im .* G_plus_k[α] .* ψ[ik][:, n])
+            ifft!(dαψnk_real, basis, kpt, im .* G_plus_k[α] .* ψ[ik][:, n])
             @. τ[:, :, :, kpt.spin] += occupation[ik][n] * basis.kweights[ik] / 2 * abs2(dαψnk_real)
         end
     end
@@ -140,7 +140,7 @@ function ρ_from_total(basis, ρtot::AbstractArray{T}) where {T}
     if basis.model.spin_polarization in (:none, :spinless)
         ρspin = nothing
     else
-        ρspin = zeros_like(basis.G_vectors, T, basis.fft_size...)
+        ρspin = zeros_like(G_vectors(basis), T, basis.fft_size...)
     end
     ρ_from_total_and_spin(ρtot, ρspin)
 end

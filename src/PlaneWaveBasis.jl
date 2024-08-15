@@ -45,14 +45,9 @@ struct PlaneWaveBasis{T,
     variational::Bool  # Is the k-point specific basis variationally consistent with
     #                    the basis used for the density / potential?
 
-    # A FFTBundle containing all necessary data for FFT opertations related to this basis
-    fft_bundle::FFTBundle{T, VT, T_G_vectors, T_r_vectors}
+    # A FFTGrid containing all necessary data for FFT opertations related to this basis
+    fft_grid::FFTGrid{T, VT, T_G_vectors, T_r_vectors}
 
-    # "cubic" basis in reciprocal and real space, on which potentials and densities are stored.
-    # Taken from fft_bundle.
-    G_vectors::T_G_vectors
-    r_vectors::T_r_vectors
- 
     ## MPI-local information of the kpoints this processor treats
     # Irreducible kpoints. In the case of collinear spin,
     # this lists all the spin up, then all the spin down
@@ -176,7 +171,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
     kweights_global = convert(Vector{T},       kdata.kweights)
 
     # Setup FFT plans
-    fft_bundle = FFTBundle(fft_size, model.unit_cell_volume, architecture) 
+    fft_grid = FFTGrid(fft_size, model.unit_cell_volume, architecture) 
 
     # Compute k-point information and spread them across processors
     # Right now we split only the kcoords: both spin channels have to be handled
@@ -237,12 +232,11 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
     dvol  = model.unit_cell_volume ./ prod(fft_size)
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
 
-    basis = PlaneWaveBasis{T, value_type(T), Arch, typeof(fft_bundle.G_vectors), 
-                           typeof(fft_bundle.r_vectors), typeof(kpoints[1].G_vectors)}(
+    basis = PlaneWaveBasis{T, value_type(T), Arch, typeof(fft_grid.G_vectors), 
+                           typeof(fft_grid.r_vectors), typeof(kpoints[1].G_vectors)}(
         model, fft_size, dvol,
         Ecut, variational,
-        fft_bundle,
-        fft_bundle.G_vectors, fft_bundle.r_vectors,
+        fft_grid,
         kpoints, kweights, kgrid,
         kcoords_global, kweights_global,
         comm_kpts, krange_thisproc, krange_allprocs, krange_thisproc_allspin,
@@ -325,7 +319,7 @@ end
 The list of wave vectors ``G`` in reduced (integer) coordinates of a `basis`
 or a ``k``-point `kpt`.
 """
-G_vectors(basis::PlaneWaveBasis) = basis.fft_bundle.G_vectors
+G_vectors(basis::PlaneWaveBasis) = basis.fft_grid.G_vectors
 G_vectors(::PlaneWaveBasis, kpt::Kpoint) = kpt.G_vectors
 
 @doc raw"""
@@ -365,7 +359,7 @@ end
 
 The list of ``r`` vectors, in reduced coordinates. By convention, this is in [0,1)^3.
 """
-r_vectors(basis::PlaneWaveBasis) = basis.fft_bundle.r_vectors
+r_vectors(basis::PlaneWaveBasis) = basis.fft_grid.r_vectors
 
 @doc raw"""
     r_vectors_cart(basis::PlaneWaveBasis)
@@ -543,3 +537,35 @@ function scatter_kpts_block(basis::PlaneWaveBasis, data::Union{Nothing,AbstractA
         splitted
     end
 end
+
+"""
+Forward FFT calls to the PlaneWaveBasis fft_grid field
+"""
+ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis, f_fourier::AbstractArray3) = 
+    ifft!(f_real, basis.fft_grid, f_fourier)
+
+ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis, kpt::Kpoint, 
+      f_fourier::AbstractVector; normalize=true) =
+    ifft!(f_real, basis.fft_grid, kpt, f_fourier; normalize=normalize)
+
+ifft(basis::PlaneWaveBasis, f_fourier::AbstractArray) = ifft(basis.fft_grid, f_fourier)
+
+ifft(basis::PlaneWaveBasis, kpt::Kpoint, f_fourier::AbstractVector; kwargs...) = 
+    ifft(basis.fft_grid, kpt, f_fourier; kwargs ...)
+
+irfft(basis::PlaneWaveBasis, f_fourier::AbstractArray) = irfft(basis.fft_grid, f_fourier)
+
+fft!(f_fourier::AbstractArray3, basis::PlaneWaveBasis, f_real::AbstractArray3) =
+    fft!(f_fourier, basis.fft_grid, f_real)
+
+fft!(f_fourier::AbstractVector, basis::PlaneWaveBasis, kpt::Kpoint, 
+     f_real::AbstractArray3; normalize=true) =
+    fft!(f_fourier, basis.fft_grid, kpt, f_real; normalize=normalize)
+
+fft(basis::PlaneWaveBasis, f_real::AbstractArray) = fft(basis.fft_grid, f_real)
+
+fft(basis::PlaneWaveBasis, kpt::Kpoint, f_real::AbstractArray3; kwargs...) =
+    fft(basis.fft_grid, kpt, f_real; kwargs...)
+
+ifft_matrix(basis::PlaneWaveBasis) = ifft_matrix(basis.fft_grid)
+fft_matrix(basis::PlaneWaveBasis) = fft_matrix(basis.fft_grid)

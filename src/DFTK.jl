@@ -68,7 +68,7 @@ include("SymOp.jl")
 
 export Smearing
 export Model
-export FFTBundle
+export FFTGrid
 export MonkhorstPack, ExplicitKpoints
 export PlaneWaveBasis
 export compute_fft_size
