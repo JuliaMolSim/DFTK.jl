@@ -17,9 +17,8 @@ import AbstractFFTs: fft, fft!, ifft, ifft!
 # take a k-point as input.
 
 """
-We define the FFTBundle struct, containing all the data required to perform FFTs. Namely:
+We define the FFTGrid struct, containing all the data required to perform FFTs. Namely:
 - fft_size: defines the extent of the real and reciprocal space grids
-- unit_cell_volume: real-space volume of the Model's unit cell (necessary for normalization)
 - opFFT: out-of-place FFT plan
 - ipFFT: in-place FFT plan
 - opBFFT: out-of-place backward FFT plan
@@ -32,13 +31,12 @@ We define the FFTBundle struct, containing all the data required to perform FFTs
 Note that the FFT plans are not normalized. Normalization takes place explicitely
 when the fft()/ifft() functions are called
 """
-struct FFTBundle{T,
-                 VT <: Real,
-                 T_G_vectors  <: AbstractArray{Vec3{Int}, 3},
-                 T_r_vectors  <: AbstractArray{Vec3{VT},  3}}
+struct FFTGrid{T,
+               VT <: Real,
+               T_G_vectors  <: AbstractArray{Vec3{Int}, 3},
+               T_r_vectors  <: AbstractArray{Vec3{VT},  3}}
 
     fft_size::Tuple{Int, Int, Int}
-    unit_cell_volume::T
 
     opFFT
     ipFFT
@@ -53,8 +51,8 @@ struct FFTBundle{T,
     architecture::AbstractArchitecture
 end
 
-function FFTBundle(fft_size::Tuple{Int, Int, Int}, unit_cell_volume::T, 
-                   arch::AbstractArchitecture) where T <: Real
+function FFTGrid(fft_size::Tuple{Int, Int, Int}, unit_cell_volume::T, 
+                 arch::AbstractArchitecture) where T <: Real
 
     Gs = to_device(arch, G_vectors(fft_size))
     (ipFFT, opFFT, ipBFFT, opBFFT) = build_fft_plans!(similar(Gs, Complex{T}, fft_size))
@@ -73,65 +71,65 @@ function FFTBundle(fft_size::Tuple{Int, Int, Int}, unit_cell_volume::T,
                  for idx in CartesianIndices(fft_size)]
     r_vectors = to_device(arch, r_vectors)
 
-    FFTBundle{T, VT, typeof(Gs), typeof(r_vectors)}(
-        fft_size, unit_cell_volume, opFFT, ipFFT, opBFFT, ipBFFT,
-        fft_normalization, ifft_normalization, Gs, r_vectors, arch)
+    FFTGrid{T, VT, typeof(Gs), typeof(r_vectors)}(
+        fft_size, opFFT, ipFFT, opBFFT, ipBFFT, fft_normalization, 
+        ifft_normalization, Gs, r_vectors, arch)
 end
 
-function FFTBundle(fft_size::Int, unit_cell_volume::T, arch::AbstractArchitecture) where T <: Real
+function FFTGrid(fft_size::Int, unit_cell_volume::T, arch::AbstractArchitecture) where T <: Real
     fft_size = Tuple{Int,Int,Int}(fft_size)
-    FFTBundle(fft_size, unit_cell_volume, arch)
+    FFTGrid(fft_size, unit_cell_volume, arch)
 end
 
-G_vectors(fft_bundle::FFTBundle) = fft_bundle.G_vectors
-r_vectors(fft_bundle::FFTBundle) = fft_bundle.r_vectors
+G_vectors(fft_grid::FFTGrid) = fft_grid.G_vectors
+r_vectors(fft_grid::FFTGrid) = fft_grid.r_vectors
 
 """
 In-place version of `ifft`.
 """
-function ifft!(f_real::AbstractArray3, fft_bundle::FFTBundle, f_fourier::AbstractArray3)
-    mul!(f_real, fft_bundle.opBFFT, f_fourier)
-    f_real .*= fft_bundle.ifft_normalization
+function ifft!(f_real::AbstractArray3, fft_grid::FFTGrid, f_fourier::AbstractArray3)
+    mul!(f_real, fft_grid.opBFFT, f_fourier)
+    f_real .*= fft_grid.ifft_normalization
 end
-function ifft!(f_real::AbstractArray3, fft_bundle::FFTBundle,
+function ifft!(f_real::AbstractArray3, fft_grid::FFTGrid,
                kpt::Kpoint, f_fourier::AbstractVector; normalize=true)
     @assert length(f_fourier) == length(kpt.mapping)
-    @assert size(f_real) == fft_bundle.fft_size
+    @assert size(f_real) == fft_grid.fft_size
 
     # Pad the input data
     fill!(f_real, 0)
     f_real[kpt.mapping] = f_fourier
 
-    mul!(f_real, fft_bundle.ipBFFT, f_real)  # perform IFFT
-    normalize && (f_real .*= fft_bundle.ifft_normalization)
+    mul!(f_real, fft_grid.ipBFFT, f_real)  # perform IFFT
+    normalize && (f_real .*= fft_grid.ifft_normalization)
     f_real
 end
 
 """
-    ifft(fft_bundle::FFTBundle, [kpt::Kpoint, ] f_fourier)
+    ifft(fft_grid::FFTGrid, [kpt::Kpoint, ] f_fourier)
 
 Perform an iFFT to obtain the quantity defined by `f_fourier` defined
 on the k-dependent spherical basis set (if `kpt` is given) or the
 k-independent cubic (if it is not) on the real-space grid.
 """
-function ifft(fft_bundle::FFTBundle, f_fourier::AbstractArray)
+function ifft(fft_grid::FFTGrid, f_fourier::AbstractArray)
     f_real = similar(f_fourier)
     @assert length(size(f_fourier)) ∈ (3, 4)
     # this exploits trailing index convention
     for iσ = 1:size(f_fourier, 4)
-        @views ifft!(f_real[:, :, :, iσ], fft_bundle, f_fourier[:, :, :, iσ])
+        @views ifft!(f_real[:, :, :, iσ], fft_grid, f_fourier[:, :, :, iσ])
     end
     f_real
 end
-function ifft(fft_bundle::FFTBundle, kpt::Kpoint, f_fourier::AbstractVector; kwargs...)
-    ifft!(similar(f_fourier, fft_bundle.fft_size...), fft_bundle, kpt, f_fourier; kwargs...)
+function ifft(fft_grid::FFTGrid, kpt::Kpoint, f_fourier::AbstractVector; kwargs...)
+    ifft!(similar(f_fourier, fft_grid.fft_size...), fft_grid, kpt, f_fourier; kwargs...)
 end
 """
 Perform a real valued iFFT; see [`ifft`](@ref). Note that this function
 silently drops the imaginary part.
 """
-function irfft(fft_bundle::FFTBundle{T}, f_fourier::AbstractArray) where {T}
-    real(ifft(fft_bundle, f_fourier))
+function irfft(fft_grid::FFTGrid{T}, f_fourier::AbstractArray) where {T}
+    real(ifft(fft_grid, f_fourier))
 end
 
 
@@ -139,65 +137,64 @@ end
 In-place version of `fft!`.
 NOTE: If `kpt` is given, not only `f_fourier` but also `f_real` is overwritten.
 """
-function fft!(f_fourier::AbstractArray3, fft_bundle::FFTBundle, f_real::AbstractArray3)
+function fft!(f_fourier::AbstractArray3, fft_grid::FFTGrid, f_real::AbstractArray3)
     if eltype(f_real) <: Real
         f_real = complex.(f_real)
     end
-    mul!(f_fourier, fft_bundle.opFFT, f_real)
-    f_fourier .*= fft_bundle.fft_normalization
+    mul!(f_fourier, fft_grid.opFFT, f_real)
+    f_fourier .*= fft_grid.fft_normalization
 end
-function fft!(f_fourier::AbstractVector, fft_bundle::FFTBundle,
+function fft!(f_fourier::AbstractVector, fft_grid::FFTGrid,
               kpt::Kpoint, f_real::AbstractArray3; normalize=true)
-    @assert size(f_real) == fft_bundle.fft_size
+    @assert size(f_real) == fft_grid.fft_size
     @assert length(f_fourier) == length(kpt.mapping)
 
     # FFT
-    mul!(f_real, fft_bundle.ipFFT, f_real)
+    mul!(f_real, fft_grid.ipFFT, f_real)
 
     # Truncate
     f_fourier .= view(f_real, kpt.mapping)
-    normalize && (f_fourier .*= fft_bundle.fft_normalization)
+    normalize && (f_fourier .*= fft_grid.fft_normalization)
     f_fourier
 end
 
 """
-    fft(fft_bundle::FFTBundle, [kpt::Kpoint, ] f_real)
+    fft(fft_grid::FFTGrid, [kpt::Kpoint, ] f_real)
 
 Perform an FFT to obtain the Fourier representation of `f_real`. If
 `kpt` is given, the coefficients are truncated to the k-dependent
 spherical basis set.
 """
-function fft(fft_bundle::FFTBundle{T}, f_real::AbstractArray{U}) where {T, U}
+function fft(fft_grid::FFTGrid{T}, f_real::AbstractArray{U}) where {T, U}
     f_fourier = similar(f_real, complex(promote_type(T, U)))
     @assert length(size(f_real)) ∈ (3, 4)
     for iσ = 1:size(f_real, 4)  # this exploits trailing index convention
-        @views fft!(f_fourier[:, :, :, iσ], fft_bundle, f_real[:, :, :, iσ])
+        @views fft!(f_fourier[:, :, :, iσ], fft_grid, f_real[:, :, :, iσ])
     end
     f_fourier
 end
 
 
 # TODO optimize this
-function fft(fft_bundle::FFTBundle, kpt::Kpoint, f_real::AbstractArray3; kwargs...)
-    fft!(similar(f_real, length(kpt.mapping)), fft_bundle, kpt, copy(f_real); kwargs...)
+function fft(fft_grid::FFTGrid, kpt::Kpoint, f_real::AbstractArray3; kwargs...)
+    fft!(similar(f_real, length(kpt.mapping)), fft_grid, kpt, copy(f_real); kwargs...)
 end
 
 # returns matrix representations of the ifft and fft matrices. For debug purposes.
-function ifft_matrix(fft_bundle::FFTBundle{T}) where {T}
-    ret = zeros(complex(T), prod(fft_bundle.fft_size), prod(fft_bundle.fft_size))
-    for (iG, G) in enumerate(G_vectors(fft_bundle))
-        for (ir, r) in enumerate(r_vectors(fft_bundle))
-            ret[ir, iG] = cis2pi(dot(r, G)) / sqrt(fft_bundle.unit_cell_volume)
+function ifft_matrix(fft_grid::FFTGrid{T}) where {T}
+    ret = zeros(complex(T), prod(fft_grid.fft_size), prod(fft_grid.fft_size))
+    for (iG, G) in enumerate(G_vectors(fft_grid))
+        for (ir, r) in enumerate(r_vectors(fft_grid))
+            ret[ir, iG] = cis2pi(dot(r, G)) * fft_grid.ifft_normalization
         end
     end
     ret
 end
-function fft_matrix(fft_bundle::FFTBundle{T}) where {T}
-    ret = zeros(complex(T), prod(fft_bundle.fft_size), prod(fft_bundle.fft_size))
-    for (iG, G) in enumerate(G_vectors(fft_bundle))
-        for (ir, r) in enumerate(r_vectors(fft_bundle))
-            Ω = fft_bundle.unit_cell_volume
-            ret[iG, ir] = cis2pi(-dot(r, G)) * sqrt(Ω) / prod(fft_bundle.fft_size)
+function fft_matrix(fft_grid::FFTGrid{T}) where {T}
+    ret = zeros(complex(T), prod(fft_grid.fft_size), prod(fft_grid.fft_size))
+    for (iG, G) in enumerate(G_vectors(fft_grid))
+        for (ir, r) in enumerate(r_vectors(fft_grid))
+            ret[iG, ir] = cis2pi(-dot(r, G)) * fft_grid.fft_normalization
         end
     end
     ret

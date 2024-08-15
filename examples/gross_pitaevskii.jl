@@ -61,7 +61,7 @@ scfres.energies
 ψ_fourier = scfres.ψ[1][:, 1];    # first k-point, all G components, first eigenvector
 
 # Transform the wave function to real space and fix the phase:
-ψ = ifft(basis.fft_bundle, basis.kpoints[1], ψ_fourier)[:, 1, 1]
+ψ = ifft(basis, basis.kpoints[1], ψ_fourier)[:, 1, 1]
 ψ /= (ψ[div(end, 2)] / abs(ψ[div(end, 2)]));
 
 # Check whether ``ψ`` is normalised:
