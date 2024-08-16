@@ -232,35 +232,43 @@ plot(Nrange, abs.(fconv.(Nrange) .- fconv(200)); yaxis=:log, legend=false)
 using LinearAlgebra
 
 function build_plane_waves_matrix_cos(N::Integer)
-# Plane wave approximation to -½Δ
- G=[float((-N + i)^2) for i in 0:2N]
- #using results from exercice 2 for the case of cos potential, the following matrix is built for the Hamiltonian
- T = 1/2 * Tridiagonal(ones(2N),G,ones(2N))
- T=Matrix(T)
+    # Plane wave approximation to -½Δ
+    G = [float((-N + i)^2) for i in 0:2N]
+    #using results from exercice 2 for the case of cos potential, the following matrix is built for the Hamiltonian
+    T = 1/2 * Tridiagonal(ones(2N), G, ones(2N))
 end
 # Then we check that the first eigenvalue agrees with the finite-difference case, using $N = 10$:
-Hpw_cos=build_plane_waves_matrix_cos(10)
+Hpw_cos = build_plane_waves_matrix_cos(10)
 L, V = eigen(Hpw_cos)
 L[1:5]
 # Finally, we look at the convergence plot to compare accuracies for various N:
+
 using Plots
 function fconv(N)
     L, V = eigen(build_plane_waves_matrix_cos(N))
     first(L)
 end
+
 Nrange = 2:10
-plot(Nrange, abs.(fconv.(Nrange) .- fconv(200)); yaxis=:log , legend=false, ylims=(1e-16,Inf))
+plot(Nrange, abs.(fconv.(Nrange) .- fconv(200)); yaxis=:log, legend=false, ylims=(1e-16,Inf))
+#
 # The N range here is much smaller showing how the plane waves method is much more precise than the finite differences.
 #
 # ### Exercise 4
 # To plot the fourier coefficients the following program can be used:
+
 using Plots
 using RecipesBase
+
 ## plot real and imaginary parts of the fourier coefficients by combining 2 plots
 ## plot of the real part of the fourier coefficients in function of the kpoints axis
-p = plot(sortperm(first.(G_vectors_cart(basis, basis.kpoints[1]))),real(ψ_fourier) ; label="real")
+kpoint1_coords = G_vectors_cart(basis, basis.kpoints[1])
+first_coord_kpoint1 = first.(kpoint1_coords)
+change_order_coords_kpoint1 = sortperm(first_coord_kpoint1)
+p = plot(change_order_coords_kpoint1, real(ψ_fourier); label="real")
 # add the imaginary part of the fourier coefficients to the first plot
-plot!(p, imag(ψ_fourier) ; label="imaginary")
+plot!(p, imag(ψ_fourier); label="imaginary")
+#
 # The plot is symmetric and only takes peak values which confirms to choice of cosine as potential
 #
 # ### Exercise 5
@@ -283,15 +291,17 @@ scfres.ψ
 # ### Exercise 6
 # One can increase the size of the problem by increasing Ecut and kgrid, and decreasing the tolerance.
 # To observe the difference of time, one can then plot the values obtained using @elapsed
+
+
 using Plots
 using BenchmarkTools
+
 t = []
 ## create a range of energies and fix a larger kgrid and lower tolerance
 for Ecut in 500:100:10000 
     basis = PlaneWaveBasis(model; Ecut, kgrid=(3, 3, 3))
-    diagtolalg = AdaptiveDiagtol(; diagtol_max=1e-8, diagtol_first=1e-8)
-    ti = BenchmarkTools.@belapsed self_consistent_field($basis; tol=1e-6, $diagtolalg) #get mean value of time
-    push!(t,ti) #add to array
+    ti = BenchmarkTools.@belapsed self_consistent_field(basis; tol=1e-6, diagtolalg) 
+    push!(t,ti)
 end
 plot(t)
 
