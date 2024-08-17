@@ -30,6 +30,8 @@ The [AtomsCalculatorsUtilities](https://github.com/JuliaMolSim/AtomsCalculatorsU
 package contains an implementation of the [i-PI protocol](https://github.com/i-pi/i-pi)
 to pass energies, forces and virials between different atomistic calculators.
 This can be used, for example, to make julia-based calculators available in ASE.
+Note that at the moment AtomsCalculatorsUtilities is not yet registered
+in general and you will need to install it from the github url.
 
 On the python-side (for ASE), this requests the computation of a force
 of a hydrogen molecule:
@@ -51,8 +53,9 @@ we need to setup an initial system as a template
 as well as an LDA calculator with desired numerical parameters:
 
 ```julia
-using AtomsCalculatorsUtilities.IPI
 using AtomsBase
+using AtomsCalculatorsUtilities.IPI
+using DFTK
 using Unitful
 
 # Setup initial system
@@ -66,7 +69,7 @@ hydrogen = periodic_system([
 
 # Setup DFTK calculator
 calc = DFTKCalculator(;
-    model_kwargs = (; functionals=[:lda_x, :lda_c_pw]),
+    model_kwargs = (; functionals=LDA()),
     basis_kwargs = (; kgrid=[1, 1, 1], Ecut=10)
 )
 

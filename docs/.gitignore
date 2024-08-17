@@ -1,9 +1,13 @@
 build/
 site/
 src/examples/
+src/ecosystem/atomsbase.ipynb
 src/ecosystem/atomsbase.md
+src/ecosystem/atomscalculators.ipynb
 src/ecosystem/atomscalculators.md
+src/ecosystem/input_output.ipynb
 src/ecosystem/input_output.md
+src/ecosystem/wannier.ipynb
 src/ecosystem/wannier.md
 src/guide/atomic_chains.ipynb
 src/guide/atomic_chains.md
