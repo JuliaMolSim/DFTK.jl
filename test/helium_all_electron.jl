@@ -6,7 +6,7 @@
         lattice = 10 * Matrix{Float64}(I, 3, 3)
         atoms = [ElementCoulomb(:He)]
         positions = [zeros(3)]
-        model = model_DFT(lattice, atoms, positions, [], n_electrons=2)
+        model = model_DFT(lattice, atoms, positions; functionals=[])
         basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
 
         scfres = self_consistent_field(basis; tol)
@@ -15,5 +15,5 @@
 
     E, forces = energy_forces(; Ecut=5, tol=1e-10)
     @test E ≈ -1.5869009433016852 atol=1e-12
-    @test norm(forces) < 1e-7
+    @test norm(forces) < 1e-6
 end

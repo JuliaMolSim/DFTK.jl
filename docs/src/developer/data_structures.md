@@ -2,18 +2,10 @@
 
 ```@setup data_structures
 using DFTK
-a = 10.26  # Silicon lattice constant in Bohr
-lattice = a / 2 * [[0 1 1.];
-                   [1 0 1.];
-                   [1 1 0.]]
-Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
-atoms = [Si, Si]
-positions = [ones(3)/8, -ones(3)/8]
-
-model = model_LDA(lattice, atoms, positions)
-kgrid = [4, 4, 4]
-Ecut = 15
-basis = PlaneWaveBasis(model; Ecut, kgrid)
+using AtomsBuilder
+system = attach_psp(bulk(:Si); Si="hgh/lda/si-q4")
+model  = model_DFT(system; functionals=LDA())
+basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 scfres = self_consistent_field(basis; tol=1e-4);
 ```
 
@@ -64,20 +56,19 @@ the definition of the above terms in the
 By mixing and matching these terms, the user can create custom models
 not limited to DFT. Convenience constructors are provided for common cases:
 
-- `model_LDA`: LDA model using the
-  [Teter parametrisation](https://doi.org/10.1103/PhysRevB.54.1703)
-- `model_DFT`: Assemble a DFT model using
-   any of the LDA or GGA functionals of the
-   [libxc](https://tddft.org/programs/libxc/functionals/) library,
-   for example:
+- `model_DFT`: Assemble a DFT model using any of the LDA or GGA functionals of the
+   [libxc](https://libxc.gitlab.io/functionals/) library, for example:
    ```
-   model_DFT(lattice, atoms, positions, [:gga_x_pbe, :gga_c_pbe])
-   model_DFT(lattice, atoms, positions, :lda_xc_teter93)
+   model_DFT(lattice, atoms, positions; functionals=LDA())
+   model_DFT(lattice, atoms, positions; functionals=[:lda_x, :lda_c_pw])
+   model_DFT(lattice, atoms, positions; functionals=[:gga_x_pbe, :gga_c_pbe])
    ```
-   where the latter is equivalent to `model_LDA`.
-   Specifying no functional is the reduced Hartree-Fock model:
+   For common functional combinations DFTK additionally offers shorthands.
+   E.g. in the above example specifying [`LDA`](@ref) expands to
+   `[:lda_x, :lda_c_pw]`, such that the first two examples are identical.
+   Note, that specifying no functional is the reduced Hartree-Fock model:
    ```
-   model_DFT(lattice, atoms, positions, [])
+   model_DFT(lattice, atoms, positions; functionals=[])
    ```
 - `model_atomic`: A linear model, which contains no electron-electron interaction
   (neither Hartree nor XC term).
@@ -95,7 +86,7 @@ of `PlaneWaveBasis`, the latter is controlled by the
 cutoff energy parameter `Ecut`:
 
 ```@example data_structures
-PlaneWaveBasis(model; Ecut, kgrid)
+PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 ```
 
 The `PlaneWaveBasis` by default uses symmetry to reduce the number of

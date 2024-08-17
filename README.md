@@ -2,9 +2,9 @@
 
 # Density-functional toolkit
 
-| **Documentation**                                                                 | **Build Status**                                |  **License**                     |
-|:--------------------------------------------------------------------------------- |:----------------------------------------------- |:-------------------------------- |
-| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][chat-img]][chat-url] | [![][ci-img]][ci-url] [![][cigpu-img]][cigpu-url] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
+| **Documentation**                                                               | **Build Status**                                |  **License**                     |
+|:------------------------------------------------------------------------------- |:----------------------------------------------- |:-------------------------------- |
+| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][chat-img]][chat-url] | [![][ci-img]][ci-url] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
 
 [ddocs-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [ddocs-url]: https://docs.dftk.org/dev
@@ -17,9 +17,6 @@
 
 [ci-img]: https://github.com/JuliaMolSim/DFTK.jl/workflows/CI/badge.svg?branch=master&event=push
 [ci-url]: https://github.com/JuliaMolSim/DFTK.jl/actions
-
-[cigpu-img]: https://git.uni-paderborn.de/herbstm/DFTK.jl/badges/master/pipeline.svg?key_text=GPU%20CI
-[cigpu-url]: https://git.uni-paderborn.de/herbstm/DFTK.jl/-/pipelines
 
 [ccov-img]: https://codecov.io/gh/JuliaMolSim/DFTK.jl/branch/master/graph/badge.svg?token=A23M0VZ8PQ
 [ccov-url]: https://codecov.io/gh/JuliaMolSim/DFTK.jl
@@ -46,7 +43,7 @@ For getting started with DFTK, see [our documentation](https://docs.dftk.org):
 - [Tutorial](https://docs.dftk.org/stable/guide/tutorial/)
 - [Basic DFT examples](https://docs.dftk.org/stable/examples/metallic_systems/)
 
-Note that at least **Julia 1.9** is required.
+Note that at least **Julia 1.10** is required.
 
 ## Support and citation
 DFTK is mostly developed as part of academic research.

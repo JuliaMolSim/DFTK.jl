@@ -17,7 +17,8 @@ function make_basis(ε::T; a=10., Ecut=30) where {T}
     atoms     = [ElementPsp(:He; psp=load_psp("hgh/lda/He-q2"))]
     positions = [[1/2, 1/2, 1/2]]
 
-    model = model_DFT(lattice, atoms, positions, [:lda_x, :lda_c_vwn];
+    model = model_DFT(lattice, atoms, positions;
+                      functionals=[:lda_x, :lda_c_vwn],
                       extra_terms=[ExternalFromReal(r -> -ε * (r[1] - a/2))],
                       symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])  # No k-point sampling on isolated system

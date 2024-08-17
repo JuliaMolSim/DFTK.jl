@@ -10,7 +10,8 @@
     silicon = TestCases.silicon
 
     function make_basis(lattice, symmetries, element)
-        model = model_PBE(lattice, [element, element], silicon.positions; symmetries)
+        model = model_DFT(lattice, [element, element], silicon.positions;
+                          functionals=PBE(), symmetries)
         PlaneWaveBasis(model; Ecut=7, kgrid=(3, 3, 3))
     end
 

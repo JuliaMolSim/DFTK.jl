@@ -29,7 +29,7 @@ function compute_dos(ε, basis, eigenvalues; smearing=basis.model.smearing,
     D = mpi_sum(D, basis.comm_kpts)
 end
 function compute_dos(scfres::NamedTuple; ε=scfres.εF, kwargs...)
-        compute_dos(ε, scfres.basis, scfres.eigenvalues; kwargs...)
+    compute_dos(ε, scfres.basis, scfres.eigenvalues; kwargs...)
 end
 
 """

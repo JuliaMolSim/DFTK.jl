@@ -34,7 +34,7 @@ atoms = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
 
 ## Cast to Float32, setup model and basis
-model = model_LDA(lattice, atoms, positions)
+model = model_DFT(lattice, atoms, positions; functionals=LDA())
 basis = PlaneWaveBasis(convert(Model{Float32}, model), Ecut=7, kgrid=[4, 4, 4])
 
 ## Run the SCF

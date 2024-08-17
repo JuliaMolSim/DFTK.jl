@@ -28,18 +28,16 @@ end
 @testitem "MonkhorstPack irreducible_kcoords is correct reduction" #=
     =#    tags=[:dont_test_mpi] setup=[TestCases] begin
     using Logging
-    using ASEconvert
+    using AtomsBuilder
     (; silicon, magnesium, platinum_hcp) = TestCases.all_testcases
 
     function test_reduction(testcase, kgrid_size, kirredsize;
                             supercell=(1, 1, 1), kshift=[0, 0, 0])
         system = atomic_system(testcase.lattice, testcase.atoms, testcase.positions)
-
-        # Make supercell
-        if supercell != (1, 1, 1)
-            ase_atoms = with_logger(() -> convert_ase(system), NullLogger())
-            system = pyconvert(AbstractSystem, ase_atoms * pytuple(supercell))
+        if supercell != (1, 1, 1)  # Make supercell
+            system = system * supercell
         end
+
         kgrid = MonkhorstPack(kgrid_size, kshift)
         symmetries = symmetry_operations(system)
         sym_preserving_grid = DFTK.symmetries_preserving_kgrid(symmetries, kgrid)
@@ -69,8 +67,8 @@ end
     test_reduction(silicon, [ 3,  3,  3], 6, kshift=[1//2, 0, 1//2])
     test_reduction(silicon, [ 3,  3,  3], 6, kshift=[0, 1//2, 0])
 
-    test_reduction(silicon, [ 1,  4,  4],    7, supercell=[2, 1, 1])
-    test_reduction(silicon, [ 1,  16,  16], 73, supercell=[4, 1, 1])
+    test_reduction(silicon, [ 1,  4,  4],    7, supercell=(2, 1, 1))
+    test_reduction(silicon, [ 1,  16,  16], 73, supercell=(4, 1, 1))
 
     test_reduction(magnesium, [ 2,  3,  2],   8)
     test_reduction(magnesium, [ 3,  3,  3],   6)
@@ -108,30 +106,44 @@ end
     @test std.positions[1] - std.positions[2] ≈ 0.25ones(3)
 end
 
-@testitem "kgrid_from_maximal_spacing" begin
+@testitem "kgrid_from_maximal_spacing" setup=[TestCases] begin
     using DFTK
     using Unitful
 
-    # Test that units are stripped from both the lattice and the spacing
-    lattice = [[-1.0 1 1]; [1 -1  1]; [1 1 -1]]
-    @test kgrid_from_maximal_spacing(lattice * u"Å", 0.5 / u"Å").kgrid_size == [9, 9, 9]
+    @testset "Simple lattice with units" begin
+        # Test that units are stripped from both the lattice and the spacing
+        lattice = [[-1.0 1 1]; [1 -1  1]; [1 1 -1]]
+        @test kgrid_from_maximal_spacing(lattice * u"Å", 0.5 / u"Å").kgrid_size == [9, 9, 9]
+    end
+    @testset "Magnesium system" begin
+        magnesium = TestCases.magnesium
+        system = periodic_system(magnesium.lattice, magnesium.atoms, magnesium.positions)
+        @test kgrid_from_maximal_spacing(system, 0.5 / u"Å").kgrid_size == [5, 5, 3]
+    end
 end
 
 @testitem "kgrid_from_minimal_n_kpoints" setup=[TestCases] begin
     using DFTK
     using Unitful
     using LinearAlgebra
-    magnesium = TestCases.magnesium
 
-    lattice = [[-1.0 1 1]; [1 -1  1]; [1 1 -1]]
-    @test kgrid_from_minimal_n_kpoints(lattice * u"Å", 1000).kgrid_size == [10, 10, 10]
-
-    @test kgrid_from_minimal_n_kpoints(magnesium.lattice, 1).kgrid_size == [1, 1, 1]
-    for n_kpt in [10, 20, 100, 400, 900, 1200]
-        @test length(kgrid_from_minimal_n_kpoints(magnesium.lattice, n_kpt)) ≥ n_kpt
+    @testset "Simple lattice with units" begin
+        lattice = [[-1.0 1 1]; [1 -1  1]; [1 1 -1]]
+        @test kgrid_from_minimal_n_kpoints(lattice * u"Å", 1000).kgrid_size == [10, 10, 10]
     end
 
-    lattice = diagm([4., 10, 0])
-    @test kgrid_from_minimal_n_kpoints(lattice, 1000).kgrid_size          == [50, 20, 1]
-    @test kgrid_from_minimal_n_kpoints(diagm([10, 0, 0]), 913).kgrid_size == [913, 1, 1]
+    @testset "Magnesium system" begin
+        magnesium = TestCases.magnesium
+        system = periodic_system(magnesium.lattice, magnesium.atoms, magnesium.positions)
+        @test kgrid_from_minimal_n_kpoints(system, 1).kgrid_size == [1, 1, 1]
+        for n_kpt in [10, 20, 100, 400, 900, 1200]
+            @test length(kgrid_from_minimal_n_kpoints(system, n_kpt)) ≥ n_kpt
+        end
+    end
+
+    @testset "Reduced dimension" begin
+        lattice = diagm([4., 10, 0])
+        @test kgrid_from_minimal_n_kpoints(lattice, 1000).kgrid_size          == [50, 20, 1]
+        @test kgrid_from_minimal_n_kpoints(diagm([10, 0, 0]), 913).kgrid_size == [913, 1, 1]
+    end
 end

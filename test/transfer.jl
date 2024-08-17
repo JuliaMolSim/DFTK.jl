@@ -7,7 +7,7 @@
     tol = 1e-7
     Ecut = 5
 
-    model  = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
+    model  = model_DFT(silicon.lattice, silicon.atoms, silicon.positions; functionals=LDA())
     kgrid  = [2, 2, 2]
     kshift = [1, 1, 1] / 2
     basis  = PlaneWaveBasis(model; Ecut, kgrid, kshift)

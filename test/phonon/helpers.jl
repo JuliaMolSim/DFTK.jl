@@ -63,7 +63,7 @@ function test_frequencies(model_tested, testcase; ω_ref=nothing, Ecut=7, kgrid=
     supercell = create_supercell(testcase.lattice, testcase.atoms, testcase.positions,
                                  supercell_size)
     model_supercell = model_tested(supercell.lattice, supercell.atoms, supercell.positions;
-                               symmetries=false, testcase.temperature)
+                                   symmetries=false, testcase.temperature)
     nbandsalg = AdaptiveBands(model_supercell; occupation_threshold=1e-10)
     scf_kwargs = merge(scf_kwargs, (; nbandsalg))
     basis_supercell = PlaneWaveBasis(model_supercell; Ecut, kgrid=[1, 1, 1])

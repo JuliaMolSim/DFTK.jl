@@ -43,7 +43,7 @@ positions[1] .+= [-0.022, 0.028, 0.035]
 # We build a model with one ``k``-point only, not too high `Ecut_ref` and small
 # tolerance to limit computational time. These parameters can be increased for
 # more precise results.
-model = model_LDA(lattice, atoms, positions)
+model = model_DFT(lattice, atoms, positions; functionals=LDA())
 kgrid = [1, 1, 1]
 Ecut_ref = 35
 basis_ref = PlaneWaveBasis(model; Ecut=Ecut_ref, kgrid)

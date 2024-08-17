@@ -4,55 +4,41 @@
 # When dealing with periodic problems there is no unique definition of the
 # lattice: Clearly any duplication of the lattice along an axis is also a valid
 # repetitive unit to describe exactly the same system.
-# This is exactly what a **supercell** is: An $n$-fold repetition along one of the
+# This is exactly what a **supercell** is: An $n$-fold repetition along one (or multiple)
 # axes of the original lattice.
 #
 # The following code achieves this for aluminium:
 
+using AtomsBuilder
 using DFTK
 using LinearAlgebra
-using ASEconvert
+using Unitful
+using UnitfulAtomic
 
 function aluminium_setup(repeat=1; Ecut=7.0, kgrid=[2, 2, 2])
-    a = 7.65339
-    lattice = a * Matrix(I, 3, 3)
-    Al = ElementPsp(:Al; psp=load_psp("hgh/lda/al-q3"))
-    atoms     = [Al, Al, Al, Al]
-    positions = [[0.0, 0.0, 0.0], [0.0, 0.5, 0.5], [0.5, 0.0, 0.5], [0.5, 0.5, 0.0]]
-    unit_cell = periodic_system(lattice, atoms, positions)
+    ## Use AtomsBuilder to setup aluminium cubic unit cell (4 Al atoms)
+    ## with provided lattice constant, see [AtomsBase integration](@ref) for details.
+    unit_cell = bulk(:Al; a=7.65339u"bohr", cubic=true)
 
-    ## Make supercell in ASE:
-    ## We convert our lattice to the conventions used in ASE, make the supercell
-    ## and then convert back ...
-    supercell_ase = convert_ase(unit_cell) * pytuple((repeat, 1, 1))
-    supercell     = pyconvert(AbstractSystem, supercell_ase)
-
-    ## Unfortunately right now the conversion to ASE drops the pseudopotential information,
-    ## so we need to reattach it:
+    ## Make a supercell and attach pseudopotential information:
+    supercell = unit_cell * (repeat, 1, 1)
     supercell = attach_psp(supercell; Al="hgh/lda/al-q3")
 
-    ## Construct an LDA model and discretise
+    ## Construct an LDA model and discretize
     ## Note: We disable symmetries explicitly here. Otherwise the problem sizes
     ##       we are able to run on the CI are too simple to observe the numerical
     ##       instabilities we want to trigger here.
-    model = model_LDA(supercell; temperature=1e-3, symmetries=false)
+    model = model_DFT(supercell; functionals=LDA(), temperature=1e-3, symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid)
 end;
 
-# As part of the code we are using a routine inside the ASE,
-# the [atomistic simulation environment](https://wiki.fysik.dtu.dk/ase/index.html)
-# for creating the supercell and make use of the two-way interoperability of
-# DFTK and ASE. For more details on this aspect see the documentation
-# on [Input and output formats](@ref).
+# As expected we obtain the unit cell for `repeat=1`:
 
-# Write an example supercell structure to a file to plot it:
-setup = aluminium_setup(5)
-convert_ase(periodic_system(setup.model)).write("al_supercell.png")
+aluminium_setup(1)
 
-#md # ```@raw html
-#md # <img src="../al_supercell.png" width=500 height=500 />
-#md # ```
-#nb # <img src="https://docs.dftk.org/stable/examples/al_supercell.png" width=500 height=500 />
+# and 5-fold as large supercell with `repeat=5`:
+
+aluminium_setup(5)
 
 # As we will see in this notebook the modelling of a system generally becomes
 # harder if the system becomes larger.

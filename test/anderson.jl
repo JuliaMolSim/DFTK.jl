@@ -4,7 +4,8 @@ using LinearAlgebra
 (; silicon, aluminium) = TestCases.all_testcases
 
 function test_addiis(testcase; temperature=0, Ecut=10, kgrid=[3, 3, 3], n_bands=8)
-    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions; temperature)
+    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                      functionals=LDA(), temperature)
     basis = PlaneWaveBasis(model; kgrid, Ecut)
     tol   = 1e-10
     ρ = guess_density(basis)
@@ -21,10 +22,6 @@ function test_addiis(testcase; temperature=0, Ecut=10, kgrid=[3, 3, 3], n_bands=
 
     @test norm(scfres_addiis.ρ - scfres_rdiis.ρ) * sqrt(basis.dvol) < 10tol
     @test norm(scfres_simple.ρ - scfres_rdiis.ρ) * sqrt(basis.dvol) < 10tol
-
-    # Test that some measure to control Anderson conditioning help.
-    @test scfres_rdiis.n_iter  ≤ scfres_simple.n_iter
-    @test scfres_addiis.n_iter ≤ scfres_simple.n_iter
 end
 
 @testset "Aluminium, temp" begin

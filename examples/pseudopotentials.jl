@@ -33,8 +33,10 @@
 # Then, we will compare the bandstructure at the converged parameters calculated
 # using the two PSPs.
 
+using AtomsBuilder
 using DFTK
 using Unitful
+using UnitfulAtomic
 using Plots
 using LazyArtifacts
 import Main: @artifact_str # hide
@@ -55,8 +57,8 @@ import Main: @artifact_str # hide
 # directory where the file is stored by the Artifacts system. So, if you have your own
 # pseudopotential files, you can just provide the path to them as well.
 
-psp_hgh  = load_psp("hgh/lda/si-q4.hgh");
-psp_upf  = load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf");
+psp_hgh = "hgh/lda/si-q4.hgh";
+psp_upf = artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf";
 
 # First, we'll take a look at the energy cutoff convergence of these two pseudopotentials.
 # For both pseudos, a reference energy is calculated with a cutoff of 140 Hartree, and
@@ -79,16 +81,10 @@ psp_upf  = load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf");
 # 12 Ha for both PSPs.
 
 function run_bands(psp)
-    a = 10.26  # Silicon lattice constant in Bohr
-    lattice = a / 2 * [[0 1 1.];
-                       [1 0 1.];
-                       [1 1 0.]]
-    Si = ElementPsp(:Si; psp)
-    atoms     = [Si, Si]
-    positions = [ones(3)/8, -ones(3)/8]
+    system = attach_psp(bulk(:Si; a=10.26u"bohr"); Si=psp)
 
     ## These are (as you saw above) completely unconverged parameters
-    model = model_LDA(lattice, atoms, positions; temperature=1e-2)
+    model = model_DFT(system; functionals=LDA(), temperature=1e-2)
     basis = PlaneWaveBasis(model; Ecut=12, kgrid=(4, 4, 4))
 
     scfres   = self_consistent_field(basis; tol=1e-4)

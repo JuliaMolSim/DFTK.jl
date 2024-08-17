@@ -9,7 +9,8 @@
     # the standard kinetic term and checks that the same band computed with a modified
     # kinetic terms has C^2 regularity.
 
-    model     = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
+    model     = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                          functionals=LDA())
     basis_std = PlaneWaveBasis(model; Ecut=5, kgrid=(3, 3, 3))
     scfres    = self_consistent_field(basis_std; callback=identity)
 
@@ -26,7 +27,8 @@
 
     # Compute band for given blow-up and test regularity
     function test_blowup(kinetic_blowup)
-        model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions; kinetic_blowup)
+        model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                          functionals=LDA(), kinetic_blowup)
         basis_mod = PlaneWaveBasis(model; Ecut=5, kgrid=(3, 3, 3), basis_std.fft_size)
 
         λ_mod = reduce(vcat, compute_bands(basis_mod, kpath, n_bands=1; scfres.ρ).eigenvalues)
