@@ -17,9 +17,9 @@
 # ## Finite differences
 # We approximate functions $ψ$ on $[0, 2\pi]$ by their values at grid points
 # $x_k = 2\pi \frac{k}{N}$, $k=1, \dots, N$.
-# The boundary conditions are imposed by $ψ(x_0) = ψ(x_N), ψ(x_{N+1}) = ψ(x_0)$. We then have
+# The boundary conditions are imposed by $ψ(x_0) = ψ(x_N), ψ(x_{N+1}) = ψ(x_1)$. We then have
 # ```math
-#    \big(Hψ\big)(x_k) \approx \frac 1 2 \frac{-ψ_{k-1} + 2 ψ_k - ψ_{k+1}}{2 δx^2}
+#    \big(Hψ\big)(x_k) \approx \frac 1 2 \frac{-ψ_{k-1} + 2 ψ_k - ψ_{k+1}}{δx^2}
 #    + V(x_k) ψ(x_k)
 # ```
 # with $δx = \frac{2π}{N}$.
@@ -63,7 +63,7 @@ end;
 # !!! tip "Exercise 2"
 #     Show that
 #     ```math
-#        \langle e_G, e_{G'}\rangle = ∫_0^{2π} e_G(x) e_{G'}(x) d x = δ_{G, G'}
+#        \langle e_G, e_{G'}\rangle = ∫_0^{2π} e_G^\ast(x) e_{G'}(x) d x = δ_{G, G'}
 #     ```
 #     and (assuming $V(x) = \cos(x)$)
 #     ```math
@@ -118,8 +118,9 @@ plot(real(ψ); label="")
 
 # Again this should match with the result above.
 #
-# **Exercise 4:** Look at the Fourier coefficients of $\psi$ ($\psi$_fourier)
-# and compare with the result above.
+# !!! tip "Exercise 4"
+#     Look at the Fourier coefficients of $\psi$_fourier
+#     and compare with the result above.
 
 # ## The DFTK Hamiltonian
 # We can ask DFTK for the Hamiltonian
@@ -147,7 +148,12 @@ Array(H)
 # !!! tip "Exercise 6"
 #     Increase the size of the problem, and compare the time spent
 #     by DFTK's internal diagonalization algorithms to a full diagonalization of `Array(H)`.  
-#     *Hint:* The `@time` macro is handy for this task.
+#     *Hint:* The `@benchmark` macro (from the [BenchmarkTools](https://github.com/JuliaCI/BenchmarkTools.jl) package) is handy for this task. Note that there are some subtleties with global variables (see the BenchmarkTools docs for details). E.g. to use it to benchmark a function like `eigen(H)` run it as
+#     ```  
+#     using BenchmarkTools  
+#     [@benchmark](https://github.com/benchmark) eigen($H)  
+#     ```  
+#     (note the `$`). 
 
 # ## Solutions
 #
@@ -167,7 +173,7 @@ Array(H)
 # such that overall
 # ```math
 # f''(x) \simeq \frac{f(x + 2δx) - f(x + δx) - f(x + δx) + f(x)}{δx^2}
-#        = \frac{f(x + 2δx) - 2f(x + δx) f(x)}{δx^2}
+#        = \frac{f(x + 2δx) - 2f(x + δx) + f(x)}{δx^2}
 # ```
 # In finite differences we consider a stick basis of vectors
 # ```math
@@ -177,10 +183,7 @@ Array(H)
 # Keeping in mind the periodic boundary conditions (i.e. $e_0 = e_N$) projecting the
 # Hamiltonian $H$ onto this basis thus yields the proposed structure.
 #
-# !!! note "TODO More details"
-#     More details needed
-#
-# We start off with $N = 500$ to obtain
+# We start off with $N = 100$ to obtain
 
 Hfd = build_finite_differences_matrix(cos, 100)
 L, V = eigen(Hfd)
@@ -198,22 +201,108 @@ Nrange = 10:10:100
 plot(Nrange, abs.(fconv.(Nrange) .- fconv(200)); yaxis=:log, legend=false)
 
 # ### Exercise 2
-# !!! note "TODO"
-#     This solution has not yet been written. Any help with a PR is appreciated.
+#- \langle e_G, e_{G'}\rangle = ∫_0^{2π} e_G^\ast(x) e_{G'}(x) d x = 1/2π ∫_0^{2π} e^i(G'-G)x d x$
+# Since `e^{iy}` is a periodic function with period $2\pi$, $\int_0^{2\pi} e^{i m y} = \delta_{0,m}$. Therefore:
+# if G≠G':
+#$\langle e_G, e_{G'}\rangle = 0$
+# if G=G':
+#$\langle e_G, e_{G'}\rangle = 1$
+# Therefore:
+#$\langle e_G, e_{G'}\rangle = δ_{G, G'}$
+#- Assuming $V(x) = \cos(x)$:
+#$\langle e_G, H e_{G'}\rangle = \frac 1 2 ∫_0^{2π} e_G^\ast(x) H e_{G'}(x) d x$
+# We start by applying the Hamiltonian on the corresponding function:
+#$H e_{G'}(x) = - \frac 1 2 (-|G|^2) \frac 1 {\sqrt{2π}} e^{iG'x) + cos(x) \frac 1 {\sqrt{2π}} e{iG'x}$
+# Then, using the previous result and the fact that $cos(x) = \frac 1 2 \left(e{ix} + e{-ix})$, we get:
+#$\langle e_G, H e_{G'}\rangle = \frac 1 2 G^2  δ_{G, G'} + \frac 1 {4π} \left(∫_0^{2π} (e^{ix})^{G'-G+1} d x + ∫_0^{2π} (e^{ix})^{G'-G-1} d x)$
+#$= \frac 1 2 \left(|G|^2 \delta_{G,G'} + \delta_{G, G'+1} + \delta_{G, G'-1}\right)$
+#- A more general $V(x)$ has to be periodic over $[0, 2\pi]$, therefore the complex eponential Fourier series can be used:
+#$V(x) = sum_{n=- \infty}^{\infty} v_n e{-inx}$
+# One can think of it as changing the basis of the potential function to the plane wave basis. Therefore :
+#$| v_n, e{iG'} \rangle = frac 1 {\sqrt{2π}} sum_{n=- \infty}^{\infty} v_n e^{i(G'-n)x}$
+#$\langle e_G, V e_{G'}\rangle = frac 1 {2π} sum_{n=- \infty}^{\infty} ∫_0^{2π} v_n e{i(G'-G-n)x} d x$
+#$= \frac 1 {2π} sum_{n=- \infty}^{\infty} v_n delta_{G, G'- n}$
+# Therefore :
+#$\langle e_G, H e_{G'}\rangle = \frac 1 2 |G|^2 \delta_{G,G'} + sum_{n=0}^{\infty} v_n delta_{G, G' \pm n}$
 #
 # ### Exercise 3
-# !!! note "TODO"
-#     This solution has not yet been written. Any help with a PR is appreciated.
+# The Hamiltonian matrix for the plane waves method can be found this way:
+## Plane waves Hamiltonian -½Δ + cos on [0, 2pi].
+
+using LinearAlgebra
+
+function build_plane_waves_matrix_cos(N::Integer)
+    # Plane wave approximation to -½Δ
+    G = [float((-N + i)^2) for i in 0:2N]
+    #using results from exercice 2 for the case of cos potential, the following matrix is built for the Hamiltonian
+    T = 1/2 * Tridiagonal(ones(2N), G, ones(2N))
+end
+# Then we check that the first eigenvalue agrees with the finite-difference case, using $N = 10$:
+Hpw_cos = build_plane_waves_matrix_cos(10)
+L, V = eigen(Hpw_cos)
+L[1:5]
+# Finally, we look at the convergence plot to compare accuracies for various N:
+
+using Plots
+function fconv(N)
+    L, V = eigen(build_plane_waves_matrix_cos(N))
+    first(L)
+end
+
+Nrange = 2:10
+plot(Nrange, abs.(fconv.(Nrange) .- fconv(200)); yaxis=:log, legend=false, ylims=(1e-16,Inf))
+#
+# The N range here is much smaller showing how the plane waves method is much more precise than the finite differences.
 #
 # ### Exercise 4
-# !!! note "TODO"
-#     This solution has not yet been written. Any help with a PR is appreciated.
+# To plot the fourier coefficients the following program can be used:
+
+using Plots
+using RecipesBase
+
+## plot real and imaginary parts of the fourier coefficients by combining 2 plots
+## plot of the real part of the fourier coefficients in function of the kpoints axis
+kpoint1_coords = G_vectors_cart(basis, basis.kpoints[1])
+first_coord_kpoint1 = first.(kpoint1_coords)
+change_order_coords_kpoint1 = sortperm(first_coord_kpoint1)
+p = plot(change_order_coords_kpoint1, real(ψ_fourier); label="real")
+# add the imaginary part of the fourier coefficients to the first plot
+plot!(p, imag(ψ_fourier); label="imaginary")
+#
+# The plot is symmetric and only takes peak values which confirms to choice of cosine as potential
 #
 # ### Exercise 5
-# !!! note "TODO"
-#     This solution has not yet been written. Any help with a PR is appreciated.
+# The eigenvalues and eigenvectors of the Hamiltonian can be found this way:
+## get the eigenvalues of the Hamiltonian
+scfres.eigenvalues
+## get the eigenvectors of the Hamiltonian
+scfres.ψ
+# To get the Hamlitonian matrix of the PlaneWaveBasis and compare it with the one of the Hamiltonian of DFTK, one can use this method:
+## build the Hamiltonian PW matrix
+Array(scfres.ham.blocks[1])
+## get the norm of the difference between the 2 matrices 
+norm(Array(scfres.ham.blocks[1]) .- Array(H))
+# Therefore DFTK is very accurate
+# To find the ordering of the G-vectors, one can look at the values of the eigenvectors
+scfres.ψ
+# For each vector, the second and third values are equal to the last and second last values respectfully and the first value is unique,
+# Therefore the ordering is 0,1,2,...,-2,-1
 #
 # ### Exercise 6
-# !!! note "TODO"
-#     This solution has not yet been written. Any help with a PR is appreciated.
+# One can increase the size of the problem by increasing Ecut and kgrid, and decreasing the tolerance.
+# To observe the difference of time, one can then plot the values obtained using @elapsed
+
+
+using Plots
+using BenchmarkTools
+
+t = []
+## create a range of energies and fix a larger kgrid and lower tolerance
+for Ecut in 500:100:10000 
+    basis = PlaneWaveBasis(model; Ecut, kgrid=(3, 3, 3))
+    ti = BenchmarkTools.@belapsed self_consistent_field(basis; tol=1e-6, diagtolalg) 
+    push!(t,ti)
+end
+plot(t)
+
 
