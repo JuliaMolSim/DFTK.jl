@@ -176,6 +176,35 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
     # Right now we split only the kcoords: both spin channels have to be handled
     # by the same process
     n_kpt   = length(kcoords_global)
+
+    # K-points are distributed over MPI ranks. If there are more ranks than k-points,
+    # the code crashes, and very specific fixes of "reducing over empty collections"
+    # would need to be implemented. In order to avoid that, while letting the code run
+    # without crashing, a new MPI communicator is created. This communicator has the same
+    # amount of ranks as there are k-point. All processors not in the communicator exit
+    # at this stage. While this may lead to idle CPU time, the user experience is enhanced.
+    if mpi_nprocs(comm_kpts) > n_kpt
+
+        # Create a new MPI communicator with a maximum of n_kpt procs
+        color = nothing
+        rank_id = mpi_rankid(comm_kpts)
+        nprocs_init = mpi_nprocs(comm_kpts)
+        if rank_id < n_kpt
+            color = 1
+        end
+        comm_kpts = MPI.Comm_split(comm_kpts, color, rank_id)
+
+        # Processes not in the communicator exit the program here
+        if comm_kpts == MPI.COMM_NULL
+            MPI.Finalize()
+            exit()
+        end
+
+        @warn("Attempting to parallelize a calculation of $n_kpt K-points  over $nprocs_init " *
+              "MPI ranks. DFTK cannot handle having more MPI ranks than K-points. The calculation " *
+              "continues with $n_kpt MPI ranks instead.")
+
+    end
     n_procs = mpi_nprocs(comm_kpts)
 
     if n_procs > n_kpt

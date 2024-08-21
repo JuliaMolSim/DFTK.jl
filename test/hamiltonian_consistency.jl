@@ -79,7 +79,7 @@ end
 end
 
 
-@testitem "Hamiltonian consistency" setup=[TestCases, HamConsistency] begin
+@testitem "Hamiltonian consistency" setup=[TestCases, HamConsistency] tags=[:dont_test_mpi] begin
     using DFTK
     using LinearAlgebra
     using .HamConsistency: test_consistency_term

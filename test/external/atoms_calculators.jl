@@ -1,4 +1,4 @@
-@testitem "Test AtomsCalculators interfaces" setup=[TestCases] tags=[:atomsbase] begin
+@testitem "Test AtomsCalculators interfaces" setup=[TestCases] tags=[:atomsbase, :dont_test_mpi] begin
     using AtomsCalculators
     using AtomsCalculators.Testing: test_energy_forces_virial
     using Unitful

@@ -5,6 +5,7 @@ import MPI
 Number of processors used in MPI. Can be called without ensuring initialization.
 """
 mpi_nprocs(comm=MPI.COMM_WORLD) = (MPI.Init(); MPI.Comm_size(comm))
+mpi_rankid(comm=MPI.COMM_WORLD) = (MPI.Init(); MPI.Comm_rank(comm))
 mpi_master(comm=MPI.COMM_WORLD) = (MPI.Init(); MPI.Comm_rank(comm) == 0)
 
 mpi_sum(  arr, comm::MPI.Comm) = MPI.Allreduce( arr,   +, comm)
