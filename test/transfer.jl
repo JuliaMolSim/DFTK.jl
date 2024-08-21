@@ -43,7 +43,7 @@
     @test norm(ψ-ψ_bb) < eps(eltype(basis))
 end
 
-@testitem "Transfer of density" begin
+@testitem "Transfer of density" tags=[:dont_test_mpi] begin
     using DFTK
     using DFTK: transfer_density
     using LinearAlgebra
