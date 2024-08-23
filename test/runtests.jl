@@ -20,8 +20,7 @@ using DFTK
 using Interpolations
 
 if base_tag == :mpi
-    # Run MPI tests with 2 ranks, as a larger number is not compatible with K-point number > 2
-    nprocs  = 2
+    nprocs = parse(Int, get(ENV, "DFTK_TEST_NPROCS", "$(clamp(Sys.CPU_THREADS, 2, 4))"))
     run(`$(mpiexec()) -n $nprocs $(Base.julia_cmd())
         --project --startup-file=no --compiled-modules=no
         --check-bounds=yes --depwarn=yes --color=yes

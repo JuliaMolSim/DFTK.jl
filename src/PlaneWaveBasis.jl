@@ -175,37 +175,24 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
     # Compute k-point information and spread them across processors
     # Right now we split only the kcoords: both spin channels have to be handled
     # by the same process
+    n_procs = mpi_nprocs(comm_kpts)
     n_kpt   = length(kcoords_global)
 
-    # K-points are distributed over MPI ranks. If there are more ranks than k-points,
-    # the code crashes, and very specific fixes of "reducing over empty collections"
-    # would need to be implemented. In order to avoid that, while letting the code run
-    # without crashing, a new MPI communicator is created. This communicator has the same
-    # amount of ranks as there are k-point. All processors not in the communicator exit
-    # at this stage. While this may lead to idle CPU time, the user experience is enhanced.
-    if mpi_nprocs(comm_kpts) > n_kpt
-
-        # Create a new MPI communicator with a maximum of n_kpt procs
-        color = nothing
-        rank_id = mpi_rankid(comm_kpts)
-        nprocs_init = mpi_nprocs(comm_kpts)
-        if rank_id < n_kpt
-            color = 1
+    # The code cannot handle MPI ranks without k-points. If there are more prcocessas
+    # than k-points, we duplicate k-points with the highest weight on the empty MPI
+    # ranks (and scale the weight accordingly)
+    if n_procs > n_kpt
+        for i in n_kpt+1:n_procs
+            idx = argmax(kweights_global)
+            kweights_global[idx] *= 0.5
+            push!(kweights_global, kweights_global[idx])
+            push!(kcoords_global, kcoords_global[idx])
         end
-        comm_kpts = MPI.Comm_split(comm_kpts, color, rank_id)
-
-        # Processes not in the communicator exit the program here
-        if comm_kpts == MPI.COMM_NULL
-            MPI.Finalize()
-            exit()
-        end
-
-        @warn("Attempting to parallelize a calculation of $n_kpt K-points  over $nprocs_init " *
-              "MPI ranks. DFTK cannot handle having more MPI ranks than K-points. The calculation " *
-              "continues with $n_kpt MPI ranks instead.")
-
+        @warn("Attempting to parallelize $n_kpt k-points over $n_procs MPI ranks. DFTK does " *
+              "not support processes empty of k-point. Some k-points were duplicated over the " *
+              "extra ranks with scaled weights.")
     end
-    n_procs = mpi_nprocs(comm_kpts)
+    n_kpt = length(kcoords_global)
 
     if n_procs > n_kpt
         # XXX Supporting more processors than kpoints would require
