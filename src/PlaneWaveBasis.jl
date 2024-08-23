@@ -264,8 +264,24 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
     # Compute k-point information and spread them across processors
     # Right now we split only the kcoords: both spin channels have to be handled
     # by the same process
-    n_kpt   = length(kcoords_global)
     n_procs = mpi_nprocs(comm_kpts)
+    n_kpt   = length(kcoords_global)
+
+    # The code cannot handle MPI ranks without k-points. If there are more prcocessas
+    # than k-points, we duplicate k-points with the highest weight on the empty MPI
+    # ranks (and scale the weight accordingly)
+    if n_procs > n_kpt
+        for i in n_kpt+1:n_procs
+            idx = argmax(kweights_global)
+            kweights_global[idx] *= 0.5
+            push!(kweights_global, kweights_global[idx])
+            push!(kcoords_global, kcoords_global[idx])
+        end
+        @warn("Attempting to parallelize $n_kpt k-points over $n_procs MPI ranks. DFTK does " *
+              "not support processes empty of k-point. Some k-points were duplicated over the " *
+              "extra ranks with scaled weights.")
+    end
+    n_kpt = length(kcoords_global)
 
     # Custom reduction operators for MPI are currently not working on aarch64, so
     # fallbacks are defined in common/mpi.jl. For them to work, there cannot be more
@@ -275,27 +291,12 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
               "(see https://github.com/JuliaParallel/MPI.jl/issues/404)")
     end
 
-    if n_procs > n_kpt
-        # XXX Supporting more processors than kpoints would require
-        # fixing a bunch of "reducing over empty collections" errors
-        # In the unit tests it is really annoying that this fails so we hack around it, but
-        # generally it leads to duplicated work that is not in the users interest.
-        if parse(Bool, get(ENV, "CI", "false"))
-            comm_kpts = MPI.COMM_SELF
-            krange_thisproc1 = 1:n_kpt
-            krange_allprocs1 = fill(1:n_kpt, n_procs)
-        else
-            error("No point in trying to parallelize $n_kpt kpoints over $n_procs " *
-                  "processes; reduce the number of MPI processes.")
-        end
-    else
-        # get the slice of 1:n_kpt to be handled by this process
-        # Note: MPI ranks are 0-based
-        krange_allprocs1 = split_evenly(1:n_kpt, n_procs)
-        krange_thisproc1 = krange_allprocs1[1 + MPI.Comm_rank(comm_kpts)]
-        @assert mpi_sum(length(krange_thisproc1), comm_kpts) == n_kpt
-        @assert !isempty(krange_thisproc1)
-    end
+    # get the slice of 1:n_kpt to be handled by this process
+    # Note: MPI ranks are 0-based
+    krange_allprocs1 = split_evenly(1:n_kpt, n_procs)
+    krange_thisproc1 = krange_allprocs1[1 + MPI.Comm_rank(comm_kpts)]
+    @assert mpi_sum(length(krange_thisproc1), comm_kpts) == n_kpt
+    @assert !isempty(krange_thisproc1)
 
     # Setup k-point basis sets
     !variational && @warn(

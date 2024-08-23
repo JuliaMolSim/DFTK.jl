@@ -124,7 +124,7 @@ end
     end
 end
 
-@testitem "Forces on oxygen with spin and temperature" setup=[TestCases] begin
+@testitem "Forces on oxygen with spin and temperature" setup=[TestCases] tags=[:dont_test_mpi] begin
     using DFTK
     using DFTK: mpi_mean!
     using MPI

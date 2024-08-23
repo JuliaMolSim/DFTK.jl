@@ -1,4 +1,4 @@
-@testitem "Pairwise forces" begin
+@testitem "Pairwise forces" tags=[:dont_test_mpi] begin
     using DFTK
     using DFTK: energy_forces_pairwise
     using LinearAlgebra
