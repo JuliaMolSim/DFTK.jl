@@ -28,7 +28,7 @@ using DFTK
 using LazyArtifacts
 import Main: @artifact_str # hide
 
-al_supercell = bulk(:Al) * (4, 1, 1)
+al_supercell = bulk(:Al; cubic=true) * (4, 1, 1)
 system_Al = attach_psp(al_supercell;
                        Al=artifact"pd_nc_sr_pbe_standard_0.4.1_upf/Al.upf")
 
