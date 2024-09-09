@@ -54,7 +54,7 @@ The following publications report research employing DFTK as a core component.
 Feel free to drop us a line if you want your work to be added here.
 
 - M. F. Herbst, V. H. Bakkestuen, A. Laestadius.
-  [*Kohn-Sham inversion with mathematical guarantees*](Kohn-Sham inversion with mathematical guarantees) (2024).
+  [*Kohn-Sham inversion with mathematical guarantees*](https://arxiv.org/abs/2409.04372) (2024).
   ([Supplementary material and computational scripts](https://github.com/mfherbst/supporting-my-inversion)).
 
 - J. Cazalis.
