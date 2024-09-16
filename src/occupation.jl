@@ -171,15 +171,15 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
     i_max = length(εFs)
     excess_min = excess_n_electrons(basis, eigenvalues, εFs[1]; temperature, smearing)
     excess_max = excess_n_electrons(basis, eigenvalues, last(εFs); temperature, smearing)
-    if excess_max <= tol_n_elec     # Try to fill all the bands
+    if excess_max <= tol_n_elec         # Try to fill all the bands
         εF = last(εFs)
         if excess_max < -tol_n_elec
             error("Could not obtain required number of electrons by filling every state. " *
                   "Increase n_bands.")
         end
-    elseif excess_min >= -tol_n_elec # Try to fill only the smallest band(s)
-        εF = εFs[1]
-    else
+    elseif excess_min >= -tol_n_elec    # Try to fill only the smallest band(s)
+        εF = first(εFs)
+    else                                # Bissection to find first(εFs) < εF < last(εFs)
         while i_max - i_min > 1
             i = div(i_min+i_max, 2)
             εF = εFs[i]
