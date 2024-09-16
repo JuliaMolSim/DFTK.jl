@@ -1,4 +1,4 @@
-@testsetup module Variational
+@testmodule Variational begin
 using DFTK
 
 function get_scf_energies(testcase, supersampling, functionals)
@@ -7,8 +7,8 @@ function get_scf_energies(testcase, supersampling, functionals)
     kgrid = ExplicitKpoints([[.2, .3, .4]])
 
     # force symmetries to false because the symmetrization is weird at low ecuts
-    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions, functionals;
-                      symmetries=false)
+    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                      functionals, symmetries=false)
     fft_size = compute_fft_size(model, Ecut, kgrid; supersampling,
                                 ensure_smallprimes=false, algorithm=:precise)
     basis = PlaneWaveBasis(model; Ecut, kgrid, fft_size)

@@ -21,7 +21,7 @@ function Xc(functionals::AbstractVector; kwargs...)
     end
     Xc(convert(Vector{Functional}, fun); kwargs...)
 end
-Xc(functional; kwargs...) = Xc([functional]; kwargs...)
+@deprecate Xc(functional; kwargs...) Xc([functional]; kwargs...)
 
 function Base.show(io::IO, xc::Xc)
     fac = isone(xc.scaling_factor) ? "" : ", scaling_factor=$(xc.scaling_factor)"

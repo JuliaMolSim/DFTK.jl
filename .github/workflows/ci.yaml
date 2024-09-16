@@ -38,7 +38,7 @@ jobs:
       - name: Setup Julia stable
         uses: julia-actions/setup-julia@v1
         with:
-          version: '1.9'
+          version: '1.10'
           arch: x64
         if: ${{ matrix.mode == 'stable' }}
       - name: Setup Julia nightly
@@ -57,3 +57,4 @@ jobs:
       - uses: codecov/codecov-action@v4
         with:
           files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}

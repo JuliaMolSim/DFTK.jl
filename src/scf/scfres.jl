@@ -14,9 +14,9 @@ in which case it tries to recover from the file as much data as it can, but then
 resulting `scfres` might not be fully consistent.
 
 !!! warning "No compatibility guarantees"
-    No guarantees are made with respect to this function at this point.
-    It may change incompatibly between DFTK versions (including patch versions)
-    or stop working / be removed in the future.
+    No guarantees are made with respect to the format of the keys at this point.
+    We may change the internal format of the keys incompatibly between DFTK versions
+    (including patch versions).
 """
 @timing function load_scfres(filename::AbstractString, basis=nothing;
                              skip_hamiltonian=false, strict=true)
@@ -63,9 +63,8 @@ Keyword arguments:
   to be available.
 
 !!! warning "Changes to data format reserved"
-    No guarantees are made with respect to the format of the keys at this point.
-    We may change this incompatibly between DFTK versions (including patch versions).
-    In particular changes with respect to the ψ structure are planned.
+    No guarantees are made with respect to this function at this point.
+    It may change incompatibly between DFTK versions (including patch versions).
 """
 @timing function save_scfres(filename::AbstractString, scfres::NamedTuple;
                              save_ψ=nothing, extra_data=Dict{String,Any}(),

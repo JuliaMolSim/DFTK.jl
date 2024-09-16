@@ -1,11 +1,7 @@
 # Define AtomsCalculators interface for DFTK.
-#
-# This interface is inspired by the one used in Molly.jl,
-# see https://github.com/JuliaMolSim/Molly.jl/blob/master/src/types.jl
 using AtomsBase
-using AtomsCalculators
-using Unitful
-using UnitfulAtomic
+import AtomsCalculators
+import AtomsCalculators: @generate_interface
 
 
 Base.@kwdef struct DFTKParameters
@@ -14,21 +10,30 @@ Base.@kwdef struct DFTKParameters
     scf_kwargs   = (; )
 end
 
-struct DFTKState{T}
-    scfres::T
-end
-DFTKState() = DFTKState((; ψ=nothing, ρ=nothing))
-
-mutable struct DFTKCalculator
+struct DFTKCalculator{T}
+    # Note: The params are *not all* parameters in the sense of the LUX interface convention,
+    #       hence we do not expose them with `AtomsCalculators.get_parameters`
     params::DFTKParameters
-    state::DFTKState
-end
+    st::T
+    #
+    # Calculator counters
+    # TODO The Ref thingies feel a little wrong, somehow this should be part of the
+    #      state, but this may make it hard to keep track during geometry optimisation
+    #      or similar. In any case don't rely on this for now, it may disappear.
+    counter_n_iter::Ref{Int}
+    counter_matvec::Ref{Int}
+    #
+    # Calculator parameters
+    enforce_convergence::Bool  # If true, throws an error exception on non-convergence
 
-function AtomsCalculators.promote_force_type(::Any, calc::DFTKCalculator)
-    # Not exactly correct as in principle the floating-point type could
-    # be different from Float64
-    typeof(Vec3([1.0, 1.0, 1.0]) * u"hartree/bohr")
+    function DFTKCalculator(params::DFTKParameters, st=nothing; enforce_convergence=true)
+        new{Nothing}(params, st, Ref(0), Ref(0), enforce_convergence)
+    end
 end
+AtomsCalculators.energy_unit(::DFTKCalculator) = u"hartree"
+AtomsCalculators.length_unit(::DFTKCalculator) = u"bohr"
+
+# TODO DFTKCalculator needs a custom show function (both brief and detailed)
 
 """
 Construct a [AtomsCalculators](https://github.com/JuliaMolSim/AtomsCalculators.jl)
@@ -38,60 +43,82 @@ constructor, the `scf_kwargs` to [`self_consistent_field`](@ref). At the very
 least the DFT `functionals` and the `Ecut` needs to be specified.
 
 By default the calculator preserves the symmetries that are stored inside the
-`state` (the basis is re-built, but symmetries are fixed and not re-computed).
+`st` (the basis is re-built, but symmetries are fixed and not re-computed).
+
+Calculator-specific keyword arguments are:
+- `verbose`: If true, the SCF iterations are printed.
+- `enforce_convergence`: If false, the calculator does not error out
+  in case of a non-converging SCF.
 
 ## Example
 ```julia-repl
-julia> DFTKCalculator(; model_kwargs=(; functionals=[:lda_x, :lda_c_vwn]),
+julia> DFTKCalculator(; model_kwargs=(; functionals=LDA()),
                         basis_kwargs=(; Ecut=10, kgrid=(2, 2, 2)),
                         scf_kwargs=(; tol=1e-4))
 ```
 """
-function DFTKCalculator(params::DFTKParameters)
-    DFTKCalculator(params, DFTKState())  # Create dummy state if not given.
-end
-
-function DFTKCalculator(; verbose=false, model_kwargs, basis_kwargs, scf_kwargs)
-    if !verbose
+function DFTKCalculator(; verbose=false, model_kwargs, basis_kwargs, scf_kwargs=(; ),
+                          st=nothing, kwargs...)
+    if !verbose && !(:callback in keys(scf_kwargs))
+        # If callback is given in scf_kwargs, then this automatically overwrites
+        # the default callback, which prints the iterations.
         scf_kwargs = merge(scf_kwargs, (; callback=identity))
     end
-    params = DFTKParameters(; model_kwargs, basis_kwargs, scf_kwargs)
-    DFTKCalculator(params)
+    DFTKCalculator(DFTKParameters(; model_kwargs, basis_kwargs, scf_kwargs), st; kwargs...)
 end
 
-function compute_scf!(system::AbstractSystem, calculator::DFTKCalculator, state::DFTKState)
-    params = calculator.params
-
-    # We re-use the symmetries from the state to avoid issues
-    # with accidentally more symmetric structures.
-    symmetries = haskey(state.scfres, :basis) ? state.scfres.basis.model.symmetries : true
-    model = model_DFT(system; symmetries, params.model_kwargs...)
-    basis = PlaneWaveBasis(model; params.basis_kwargs...)
-
-    ρ = @something state.scfres.ρ guess_density(basis, system)
-    scfres = self_consistent_field(basis; ρ, state.scfres.ψ, params.scf_kwargs...)
-    calculator.state = DFTKState(scfres)
+# TODO Do something with parameters ?
+AtomsCalculators.get_state(calc::DFTKCalculator) = calc.st
+function AtomsCalculators.set_state!(calc::DFTKCalculator, st)
+    DFTKCalculator(calc.params, st; calc.enforce_convergence)
 end
 
-AtomsCalculators.@generate_interface function AtomsCalculators.potential_energy(
-        system::AbstractSystem, calculator::DFTKCalculator; state=DFTKState(),
-        kwargs...)
-    compute_scf!(system, calculator, state)
-    calculator.state.scfres.energies.total * u"hartree"
+
+function compute_scf(system::AbstractSystem, calc::DFTKCalculator, oldstate)
+    # We re-use the symmetries from the oldstate to avoid issues if system
+    # happens to be more symmetric than the structure used to make the oldstate.
+    symmetries = haskey(oldstate, :basis) ? oldstate.basis.model.symmetries : true
+    model = model_DFT(system; symmetries, calc.params.model_kwargs...)
+    basis = PlaneWaveBasis(model; calc.params.basis_kwargs...)
+
+    # @something makes sure that the density is only evaluated if ρ not in the state
+    ρ = @something get(oldstate, :ρ, nothing) guess_density(basis, system)
+    ψ = get(oldstate, :ψ, nothing)
+    scfres = self_consistent_field(basis; ρ, ψ, calc.params.scf_kwargs...)
+    calc.enforce_convergence && !scfres.converged && error("SCF not converged.")
+    calc.counter_n_iter[] += scfres.n_iter
+    calc.counter_matvec[] += scfres.n_matvec
+    scfres
+end
+function compute_scf(system::AbstractSystem, calc::DFTKCalculator, ::Nothing)
+    compute_scf(system, calc, (; ))
 end
 
-AtomsCalculators.@generate_interface function AtomsCalculators.forces(
-        system::AbstractSystem, calculator::DFTKCalculator; state=DFTKState(),
-        kwargs...)
-    compute_scf!(system, calculator, state)
-    compute_forces_cart(calculator.state.scfres) * u"hartree/bohr"
+
+@generate_interface function AtomsCalculators.calculate(::AtomsCalculators.Energy,
+        system::AbstractSystem, calc::DFTKCalculator, ps=nothing, st=nothing; kwargs...)
+    scfres = compute_scf(system, calc, st)
+    (; energy=scfres.energies.total * u"hartree", state=scfres)
 end
 
-AtomsCalculators.@generate_interface function AtomsCalculators.virial(
-        system::AbstractSystem, calculator::DFTKCalculator; state=DFTKState(),
-        kwargs...)
-    compute_scf!(system, calculator, state)
-    scfres = calculator.state.scfres
-    stress = compute_stresses_cart(scfres)
-    - (stress * scfres.basis.model.unit_cell_volume) * u"hartree"
+@generate_interface function AtomsCalculators.calculate(::AtomsCalculators.Forces,
+        system::AbstractSystem, calc::DFTKCalculator, ps=nothing, st=nothing; kwargs...)
+    scfres = compute_scf(system, calc, st)
+    (; forces=compute_forces_cart(scfres) * u"hartree/bohr",
+       energy=scfres.energies.total * u"hartree",
+       state=scfres)
 end
+
+@generate_interface function AtomsCalculators.calculate(::AtomsCalculators.Virial,
+        system::AbstractSystem, calc::DFTKCalculator, ps=nothing, st=nothing; kwargs...)
+    scfres  = compute_scf(system, calc, st)
+    Ω = scfres.basis.model.unit_cell_volume
+    virial = (-Ω * compute_stresses_cart(scfres)) * u"hartree"
+    (; virial, energy=scfres.energies.total * u"hartree", state=scfres)
+end
+
+
+# TODO Something more clever when energy + other stuff is needed
+#      - This is right now tricky in AtomsCalculators, since energy_forces for example
+#        dispatches to potential_energy and forces, which is not able to make
+#        use of state sharing.

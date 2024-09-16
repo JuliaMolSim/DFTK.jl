@@ -53,6 +53,10 @@ Additionally the following publications describe DFTK or one of its algorithms:
 The following publications report research employing DFTK as a core component.
 Feel free to drop us a line if you want your work to be added here.
 
+- M. F. Herbst, V. H. Bakkestuen, A. Laestadius.
+  [*Kohn-Sham inversion with mathematical guarantees*](https://arxiv.org/abs/2409.04372) (2024).
+  ([Supplementary material and computational scripts](https://github.com/mfherbst/supporting-my-inversion)).
+
 - J. Cazalis.
   [*Dirac cones for a mean-field model of graphene*](https://doi.org/10.2140/paa.2024.6.129)
   Pure and Appl. Anal., **6**, 1 (2024).

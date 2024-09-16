@@ -22,7 +22,7 @@ positions = [zeros(3)];
 
 kgrid = [3, 3, 3]  # k-point grid (Regular Monkhorst-Pack grid)
 Ecut = 15          # kinetic energy cutoff in Hartree
-model_nospin = model_LDA(lattice, atoms, positions, temperature=0.01)
+model_nospin = model_DFT(lattice, atoms, positions; functionals=LDA(), temperature=0.01)
 basis_nospin = PlaneWaveBasis(model_nospin; kgrid, Ecut)
 
 scfres_nospin = self_consistent_field(basis_nospin; tol=1e-4, mixing=KerkerDosMixing());
@@ -56,7 +56,8 @@ magnetic_moments = [4];
 # We repeat the calculation using the same model as before. DFTK now detects
 # the non-zero moment and switches to a collinear calculation.
 
-model = model_LDA(lattice, atoms, positions; magnetic_moments, temperature=0.01)
+model = model_DFT(lattice, atoms, positions; functionals=LDA(),
+                  magnetic_moments, temperature=0.01)
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 ρ0 = guess_density(basis, magnetic_moments)
 scfres = self_consistent_field(basis, tol=1e-6; ρ=ρ0, mixing=KerkerDosMixing());

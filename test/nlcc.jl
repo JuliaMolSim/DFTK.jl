@@ -18,7 +18,7 @@
     positions = [zeros(3)]
     for (element, psp) in pseudos
         atoms = [ElementPsp(element; psp)]
-        model = model_LDA(lattice, atoms, positions)
+        model = model_DFT(lattice, atoms, positions; functionals=LDA())
         basis = PlaneWaveBasis(model; Ecut=24, kgrid=[2, 2, 2])
         ρ_core = @inferred atomic_total_density(basis, CoreDensity())
         ρ_core_neg = abs(sum(ρ_core[ρ_core .< 0]))

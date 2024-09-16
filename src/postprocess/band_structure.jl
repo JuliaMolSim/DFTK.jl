@@ -290,8 +290,8 @@ of [`compute_bands`](@ref) and [`self_consistent_field`](@ref).
 
 !!! warning "Changes to data format reserved"
     No guarantees are made with respect to the format of the keys at this point.
-    We may change this incompatibly between DFTK versions (including patch versions).
-    In particular changes with respect to the ψ structure are planned.
+    We may change the internal format of the keys incompatibly between DFTK versions
+    (including patch versions).
 """
 function save_bands(filename::AbstractString, band_data::NamedTuple; save_ψ=false)
     filename = MPI.bcast(filename, 0, MPI.COMM_WORLD)

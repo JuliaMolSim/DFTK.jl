@@ -1,4 +1,4 @@
-@testsetup module mPspUpf  # PspUpf already exported by DFTK
+@testmodule mPspUpf begin  # PspUpf already exported by DFTK
 using DFTK
 using LazyArtifacts
 
@@ -209,7 +209,7 @@ end
     positions = [zeros(3)]
     for (element, psp) in mPspUpf.upf_pseudos
         atoms = [ElementPsp(element; psp)]
-        model = model_LDA(lattice, atoms, positions)
+        model = model_DFT(lattice, atoms, positions; functionals=LDA())
         basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
         ρ_val = guess_density(basis, ValenceDensityPseudo())
         ρ_val_neg = abs(sum(ρ_val[ρ_val .< 0]))
@@ -226,7 +226,7 @@ end
     for (element, psp) in mPspUpf.upf_pseudos
         if sum(psp.r2_ρion) > 0  # Otherwise, it's all 0 in the UPF as a placeholder
             atoms = [ElementPsp(element; psp)]
-            model = model_LDA(lattice, atoms, positions)
+            model = model_DFT(lattice, atoms, positions; functionals=LDA())
             basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
             ρ_val = guess_density(basis, ValenceDensityPseudo())
             Z_valence = sum(ρ_val) * model.unit_cell_volume / prod(basis.fft_size)

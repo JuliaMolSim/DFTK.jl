@@ -1,4 +1,4 @@
-@testsetup module HamConsistency
+@testmodule HamConsistency begin
 using Test
 using DFTK
 using Logging
@@ -93,14 +93,14 @@ end
     test_consistency_term(Hartree())
     test_consistency_term(Ewald())
     test_consistency_term(PspCorrection())
-    test_consistency_term(Xc(:lda_xc_teter93))
-    test_consistency_term(Xc(:lda_xc_teter93), spin_polarization=:collinear)
-    test_consistency_term(Xc(:gga_x_pbe), spin_polarization=:collinear)
-    test_consistency_term(Xc(:mgga_x_tpss))
-    test_consistency_term(Xc(:mgga_x_scan))
-    test_consistency_term(Xc(:mgga_c_scan), spin_polarization=:collinear)
-    test_consistency_term(Xc(:mgga_x_b00))
-    test_consistency_term(Xc(:mgga_c_b94), spin_polarization=:collinear)
+    test_consistency_term(Xc([:lda_xc_teter93]))
+    test_consistency_term(Xc([:lda_xc_teter93]), spin_polarization=:collinear)
+    test_consistency_term(Xc([:gga_x_pbe]), spin_polarization=:collinear)
+    test_consistency_term(Xc([:mgga_x_tpss]))
+    test_consistency_term(Xc([:mgga_x_scan]))
+    test_consistency_term(Xc([:mgga_c_scan]), spin_polarization=:collinear)
+    test_consistency_term(Xc([:mgga_x_b00]))
+    test_consistency_term(Xc([:mgga_c_b94]), spin_polarization=:collinear)
 
     let
         a = 6

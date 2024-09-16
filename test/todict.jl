@@ -1,4 +1,4 @@
-@testsetup module DictAgreement
+@testmodule DictAgreement begin
 using Test
 using DFTK
 using MPI
@@ -151,8 +151,8 @@ function test_todict(label; spin_polarization=:none, Ecut=7, temperature=0.0, kg
     else
         magnetic_moments = []
     end
-    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions;
-                      spin_polarization, temperature, magnetic_moments)
+    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                      functionals=LDA(), spin_polarization, temperature, magnetic_moments)
     basis = PlaneWaveBasis(model; Ecut, kgrid, use_symmetries_for_kpoint_reduction=false)
     nbandsalg = FixedBands(; n_bands_converge=8)
     scfres = self_consistent_field(basis; tol=1e-1, nbandsalg)

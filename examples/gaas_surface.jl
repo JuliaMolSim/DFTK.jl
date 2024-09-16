@@ -1,14 +1,11 @@
 # # Modelling a gallium arsenide surface
 #
-# This example shows how to use the
-# [atomistic simulation environment](https://wiki.fysik.dtu.dk/ase/index.html),
-# or ASE for short,
+# This example shows how to use the atomistic simulation environment or ASE for short,
 # to set up and run a particular calculation of a gallium arsenide surface.
 # ASE is a Python package to simplify the process of setting up,
 # running and analysing results from atomistic simulations across different simulation codes.
-# By means of [ASEconvert](https://github.com/mfherbst/ASEconvert.jl) it is seamlessly
-# integrated with the AtomsBase ecosystem and thus available to DFTK via our own
-# [AtomsBase integration](@ref).
+# For more details on the integration DFTK provides with ASE,
+# see [Atomistic simulation environment](@ref).
 #
 # In this example we will consider modelling the (1, 1, 0) GaAs surface separated by vacuum.
 
@@ -57,10 +54,11 @@ system = attach_psp(pyconvert(AbstractSystem, surface);
 # to ease convergence. Try lowering the SCF convergence tolerance (`tol`)
 # or the `temperature` or try `mixing=KerkerMixing()`
 # to see the full challenge of this system.
-model = model_DFT(system, [:gga_x_pbe, :gga_c_pbe],
+model = model_DFT(system;
+                  functionals=PBE(),
                   temperature=0.001, smearing=DFTK.Smearing.Gaussian())
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 
-scfres = self_consistent_field(basis, tol=1e-4, mixing=LdosMixing());
+scfres = self_consistent_field(basis; tol=1e-4, mixing=LdosMixing());
 #-
 scfres.energies

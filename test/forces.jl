@@ -7,7 +7,8 @@
     silicon = TestCases.silicon
 
     function energy_forces(positions)
-        model = model_DFT(silicon.lattice, silicon.atoms, positions, [:lda_x, :lda_c_pw])
+        model = model_DFT(silicon.lattice, silicon.atoms, positions;
+                          functionals=[:lda_x, :lda_c_pw])
         basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0],
                                symmetries_respect_rgrid=true,
                                fft_size=(18, 18, 18))  # FFT chosen to match QE
@@ -54,7 +55,7 @@ end
     function energy_forces(positions)
         Si = ElementPsp(silicon.atnum, :Si, silicon.mass, load_psp(silicon.psp_upf))
         atoms = fill(Si, length(silicon.atoms))
-        model = model_DFT(silicon.lattice, atoms, positions, [:lda_x, :lda_c_pw])
+        model = model_DFT(silicon.lattice, atoms, positions; functionals=[:lda_x, :lda_c_pw])
         basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0],
                                symmetries_respect_rgrid=true,
                                fft_size=(18, 18, 18))  # FFT chosen to match QE
@@ -99,8 +100,9 @@ end
     silicon = TestCases.silicon
 
     function silicon_energy_forces(positions; smearing=Smearing.FermiDirac())
-        model  = model_DFT(silicon.lattice, silicon.atoms, positions, :lda_xc_teter93;
-                           temperature=0.03, smearing, spin_polarization=:collinear)
+        model  = model_DFT(silicon.lattice, silicon.atoms, positions;
+                           functionals=[:lda_xc_teter93], temperature=0.03,
+                           smearing, spin_polarization=:collinear)
         basis  = PlaneWaveBasis(model; Ecut=4, kgrid=[4, 1, 2], kshift=[1/2, 0, 0])
         scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(5e-10))
         scfres.energies.total, compute_forces(scfres)
@@ -131,8 +133,9 @@ end
 
     function oxygen_energy_forces(positions)
         magnetic_moments = [1.0, 1.0]
-        model = model_PBE(diagm([7.0, 7.0, 7.0]), o2molecule.atoms, positions;
-                          temperature=0.02, smearing=Smearing.Gaussian(), magnetic_moments)
+        model = model_DFT(diagm([7.0, 7.0, 7.0]), o2molecule.atoms, positions;
+                          functionals=PBE(), temperature=0.02,
+                          smearing=Smearing.Gaussian(), magnetic_moments)
         basis = PlaneWaveBasis(model; Ecut=4, kgrid=[1, 1, 1])
 
         scfres = self_consistent_field(basis;

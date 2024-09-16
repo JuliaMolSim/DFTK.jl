@@ -1,4 +1,4 @@
-@testsetup module IronLDA
+@testmodule IronLDA begin
 using DFTK
 using ..RunSCF: run_scf_and_compare
 using ..TestCases: iron_bcc
@@ -36,8 +36,8 @@ function run_iron_lda(T; kwargs...)
     ref_etot = -16.670871429685356
 
     magnetic_moments = [4.0]
-    model = model_DFT(iron_bcc.lattice, iron_bcc.atoms, iron_bcc.positions,
-                      [:lda_xc_teter93]; temperature=0.01, magnetic_moments,
+    model = model_DFT(iron_bcc.lattice, iron_bcc.atoms, iron_bcc.positions;
+                      functionals=[:lda_xc_teter93], temperature=0.01, magnetic_moments,
                       smearing=Smearing.FermiDirac())
     model = convert(Model{T}, model)
     basis = PlaneWaveBasis(model; Ecut=15, fft_size=[20, 20, 20],

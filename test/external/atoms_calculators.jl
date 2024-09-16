@@ -1,15 +1,14 @@
 @testitem "Test AtomsCalculators interfaces" setup=[TestCases] tags=[:atomsbase] begin
     using AtomsCalculators
-    using AtomsCalculators.AtomsCalculatorsTesting: test_energy_forces_virial
+    using AtomsCalculators.Testing: test_energy_forces_virial
     using Unitful
     using UnitfulAtomic
 
     silicon = TestCases.silicon
     calculator = DFTKCalculator(;
-        model_kwargs=(; temperature=1e-3, functionals=[:lda_x, :lda_c_pw]),
+        model_kwargs=(; temperature=1e-3, functionals=LDA()),
         basis_kwargs=(; kgrid=[4, 4, 4], Ecut=5.0),
         scf_kwargs=(; tol=1e-7),
-        verbose=true
     )
     perturbed_system = periodic_system(silicon.lattice, silicon.atoms,
                                        [silicon.positions[1] + [0.05, 0, 0],
@@ -33,17 +32,15 @@
     @testset "Virial" begin
         virial = AtomsCalculators.virial(perturbed_system, calculator)
         ref_virial = [[-0.0660718, -0.0489815, -0.0489815],
-                      [-0.0489815, -0.078915, 0.0142345],
-                      [-0.0489815, 0.0142345, -0.078915]]
+                      [-0.0489815, -0.078915,   0.0142345],
+                      [-0.0489815,  0.0142345, -0.078915]]
         @test austrip.(virial) ≈ hcat(ref_virial...) rtol=1e-3
     end
 
-    # TODO The AtomsBase tests currently fail due to requiring too strong agreement
-    #      between two invocations of the forces call.
-    #      See https://github.com/JuliaMolSim/AtomsCalculators.jl/issues/15
+    # TODO Since the most recent AtomsCalculator update (Aug 2024) this is broken
     # let
     #     calculator_cheap = DFTKCalculator(;
-    #         model_kwargs=(; temperature=1e-3, functionals=[:lda_x, :lda_c_pw]),
+    #         model_kwargs=(; temperature=1e-3, functionals=LDA()),
     #         basis_kwargs=(; kgrid=[1, 1, 1], Ecut=5.0),
     #         scf_kwargs=(; tol=1e-4),
     #     )

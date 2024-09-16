@@ -6,9 +6,9 @@
     Ecut    = 4
     kgrid   = [2, 3, 1]
 
-    model = model_LDA(magnesium.lattice, magnesium.atoms, magnesium.positions;
-                      magnesium.temperature, εF=0.5, spin_polarization=:spinless,
-                      disable_electrostatics_check=true)
+    model = model_DFT(magnesium.lattice, magnesium.atoms, magnesium.positions;
+                      functionals=LDA(), magnesium.temperature, εF=0.5,
+                      spin_polarization=:spinless, disable_electrostatics_check=true)
     basis = PlaneWaveBasis(model; Ecut, kgrid)
     scfres = self_consistent_field(basis; nbandsalg=FixedBands(; n_bands_converge=20))
     scfres_supercell = cell_to_supercell(scfres)
@@ -27,7 +27,7 @@ end
     kshift  = zeros(3)
     tol     = 1e-10
 
-    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions; functionals=LDA())
     basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
     basis_supercell = cell_to_supercell(basis)
 

@@ -8,9 +8,10 @@
     silicon = TestCases.silicon
 
     function run_problem(; architecture)
-        model = model_PBE(silicon.lattice, silicon.atoms, silicon.positions)
+        model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                          functionals=PBE())
         basis = PlaneWaveBasis(model; Ecut=10, kgrid=(3, 3, 3), architecture)
-        self_consistent_field(basis; tol=1e-9, solver=scf_damping_solver(1.0))
+        self_consistent_field(basis; tol=1e-9, solver=scf_damping_solver(damping=1.0))
     end
 
     scfres_cpu = run_problem(; architecture=DFTK.CPU())
@@ -27,14 +28,15 @@ end
 
     function run_problem(; architecture)
         magnetic_moments = [4.0]
-        model = model_PBE(iron_bcc.lattice, iron_bcc.atoms, iron_bcc.positions;
-                          magnetic_moments, smearing=Smearing.Gaussian(), temperature=1e-3)
+        model = model_DFT(iron_bcc.lattice, iron_bcc.atoms, iron_bcc.positions;
+                          functionals=PBE(), magnetic_moments,
+                          smearing=Smearing.Gaussian(), temperature=1e-3)
         basis = PlaneWaveBasis(model; Ecut=20, kgrid=(4, 4, 4), architecture)
         ρ = guess_density(basis, magnetic_moments)
 
         # TODO Bump tolerance a bit here ... still leads to NaNs unfortunately
         self_consistent_field(basis; ρ, tol=1e-7, mixing=KerkerMixing(),
-                              solver=scf_damping_solver(1.0))
+                              solver=scf_damping_solver(damping=1.0))
     end
 
     scfres_cpu = run_problem(; architecture=DFTK.CPU())
