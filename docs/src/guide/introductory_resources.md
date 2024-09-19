@@ -33,7 +33,7 @@ see [Publications](@ref).
   Two-day workshop at MIT centred around DFTK by M. F. Herbst,
   in particular the [summary of DFT theory](https://michael-herbst.com/teaching/2022-mit-workshop-dftk/2022-mit-workshop-dftk/DFT_Theory.pdf).
 
-## Textbooks
+## Textbooks and reviews
 
 - [Density Functional Theory](https://doi.org/10.1007/978-3-031-22340-2)
   edited by Eric Cancès and Gero Friesecke (Springer, 2023):
@@ -47,6 +47,10 @@ see [Publications](@ref).
   Standard textbook introducing
   most common methods of the field (lattices, pseudopotentials, DFT, ...)
   from the perspective of a physicist.
+
+- [DFT Exchange: Sharing Perspectives on the Workhorse of Quantum Chemistry and Materials Science](https://doi.org/10.1039/D2CP02827A) (2022):
+  Discussion-style review articles providing insightful viewpoints of many
+  researchers in the field (physics, chemistry, maths, applications).
 
 - [A Mathematical Introduction to Electronic Structure Theory](http://dx.doi.org/10.1137/1.9781611975802)
   by L. Lin and J. Lu (SIAM, 2019):
