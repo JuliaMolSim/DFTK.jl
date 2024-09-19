@@ -21,5 +21,5 @@ mpi_mean!(arr, comm::MPI.Comm) = (mpi_sum!(arr, comm); arr ./= mpi_nprocs(comm))
     # https://github.com/JuliaParallel/MPI.jl/issues/404). We define
     # temporary workarounds in order to be able to run MPI on aarch64
     # anyways. These should be removed as soon as there is an upstream fix
-    include("aarch64_mpi.jl")
+    include("../workarounds/aarch64_mpi.jl")
 end
