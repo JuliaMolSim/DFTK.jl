@@ -20,13 +20,13 @@ end
 # Vec3{T} must be cast to Vector{T} before MPI reduction
 function mpi_sum!(arr::Vector{Vec3{T}}, comm::MPI.Comm) where{T}
     n = length(arr)
-    new_arr = Vector{T}([])
+    new_arr = zeros(T, 3n)
     for i in 1:n
-        append!(new_arr, arr[i][1:3])
+        new_arr[3(i-1)+1:3(i-1)+3] = @view arr[i][1:3]
     end
     mpi_sum!(new_arr, comm)
     for i in 1:n
-	    arr[i] = Vec3{T}(new_arr[3(i-1)+1:3(i-1)+3])
+	    arr[i] = Vec3{T}(@view new_arr[3(i-1)+1:3(i-1)+3])
     end
     arr
 end
@@ -34,16 +34,15 @@ end
 # ForwardDiff.Dual{T, U, V} and arrays of it must be cast to Vector{U} as well
 # utility function to cast a Dual type to an array containing a value and the partial diffs
 function dual_array(dual::ForwardDiff.Dual{T, U, V}) where{T, U, V}
-    dual_array = [ForwardDiff.value(dual)]
-    append!(dual_array, collect(ForwardDiff.partials(dual)))
+    dual_array = zeros(U, ForwardDiff.npartials(dual)+1)
+    dual_array[1] = ForwardDiff.value(dual)
+    dual_array[2:end] = @view dual.partials[1:end]
     dual_array
 end
 
 # utility function that casts back an array to a Dual type, based on a template Dual
-function new_dual(dual_array, template)
-    DualType = typeof(template)
-    PartialsType = typeof(ForwardDiff.partials(template))
-    DualType(dual_array[1], PartialsType(Tuple(dual_array[2:end])))
+function new_dual(dual_array, template::ForwardDiff.Dual{T, U, V}) where{T, U, V}
+    ForwardDiff.Dual{T}(dual_array[1], Tuple(@view dual_array[2:end]))
 end
 
 # MPI reductions of single ForwardDiff.Dual types
@@ -83,7 +82,8 @@ function mpi_sum!(dual::Array{ForwardDiff.Dual{T, U, V}, N}, comm::MPI.Comm) whe
     mpi_sum!(array, comm)
     offset = 0
     for i in 1:length(dual)
-        dual[i] = new_dual(array[offset+1:offset+lengths[i]], dual[i])
+        view = @view array[offset+1:offset+lengths[i]]
+        dual[i] = new_dual(view, dual[i])
         offset += lengths[i]
     end
     dual
