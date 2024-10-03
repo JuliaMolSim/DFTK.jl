@@ -17,9 +17,19 @@ mpi_mean( arr, comm::MPI.Comm) = mpi_sum(arr, comm) ./ mpi_nprocs(comm)
 mpi_mean!(arr, comm::MPI.Comm) = (mpi_sum!(arr, comm); arr ./= mpi_nprocs(comm))
 
 @static if Base.Sys.ARCH == :aarch64
-    # Custom reduction operators are not supported on aarch64 (see
-    # https://github.com/JuliaParallel/MPI.jl/issues/404). We define
-    # temporary workarounds in order to be able to run MPI on aarch64
-    # anyways. These should be removed as soon as there is an upstream fix
-    include("../workarounds/aarch64_mpi.jl")
+    # Custom reduction operators are not natively supported on aarch64 (see
+    # https://github.com/JuliaParallel/MPI.jl/issues/404). However, since
+    # MPI.jl v0.20.22, there is an official workaround. Custom operators
+    # can be statically registered:
+
+    MPI.@RegisterOp(min, Bool)
+    MPI.@RegisterOp(max, Bool)
+
+    type_symbol = eval(Vec3{T}) where {T}
+    MPI.@RegisterOp(+, type_symbol)
+
+    type_symbol = eval(ForwardDiff.Dual{T, U, V}) where {T, U, V}
+    MPI.@RegisterOp(+, type_symbol)
+    MPI.@RegisterOp(min, type_symbol)
+    MPI.@RegisterOp(max, type_symbol)
 end
