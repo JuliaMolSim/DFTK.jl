@@ -227,3 +227,17 @@ function eval_psp_energy_correction(T, psp::PspUpf, n_electrons)
         r * (r * vloc[i] - -psp.Zion)
     end
 end
+
+count_n_pswfc_radial(psp::PspUpf, l::Integer) = length(psp.r2_pswfcs[l + 1])
+function count_n_pswfc_radial(psp::PspUpf)
+    sum(l -> count_n_pswfc_radial(psp, l), 0:psp.lmax; init=0)::Int
+end
+
+count_n_pswfc(psp::PspUpf, l::Integer) = count_n_pswfc_radial(psp, l) * (2l + 1)
+function count_n_pswfc(psp::PspUpf)
+    sum(l -> count_n_pswfc(psp, l), 0:psp.lmax; init=0)::Int
+end
+function count_n_pswfc(psps, psp_positions)
+    sum(count_n_pswfc(psp) * length(positions)
+        for (psp, positions) in zip(psps, psp_positions))
+end
