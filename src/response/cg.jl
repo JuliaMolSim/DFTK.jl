@@ -7,18 +7,11 @@ end
 """
 Implementation of the conjugate gradient method which allows for preconditioning
 and projection operations along iterations.
-
-To use this function with MPI:
-- Make `A`, `precon` and `proj` MPI-aware.
-- Pass a communicator to use for the `dot` and `norm` calls. By default, they do not communicate.
 """
 function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
              precon=I, proj=identity, callback=identity,
              tol=1e-10, maxiter=100, miniter=1,
              comm::MPI.Comm=MPI.COMM_SELF) where {T}
-
-    mpi_dot(x1, x2) = mpi_sum(dot(x1, x2), comm)
-    mpi_norm(x1) = sqrt(mpi_sum(norm2(x1), comm))
 
     # initialisation
     # r = b - Ax is the residual
@@ -32,11 +25,11 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
         r .-= c
     end
     ldiv!(c, precon, r)
-    γ = mpi_dot(r, c)
+    γ = mpi_dot(r, c, comm)
     # p is the descent direction
     p = copy(c)
     n_iter = 0
-    residual_norm = mpi_norm(r)
+    residual_norm = mpi_norm(r, comm)
 
     # convergence history
     converged = false
@@ -52,16 +45,16 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
             break
         end
         mul!(c, A, p)
-        α = γ / mpi_dot(p, c)
+        α = γ / mpi_dot(p, c, comm)
 
         # update iterate and residual while ensuring they stay in Ran(proj)
         x .= proj(x .+ α .* p)
         r .= proj(r .- α .* c)
-        residual_norm = mpi_norm(r)
+        residual_norm = mpi_norm(r, comm)
 
         # apply preconditioner and prepare next iteration
         ldiv!(c, precon, r)
-        γ_prev, γ = γ, mpi_dot(r, c)
+        γ_prev, γ = γ, mpi_dot(r, c, comm)
         β = γ / γ_prev
         p .= proj(c .+ β .* p)
     end
