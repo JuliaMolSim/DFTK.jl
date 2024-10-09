@@ -88,8 +88,8 @@ end
         # … and then we compute the real Fourier transform in the adequate basis.
         ifft!(storage.δψnk_real, basis, δψ_plus_k[ik].kpt, δψ_plus_k[ik].ψk[:, n])
 
-        storage.δρ[:, :, :, kpt.spin] .+= real_qzero(
-            2 .* occupation[ik][n] .* basis.kweights[ik] .* conj(storage.ψnk_real)
+        storage.δρ[:, :, :, kpt.spin] .+= real_qzero.(
+            2 .* occupation[ik][n] .* basis.kweights[ik] .* conj.(storage.ψnk_real)
                                                          .* storage.δψnk_real
                 .+ δoccupation[ik][n] .* basis.kweights[ik] .* abs2.(storage.ψnk_real))
 
