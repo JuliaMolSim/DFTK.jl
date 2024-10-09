@@ -24,8 +24,8 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
                 for occk in occupation]
 
     function allocate_local_storage()
-        (; ρ=zeros_like(basis.G_vectors, Tρ, basis.fft_size..., basis.model.n_spin_components),
-         ψnk_real=zeros_like(basis.G_vectors, complex(Tψ), basis.fft_size...))
+        (; ρ=zeros_like(G_vectors(basis), Tρ, basis.fft_size..., basis.model.n_spin_components),
+         ψnk_real=zeros_like(G_vectors(basis), complex(Tψ), basis.fft_size...))
     end
     # We split the total iteration range (ik, n) in chunks, and parallelize over them.
     range = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
@@ -35,7 +35,7 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
         kpt = basis.kpoints[ik]
         ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n]; normalize=false)
         storage.ρ[:, :, :, kpt.spin] .+= (occupation[ik][n] .* basis.kweights[ik]
-                                          .* (basis.ifft_normalization)^2
+                                          .* (basis.fft_grid.ifft_normalization)^2
                                           .* abs2.(storage.ψnk_real))
 
         synchronize_device(basis.architecture)
@@ -68,9 +68,9 @@ end
                 for occk in occupation]
 
     function allocate_local_storage()
-        (; δρ=zeros_like(basis.G_vectors, Tδρ, basis.fft_size..., basis.model.n_spin_components),
-          ψnk_real=zeros_like(basis.G_vectors, Tψ, basis.fft_size...),
-         δψnk_real=zeros_like(basis.G_vectors, Tψ, basis.fft_size...))
+        (; δρ=zeros_like(G_vectors(basis), Tδρ, basis.fft_size..., basis.model.n_spin_components),
+          ψnk_real=zeros_like(G_vectors(basis), Tψ, basis.fft_size...),
+         δψnk_real=zeros_like(G_vectors(basis), Tψ, basis.fft_size...))
     end
     range = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
 
@@ -140,7 +140,7 @@ function ρ_from_total(basis, ρtot::AbstractArray{T}) where {T}
     if basis.model.spin_polarization in (:none, :spinless)
         ρspin = nothing
     else
-        ρspin = zeros_like(basis.G_vectors, T, basis.fft_size...)
+        ρspin = zeros_like(G_vectors(basis), T, basis.fft_size...)
     end
     ρ_from_total_and_spin(ρtot, ρspin)
 end
