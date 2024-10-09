@@ -37,19 +37,24 @@ end
 Compute the application of K defined at ψ to δψ. ρ is the density issued from ψ.
 δψ also generates a δρ, computed with `compute_δρ`.
 """
-@views @timing function apply_K(basis::PlaneWaveBasis, δψ, ψ, ρ, occupation)
+@views @timing function apply_K(basis::PlaneWaveBasis{T}, δψ, ψ, ρ, occupation; ψ_real=nothing) where {T}
     δψ = proj_tangent(δψ, ψ)
-    δρ = compute_δρ(basis, ψ, δψ, occupation)
+    δρ = compute_δρ(basis, ψ, δψ, occupation; ψ_real)
     δV = apply_kernel(basis, δρ; ρ)
 
+    ψnk_real = similar(basis.G_vectors, promote_type(T, eltype(ψ[1])))
     Kδψ = map(enumerate(ψ)) do (ik, ψk)
         kpt = basis.kpoints[ik]
         δVψk = similar(ψk)
 
         for n = 1:size(ψk, 2)
-            ψnk_real = ifft(basis, kpt, ψk[:, n])
-            δVψnk_real = δV[:, :, :, kpt.spin] .* ψnk_real
-            δVψk[:, n] = fft(basis, kpt, δVψnk_real)
+            if isnothing(ψ_real)
+                ifft!(ψnk_real, basis, kpt, ψk[:, n])
+            else
+                ψnk_real .= ψ_real[ik][:, :, :, n]
+            end
+            ψnk_real .*= δV[:, :, :, kpt.spin]
+            fft!(δVψk[:, n], basis, kpt, ψnk_real)
         end
         δVψk
     end
@@ -99,13 +104,20 @@ Return δψ where (Ω+K) δψ = rhs
         x .= pack(Pδψ)
     end
 
+    # Precompute IFFT of ψ
+    ψ_real = map(enumerate(basis.kpoints)) do (ik, kpt)
+        stack(map(eachcol(ψ[ik])) do ψnk
+            ifft(basis, kpt, ψnk)
+        end)
+    end
+
     # Rayleigh-coefficients
     Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ, H * ψ)]
 
     # mapping of the linear system on the tangent space
     function ΩpK(x)
         δψ = unsafe_unpack(x)
-        Kδψ = apply_K(basis, δψ, ψ, ρ, occupation)
+        Kδψ = apply_K(basis, δψ, ψ, ρ, occupation; ψ_real)
         Ωδψ = apply_Ω(δψ, ψ, H, Λ)
         pack(Ωδψ + Kδψ)
     end
