@@ -56,7 +56,7 @@ end
 # Variation in density corresponding to a variation in the orbitals and occupations.
 @views @timing function compute_δρ(basis::PlaneWaveBasis{T}, ψ, δψ, occupation,
                                    δoccupation=zero.(occupation);
-                                   occupation_threshold=zero(T), q=zero(Vec3{T})) where {T}
+                                   occupation_threshold=zero(T), q=zero(Vec3{T}), ψ_real=nothing) where {T}
     Tψ = promote_type(T, eltype(ψ[1]))
     # δρ is expected to be real when computations are not phonon-related.
     Tδρ = iszero(q) ? real(Tψ) : Tψ
@@ -84,7 +84,11 @@ end
         (ik, n) = kn
 
         kpt = basis.kpoints[ik]
-        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n])
+        if isnothing(ψ_real)
+            ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n])
+        else
+            storage.ψnk_real .= ψ_real[ik][:, :, :, n]
+        end
         # … and then we compute the real Fourier transform in the adequate basis.
         ifft!(storage.δψnk_real, basis, δψ_plus_k[ik].kpt, δψ_plus_k[ik].ψk[:, n])
 
