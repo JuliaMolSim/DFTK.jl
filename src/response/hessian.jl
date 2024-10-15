@@ -38,6 +38,11 @@ Compute the application of K defined at ψ to δψ. ρ is the density issued fro
 δψ also generates a δρ, computed with `compute_δρ`.
 """
 @views @timing function apply_K(basis::PlaneWaveBasis{T}, δψ, ψ, ρ, occupation) where {T}
+    # ~45% of apply_K is spent computing ifft(ψ) twice: once in compute_δρ and once again below.
+    # By caching the result, we could compute it only once for a single application of K,
+    # or even across many applications when using solve_ΩplusK.
+    # But we don't because the memory requirements would be too high (typically an order of magnitude higher than ψ).
+
     δψ = proj_tangent(δψ, ψ)
     δρ = compute_δρ(basis, ψ, δψ, occupation)
     δV = apply_kernel(basis, δρ; ρ)
