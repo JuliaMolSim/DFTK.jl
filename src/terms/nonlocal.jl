@@ -70,8 +70,7 @@ end
             # We compute the forces from the irreductible BZ; they are symmetrized later.
             G_plus_k = Gplusk_vectors(basis, kpt)
             G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
-            form_factors = build_form_factors(element.psp, eval_psp_projector_fourier,
-                                    count_n_proj_radial, count_n_proj, [G_plus_k_cart])[1]
+            form_factors = build_form_factors(element.psp, G_plus_k_cart)
             for idx in group
                 r = model.positions[idx]
                 structure_factors = [cis2pi(-dot(p, r)) for p in G_plus_k]
@@ -174,8 +173,7 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     for (psp, positions) in zip(psps, psp_positions)
         # Compute position-independent form factors
         G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
-        form_factors  = build_form_factors(psp, eval_psp_projector_fourier,
-                         count_n_proj_radial, count_n_proj, [G_plus_k_cart])[1]
+        form_factors  = build_form_factors(psp, G_plus_k_cart)
 
         # Combine with structure factors
         for r in positions
@@ -195,25 +193,22 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
 end
 
 """
-Build Fourier transform factors for all orbitals of an atom centered at 0.
+Build form factors (Fourier transforms of projectors) for all orbitals of an atom centered at 0.
 """
-function build_form_factors(psp, psp_fun::Function,                     
-                            count_n_fun_radial::Function, 
-                            count_n_fun::Function,
-                            G_plus_ks::AbstractVector{<:AbstractVector{Vec3{TT}}}) where {TT}
-    fun(i, l, p) = psp_fun(psp, i, l, p) 
+function build_form_factors(psp::NormConservingPsp,                     
+                            G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
+    G_plus_ks = [G_plus_k]
 
-    n_fun = count_n_fun(psp)
-    form_factors = [zeros(Complex{TT}, length(G_plus_k), n_fun) for G_plus_k in G_plus_ks]
+    n_proj = count_n_proj(psp)
+    form_factors = zeros(Complex{TT}, length(G_plus_k), n_proj)
     for l = 0:psp.lmax, 
-        n_fun_l = count_n_fun_radial(psp, l)
-        offset = sum(x -> count_n_fun(psp, x), 0:l-1; init=0) .+ 
-                 n_fun_l .* (collect(1:2l+1) .- 1) # offset about m for given l and i
-        for i = 1:n_fun_l
-            form_factors_li = build_form_factors(fun, l, i, G_plus_ks)
-            @views for (ik, form_fac_ik) in enumerate(form_factors_li)
-                form_factors[ik][:, offset.+i] = form_fac_ik
-            end
+        n_proj_l = count_n_proj_radial(psp, l)
+        offset = sum(x -> count_n_proj(psp, x), 0:l-1; init=0) .+ 
+                 n_proj_l .* (collect(1:2l+1) .- 1) # offset about m for given l and i
+        for i = 1:n_proj_l
+            proj_li(p) = eval_psp_projector_fourier(psp, i, l, p)
+            form_factors_li = atomic_centered_fun_form_factors(proj_li, l, G_plus_ks)
+            @views form_factors[:, offset.+i] = form_factors_li[1]
         end
     end
 
@@ -221,10 +216,10 @@ function build_form_factors(psp, psp_fun::Function,
 end
 
 """
-Build Fourier transform factors of a atomic function centered at 0 for given l and i.
+Build Fourier transform factors of a atomic function centered at 0 for a given l.
 """
-function build_form_factors(fun::Function, l::Int, i::Int,
-                            G_plus_ks::AbstractVector{<:AbstractVector{Vec3{TT}}}) where {TT}
+function atomic_centered_fun_form_factors(fun::Function, l::Int,
+                                          G_plus_ks::AbstractVector{<:AbstractVector{Vec3{TT}}}) where {TT}
     T = real(TT)
 
     # Pre-compute the radial parts of the non-local atomic functions at unique |p| to speed up
@@ -235,7 +230,7 @@ function build_form_factors(fun::Function, l::Int, i::Int,
         for p in G_plus_k
             p_norm = norm(p)
             if !haskey(radials, p_norm)
-                radials_p = fun(i, l, p_norm)
+                radials_p = fun(p_norm)
                 radials[p_norm] = radials_p
             end
         end

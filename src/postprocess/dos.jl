@@ -70,7 +70,7 @@ end
 """
 Projected density of states at energy ε for an atom with given i and l.
 """
-function compute_pdos(ε, basis, eigenvalues, ψ, l, i, psp, position;
+function compute_pdos(ε, basis, eigenvalues, ψ, i, l, psp, position;
                       smearing=basis.model.smearing,
                       temperature=basis.model.temperature)
     if (temperature == 0) || smearing isa Smearing.None
@@ -78,8 +78,8 @@ function compute_pdos(ε, basis, eigenvalues, ψ, l, i, psp, position;
     end
     filled_occ = filled_occupation(basis.model)
 
-    projs = compute_pdos_projs(basis, eigenvalues, ψ, l, i, psp, position)
-    
+    projs = compute_pdos_projs(basis, eigenvalues, ψ, i, l, psp, position)
+
     D = zeros(typeof(ε[1]), length(ε), 2l+1)
     for (i, iε) in enumerate(ε)
         for (ik, projk) in enumerate(projs)
@@ -100,21 +100,21 @@ function compute_pdos(scfres::NamedTuple; ε=scfres.εF, l=0, i=1,
     # TODO Require symmetrization with respect to kpoints and BZ symmetry 
     #      (now achieved by unfolding all the quantities).
     scfres = unfold_bz(scfres)
-    compute_pdos(ε, scfres.basis, scfres.eigenvalues, scfres.ψ, l, i, psp, position; kwargs...)
+    compute_pdos(ε, scfres.basis, scfres.eigenvalues, scfres.ψ, i, l, psp, position; kwargs...)
 end
 
 # Build projection vector for a single atom.
 # Stored as projs[K][nk,lmi] = |<ψnk, f_m>|^2,
 # where K is running over all k-points, 
 # m is running over -l:l for fixed l and i.
-function compute_pdos_projs(basis, eigenvalues, ψ, l, i, psp::PspUpf, position)
+function compute_pdos_projs(basis, eigenvalues, ψ, i, l, psp::PspUpf, position)
     position = vector_red_to_cart(basis.model, position)
     G_plus_k_all = [to_cpu(Gplusk_vectors_cart(basis, basis.kpoints[ik])) 
                     for ik = 1:length(basis.kpoints)]
 
     # Build Fourier transform factors of pseudo-wavefunctions centered at 0.
-    fun(l, i, p) = eval_psp_pswfc_fourier(psp, l, i, p)
-    fourier_form = build_form_factors(fun, l, i, G_plus_k_all)
+    fun(p) = eval_psp_pswfc_fourier(psp, i, l, p)
+    fourier_form = atomic_centered_fun_form_factors(fun, l, G_plus_k_all)
 
     projs = Vector{Matrix}(undef, length(basis.kpoints))
     for (ik, ψk) in enumerate(ψ)

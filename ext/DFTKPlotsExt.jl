@@ -140,7 +140,7 @@ function plot_ldos(basis, eigenvalues, ψ; εF=nothing, unit=u"hartree",
 end
 plot_ldos(scfres; kwargs...) = plot_ldos(scfres.basis, scfres.eigenvalues, scfres.ψ; scfres.εF, kwargs...)
 
-function plot_pdos(basis, eigenvalues, ψ, l, i, 
+function plot_pdos(basis, eigenvalues, ψ, i, l, 
                    psp, position, el::Symbol;
                    εF=nothing, unit=u"hartree",
                    temperature=basis.model.temperature,
@@ -155,7 +155,7 @@ function plot_pdos(basis, eigenvalues, ψ, l, i,
 
     # Calculate the projections of the atom with given i and l,
     # and sum all angular momentums m=-l:l 
-    pdos = dropdims(sum(compute_pdos(εs, basis, eigenvalues, ψ, l, i, 
+    pdos = dropdims(sum(compute_pdos(εs, basis, eigenvalues, ψ, i, l, 
                     psp, position; temperature, smearing), dims=2); dims=2)
     label = String(el) * "-" * psp.pswfc_labels[l+1][i]
     
@@ -185,7 +185,7 @@ function plot_pdos(scfres; kwargs...)
         for l = 0:psp.lmax
             for i = 1:DFTK.count_n_pswfc_radial(psp, l)
                 plot_pdos(basis, scfres_unfold.eigenvalues, scfres_unfold.ψ, 
-                          l, i, psp, position, el; scfres.εF, p, kwargs...)
+                          i, l, psp, position, el; scfres.εF, p, kwargs...)
             end
         end                  
     end
