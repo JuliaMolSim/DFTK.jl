@@ -68,9 +68,9 @@ function compute_ldos(scfres::NamedTuple; ε=scfres.εF, kwargs...)
 end
 
 """
-Projected density of states at energy ε for the first atom in the atom group.
+Projected density of states at energy ε for an atom with given i and l.
 """
-function compute_pdos(ε, basis, eigenvalues, ψ, psp_group; 
+function compute_pdos(ε, basis, eigenvalues, ψ, l, i, psp, position;
                       smearing=basis.model.smearing,
                       temperature=basis.model.temperature)
     if (temperature == 0) || smearing isa Smearing.None
@@ -78,12 +78,9 @@ function compute_pdos(ε, basis, eigenvalues, ψ, psp_group;
     end
     filled_occ = filled_occupation(basis.model)
 
-    # Calculate the projections of the first atom in the atom group
-    psp = basis.model.atoms[first(psp_group)].psp
-    position = basis.model.positions[first(psp_group)]
-    projs = compute_pdos_projs(basis, eigenvalues, ψ, psp, position)
-
-    D = zeros(typeof(ε[1]), length(ε), size(projs[1], 2))
+    projs = compute_pdos_projs(basis, eigenvalues, ψ, l, i, psp, position)
+    
+    D = zeros(typeof(ε[1]), length(ε), 2l+1)
     for (i, iε) in enumerate(ε)
         for (ik, projk) in enumerate(projs)
             @views for (iband, εnk) in enumerate(eigenvalues[ik])
@@ -97,40 +94,38 @@ function compute_pdos(ε, basis, eigenvalues, ψ, psp_group;
     D = mpi_sum(D, basis.comm_kpts)
 end
 
-function compute_pdos(scfres::NamedTuple; ε=scfres.εF, kwargs...)
+function compute_pdos(scfres::NamedTuple; ε=scfres.εF, l=0, i=1, 
+                      psp=scfres.basis.model.atoms[1].psp,
+                      position=basis.model.positions[1], kwargs...)
     # TODO Require symmetrization with respect to kpoints and BZ symmetry 
     #      (now achieved by unfolding all the quantities).
     scfres = unfold_bz(scfres)
-    psp_groups = [group for group in scfres.basis.model.atom_groups
-                  if scfres.basis.model.atoms[first(group)] isa ElementPsp]
-    [compute_pdos(ε, scfres.basis, scfres.eigenvalues, scfres.ψ, group; kwargs...)
-     for group in psp_groups]
+    compute_pdos(ε, scfres.basis, scfres.eigenvalues, scfres.ψ, l, i, psp, position; kwargs...)
 end
 
-# Build projection matrix for a single atom
-# Stored as projs[K][nk,lmi] = |<ψnk, f_lmi>|^2,
-# where K is running over all k-points, l, m are AM quantum numbers, 
-# and i is running over all pseudo-atomic wavefunctions for a given l.
-function compute_pdos_projs(basis, eigenvalues, ψ, psp::PspUpf, position)
+# Build projection vector for a single atom.
+# Stored as projs[K][nk,lmi] = |<ψnk, f_m>|^2,
+# where K is running over all k-points, 
+# m is running over -l:l for fixed l and i.
+function compute_pdos_projs(basis, eigenvalues, ψ, l, i, psp::PspUpf, position)
     position = vector_red_to_cart(basis.model, position)
     G_plus_k_all = [to_cpu(Gplusk_vectors_cart(basis, basis.kpoints[ik])) 
                     for ik = 1:length(basis.kpoints)]
 
     # Build Fourier transform factors of pseudo-wavefunctions centered at 0.
-    fourier_form = atomic_centered_function_form_factors(psp, eval_psp_pswfc_fourier,
-                                    count_n_pswfc_radial, count_n_pswfc, G_plus_k_all)
+    fun(l, i, p) = eval_psp_pswfc_fourier(psp, l, i, p)
+    fourier_form = build_form_factors(fun, l, i, G_plus_k_all)
 
     projs = Vector{Matrix}(undef, length(basis.kpoints))
     for (ik, ψk) in enumerate(ψ)
         fourier_form_ik = fourier_form[ik]
         structure_factor_ik = exp.(-im .* [dot(position, Gik) for Gik in G_plus_k_all[ik]])
-        @views for iproj = 1:size(fourier_form_ik, 2)
-            # TODO Pseudo-atomic wave functions need to be orthogonalized.
-            fourier_form_ik[:, iproj] .= (structure_factor_ik .* fourier_form_ik[:, iproj]
-                                          ./ sqrt(basis.model.unit_cell_volume))
-        end
-        projs[ik] = abs2.(ψk' * fourier_form_ik)
+
+        # TODO Pseudo-atomic wave functions need to be orthogonalized.
+        proj_vectors_ik = structure_factor_ik .* fourier_form_ik ./ sqrt(basis.model.unit_cell_volume)                           
+        projs[ik] = abs2.(ψk' * proj_vectors_ik)
     end
+
     projs
 end
 

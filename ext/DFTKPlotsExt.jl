@@ -140,7 +140,8 @@ function plot_ldos(basis, eigenvalues, ψ; εF=nothing, unit=u"hartree",
 end
 plot_ldos(scfres; kwargs...) = plot_ldos(scfres.basis, scfres.eigenvalues, scfres.ψ; scfres.εF, kwargs...)
 
-function plot_pdos(basis, eigenvalues, ψ, psp_group;
+function plot_pdos(basis, eigenvalues, ψ, l, i, 
+                   psp, position, el::Symbol;
                    εF=nothing, unit=u"hartree",
                    temperature=basis.model.temperature,
                    smearing=basis.model.smearing,
@@ -152,35 +153,16 @@ function plot_pdos(basis, eigenvalues, ψ, psp_group;
     # Constant to convert from AU to the desired unit
     to_unit = ustrip(auconvert(unit, 1.0))
 
-    # Calculate the projections of the first atom in the atom group
-    pdos = compute_pdos(εs, basis, eigenvalues, ψ, psp_group; 
-                        temperature, smearing)
+    # Calculate the projections of the atom with given i and l,
+    # and sum all angular momentums m=-l:l 
+    pdos = dropdims(sum(compute_pdos(εs, basis, eigenvalues, ψ, l, i, 
+                    psp, position; temperature, smearing), dims=2); dims=2)
+    label = String(el) * "-" * psp.pswfc_labels[l+1][i]
     
-    # Summing all angular components for each atom orbital
-    psp = basis.model.atoms[first(psp_group)].psp
-    n_pswfc = DFTK.count_n_pswfc_radial(psp)
-    pdos_label = Vector{String}(undef, n_pswfc)
-    pdos_orbital = Vector{Vector{eltype(pdos)}}(undef, n_pswfc)
-    count = 1
-    for l = 0:psp.lmax
-        il_n = DFTK.count_n_pswfc_radial(psp, l)
-        mfet_count = sum(x -> DFTK.count_n_pswfc(psp,x), 0:l-1; init=1) 
-        for il = 1:il_n
-            mfet = mfet_count .+ il_n .* (collect(1:2l+1) .- 1)
-            pdos_label[count] = psp.pswfc_labels[l+1][il]
-            pdos_orbital[count] = dropdims(sum(pdos[:, mfet], dims=2); dims=2)
-            count += 1
-            mfet_count += 1
-        end
-    end
-    pdos_label = (String(basis.model.atoms[first(psp_group)].symbol) * "-") .* pdos_label
-
-    # Plot pdos for each orbital
+    # Plot pdos 
     p = something(p, Plots.plot(; kwargs...))
-    for i = 1:n_pswfc
-        Plots.plot!(p, (εs .- eshift) .* to_unit, pdos_orbital[i];
-                    label=pdos_label[i])
-    end
+    Plots.plot!(p, (εs .- eshift) .* to_unit, pdos; label)
+
     p
 end
 
@@ -191,14 +173,23 @@ function plot_pdos(scfres; kwargs...)
     # TODO Require symmetrization with respect to kpoints and BZ symmetry 
     #      (now achieved by unfolding all the quantities).
     scfres_unfold = DFTK.unfold_bz(scfres)
-    psp_groups = [group for group in scfres_unfold.basis.model.atom_groups
-                  if scfres_unfold.basis.model.atoms[first(group)] isa ElementPsp]
+    basis = scfres_unfold.basis
+    psp_groups = [group for group in basis.model.atom_groups
+                  if basis.model.atoms[first(group)] isa ElementPsp]
 
-    # Plot PDOS
+    # Plot PDOS for the first atom of each atom group
     for group in psp_groups
-        plot_pdos(scfres_unfold.basis, scfres_unfold.eigenvalues,
-                  scfres_unfold.ψ, group; scfres.εF, p, kwargs...)
+        psp = basis.model.atoms[first(group)].psp
+        position = basis.model.positions[first(group)]
+        el = basis.model.atoms[first(group)].symbol
+        for l = 0:psp.lmax
+            for i = 1:DFTK.count_n_pswfc_radial(psp, l)
+                plot_pdos(basis, scfres_unfold.eigenvalues, scfres_unfold.ψ, 
+                          l, i, psp, position, el; scfres.εF, p, kwargs...)
+            end
+        end                  
     end
+
     p
 end
 
