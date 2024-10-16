@@ -1,7 +1,6 @@
 # # Densities of states (DOS)
-# In this example, we'll plot the DOS, local DOS, and  projected DOS of Silicon.
+# In this example, we'll plot the DOS, local DOS, and projected DOS of Silicon.
 # DOS computation only supports finite temperature.
-# Projected DOS only supports PspUpf.
 
 using DFTK
 using Unitful

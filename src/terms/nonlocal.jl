@@ -70,7 +70,7 @@ end
             # We compute the forces from the irreductible BZ; they are symmetrized later.
             G_plus_k = Gplusk_vectors(basis, kpt)
             G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
-            form_factors = build_form_factors(element.psp, G_plus_k_cart)
+            form_factors = build_projector_form_factors(element.psp, G_plus_k_cart)
             for idx in group
                 r = model.positions[idx]
                 structure_factors = [cis2pi(-dot(p, r)) for p in G_plus_k]
@@ -173,7 +173,7 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     for (psp, positions) in zip(psps, psp_positions)
         # Compute position-independent form factors
         G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
-        form_factors  = build_form_factors(psp, G_plus_k_cart)
+        form_factors = build_projector_form_factors(psp, G_plus_k_cart)
 
         # Combine with structure factors
         for r in positions
@@ -195,8 +195,8 @@ end
 """
 Build form factors (Fourier transforms of projectors) for all orbitals of an atom centered at 0.
 """
-function build_form_factors(psp::NormConservingPsp,                     
-                            G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
+function build_projector_form_factors(psp::NormConservingPsp,
+                                      G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
     G_plus_ks = [G_plus_k]
 
     n_proj = count_n_proj(psp)
@@ -204,10 +204,10 @@ function build_form_factors(psp::NormConservingPsp,
     for l = 0:psp.lmax, 
         n_proj_l = count_n_proj_radial(psp, l)
         offset = sum(x -> count_n_proj(psp, x), 0:l-1; init=0) .+ 
-                 n_proj_l .* (collect(1:2l+1) .- 1) # offset about m for given l and i
+                 n_proj_l .* (collect(1:2l+1) .- 1) # offset about m for a given l 
         for i = 1:n_proj_l
             proj_li(p) = eval_psp_projector_fourier(psp, i, l, p)
-            form_factors_li = atomic_centered_fun_form_factors(proj_li, l, G_plus_ks)
+            form_factors_li = build_form_factors(proj_li, l, G_plus_ks)
             @views form_factors[:, offset.+i] = form_factors_li[1]
         end
     end
@@ -216,10 +216,11 @@ function build_form_factors(psp::NormConservingPsp,
 end
 
 """
-Build Fourier transform factors of a atomic function centered at 0 for a given l.
+Build Fourier transform factors of an atomic function centered at 0 for a given l.
 """
-function atomic_centered_fun_form_factors(fun::Function, l::Int,
-                                          G_plus_ks::AbstractVector{<:AbstractVector{Vec3{TT}}}) where {TT}
+function build_form_factors(fun::Function, l::Int,
+                            G_plus_ks::AbstractVector{<:AbstractVector{Vec3{TT}}}) where {TT}
+    # TODO this function can be generally useful, should refactor to a separate file eventually
     T = real(TT)
 
     # Pre-compute the radial parts of the non-local atomic functions at unique |p| to speed up

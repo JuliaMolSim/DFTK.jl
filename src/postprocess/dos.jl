@@ -8,9 +8,9 @@
 # LDOS (local density of states)
 # LD(ε) = sum_n f_n' |ψn|^2 = sum_n δ(ε - ε_n) |ψn|^2
 #
-# PDOS (projected density of states)
-# PD(ε) = sum_n f_n' |<ψn,ϕlmi>|^2
-# ϕlmi = ∑_R ϕlmi(r-pos-R) is a periodic atomic wavefunction centered at pos
+# PD(ε) = sum_n f_n' |<ψn,ϕ>|^2
+# ϕ = ∑_R ϕilm(r-pos-R) is the periodized atomic wavefunction, obtained from the pseudopotential
+# This is computed for a given (i,l) (eg i=2,l=2 for the 3p) and summed over all m
 
 """
 Total density of states at energy ε
@@ -94,36 +94,36 @@ function compute_pdos(ε, basis, eigenvalues, ψ, i, l, psp, position;
     D = mpi_sum(D, basis.comm_kpts)
 end
 
-function compute_pdos(scfres::NamedTuple; ε=scfres.εF, l=0, i=1, 
-                      psp=scfres.basis.model.atoms[1].psp,
-                      position=basis.model.positions[1], kwargs...)
-    # TODO Require symmetrization with respect to kpoints and BZ symmetry 
-    #      (now achieved by unfolding all the quantities).
+function compute_pdos(scfres::NamedTuple, iatom, i, l; ε=scfres.εF, kwargs...)
+    psp = scfres.basis.model.atoms[iatom].psp
+    position = scfres.basis.model.positions[iatom]
+    # TODO do the symmetrization instead of unfolding    
     scfres = unfold_bz(scfres)
     compute_pdos(ε, scfres.basis, scfres.eigenvalues, scfres.ψ, i, l, psp, position; kwargs...)
 end
 
-# Build projection vector for a single atom.
-# Stored as projs[K][nk,lmi] = |<ψnk, f_m>|^2,
-# where K is running over all k-points, 
-# m is running over -l:l for fixed l and i.
-function compute_pdos_projs(basis, eigenvalues, ψ, i, l, psp::PspUpf, position)
-    position = vector_red_to_cart(basis.model, position)
-    G_plus_k_all = [to_cpu(Gplusk_vectors_cart(basis, basis.kpoints[ik])) 
+# Build atomic orbitals projections projs[ik][iband,m] = |<ψnk, ϕ>|^2 for a single atom.
+# TODO optimization ? accept a range of positions, in case we want to compute the PDOS
+# for all atoms of the same type (and reuse the computation of the atomic orbitals)
+function compute_pdos_projs(basis, eigenvalues, ψ, i, l, psp::NormConservingPsp, position)
+    # Precompute the form factors on all kpoints at once so we can better use the cache (memory-compute tradeoff).
+    # Revisit this (pass the cache around explicitly) if RAM becomes an issue.
+    G_plus_k_all = [Gplusk_vectors(basis, basis.kpoints[ik])
                     for ik = 1:length(basis.kpoints)]
+    G_plus_k_all_cart = [map(recip_vector_red_to_cart(basis.model), gpk) 
+                         for gpk in G_plus_k_all]
 
-    # Build Fourier transform factors of pseudo-wavefunctions centered at 0.
+    # Build form factors of pseudo-wavefunctions centered at 0.
     fun(p) = eval_psp_pswfc_fourier(psp, i, l, p)
-    fourier_form = atomic_centered_fun_form_factors(fun, l, G_plus_k_all)
+    # form_factors_all[ik][p,m]
+    form_factors_all = build_form_factors(fun, l, G_plus_k_all_cart)
 
     projs = Vector{Matrix}(undef, length(basis.kpoints))
     for (ik, ψk) in enumerate(ψ)
-        fourier_form_ik = fourier_form[ik]
-        structure_factor_ik = exp.(-im .* [dot(position, Gik) for Gik in G_plus_k_all[ik]])
-
-        # TODO Pseudo-atomic wave functions need to be orthogonalized.
-        proj_vectors_ik = structure_factor_ik .* fourier_form_ik ./ sqrt(basis.model.unit_cell_volume)                           
-        projs[ik] = abs2.(ψk' * proj_vectors_ik)
+        structure_factor = [cis2pi(-dot(position, p)) for p in G_plus_k_all[ik]]
+        # TODO orthogonalize pseudo-atomic wave functions?
+        proj_vectors = structure_factor .* form_factors_all[ik] ./ sqrt(basis.model.unit_cell_volume)
+        projs[ik] = abs2.(ψk' * proj_vectors) # contract on p -> projs[ik][iband,m]
     end
 
     projs

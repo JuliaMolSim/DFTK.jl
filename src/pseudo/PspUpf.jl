@@ -171,6 +171,8 @@ function eval_psp_projector_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     hankel(rgrid, r2_proj, l, p)
 end
 
+count_n_pswfc_radial(psp::PspUpf, l) = length(psp.r2_pswfcs[l+1])
+
 function eval_psp_pswfc_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
     psp.r2_pswfcs_interp[l+1][i](r) / r^2
 end
@@ -226,14 +228,4 @@ function eval_psp_energy_correction(T, psp::PspUpf, n_electrons)
     4T(π) * n_electrons * simpson(rgrid) do i, r
         r * (r * vloc[i] - -psp.Zion)
     end
-end
-
-count_n_pswfc_radial(psp::PspUpf, l::Integer) = length(psp.r2_pswfcs[l + 1])
-function count_n_pswfc_radial(psp::PspUpf)
-    sum(l -> count_n_pswfc_radial(psp, l), 0:psp.lmax; init=0)::Int
-end
-
-count_n_pswfc(psp::PspUpf, l::Integer) = count_n_pswfc_radial(psp, l) * (2l + 1)
-function count_n_pswfc(psp::PspUpf)
-    sum(l -> count_n_pswfc(psp, l), 0:psp.lmax; init=0)::Int
 end

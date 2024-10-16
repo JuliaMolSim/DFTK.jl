@@ -170,8 +170,7 @@ function plot_pdos(scfres; kwargs...)
     # Plot DOS
     p = plot_dos(scfres; scfres.εF, kwargs...)
 
-    # TODO Require symmetrization with respect to kpoints and BZ symmetry 
-    #      (now achieved by unfolding all the quantities).
+    # TODO do the symmetrization instead of unfolding    
     scfres_unfold = DFTK.unfold_bz(scfres)
     basis = scfres_unfold.basis
     psp_groups = [group for group in basis.model.atom_groups

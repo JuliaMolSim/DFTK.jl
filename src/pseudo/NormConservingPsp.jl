@@ -11,20 +11,24 @@ abstract type NormConservingPsp end
 #    description::String         # Descriptive string
 
 #### Methods:
-# charge_ionic(psp::NormConservingPsp)
-# has_valence_density(psp:NormConservingPsp)
-# has_core_density(psp:NormConservingPsp)
-# eval_psp_projector_real(psp::NormConservingPsp, i, l, r::Real)
-# eval_psp_projector_fourier(psp::NormConservingPsp, i, l, p::Real)
-# eval_psp_local_real(psp::NormConservingPsp, r::Real)
-# eval_psp_local_fourier(psp::NormConservingPsp, p::Real)
-# eval_psp_energy_correction(T::Type, psp::NormConservingPsp, n_electrons::Integer)
+# charge_ionic(psp)
+# has_valence_density(psp)
+# has_core_density(psp)
+# eval_psp_projector_real(psp, i, l, r::Real)
+# eval_psp_projector_fourier(psp, i, l, p::Real)
+# eval_psp_local_real(psp, r::Real)
+# eval_psp_local_fourier(psp, p::Real)
+# eval_psp_energy_correction(T::Type, psp, n_electrons::Integer)
 
 #### Optional methods:
-# eval_psp_density_valence_real(psp::NormConservingPsp, r::Real)
-# eval_psp_density_valence_fourier(psp::NormConservingPsp, p::Real)
-# eval_psp_density_core_real(psp::NormConservingPsp, r::Real)
-# eval_psp_density_core_fourier(psp::NormConservingPsp, p::Real)
+# eval_psp_density_valence_real(psp, r::Real)
+# eval_psp_density_valence_fourier(psp, p::Real)
+# eval_psp_density_core_real(psp, r::Real)
+# eval_psp_density_core_fourier(psp, p::Real)
+# eval_psp_pswfc_real(psp, i::Int, l::Int, p::Real)
+# eval_psp_pswfc_fourier(psp, i::Int, l::Int, p::Real)
+# count_n_pswfc(psp, l::Integer)
+# count_n_pswfc_radial(psp, l::Integer)
 
 """
     eval_psp_projector_real(psp, i, l, r)
@@ -202,4 +206,15 @@ atoms in the system, including angular parts from `-m:m`.
 function count_n_proj(psps, psp_positions)
     sum(count_n_proj(psp) * length(positions)
         for (psp, positions) in zip(psps, psp_positions))
+end
+
+count_n_pswfc_radial(psp::NormConservingPsp, l) = error("Pseudopotential $psp does not implement atomic wavefunctions.")
+
+function count_n_pswfc_radial(psp::NormConservingPsp)
+    sum(l -> count_n_pswfc_radial(psp, l), 0:psp.lmax; init=0)::Int 
+end
+
+count_n_pswfc(psp::NormConservingPsp, l) = count_n_pswfc_radial(psp, l) * (2l + 1)
+function count_n_pswfc(psp::NormConservingPsp)
+    sum(l -> count_n_pswfc(psp, l), 0:psp.lmax; init=0)::Int
 end
