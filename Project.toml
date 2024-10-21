@@ -73,7 +73,7 @@ DFTKWriteVTKExt = "WriteVTK"
 [compat]
 AbstractFFTs = "1"
 Artifacts = "1"
-AtomsBase = "0.3.1"
+AtomsBase = "0.3.1, 0.4"
 AtomsBuilder = "0.1"
 AtomsCalculators = "0.2"
 Brillouin = "0.5.14"
