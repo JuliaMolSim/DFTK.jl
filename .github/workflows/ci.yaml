@@ -25,7 +25,7 @@ jobs:
           - {mode: stable,  os: macOS-latest,   payload: noslow         }
           - {mode: stable,  os: windows-latest, payload: noslow         }
           - {mode: stable,  os: ubuntu-latest,  payload: noslow-mpi     }
-          - {mode: nightly, os: ubuntu-latest,  payload: noslow         }
+          - {mode: pre, os: ubuntu-latest,  payload: noslow         }
     env:
       GKS_ENCODING: utf8
       GKSwstype: 100       # Needed for Plots-related tests
@@ -41,12 +41,14 @@ jobs:
           version: '1.10'
           arch: x64
         if: ${{ matrix.mode == 'stable' }}
-      - name: Setup Julia nightly
+      - name: Setup Julia pre-release
         uses: julia-actions/setup-julia@v1
         with:
-          version: nightly
+          version: pre
           arch: x64
-        if: ${{ matrix.mode == 'nightly' }}
+        if: ${{ matrix.mode == 'pre' }}
+      - name: [TEMPORARY] Print julia version
+        run: julia --version
 
       - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@v1
