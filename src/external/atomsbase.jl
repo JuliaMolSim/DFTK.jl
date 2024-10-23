@@ -1,6 +1,14 @@
 using AtomsBase
 # Key functionality to integrate DFTK and AtomsBase
 
+# implement AtomsBase interface directly on `Model` object
+Base.length(m::Model) = length(m.atoms)
+Base.getindex(m::Model, i) = m.atoms[i]
+position(m::Model, i) = DFTK.vector_red_to_cart(m, m.positions[i]) * u"a0_au"
+mass(m::Model, i) = m[i].mass
+species(m::Model, i) = m[i].symbol
+cell(m::Model) = PeriodicCell((m.lattice[:,1], m.lattice[:,2], m.lattice[:,3]), (true, true, true))
+
 function parse_system(system::AbstractSystem{D}) where {D}
     if !all(periodicity(system))
         error("DFTK only supports calculations with periodic boundary conditions.")
