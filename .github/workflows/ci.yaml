@@ -47,7 +47,7 @@ jobs:
           version: pre
           arch: x64
         if: ${{ matrix.mode == 'pre' }}
-      - name: [TEMPORARY] Print julia version
+      - name: "[TEMPORARY] Print julia version"
         run: julia --version
 
       - uses: julia-actions/cache@v2
