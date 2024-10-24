@@ -43,7 +43,7 @@ end
 apply!(Hψ, op::NoopOperator, ψ) = nothing
 function Matrix(op::NoopOperator)
     n_Gk = length(G_vectors(op.basis, op.kpoint))
-    zeros_like(op.basis.G_vectors, eltype(op.basis), n_Gk, n_Gk)
+    zeros_like(G_vectors(op.basis), eltype(op.basis), n_Gk, n_Gk)
 end
 
 """
