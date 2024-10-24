@@ -1,6 +1,4 @@
 # # Tutorial
-#md # [![](https://mybinder.org/badge_logo.svg)](@__BINDER_ROOT_URL__/guide/@__NAME__.ipynb)
-#md # [![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)](@__NBVIEWER_ROOT_URL__/guide/@__NAME__.ipynb)
 
 #nb # DFTK is a Julia package for playing with plane-wave
 #nb # density-functional theory algorithms. In its basic formulation it
@@ -23,9 +21,8 @@
 #     Therefore results are far from converged.
 #     Tighter thresholds and larger grids should be used for more realistic results.
 #
-# For our discussion we will use the classic example of
-# computing the LDA ground state of the
-# [silicon crystal](https://www.materialsproject.org/materials/mp-149).
+# For our discussion we will use the classic example of computing the LDA ground state
+# of the [silicon crystal](https://www.materialsproject.org/materials/mp-149).
 # Performing such a calculation roughly proceeds in three steps.
 
 using DFTK
@@ -54,8 +51,12 @@ Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
 atoms     = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
 
+# Note that DFTK supports a few other ways to supply atomistic structures,
+# see for example the sections on [AtomsBase integration](@ref)
+# and [Input and output formats](@ref) for details.
+
 ## 2. Select model and basis
-model = model_LDA(lattice, atoms, positions)
+model = model_DFT(lattice, atoms, positions; functionals=LDA())
 kgrid = [4, 4, 4]     # k-point grid (Regular Monkhorst-Pack grid)
 Ecut = 7              # kinetic energy cutoff
 ## Ecut = 190.5u"eV"  # Could also use eV or other energy-compatible units
@@ -71,11 +72,9 @@ scfres = self_consistent_field(basis, tol=1e-5);
 scfres.energies
 
 # Eigenvalues:
-hcat(scfres.eigenvalues...)
+stack(scfres.eigenvalues)
 # `eigenvalues` is an array (indexed by k-points) of arrays (indexed by
-# eigenvalue number). The "splatting" operation `...` calls `hcat`
-# with all the inner arrays as arguments, which collects them into a
-# matrix.
+# eigenvalue number).
 #
 # The resulting matrix is 7 (number of computed eigenvalues) by 8
 # (number of irreducible k-points). There are 7 eigenvalues per
@@ -91,10 +90,10 @@ hcat(scfres.eigenvalues...)
 # for details).
 #
 # We can check the occupations ...
-hcat(scfres.occupation...)
+stack(scfres.occupation)
 # ... and density, where we use that the density objects in DFTK are
-# indexed as ρ[iσ, ix, iy, iz], i.e. first in the spin component and then
-# in the 3-dimensional real-space grid.
+# indexed as ρ[ix, iy, iz, iσ], i.e. first in the 3-dimensional real-space grid
+# and then in the spin component.
 rvecs = collect(r_vectors(basis))[:, 1, 1]  # slice along the x axis
 x = [r[1] for r in rvecs]                   # only keep the x coordinate
 plot(x, scfres.ρ[1, :, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
