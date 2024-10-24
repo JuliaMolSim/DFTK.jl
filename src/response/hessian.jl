@@ -75,11 +75,6 @@ Return δψ where (Ω+K) δψ = rhs
     # for now, all orbitals have to be fully occupied -> need to strip them beforehand
     @assert all(all(occ_k .== filled_occ) for occ_k in occupation)
 
-    # To mpi-parallelise we have to deal with the fact that the linear algebra
-    # in the CG (dot products, norms) couples k-Points. Maybe take a look at
-    # the PencilArrays.jl package to get this done automatically.
-    @assert mpi_nprocs() == 1  # Distributed implementation not yet available
-
     # compute quantites at the point which define the tangent space
     ρ = compute_density(basis, ψ, occupation)
     H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
@@ -124,7 +119,7 @@ Return δψ where (Ω+K) δψ = rhs
         pack(δψ)
     end
     res = cg(J, rhs_pack; precon=FunctionPreconditioner(f_ldiv!), proj, tol,
-             callback)
+             callback, comm=basis.comm_kpts)
     (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norm,
      res.n_iter)
 end

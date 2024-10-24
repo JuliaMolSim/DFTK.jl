@@ -33,3 +33,6 @@ mpi_mean!(arr, comm::MPI.Comm) = (mpi_sum!(arr, comm); arr ./= mpi_nprocs(comm))
     MPI.@RegisterOp(min, type_symbol)
     MPI.@RegisterOp(max, type_symbol)
 end
+
+mpi_dot(x1, x2, comm::MPI.Comm) = mpi_sum(dot(x1, x2), comm)
+mpi_norm(x, comm::MPI.Comm) = sqrt(mpi_sum(norm2(x), comm))
