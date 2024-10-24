@@ -44,7 +44,8 @@ jobs:
       - name: Setup Julia pre-release
         uses: julia-actions/setup-julia@v1
         with:
-          version: pre
+          version: '1'
+          include-all-prereleases: true
           arch: x64
         if: ${{ matrix.mode == 'pre' }}
       - name: "[TEMPORARY] Print julia version"
