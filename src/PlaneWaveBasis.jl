@@ -48,8 +48,8 @@ struct PlaneWaveBasis{T,
     fft_grid::FFTtype
 
     ## MPI-local information of the kpoints this processor treats
-    # Irreducible kpoints. In the case of collinear spin,
-    # this lists all the spin up, then all the spin down
+    # In principle, irreducible kpoints (although some kpoints might be duplicated in parallel runs).
+    # In the case of collinear spin, this lists all the spin up, then all the spin down
     kpoints::Vector{Kpoint{T, T_kpt_G_vecs}}
     # BZ integration weights, summing up to model.n_spin_components
     kweights::Vector{T}
@@ -58,9 +58,14 @@ struct PlaneWaveBasis{T,
     ## These fields are not actually used in computation, but can be used to reconstruct a basis
     # Monkhorst-Pack grid used to generate the k-points, or nothing for custom k-points
     kgrid::AbstractKgrid
-    # full list of (non spin doubled) k-point coordinates in the irreducible BZ
+    # full list of (non spin doubled) k-point coordinates in the irreducible BZ (duplicates possible)
     kcoords_global::Vector{Vec3{T}}
     kweights_global::Vector{T}
+
+    # Number of irreducible k-points in the basis. If there are more MPI ranks than irreducible
+    # k-points, some are duplicated over the MPI ranks (with adjusted weight). In such a case
+    # n_irreducible_kpoints < length(kcoords_global)
+    n_irreducible_kpoints::Int
 
     ## Setup for MPI-distributed processing over k-points
     comm_kpts::MPI.Comm  # communicator for the kpoints distribution
@@ -177,8 +182,9 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
     # by the same process
     n_procs = mpi_nprocs(comm_kpts)
     n_kpt   = length(kcoords_global)
+    n_irreducible_kpoints = n_kpt
 
-    # The code cannot handle MPI ranks without k-points. If there are more prcocessas
+    # The code cannot handle MPI ranks without k-points. If there are more prcocesses
     # than k-points, we duplicate k-points with the highest weight on the empty MPI
     # ranks (and scale the weight accordingly)
     if n_procs > n_kpt
@@ -253,7 +259,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
         Ecut, variational,
         fft_grid,
         kpoints, kweights, kgrid,
-        kcoords_global, kweights_global,
+        kcoords_global, kweights_global, n_irreducible_kpoints,
         comm_kpts, krange_thisproc, krange_allprocs, krange_thisproc_allspin,
         architecture, symmetries, symmetries_respect_rgrid,
         use_symmetries_for_kpoint_reduction, terms)
@@ -438,6 +444,29 @@ function weighted_ksum(basis::PlaneWaveBasis, array)
     mpi_sum(res, basis.comm_kpts)
 end
 
+"""
+Utilities to get information about the irreducible k-point mesh (in case of duplication)
+Useful for I/O, where k-point information should not be duplicated
+"""
+function irreducible_kcoords(basis::PlaneWaveBasis)
+    # Assume that duplicated k-points are appended at the end of the kcoords array
+    basis.kcoords_global[1:basis.n_irreducible_kpoints]
+end
+
+function irreducible_kweights(basis::PlaneWaveBasis{T}) where {T}
+    irr_kweights = basis.kweights_global[1:basis.n_irreducible_kpoints]
+
+    # Assume that duplicated k-points are appended at the end of the kcoords/kweights array
+    for i_dupl in basis.n_irreducible_kpoints+1:length(basis.kweights_global)
+        for i_irr in 1:basis.n_irreducible_kpoints
+            if maximum(abs.(basis.kcoords_global[i_dupl]-basis.kcoords_global[i_irr])) < eps(T)
+                irr_kweights[i_irr] += basis.kweights_global[i_dupl]
+            end
+        end
+    end
+
+    irr_kweights
+end
 
 """
 Gather the distributed ``k``-point data on the master process and return
@@ -477,6 +506,7 @@ and save it in `dest` as a dense `(size(kdata[1])..., n_kpoints)` array. On the 
 
     # Note: This function assumes that k-points are stored contiguously in rank-increasing
     # order, i.e. it depends on the splitting realised by split_evenly.
+    # Note that if some k-points are duplicated over MPI ranks, they are also gathered here.
     for σ in 1:basis.model.n_spin_components
         if mpi_master(basis.comm_kpts)
             # Setup variable buffer using appropriate data lengths and 

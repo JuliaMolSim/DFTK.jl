@@ -414,6 +414,10 @@ function unfold_array(basis_irred, basis_unfolded, data, is_ψ)
     if !(basis_irred.comm_kpts == basis_irred.comm_kpts == MPI.COMM_WORLD)
         error("Brillouin zone symmetry unfolding not supported with MPI yet")
     end
+    if basis_irred.n_irreducible_kpoints < mpi_nprocs(basis_irred.comm_kpts)
+        #Note: if this routine is ever generalised for MPI, need special care for duplicated KP
+        error("Brillouin zone symmetry unfolding not implemented with duplicated k-points")
+    end
     data_unfolded = similar(data, length(basis_unfolded.kpoints))
     for ik_unfolded = 1:length(basis_unfolded.kpoints)
         kpt_unfolded = basis_unfolded.kpoints[ik_unfolded]
