@@ -25,8 +25,7 @@ Normalization conventions:
 struct PlaneWaveBasis{T,
                       VT <: Real,
                       Arch <: AbstractArchitecture,
-                      T_G_vectors  <: AbstractArray{Vec3{Int}, 3},
-                      T_r_vectors  <: AbstractArray{Vec3{VT},  3},
+                      FFTtype <: FFTGrid{T, VT},
                       T_kpt_G_vecs <: AbstractVector{Vec3{Int}},
                      } <: AbstractBasis{T}
 
@@ -46,7 +45,7 @@ struct PlaneWaveBasis{T,
     #                    the basis used for the density / potential?
 
     # A FFTGrid containing all necessary data for FFT opertations related to this basis
-    fft_grid::FFTGrid{T, VT, T_G_vectors, T_r_vectors}
+    fft_grid::FFTtype
 
     ## MPI-local information of the kpoints this processor treats
     # Irreducible kpoints. In the case of collinear spin,
@@ -232,8 +231,8 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
     dvol  = model.unit_cell_volume ./ prod(fft_size)
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
 
-    basis = PlaneWaveBasis{T, value_type(T), Arch, typeof(fft_grid.G_vectors), 
-                           typeof(fft_grid.r_vectors), typeof(kpoints[1].G_vectors)}(
+    basis = PlaneWaveBasis{T, value_type(T), Arch, typeof(fft_grid),
+                           typeof(kpoints[1].G_vectors)}(
         model, fft_size, dvol,
         Ecut, variational,
         fft_grid,

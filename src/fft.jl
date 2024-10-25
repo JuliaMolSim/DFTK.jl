@@ -17,6 +17,29 @@ import AbstractFFTs: fft, fft!, ifft, ifft!
 # take a k-point as input.
 
 """
+    G_vectors(fft_size::Tuple)
+
+of given sizes.
+"""
+function G_vectors(fft_size::Union{Tuple,AbstractVector})
+    # Note that a collect(G_vectors_generator(fft_size)) is 100-fold slower
+    # than this implementation, hence the code duplication.
+    start = .- cld.(fft_size .- 1, 2)
+    stop  = fld.(fft_size .- 1, 2)
+    axes  = [[collect(0:stop[i]); collect(start[i]:-1)] for i = 1:3]
+    [Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3]]
+end
+
+function G_vectors_generator(fft_size::Union{Tuple,AbstractVector})
+    # The generator version is used mainly in symmetry.jl for lowpass_for_symmetry! and
+    # accumulate_over_symmetries!, which are 100-fold slower with G_vector(fft_size).
+    start = .- cld.(fft_size .- 1, 2)
+    stop  = fld.(fft_size .- 1, 2)
+    axes = [[collect(0:stop[i]); collect(start[i]:-1)] for i = 1:3]
+    (Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3])
+end
+
+"""
 We define the FFTGrid struct, containing all the data required to perform FFTs. Namely:
 - fft_size: defines the extent of the real and reciprocal space grids
 - opFFT: out-of-place FFT plan
@@ -31,10 +54,7 @@ We define the FFTGrid struct, containing all the data required to perform FFTs. 
 Note that the FFT plans are not normalized. Normalization takes place explicitely
 when the fft()/ifft() functions are called
 """
-struct FFTGrid{T,
-               VT <: Real,
-               T_G_vectors  <: AbstractArray{Vec3{Int}, 3},
-               T_r_vectors  <: AbstractArray{Vec3{VT},  3}}
+struct FFTGrid{T, VT <: Real}
 
     fft_size::Tuple{Int, Int, Int}
 
@@ -45,8 +65,8 @@ struct FFTGrid{T,
     fft_normalization::T
     ifft_normalization::T
 
-    G_vectors::T_G_vectors
-    r_vectors::T_r_vectors
+    G_vectors::Array{Vec3{Int}, 3}
+    r_vectors::Array{Vec3{VT},  3}
 
     architecture::AbstractArchitecture
 end
@@ -71,9 +91,8 @@ function FFTGrid(fft_size::Tuple{Int, Int, Int}, unit_cell_volume::T,
                  for idx in CartesianIndices(fft_size)]
     r_vectors = to_device(arch, r_vectors)
 
-    FFTGrid{T, VT, typeof(Gs), typeof(r_vectors)}(
-        fft_size, opFFT, ipFFT, opBFFT, ipBFFT, fft_normalization, 
-        ifft_normalization, Gs, r_vectors, arch)
+    FFTGrid{T, VT}(fft_size, opFFT, ipFFT, opBFFT, ipBFFT, fft_normalization,
+                   ifft_normalization, Gs, r_vectors, arch)
 end
 
 function FFTGrid(fft_size::Int, unit_cell_volume::T, arch::AbstractArchitecture) where T <: Real
@@ -92,13 +111,13 @@ function ifft!(f_real::AbstractArray3, fft_grid::FFTGrid, f_fourier::AbstractArr
     f_real .*= fft_grid.ifft_normalization
 end
 function ifft!(f_real::AbstractArray3, fft_grid::FFTGrid,
-               kpt::Kpoint, f_fourier::AbstractVector; normalize=true)
-    @assert length(f_fourier) == length(kpt.mapping)
+               Gvec_mapping::Vector{Int}, f_fourier::AbstractVector; normalize=true)
+    @assert length(f_fourier) == length(Gvec_mapping)
     @assert size(f_real) == fft_grid.fft_size
 
     # Pad the input data
     fill!(f_real, 0)
-    f_real[kpt.mapping] = f_fourier
+    f_real[Gvec_mapping] = f_fourier
 
     mul!(f_real, fft_grid.ipBFFT, f_real)  # perform IFFT
     normalize && (f_real .*= fft_grid.ifft_normalization)
@@ -106,11 +125,11 @@ function ifft!(f_real::AbstractArray3, fft_grid::FFTGrid,
 end
 
 """
-    ifft(fft_grid::FFTGrid, [kpt::Kpoint, ] f_fourier)
+    ifft(fft_grid::FFTGrid, [Gvec_mapping, ] f_fourier)
 
 Perform an iFFT to obtain the quantity defined by `f_fourier` defined
-on the k-dependent spherical basis set (if `kpt` is given) or the
-k-independent cubic (if it is not) on the real-space grid.
+on the k-dependent spherical basis set (if `Gvec_mapping` of a k-point is given)
+or the k-independent cubic (if it is not) on the real-space grid.
 """
 function ifft(fft_grid::FFTGrid, f_fourier::AbstractArray)
     f_real = similar(f_fourier)
@@ -121,8 +140,8 @@ function ifft(fft_grid::FFTGrid, f_fourier::AbstractArray)
     end
     f_real
 end
-function ifft(fft_grid::FFTGrid, kpt::Kpoint, f_fourier::AbstractVector; kwargs...)
-    ifft!(similar(f_fourier, fft_grid.fft_size...), fft_grid, kpt, f_fourier; kwargs...)
+function ifft(fft_grid::FFTGrid, Gvec_mapping::Vector{Int}, f_fourier::AbstractVector; kwargs...)
+    ifft!(similar(f_fourier, fft_grid.fft_size...), fft_grid, Gvec_mapping, f_fourier; kwargs...)
 end
 """
 Perform a real valued iFFT; see [`ifft`](@ref). Note that this function
@@ -135,7 +154,7 @@ end
 
 @doc raw"""
 In-place version of `fft!`.
-NOTE: If `kpt` is given, not only `f_fourier` but also `f_real` is overwritten.
+NOTE: If `Gvec_mapping` is given, not only `f_fourier` but also `f_real` is overwritten.
 """
 function fft!(f_fourier::AbstractArray3, fft_grid::FFTGrid, f_real::AbstractArray3)
     if eltype(f_real) <: Real
@@ -145,25 +164,25 @@ function fft!(f_fourier::AbstractArray3, fft_grid::FFTGrid, f_real::AbstractArra
     f_fourier .*= fft_grid.fft_normalization
 end
 function fft!(f_fourier::AbstractVector, fft_grid::FFTGrid,
-              kpt::Kpoint, f_real::AbstractArray3; normalize=true)
+              Gvec_mapping::Vector{Int}, f_real::AbstractArray3; normalize=true)
     @assert size(f_real) == fft_grid.fft_size
-    @assert length(f_fourier) == length(kpt.mapping)
+    @assert length(f_fourier) == length(Gvec_mapping)
 
     # FFT
     mul!(f_real, fft_grid.ipFFT, f_real)
 
     # Truncate
-    f_fourier .= view(f_real, kpt.mapping)
+    f_fourier .= view(f_real, Gvec_mapping)
     normalize && (f_fourier .*= fft_grid.fft_normalization)
     f_fourier
 end
 
 """
-    fft(fft_grid::FFTGrid, [kpt::Kpoint, ] f_real)
+    fft(fft_grid::FFTGrid, [Gvec_mapping, ] f_real)
 
 Perform an FFT to obtain the Fourier representation of `f_real`. If
-`kpt` is given, the coefficients are truncated to the k-dependent
-spherical basis set.
+`Gvec_mapping` is given, the coefficients are truncated to the k-dependent
+spherical basis set correspoding to a k-point G-vector mapping.
 """
 function fft(fft_grid::FFTGrid{T}, f_real::AbstractArray{U}) where {T, U}
     f_fourier = similar(f_real, complex(promote_type(T, U)))
@@ -176,8 +195,8 @@ end
 
 
 # TODO optimize this
-function fft(fft_grid::FFTGrid, kpt::Kpoint, f_real::AbstractArray3; kwargs...)
-    fft!(similar(f_real, length(kpt.mapping)), fft_grid, kpt, copy(f_real); kwargs...)
+function fft(fft_grid::FFTGrid, Gvec_mapping::Vector{Int}, f_real::AbstractArray3; kwargs...)
+    fft!(similar(f_real, length(Gvec_mapping)), fft_grid, Gvec_mapping, copy(f_real); kwargs...)
 end
 
 # returns matrix representations of the ifft and fft matrices. For debug purposes.

@@ -1,28 +1,4 @@
 """
-    G_vectors(fft_size::Tuple)
-
-
-of given sizes.
-"""
-function G_vectors(fft_size::Union{Tuple,AbstractVector})
-    # Note that a collect(G_vectors_generator(fft_size)) is 100-fold slower
-    # than this implementation, hence the code duplication.
-    start = .- cld.(fft_size .- 1, 2)
-    stop  = fld.(fft_size .- 1, 2)
-    axes  = [[collect(0:stop[i]); collect(start[i]:-1)] for i = 1:3]
-    [Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3]]
-end
-
-function G_vectors_generator(fft_size::Union{Tuple,AbstractVector})
-    # The generator version is used mainly in symmetry.jl for lowpass_for_symmetry! and
-    # accumulate_over_symmetries!, which are 100-fold slower with G_vector(fft_size).
-    start = .- cld.(fft_size .- 1, 2)
-    stop  = fld.(fft_size .- 1, 2)
-    axes = [[collect(0:stop[i]); collect(start[i]:-1)] for i = 1:3]
-    (Vec3{Int}(i, j, k) for i in axes[1], j in axes[2], k in axes[3])
-end
-
-"""
 Discretization information for ``k``-point-dependent quantities such as orbitals.
 More generally, a ``k``-point is a block of the Hamiltonian;
 e.g. collinear spin is treated by doubling the number of ``k``-points.
@@ -92,3 +68,17 @@ end
     all_kpoints
 end
 
+# Forward FFT calls taking a Kpoint as argument
+ifft!(f_real::AbstractArray3, fft_grid::FFTGrid, kpt::Kpoint,
+      f_fourier::AbstractVector; normalize=true) =
+    ifft!(f_real, fft_grid, kpt.mapping, f_fourier; normalize=normalize)
+
+ifft(fft_grid::FFTGrid, kpt::Kpoint, f_fourier::AbstractVector; kwargs...) =
+    ifft(fft_grid, kpt.mapping, f_fourier; kwargs...)
+
+fft!(f_fourier::AbstractVector, fft_grid::FFTGrid, kpt::Kpoint,
+     f_real::AbstractArray3; normalize=true) =
+     fft!(f_fourier, fft_grid, kpt.mapping, f_real; normalize=normalize)
+
+fft(fft_grid::FFTGrid, kpt::Kpoint, f_real::AbstractArray3; kwargs...) =
+    fft(fft_grid, kpt.mapping, f_real; kwargs...)
