@@ -55,7 +55,6 @@ Note that the FFT plans are not normalized. Normalization takes place explicitel
 when the fft()/ifft() functions are called
 """
 struct FFTGrid{T, VT <: Real}
-
     fft_size::Tuple{Int, Int, Int}
 
     opFFT
@@ -73,7 +72,6 @@ end
 
 function FFTGrid(fft_size::Tuple{Int, Int, Int}, unit_cell_volume::T, 
                  arch::AbstractArchitecture) where T <: Real
-
     Gs = to_device(arch, G_vectors(fft_size))
     (ipFFT, opFFT, ipBFFT, opBFFT) = build_fft_plans!(similar(Gs, Complex{T}, fft_size))
 
