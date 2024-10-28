@@ -93,11 +93,6 @@ function FFTGrid(fft_size::Tuple{Int, Int, Int}, unit_cell_volume::T,
                    ifft_normalization, Gs, r_vectors, arch)
 end
 
-function FFTGrid(fft_size::Int, unit_cell_volume::T, arch::AbstractArchitecture) where T <: Real
-    fft_size = Tuple{Int,Int,Int}(fft_size)
-    FFTGrid(fft_size, unit_cell_volume, arch)
-end
-
 G_vectors(fft_grid::FFTGrid) = fft_grid.G_vectors
 r_vectors(fft_grid::FFTGrid) = fft_grid.r_vectors
 
