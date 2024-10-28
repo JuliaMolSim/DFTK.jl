@@ -47,7 +47,7 @@ Compute the application of K defined at ψ to δψ. ρ is the density issued fro
     δρ = compute_δρ(basis, ψ, δψ, occupation)
     δV = apply_kernel(basis, δρ; ρ)
 
-    ψnk_real = similar(basis.G_vectors, promote_type(T, eltype(ψ[1])))
+    ψnk_real = similar(G_vectors(basis), promote_type(T, eltype(ψ[1])))
     Kδψ = map(enumerate(ψ)) do (ik, ψk)
         kpt = basis.kpoints[ik]
         δVψk = similar(ψk)
