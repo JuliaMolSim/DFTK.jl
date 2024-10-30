@@ -58,7 +58,7 @@ end
     test_pw_cutoffs(silicon, 4.0, [11, 13, 11])
 end
 
-@testitem "PlaneWaveBasis: Check cubic basis and cubic index" setup=[TestCases] tags=[:dont_test_mpi] begin
+@testitem "PlaneWaveBasis: Check cubic basis and cubic index" setup=[TestCases] begin
     using DFTK
     using DFTK: index_G_vectors
     silicon = TestCases.silicon

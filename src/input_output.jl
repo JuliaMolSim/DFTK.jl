@@ -149,9 +149,9 @@ function todict!(dict, basis::PlaneWaveBasis)
     todict!(dict, basis.model)
 
     dict["kgrid"]        = sprint(show, "text/plain", basis.kgrid)
-    dict["kcoords"]      = irreducible_kcoords(basis)
-    dict["kcoords_cart"] = vector_red_to_cart.(basis.model, irreducible_kcoords(basis))
-    dict["kweights"]     = irreducible_kweights(basis)
+    dict["kcoords"]      = irreducible_kcoords_global(basis)
+    dict["kcoords_cart"] = vector_red_to_cart.(basis.model, irreducible_kcoords_global(basis))
+    dict["kweights"]     = irreducible_kweights_global(basis)
     dict["n_kpoints"]    = basis.n_irreducible_kpoints
     dict["fft_size"]     = basis.fft_size
     dict["dvol"]         = basis.dvol
@@ -231,14 +231,15 @@ function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false, save_ρ=
             n_spin    = basis.model.n_spin_components
             n_kpt_tot = length(basis.kcoords_global)
 
-            dict[key] = reshape(gathered, (size(data[1])..., n_kpt_tot, n_spin))
+            reshaped_data = reshape(gathered, (size(data[1])..., n_kpt_tot, n_spin))
 
             # Only store irreducible k-points (assumed to be first in an array)
             if n_kpt_tot > n_kpoints
                 index = ntuple(_ -> Colon(), ndims(dict[key]))
                 index = Base.setindex(index, 1:n_kpoints, ndims(dict[key]) - 1)
-                dict[key] = dict[key][index...]
+                reshaped_data = reshaped_data[index...]
             end
+            dict[key] = reshaped_data
         end
     end
 

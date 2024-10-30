@@ -58,7 +58,9 @@ struct PlaneWaveBasis{T,
     ## These fields are not actually used in computation, but can be used to reconstruct a basis
     # Monkhorst-Pack grid used to generate the k-points, or nothing for custom k-points
     kgrid::AbstractKgrid
-    # full list of (non spin doubled) k-point coordinates in the irreducible BZ (duplicates possible)
+    # Full list of (non spin doubled) k-point coordinates in the irreducible BZ (duplicates possible)
+    # Best to use the irreducible_kcoords_global() and irreducible_kweights_global() functions 
+    # to insure none of the k-points are duplicated
     kcoords_global::Vector{Vec3{T}}
     kweights_global::Vector{T}
 
@@ -194,33 +196,18 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
             push!(kweights_global, kweights_global[idx])
             push!(kcoords_global, kcoords_global[idx])
         end
-        @warn("Attempting to parallelize $n_kpt k-points over $n_procs MPI ranks. DFTK does " *
-              "not support processes empty of k-point. Some k-points were duplicated over the " *
-              "extra ranks with scaled weights.")
+        @warn("Attempting to parallelize $n_kpt k-points over $n_procs MPI ranks. " *
+              "DFTK does not support processes empty of k-point. Some k-points were " *
+              "duplicated over the extra ranks with scaled weights.")
     end
     n_kpt = length(kcoords_global)
 
-    if n_procs > n_kpt
-        # XXX Supporting more processors than kpoints would require
-        # fixing a bunch of "reducing over empty collections" errors
-        # In the unit tests it is really annoying that this fails so we hack around it, but
-        # generally it leads to duplicated work that is not in the users interest.
-        if parse(Bool, get(ENV, "CI", "false"))
-            comm_kpts = MPI.COMM_SELF
-            krange_thisproc1 = 1:n_kpt
-            krange_allprocs1 = fill(1:n_kpt, n_procs)
-        else
-            error("No point in trying to parallelize $n_kpt kpoints over $n_procs " *
-                  "processes; reduce the number of MPI processes.")
-        end
-    else
-        # get the slice of 1:n_kpt to be handled by this process
-        # Note: MPI ranks are 0-based
-        krange_allprocs1 = split_evenly(1:n_kpt, n_procs)
-        krange_thisproc1 = krange_allprocs1[1 + MPI.Comm_rank(comm_kpts)]
-        @assert mpi_sum(length(krange_thisproc1), comm_kpts) == n_kpt
-        @assert !isempty(krange_thisproc1)
-    end
+    # get the slice of 1:n_kpt to be handled by this process
+    # Note: MPI ranks are 0-based
+    krange_allprocs1 = split_evenly(1:n_kpt, n_procs)
+    krange_thisproc1 = krange_allprocs1[1 + MPI.Comm_rank(comm_kpts)]
+    @assert mpi_sum(length(krange_thisproc1), comm_kpts) == n_kpt
+    @assert !isempty(krange_thisproc1)
 
     # Setup k-point basis sets
     !variational && @warn(
@@ -448,23 +435,28 @@ end
 Utilities to get information about the irreducible k-point mesh (in case of duplication)
 Useful for I/O, where k-point information should not be duplicated
 """
-function irreducible_kcoords(basis::PlaneWaveBasis)
+function irreducible_kcoords_global(basis::PlaneWaveBasis)
     # Assume that duplicated k-points are appended at the end of the kcoords array
     basis.kcoords_global[1:basis.n_irreducible_kpoints]
 end
 
-function irreducible_kweights(basis::PlaneWaveBasis{T}) where {T}
-    irr_kweights = basis.kweights_global[1:basis.n_irreducible_kpoints]
+function irreducible_kweights_global(basis::PlaneWaveBasis{T}) where {T}
+    @inline function same_kpoint(i_irr, i_dupl)
+        maximum(abs, basis.kcoords_global[i_dupl]-basis.kcoords_global[i_irr]) < eps(T)
+    end
 
-    # Assume that duplicated k-points are appended at the end of the kcoords/kweights array
-    for i_dupl in basis.n_irreducible_kpoints+1:length(basis.kweights_global)
-        for i_irr in 1:basis.n_irreducible_kpoints
-            if maximum(abs.(basis.kcoords_global[i_dupl]-basis.kcoords_global[i_irr])) < eps(T)
+    # Assume that duplicated k-points are appended at the end of the kcoords array
+    irr_kweights = basis.kweights_global[1:basis.n_irreducible_kpoints]
+    for i_dupl = basis.n_irreducible_kpoints+1:length(basis.kweights_global)
+        for i_irr = 1:basis.n_irreducible_kpoints
+            if same_kpoint(i_irr, i_dupl)
                 irr_kweights[i_irr] += basis.kweights_global[i_dupl]
             end
         end
     end
 
+    # Test that irreducible weight add up to 1 (non spin doubled k-points)
+    @assert sum(irr_kweights) ≈ 1
     irr_kweights
 end
 
