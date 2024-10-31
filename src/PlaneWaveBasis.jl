@@ -48,8 +48,8 @@ struct PlaneWaveBasis{T,
     fft_grid::FFTtype
 
     ## MPI-local information of the kpoints this processor treats
-    # Irreducible kpoints. In the case of collinear spin,
-    # this lists all the spin up, then all the spin down
+    # In principle, irreducible kpoints (although some kpoints might be duplicated in parallel runs).
+    # In the case of collinear spin, this lists all the spin up, then all the spin down
     kpoints::Vector{Kpoint{T, T_kpt_G_vecs}}
     # BZ integration weights, summing up to model.n_spin_components
     kweights::Vector{T}
@@ -58,9 +58,16 @@ struct PlaneWaveBasis{T,
     ## These fields are not actually used in computation, but can be used to reconstruct a basis
     # Monkhorst-Pack grid used to generate the k-points, or nothing for custom k-points
     kgrid::AbstractKgrid
-    # full list of (non spin doubled) k-point coordinates in the irreducible BZ
+    # Full list of (non spin doubled) k-point coordinates in the irreducible BZ (duplicates possible)
+    # Best to use the irreducible_kcoords_global() and irreducible_kweights_global() functions 
+    # to insure none of the k-points are duplicated
     kcoords_global::Vector{Vec3{T}}
     kweights_global::Vector{T}
+
+    # Number of irreducible k-points in the basis. If there are more MPI ranks than irreducible
+    # k-points, some are duplicated over the MPI ranks (with adjusted weight). In such a case
+    # n_irreducible_kpoints < length(kcoords_global)
+    n_irreducible_kpoints::Int
 
     ## Setup for MPI-distributed processing over k-points
     comm_kpts::MPI.Comm  # communicator for the kpoints distribution
@@ -175,30 +182,32 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
     # Compute k-point information and spread them across processors
     # Right now we split only the kcoords: both spin channels have to be handled
     # by the same process
-    n_kpt   = length(kcoords_global)
     n_procs = mpi_nprocs(comm_kpts)
+    n_kpt   = length(kcoords_global)
+    n_irreducible_kpoints = n_kpt
 
+    # The code cannot handle MPI ranks without k-points. If there are more prcocesses
+    # than k-points, we duplicate k-points with the highest weight on the empty MPI
+    # ranks (and scale the weight accordingly)
     if n_procs > n_kpt
-        # XXX Supporting more processors than kpoints would require
-        # fixing a bunch of "reducing over empty collections" errors
-        # In the unit tests it is really annoying that this fails so we hack around it, but
-        # generally it leads to duplicated work that is not in the users interest.
-        if parse(Bool, get(ENV, "CI", "false"))
-            comm_kpts = MPI.COMM_SELF
-            krange_thisproc1 = 1:n_kpt
-            krange_allprocs1 = fill(1:n_kpt, n_procs)
-        else
-            error("No point in trying to parallelize $n_kpt kpoints over $n_procs " *
-                  "processes; reduce the number of MPI processes.")
+        for i in n_kpt+1:n_procs
+            idx = argmax(kweights_global)
+            kweights_global[idx] *= 0.5
+            push!(kweights_global, kweights_global[idx])
+            push!(kcoords_global, kcoords_global[idx])
         end
-    else
-        # get the slice of 1:n_kpt to be handled by this process
-        # Note: MPI ranks are 0-based
-        krange_allprocs1 = split_evenly(1:n_kpt, n_procs)
-        krange_thisproc1 = krange_allprocs1[1 + MPI.Comm_rank(comm_kpts)]
-        @assert mpi_sum(length(krange_thisproc1), comm_kpts) == n_kpt
-        @assert !isempty(krange_thisproc1)
+        @warn("Attempting to parallelize $n_kpt k-points over $n_procs MPI ranks. " *
+              "DFTK does not support processes empty of k-point. Some k-points were " *
+              "duplicated over the extra ranks with scaled weights.")
     end
+    n_kpt = length(kcoords_global)
+
+    # get the slice of 1:n_kpt to be handled by this process
+    # Note: MPI ranks are 0-based
+    krange_allprocs1 = split_evenly(1:n_kpt, n_procs)
+    krange_thisproc1 = krange_allprocs1[1 + MPI.Comm_rank(comm_kpts)]
+    @assert mpi_sum(length(krange_thisproc1), comm_kpts) == n_kpt
+    @assert !isempty(krange_thisproc1)
 
     # Setup k-point basis sets
     !variational && @warn(
@@ -237,7 +246,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
         Ecut, variational,
         fft_grid,
         kpoints, kweights, kgrid,
-        kcoords_global, kweights_global,
+        kcoords_global, kweights_global, n_irreducible_kpoints,
         comm_kpts, krange_thisproc, krange_allprocs, krange_thisproc_allspin,
         architecture, symmetries, symmetries_respect_rgrid,
         use_symmetries_for_kpoint_reduction, terms)
@@ -422,6 +431,38 @@ function weighted_ksum(basis::PlaneWaveBasis, array)
     mpi_sum(res, basis.comm_kpts)
 end
 
+"""
+Utilities to get information about the irreducible k-point mesh (in case of duplication)
+Useful for I/O, where k-point information should not be duplicated
+"""
+function irreducible_kcoords_global(basis::PlaneWaveBasis)
+    # Assume that duplicated k-points are appended at the end of the kcoords array
+    basis.kcoords_global[1:basis.n_irreducible_kpoints]
+end
+
+function irreducible_kweights_global(basis::PlaneWaveBasis{T}) where {T}
+    function same_kpoint(i_irr, i_dupl)
+        maximum(abs, basis.kcoords_global[i_dupl]-basis.kcoords_global[i_irr]) < eps(T)
+    end
+
+    # Check that weights add up to 1 on entry (non spin doubled k-points)
+    @assert sum(basis.kweights_global) ≈ 1
+
+    # Assume that duplicated k-points are appended at the end of the kcoords array
+    irr_kweights = basis.kweights_global[1:basis.n_irreducible_kpoints]
+    for i_dupl = basis.n_irreducible_kpoints+1:length(basis.kweights_global)
+        for i_irr = 1:basis.n_irreducible_kpoints
+            if same_kpoint(i_irr, i_dupl)
+                irr_kweights[i_irr] += basis.kweights_global[i_dupl]
+                break
+            end
+        end
+    end
+
+    # Test that irreducible weight add up to 1 (non spin doubled k-points)
+    @assert sum(irr_kweights) ≈ 1
+    irr_kweights
+end
 
 """
 Gather the distributed ``k``-point data on the master process and return
@@ -461,6 +502,7 @@ and save it in `dest` as a dense `(size(kdata[1])..., n_kpoints)` array. On the 
 
     # Note: This function assumes that k-points are stored contiguously in rank-increasing
     # order, i.e. it depends on the splitting realised by split_evenly.
+    # Note that if some k-points are duplicated over MPI ranks, they are also gathered here.
     for σ in 1:basis.model.n_spin_components
         if mpi_master(basis.comm_kpts)
             # Setup variable buffer using appropriate data lengths and 
