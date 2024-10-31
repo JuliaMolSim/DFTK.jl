@@ -23,18 +23,18 @@
 #
 # For our investigation we consider a crude aluminium setup:
 
-using ASEconvert
+using AtomsBuilder
 using DFTK
 using LazyArtifacts
 import Main: @artifact_str # hide
 
-ase_Al    = ase.build.bulk("Al"; cubic=true) * pytuple((4, 1, 1))
-system_Al = attach_psp(pyconvert(AbstractSystem, ase_Al);
+al_supercell = bulk(:Al; cubic=true) * (4, 1, 1)
+system_Al = attach_psp(al_supercell;
                        Al=artifact"pd_nc_sr_pbe_standard_0.4.1_upf/Al.upf")
 
 # and we discretise:
 
-model_Al = model_LDA(system_Al; temperature=1e-3, symmetries=false)
+model_Al = model_DFT(system_Al; functionals=LDA(), temperature=1e-3, symmetries=false)
 basis_Al = PlaneWaveBasis(model_Al; Ecut=7, kgrid=[1, 1, 1]);
 
 # On aluminium (a metal) already for moderate system sizes (like the 8 layers

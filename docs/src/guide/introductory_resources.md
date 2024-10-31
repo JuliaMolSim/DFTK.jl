@@ -33,8 +33,7 @@ see [Publications](@ref).
   Two-day workshop at MIT centred around DFTK by M. F. Herbst,
   in particular the [summary of DFT theory](https://michael-herbst.com/teaching/2022-mit-workshop-dftk/2022-mit-workshop-dftk/DFT_Theory.pdf).
 
-## Textbooks
-
+## Textbooks and reviews
 - [Density Functional Theory](https://doi.org/10.1007/978-3-031-22340-2)
   edited by Eric Cancès and Gero Friesecke (Springer, 2023):
   Up to date textbook accessible to an interdisciplinary audience with contributions
@@ -48,12 +47,21 @@ see [Publications](@ref).
   most common methods of the field (lattices, pseudopotentials, DFT, ...)
   from the perspective of a physicist.
 
+- [DFT Exchange: Sharing Perspectives on the Workhorse of Quantum Chemistry and Materials Science](https://doi.org/10.1039/D2CP02827A) (2022):
+  Discussion-style review articles providing insightful viewpoints of many
+  researchers in the field (physics, chemistry, maths, applications).
+
 - [A Mathematical Introduction to Electronic Structure Theory](http://dx.doi.org/10.1137/1.9781611975802)
   by L. Lin and J. Lu (SIAM, 2019):
   Monograph attacking DFT from a mathematical angle.
   Covers topics such as DFT, pseudos, SCF, response, ...
 
 ## Recordings
+- [DFTK.jl: 5 years of a multidisciplinary electronic-structure code](https://www.youtube.com/watch?v=ox_j2zKOuIk) by M. F. Herbst:
+  30-min talk at JuliaCon 2024 providing the state of DFTK 5 years after the project was started.
+  [Slides](https://michael-herbst.com/talks/2024.07.12_5years_DFTK.pdf)
+  [Pluto notebook](https://michael-herbst.com/talks/2024.07.12_5years_DFTK.html)
+
 - [Julia for Materials Modelling](https://www.youtube.com/watch?v=dujepKxxxkg) by M. F. Herbst:
   One-hour talk providing an overview of materials modelling tools for Julia.
   Key features of DFTK are highlighted as part of the talk.
@@ -61,7 +69,7 @@ see [Publications](@ref).
 
 - [DFTK: A Julian approach for simulating electrons in solids](https://www.youtube.com/watch?v=-RomkxjlIcQ) by M. F. Herbst:
   Pre-recorded talk for JuliaCon 2020.
-  Assumes no knowledge about DFT and gives the broad picture of DFTK.
+  Assumes no knowledge about DFT and gives the broad picture of DFTK. Starts to become a little outdated.
   [Slides](https://michael-herbst.com/talks/2020.07.29_juliacon_dftk.pdf).
 
 - [Juliacon 2021 DFT workshop](https://www.youtube.com/watch?v=HvpPMWVm8aw) by M. F. Herbst:

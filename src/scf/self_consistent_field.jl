@@ -92,7 +92,8 @@ function next_density(ham::Hamiltonian,
 
     ρout = compute_density(ham.basis, eigres.X, occupation; nbandsalg.occupation_threshold)
     (; ψ=eigres.X, eigenvalues=eigres.λ, occupation, εF, ρout, diagonalization=eigres,
-     n_bands_converge, nbandsalg.occupation_threshold)
+     n_bands_converge, nbandsalg.occupation_threshold,
+     n_matvec=mpi_sum(eigres.n_matvec, ham.basis.comm_kpts))
 end
 
 
@@ -109,6 +110,7 @@ Overview of parameters:
   to flag convergence. Default is `1e-6`.
 - `is_converged`: Convergence control callback. Typical objects passed here are
   `ScfConvergenceDensity(tol)` (the default), `ScfConvergenceEnergy(tol)` or `ScfConvergenceForce(tol)`.
+- `miniter`: Minimal number of SCF iterations
 - `maxiter`: Maximal number of SCF iterations
 - `maxtime`: Maximal time to run the SCF for. If this is reached without
    convergence, the SCF stops.
@@ -131,6 +133,7 @@ Overview of parameters:
     ψ=nothing,
     tol=1e-6,
     is_converged=ScfConvergenceDensity(tol),
+    miniter=0,
     maxiter=100,
     maxtime=Year(1),
     mixing=LdosMixing(),
@@ -166,10 +169,11 @@ Overview of parameters:
                                  tol=determine_diagtol(diagtolalg, info))
         (; ψ, eigenvalues, occupation, εF, ρout) = nextstate
         Δρ = ρout - ρin
+        n_matvec = info.n_matvec + nextstate.n_matvec
 
         # Update info with results gathered so far
         info_next = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
-                       ρin, α=damping, n_iter, nbandsalg.occupation_threshold,
+                       ρin, α=damping, n_iter, n_matvec, nbandsalg.occupation_threshold,
                        runtime_ns=time_ns() - start_ns, nextstate...,
                        diagonalization=[nextstate.diagonalization])
 
@@ -184,11 +188,10 @@ Overview of parameters:
         # Apply mixing and pass it the full info as kwargs
         ρnext = ρin .+ T(damping) .* mix_density(mixing, basis, Δρ; info_next...)
 
-        
-        converged = is_converged(info_next)
+        converged = n_iter ≥ miniter && is_converged(info_next)
         converged = MPI.bcast(converged, 0, MPI.COMM_WORLD)
         info_next = merge(info_next, (; converged))
-        
+
         timedout = MPI.bcast(Dates.now() ≥ timeout_date, MPI.COMM_WORLD)
         info_next = merge(info_next, (; timedout))
 
@@ -198,11 +201,12 @@ Overview of parameters:
     end
 
     info_init = (; ρin=ρ, ψ=ψ, occupation=nothing, eigenvalues=nothing, εF=nothing, 
-                   n_iter=0, timedout=false, converged=false, history_Etot=T[], history_Δρ=T[])
+                   n_iter=0, n_matvec=0, timedout=false, converged=false,
+                   history_Etot=T[], history_Δρ=T[])
 
     # Convergence is flagged by is_converged inside the fixpoint_map.
     _, info = solver(fixpoint_map, ρ, info_init; maxiter)
-    
+
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρout, so we return that. We also perform a last energy computation
     # to return a correct variational energy
@@ -212,7 +216,7 @@ Overview of parameters:
     # Callback is run one last time with final state to allow callback to clean up
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
                 ρ=ρout, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
-                info.n_iter, ψ, info.diagonalization, stage=:finalize,
+                info.n_iter, info.n_matvec, ψ, info.diagonalization, stage=:finalize,
                 info.history_Δρ, info.history_Etot, info.timedout,
                 runtime_ns=time_ns() - start_ns, algorithm="SCF")
     callback(scfres)

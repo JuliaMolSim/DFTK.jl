@@ -8,7 +8,7 @@ function test_agreement_bands(band_data, dict; explicit_reshape=false, test_ψ=t
 
     basis = band_data.basis
     model = basis.model
-    n_kpoints = length(basis.kcoords_global)
+    n_kpoints = basis.n_irreducible_kpoints
     n_spin    = model.n_spin_components
     n_bands   = length(band_data.eigenvalues[1])
     max_n_G   = DFTK.mpi_max(maximum(kpt -> length(G_vectors(basis, kpt)), basis.kpoints),
@@ -45,8 +45,8 @@ function test_agreement_bands(band_data, dict; explicit_reshape=false, test_ψ=t
         @test dict["atomic_symbols"]    == map(e -> string(atomic_symbol(e)), model.atoms)
         @test dict["atomic_positions"] ≈ model.positions atol=1e-12
         @test dict["εF"]        ≈  band_data.εF  atol=1e-12
-        @test dict["kcoords"]   ≈  basis.kcoords_global  atol=1e-12
-        @test dict["kweights"]  ≈  basis.kweights_global atol=1e-12
+        @test dict["kcoords"]   ≈  DFTK.irreducible_kcoords_global(basis)  atol=1e-12
+        @test dict["kweights"]  ≈  DFTK.irreducible_kweights_global(basis) atol=1e-12
         @test dict["Ecut"]      ≈  basis.Ecut
         @test dict["dvol"]      ≈  basis.dvol atol=1e-12
         @test [dict["fft_size"]...]  == [basis.fft_size...]
@@ -151,8 +151,8 @@ function test_todict(label; spin_polarization=:none, Ecut=7, temperature=0.0, kg
     else
         magnetic_moments = []
     end
-    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions;
-                      spin_polarization, temperature, magnetic_moments)
+    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                      functionals=LDA(), spin_polarization, temperature, magnetic_moments)
     basis = PlaneWaveBasis(model; Ecut, kgrid, use_symmetries_for_kpoint_reduction=false)
     nbandsalg = FixedBands(; n_bands_converge=8)
     scfres = self_consistent_field(basis; tol=1e-1, nbandsalg)

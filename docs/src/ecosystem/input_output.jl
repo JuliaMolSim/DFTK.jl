@@ -42,7 +42,7 @@ system = attach_psp(system, Fe="hgh/pbe/fe-q16.hgh")
 
 # Finally we make use of DFTK's [AtomsBase integration](@ref) to run the calculation.
 
-model = model_LDA(system; temperature=0.01)
+model = model_DFT(system; functionals=LDA(), temperature=0.01)
 basis = PlaneWaveBasis(model; Ecut=10, kgrid=(2, 2, 2))
 ρ0 = guess_density(basis, system)
 scfres = self_consistent_field(basis, ρ=ρ0);
@@ -50,9 +50,9 @@ scfres = self_consistent_field(basis, ρ=ρ0);
 # !!! warning "DFTK data formats are not yet fully matured"
 #     The data format in which DFTK saves data as well as the general interface
 #     of the [`load_scfres`](@ref) and [`save_scfres`](@ref) pair of functions
-#     are not yet fully matured. If you use the functions or the produced files
-#     expect that you need to adapt your routines in the future even with patch
-#     version bumps.
+#     are not yet fully matured. They have become fairly stable, but we reserve
+#     the right to change them incompatibly between DFTK versions (including
+#     patch versions) at this point.
 
 # ## Writing VTK files for visualization
 # For visualizing the density or the Kohn-Sham orbitals DFTK supports storing

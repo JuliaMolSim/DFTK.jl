@@ -1,10 +1,11 @@
-@testitem "Timeout of SCF" setup=[TestCases] begin
+@testitem "Timeout of SCF" setup=[TestCases] tags=[:dont_test_mpi] begin
     using DFTK
     using Dates
     using Logging
     silicon = TestCases.silicon
 
-    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                      functionals=LDA())
     basis = PlaneWaveBasis(model; Ecut=7, kgrid=(1, 1, 1))
     is_converged = DFTK.ScfConvergenceDensity(1e-11)
 

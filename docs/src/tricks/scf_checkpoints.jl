@@ -42,7 +42,9 @@ positions = d / 2a * [[0, 0, 1], [0, 0, -1]]
 magnetic_moments = [1., 1.]
 
 Ecut  = 10  # Far too small to be converged
-model = model_PBE(lattice, atoms, positions; temperature=0.02, smearing=Smearing.Gaussian(),
+model = model_DFT(lattice, atoms, positions;
+                  functionals=PBE(),
+                  temperature=0.02, smearing=Smearing.Gaussian(),
                   magnetic_moments)
 basis = PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])
 
