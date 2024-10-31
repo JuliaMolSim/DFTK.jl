@@ -441,9 +441,12 @@ function irreducible_kcoords_global(basis::PlaneWaveBasis)
 end
 
 function irreducible_kweights_global(basis::PlaneWaveBasis{T}) where {T}
-    @inline function same_kpoint(i_irr, i_dupl)
+    function same_kpoint(i_irr, i_dupl)
         maximum(abs, basis.kcoords_global[i_dupl]-basis.kcoords_global[i_irr]) < eps(T)
     end
+
+    # Check that weights add up to 1 on entry (non spin doubled k-points)
+    @assert sum(basis.kweights_global) ≈ 1
 
     # Assume that duplicated k-points are appended at the end of the kcoords array
     irr_kweights = basis.kweights_global[1:basis.n_irreducible_kpoints]
@@ -451,6 +454,7 @@ function irreducible_kweights_global(basis::PlaneWaveBasis{T}) where {T}
         for i_irr = 1:basis.n_irreducible_kpoints
             if same_kpoint(i_irr, i_dupl)
                 irr_kweights[i_irr] += basis.kweights_global[i_dupl]
+                break
             end
         end
     end
