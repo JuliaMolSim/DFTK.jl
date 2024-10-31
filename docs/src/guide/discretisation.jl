@@ -262,9 +262,9 @@ plot(Nrange, abs.(fconv.(Nrange) .- fconv(200)); yaxis=:log, legend=false)
 
 ## Plane waves Hamiltonian -½Δ + cos on [0, 2pi].
 function build_plane_waves_matrix_cos(N::Integer)
-    # Plane wave approximation to -½Δ
+    ## Plane wave approximation to -½Δ
     Gsq = [float(i)^2 for i in -N:N]
-    # Hamiltonian as derived in Exercise 2:
+    ## Hamiltonian as derived in Exercise 2:
     1/2 * Tridiagonal(ones(2N), Gsq, ones(2N))
 end
 
