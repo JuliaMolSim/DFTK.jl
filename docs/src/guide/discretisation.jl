@@ -1,6 +1,6 @@
 # # Comparing discretization techniques
 
-# In [Periodic problems and plane-wave discretisations](@ref periodic-problems) we saw
+# In [Periodic problems and plane-wave discretizations](@ref periodic-problems) we saw
 # how simple 1D problems can be modelled using plane-wave basis sets. This example
 # invites you to work out some details on these aspects yourself using a number of exercises.
 # The solutions are given at the bottom of the page.
@@ -77,7 +77,7 @@ end;
 
 # ## Using DFTK
 
-# We now use DFTK to do the same plane-wave discretisation in this 1D system.
+# We now use DFTK to do the same plane-wave discretization in this 1D system.
 # To deal with a 1D case we use a 3D lattice with two lattice vectors set to zero.
 
 using DFTK
@@ -94,11 +94,8 @@ model = Model(lattice; n_electrons=1, terms, spin_polarization=:spinless);  # On
 Ecut = 500
 basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
 
-# We now seek the ground state. To better separate the two steps (SCF outer loop
-# and diagonalization inner loop), we set the diagtol (the tolerance of the eigensolver)
-# to a small value.
-diagtolalg = AdaptiveDiagtol(; diagtol_max=1e-8, diagtol_first=1e-8)
-scfres = self_consistent_field(basis; tol=1e-4, diagtolalg)
+# We now seek the ground state using the self-consistent field algorithm.
+scfres = self_consistent_field(basis; tol=1e-4)
 scfres.energies
 
 # On this simple linear (non-interacting) model, the SCF converges in one step.
@@ -119,8 +116,7 @@ plot(real(ψ); label="")
 # Again this should match with the result above.
 #
 # !!! tip "Exercise 4"
-#     Look at the Fourier coefficients of $\psi$_fourier
-#     and compare with the result above.
+#     Look at the Fourier coefficients of `ψ_fourier` and compare with the result above.
 
 # ## The DFTK Hamiltonian
 # We can ask DFTK for the Hamiltonian
@@ -142,18 +138,22 @@ H * DFTK.random_orbitals(basis, basis.kpoints[1], 1)
 Array(H)
 
 # !!! tip "Exercise 5"
-#     Compare this matrix with the one you obtained previously, get its
-#     eigenvectors and eigenvalues. Try to guess the ordering of $G$-vectors in DFTK.
+#     Compare this matrix `Array(H)` with the one you obtained in Exercise 3,
+#     get its eigenvectors and eigenvalues.
+#     Try to guess the ordering of $G$-vectors in DFTK.
 
 # !!! tip "Exercise 6"
 #     Increase the size of the problem, and compare the time spent
 #     by DFTK's internal diagonalization algorithms to a full diagonalization of `Array(H)`.  
-#     *Hint:* The `@benchmark` macro (from the [BenchmarkTools](https://github.com/JuliaCI/BenchmarkTools.jl) package) is handy for this task. Note that there are some subtleties with global variables (see the BenchmarkTools docs for details). E.g. to use it to benchmark a function like `eigen(H)` run it as
-#     ```  
-#     using BenchmarkTools  
-#     [@benchmark](https://github.com/benchmark) eigen($H)  
-#     ```  
-#     (note the `$`). 
+#     *Hint:* The `@belapsed` macro (from the [BenchmarkTools](https://github.com/JuliaCI/BenchmarkTools.jl) package)
+#     is handy for this task. Note that there are some subtleties with global variables
+#     (see the BenchmarkTools docs for details). E.g. to use it to benchmark a function
+#     like `eigen(H)` run it as
+#     ```julia
+#     using BenchmarkTools
+#     [@benchmark](https://github.com/benchmark) eigen($H)
+#     ```
+#     (note the `$`).
 
 # ## Solutions
 #
@@ -192,7 +192,6 @@ L[1:5]
 # This is already pretty accurate (to about 4 digits) as can be estimated looking at
 # the following convergence plot:
 
-using Plots
 function fconv(N)
     L, V = eigen(build_finite_differences_matrix(cos, N))
     first(L)
@@ -201,108 +200,152 @@ Nrange = 10:10:100
 plot(Nrange, abs.(fconv.(Nrange) .- fconv(200)); yaxis=:log, legend=false)
 
 # ### Exercise 2
-#- \langle e_G, e_{G'}\rangle = ∫_0^{2π} e_G^\ast(x) e_{G'}(x) d x = 1/2π ∫_0^{2π} e^i(G'-G)x d x$
-# Since `e^{iy}` is a periodic function with period $2\pi$, $\int_0^{2\pi} e^{i m y} = \delta_{0,m}$. Therefore:
-# if G≠G':
-#$\langle e_G, e_{G'}\rangle = 0$
-# if G=G':
-#$\langle e_G, e_{G'}\rangle = 1$
-# Therefore:
-#$\langle e_G, e_{G'}\rangle = δ_{G, G'}$
-#- Assuming $V(x) = \cos(x)$:
-#$\langle e_G, H e_{G'}\rangle = \frac 1 2 ∫_0^{2π} e_G^\ast(x) H e_{G'}(x) d x$
-# We start by applying the Hamiltonian on the corresponding function:
-#$H e_{G'}(x) = - \frac 1 2 (-|G|^2) \frac 1 {\sqrt{2π}} e^{iG'x) + cos(x) \frac 1 {\sqrt{2π}} e{iG'x}$
-# Then, using the previous result and the fact that $cos(x) = \frac 1 2 \left(e{ix} + e{-ix})$, we get:
-#$\langle e_G, H e_{G'}\rangle = \frac 1 2 G^2  δ_{G, G'} + \frac 1 {4π} \left(∫_0^{2π} (e^{ix})^{G'-G+1} d x + ∫_0^{2π} (e^{ix})^{G'-G-1} d x)$
-#$= \frac 1 2 \left(|G|^2 \delta_{G,G'} + \delta_{G, G'+1} + \delta_{G, G'-1}\right)$
-#- A more general $V(x)$ has to be periodic over $[0, 2\pi]$, therefore the complex eponential Fourier series can be used:
-#$V(x) = sum_{n=- \infty}^{\infty} v_n e{-inx}$
-# One can think of it as changing the basis of the potential function to the plane wave basis. Therefore :
-#$| v_n, e{iG'} \rangle = frac 1 {\sqrt{2π}} sum_{n=- \infty}^{\infty} v_n e^{i(G'-n)x}$
-#$\langle e_G, V e_{G'}\rangle = frac 1 {2π} sum_{n=- \infty}^{\infty} ∫_0^{2π} v_n e{i(G'-G-n)x} d x$
-#$= \frac 1 {2π} sum_{n=- \infty}^{\infty} v_n delta_{G, G'- n}$
-# Therefore :
-#$\langle e_G, H e_{G'}\rangle = \frac 1 2 |G|^2 \delta_{G,G'} + sum_{n=0}^{\infty} v_n delta_{G, G' \pm n}$
+# - We note that
+#   ```math
+#   \langle e_G, e_{G'}\rangle = ∫_0^{2π} e_G^\ast(x) e_{G'}(x) d x = 1/2π ∫_0^{2π} e^{i(G'-G)x} d x
+#   ```
+#   Since $e^{iy}$ is a periodic function with period $2\pi$, $\int_0^{2\pi} e^{i m y} = \delta_{0,m}$.
+#   Therefore if $G≠G'$ we have that $\langle e_G, e_{G'}\rangle = 0$,
+#   while $G=G'$ implies $\langle e_G, e_{G'}\rangle = 1$. In summary:
+#   ```math
+#   \langle e_G, e_{G'}\rangle = δ_{G, G'}
+#   ```
+# - Next fo $V(x) = \cos(x)$ we obtain
+#   ```math
+#   \langle e_G, H e_{G'}\rangle = \frac 1 2 ∫_0^{2π} e_G^\ast(x) H e_{G'}(x) d x
+#   ```
+#   We start by applying the Hamiltonian to a plane-wave:
+#   ```math
+#   H e_{G'}(x) = - \frac 1 2 (-|G|^2) \frac 1 {\sqrt{2π}} e^{iG'x) + cos(x) \frac 1 {\sqrt{2π}} e{iG'x}
+#   ```
+#   Then, using the result of the first part of the exercise and the fact that
+#   $cos(x) = \frac 1 2 \left(e{ix} + e{-ix})$, we get:
+#   ```math
+#   \begin{align*}
+#   \langle e_G, H e_{G'}\rangle
+#   &= \frac 1 2 G^2  δ_{G, G'} + \frac 1 {4π} \left(∫_0^{2π} (e^{ix})^{G'-G+1} d x + ∫_0^{2π} (e^{ix})^{G'-G-1} d x) \\
+#   &= \frac 1 2 \left(|G|^2 \delta_{G,G'} + \delta_{G, G'+1} + \delta_{G, G'-1}\right)
+#   \end{align*}
+#   ```
+# - In case a more general $V(x)$ was employed, this potential still has to be periodic
+#   over $[0, 2\pi]$ to fit our setting. Assuming sufficient regularity in $V$ we can employ
+#   a Fourier series:
+#   ```math
+#   V(x) = \sum_{G=- \infty}^{\infty} \hat{V}_G e_G(x)
+#   ```
+#   where
+#   ```math
+#   \hat{V} = \frac{1}{\sqrt{2π}} ∫_0^{2π} V(x) e^{-iGx} dx = ∫_0^{2π} V(x) e_G^\ast dx .
+#   ```
+#   Note that one can change of this as a change of basis
+#   from the position basis to the plane-wave basis.
+#
+#   Based on this expansion
+#   ```math
+#   \begin{align*}
+#   ⟨ e_G, V e_{G'} ⟩ &= ⟨ e_G, ∑_{G''} \hat{V}_{G''} e_{G'+G''} ⟩ \\
+#   &= ∑_{G''} \hat{V}_{G''} ⟨ e_G, e_{G'+G''} ⟩ \\
+#   &= ∑_{G''} \hat{V}_{G''} δ_{G-G', G''} ⟩ \\
+#   &= \hat{V}_{G-G'}
+#   \end{align*}
+#   ```
+#   and therefore
+#   ```math
+#   ⟨ e_G, H e_{G'} ⟩ = \frac 1 2 |G|^2 \delta_{G,G'} + \hat{V}_{G-G'},
+#   ```
+#   i.e. essentially the Fourier transform of $V$ determines the contribution
+#   to the matrix elements of the Hamiltonian.
+#
 #
 # ### Exercise 3
 # The Hamiltonian matrix for the plane waves method can be found this way:
+
 ## Plane waves Hamiltonian -½Δ + cos on [0, 2pi].
-
-using LinearAlgebra
-
 function build_plane_waves_matrix_cos(N::Integer)
     # Plane wave approximation to -½Δ
-    G = [float((-N + i)^2) for i in 0:2N]
-    #using results from exercice 2 for the case of cos potential, the following matrix is built for the Hamiltonian
-    T = 1/2 * Tridiagonal(ones(2N), G, ones(2N))
+    Gsq = [float(i)^2 for i in -N:N]
+    # Hamiltonian as derived in Exercise 2:
+    1/2 * Tridiagonal(ones(2N), Gsq, ones(2N))
 end
+
 # Then we check that the first eigenvalue agrees with the finite-difference case, using $N = 10$:
+
 Hpw_cos = build_plane_waves_matrix_cos(10)
 L, V = eigen(Hpw_cos)
 L[1:5]
-# Finally, we look at the convergence plot to compare accuracies for various N:
 
-using Plots
+# We look at the convergence plot to compare the accuracy for various numbers of plane-waves $N$:
+
 function fconv(N)
-    L, V = eigen(build_plane_waves_matrix_cos(N))
+    L = eigvals(build_plane_waves_matrix_cos(N))
     first(L)
 end
 
 Nrange = 2:10
-plot(Nrange, abs.(fconv.(Nrange) .- fconv(200)); yaxis=:log, legend=false, ylims=(1e-16,Inf))
-#
-# The N range here is much smaller showing how the plane waves method is much more precise than the finite differences.
-#
+plot(Nrange, abs.(fconv.(Nrange) .- fconv(200)); yaxis=:log, legend=false,
+     ylims=(1e-16,Inf), ylabel="Absolute error", xlabel="N")
+
+# Notice how compared to exercise 1 the considered basis size $n$ is much smaller,
+# indicating that plane-wave methods more quickly lead to accurate solutions than
+# finite-difference methods.
+
+
 # ### Exercise 4
-# To plot the fourier coefficients the following program can be used:
+# For efficiency reasons the data in Fourier space is not ordered increasingly with $G$.
+# Therefore to plot the Fourier space representation sensibly, we need to sort by ascending
+# values of the $G$ vectors first. For this we extract the Fourier vector of each plane-wave
+# basis function in the index order:
 
-using Plots
-using RecipesBase
+coords_G_vectors = G_vectors_cart(basis, basis.kpoints[1])  # Get coordinates of first and only k-point
 
-## plot real and imaginary parts of the fourier coefficients by combining 2 plots
-## plot of the real part of the fourier coefficients in function of the kpoints axis
-kpoint1_coords = G_vectors_cart(basis, basis.kpoints[1])
-first_coord_kpoint1 = first.(kpoint1_coords)
-change_order_coords_kpoint1 = sortperm(first_coord_kpoint1)
-p = plot(change_order_coords_kpoint1, real(ψ_fourier); label="real")
-# add the imaginary part of the fourier coefficients to the first plot
-plot!(p, imag(ψ_fourier); label="imaginary")
-#
-# The plot is symmetric and only takes peak values which confirms to choice of cosine as potential
+## Only keep first component of each vector (because the others are zero for 1D problems):
+coords_Gx = [G[1] for G in coords_G_vectors]
+
+p = plot(coords_Gx, real(ψ_fourier); label="real part")
+plot!(p, coords_Gx, imag(ψ_fourier); label="imaginary part")
+
+# The plot is symmetric about the zero (confirming that the orbitals are real)
+# and only takes peaked values, which corresponds
+# to the expected result for a cosine potential.
 #
 # ### Exercise 5
-# The eigenvalues and eigenvectors of the Hamiltonian can be found this way:
-## get the eigenvalues of the Hamiltonian
-scfres.eigenvalues
-## get the eigenvectors of the Hamiltonian
-scfres.ψ
-# To get the Hamlitonian matrix of the PlaneWaveBasis and compare it with the one of the Hamiltonian of DFTK, one can use this method:
-## build the Hamiltonian PW matrix
-Array(scfres.ham.blocks[1])
-## get the norm of the difference between the 2 matrices 
-norm(Array(scfres.ham.blocks[1]) .- Array(H))
-# Therefore DFTK is very accurate
-# To find the ordering of the G-vectors, one can look at the values of the eigenvectors
-scfres.ψ
-# For each vector, the second and third values are equal to the last and second last values respectfully and the first value is unique,
-# Therefore the ordering is 0,1,2,...,-2,-1
-#
+# To figure out the ordering we consider a small basis and build the Hamiltonian:
+
+basis_small  = PlaneWaveBasis(model; Ecut=5, kgrid=(1, 1, 1))
+ham_small = Hamiltonian(basis_small)
+H_small = Array(ham_small.blocks[1])
+H_small[abs.(H_small) .< 1e-12] .= 0  # Drop numerically zero entries
+
+# The equivalent version using the `build_plane_waves_matrix_cos` function
+# is `N=3` (both give rice to a 7×7 matrix).
+Hother = build_plane_waves_matrix_cos(3)
+
+# By comparing the entries we find the ordering is 0,1,2,...,-2,-1,
+# which can also be found by inspecting
+first.(G_vectors(basis_small, basis_small.kpoints[1]))
+
+# Both matrices have the same eigenvalues:
+
+maximum(abs, eigvals(H_small) - eigvals(Hother))
+
+# and in the eigenvectors we find the same patterns:
+
+eigvecs(Hother)[:, 1]
+#-
+eigvecs(H_small)[:, 1]
+
+
 # ### Exercise 6
-# One can increase the size of the problem by increasing Ecut and kgrid, and decreasing the tolerance.
-# To observe the difference of time, one can then plot the values obtained using @elapsed
+#
+# We benchmark the time needed for a full diagonalization (instantiation of the Array
+# plus call of `eigen`) versus the time needed for running the SCF (i.e. iterative
+# diagonalization using plane waves).
 
+using Printf
 
-using Plots
-using BenchmarkTools
-
-t = []
-## create a range of energies and fix a larger kgrid and lower tolerance
-for Ecut in 500:100:10000 
-    basis = PlaneWaveBasis(model; Ecut, kgrid=(3, 3, 3))
-    ti = BenchmarkTools.@belapsed self_consistent_field(basis; tol=1e-6, diagtolalg) 
-    push!(t,ti)
+for Ecut in 200:200:1600
+   basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
+   t_eigen = @elapsed eigen(Array(Hamiltonian(basis).blocks[1]))
+   t_scf   = @elapsed self_consistent_field(basis; tol=1e-6, callback=identity);
+   @printf "%4i  eigen=%8.6f  scf=%8.6f\n" Ecut 1000t_eigen 1000t_scf
 end
-plot(t)
-
-
