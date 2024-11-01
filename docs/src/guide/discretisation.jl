@@ -302,7 +302,7 @@ coords_G_vectors = G_vectors_cart(basis, basis.kpoints[1])  # Get coordinates of
 ## Only keep first component of each vector (because the others are zero for 1D problems):
 coords_Gx = [G[1] for G in coords_G_vectors]
 
-p = plot(coords_Gx, real(ψ_fourier); label="real part", xlims=(-10, 10)
+p = plot(coords_Gx, real(ψ_fourier); label="real part", xlims=(-10, 10))
 plot!(p, coords_Gx, imag(ψ_fourier); label="imaginary part")
 
 # The plot is symmetric about the zero (confirming that the orbitals are real)
