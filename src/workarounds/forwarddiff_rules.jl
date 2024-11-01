@@ -126,7 +126,11 @@ function construct_value(psp::PspHgh{T}) where {T <: Dual}
            psp.identifier,
            psp.description)
 end
-
+function construct_value(psp::PspUpf{T,I}) where {T <: AbstractFloat, I <: AbstractArray{<:AbstractFloat}}
+    # NOTE: This permits non-Dual UPF pseudos to be used in ForwardDiff computations,
+    #       but does not yet permit response derivatives w.r.t. UPF parameters.
+    psp
+end
 
 function construct_value(basis::PlaneWaveBasis{T}) where {T <: Dual}
     # NOTE: This is a pretty slow function as it *recomputes* basically
