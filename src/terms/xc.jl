@@ -372,6 +372,11 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArra
               correction.")
     end
 
+    # Add the model core charge density (non-linear core correction)
+    if !isnothing(term.ρcore)
+        ρ = ρ + term.ρcore
+    end
+
     # Take derivatives of the density and the perturbation if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
     density      = LibxcDensities(basis, max_ρ_derivs, ρ, nothing)
