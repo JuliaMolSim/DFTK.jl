@@ -145,15 +145,15 @@ Array(H)
 # !!! tip "Exercise 6"
 #     Increase the size of the problem, and compare the time spent
 #     by DFTK's internal diagonalization algorithms to a full diagonalization of `Array(H)`.  
-#     *Hint:* The `@belapsed` macro (from the [BenchmarkTools](https://github.com/JuliaCI/BenchmarkTools.jl) package)
-#     is handy for this task. Note that there are some subtleties with global variables
+#     *Hint:* The `@belapsed` and `@benchmark` macros
+#     (from the [BenchmarkTools](https://github.com/JuliaCI/BenchmarkTools.jl) package)
+#     are handy for this task. Note that there are some subtleties with global variables
 #     (see the BenchmarkTools docs for details). E.g. to use it to benchmark a function
-#     like `eigen(H)` run it as
+#     like `eigen(H)` run it as (note the `$`):
 #     ```julia
 #     using BenchmarkTools
-#     [@benchmark](https://github.com/benchmark) eigen($H)
+#     @benchmark eigen($H)
 #     ```
-#     (note the `$`).
 
 # ## Solutions
 #
@@ -197,7 +197,8 @@ function fconv(N)
     first(L)
 end
 Nrange = 10:10:100
-plot(Nrange, abs.(fconv.(Nrange) .- fconv(200)); yaxis=:log, legend=false)
+plot(Nrange, abs.(fconv.(Nrange) .- fconv(200));
+     yaxis=:log, legend=false, mark=:x, xlabel="N", ylabel="Absolute error")
 
 # ### Exercise 2
 # - We note that
@@ -219,11 +220,11 @@ plot(Nrange, abs.(fconv.(Nrange) .- fconv(200)); yaxis=:log, legend=false)
 #   H e_{G'}(x) = - \frac 1 2 (-|G|^2) \frac 1 {\sqrt{2π}} e^{iG'x) + cos(x) \frac 1 {\sqrt{2π}} e{iG'x}
 #   ```
 #   Then, using the result of the first part of the exercise and the fact that
-#   $cos(x) = \frac 1 2 \left(e{ix} + e{-ix})$, we get:
+#   $cos(x) = \frac 1 2 \left(e{ix} + e{-ix}\right)$, we get:
 #   ```math
 #   \begin{align*}
-#   \langle e_G, H e_{G'}\rangle
-#   &= \frac 1 2 G^2  δ_{G, G'} + \frac 1 {4π} \left(∫_0^{2π} (e^{ix})^{G'-G+1} d x + ∫_0^{2π} (e^{ix})^{G'-G-1} d x) \\
+#   ⟨ e_G, H e_{G'}⟩
+#   &= \frac 1 2 G^2 δ_{G, G'} + \frac 1 {4π} \left(∫_0^{2π} e^{ix ⋅ (G'-G+1)} d x + ∫_0^{2π} e^{ix ⋅ (G'-G-1)} d x \right) \\
 #   &= \frac 1 2 \left(|G|^2 \delta_{G,G'} + \delta_{G, G'+1} + \delta_{G, G'-1}\right)
 #   \end{align*}
 #   ```
@@ -235,7 +236,7 @@ plot(Nrange, abs.(fconv.(Nrange) .- fconv(200)); yaxis=:log, legend=false)
 #   ```
 #   where
 #   ```math
-#   \hat{V} = \frac{1}{\sqrt{2π}} ∫_0^{2π} V(x) e^{-iGx} dx = ∫_0^{2π} V(x) e_G^\ast dx .
+#   \hat{V}_G = \frac{1}{\sqrt{2π}} ∫_0^{2π} V(x) e^{-iGx} dx = ∫_0^{2π} V(x) e_G^\ast dx .
 #   ```
 #   Note that one can change of this as a change of basis
 #   from the position basis to the plane-wave basis.
@@ -243,9 +244,9 @@ plot(Nrange, abs.(fconv.(Nrange) .- fconv(200)); yaxis=:log, legend=false)
 #   Based on this expansion
 #   ```math
 #   \begin{align*}
-#   ⟨ e_G, V e_{G'} ⟩ &= ⟨ e_G, ∑_{G''} \hat{V}_{G''} e_{G'+G''} ⟩ \\
-#   &= ∑_{G''} \hat{V}_{G''} ⟨ e_G, e_{G'+G''} ⟩ \\
-#   &= ∑_{G''} \hat{V}_{G''} δ_{G-G', G''} ⟩ \\
+#   ⟨ e_G, V e_{G'} ⟩ &= \left\langle e_G, ∑_{G''} \hat{V}_{G''} \, e_{G'+G''} \right\rangle \\
+#   &= \sum_{G''=-\infty}^\infty \hat{V}_{G''} ⟨ e_G, e_{G'+G''} ⟩ \\
+#   &= \sum_{G''=-\infty}^\infty \hat{V}_{G''} \, δ_{G-G', G''} ⟩ \\
 #   &= \hat{V}_{G-G'}
 #   \end{align*}
 #   ```
@@ -266,7 +267,7 @@ function build_plane_waves_matrix_cos(N::Integer)
     Gsq = [float(i)^2 for i in -N:N]
     ## Hamiltonian as derived in Exercise 2:
     1/2 * Tridiagonal(ones(2N), Gsq, ones(2N))
-end
+end;
 
 # Then we check that the first eigenvalue agrees with the finite-difference case, using $N = 10$:
 
@@ -283,9 +284,9 @@ end
 
 Nrange = 2:10
 plot(Nrange, abs.(fconv.(Nrange) .- fconv(200)); yaxis=:log, legend=false,
-     ylims=(1e-16,Inf), ylabel="Absolute error", xlabel="N")
+     ylims=(1e-16,Inf), ylabel="Absolute error", xlabel="N", mark=:x)
 
-# Notice how compared to exercise 1 the considered basis size $n$ is much smaller,
+# Notice how compared to exercise 1 the considered basis size $N$ is much smaller,
 # indicating that plane-wave methods more quickly lead to accurate solutions than
 # finite-difference methods.
 
@@ -301,7 +302,7 @@ coords_G_vectors = G_vectors_cart(basis, basis.kpoints[1])  # Get coordinates of
 ## Only keep first component of each vector (because the others are zero for 1D problems):
 coords_Gx = [G[1] for G in coords_G_vectors]
 
-p = plot(coords_Gx, real(ψ_fourier); label="real part")
+p = plot(coords_Gx, real(ψ_fourier); label="real part", xlims=(-10, 10)
 plot!(p, coords_Gx, imag(ψ_fourier); label="imaginary part")
 
 # The plot is symmetric about the zero (confirming that the orbitals are real)
@@ -314,7 +315,7 @@ plot!(p, coords_Gx, imag(ψ_fourier); label="imaginary part")
 basis_small  = PlaneWaveBasis(model; Ecut=5, kgrid=(1, 1, 1))
 ham_small = Hamiltonian(basis_small)
 H_small = Array(ham_small.blocks[1])
-H_small[abs.(H_small) .< 1e-12] .= 0  # Drop numerically zero entries
+H_small[abs.(H_small) .< 1e-12] .= 0;  # Drop numerically zero entries
 
 # The equivalent version using the `build_plane_waves_matrix_cos` function
 # is `N=3` (both give rice to a 7×7 matrix).
@@ -328,12 +329,16 @@ first.(G_vectors(basis_small, basis_small.kpoints[1]))
 
 maximum(abs, eigvals(H_small) - eigvals(Hother))
 
-# and in the eigenvectors we find the same patterns:
+# and in the eigenvectors we find the same rearrangements in the entries
+# of the eigenvectors of both matrices, matching the DFTK ordering of
+# is 0,1,2,...,-2,-1.
 
 eigvecs(Hother)[:, 1]
 #-
 eigvecs(H_small)[:, 1]
 
+# Notice, that eigenvectors are only defined up to a phase, so the
+# sign may globally be inverted between the two eigenvectors.
 
 # ### Exercise 6
 #
@@ -344,8 +349,8 @@ eigvecs(H_small)[:, 1]
 using Printf
 
 for Ecut in 200:200:1600
-   basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
-   t_eigen = @elapsed eigen(Array(Hamiltonian(basis).blocks[1]))
-   t_scf   = @elapsed self_consistent_field(basis; tol=1e-6, callback=identity);
-   @printf "%4i  eigen=%8.6f  scf=%8.6f\n" Ecut 1000t_eigen 1000t_scf
+   basis_time = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
+   t_eigen = @elapsed eigen(Array(Hamiltonian(basis_time).blocks[1]))
+   t_scf   = @elapsed self_consistent_field(basis_time; tol=1e-6, callback=identity);
+   @printf "%4i  eigen=%8.4fms  scf=%8.4fms\n" Ecut 1000t_eigen 1000t_scf
 end
