@@ -315,7 +315,8 @@ plot!(p, coords_Gx, imag(ψ_fourier); label="imaginary part")
 basis_small  = PlaneWaveBasis(model; Ecut=5, kgrid=(1, 1, 1))
 ham_small = Hamiltonian(basis_small)
 H_small = Array(ham_small.blocks[1])
-H_small[abs.(H_small) .< 1e-12] .= 0;  # Drop numerically zero entries
+H_small[abs.(H_small) .< 1e-12] .= 0  # Drop numerically zero entries
+H_small
 
 # The equivalent version using the `build_plane_waves_matrix_cos` function
 # is `N=3` (both give rice to a 7×7 matrix).
