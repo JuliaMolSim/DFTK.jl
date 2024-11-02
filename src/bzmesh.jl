@@ -1,4 +1,5 @@
 import Spglib
+import Brillouin.KPaths: KPathInterpolant
 
 """Bring ``k``-point coordinates into the range [-0.5, 0.5)"""
 function normalize_kpoint_coordinate(x::Real)
@@ -105,6 +106,11 @@ end
 function ExplicitKpoints(kcoords::AbstractVector{<:AbstractVector{T}}) where {T}
     ExplicitKpoints(kcoords, ones(T, length(kcoords)) ./ length(kcoords))
 end
+function ExplicitKpoints(kinter::KPathInterpolant{D}) where {D}
+    ExplicitKpoints(map(k -> vcat(k, zeros_like(k, 3 - D)), kinter))
+end
+Base.convert(::Type{<:AbstractKgrid}, kinter::KPathInterpolant) = ExplicitKpoints(kinter)
+
 function Base.show(io::IO, kgrid::ExplicitKpoints)
     print(io, "ExplicitKpoints with $(length(kgrid.kcoords)) k-points")
 end

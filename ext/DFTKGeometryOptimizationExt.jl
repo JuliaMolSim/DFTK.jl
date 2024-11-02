@@ -33,6 +33,8 @@ function GO.minimize_energy!(system, calc::DFTKCalculator, solver;
 
         # TODO Hardly tested, whether these heuristics are reasonable
         tol = min(austrip(tol_virial), austrip(tol_forces), sqrt(austrip(tol_energy))) / 10
+        # TODO miniter=2 does not make sense for the second SCF computing the force
+        #      only for the first SCF computing the energy / actual ground state
         scf_kwargs = merge(calc.params.scf_kwargs,
                            (; miniter=2, is_converged=ScfConvergenceDensity(tol), ))
         if verbosity > 1

@@ -59,7 +59,7 @@ see [Publications](@ref).
 ## Recordings
 - [DFTK.jl: 5 years of a multidisciplinary electronic-structure code](https://www.youtube.com/watch?v=ox_j2zKOuIk) by M. F. Herbst:
   30-min talk at JuliaCon 2024 providing the state of DFTK 5 years after the project was started.
-  [Slides](https://michael-herbst.com/talks/2024.07.12_5years_DFTK.pdf)
+  [Slides](https://michael-herbst.com/talks/2024.07.12_5years_DFTK.pdf),
   [Pluto notebook](https://michael-herbst.com/talks/2024.07.12_5years_DFTK.html)
 
 - [Julia for Materials Modelling](https://www.youtube.com/watch?v=dujepKxxxkg) by M. F. Herbst:
