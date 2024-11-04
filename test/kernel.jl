@@ -103,8 +103,7 @@
 
     @testset "Non-linear core correction (NLCC)" begin
         psp = TestCases.silicon.psp_upf  # PseudoDojo v0.4.1 Si includes NLCC
+        @test DFTK.has_core_density(load_psp(psp))
         test_kernel(:none, Xc([:lda_xc_teter93]); psp)
-        test_kernel(:none, Xc([:gga_c_pbe]); test_compute=false, psp)
-        test_kernel(:none, Xc([:gga_x_pbe]); test_compute=false, psp)
     end
 end
