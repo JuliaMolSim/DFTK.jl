@@ -337,13 +337,18 @@ end
 
 
 function compute_kernel(term::TermXc, basis::PlaneWaveBasis; ρ, kwargs...)
-    density = LibxcDensities(basis, 0, ρ, nothing)
     n_spin  = basis.model.n_spin_components
     @assert 1 ≤ n_spin ≤ 2
     if !all(family(xc) == :lda for xc in term.functionals)
         error("compute_kernel only implemented for LDA")
     end
 
+    # Add the model core charge density (non-linear core correction)
+    if !isnothing(term.ρcore)
+        ρ = ρ + term.ρcore
+    end
+
+    density = LibxcDensities(basis, 0, ρ, nothing)
     kernel = kernel_terms(term.functionals, density).Vρρ
     fac = term.scaling_factor
     if n_spin == 1
