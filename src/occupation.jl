@@ -130,6 +130,41 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiTwoSt
     Roots.find_zero(excess, εF, Roots.Secant(), Roots.Bisection(); atol=eps(T))
 end
 
+"""
+Bisection method to find εF  in the array εFs such that |excess_funcion(εF)| < tol_n_elec
+where excess_function is an increasing function and εFs is a sorted array (increasing).
+"""
+function bisection(εFs, excess_function, tol_n_elec)
+    i_min = 1
+    i_max = length(εFs)
+    excess_min = excess_function(εFs[1])
+    excess_max = excess_function(last(εFs))
+    if excess_max <= tol_n_elec         # Try to fill all the bands
+        εF = last(εFs)
+        if excess_max < -tol_n_elec
+            error("Could not obtain required number of electrons by filling every state. " *
+                    "Increase n_bands.")
+        end
+    elseif excess_min >= -tol_n_elec    # Try to fill only the smallest band(s)
+        εF = first(εFs)
+    else                                # Bissection to find first(εFs) < εF < last(εFs)
+        while i_max - i_min > 1
+            i = div(i_min+i_max, 2)
+            εF = εFs[i]
+            excess = excess_function(εF)
+            if excess < -tol_n_elec
+                i_min = i
+            elseif excess > tol_n_elec
+                i_max = i
+            else 
+                i_min = i
+                i_max = i
+            end
+
+        end
+    end
+    εF
+end
 
 # Note: This is not exported, but only called by the above algorithms for
 # the zero-temperature case.
@@ -166,35 +201,8 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
                for i=1:length(all_eigenvalues)-1] ]
     push!(εFs, last(all_eigenvalues) + T(1))
     
-    # Bisection method to find εF such that abs(excess) < tol_n_elec
-    i_min = 1
-    i_max = length(εFs)
-    excess_min = excess_n_electrons(basis, eigenvalues, εFs[1]; temperature, smearing)
-    excess_max = excess_n_electrons(basis, eigenvalues, last(εFs); temperature, smearing)
-    if excess_max <= tol_n_elec         # Try to fill all the bands
-        εF = last(εFs)
-        if excess_max < -tol_n_elec
-            error("Could not obtain required number of electrons by filling every state. " *
-                  "Increase n_bands.")
-        end
-    elseif excess_min >= -tol_n_elec    # Try to fill only the smallest band(s)
-        εF = first(εFs)
-    else                                # Bissection to find first(εFs) < εF < last(εFs)
-        while i_max - i_min > 1
-            i = div(i_min+i_max, 2)
-            εF = εFs[i]
-            excess = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
-            if excess < -tol_n_elec
-                i_min = i
-            elseif excess > tol_n_elec
-                i_max = i
-            else 
-                i_min = i
-                i_max = i
-            end
-
-        end
-    end
+    excess_function = εF->excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
+    εF = bisection(εFs, excess_function, tol_n_elec)
     
     occ = compute_occupation(basis, eigenvalues, εF; temperature, smearing).occupation
     merged_spin_occupations = sum([ occ[krange_spin(basis, i)] 
