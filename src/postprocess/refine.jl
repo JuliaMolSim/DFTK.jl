@@ -1,20 +1,35 @@
 # Refinement of some quantities of interest (density, forces) following the
 # strategy described in [CDKL2021].
-# 
+#
 # [CDKL2021]:
 #     E. Cancès, G. Dusson, G. Kemlin, and A. Levitt
 #     *Practical error bounds for properties in plane-wave electronic structure
 #     calculations* Preprint, 2021. [arXiv](https://arxiv.org/abs/2111.01470)
 
-@kwdef struct PreRefinementOutputs
-    basis_ref
-    ψr
-    ρr
+"""
+Result of calling the [`refine_scfres`](@ref) function.
+- `basis`: Refinement basis, larger than the basis used to
+           run a first [`self_consistent_field`](@ref) computation.
+- `ψ`, `ρ`, `occupation`: Quantities from the scfres, transferred to the refinement basis.
+- `δψ`, `δρ`: First order corrections to the wavefunctions and density.
+              The sign is such that the refined quantities are ψ - δψ and ρ - δρ.
+"""
+struct RefinementResult
+    basis :: PlaneWaveBasis
+    ψ
+    ρ
     occupation
-    schur_residual
+    δψ
     δρ
 end
 
+"""
+Transfer the result of an SCF to a larger basis set,
+and compute first order corrections ("refinements") to the wavefunctions and density.
+
+Returns a [`RefinementResult`](@ref) instance that can be used to refine quantities of interest,
+through [`refine_density`](@ref) and [`refine_forces`](@ref).
+"""
 function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T}; ΩpK_tol,
                        occ_threshold=default_occupation_threshold(T), kwargs...) where {T}
     basis = scfres.basis
@@ -24,17 +39,14 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T}; ΩpK_tol,
     @assert all(basis.kpoints[ik].coordinate == basis_ref.kpoints[ik].coordinate
                 for ik in 1:length(basis.kpoints))
 
-    haskey(scfres, :pre_refinement) && error() # TODO decide how to handle this...
-
     ψ, occ = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation; threshold=occ_threshold)
     ψr = transfer_blochwave(ψ, basis, basis_ref)
     ρr = transfer_density(scfres.ρ, basis, basis_ref)
-    _, ham  = energy_hamiltonian(basis,     ψ,  occ; ρ=scfres.ρ)
-    _, hamr = energy_hamiltonian(basis_ref, ψr, occ; ρ=ρr      )
-    
+    _, hamr = energy_hamiltonian(basis_ref, ψr, occ; ρ=ρr)
+
     # Compute the residual R(P) and remove the virtual orbitals, as required
     # in src/scf/newton.jl
-    
+
     # TODO fix compute_projected_gradient and replace
     res = [proj_tangent_kpt(hamr.blocks[ik] * ψk, ψk) for (ik, ψk) in enumerate(ψr)]
 
@@ -80,7 +92,7 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T}; ΩpK_tol,
     # Compute the projection of the residual onto the high and low frequencies
     resLF = transfer_blochwave(res, basis_ref, basis)
     resHF = res - transfer_blochwave(resLF, basis, basis_ref)
-    
+
     # - Compute M^{-1}_22 R_2(P)
     e2 = apply_metric(ψr, P, resHF, apply_inv_M)
 
@@ -94,12 +106,9 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T}; ΩpK_tol,
     ΩpKe2 = transfer_blochwave(ΩpKe2, basis_ref, basis)
 
     rhs = resLF - ΩpKe2
-    
-    # Invert Ω+K on the small space: for now, only solve_ΩplusK_split is MPI-compatible:
-    #e1 = solve_ΩplusK(basis, ψ, rhs, occ; tol=ΩpK_tol).δψ
-    e1 = solve_ΩplusK_split(ham, scfres.ρ, ψ, occ, scfres.εF, scfres.eigenvalues, rhs;
-                            tol=ΩpK_tol, occupation_threshold=zero(eltype(first(occ))),
-                            kwargs...).δψ
+
+    # Invert Ω+K on the small space
+    e1 = solve_ΩplusK(basis, ψ, rhs, occ; tol=ΩpK_tol).δψ
 
     e1 = transfer_blochwave(e1, basis, basis_ref)
     schur_residual = e1 + e2
@@ -108,22 +117,28 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T}; ΩpK_tol,
     # the density.
     δρ = compute_δρ(basis_ref, ψr, schur_residual, occ)
 
-    merge(scfres, (pre_refinement = PreRefinementOutputs(; basis_ref, ψr, ρr, occupation=occ,
-                                            schur_residual, δρ),))
+    RefinementResult(basis_ref, ψr, ρr, occ, schur_residual, δρ)
 end
 
-function refine_density(scfres)
-    haskey(scfres, :pre_refinement) || error() # TODO decide...
-    scfres.pre_refinement.ρr - scfres.pre_refinement.δρ
+"""
+Retrieve the refined density from a [`RefinementResult`](@ref).
+"""
+function refine_density(refinement::RefinementResult)
+    refinement.ρ - refinement.δρ
 end
 
-function refine_forces(scfres; forces=nothing)
-    haskey(scfres, :pre_refinement) || error() # TODO decide...
-    isnothing(forces) && (forces = compute_forces(scfres)) # TODO use DiffResults?
-    pre_ref = scfres.pre_refinement
-    dF = ForwardDiff.derivative(ε -> compute_forces(pre_ref.basis_ref,
-                                                    pre_ref.ψr.+ε.*pre_ref.schur_residual,
-                                                    pre_ref.occupation;
-                                                    ρ=pre_ref.ρr+ε.*pre_ref.δρ), 0)
+"""
+Refine forces using a [`RefinementResult`](@ref).
+
+Either the unrefined forces must be provided, or an `scfres` to compute them.
+"""
+function refine_forces(refinement::RefinementResult, forces::AbstractArray)
+    dF = ForwardDiff.derivative(ε -> compute_forces(refinement.basis,
+                                                    refinement.ψ .+ ε.*refinement.δψ,
+                                                    refinement.occupation;
+                                                    ρ=refinement.ρ + ε.*refinement.δρ), 0)
     forces - dF
+end
+function refine_forces(refinement::RefinementResult, scfres::NamedTuple)
+    refine_forces(refinement, compute_forces(scfres)) # TODO use DiffResults?
 end

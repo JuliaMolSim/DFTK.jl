@@ -1,13 +1,11 @@
 # # Practical error bounds for the forces
 #
-# This is a simple example showing how to compute error estimates for the forces
+# DFTK includes an implementation of the strategy from [^CDKL2021] to compute
+# practical error bounds for forces and other quantities of interest.
+#
+# This is an example showing how to compute error estimates for the forces
 # on a ``{\rm TiO}_2`` molecule, from which we can either compute asymptotically
 # valid error bounds or increase the precision on the computation of the forces.
-#
-# The strategy we follow is described with more details in [^CDKL2021] and we
-# will use in comments the density matrices framework. We will also needs
-# operators and functions from
-# [`src/scf/newton.jl`](https://dftk.org/blob/master/src/scf/newton.jl).
 #
 # [^CDKL2021]:
 #     E. Cancès, G. Dusson, G. Kemlin, and A. Levitt
@@ -17,8 +15,6 @@ using DFTK
 using Printf
 using LinearAlgebra
 using ForwardDiff
-using LinearMaps
-using IterativeSolvers
 
 # ## Setup
 # We setup manually the ``{\rm TiO}_2`` configuration from
@@ -49,16 +45,7 @@ Ecut_ref = 35
 basis_ref = PlaneWaveBasis(model; Ecut=Ecut_ref, kgrid)
 tol = 1e-5;
 
-# ## Computations
-
-# We compute the reference solution ``P_*`` from which we will compute the
-# references forces.
-scfres_ref = self_consistent_field(basis_ref; tol, callback=identity)
-ψ_ref = DFTK.select_occupied_orbitals(basis_ref, scfres_ref.ψ, scfres_ref.occupation).ψ;
-
-# We compute a variational approximation of the reference solution with
-# smaller `Ecut`. `ψr`, `ρr` and `Er` are the quantities computed with `Ecut`
-# and then extended to the reference grid.
+# We also build a basis with smaller `Ecut`, to compute a variational approximation of the reference solution.
 #
 # !!! note "Choice of convergence parameters"
 #     Be careful to choose `Ecut` not too close to `Ecut_ref`.
@@ -66,111 +53,53 @@ scfres_ref = self_consistent_field(basis_ref; tol, callback=identity)
 #     reference solution is not converged and `Ecut = 15` is such that the
 #     asymptotic regime (crucial to validate the approach) is barely established.
 Ecut = 15
-basis = PlaneWaveBasis(model; Ecut, kgrid)
-scfres = self_consistent_field(basis; tol, callback=identity)
-ψr = DFTK.transfer_blochwave(scfres.ψ, basis, basis_ref)
-ρr = compute_density(basis_ref, ψr, scfres.occupation)
-Er, hamr = energy_hamiltonian(basis_ref, ψr, scfres.occupation; ρ=ρr);
+basis = PlaneWaveBasis(model; Ecut, kgrid);
 
-# We then compute several quantities that we need to evaluate the error bounds.
+# ## Computations
+# Compute the solution on the smaller basis:
+scfres = self_consistent_field(basis; tol, callback=identity);
 
-# - Compute the residual ``R(P)``, and remove the virtual orbitals, as required
-#   in [`src/scf/newton.jl`](https://github.com/JuliaMolSim/DFTK.jl/blob/fedc720dab2d194b30d468501acd0f04bd4dd3d6/src/scf/newton.jl#L121).
-res = DFTK.compute_projected_gradient(basis_ref, ψr, scfres.occupation)
-res, occ = DFTK.select_occupied_orbitals(basis_ref, res, scfres.occupation)
-ψr = DFTK.select_occupied_orbitals(basis_ref, ψr, scfres.occupation).ψ;
+# Compute first order corrections `refinement.δψ` and `refinement.δρ`.
+# Note that `refinement.ψ` and `refinement.ρ` are the quantities computed with `Ecut`
+# and then extended to the reference grid.
+# This step is roughly as expensive as the `self_consistent_field` call above.
+refinement = refine_scfres(scfres, basis_ref; ΩpK_tol=tol);
+
+# ## Error estimates
+# - Computation of the force from the variational solution without any post-processing:
+f = compute_forces(scfres)
+
+# - Computation of the forces by a linearization argument when replacing the
+#   error ``P-P_*`` by the modified residual ``R_{\rm Schur}(P)``. The latter
+#   quantity is computable in practice.
+forces_refined = refine_forces(refinement, f)
+
+# A practical estimate of the error on the forces is then the following:
+dF_estimate = forces_refined - f
+
+# # Comparisons against non-practical estimates.
+# For practical computations one can stop at `forces_refined` and `dF_estimate`.
+# We continue here with a comparison of different ways to obtain the refined forces,
+# noting that the computational cost is much higher.
+
+# ## Computations
+# We compute the reference solution ``P_*`` from which we will compute the
+# references forces.
+scfres_ref = self_consistent_field(basis_ref; tol, callback=identity)
+ψ_ref = DFTK.select_occupied_orbitals(basis_ref, scfres_ref.ψ, scfres_ref.occupation).ψ;
 
 # - Compute the error ``P-P_*`` on the associated orbitals ``ϕ-ψ`` after aligning
 #   them: this is done by solving ``\min |ϕ - ψU|`` for ``U`` unitary matrix of
 #   size ``N×N`` (``N`` being the number of electrons) whose solution is
 #   ``U = S(S^*S)^{-1/2}`` where ``S`` is the overlap matrix ``ψ^*ϕ``.
-function compute_error(basis, ϕ, ψ)
+function compute_error(ϕ, ψ)
     map(zip(ϕ, ψ)) do (ϕk, ψk)
         S = ψk'ϕk
         U = S*(S'S)^(-1/2)
         ϕk - ψk*U
     end
 end
-err = compute_error(basis_ref, ψr, ψ_ref);
-
-# - Compute ``{\boldsymbol M}^{-1}R(P)`` with ``{\boldsymbol M}^{-1}`` defined in [^CDKL2021]:
-P = [PreconditionerTPA(basis_ref, kpt) for kpt in basis_ref.kpoints]
-map(zip(P, ψr)) do (Pk, ψk)
-    DFTK.precondprep!(Pk, ψk)
-end
-function apply_M(φk, Pk, δφnk, n)
-    DFTK.proj_tangent_kpt!(δφnk, φk)
-    δφnk = sqrt.(Pk.mean_kin[n] .+ Pk.kin) .* δφnk
-    DFTK.proj_tangent_kpt!(δφnk, φk)
-    δφnk = sqrt.(Pk.mean_kin[n] .+ Pk.kin) .* δφnk
-    DFTK.proj_tangent_kpt!(δφnk, φk)
-end
-function apply_inv_M(φk, Pk, δφnk, n)
-    DFTK.proj_tangent_kpt!(δφnk, φk)
-    op(x) = apply_M(φk, Pk, x, n)
-    function f_ldiv!(x, y)
-        x .= DFTK.proj_tangent_kpt(y, φk)
-        x ./= (Pk.mean_kin[n] .+ Pk.kin)
-        DFTK.proj_tangent_kpt!(x, φk)
-    end
-    J = LinearMap{eltype(φk)}(op, size(δφnk, 1))
-    δφnk = cg(J, δφnk; Pl=DFTK.FunctionPreconditioner(f_ldiv!),
-              verbose=false, reltol=0, abstol=1e-15)
-    DFTK.proj_tangent_kpt!(δφnk, φk)
-end
-function apply_metric(φ, P, δφ, A::Function)
-    map(enumerate(δφ)) do (ik, δφk)
-        Aδφk = similar(δφk)
-        φk = φ[ik]
-        for n = 1:size(δφk,2)
-            Aδφk[:,n] = A(φk, P[ik], δφk[:,n], n)
-        end
-        Aδφk
-    end
-end
-Mres = apply_metric(ψr, P, res, apply_inv_M);
-
-# We can now compute the modified residual ``R_{\rm Schur}(P)`` using a Schur
-# complement to approximate the error on low-frequencies[^CDKL2021]:
-#
-# ```math
-# \begin{bmatrix}
-# (\boldsymbol Ω + \boldsymbol K)_{11} & (\boldsymbol Ω + \boldsymbol K)_{12} \\
-# 0 & {\boldsymbol M}_{22}
-# \end{bmatrix}
-# \begin{bmatrix}
-# P_{1} - P_{*1} \\ P_{2}-P_{*2}
-# \end{bmatrix} =
-# \begin{bmatrix}
-# R_{1} \\ R_{2}
-# \end{bmatrix}.
-# ```
-
-# - Compute the projection of the residual onto the high and low frequencies:
-resLF = DFTK.transfer_blochwave(res, basis_ref, basis)
-resHF = res - DFTK.transfer_blochwave(resLF, basis, basis_ref);
-
-# - Compute ``{\boldsymbol M}^{-1}_{22}R_2(P)``:
-e2 = apply_metric(ψr, P, resHF, apply_inv_M);
-
-# - Compute the right hand side of the Schur system:
-## Rayleigh coefficients needed for `apply_Ω`
-Λ = map(enumerate(ψr)) do (ik, ψk)
-    Hk = hamr.blocks[ik]
-    Hψk = Hk * ψk
-    ψk'Hψk
-end
-ΩpKe2 = DFTK.apply_Ω(e2, ψr, hamr, Λ) .+ DFTK.apply_K(basis_ref, e2, ψr, ρr, occ)
-ΩpKe2 = DFTK.transfer_blochwave(ΩpKe2, basis_ref, basis)
-rhs = resLF - ΩpKe2;
-
-# - Solve the Schur system to compute ``R_{\rm Schur}(P)``: this is the most
-#   costly step, but inverting ``\boldsymbol{Ω} + \boldsymbol{K}`` on the small space has
-#   the same cost than the full SCF cycle on the small grid.
-(; ψ) = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
-e1 = DFTK.solve_ΩplusK(basis, ψ, rhs, occ; tol).δψ
-e1 = DFTK.transfer_blochwave(e1, basis, basis_ref)
-res_schur = e1 + Mres;
+error = compute_error(refinement.ψ, ψ_ref);
 
 # ## Error estimates
 
@@ -183,8 +112,8 @@ compute_relerror(f) = norm(f - f_ref) / norm(f_ref);
 
 # - Force from the variational solution and relative error without
 #   any post-processing:
-f = compute_forces(scfres)
 forces["F(P)"]   = f
+
 relerror["F(P)"] = compute_relerror(f);
 
 # We then try to improve ``F(P)`` using the first order linearization:
@@ -204,16 +133,15 @@ end;
 #   the actual error ``P-P_*``. Usually this is of course not the case, but this
 #   is the "best" improvement we can hope for with a linearisation, so we are
 #   aiming for this precision.
-df_err = df(basis_ref, occ, ψr, DFTK.proj_tangent(err, ψr), ρr)
+df_err = df(basis_ref, refinement.occupation, refinement.ψ, DFTK.proj_tangent(error, refinement.ψ), refinement.ρ)
 forces["F(P) - df(P)⋅(P-P_*)"]   = f - df_err
 relerror["F(P) - df(P)⋅(P-P_*)"] = compute_relerror(f - df_err);
 
 # - Computation of the forces by a linearization argument when replacing the
 #   error ``P-P_*`` by the modified residual ``R_{\rm Schur}(P)``. The latter
 #   quantity is computable in practice.
-df_schur = df(basis_ref, occ, ψr, res_schur, ρr)
-forces["F(P) - df(P)⋅Rschur(P)"]   = f - df_schur
-relerror["F(P) - df(P)⋅Rschur(P)"] = compute_relerror(f - df_schur);
+forces["F(P) - df(P)⋅Rschur(P)"]   = forces_refined
+relerror["F(P) - df(P)⋅Rschur(P)"] = compute_relerror(forces_refined);
 
 # Summary of all forces on the first atom (Ti)
 for (key, value) in pairs(forces)
