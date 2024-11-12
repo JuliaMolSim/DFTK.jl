@@ -101,7 +101,7 @@ end
     self_consistent_field(basis; [tol, mixing, damping, ρ, ψ])
 
 Solve the Kohn-Sham equations with a density-based SCF algorithm using damped, preconditioned
-iterations where ``ρ_\text{next} = α P^{-1} (ρ_\text{out} - ρ_\text{in})``.
+iterations where ``ρ_\text{next} = ρ_\text{in} + α P^{-1} (ρ_\text{out} - ρ_\text{in})``.
 
 Overview of parameters:
 - `ρ`:   Initial density
