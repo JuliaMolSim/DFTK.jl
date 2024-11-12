@@ -4,7 +4,7 @@
     using wannier90_jll
     silicon = TestCases.silicon
 
-    model  = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
+    model  = model_DFT(silicon.lattice, silicon.atoms, silicon.positions; functionals=LDA())
     basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[4, 4, 4], kshift=[1, 1, 1]/2)
     nbandsalg = AdaptiveBands(model; n_bands_converge=12)
     scfres = self_consistent_field(basis; nbandsalg, tol=1e-12)

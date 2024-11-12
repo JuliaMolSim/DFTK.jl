@@ -4,9 +4,10 @@
 # density-based SCF.
 
 # First we set up our problem
+using AtomsBuilder
 using DFTK
-using LinearAlgebra
 using LazyArtifacts
+using LinearAlgebra
 using Printf
 import Main: @artifact_str # hide
 
@@ -15,19 +16,11 @@ import Main: @artifact_str # hide
 # family because it contains valence charge density which can be used for a more tailored
 # density guess.
 UPF_PSEUDO = artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf"
-HGH_PSEUDO = "hgh/lda/si-q4"
 
 function silicon_scf(guess_method)
-    a = 10.26  # Silicon lattice constant in Bohr
-    lattice = a / 2 * [[0 1 1.];
-                       [1 0 1.];
-                       [1 1 0.]]
-    Si = ElementPsp(:Si; psp=load_psp(UPF_PSEUDO))
-    atoms     = [Si, Si]
-    positions = [ones(3)/8, -ones(3)/8]
-
-    model = model_LDA(lattice, atoms, positions)
-    basis = PlaneWaveBasis(model; Ecut=12, kgrid=[4, 4, 4])
+    system = attach_psp(bulk(:Si); Si=UPF_PSEUDO)
+    model  = model_DFT(system; functionals=LDA())
+    basis  = PlaneWaveBasis(model; Ecut=12, kgrid=[4, 4, 4])
 
     self_consistent_field(basis; ρ=guess_density(basis, guess_method),
                           is_converged=ScfConvergenceEnergy(1e-10))

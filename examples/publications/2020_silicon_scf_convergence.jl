@@ -39,18 +39,18 @@ global gaps = []
 global as = (10.26, 11.405)
 for a in as
     lattice = a / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]]
-    model = model_LDA(lattice, atoms, positions)
+    model = model_DFT(lattice, atoms, positions, LDA())
     basis = PlaneWaveBasis(model; Ecut, kgrid)
     res = self_consistent_field(basis; opts...)
     gap = res.eigenvalues[1][5] - res.eigenvalues[1][4]
     errs_anderson = copy(resids)
-    self_consistent_field(basis; solver=scf_damping_solver(1), opts...)
+    self_consistent_field(basis; solver=scf_damping_solver(; damping=1), opts...)
     errs_1 = copy(resids)
-    self_consistent_field(basis; solver=scf_damping_solver(.5), opts...)
+    self_consistent_field(basis; solver=scf_damping_solver(; damping=.5), opts...)
     errs_05 = copy(resids)
-    self_consistent_field(basis; solver=scf_damping_solver(.2), opts...)
+    self_consistent_field(basis; solver=scf_damping_solver(; damping=.2), opts...)
     errs_02 = copy(resids)
-    self_consistent_field(basis; solver=scf_damping_solver(.1), opts...)
+    self_consistent_field(basis; solver=scf_damping_solver(; damping=.1), opts...)
     errs_01 = copy(resids)
     global errs
     global gaps

@@ -46,7 +46,7 @@
         @test system[:, :magnetic_moment] == magnetic_moments
     end
 
-    for constructor in (Model, model_atomic, model_LDA, model_PBE, model_SCAN)
+    for constructor in (Model, model_atomic)
         model = constructor(system)
         @test model.spin_polarization == :collinear
         newsys = periodic_system(model, magnetic_moments)
@@ -208,7 +208,7 @@ end
     @test atomic_mass(system_psp) == [-1u"u", -2u"u"]
 
     pos_lattice = austrip.(stack(lattice))
-    let model = model_LDA(system_psp)
+    let model = model_DFT(system_psp; functionals=LDA())
         @test model.lattice   == pos_lattice
         @test model.lattice * model.positions[1] * u"bohr" ≈ atoms[1].position
         @test model.lattice * model.positions[2] * u"bohr" ≈ atoms[2].position

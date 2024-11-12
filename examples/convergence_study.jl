@@ -29,7 +29,8 @@ function run_scf(; a=5.0, Ecut, nkpt, tol)
     position = [zeros(3)]
     lattice  = a * Matrix(I, 3, 3)
 
-    model  = model_LDA(lattice, atoms, position; temperature=1e-2)
+    model  = model_DFT(lattice, atoms, position;
+                       functionals=LDA(), temperature=1e-2)
     basis  = PlaneWaveBasis(model; Ecut, kgrid=(nkpt, nkpt, nkpt))
     println("nkpt = $nkpt Ecut = $Ecut")
     self_consistent_field(basis; is_converged=ScfConvergenceEnergy(tol))

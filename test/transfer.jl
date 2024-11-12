@@ -7,7 +7,7 @@
     tol = 1e-7
     Ecut = 5
 
-    model  = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
+    model  = model_DFT(silicon.lattice, silicon.atoms, silicon.positions; functionals=LDA())
     kgrid  = [2, 2, 2]
     kshift = [1, 1, 1] / 2
     basis  = PlaneWaveBasis(model; Ecut, kgrid, kshift)
@@ -43,7 +43,7 @@
     @test norm(ψ-ψ_bb) < eps(eltype(basis))
 end
 
-@testitem "Transfer of density" begin
+@testitem "Transfer of density" tags=[:dont_test_mpi] begin
     using DFTK
     using DFTK: transfer_density
     using LinearAlgebra

@@ -4,19 +4,13 @@
 # namely a density-based SCF, a potential-based SCF, direct minimisation and Newton.
 
 # First we setup our problem
+using AtomsBuilder
 using DFTK
 using LinearAlgebra
 
-a = 10.26  # Silicon lattice constant in Bohr
-lattice = a / 2 * [[0 1 1.];
-                   [1 0 1.];
-                   [1 1 0.]]
-Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
-atoms     = [Si, Si]
-positions = [ones(3)/8, -ones(3)/8]
-
-model = model_LDA(lattice, atoms, positions)
-basis = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3])
+system = attach_psp(bulk(:Si); Si="hgh/lda/Si-q4")
+model  = model_DFT(system; functionals=PBEsol())
+basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3])
 
 ## Convergence we desire in the density
 tol = 1e-6
@@ -28,9 +22,7 @@ scfres_scf = self_consistent_field(basis; tol);
 scfres_scfv = DFTK.scf_potential_mixing(basis; tol);
 
 # ## Direct minimization
-# Note: Unlike the other algorithms, tolerance for this one is in the energy,
-# thus we square the density tolerance value to be roughly equivalent.
-scfres_dm = direct_minimization(basis; tol=tol^2);
+scfres_dm = direct_minimization(basis; tol);
 
 # ## Newton algorithm
 

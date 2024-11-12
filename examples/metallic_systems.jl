@@ -39,8 +39,8 @@ smearing = DFTK.Smearing.FermiDirac() # Smearing method
 ##                                      MarzariVanderbilt,
 ##                                      and MethfesselPaxton(order)
 
-model = model_DFT(lattice, atoms, positions, [:gga_x_pbe, :gga_c_pbe];
-                  temperature, smearing)
+model = model_DFT(lattice, atoms, positions;
+                  functionals=[:gga_x_pbe, :gga_c_pbe], temperature, smearing)
 kgrid = kgrid_from_maximal_spacing(lattice, kspacing)
 basis = PlaneWaveBasis(model; Ecut, kgrid);
 

@@ -86,7 +86,8 @@ end
     @testset "Compute smallest eigenvalue of Ω+K" begin
         numval = 3  # number of eigenvalues we want to compute
 
-        model  = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
+        model  = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                           functionals=LDA())
         basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[1, 1, 1])
         scfres = self_consistent_field(basis; tol=1e-8)
         ψ, occupation = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)

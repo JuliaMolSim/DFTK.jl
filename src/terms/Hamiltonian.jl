@@ -56,7 +56,7 @@ function HamiltonianBlock(basis, kpoint, operators; scratch=nothing)
     end
 end
 function _ham_allocate_scratch(basis::PlaneWaveBasis{T}) where {T}
-    [(; ψ_reals=zeros_like(basis.G_vectors, complex(T), basis.fft_size...))
+    [(; ψ_reals=zeros_like(G_vectors(basis), complex(T), basis.fft_size...))
      for _ = 1:Threads.nthreads()]
 end
 
