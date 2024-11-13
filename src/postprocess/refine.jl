@@ -10,7 +10,8 @@
 Result of calling the [`refine_scfres`](@ref) function.
 - `basis`: Refinement basis, larger than the basis used to
            run a first [`self_consistent_field`](@ref) computation.
-- `ψ`, `ρ`, `occupation`: Quantities from the scfres, transferred to the refinement basis.
+- `ψ`, `ρ`, `occupation`: Quantities from the scfres, transferred to the refinement basis
+                          and with virtual orbitals removed.
 - `δψ`, `δρ`: First order corrections to the wavefunctions and density.
               The sign is such that the refined quantities are ψ - δψ and ρ - δρ.
 """
@@ -39,16 +40,15 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T}; ΩpK_tol,
     @assert all(basis.kpoints[ik].coordinate == basis_ref.kpoints[ik].coordinate
                 for ik in 1:length(basis.kpoints))
 
+    # Virtual orbitals must be removed
     ψ, occ = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation; threshold=occ_threshold)
     ψr = transfer_blochwave(ψ, basis, basis_ref)
     ρr = transfer_density(scfres.ρ, basis, basis_ref)
     _, hamr = energy_hamiltonian(basis_ref, ψr, occ; ρ=ρr)
 
-    # Compute the residual R(P) and remove the virtual orbitals, as required
-    # in src/scf/newton.jl
-
-    # TODO fix compute_projected_gradient and replace
-    res = [proj_tangent_kpt(hamr.blocks[ik] * ψk, ψk) for (ik, ψk) in enumerate(ψr)]
+    # Compute the residual R(P)
+    # This recomputes ρr internally, but it's only a minor inefficiency.
+    res = compute_projected_gradient(basis_ref, ψr, occ)
 
     # Compute M^{-1} R(P), with M^{-1} defined in [CDKL2021]
     P = [PreconditionerTPA(basis_ref, kpt) for kpt in basis_ref.kpoints]
