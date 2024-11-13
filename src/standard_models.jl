@@ -7,14 +7,21 @@ Convenience constructor around [`Model`](@ref),
 which builds a standard atomic (kinetic + atomic potential) model.
 
 ## Keyword arguments
+- `pseudopotentials`: Set the pseudopotential information for the atoms
+   of the passed system. Can be (a) a list of pseudopotential objects
+   (one for each atom), where a `nothing` element indicates that the
+   Coulomb potential should be used for that atom or (b)
+   a `PseudoPotentialData.PseudoFamily` to automatically determine the
+   pseudopotential from the specified pseudo family.
 - `extra_terms`: Specify additional terms to be passed to the
   [`Model`](@ref) constructor.
 - `kinetic_blowup`: Specify a blowup function for the kinetic
   energy term, see e.g [`BlowupCHV`](@ref).
 
 """
-function model_atomic(system::AbstractSystem; kwargs...)
-    parsed = parse_system(system)
+function model_atomic(system::AbstractSystem;
+                      pseudopotentials=fill(nothing, length(system)), kwargs...)
+    parsed = parse_system(system, pseudopotentials)
     model_atomic(parsed.lattice, parsed.atoms, parsed.positions;
                  parsed.magnetic_moments, kwargs...)
 end
@@ -65,8 +72,12 @@ julia> model_DFT(system; functionals=[:lda_x, :lda_c_pw], temperature=0.01)
 Alternative syntax specifying the functionals directly
 via their libxc codes.
 """
-function model_DFT(system::AbstractSystem; functionals, kwargs...)
-    parsed = parse_system(system)
+function model_DFT(system::AbstractSystem;
+                   functionals,
+                   pseudopotentials=fill(nothing, length(system)),
+                   kwargs...)
+    # TODO Could check consistency between pseudos and passed functionals
+    parsed = parse_system(system, pseudopotentials)
     model_DFT(parsed.lattice, parsed.atoms, parsed.positions;
               parsed.magnetic_moments, functionals, kwargs...)
 end

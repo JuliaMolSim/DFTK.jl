@@ -158,7 +158,7 @@ has_valence_density(psp::PspUpf) = !all(iszero, psp.r2_ρion)
 has_core_density(psp::PspUpf) = !all(iszero, psp.r2_ρcore)
 
 function eval_psp_projector_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
-    psp.r2_projs_interp[l+1][i](r) / r^2
+    psp.r2_projs_interp[l+1][i](r) / r^2  # TODO if r is below a threshold, return zero
 end
 
 function eval_psp_projector_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
@@ -174,7 +174,7 @@ end
 count_n_pswfc_radial(psp::PspUpf, l) = length(psp.r2_pswfcs[l+1])
 
 function eval_psp_pswfc_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
-    psp.r2_pswfcs_interp[l+1][i](r) / r^2
+    psp.r2_pswfcs_interp[l+1][i](r) / r^2  # TODO if r is below a threshold, return zero
 end
 
 function eval_psp_pswfc_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
@@ -203,7 +203,7 @@ function eval_psp_local_fourier(psp::PspUpf, p::T)::T where {T<:Real}
 end
 
 function eval_psp_density_valence_real(psp::PspUpf, r::T) where {T<:Real}
-    psp.r2_ρion_interp(r) / r^2
+    psp.r2_ρion_interp(r) / r^2  # TODO if r is below a threshold, return zero
 end
 
 function eval_psp_density_valence_fourier(psp::PspUpf, p::T) where {T<:Real}
@@ -213,7 +213,7 @@ function eval_psp_density_valence_fourier(psp::PspUpf, p::T) where {T<:Real}
 end
 
 function eval_psp_density_core_real(psp::PspUpf, r::T) where {T<:Real}
-    psp.r2_ρcore_interp(r) / r^2
+    psp.r2_ρcore_interp(r) / r^2  # TODO if r is below a threshold, return zero
 end
 
 function eval_psp_density_core_fourier(psp::PspUpf, p::T) where {T<:Real}

@@ -1,9 +1,14 @@
 using AtomsBase
+using PseudoPotentialData
 # Key functionality to integrate DFTK and AtomsBase
 
-function parse_system(system::AbstractSystem{D}) where {D}
+function parse_system(system::AbstractSystem{D},
+                      pseudopotentials::AbstractVector) where {D}
     if !all(periodicity(system))
         error("DFTK only supports calculations with periodic boundary conditions.")
+    end
+    if length(system) != length(pseudopotentials)
+        error("Length of pseudopotentials vector needs to agree with number of atoms.")
     end
 
     # Parse abstract system and return data required to construct model
@@ -12,21 +17,17 @@ function parse_system(system::AbstractSystem{D}) where {D}
     lattice = zeros(T, 3, 3)
     lattice[1:D, 1:D] .= mtx
 
-    # Cache for instantiated pseudopotentials. This is done to ensure that identical
-    # atoms are indistinguishable in memory, which is used in the Model constructor
-    # to deduce the atom_groups.
-    cached_pspelements = Dict{String, ElementPsp}()
-    atoms = map(system) do atom
-        pseudo = get(atom, :pseudopotential, "")
-        if isempty(pseudo)
-            ElementCoulomb(atomic_number(atom); mass=atomic_mass(atom))
+    atoms = map(system, pseudopotentials) do atom, psp
+        if hasproperty(atom, :pseudopotential)
+            @warn("The pseudopotential atom property is no longer respected. " *
+                  "Please use the `pseudopotential` keyword argument to the " *
+                  "model constructors.")
+        end
+        mass = atomic_mass(atom)
+        if isnothing(psp)
+            ElementCoulomb(atomic_number(atom); mass)
         else
-            key = pseudo * string(atomic_mass(atom))
-            get!(cached_pspelements, key) do
-                kwargs = get(atom, :pseudopotential_kwargs, ())
-                ElementPsp(atomic_number(atom); psp=load_psp(pseudo; kwargs...),
-                           mass=atomic_mass(atom))
-            end
+            ElementPsp(atomic_number(atom); psp, mass)
         end
     end
 
@@ -61,6 +62,9 @@ function parse_system(system::AbstractSystem{D}) where {D}
 
     (; lattice, atoms, positions, magnetic_moments)
 end
+function parse_system(system::AbstractSystem, family::PseudoFamily)
+    parse_system(system, load_psp(family, system))
+end
 
 
 # Extra methods to AtomsBase functions for DFTK data structures
@@ -88,18 +92,6 @@ function AtomsBase.atomic_system(lattice::AbstractMatrix{<:Number},
             else
                 kwargs[:magnetic_moment] = magmom
             end
-        end
-        if element isa ElementPsp
-            kwargs[:pseudopotential] = element.psp.identifier
-            if element.psp isa PspUpf
-                kwargs[:pseudopotential_kwargs] = (; element.psp.rcut)
-            end
-        elseif element isa ElementCoulomb
-            kwargs[:pseudopotential] = ""
-        elseif !(element isa ElementCoulomb)
-            @warn("Discarding DFTK-specific details for element type $(typeof(element)) " *
-                  "(i.e. this element is treated as a ElementCoulomb).")
-            kwargs[:pseudopotential] = ""
         end
 
         position = lattice * positions[i] * u"bohr"
