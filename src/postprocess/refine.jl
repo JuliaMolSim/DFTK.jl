@@ -16,7 +16,7 @@ Result of calling the [`refine_scfres`](@ref) function.
               The sign is such that the refined quantities are ψ - δψ and ρ - δρ.
 """
 struct RefinementResult
-    basis :: PlaneWaveBasis
+    basis::PlaneWaveBasis
     ψ
     ρ
     occupation
