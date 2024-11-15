@@ -28,6 +28,8 @@ end
 Transfer the result of an SCF to a larger basis set,
 and compute first order corrections ("refinements") to the wavefunctions and density.
 
+Only full occupations are currently supported.
+
 Returns a [`RefinementResult`](@ref) instance that can be used to refine quantities of interest,
 through [`refine_density`](@ref) and [`refine_forces`](@ref).
 """
@@ -42,6 +44,8 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T}; ΩpK_tol,
 
     # Virtual orbitals must be removed
     ψ, occ = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation; threshold=occ_threshold)
+    check_full_occupation(basis, occ)
+
     ψr = transfer_blochwave(ψ, basis, basis_ref)
     ρr = transfer_density(scfres.ρ, basis, basis_ref)
     _, hamr = energy_hamiltonian(basis_ref, ψr, occ; ρ=ρr)

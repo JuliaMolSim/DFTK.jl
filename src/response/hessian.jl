@@ -71,9 +71,8 @@ Return δψ where (Ω+K) δψ = rhs
 """
 @timing function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
                               callback=identity, tol=1e-10) where {T}
-    filled_occ = filled_occupation(basis.model)
     # for now, all orbitals have to be fully occupied -> need to strip them beforehand
-    @assert all(all(occ_k .== filled_occ) for occ_k in occupation)
+    check_full_occupation(basis, occupation)
 
     # compute quantites at the point which define the tangent space
     ρ = compute_density(basis, ψ, occupation)
