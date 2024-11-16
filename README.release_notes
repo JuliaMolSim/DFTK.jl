@@ -1,0 +1,21 @@
+@JuliaRegistrator register
+
+Release notes:
+
+Note that this release increases the minor version and contains a number of breaking changes:
+
+- SCF solver implementations have changed their API from `ρout = F(ρin)` to `ρout, info_out = F(ρin, info_in)`. This means that many of DFTK's learning resources (which use this feature to introduce the concepts of basic SCF algorithms) need to be adapted for DFTK 0.7. (#811)
+
+- The `model_LDA`, `model_PBE` and `model_SCAN` functions are now deprecated and will be removed in DFTK version 0.7.1. Use `model_DFT(system; functionals=LDA(), kwargs...)` or similar (`functionals=PBE()`, `functionals=SCAN()`) (#994).
+
+- The `model_DFT` syntax with an array of functionals in the last argument is deprecated and will be removed in DFTK version 0.7.1. Instead of `model_DFT(system, [:lda_x]; kwargs...)` use `model_DFT(system; functionals=[:lda_x], kwargs...)` (#994)
+
+- The model constructors in combination with `AtomsBase` systems no longer respect the `:pseudopotential` atom keys. To specify the pseudopotentials in combination with the `AtomsBase` interface now use the `pseudopotentials` keyword argument of the model constructors.   E.g. instead of running `system = attach_psp(system; Si="hgh/lda/si-q4"); model = model_DFT(system; kwargs...)` use `model = model_DFT(system; pseudopotentials=Dict(:Si => "hgh/lda/si-q4"))`. Note that the new `PseudoPotentialData.PseudoFamily` objects can also be passed as values to the `pseudopotentials` keywords, which is often simpler. (#???)
+
+- The `attach_psp` function *has been removed* due to the above change. Use the new `model_DFT(system; pseudopotential=Dict(:Si => "hgh/lda/si-q4"), kwargs...)` syntax instead. (#???)
+
+- The `ElementPsp(key; psp)` constructor is deprecated and will be removed in DFTK version 0.7.1, use instead `Element(key, psp)` which is now more powerful (`psp` can be a `PspHgh`, `PspUpf` or `PseudoPotentialData.PseudoFamily`). (#???)
+
+- The deprecated `kgrid_from_minimal_spacing` function has been removed in favour of `kgrid_from_maximal_spacing` (#994)
+
+- The deprecated `ScfDiagtol` function has been removed. Use `AdaptiveDiagtol` now (#994)

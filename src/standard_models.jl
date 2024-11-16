@@ -12,12 +12,25 @@ which builds a standard atomic (kinetic + atomic potential) model.
    (one for each atom), where a `nothing` element indicates that the
    Coulomb potential should be used for that atom or (b)
    a `PseudoPotentialData.PseudoFamily` to automatically determine the
-   pseudopotential from the specified pseudo family.
+   pseudopotential from the specified pseudo family or (c)
+   a `Dict{Symbol,String}` mapping an atomic symbol
+   to the pseudopotential to be employed.
 - `extra_terms`: Specify additional terms to be passed to the
   [`Model`](@ref) constructor.
 - `kinetic_blowup`: Specify a blowup function for the kinetic
   energy term, see e.g [`BlowupCHV`](@ref).
 
+# Examples
+```julia-repl
+julia> model_atomic(system; pseudopotentials=PseudoFamily("pd_nc_sr_pbe_standard_0.4.1_upf"))
+```
+Construct an atomic system using the specified pseudo-dojo pseudopotentials for all
+atoms of the system.
+
+```julia-repl
+julia> model_atomic(system; pseudopotentials=Dict(:Si => "hgh/lda/si-q4"))
+```
+same thing, but specify the pseudopotentials explicitly in a dictionary.
 """
 function model_atomic(system::AbstractSystem;
                       pseudopotentials=fill(nothing, length(system)), kwargs...)

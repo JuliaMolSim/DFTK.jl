@@ -188,10 +188,8 @@ include("density_methods.jl")
 
 export load_psp
 export list_psp
-export attach_psp
 include("pseudo/load_psp.jl")
 include("pseudo/list_psp.jl")
-include("pseudo/attach_psp.jl")
 
 export atomic_system, periodic_system  # Reexport from AtomsBase
 export run_wannier90

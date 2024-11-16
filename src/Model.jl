@@ -203,7 +203,9 @@ AtomsBase-compatible Model constructor. Sets structural information (`atoms`, `p
    (one for each atom), where a `nothing` element indicates that the
    Coulomb potential should be used for that atom or (b)
    a `PseudoPotentialData.PseudoFamily` to automatically determine the
-   pseudopotential from the specified pseudo family.
+   pseudopotential from the specified pseudo family or (c)
+   a `Dict{Symbol,String}` mapping an atomic symbol
+   to the pseudopotential to be employed.
 """
 function Model(system::AbstractSystem;
                pseudopotentials=fill(nothing, length(system)), kwargs...)

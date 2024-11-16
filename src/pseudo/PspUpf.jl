@@ -182,7 +182,15 @@ function eval_psp_pswfc_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     # quantities. They are the reason that PseudoDojo UPF files have a much
     # larger radial grid than their psp8 counterparts.
     # If issues arise, try cutting them off too.
-    hankel(psp.rgrid, psp.r2_pswfcs[l+1][i], l, p)
+    return hankel(psp.rgrid, psp.r2_pswfcs[l+1][i], l, p)
+    # / (2π)^3 ??
+
+    # normalisation constant for the atomic wave functions
+    R = (psp.r2_pswfcs[l+1][i]) .^ 2 ./ psp.rgrid .^ 2
+    R[1] = 0
+    N = DFTK.simpson(R, psp.rgrid)
+
+
 end
 
 eval_psp_local_real(psp::PspUpf, r::T) where {T<:Real} = psp.vloc_interp(r)

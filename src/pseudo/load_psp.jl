@@ -1,5 +1,3 @@
-using PseudoPotentialData
-
 """Return the data directory with pseudopotential files"""
 datadir_psp() = normpath(joinpath(@__DIR__, "..", "..", "data", "psp"))
 
@@ -41,28 +39,35 @@ function load_psp(key::AbstractString; kwargs...)
     end
 end
 
-function load_psp(dir::AbstractString, filename::AbstractString; kwargs...)
-    load_psp(joinpath(dir, filename); kwargs...)
+@deprecate(load_psp(dir::AbstractString, filename::AbstractString; kwargs...),
+           load_psp(joinpath(dir, filename); kwargs...))
+
+"""
+Load the pseudopotential from the pseudopotential family `pseudofamily`
+corresponding to the passed atomic symbol.
+"""
+function load_psp(pseudofamily::AbstractDict, element::Symbol; kwargs...)
+    load_psp(pseudofamily[element]; kwargs...)
 end
 
 """
-Load all pseudopotentials from the pseudopotential `family`
+Load all pseudopotentials from the pseudopotential family `pseudofamily`
 corresponding to the atoms of a `system`. Returns the list of
-the pseudopotential objects in the same order as the atomsi in `system`.
+the pseudopotential objects in the same order as the atoms in `system`.
 Takes care that each pseudopotential object is only loaded once.
 Applies the keyword arguments when loading all pseudopotentials.
-
-!!! warning "May disappear in the future"
-    This method of the `load_psp` functino is not yet final and may
-    disappear in the future.
+`pseudofamily` can be a `PseudoPotentialData.PseudoFamily` or simply
+a `Dict{Symbol,String}` which returns a file path when indexed
+with an element symbol.
 """
-function load_psp(family::PseudoFamily, system::AbstractSystem; kwargs...)
+function load_psp(pseudofamily::AbstractDict{Symbol,<:AbstractString},
+                  system::AbstractSystem; kwargs...)
     # Cache for instantiated pseudopotentials. This is done to ensure that identical
     # pseudos are indistinguishable in memory, which is used in the Model constructor
     # to deduce the atom_groups.
     cached_psps = Dict{String, Any}()
     map(system) do atom
-        file = pseudofile(family, atomic_symbol(atom))
+        file::String = pseudofamily[atomic_symbol(atom)]
         get!(cached_psps, file) do
             load_psp(file; kwargs...)
         end

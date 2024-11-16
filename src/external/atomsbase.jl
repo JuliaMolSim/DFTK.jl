@@ -1,5 +1,4 @@
 using AtomsBase
-using PseudoPotentialData
 # Key functionality to integrate DFTK and AtomsBase
 
 function parse_system(system::AbstractSystem{D},
@@ -23,12 +22,9 @@ function parse_system(system::AbstractSystem{D},
                   "Please use the `pseudopotential` keyword argument to the " *
                   "model constructors.")
         end
-        mass = atomic_mass(atom)
-        if isnothing(psp)
-            ElementCoulomb(atomic_number(atom); mass)
-        else
-            ElementPsp(atomic_number(atom); psp, mass)
-        end
+
+        # Note if psp === nothing, this will make an ElementCoulomb
+        ElementPsp(atomic_number(atom), psp; mass=atomic_mass(atom))
     end
 
     positions = map(system) do atom
@@ -62,7 +58,8 @@ function parse_system(system::AbstractSystem{D},
 
     (; lattice, atoms, positions, magnetic_moments)
 end
-function parse_system(system::AbstractSystem, family::PseudoFamily)
+function parse_system(system::AbstractSystem,
+                      family::AbstractDict{Symbol,<:AbstractString})
     parse_system(system, load_psp(family, system))
 end
 
