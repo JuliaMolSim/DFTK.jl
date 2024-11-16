@@ -209,7 +209,6 @@ AtomsBase-compatible Model constructor. Sets structural information (`atoms`, `p
 """
 function Model(system::AbstractSystem;
                pseudopotentials=fill(nothing, length(system)), kwargs...)
-    @assert !(:magnetic_moments in keys(kwargs))
     parsed = parse_system(system, pseudopotentials)
     Model(parsed.lattice, parsed.atoms, parsed.positions;
           parsed.magnetic_moments, kwargs...)

@@ -125,8 +125,8 @@ using PseudoPotentialData
 ElementPsp(:Si, PseudoFamily("pd_nc_sr_pbe_standard_0.4.1_upf"))
 ```
 """
-function ElementPsp(symbol::Symbol, psp::AbstractDict; mass=element(symbol).atomic_mass, kwargs...)
-    ElementPsp(symbol, load_psp(psp, symbol; kwargs...); mass)
+function ElementPsp(symbol::Symbol, family::AbstractDict; mass=element(symbol).atomic_mass, kwargs...)
+    ElementPsp(symbol, load_psp(family[symbol]; kwargs...); mass)
 end
 function ElementPsp(symbol::Symbol, psp; mass=element(symbol).atomic_mass)
     Z = periodic_table[symbol].number

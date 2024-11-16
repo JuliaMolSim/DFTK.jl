@@ -152,8 +152,8 @@ end
     end
 
     let
-        psp_Si = load_psp("hgh/pbe/si-q4.hgh"),
-        psp_H  = load_psp("hgh/lda/h-q1.hgh"),
+        psp_Si = load_psp("hgh/pbe/si-q4.hgh")
+        psp_H  = load_psp("hgh/lda/h-q1.hgh")
         psp_C  = load_psp("hgh/pbe/c-q4.hgh")
         model = Model(system; pseudopotentials=[nothing, psp_Si, psp_H, psp_C])
 
@@ -190,8 +190,11 @@ end
     using AtomsBase
 
     lattice = [12u"bohr" * rand(3) for _ = 1:3]
-    atoms   = [Atom(6, randn(3)u"Å"; atomic_symbol=:C1, atomic_mass=-1u"u"),
-               Atom(6, randn(3)u"Å"; atomic_symbol=:C2, atomic_mass=-2u"u")]
+    # Later with AtomsBase 0.5
+    # atoms   = [Atom(6, randn(3)u"Å"; species=ChemicalSpecies(:C12), mass=-1u"u"),
+    #            Atom(6, randn(3)u"Å"; species=ChemicalSpecies(:C),   mass=-2u"u")]
+    atoms   = [Atom(6, randn(3)u"Å"; atomic_symbol=:C, atomic_mass=-1u"u"),
+               Atom(6, randn(3)u"Å"; atomic_symbol=:C, atomic_mass=-2u"u")]
     system  = periodic_system(atoms, lattice)
 
     pseudopotentials = Dict(:C => "hgh/lda/c-q4.hgh")

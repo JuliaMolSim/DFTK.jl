@@ -37,7 +37,8 @@ end
 
 function guess_density(basis::PlaneWaveBasis, system::AbstractSystem,
                        n_electrons=basis.model.n_electrons)
-    parsed_system = parse_system(system)
+    pseudopotentials = fill(nothing, length(system))
+    parsed_system = parse_system(system, pseudopotentials)
     length(parsed_system.positions) == length(basis.model.positions) || error(
         "System and model contain different numbers of positions"
     )
