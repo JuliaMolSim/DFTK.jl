@@ -6,12 +6,12 @@
 
     pseudos = Dict(
         # With NLCC
-        :Si => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Si.upf"),
-        :Fe => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Fe.upf"),
-        :Ir => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Ir.upf"),
+        :Si => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf"),
+        :Fe => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf/Fe.upf"),
+        :Ir => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf/Ir.upf"),
         # Without NLCC
-        :Li => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Li.upf"),
-        :Mg => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Mg.upf")
+        :Li => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf/Li.upf"),
+        :Mg => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf/Mg.upf")
     )
 
     lattice = 5 * I(3)

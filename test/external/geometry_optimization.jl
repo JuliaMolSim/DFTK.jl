@@ -1,8 +1,9 @@
 @testitem "Test Geometry optimization" tags=[:atomsbase] begin
-    using DFTK
     using AtomsBase
-    using PseudoPotentialData
+    using DFTK
     using GeometryOptimization
+    using LinearAlgebra
+    using PseudoPotentialData
     using Unitful
     using UnitfulAtomic
     GO = GeometryOptimization
