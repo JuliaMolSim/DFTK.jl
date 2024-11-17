@@ -34,15 +34,18 @@ using AtomsIO        # Use Julia-only IO parsers
 using AtomsIOPython  # Use python-based IO parsers (e.g. ASE)
 system = load_system("Fe_afm.pwi")
 
-# Next we attach pseudopotential information, since currently the parser is not
-# yet capable to read this information from the file.
+# Next we build a model making use of the [AtomsBase integration](@ref)
+# of DFTK and supplying a pseudpotential family
+# from the [PseudoPotentialData](https://github.com/JuliaMolSim/PseudoPotentialData.jl)
 
-using DFTK
-system = attach_psp(system, Fe="hgh/pbe/fe-q16.hgh")
+using PseudoPotentialData
+model = model_DFT(system;
+                  functionals=LDA(),
+                  temperature=0.01,
+                  pseudopotentials=PseudoFamily("pd_nc_sr_lda_standard_0.4.1_upf"))
 
-# Finally we make use of DFTK's [AtomsBase integration](@ref) to run the calculation.
+# Finally we run the calculation:
 
-model = model_DFT(system; functionals=LDA(), temperature=0.01)
 basis = PlaneWaveBasis(model; Ecut=10, kgrid=(2, 2, 2))
 ρ0 = guess_density(basis, system)
 scfres = self_consistent_field(basis, ρ=ρ0);

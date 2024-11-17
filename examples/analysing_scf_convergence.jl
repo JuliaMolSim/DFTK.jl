@@ -25,16 +25,15 @@
 
 using AtomsBuilder
 using DFTK
-using LazyArtifacts
-import Main: @artifact_str # hide
 
-al_supercell = bulk(:Al; cubic=true) * (4, 1, 1)
-system_Al = attach_psp(al_supercell;
-                       Al=artifact"pd_nc_sr_pbe_standard_0.4.1_upf/Al.upf")
+system_Al = bulk(:Al; cubic=true) * (4, 1, 1)
 
 # and we discretise:
 
-model_Al = model_DFT(system_Al; functionals=LDA(), temperature=1e-3, symmetries=false)
+using PseudoPotentialData
+
+model_Al = model_DFT(system_Al; functionals=LDA(), temperature=1e-3, symmetries=false,
+                     pseudopotentials=PseudoFamily("pd_nc_sr_lda_standard_0.4.1_upf"))
 basis_Al = PlaneWaveBasis(model_Al; Ecut=7, kgrid=[1, 1, 1]);
 
 # On aluminium (a metal) already for moderate system sizes (like the 8 layers

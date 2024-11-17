@@ -7,7 +7,7 @@
 # ```
 # where $V$ is the potential depending on the density $\rho$ and $D(V)$ is the potential-to-density
 # map, that is the construction of the DFT Hamiltonian $H(ρ) = -\frac12 Δ + V(ρ)$,
-# followed its diagonalisation to obtain its eigenpairs $(\varepsilon_{k i}, \psi_{ki})$
+# followed its diagonalization to obtain its eigenpairs $(\varepsilon_{k i}, \psi_{ki})$
 # and from these a new density
 # ```math
 # \rho(r) = \sum_i f\left(\varepsilon_{i}\right) \, \psi_{ki}(r) \, \psi_{ki}^\ast(r)
@@ -157,14 +157,12 @@ end;
 # a PBE model for an aluminium supercell.
 
 using AtomsBuilder
-using LazyArtifacts
-import Main: @artifact_str # hide
 
 function aluminium_setup(repeat=1; Ecut=13.0, kgrid=[2, 2, 2])
     al_supercell = bulk(:Al; cubic=true) * (repeat, 1, 1)
-    system = attach_psp(al_supercell;
-                        Al=artifact"pd_nc_sr_pbe_standard_0.4.1_upf/Al.upf")
-    model = model_DFT(system; functionals=PBE(), temperature=1e-3, symmetries=false)
+    model = model_DFT(al_supercell;
+                      functionals=PBE(), temperature=1e-3, symmetries=false,
+                      pseudopotentials=PseudoFamily("pd_nc_sr_pbe_standard_0.4.1_upf"))
     PlaneWaveBasis(model; Ecut, kgrid)
 end;
 

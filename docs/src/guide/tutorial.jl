@@ -29,6 +29,7 @@ using DFTK
 using Plots
 using Unitful
 using UnitfulAtomic
+using PseudoPotentialData
 
 ## 1. Define lattice and atomic positions
 a = 5.431u"angstrom"          # Silicon lattice constant
@@ -44,8 +45,12 @@ lattice = a / 2 * [[0 1 1.];  # Silicon lattice vectors
 # documentation](https://painterqubits.github.io/Unitful.jl/stable/) and the
 # [UnitfulAtomic.jl package](https://github.com/sostock/UnitfulAtomic.jl).
 
-## Load HGH pseudopotential for Silicon
-Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
+# We use a pseudodojo pseudopotential
+# (see [PseudoPotentialData](https://github.com/JuliaMolSim/PseudoPotentialData.jl)
+#  for more details on `PseudoFamily`):
+
+pseudodojo = PseudoFamily("pd_nc_sr_lda_standard_0.4.1_upf")
+Si = ElementPsp(:Si, pseudodojo)
 
 ## Specify type and positions of atoms
 atoms     = [Si, Si]

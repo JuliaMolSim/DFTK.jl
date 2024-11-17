@@ -3,8 +3,8 @@
 ```@setup data_structures
 using DFTK
 using AtomsBuilder
-system = attach_psp(bulk(:Si); Si="hgh/lda/si-q4")
-model  = model_DFT(system; functionals=LDA())
+model  = model_DFT(system; functionals=LDA(),
+                           pseudopotentials=Dict(:Si => "hgh/lda/si-q4"))
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 scfres = self_consistent_field(basis; tol=1e-4);
 ```

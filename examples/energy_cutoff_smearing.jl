@@ -31,8 +31,8 @@ a0 = 10.26  # Experimental lattice constant of silicon in bohr
 a_list = range(a0 - 1/2, a0 + 1/2; length=20)
 
 function compute_ground_state_energy(a; Ecut, kgrid, kinetic_blowup, kwargs...)
-    system = attach_psp(bulk(:Si); Si="hgh/pbe/Si-q4")
-    model  = model_DFT(system; functionals=PBE(), kinetic_blowup)
+    pseudopotentials = Dict(:Si => "hgh/pbe/Si-q4")
+    model  = model_DFT(bulk(:Si); functionals=PBE(), kinetic_blowup, peudopotentials)
     basis  = PlaneWaveBasis(model; Ecut, kgrid)
     self_consistent_field(basis; callback=identity, kwargs...).energies.total
 end
