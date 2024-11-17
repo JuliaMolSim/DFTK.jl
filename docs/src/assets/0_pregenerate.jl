@@ -25,7 +25,7 @@ let
         println("----------------------------------------------------")
         a = 5.0
         lattice   = a * Matrix(I, 3, 3)
-        atoms     = [ElementPsp(:Si; psp)]
+        atoms     = [ElementPsp(:Si, psp)]
         positions = [zeros(3)]
 
         model = model_DFT(lattice, atoms, positions; functionals=LDA(), temperature=1e-2)
