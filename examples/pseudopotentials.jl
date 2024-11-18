@@ -37,6 +37,7 @@ using AtomsBuilder
 using DFTK
 using Unitful
 using UnitfulAtomic
+using PseudoPotentialData
 using Plots
 
 # Here, we will use a Perdew-Wang LDA PSP

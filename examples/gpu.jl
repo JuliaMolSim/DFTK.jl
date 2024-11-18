@@ -4,7 +4,7 @@ using CUDA
 
 model  = model_DFT(bulk(:Si);
                    functionals=PBE(),
-                   pseudopotential=Dict(:Si => "hgh/pbe/Si-q4"))
+                   pseudopotentials=Dict(:Si => "hgh/pbe/Si-q4"))
 
 # If available, use CUDA to store DFT quantities and perform main computations
 architecture = has_cuda() ? DFTK.GPU(CuArray) : DFTK.CPU()
