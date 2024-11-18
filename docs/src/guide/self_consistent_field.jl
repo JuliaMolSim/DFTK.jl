@@ -157,6 +157,7 @@ end;
 # a PBE model for an aluminium supercell.
 
 using AtomsBuilder
+using PseudoPotentialData
 
 function aluminium_setup(repeat=1; Ecut=13.0, kgrid=[2, 2, 2])
     al_supercell = bulk(:Al; cubic=true) * (repeat, 1, 1)
