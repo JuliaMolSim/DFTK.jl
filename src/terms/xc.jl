@@ -40,8 +40,12 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     end
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
-        newparams = convert_dual.(T, parameters(fun))
-        change_parameters(fun, newparams; keep_identifier=true)
+        params = parameters(fun)
+        if !isempty(params)
+            newparams = convert_dual.(T, params)
+            fun = change_parameters(fun, newparams; keep_identifier=true)
+        end
+        fun
     end
     TermXc(convert(Vector{Functional}, functionals),
            convert_dual(T, xc.scaling_factor),
