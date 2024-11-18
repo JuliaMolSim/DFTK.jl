@@ -43,14 +43,6 @@ end
            load_psp(joinpath(dir, filename); kwargs...))
 
 """
-Load the pseudopotential from the pseudopotential family `pseudofamily`
-corresponding to the passed atomic symbol.
-"""
-function load_psp(pseudofamily::AbstractDict, element::Symbol; kwargs...)
-    load_psp(pseudofamily[element]; kwargs...)
-end
-
-"""
 Load all pseudopotentials from the pseudopotential family `pseudofamily`
 corresponding to the atoms of a `system`. Returns the list of
 the pseudopotential objects in the same order as the atoms in `system`.

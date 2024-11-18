@@ -128,7 +128,8 @@ apart (in inverse Bohrs). A reasonable spacing is `0.13` inverse Bohrs
 to specify an explicit shift for all ``k``-points.
 """
 function kgrid_from_maximal_spacing(system::AbstractSystem, spacing; kshift=[0, 0, 0])
-    kgrid_from_maximal_spacing(parse_system(system).lattice, spacing; kshift)
+    pseudopotentials = fill(nothing, length(system))
+    kgrid_from_maximal_spacing(parse_system(system, pseudopotentials).lattice, spacing; kshift)
 end
 function kgrid_from_maximal_spacing(lattice::AbstractMatrix, spacing; kshift=[0, 0, 0])
     lattice       = austrip.(lattice)
@@ -151,7 +152,8 @@ Selects a [`MonkhorstPack`](@ref) grid size which ensures that at least a
 achieve an identical minimal spacing in all directions.
 """
 function kgrid_from_minimal_n_kpoints(system::AbstractSystem, n_kpoints::Integer; kshift=[0, 0, 0])
-    kgrid_from_minimal_n_kpoints(parse_system(system).lattice, n_kpoints; kshift)
+    pseudopotentials = fill(nothing, length(system))
+    kgrid_from_minimal_n_kpoints(parse_system(system, pseudopotentials).lattice, n_kpoints; kshift)
 end
 function kgrid_from_minimal_n_kpoints(lattice, n_kpoints::Integer; kshift=[0, 0, 0])
     lattice = austrip.(lattice)
