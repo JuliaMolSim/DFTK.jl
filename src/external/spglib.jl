@@ -29,7 +29,7 @@ function spglib_cell(lattice, atom_groups, positions, magnetic_moments)
     Spglib.SpglibCell(lattice, spg_positions, spg_atoms, spg_magmoms)
 end
 function spglib_cell(system::AbstractSystem)
-    atom_groups = [findall(Ref(spec) .== spec) for spec in Set(species(system))]
+    atom_groups = [findall(Ref(spec) .== spec) for spec in Set(atomic_symbol(system))]
     spglib_cell(parsed.lattice, atom_groups, parsed.positions, parsed.magnetic_moments)
 end
 function spglib_cell(model::Model, magnetic_moments)
