@@ -32,7 +32,7 @@ function spglib_cell(system::AbstractSystem)
     # Using no pseudopotentials is ok, only magnetic moments are read from the system here.
     pseudopotentials = fill(nothing, length(system))
     parsed = parse_system(system, pseudopotentials)
-    atom_groups = [findall(Ref(spec) .== spec) for spec in Set(atomic_symbol(system))]
+    atom_groups = [findall(Ref(atnum) .== atnum) for atnum in Set(atomic_number(system))]
     spglib_cell(parsed.lattice, atom_groups, parsed.positions, parsed.magnetic_moments)
 end
 function spglib_cell(model::Model, magnetic_moments)

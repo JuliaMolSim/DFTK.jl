@@ -38,6 +38,7 @@ system = load_system("Fe_afm.pwi")
 # of DFTK and supplying a pseudpotential family
 # from the [PseudoPotentialData](https://github.com/JuliaMolSim/PseudoPotentialData.jl)
 
+using DFTK
 using PseudoPotentialData
 model = model_DFT(system;
                   functionals=LDA(),
