@@ -34,7 +34,7 @@ function spglib_cell(system::AbstractSystem, pseudopotentials::AbstractVector)
     spglib_cell(parsed.lattice, atom_groups, parsed.positions, parsed.magnetic_moments)
 end
 function spglib_cell(model::Model, magnetic_moments)
-    spglib_cell(model.lattice, model.atom_groups, model.positions, magnetic_moments))
+    spglib_cell(model.lattice, model.atom_groups, model.positions, magnetic_moments)
 end
 
 """
