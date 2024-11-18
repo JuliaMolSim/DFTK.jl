@@ -54,51 +54,62 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T}; ΩpK_tol,
     # This recomputes ρr internally, but it's only a minor inefficiency.
     res = compute_projected_gradient(basis_ref, ψr, occ)
 
-    # Compute M^{-1} R(P), with M^{-1} defined in [CDKL2021]
-    P = [PreconditionerTPA(basis_ref, kpt) for kpt in basis_ref.kpoints]
-    map(zip(P, ψr)) do (Pk, ψk)
-        precondprep!(Pk, ψk)
-    end
-
-    function apply_M(φk, Pk, δφnk, n)
-        proj_tangent_kpt!(δφnk, φk)
-        δφnk = sqrt.(Pk.mean_kin[n] .+ Pk.kin) .* δφnk
-        proj_tangent_kpt!(δφnk, φk)
-        δφnk = sqrt.(Pk.mean_kin[n] .+ Pk.kin) .* δφnk
-        proj_tangent_kpt!(δφnk, φk)
-    end
-
-    function apply_inv_M(φk, Pk, δφnk, n)
-        proj_tangent_kpt!(δφnk, φk)
-        op(x) = apply_M(φk, Pk, x, n)
-        function f_ldiv!(x, y)
-            x .= proj_tangent_kpt(y, φk)
-            x ./= (Pk.mean_kin[n] .+ Pk.kin)
-            proj_tangent_kpt!(x, φk)
-        end
-        J = LinearMap{eltype(φk)}(op, size(δφnk, 1))
-        δφnk = IterativeSolvers.cg(J, δφnk, Pl=FunctionPreconditioner(f_ldiv!),
-                  verbose=false, reltol=0, abstol=1e-15)
-        proj_tangent_kpt!(δφnk, φk)
-    end
-
-    function apply_metric(φ, P, δφ, A::Function)
-        map(enumerate(δφ)) do (ik, δφk)
-            Aδφk = similar(δφk)
-            φk = φ[ik]
-            for n = 1:size(δφk,2)
-                Aδφk[:,n] = A(φk, P[ik], δφk[:,n], n)
-            end
-            Aδφk
-        end
-    end
-
     # Compute the projection of the residual onto the high and low frequencies
     resLF = transfer_blochwave(res, basis_ref, basis)
     resHF = res - transfer_blochwave(resLF, basis, basis_ref)
 
-    # - Compute M^{-1}_22 R_2(P)
-    e2 = apply_metric(ψr, P, resHF, apply_inv_M)
+    """
+    Apply M^{-1}.
+
+    M applied to the i-th band is defined by
+      M_i = P^⟂ T_i^{1/2} P^⟂ T_i^{1/2} P^⟂,
+    with the diagonal operator
+      T_i = kinetic energy + mean kinetic energy of i-th band.
+
+    To invert M_i, use P^⟂ T_i^{-1} P^⟂ as the preconditioner.
+
+    See [CDKL2021] for more details.
+    """
+    function apply_inv_M(ψ, res)
+        """Apply the M_i operator with i=n."""
+        function apply_M(ψk, Pk, δψnk, n)
+            proj_tangent_kpt!(δψnk, ψk)
+            δψnk = sqrt.(Pk.mean_kin[n] .+ Pk.kin) .* δψnk
+            proj_tangent_kpt!(δψnk, ψk)
+            δψnk = sqrt.(Pk.mean_kin[n] .+ Pk.kin) .* δψnk
+            proj_tangent_kpt!(δψnk, ψk)
+        end
+
+        """Apply the M_i^{-1} operator with i=n."""
+        function apply_inv_M(ψk, Pk, resk, n)
+            proj_tangent_kpt!(resk, ψk)
+            op(x) = apply_M(ψk, Pk, x, n)
+            function f_ldiv!(x, y)
+                x .= proj_tangent_kpt(y, ψk)
+                x ./= (Pk.mean_kin[n] .+ Pk.kin)
+                proj_tangent_kpt!(x, ψk)
+            end
+            J = LinearMap{eltype(ψk)}(op, size(resk, 1))
+            δψk = IterativeSolvers.cg(J, resk, Pl=FunctionPreconditioner(f_ldiv!),
+                      verbose=false, reltol=0, abstol=1e-15)
+            proj_tangent_kpt!(δψk, ψk)
+        end
+
+        map(enumerate(res)) do (ik, resk)
+            P = PreconditionerTPA(basis_ref, basis_ref.kpoints[ik])
+            ψk = ψ[ik]
+            precondprep!(P, ψk)
+            δψk = similar(resk)
+            for n = 1:size(resk, 2)
+                # Apply M_i^{-1} to each band.
+                δψk[:, n] = apply_inv_M(ψk, P, resk[:, n], n)
+            end
+            δψk
+        end
+    end
+
+    # Compute M^{-1}_22 R_2(P) as an approximation of (Ω+K)^{-1}_22 R_2(P).
+    e2 = apply_inv_M(ψr, resHF)
 
     # Apply Ω+K to M^{-1}_22 R_2(P)
     Λ = map(enumerate(ψr)) do (ik, ψk)
