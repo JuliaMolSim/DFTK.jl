@@ -32,24 +32,6 @@
 #     calculations* Preprint, 2021. [arXiv](https://arxiv.org/abs/2111.01470)
 
 """
-Result of calling the [`refine_scfres`](@ref) function.
-- `basis`: Refinement basis, larger than the basis used to
-           run a first [`self_consistent_field`](@ref) computation.
-- `ψ`, `ρ`, `occupation`: Quantities from the scfres, transferred to the refinement basis
-                          and with virtual orbitals removed.
-- `δψ`, `δρ`: First order corrections to the wavefunctions and density.
-              The sign is such that the refined quantities are ψ - δψ and ρ - δρ.
-"""
-struct RefinementResult
-    basis::PlaneWaveBasis
-    ψ
-    ρ
-    occupation
-    δψ
-    δρ
-end
-
-"""
 Invert the metric operator M.
 """
 function invert_refinement_metric(basis::PlaneWaveBasis{T}, ψ, res) where {T}
@@ -96,6 +78,24 @@ function invert_refinement_metric(basis::PlaneWaveBasis{T}, ψ, res) where {T}
         end
         δψk
     end
+end
+
+"""
+Result of calling the [`refine_scfres`](@ref) function.
+- `basis`: Refinement basis, larger than the basis used to
+           run a first [`self_consistent_field`](@ref) computation.
+- `ψ`, `ρ`, `occupation`: Quantities from the scfres, transferred to the refinement basis
+                          and with virtual orbitals removed.
+- `δψ`, `δρ`: First order corrections to the wavefunctions and density.
+              The sign is such that the refined quantities are ψ - δψ and ρ - δρ.
+"""
+struct RefinementResult
+    basis::PlaneWaveBasis
+    ψ
+    ρ
+    occupation
+    δψ
+    δρ
 end
 
 """
