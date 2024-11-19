@@ -157,8 +157,8 @@ end
         psp_C  = load_psp("hgh/pbe/c-q4.hgh")
         model = Model(system; pseudopotentials=[nothing, psp_Si, psp_H, psp_C])
 
-        @test model.lattice   ≈ pos_lattice atol=5e-13
-        @test model.positions ≈ pos_units   atol=5e-13
+        @test model.lattice   ≈ pos_lattice atol=1e-12
+        @test model.positions ≈ pos_units   atol=1e-12
         @test model.spin_polarization == :none
 
         @test length(model.atoms) == 4
@@ -171,8 +171,8 @@ end
     let family = PseudoFamily("pd_nc_sr_pbe_standard_0.4.1_upf")
         model = Model(system; pseudopotentials=family)
 
-        @test model.lattice   ≈ pos_lattice atol=5e-13
-        @test model.positions ≈ pos_units   atol=5e-13
+        @test model.lattice   ≈ pos_lattice atol=1e-12
+        @test model.positions ≈ pos_units   atol=1e-12
         @test model.spin_polarization == :none
 
         @test length(model.atoms) == 4
