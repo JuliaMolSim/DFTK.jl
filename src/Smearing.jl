@@ -67,9 +67,13 @@ struct None <: SmearingFunction end
 occupation(S::None, x) = x > 0 ? zero(x) : one(x)
 entropy(S::None, x) = zero(x)
 
-"""Fermi dirac smearing"""
+"""Fermi-Dirac smearing"""
 struct FermiDirac <: SmearingFunction end
-occupation(S::FermiDirac, x) = 1 / (1 + exp(x))
+function occupation(S::FermiDirac, x::T) where T
+    max_exp_arg = -log(eps(T)) + 5  # add some wiggle room
+    (x > max_exp_arg) && return zero(x)
+    1 / (1 + exp(x))
+end
 function xlogx(x)
     iszero(x) ? zero(x) : x * log(x)
 end
