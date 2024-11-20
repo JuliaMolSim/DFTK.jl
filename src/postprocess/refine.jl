@@ -36,7 +36,7 @@ Invert the metric operator M.
 """
 function invert_refinement_metric(basis::PlaneWaveBasis{T}, ψ, res) where {T}
     # Apply the M_i operator with i=n.
-    function apply_M(ψk, Pk, δψnk, n)
+    function apply_M!(ψk, Pk, δψnk, n)
         proj_tangent_kpt!(δψnk, ψk)
         δψnk = sqrt.(Pk.mean_kin[n] .+ Pk.kin) .* δψnk
         proj_tangent_kpt!(δψnk, ψk)
@@ -46,8 +46,8 @@ function invert_refinement_metric(basis::PlaneWaveBasis{T}, ψ, res) where {T}
 
     # Apply the M_i^{-1} operator with i=n.
     function apply_inv_M(ψk, Pk, resk, n)
-        proj_tangent_kpt!(resk, ψk)
-        op(x) = apply_M(ψk, Pk, x, n)
+        resk = proj_tangent_kpt(resk, ψk)
+        op(x) = apply_M!(ψk, Pk, x, n)
         function f_ldiv!(x, y)
             x .= proj_tangent_kpt(y, ψk)
             x ./= (Pk.mean_kin[n] .+ Pk.kin)
@@ -74,7 +74,7 @@ function invert_refinement_metric(basis::PlaneWaveBasis{T}, ψ, res) where {T}
         δψk = similar(resk)
         for n = 1:size(resk, 2)
             # Apply M_i^{-1} to each band.
-            δψk[:, n] = apply_inv_M(ψk, P, resk[:, n], n)
+            δψk[:, n] = @views apply_inv_M(ψk, P, resk[:, n], n)
         end
         δψk
     end
