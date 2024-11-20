@@ -50,8 +50,8 @@
         # Identifier is filename, but on windows we replace backslash path
         # delimiter by forward slash to homogenise the identifier
         @test length(model.atoms) == 4
-        @test model.atoms[1].psp.identifier == replace(family[:C],  "\\" => "/")
-        @test model.atoms[2].psp.identifier == replace(family[:Si], "\\" => "/")
+        @test model.atoms[1].psp.identifier == replace(family[:Si], "\\" => "/")
+        @test model.atoms[2].psp.identifier == replace(family[:C],  "\\" => "/")
         @test model.atoms[3].psp.identifier == replace(family[:H],  "\\" => "/")
         @test model.atoms[4].psp.identifier == replace(family[:C],  "\\" => "/")
     end
