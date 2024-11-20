@@ -81,12 +81,14 @@ end
 
 """
 Result of calling the [`refine_scfres`](@ref) function.
+
 - `basis`: Refinement basis, larger than the basis used to
            run a first [`self_consistent_field`](@ref) computation.
 - `ψ`, `ρ`, `occupation`: Quantities from the scfres, transferred to the refinement basis
                           and with virtual orbitals removed.
 - `δψ`, `δρ`: First order corrections to the wavefunctions and density.
               The refined quantities are ψ + δψ and ρ + δρ.
+- `ΩpK_res`: Additional information returned by the inversion of (Ω+K)_11.
 """
 struct RefinementResult
     basis::PlaneWaveBasis
@@ -95,6 +97,41 @@ struct RefinementResult
     occupation
     δψ
     δρ
+    ΩpK_res
+end
+
+"""
+Default callback function for `refine_scfres`,
+which prints a convergence table.
+"""
+struct RefinementDefaultCallback
+    prev_time::Ref{UInt64}
+end
+function RefinementDefaultCallback()
+    RefinementDefaultCallback(Ref(zero(UInt64)))
+end
+function (cb::RefinementDefaultCallback)(info)
+    if info.stage == :finalize
+        info.converged || @warn "Refinement not converged."
+        return info
+    end
+
+    if info.n_iter == 0
+        cb.prev_time[] = time_ns()
+        @printf "n     log10(Residual norm)   Δtime \n"
+        @printf "---   --------------------   ------\n"
+        return info
+    end
+
+    current_time = time_ns()
+    runtime_ns = current_time - cb.prev_time[]
+    cb.prev_time[] = current_time
+
+    resnorm = @sprintf "%20.2f" log10(info.residual_norm)
+    time = @sprintf "% 6s" TimerOutputs.prettytime(runtime_ns)
+    @printf "% 3d   %s   %s\n" info.n_iter resnorm time
+    flush(stdout)
+    info
 end
 
 """
@@ -106,8 +143,10 @@ Only full occupations are currently supported.
 Returns a [`RefinementResult`](@ref) instance that can be used to refine quantities of interest,
 through [`refine_forces`](@ref).
 """
-function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T}; ΩpK_tol,
-                       occ_threshold=default_occupation_threshold(T), kwargs...) where {T}
+function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T};
+                       callback=RefinementDefaultCallback(),
+                       tol=1e-6,
+                       occ_threshold=default_occupation_threshold(T)) where {T}
     basis = scfres.basis
 
     @assert basis.model.lattice == basis_ref.model.lattice
@@ -145,9 +184,9 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T}; ΩpK_tol,
     rhs = resLF - ΩpKe2
 
     # Invert Ω+K on the small space
-    e1 = solve_ΩplusK(basis, ψ, rhs, occ; tol=ΩpK_tol).δψ
+    ΩpK_res = solve_ΩplusK(basis, ψ, rhs, occ; callback, tol)
 
-    e1 = transfer_blochwave(e1, basis, basis_ref)
+    e1 = transfer_blochwave(ΩpK_res.δψ, basis, basis_ref)
     schur_residual = e1 + e2
     # Flip the sign to make corrections more intuitive (X + dX is the improved version)
     schur_residual .*= -1
@@ -155,7 +194,8 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T}; ΩpK_tol,
     # Use the Schur residual to compute the first-order correction to the density.
     δρ = compute_δρ(basis_ref, ψr, schur_residual, occ)
 
-    RefinementResult(basis_ref, ψr, ρr, occ, schur_residual, δρ)
+    ΩpK_res = Base.structdiff(ΩpK_res, NamedTuple{(:δψ,)}) # remove δψ from res tuple
+    RefinementResult(basis_ref, ψr, ρr, occ, schur_residual, δρ, ΩpK_res)
 end
 
 """

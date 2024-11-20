@@ -63,7 +63,7 @@ scfres = self_consistent_field(basis; tol, callback=identity);
 # Note that `refinement.ψ` and `refinement.ρ` are the quantities computed with `Ecut`
 # and then extended to the reference grid.
 # This step is roughly as expensive as the `self_consistent_field` call above.
-refinement = refine_scfres(scfres, basis_ref; ΩpK_tol=tol);
+refinement = refine_scfres(scfres, basis_ref; tol, callback=identity);
 
 # ## Error estimates
 # - Computation of the force from the variational solution without any post-processing:
