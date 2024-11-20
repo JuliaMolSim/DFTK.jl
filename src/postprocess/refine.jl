@@ -1,5 +1,5 @@
 # Refinement of some quantities of interest (density, forces) following the
-# strategy described in [CDKL2021].
+# strategy described in [CDKL2022].
 #
 # The overall strategy is to perform a first SCF,
 # transfer the result to a new basis set with a larger Ecut,
@@ -13,6 +13,7 @@
 # The basis elements of the smaller basis set are called low frequency (_1 suffix).
 # The additional basis elements are all high frequency (_2 suffix).
 # We approximate (Ω+K)_22 by M_22 which is cheap to compute and invert, and (Ω+K)_21 by 0.
+# The motivation is that the dominant term in Ω+K for high frequencies is the kinetic energy.
 #
 # The metric operator M is as follows:
 # M applied to the n-th band is defined by
@@ -26,10 +27,10 @@
 #   δP_1 = (Ω+K)^{-1}_11 (R_1(P) - (Ω+K)_12 δP_2)
 # The inversion of (Ω+K)_11 is roughly as expensive as the SCF on the low frequency space.
 #
-# [CDKL2021]:
+# [CDKL2022]:
 #     E. Cancès, G. Dusson, G. Kemlin, and A. Levitt
-#     *Practical error bounds for properties in plane-wave electronic structure
-#     calculations* Preprint, 2021. [arXiv](https://arxiv.org/abs/2111.01470)
+#     *Practical error bounds for properties in plane-wave electronic structure calculations*
+#     [SIAM Journal on Scientific Computing 44 (5), B1312-B1340](https://doi.org/10.1137/21M1456224)
 
 """
 Invert the metric operator M.
