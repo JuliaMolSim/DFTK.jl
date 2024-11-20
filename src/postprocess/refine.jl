@@ -67,9 +67,8 @@ function invert_refinement_metric(basis::PlaneWaveBasis{T}, ψ, res) where {T}
         proj_tangent_kpt!(δψk, ψk)
     end
 
-    map(enumerate(res)) do (ik, resk)
-        P = PreconditionerTPA(basis, basis.kpoints[ik])
-        ψk = ψ[ik]
+    map(basis.kpoints, ψ, res) do kpt, ψk, resk
+        P = PreconditionerTPA(basis, kpt)
         precondprep!(P, ψk)
         δψk = similar(resk)
         for n = 1:size(resk, 2)
@@ -136,8 +135,7 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T}; ΩpK_tol,
     e2 = invert_refinement_metric(basis_ref, ψr, resHF)
 
     # Apply Ω+K to M^{-1}_22 R_2(P)
-    Λ = map(enumerate(ψr)) do (ik, ψk)
-        Hk = hamr.blocks[ik]
+    Λ = map(hamr.blocks, ψr) do Hk, ψk
         Hψk = Hk * ψk
         ψk'Hψk
     end # Rayleigh coefficients
