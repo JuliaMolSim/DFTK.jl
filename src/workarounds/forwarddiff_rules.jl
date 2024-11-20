@@ -249,18 +249,6 @@ function LinearAlgebra.norm(x::SVector{S,<:Dual{Tg,T,N}}) where {S,Tg,T,N}
     Dual{Tg}(y, dy)
 end
 
-# problem: the derivative of 1/(1+exp(x)) = -exp(x) / (1+exp(x))^2.
-# When x is too large, exp(x) = Inf and this is a NaN.
-function Smearing.occupation(S::Smearing.FermiDirac, d::Dual{T}) where {T}
-    x = ForwardDiff.value(d)
-    if exp(x) > floatmax(typeof(x)) / 1e3
-        ∂occ = -zero(x)
-    else
-        ∂occ = -exp(x) / (1 + exp(x))^2
-    end
-    Dual{T}(Smearing.occupation(S, x), ∂occ * ForwardDiff.partials(d))
-end
-
 # Fix for https://github.com/JuliaDiff/ForwardDiff.jl/issues/514
 function Base.:^(x::Complex{Dual{T,V,N}}, y::Complex{Dual{T,V,N}}) where {T,V,N}
     xx = complex(ForwardDiff.value(real(x)), ForwardDiff.value(imag(x)))
