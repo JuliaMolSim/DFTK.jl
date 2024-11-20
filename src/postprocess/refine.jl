@@ -57,15 +57,14 @@ function invert_refinement_metric(basis::PlaneWaveBasis{T}, ψ, res) where {T}
         end
         J = LinearMap{eltype(ψk)}(op, size(resk, 1))
         # This CG seems to converge very quickly in practice (often 1 iteration).
-        (δψk, history) = IterativeSolvers.cg(J, resk;
-                                             Pl=FunctionPreconditioner(f_ldiv!),
-                                             reltol=0, abstol=100*eps(T), maxiter=20,
-                                             log=true)
-        if !history.isconverged
+        cginfo = cg(J, resk;
+                    precon=FunctionPreconditioner(f_ldiv!),
+                    tol=100*eps(T), maxiter=20)
+        if !cginfo.converged
             @warn """CG for `invert_refinement_metric` did not converge, this is unexpected.
-                    Residual norm after $(history.iters) iterations is $(history[:resnorm][end])."""
+                    Residual norm after $(cginfo.n_iter) iterations is $(cginfo.residual_norm)."""
         end
-        proj_tangent_kpt!(δψk, ψk)
+        proj_tangent_kpt!(cginfo.x, ψk)
     end
 
     map(basis.kpoints, ψ, res) do kpt, ψk, resk
