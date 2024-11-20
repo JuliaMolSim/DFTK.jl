@@ -104,7 +104,7 @@ and compute approximate first order corrections ("refinements") to the wavefunct
 Only full occupations are currently supported.
 
 Returns a [`RefinementResult`](@ref) instance that can be used to refine quantities of interest,
-through [`refine_density`](@ref) and [`refine_forces`](@ref).
+through [`refine_forces`](@ref).
 """
 function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T}; ΩpK_tol,
                        occ_threshold=default_occupation_threshold(T), kwargs...) where {T}
@@ -158,24 +158,18 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T}; ΩpK_tol,
 end
 
 """
-Retrieve the refined density from a [`RefinementResult`](@ref).
-"""
-function refine_density(refinement::RefinementResult)
-    refinement.ρ - refinement.δρ
-end
-
-"""
 Refine forces using a [`RefinementResult`](@ref).
 
-Either the unrefined forces must be provided, or an `scfres` to compute them.
+Returns a named tuple containing:
+  F: the unrefined forces
+  dF: the force refinement
+The refined forces can be obtained by F - dF.
 """
-function refine_forces(refinement::RefinementResult, forces::AbstractArray)
-    dF = ForwardDiff.derivative(ε -> compute_forces(refinement.basis,
-                                                    refinement.ψ .+ ε.*refinement.δψ,
-                                                    refinement.occupation;
-                                                    ρ=refinement.ρ + ε.*refinement.δρ), 0)
-    forces - dF
-end
-function refine_forces(refinement::RefinementResult, scfres::NamedTuple)
-    refine_forces(refinement, compute_forces(scfres)) # TODO use DiffResults?
+function refine_forces(refinement::RefinementResult)
+    f(ε) = compute_forces(refinement.basis,
+                          refinement.ψ .+ ε.*refinement.δψ,
+                          refinement.occupation;
+                          ρ=refinement.ρ + ε.*refinement.δρ)
+    # TODO: Use DiffResults once https://github.com/JuliaDiff/ForwardDiff.jl/issues/725 is fixed.
+    (; F=f(0), dF=ForwardDiff.derivative(f, 0))
 end

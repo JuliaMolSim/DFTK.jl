@@ -32,11 +32,7 @@ Ecut_ref = 35
 basis_ref = PlaneWaveBasis(model; Ecut=Ecut_ref, kgrid)
 
 refinement = refine_scfres(scfres, basis_ref; ΩpK_tol=tol)
-forces = compute_forces(scfres)
-forces_refined = refine_forces(refinement, forces)
-
-# Check that the two `refine_forces` methods match
-@test forces_refined ≈ refine_forces(refinement, scfres)
+(; F, dF) = refine_forces(refinement)
 
 # High Ecut computation
 scfres_ref = self_consistent_field(basis_ref; tol)
@@ -46,8 +42,8 @@ scfres_ref = self_consistent_field(basis_ref; tol)
 forces_ref = compute_forces(scfres_ref)
 
 # Low Ecut forces are imprecise:
-@test norm(forces - forces_ref) / norm(forces_ref) > 0.15
+@test norm(F - forces_ref) / norm(forces_ref) > 0.15
 # Refined forces are more precise:
-@test norm(forces_refined - forces_ref) / norm(forces_ref) < 0.1
+@test norm(F - dF - forces_ref) / norm(forces_ref) < 0.1
 
 end
