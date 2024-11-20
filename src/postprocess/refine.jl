@@ -114,7 +114,7 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T}; ΩpK_tol,
     @assert basis.model.lattice == basis_ref.model.lattice
     @assert length(basis.kpoints) == length(basis_ref.kpoints)
     @assert all(basis.kpoints[ik].coordinate == basis_ref.kpoints[ik].coordinate
-                for ik in 1:length(basis.kpoints))
+                for ik = 1:length(basis.kpoints))
 
     # Virtual orbitals must be removed
     ψ, occ = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation; threshold=occ_threshold)

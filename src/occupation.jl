@@ -181,7 +181,7 @@ Check that all orbitals are fully occupied.
 """
 function check_full_occupation(basis::PlaneWaveBasis, occupation)
     filled_occ = filled_occupation(basis.model)
-    for occ_k = occupation
+    for occ_k in occupation
         all(occ_k .== filled_occ) || error("Only full occupation is supported, but $occ_k has partial occupation.")
     end
 end
