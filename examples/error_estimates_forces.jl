@@ -1,16 +1,16 @@
 # # Practical error bounds for the forces
 #
-# DFTK includes an implementation of the strategy from [^CDKL2021] to compute
+# DFTK includes an implementation of the strategy from [^CDKL2022] to compute
 # practical error bounds for forces and other quantities of interest.
 #
 # This is an example showing how to compute error estimates for the forces
 # on a ``{\rm TiO}_2`` molecule, from which we can either compute asymptotically
 # valid error bounds or increase the precision on the computation of the forces.
 #
-# [^CDKL2021]:
+# [^CDKL2022]:
 #     E. Cancès, G. Dusson, G. Kemlin, and A. Levitt
-#     *Practical error bounds for properties in plane-wave electronic structure
-#     calculations* Preprint, 2021. [arXiv](https://arxiv.org/abs/2111.01470)
+#     *Practical error bounds for properties in plane-wave electronic structure calculations*
+#     [SIAM Journal on Scientific Computing 44 (5), B1312-B1340](https://doi.org/10.1137/21M1456224)
 using DFTK
 using Printf
 using LinearAlgebra
@@ -72,7 +72,8 @@ f = compute_forces(scfres)
 # - Computation of the forces by a linearization argument when replacing the
 #   error ``P-P_*`` by the modified residual ``R_{\rm Schur}(P)``. The latter
 #   quantity is computable in practice.
-forces_refined = refine_forces(refinement, f)
+force_refinement = refine_forces(refinement, f)
+forces_refined = f + force_refinement.dF
 
 # A practical estimate of the error on the forces is then the following:
 dF_estimate = forces_refined - f
