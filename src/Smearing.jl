@@ -70,8 +70,12 @@ entropy(S::None, x) = zero(x)
 """Fermi-Dirac smearing"""
 struct FermiDirac <: SmearingFunction end
 function occupation(S::FermiDirac, x::T) where T
-    max_exp_arg = -log(eps(T)) + 5  # add some wiggle room
-    (x > max_exp_arg) && return zero(x)
+    # Avoids overflow of exp for large positive x by using the identity
+    # 1 / (1 + exp(x)) = exp(-x) / (1 + exp(-x))
+    if x > 0
+        y = exp(-x)
+        return y / (1 + y)
+    end
     1 / (1 + exp(x))
 end
 function xlogx(x)
