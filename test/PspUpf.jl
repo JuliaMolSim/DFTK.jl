@@ -1,20 +1,24 @@
 @testmodule mPspUpf begin  # PspUpf already exported by DFTK
     using DFTK
+    using PseudoPotentialData
     using LazyArtifacts
 
+    pd_lda_family = PseudoFamily("pd_nc_sr_lda_standard_0.4.1_upf")
+    pd_pbe_family = PseudoFamily("pd_nc_sr_pbe_standard_0.4.1_upf")
     upf_pseudos = Dict(
         # Converged from HGH
+        # TODO These two files keep us from removing the Artifact.toml from DFTK right now
         :Si => load_psp(artifact"hgh_pbe_upf/Si.pbe-hgh.UPF"),
         :Tl => load_psp(artifact"hgh_pbe_upf/Tl.pbe-d-hgh.UPF"),
         # No NLCC
-        :Li => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf/Li.upf"),
-        :Mg => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf/Mg.upf"),
+        :Li => load_psp(pd_lda_family[:Li]),
+        :Mg => load_psp(pd_lda_family[:Mg]),
         # With NLCC
-        :Co => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf/Co.upf"; rcut=10.0),
-        :Ge => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf/Ge.upf"),
+        :Co => load_psp(pd_pbe_family[:Co]; rcut=10.0),
+        :Ge => load_psp(pd_pbe_family[:Ge]),
         # With cutoff
-        :Cu => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf/Cu.upf"; rcut=9.0),
-        :Cr => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf/Cr.upf"; rcut=12.0)
+        :Cu => load_psp(pd_pbe_family[:Cu]; rcut=9.0),
+        :Cr => load_psp(pd_pbe_family[:Cr]; rcut=12.0)
     )
     hgh_pseudos = [
         (; hgh=load_psp("hgh/pbe/si-q4.hgh"),  upf=upf_pseudos[:Si]),
