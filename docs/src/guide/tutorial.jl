@@ -49,8 +49,8 @@ lattice = a / 2 * [[0 1 1.];  # Silicon lattice vectors
 # (see [PseudoPotentialData](https://github.com/JuliaMolSim/PseudoPotentialData.jl)
 #  for more details on `PseudoFamily`):
 
-pseudodojo = PseudoFamily("pd_nc_sr_lda_standard_0.4.1_upf")
-Si = ElementPsp(:Si, pseudodojo)
+pd_lda_family = PseudoFamily("pd_nc_sr_lda_standard_0.4.1_upf")
+Si = ElementPsp(:Si, pd_lda_family)
 
 ## Specify type and positions of atoms
 atoms     = [Si, Si]
