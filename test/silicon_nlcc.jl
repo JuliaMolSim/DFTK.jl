@@ -21,7 +21,7 @@ function run_silicon_nlcc(T; Ecut=5, grid_size=15, spin_polarization=:none, kwar
 
     ref_etot = -8.50167205710043
 
-    Si = ElementPsp(silicon.atnum, silicon.psp_upf)
+    Si = ElementPsp(silicon.atnum, load_psp(silicon.psp_upf))
     atoms = [Si, Si]
 
     if spin_polarization == :collinear
