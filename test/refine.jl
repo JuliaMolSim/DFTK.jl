@@ -44,6 +44,6 @@ forces_ref = compute_forces(scfres_ref)
 # Low Ecut forces are imprecise:
 @test norm(F - forces_ref) / norm(forces_ref) > 0.15
 # Refined forces are more precise:
-@test norm(F - dF - forces_ref) / norm(forces_ref) < 0.1
+@test norm(F + dF - forces_ref) / norm(forces_ref) < 0.1
 
 end

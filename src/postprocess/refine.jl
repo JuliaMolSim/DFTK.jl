@@ -25,6 +25,7 @@
 # Solving the system then amounts to computing
 #   δP_2 = M^{-1}_22 R_2(P)
 #   δP_1 = (Ω+K)^{-1}_11 (R_1(P) - (Ω+K)_12 δP_2)
+#   and flipping the sign of δP in the end
 # The inversion of (Ω+K)_11 is roughly as expensive as the SCF on the low frequency space.
 #
 # [CDKL2022]:
@@ -86,7 +87,7 @@ Result of calling the [`refine_scfres`](@ref) function.
 - `ψ`, `ρ`, `occupation`: Quantities from the scfres, transferred to the refinement basis
                           and with virtual orbitals removed.
 - `δψ`, `δρ`: First order corrections to the wavefunctions and density.
-              The sign is such that the refined quantities are ψ - δψ and ρ - δρ.
+              The refined quantities are ψ + δψ and ρ + δρ.
 """
 struct RefinementResult
     basis::PlaneWaveBasis
@@ -149,9 +150,10 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T}; ΩpK_tol,
 
     e1 = transfer_blochwave(e1, basis, basis_ref)
     schur_residual = e1 + e2
+    # Flip the sign to make corrections more intuitive (X + dX is the improved version)
+    schur_residual .*= -1
 
-    # Use the Schur residual to compute (minus) the first-order correction to
-    # the density.
+    # Use the Schur residual to compute the first-order correction to the density.
     δρ = compute_δρ(basis_ref, ψr, schur_residual, occ)
 
     RefinementResult(basis_ref, ψr, ρr, occ, schur_residual, δρ)
