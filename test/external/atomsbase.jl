@@ -47,11 +47,13 @@
 
     family = PseudoFamily("pd_nc_sr_pbe_standard_0.4.1_upf")
     let model = model_atomic(system; pseudopotentials=family)
+        # Identifier is filename, but on windows we replace backslash path
+        # delimiter by forward slash to homogenise the identifier
         @test length(model.atoms) == 4
-        @test model.atoms[1].psp.identifier == family[:Si]
-        @test model.atoms[2].psp.identifier == family[:C]
-        @test model.atoms[3].psp.identifier == family[:H]
-        @test model.atoms[4].psp.identifier == family[:C]
+        @test model.atoms[1].psp.identifier == replace(family[:C],  "/" => "\\")
+        @test model.atoms[2].psp.identifier == replace(family[:Si], "/" => "\\")
+        @test model.atoms[3].psp.identifier == replace(family[:H],  "/" => "\\")
+        @test model.atoms[4].psp.identifier == replace(family[:C],  "/" => "\\")
     end
 
     for constructor in (Model, model_atomic)
@@ -175,11 +177,13 @@ end
         @test model.positions ≈ pos_units   atol=1e-12
         @test model.spin_polarization == :none
 
+        # Identifier is filename, but on windows we replace backslash path
+        # delimiter by forward slash to homogenise the identifier
         @test length(model.atoms) == 4
-        @test model.atoms[1].psp.identifier == family[:C]
-        @test model.atoms[2].psp.identifier == family[:Si]
-        @test model.atoms[3].psp.identifier == family[:H]
-        @test model.atoms[4].psp.identifier == family[:C]
+        @test model.atoms[1].psp.identifier == replace(family[:C],  "/" => "\\")
+        @test model.atoms[2].psp.identifier == replace(family[:Si], "/" => "\\")
+        @test model.atoms[3].psp.identifier == replace(family[:H],  "/" => "\\")
+        @test model.atoms[4].psp.identifier == replace(family[:C],  "/" => "\\")
     end
 end
 
