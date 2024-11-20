@@ -15,11 +15,11 @@
 # We approximate (Ω+K)_22 by M_22 which is cheap to compute and invert, and (Ω+K)_21 by 0.
 #
 # The metric operator M is as follows:
-# M applied to the i-th band is defined by
-#   M_i = P^⟂ T_i^{1/2} P^⟂ T_i^{1/2} P^⟂,
+# M applied to the n-th band is defined by
+#   M_n = P^⟂ T_n^{1/2} P^⟂ T_n^{1/2} P^⟂,
 # with the diagonal operator
-#   T_i = kinetic energy + mean kinetic energy of i-th band.
-# To invert M_i effectively, we use P^⟂ T_i^{-1} P^⟂ as the preconditioner.
+#   T_n = kinetic energy + mean kinetic energy of n-th band.
+# To invert M_n effectively, we use P^⟂ T_n^{-1} P^⟂ as the preconditioner.
 #
 # Solving the system then amounts to computing
 #   δP_2 = M^{-1}_22 R_2(P)
@@ -35,7 +35,7 @@
 Invert the metric operator M.
 """
 function invert_refinement_metric(basis::PlaneWaveBasis{T}, ψ, res) where {T}
-    # Apply the M_i operator with i=n.
+    # Apply the M_n operator.
     function apply_M!(ψk, Pk, δψnk, n)
         proj_tangent_kpt!(δψnk, ψk)
         δψnk = sqrt.(Pk.mean_kin[n] .+ Pk.kin) .* δψnk
@@ -44,7 +44,7 @@ function invert_refinement_metric(basis::PlaneWaveBasis{T}, ψ, res) where {T}
         proj_tangent_kpt!(δψnk, ψk)
     end
 
-    # Apply the M_i^{-1} operator with i=n.
+    # Apply the M_n^{-1} operator.
     function apply_inv_M(ψk, Pk, resk, n)
         resk = proj_tangent_kpt(resk, ψk)
         op(x) = apply_M!(ψk, Pk, x, n)
@@ -55,7 +55,6 @@ function invert_refinement_metric(basis::PlaneWaveBasis{T}, ψ, res) where {T}
         end
         J = LinearMap{eltype(ψk)}(op, size(resk, 1))
         # This CG seems to converge very quickly in practice (often 1 iteration).
-        # Set a very low tolerance and warn if the iteration count is too high.
         (δψk, history) = IterativeSolvers.cg(J, resk;
                                              Pl=FunctionPreconditioner(f_ldiv!),
                                              reltol=0, abstol=100*eps(T), maxiter=20,
@@ -72,7 +71,7 @@ function invert_refinement_metric(basis::PlaneWaveBasis{T}, ψ, res) where {T}
         precondprep!(P, ψk)
         δψk = similar(resk)
         for n = 1:size(resk, 2)
-            # Apply M_i^{-1} to each band.
+            # Apply M_n^{-1} to each band.
             δψk[:, n] = @views apply_inv_M(ψk, P, resk[:, n], n)
         end
         δψk
