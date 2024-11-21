@@ -23,9 +23,8 @@
 # To invert M_n effectively, we use P^⟂ T_n^{-1} P^⟂ as the preconditioner.
 #
 # Solving the system then amounts to computing
-#   δP_2 = M^{-1}_22 R_2(P)
-#   δP_1 = (Ω+K)^{-1}_11 (R_1(P) - (Ω+K)_12 δP_2)
-#   and flipping the sign of δP in the end
+#   δP_2 = -M^{-1}_22 R_2(P)
+#   δP_1 = (Ω+K)^{-1}_11 (-R_1(P) - (Ω+K)_12 δP_2)
 # The inversion of (Ω+K)_11 is roughly as expensive as the SCF on the low frequency space.
 #
 # [CDKL2022]:
@@ -162,18 +161,18 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T};
     ρr = transfer_density(scfres.ρ, basis, basis_ref)
     _, hamr = energy_hamiltonian(basis_ref, ψr, occ; ρ=ρr)
 
-    # Compute the residual R(P)
+    # Compute (minus) the residual -R(P)
     # This recomputes ρr internally, but it's only a minor inefficiency.
-    res = compute_projected_gradient(basis_ref, ψr, occ)
+    res = -compute_projected_gradient(basis_ref, ψr, occ)
 
     # Compute the projection of the residual onto the high and low frequencies
     resLF = transfer_blochwave(res, basis_ref, basis)
     resHF = res - transfer_blochwave(resLF, basis, basis_ref)
 
-    # Compute M^{-1}_22 R_2(P) as an approximation of (Ω+K)^{-1}_22 R_2(P).
+    # Compute -M^{-1}_22 R_2(P) as an approximation of -(Ω+K)^{-1}_22 R_2(P).
     e2 = invert_refinement_metric(basis_ref, ψr, resHF)
 
-    # Apply Ω+K to M^{-1}_22 R_2(P)
+    # Apply Ω+K to -M^{-1}_22 R_2(P)
     Λ = map(hamr.blocks, ψr) do Hk, ψk
         Hψk = Hk * ψk
         ψk'Hψk
@@ -188,8 +187,6 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T};
 
     e1 = transfer_blochwave(ΩpK_res.δψ, basis, basis_ref)
     schur_residual = e1 + e2
-    # Flip the sign to make corrections more intuitive (X + dX is the improved version)
-    schur_residual .*= -1
 
     # Use the Schur residual to compute the first-order correction to the density.
     δρ = compute_δρ(basis_ref, ψr, schur_residual, occ)
@@ -208,10 +205,7 @@ end
 """
 Refine forces using a [`RefinementResult`](@ref).
 
-Returns a named tuple containing:
-  F: the unrefined forces
-  dF: the force refinement
-The refined forces can be obtained by F - dF.
+The refined forces can be obtained by F + dF.
 """
 function refine_forces(refinement::RefinementResult)
     # Arrays of arrays are not officially supported by ForwardDiff.
