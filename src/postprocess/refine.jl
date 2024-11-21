@@ -141,7 +141,7 @@ and compute approximate first order corrections ("refinements") to the wavefunct
 Only full occupations are currently supported.
 
 Returns a [`RefinementResult`](@ref) instance that can be used to refine quantities of interest,
-through [`refine_forces`](@ref).
+through [`refine_energies`](@ref) and [`refine_forces`](@ref).
 """
 function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T};
                        callback=RefinementDefaultCallback(),
@@ -196,6 +196,13 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T};
 
     ΩpK_res = Base.structdiff(ΩpK_res, NamedTuple{(:δψ,)}) # remove δψ from res tuple
     RefinementResult(basis_ref, ψr, ρr, occ, schur_residual, δρ, ΩpK_res)
+end
+
+"""
+Refine energies using a [`RefinementResult`](@ref).
+"""
+function refine_energies(refinement::RefinementResult)
+    energy(refinement.basis, refinement.ψ + refinement.δψ, refinement.occupation; ρ=refinement.ρ + refinement.δρ).energies
 end
 
 """
