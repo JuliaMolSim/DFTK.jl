@@ -7,6 +7,7 @@ using Printf
 using TimerOutputs
 using Unitful
 using UnitfulAtomic
+using DiffResults
 using ForwardDiff
 using AbstractFFTs
 using GPUArraysCore

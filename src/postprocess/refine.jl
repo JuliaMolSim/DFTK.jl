@@ -214,10 +214,18 @@ Returns a named tuple containing:
 The refined forces can be obtained by F - dF.
 """
 function refine_forces(refinement::RefinementResult)
-    f(ε) = compute_forces(refinement.basis,
-                          refinement.ψ .+ ε.*refinement.δψ,
-                          refinement.occupation;
-                          ρ=refinement.ρ + ε.*refinement.δρ)
-    # TODO: Use DiffResults once https://github.com/JuliaDiff/ForwardDiff.jl/issues/725 is fixed.
-    (; F=f(0), dF=ForwardDiff.derivative(f, 0))
+    # Arrays of arrays are not officially supported by ForwardDiff.
+    # Reinterpret the Vector{SVector{3}} as a flat vector for differentiation.
+    pack(x) = reinterpret(eltype(eltype(x)), x)
+    unpack(x) = reinterpret(SVector{3, eltype(x)}, x)
+
+    packed_positions = pack(refinement.basis.model.positions)
+    result = DiffResults.DiffResult(similar(packed_positions), similar(packed_positions))
+    f(ε) = pack(compute_forces(refinement.basis,
+                               refinement.ψ .+ ε.*refinement.δψ,
+                               refinement.occupation;
+                               ρ=refinement.ρ + ε.*refinement.δρ))
+    result = ForwardDiff.derivative!(result, f, 0)
+
+    (; F=unpack(result.value), dF=unpack(result.derivs[1]))
 end
