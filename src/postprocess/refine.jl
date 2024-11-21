@@ -1,5 +1,7 @@
 # Refinement of some quantities of interest (density, forces) following the
 # strategy described in [CDKL2022].
+# We use a different sign convention for corrections δX,
+# such that X + δX is the refined quantity.
 #
 # The overall strategy is to perform a first SCF,
 # transfer the result to a new basis set with a larger Ecut,
