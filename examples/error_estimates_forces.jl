@@ -134,7 +134,8 @@ end;
 #   the actual error ``P-P_*``. Usually this is of course not the case, but this
 #   is the "best" improvement we can hope for with a linearisation, so we are
 #   aiming for this precision.
-df_err = df(basis_ref, refinement.occupation, refinement.ψ, DFTK.proj_tangent(error, refinement.ψ), refinement.ρ)
+df_err = df(basis_ref, refinement.occupation, refinement.ψ,
+            DFTK.proj_tangent(error, refinement.ψ), refinement.ρ)
 forces["F(P) - df(P)⋅(P-P_*)"]   = f - df_err
 relerror["F(P) - df(P)⋅(P-P_*)"] = compute_relerror(f - df_err);
 
