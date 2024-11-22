@@ -74,6 +74,8 @@ function ResponseCallback()
     ResponseCallback(Ref(zero(UInt64)))
 end
 function (cb::ResponseCallback)(info)
+    mpi_master() || return info  # Only print on master
+
     if info.stage == :finalize
         info.converged || @warn "solve_ΩplusK not converged."
         return info
