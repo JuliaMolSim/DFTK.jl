@@ -155,6 +155,31 @@ end
     @test norm(fd1 - fd2) < 1e-8
 end
 
+@testitem "Higher derivatives of Fermi-Dirac occupation" tags=[:dont_test_mpi] begin
+    using DFTK
+    using ForwardDiff
+
+    smearing = Smearing.FermiDirac()
+    f(x) = Smearing.occupation(smearing, x)
+
+    function compute_nth_derivative(n, f, x)
+        (n == 0) && return f(x)
+        ForwardDiff.derivative(x -> compute_nth_derivative(n - 1, f, x), x)
+    end
+
+    @testset "Avoid NaN from exp-overflow for large x" begin
+        T = Float64
+        x = log(floatmax(T)) / 2 + 1
+        for n in 0:8
+            @testset "Derivative order $n" begin
+                y = compute_nth_derivative(n, f, x)
+                @test isfinite(y)
+                @test abs(y) ≤ eps(T)
+            end
+        end
+    end
+end
+
 @testitem "LocalNonlinearity sensitivity using ForwardDiff" tags=[:dont_test_mpi] begin
     using DFTK
     using ForwardDiff
