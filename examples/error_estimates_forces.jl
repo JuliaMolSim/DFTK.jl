@@ -72,7 +72,7 @@ f = compute_forces(scfres)
 # - Computation of the forces by a linearization argument when replacing the
 #   error ``P-P_*`` by the modified residual ``R_{\rm Schur}(P)``. The latter
 #   quantity is computable in practice.
-force_refinement = refine_forces(refinement, f)
+force_refinement = refine_forces(refinement)
 forces_refined = f + force_refinement.dF
 
 # A practical estimate of the error on the forces is then the following:
