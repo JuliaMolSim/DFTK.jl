@@ -91,8 +91,8 @@ Result of calling the [`refine_scfres`](@ref) function.
               The refined quantities are ψ + δψ and ρ + δρ.
 - `ΩpK_res`: Additional information returned by the inversion of (Ω+K)_11.
 """
-struct RefinementResult
-    basis::PlaneWaveBasis
+struct RefinementResult{T}
+    basis::PlaneWaveBasis{T}
     ψ
     ρ
     occupation
@@ -199,9 +199,19 @@ end
 
 """
 Refine energies using a [`RefinementResult`](@ref).
+
+The refined energies can be obtained by E + dE.
 """
-function refine_energies(refinement::RefinementResult)
-    energy(refinement.basis, refinement.ψ + refinement.δψ, refinement.occupation; ρ=refinement.ρ + refinement.δρ).energies
+function refine_energies(refinement::RefinementResult{T}) where {T}
+    term_names = [string(nameof(typeof(term))) for term in refinement.basis.model.term_types]
+    result = DiffResults.DiffResult(zeros(T, length(term_names)),
+                                    zeros(T, length(term_names)))
+    f(ε) = energy(refinement.basis,
+                  refinement.ψ + ε.*refinement.δψ,
+                  refinement.occupation;
+                  ρ=refinement.ρ + ε.*refinement.δρ).energies.values
+    result = ForwardDiff.derivative!(result, f, zero(T))
+    (; E=Energies(term_names, result.value), dE=Energies(term_names, result.derivs[1]))
 end
 
 """
@@ -209,19 +219,19 @@ Refine forces using a [`RefinementResult`](@ref).
 
 The refined forces can be obtained by F + dF.
 """
-function refine_forces(refinement::RefinementResult)
+function refine_forces(refinement::RefinementResult{T}) where {T}
     # Arrays of arrays are not officially supported by ForwardDiff.
     # Reinterpret the Vector{SVector{3}} as a flat vector for differentiation.
-    pack(x) = reinterpret(eltype(eltype(x)), x)
-    unpack(x) = reinterpret(SVector{3, eltype(x)}, x)
+    pack(x) = reinterpret(eltype(eltype(x)), x) # eltype is a Dual not just T!
+    unpack(x) = reinterpret(SVector{3, T}, x)
 
-    packed_positions = pack(refinement.basis.model.positions)
-    result = DiffResults.DiffResult(similar(packed_positions), similar(packed_positions))
+    result = DiffResults.DiffResult(zeros(T, 3*length(refinement.basis.model.positions)),
+                                    zeros(T, 3*length(refinement.basis.model.positions)))
     f(ε) = pack(compute_forces(refinement.basis,
                                refinement.ψ .+ ε.*refinement.δψ,
                                refinement.occupation;
                                ρ=refinement.ρ + ε.*refinement.δρ))
-    result = ForwardDiff.derivative!(result, f, 0)
+    result = ForwardDiff.derivative!(result, f, zero(T))
 
     (; F=unpack(result.value), dF=unpack(result.derivs[1]))
 end

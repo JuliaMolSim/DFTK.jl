@@ -21,8 +21,10 @@ Ecut_ref = 35
 basis_ref = PlaneWaveBasis(model; Ecut=Ecut_ref, kgrid)
 
 refinement = refine_scfres(scfres, basis_ref; tol)
-energies_refined = refine_energies(refinement)
+(; E, dE) = refine_energies(refinement)
 (; F, dF) = refine_forces(refinement)
+
+@test isapprox(E.total, scfres.energies.total; rtol=1e-6) # check consistency of unrefined energy
 
 # High Ecut computation
 scfres_ref = self_consistent_field(basis_ref; tol)
@@ -30,8 +32,8 @@ scfres_ref = self_consistent_field(basis_ref; tol)
 
 # Low Ecut quantities of interest are less precise than refined quantities:
 
-@test norm(scfres.energies.total - scfres_ref.energies.total) / norm(scfres_ref.energies.total) > 0.0002
-@test norm(energies_refined.total - scfres_ref.energies.total) / norm(scfres_ref.energies.total) < 0.0001
+@test norm(E.total - scfres_ref.energies.total) / norm(scfres_ref.energies.total) > 0.0002
+@test norm(E.total + dE.total - scfres_ref.energies.total) / norm(scfres_ref.energies.total) < 0.00015
 
 @test norm(refinement.ρ - scfres_ref.ρ) / norm(scfres_ref.ρ) > 0.003
 @test norm(refinement.ρ + refinement.δρ - scfres_ref.ρ) / norm(scfres_ref.ρ) < 0.0015
