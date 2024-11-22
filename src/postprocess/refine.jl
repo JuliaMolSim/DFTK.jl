@@ -102,40 +102,6 @@ struct RefinementResult{T}
 end
 
 """
-Default callback function for `refine_scfres`,
-which prints a convergence table.
-"""
-struct RefinementDefaultCallback
-    prev_time::Ref{UInt64}
-end
-function RefinementDefaultCallback()
-    RefinementDefaultCallback(Ref(zero(UInt64)))
-end
-function (cb::RefinementDefaultCallback)(info)
-    if info.stage == :finalize
-        info.converged || @warn "Refinement not converged."
-        return info
-    end
-
-    if info.n_iter == 0
-        cb.prev_time[] = time_ns()
-        @printf "n     log10(Residual norm)   Δtime \n"
-        @printf "---   --------------------   ------\n"
-        return info
-    end
-
-    current_time = time_ns()
-    runtime_ns = current_time - cb.prev_time[]
-    cb.prev_time[] = current_time
-
-    resnorm = @sprintf "%20.2f" log10(info.residual_norm)
-    time = @sprintf "% 6s" TimerOutputs.prettytime(runtime_ns)
-    @printf "% 3d   %s   %s\n" info.n_iter resnorm time
-    flush(stdout)
-    info
-end
-
-"""
 Transfer the result of an SCF to a larger basis set,
 and compute approximate first order corrections ("refinements") to the wavefunctions and density.
 
@@ -145,9 +111,9 @@ Returns a [`RefinementResult`](@ref) instance that can be used to refine quantit
 through [`refine_energies`](@ref) and [`refine_forces`](@ref).
 """
 function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T};
-                       callback=RefinementDefaultCallback(),
                        tol=1e-6,
-                       occ_threshold=default_occupation_threshold(T)) where {T}
+                       occ_threshold=default_occupation_threshold(T),
+                       kwargs...) where {T}
     basis = scfres.basis
 
     @assert basis.model.lattice == basis_ref.model.lattice
@@ -185,7 +151,7 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T};
     rhs = resLF - ΩpKe2
 
     # Invert Ω+K on the small space
-    ΩpK_res = solve_ΩplusK(basis, ψ, rhs, occ; callback, tol)
+    ΩpK_res = solve_ΩplusK(basis, ψ, rhs, occ; tol, kwargs...)
 
     e1 = transfer_blochwave(ΩpK_res.δψ, basis, basis_ref)
     schur_residual = e1 + e2

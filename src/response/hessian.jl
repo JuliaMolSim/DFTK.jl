@@ -64,13 +64,47 @@ Compute the application of K defined at ψ to δψ. ρ is the density issued fro
 end
 
 """
+Default callback function for `solve_ΩplusK`,
+which prints a convergence table.
+"""
+struct ResponseCallback
+    prev_time::Ref{UInt64}
+end
+function ResponseCallback()
+    ResponseCallback(Ref(zero(UInt64)))
+end
+function (cb::ResponseCallback)(info)
+    if info.stage == :finalize
+        info.converged || @warn "solve_ΩplusK not converged."
+        return info
+    end
+
+    if info.n_iter == 0
+        cb.prev_time[] = time_ns()
+        @printf "n     log10(Residual norm)   Δtime \n"
+        @printf "---   --------------------   ------\n"
+        return info
+    end
+
+    current_time = time_ns()
+    runtime_ns = current_time - cb.prev_time[]
+    cb.prev_time[] = current_time
+
+    resnorm = @sprintf "%20.2f" log10(info.residual_norm)
+    time = @sprintf "% 6s" TimerOutputs.prettytime(runtime_ns)
+    @printf "% 3d   %s   %s\n" info.n_iter resnorm time
+    flush(stdout)
+    info
+end
+
+"""
     solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, res, occupation;
                  tol=1e-10, verbose=false) where {T}
 
 Return δψ where (Ω+K) δψ = rhs
 """
 @timing function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
-                              callback=identity, tol=1e-10) where {T}
+                              callback=ResponseCallback(), tol=1e-10) where {T}
     # for now, all orbitals have to be fully occupied -> need to strip them beforehand
     check_full_occupation(basis, occupation)
 
