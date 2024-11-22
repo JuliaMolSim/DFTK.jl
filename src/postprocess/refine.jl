@@ -1,6 +1,6 @@
 # Refinement of some quantities of interest (density, forces) following the
 # strategy described in [CDKL2022].
-# We use a different sign convention for corrections δX,
+# We use a different sign convention than [CDKL2022] for corrections δX,
 # such that X + δX is the refined quantity.
 #
 # The overall strategy is to perform a first SCF,
@@ -33,6 +33,8 @@
 #     E. Cancès, G. Dusson, G. Kemlin, and A. Levitt
 #     *Practical error bounds for properties in plane-wave electronic structure calculations*
 #     [SIAM Journal on Scientific Computing 44 (5), B1312-B1340](https://doi.org/10.1137/21M1456224)
+
+using DiffResults
 
 """
 Invert the metric operator M.
