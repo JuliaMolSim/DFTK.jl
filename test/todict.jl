@@ -53,6 +53,7 @@ function test_agreement_bands(band_data, dict; explicit_reshape=false, test_ψ=t
         @test dict["symmetries_translations"] ≈ translations atol=1e-12
         @test dict["use_symmetries_for_kpoint_reduction"] == basis.use_symmetries_for_kpoint_reduction
         @test dict["symmetries_respect_rgrid"] == basis.symmetries_respect_rgrid
+        @test dict["symmetries_respect_basis"] == basis.symmetries_respect_basis
 
         lattice_resh = condreshape(dict["lattice"], 3, 3)
         rotations_resh = [condreshape(rot, 3, 3) for rot in dict["symmetries_rotations"]]
