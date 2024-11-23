@@ -228,6 +228,10 @@ export compute_current
 include("postprocess/current.jl")
 export phonon_modes
 include("postprocess/phonon.jl")
+export refine_scfres
+export refine_energies
+export refine_forces
+include("postprocess/refine.jl")
 
 # Workarounds
 include("workarounds/dummy_inplace_fft.jl")
