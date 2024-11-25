@@ -400,6 +400,21 @@ Returns nothing if outside the range of valid wave vectors.
     end
 end
 
+@inline function index_G_vectors(fft_start::Tuple, fft_stop:: Tuple, fft_lengths::Tuple,
+                                 G::AbstractVector{<:Integer})
+
+    # FFTs store wavevectors as [0 1 2 3 -2 -1] (example for N=5)
+    function G_to_index(length, G)
+        G >= 0 && return 1 + G
+        return 1 + length + G
+    end
+    if all(fft_start .<= G .<= fft_stop)
+        CartesianIndex(Tuple(G_to_index.(fft_lengths, G)))
+    else
+        nothing  # Outside range of valid indices
+    end
+end
+
 function index_G_vectors(basis::PlaneWaveBasis, G::AbstractVector{<:Integer})
     index_G_vectors(basis.fft_size, G)
 end

@@ -271,6 +271,9 @@ end
 # Accumulates the symmetrized versions of the density ρin into ρout (in Fourier space).
 # No normalization is performed
 function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, symmetries) where {T}
+    fft_start = .- cld.(basis.fft_size .- 1, 2)
+    fft_stop  = fld.(basis.fft_size .- 1, 2)
+    fft_lengths = fft_stop .- fft_start .+ 1
     for symop in symmetries
         # Common special case, where ρin does not need to be processed
         if isone(symop)
@@ -288,7 +291,7 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, sym
         #     ρ ̂_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
         invS = Mat3{Int}(inv(symop.S))
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
-            igired = index_G_vectors(basis, invS * G)
+            igired = index_G_vectors(fft_start, fft_stop, fft_lengths, invS * G)
             isnothing(igired) && continue
 
             if iszero(symop.τ)
