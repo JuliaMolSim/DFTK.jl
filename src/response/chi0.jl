@@ -407,9 +407,12 @@ end
 
 function get_apply_χ0_info(ham, ψ, occupation, εF::T, eigenvalues;
     occupation_threshold=default_occupation_threshold(T),
-    q=zero(Vec3{eltype(ham.basis)}), kwargs_sternheimer...) where {T}
+    q=zero(Vec3{eltype(ham.basis)}),CG_tol_type="hdmd") where {T}
+
+    CG_tol_type = lowercase(string(CG_tol_type))
 
     basis = ham.basis
+    num_kpoints = length(basis.kpoints)
     k_to_k_minus_q = k_to_kpq_permutation(basis, -q)
 
     mask_occ = map(occk -> findall(occnk -> abs(occnk) ≥ occupation_threshold, occk), occupation)
@@ -420,14 +423,32 @@ function get_apply_χ0_info(ham, ψ, occupation, εF::T, eigenvalues;
     ε_occ = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
 
     ε_minus_q_occ = [eigenvalues[k_to_k_minus_q[ik]][mask_occ[k_to_k_minus_q[ik]]]
-                     for ik = 1:length(basis.kpoints)]
+                     for ik = 1:num_kpoints]
 
+    Nocc_ks = [length(ε_occ[ik]) for ik in 1:num_kpoints]
+    Nocc = sum(Nocc_ks)
 
     # compute CG_tol_scale
-    ε_min_extra = [eigenvalues[ik][maskk[end]+1] for (ik, maskk) in enumerate(mask_occ)]
     fn_occ = [occupation[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-    C = [fn_occ[ik] .* (1 ./ (ε_min_extra[ik] .- ε_occk)) * basis.kweights[ik] for (ik, ε_occk) in enumerate(ε_occ)]
-    CG_tol_scale = C .* sum([length(maskk) for maskk in mask_occ]) #.* info.normδV 
+    if CG_tol_type == "hdmd"
+        CG_tol_scale = [fn_occ[ik] * basis.kweights[ik] for ik in 1:num_kpoints] * Nocc * sqrt(prod(basis.fft_size)) / basis.model.unit_cell_volume
+    elseif CG_tol_type == "grt"
+        kcoef = zeros(num_kpoints)
+        for k in 1:num_kpoints
+        accum = zeros(basis.fft_size)
+        for n in 1:Nocc_ks[k]
+            accum += (abs2.(real.(ifft(basis, basis.kpoints[k], ψ[k][:, n]))))
+        end
+        kcoef[k] = sqrt(maximum(accum)) * basis.kweights[k]
+        end
+
+        CG_tol_scale = [fn_occ[ik] * kcoef[ik] for ik in 1:num_kpoints] * sqrt(Nocc) * sqrt(prod(basis.fft_size)) / sqrt(basis.model.unit_cell_volume)
+    else
+        CG_tol_scale = [[1.0 for _ in 1:Nocc_ks[ik]] for ik in 1:num_kpoints]
+        if !occursin(CG_tol_type, "agrplain1.0")
+            @warn("CG_tol_type is not recognized, set CG_tol_scale to 1.0 for all bands")
+        end
+    end
 
     (; k_to_k_minus_q, mask_occ, ψ_occ, ψ_extra, ε_occ, ε_minus_q_occ, CG_tol_scale)
 end
