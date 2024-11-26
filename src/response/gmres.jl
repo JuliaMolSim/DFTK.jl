@@ -1,10 +1,10 @@
 using LinearMaps
 
 function gmres(operators::Function, b::AbstractVector{T}; 
-    x₀=nothing,
-    maxiter=min(100, size(operators(0), 1)),
-    restart=min(20, size(operators(0), 1)),
-    tol=1e-6, s_guess=0.8, verbose=1, debug=false) where {T}
+               x₀=nothing,
+               maxiter=min(100, size(operators(0), 1)),
+               restart=min(20, size(operators(0), 1)),
+               tol=1e-6, s_guess=0.8, verbose=1, debug=false) where {T}
     # pass s/3m 1/\|r_tilde\| tol to operators()
     normb = norm(b)
     b = b ./ normb
@@ -147,10 +147,10 @@ end
 
 
 function gmres(operator::LinearMap{T}, b::AbstractVector{T}; 
-    x₀ = nothing,
-    maxiter=min(100, size(operator, 1)),
-    restart=min(20, size(operator, 1)),
-    tol=1e-6, verbose=0, debug=false) where {T}
+               x₀ = nothing,
+               maxiter=min(100, size(operator, 1)),
+               restart=min(20, size(operator, 1)),
+               tol=1e-6, verbose=0, debug=false) where {T}
 
     n_size = length(b)
 
