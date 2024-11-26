@@ -488,7 +488,7 @@ Get the density variation δρ corresponding to a potential variation δV.
 """
 function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{TδV};
                   occupation_threshold=default_occupation_threshold(TδV), q=zero(Vec3{eltype(ham.basis)}),
-                  apply_χ0_info=nothing, kwargs_sternheimer...) where {T,TδV}
+                  apply_χ0_info=nothing, kwargs_sternheimer...) where {T, TδV}
 
     basis = ham.basis
 
