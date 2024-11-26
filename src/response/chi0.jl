@@ -178,7 +178,6 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
     res = cg(J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
              callback=cg_callback)
-    #res = cg(J, bb; tol=tol, proj=R, callback=cg_callback)
     !res.converged && @warn("Sternheimer CG not converged", res.n_iter,
                             res.tol, res.residual_norm)
     δψknᴿ = res.x
@@ -294,7 +293,7 @@ to zero.
 For phonon, `δHψ[ik]` is ``δH·ψ_{k-q}``, expressed in `basis.kpoints[ik]`.
 """
 function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε_minus_q=ε;
-                     ψ_extra=[zeros_like(ψk, size(ψk, 1), 0) for ψk in ψ], q=zero(Vec3{T}),
+                     ψ_extra=[zeros_like(ψk, size(ψk,1), 0) for ψk in ψ], q=zero(Vec3{T}),
                      CG_tol_scale=nothing, kwargs_sternheimer...) where {T}
     # We solve the Sternheimer equation
     #   (H_k - ε_{n,k-q}) δψ_{n,k} = - (1 - P_{k}) δHψ_{n, k-q},
@@ -309,7 +308,6 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
     filled_occ = filled_occupation(model)
 
     flag = !isnothing(CG_tol_scale)
-    #flag = false
     if flag
         tol_sternheimer = kwargs_sternheimer[:tol]
     end
@@ -347,9 +345,6 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
             kwargs_sternheimer = merge(kwargs_sternheimer, Dict(:tol => max(0.5*eps(T), kwargs_sternheimer[:tol])))
             δψk[:, n] .+= sternheimer_solver(Hk, ψk, εk_minus_q[n], δHψ[ik][:, n]; ψk_extra,
                                              εk_extra, Hψk_extra, kwargs_sternheimer...)
-
-            # do not use schur trick
-            # δψk[:, n] .+= sternheimer_solver(Hk, ψk, εk_minus_q[n], δHψ[ik][:, n];kwargs_sternheimer...)
         end
     end
 end
