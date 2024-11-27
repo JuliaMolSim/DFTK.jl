@@ -26,7 +26,7 @@ function disable_threading()
 end
 
 # TODO: is a single write to an Int64 atomic?
-DFTK_threads = 0
+const DFTK_threads = Ref(0)
 
 function set_DFTK_threads!(n)
     if n > Threads.nthreads()
@@ -36,14 +36,14 @@ function set_DFTK_threads!(n)
     if n <= 0
         error("You tried to set DFTK threads to $n, at least 1 is required.")
     end
-    global DFTK_threads = n
+    DFTK_threads[] = n
 end
 function set_DFTK_threads!()
-    global DFTK_threads = 0
+    DFTK_threads[] = 0
 end
 # If unset, use nthreads() threads
 function get_DFTK_threads()
-    n_threads = DFTK_threads
+    n_threads = DFTK_threads[]
     n_threads == 0 ? Threads.nthreads() : n_threads
 end
 
