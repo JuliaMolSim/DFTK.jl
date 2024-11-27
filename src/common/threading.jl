@@ -8,11 +8,8 @@ DFTK and FFTW threading are upper bounded by `Threads.nthreads()`, but not BLAS,
 which uses its own threading system.
 By default, use 1 FFT thread, and `Threads.nthreads()` BLAS and DFTK threads.
 """
-function setup_threading(; n_fft=1, n_blas=Threads.nthreads(), n_DFTK=nothing)
-    if !isnothing(n_DFTK)
-        set_DFTK_threads!(n_DFTK)
-    end
-    n_DFTK = get_DFTK_threads()
+function setup_threading(; n_fft=1, n_blas=Threads.nthreads(), n_DFTK=Threads.nthreads())
+    set_DFTK_threads!(n_DFTK)
     FFTW.set_num_threads(n_fft)
     BLAS.set_num_threads(n_blas)
     mpi_master() && @info "Threading setup: " Threads.nthreads() n_DFTK n_fft n_blas
@@ -26,7 +23,7 @@ function disable_threading()
 end
 
 # TODO: is a single write to an Int64 atomic?
-const DFTK_threads = Ref(0)
+const DFTK_threads = Ref(Threads.nthreads())
 
 function set_DFTK_threads!(n)
     if n > Threads.nthreads()
@@ -38,13 +35,8 @@ function set_DFTK_threads!(n)
     end
     DFTK_threads[] = n
 end
-function set_DFTK_threads!()
-    DFTK_threads[] = 0
-end
-# If unset, use nthreads() threads
 function get_DFTK_threads()
-    n_threads = DFTK_threads[]
-    n_threads == 0 ? Threads.nthreads() : n_threads
+    DFTK_threads[]
 end
 
 """
