@@ -12,11 +12,11 @@ using ForwardDiff
 disable_threading()
 
 println("------ Setting up model ... ------")
-repeat = 3
-mixing = KerkerMixing()
-tol = 1e-12
-Ecut=40
-kgrid=(1, 3, 3)
+repeat  = 2
+mixing  = KerkerMixing()
+tol     = 1e-12
+Ecut    =15
+kgrid   =(1, 3, 3)
 
 system = ase.build.bulk("Al", cubic=true) * pytuple((repeat, 1, 1))
 system = pyconvert(AbstractSystem, system)
@@ -40,7 +40,7 @@ Random.seed!(1234)
 for iR in 1:length(R)
     R[iR] = -ones(3) + 2 * rand(3)
 end
-function V(ε)
+function V1(ε)
     T = typeof(ε)
     pos = positions + ε * R
     modelV = Model(Matrix{T}(lattice), atoms, pos; model_name="potential",
@@ -49,7 +49,7 @@ function V(ε)
     jambon = Hamiltonian(basisV)
     DFTK.total_local_potential(jambon)
 end
-δV = ForwardDiff.derivative(V, 0.0)
+δV = ForwardDiff.derivative(V1, 0.0)
 println("||δV|| = ", norm(δV))
 flush(stdout)
 DFTK.reset_timer!(DFTK.timer)

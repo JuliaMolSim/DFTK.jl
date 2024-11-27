@@ -110,6 +110,9 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
                             callback=identity, cg_callback=identity,
                             ψk_extra=zeros_like(ψk, size(ψk, 1), 0), εk_extra=zeros(0),
                             Hψk_extra=zeros_like(ψk, size(ψk, 1), 0), tol=1e-9)
+    # do not use tol smaller than eps(T)/2
+    tol = max(0.5*eps(eltype(ε)), tol)
+    
     basis = Hk.basis
     kpoint = Hk.kpoint
 
@@ -341,8 +344,6 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
             if flag
                 kwargs_sternheimer = merge(kwargs_sternheimer, Dict(:tol => tol_sternheimer / CG_tol_scale[ik][n]))
             end
-            # do not use tol smaller than eps(T)/2
-            kwargs_sternheimer = merge(kwargs_sternheimer, Dict(:tol => max(0.5*eps(T), kwargs_sternheimer[:tol])))
             δψk[:, n] .+= sternheimer_solver(Hk, ψk, εk_minus_q[n], δHψ[ik][:, n]; ψk_extra,
                                              εk_extra, Hψk_extra, kwargs_sternheimer...)
         end
