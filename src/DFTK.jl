@@ -237,7 +237,7 @@ include("workarounds/forwarddiff_rules.jl")
 include("workarounds/gpu_arrays.jl")
 
 # Precompilation block with a basic workflow
-@setup_workload begin
+@setup_workload let
     # very artificial silicon ground state example
     a = 10.26
     lattice = a / 2 * [[0 1 1.];
@@ -255,6 +255,7 @@ include("workarounds/gpu_arrays.jl")
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
         ρ0 = guess_density(basis, magnetic_moments)
         scfres = self_consistent_field(basis; ρ=ρ0, tol=1e-2, maxiter=3, callback=identity)
+        compute_forces_cart(scfres)
     end
 end
 end # module DFTK
