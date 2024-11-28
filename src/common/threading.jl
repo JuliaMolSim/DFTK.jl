@@ -22,7 +22,6 @@ function disable_threading()
     setup_threading(;n_fft=1, n_blas=1, n_DFTK=1)
 end
 
-# TODO: is a single write to an Int64 atomic?
 const DFTK_threads = Ref(Threads.nthreads())
 
 function set_DFTK_threads!(n)
