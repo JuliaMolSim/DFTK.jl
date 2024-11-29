@@ -31,7 +31,7 @@ n_elec_core(el::Element) = charge_nuclear(el) - charge_ionic(el)
 
 """Check presence of model core charge density (non-linear core correction)."""
 has_core_density(::Element) = false
-# The preceeding functions are fallback implementations that should be altered as needed.
+# The preceding functions are fallback implementations that should be altered as needed.
 
 # Fall back to the Gaussian table for Elements without pseudopotentials
 function valence_charge_density_fourier(el::Element, p::T)::T where {T <: Real}

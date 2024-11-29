@@ -3,8 +3,8 @@
 struct DummyInplace{opFFT}
     fft::opFFT
 end
-LinearAlgebra.mul!(Y, p::DummyInplace, X) = (Y .= mul!(similar(X), p.fft, X))
-LinearAlgebra.ldiv!(Y, p::DummyInplace, X) = (Y .= ldiv!(similar(X), p.fft, X))
+LinearAlgebra.mul!(Y, p::DummyInplace, X)  = copy!(Y, p * X)
+LinearAlgebra.ldiv!(Y, p::DummyInplace, X) = copy!(Y, p \ X)
 
 import Base: *, \, length
 *(p::DummyInplace, X) = p.fft * X

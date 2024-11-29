@@ -43,8 +43,8 @@ end
     Model(silicon.lattice; n_electrons=1)
 
     # Violation of charge neutrality should throw for models with atoms.
-    @test_throws ErrorException model_LDA(silicon.lattice, silicon.atoms, silicon.positions;
-                                          εF=0.1)
-    @test_throws ErrorException model_LDA(silicon.lattice, silicon.atoms, silicon.positions;
-                                          n_electrons=1)
+    @test_throws ErrorException model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                                          εF=0.1, functionals=LDA())
+    @test_throws ErrorException model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                                          n_electrons=1, functionals=LDA())
 end

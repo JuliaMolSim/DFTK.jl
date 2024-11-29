@@ -25,7 +25,7 @@ jobs:
           - {mode: stable,  os: macOS-latest,   payload: noslow         }
           - {mode: stable,  os: windows-latest, payload: noslow         }
           - {mode: stable,  os: ubuntu-latest,  payload: noslow-mpi     }
-          - {mode: nightly, os: ubuntu-latest,  payload: noslow         }
+          - {mode: latest,  os: ubuntu-latest,  payload: noslow         }
     env:
       GKS_ENCODING: utf8
       GKSwstype: 100       # Needed for Plots-related tests
@@ -38,22 +38,24 @@ jobs:
       - name: Setup Julia stable
         uses: julia-actions/setup-julia@v1
         with:
-          version: '1.9'
+          version: '1.10'
           arch: x64
         if: ${{ matrix.mode == 'stable' }}
-      - name: Setup Julia nightly
+      - name: Setup Julia latest (pre-releases included)
         uses: julia-actions/setup-julia@v1
         with:
-          version: nightly
+          version: '1'
+          include-all-prereleases: true
           arch: x64
-        if: ${{ matrix.mode == 'nightly' }}
+        if: ${{ matrix.mode == 'latest' }}
 
-      - uses: julia-actions/cache@v1
+      - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
         env:
           DFTK_TEST_ARGS: ${{ matrix.payload }}
       - uses: julia-actions/julia-processcoverage@v1
-      - uses: codecov/codecov-action@v4
+      - uses: codecov/codecov-action@v5
         with:
           files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}

@@ -1,6 +1,6 @@
 #
 # This test suite supports test arguments. For example:
-#     Pkg.test("DFTK"; test_args = ["fast"])
+#     Pkg.test("DFTK"; test_args = ["core"])
 # only runs the "fast" tests (i.e. not the expensive ones)
 #     Pkg.test("DFTK"; test_args = ["gpu"])
 # runs only the tests tagged as "gpu" and
@@ -20,9 +20,10 @@ using DFTK
 using Interpolations
 
 if base_tag == :mpi
-    nprocs  = parse(Int, get(ENV, "DFTK_TEST_NPROCS", "$(clamp(Sys.CPU_THREADS, 2, 4))"))
+    nprocs = parse(Int, get(ENV, "DFTK_TEST_NPROCS", "$(clamp(Sys.CPU_THREADS, 2, 4))"))
     run(`$(mpiexec()) -n $nprocs $(Base.julia_cmd())
-        --check-bounds=yes --depwarn=yes --project --color=yes --startup-file=no
+        --project --startup-file=no --compiled-modules=no
+        --check-bounds=yes --depwarn=yes --color=yes
         $runfile $ARGS`)
 else
     include(runfile)

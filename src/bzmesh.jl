@@ -116,24 +116,27 @@ end
 
 
 @doc raw"""
-Build a [`MonkhorstPack`](@ref) grid to ensure kpoints are at most this spacing
+Build a [`MonkhorstPack`](@ref) grid to ensure kpoints are at most this `spacing`
 apart (in inverse Bohrs). A reasonable spacing is `0.13` inverse Bohrs
-(around ``2π * 0.04 \, \text{Å}^{-1}``).
+(around ``2π * 0.04 \, \text{Å}^{-1}``). The `kshift` keyword argument allows
+to specify an explicit shift for all ``k``-points.
 """
-function kgrid_from_maximal_spacing(lattice, spacing; kshift=[0, 0, 0])
+function kgrid_from_maximal_spacing(system::AbstractSystem, spacing; kshift=[0, 0, 0])
+    kgrid_from_maximal_spacing(parse_system(system).lattice, spacing; kshift)
+end
+function kgrid_from_maximal_spacing(lattice::AbstractMatrix, spacing; kshift=[0, 0, 0])
     lattice       = austrip.(lattice)
     spacing       = austrip(spacing)
     recip_lattice = compute_recip_lattice(lattice)
     @assert spacing > 0
-    isinf(spacing) && return [1, 1, 1]
+    isinf(spacing) && return MonkhorstPack([1, 1, 1], kshift)
 
     kgrid = [max(1, ceil(Int, norm(vec) / spacing)) for vec in eachcol(recip_lattice)]
     MonkhorstPack(kgrid, kshift)
 end
-function kgrid_from_maximal_spacing(model::Model, args...; kwargs...)
-    kgrid_from_maximal_spacing(model.lattice, args...; kwargs...)
+function kgrid_from_maximal_spacing(model::Model, spacing; kwargs...)
+    kgrid_from_maximal_spacing(model.lattice, spacing; kwargs...)
 end
-@deprecate kgrid_from_minimal_spacing kgrid_from_maximal_spacing
 
 @doc raw"""
 Selects a [`MonkhorstPack`](@ref) grid size which ensures that at least a
@@ -141,6 +144,9 @@ Selects a [`MonkhorstPack`](@ref) grid size which ensures that at least a
 ``k``-points amongst coordinate directions is as uniformly as possible, trying to
 achieve an identical minimal spacing in all directions.
 """
+function kgrid_from_minimal_n_kpoints(system::AbstractSystem, n_kpoints::Integer; kshift=[0, 0, 0])
+    kgrid_from_minimal_n_kpoints(parse_system(system).lattice, n_kpoints; kshift)
+end
 function kgrid_from_minimal_n_kpoints(lattice, n_kpoints::Integer; kshift=[0, 0, 0])
     lattice = austrip.(lattice)
     n_dim   = count(!iszero, eachcol(lattice))

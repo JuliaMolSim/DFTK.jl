@@ -14,12 +14,11 @@ using Random
 using ChainRulesCore
 using PrecompileTools
 
-@template METHODS =
-"""
-$(TYPEDSIGNATURES)
-
-$(DOCSTRING)
-"""
+@template (FUNCTIONS, METHODS, MACROS) = 
+    """
+    $(TYPEDSIGNATURES)
+    $(DOCSTRING)
+    """
 
 export Vec3
 export Mat3
@@ -69,6 +68,7 @@ include("SymOp.jl")
 
 export Smearing
 export Model
+export FFTGrid
 export MonkhorstPack, ExplicitKpoints
 export PlaneWaveBasis
 export compute_fft_size
@@ -85,8 +85,9 @@ include("Smearing.jl")
 include("Model.jl")
 include("structure.jl")
 include("bzmesh.jl")
-include("PlaneWaveBasis.jl")
 include("fft.jl")
+include("Kpoint.jl")
+include("PlaneWaveBasis.jl")
 include("orbitals.jl")
 include("input_output.jl")
 
@@ -143,8 +144,8 @@ export diagonalize_all_kblocks
 include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
 
-export model_atomic
-export model_DFT, model_PBE, model_LDA, model_SCAN
+export model_atomic, model_DFT
+export LDA, PBE, PBEsol, SCAN
 include("standard_models.jl")
 
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing
@@ -152,7 +153,6 @@ export LdosMixing, HybridMixing, χ0Mixing
 export FixedBands, AdaptiveBands
 export scf_damping_solver
 export scf_anderson_solver
-export scf_CROP_solver
 export self_consistent_field, kwargs_scf_checkpoints
 export ScfConvergenceEnergy, ScfConvergenceDensity, ScfConvergenceForce
 export ScfSaveCheckpoints, ScfDefaultCallback, AdaptiveDiagtol
@@ -168,6 +168,7 @@ include("scf/self_consistent_field.jl")
 include("scf/direct_minimization.jl")
 include("scf/newton.jl")
 include("scf/scfres.jl")
+include("scf/anderson.jl")
 include("scf/potential_mixing.jl")
 
 export symmetry_operations
@@ -213,7 +214,10 @@ export compute_stresses_cart
 include("postprocess/stresses.jl")
 export compute_dos
 export compute_ldos
+export compute_pdos
 export plot_dos
+export plot_ldos
+export plot_pdos
 include("postprocess/dos.jl")
 export compute_χ0
 export apply_χ0
@@ -225,6 +229,10 @@ export compute_current
 include("postprocess/current.jl")
 export phonon_modes
 include("postprocess/phonon.jl")
+export refine_scfres
+export refine_energies
+export refine_forces
+include("postprocess/refine.jl")
 
 # Workarounds
 include("workarounds/dummy_inplace_fft.jl")
@@ -244,8 +252,9 @@ include("workarounds/gpu_arrays.jl")
     magnetic_moments = [2, -2]
 
     @compile_workload begin
-        model = model_LDA(lattice, atoms, positions;
-                          magnetic_moments, temperature=0.1, spin_polarization=:collinear)
+        model = model_DFT(lattice, atoms, positions;
+                          functionals=LDA(), magnetic_moments,
+                          temperature=0.1, spin_polarization=:collinear)
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
         ρ0 = guess_density(basis, magnetic_moments)
         scfres = self_consistent_field(basis; ρ=ρ0, tol=1e-2, maxiter=3, callback=identity)

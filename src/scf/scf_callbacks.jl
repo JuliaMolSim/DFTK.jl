@@ -32,10 +32,10 @@ which prints a convergence table.
 struct ScfDefaultCallback
     show_damping::Bool
     show_time::Bool
-    prev_time::Ref{Int}
+    prev_time::Ref{UInt64}
 end
 function ScfDefaultCallback(; show_damping=true, show_time=true)
-    ScfDefaultCallback(show_damping, show_time, Ref(0))
+    ScfDefaultCallback(show_damping, show_time, Ref(zero(UInt64)))
 end
 function (cb::ScfDefaultCallback)(info)
     # If first iteration clear a potentially cached previous time
@@ -162,10 +162,14 @@ and never increases.
     ratio_ρdiff   = 0.2
     diagtol_min   = nothing  # Minimal tolerance (autodetermined from number type if unset)
     diagtol_max   = 0.005    # Maximal tolerance
-    diagtol_first = 0.03     # Relaxed tolerance used on first iteration
+    diagtol_first = 6diagtol_max  # Relaxed tolerance used on first iteration
 end
 function determine_diagtol(alg::AdaptiveDiagtol, info)
     info.n_iter ≤ 1 && return min(alg.diagtol_first, 5alg.diagtol_max)
+
+    # TODO if n_iter is small and the eigenvector residuals are all rather small,
+    #      then maybe we should clamp the tolerance more aggressively
+    #      (this likely indicates a restart or an extremely good initial guess)
 
     # This ensures diagtol can only shrink during an SCF
     diagtol = minimum(info.history_Δρ .* alg.ratio_ρdiff)
@@ -173,11 +177,6 @@ function determine_diagtol(alg::AdaptiveDiagtol, info)
 
     diagtol_min = something(alg.diagtol_min, 100eps(eltype(info.history_Δρ)))
     clamp(diagtol, diagtol_min, alg.diagtol_max)
-end
-function ScfDiagtol(; diagtol_max=0.03, kwargs...)
-    @warn("Using `ScfDiagtol(; kwargs...)` is deprecated and will be removed in the " *
-          "next minor version bump. Use `AdaptiveDiagtol(; kwargs...)` instead.")
-    AdaptiveDiagtol(; diagtol_max=diagtol_max/5, diagtol_first=diagtol_max, kwargs...)
 end
 
 function default_diagtolalg(basis; tol, kwargs...)

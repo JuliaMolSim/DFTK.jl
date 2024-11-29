@@ -7,7 +7,7 @@
 
     function discretized_hamiltonian(T, testcase)
         model = model_DFT(convert(Matrix{T}, testcase.lattice), testcase.atoms,
-                          testcase.positions, [:lda_x, :lda_c_vwn])
+                          testcase.positions; functionals=[:lda_x, :lda_c_vwn])
 
         # For interval arithmetic to give useful numbers,
         # the fft_size should be a power of 2
@@ -43,8 +43,8 @@ end
     using IntervalArithmetic: Interval, radius, mid
     testcase = TestCases.silicon
 
-    model = model_LDA(Matrix{Interval{Float64}}(testcase.lattice),
-                      testcase.atoms, testcase.positions)
+    model = model_DFT(Matrix{Interval{Float64}}(testcase.lattice),
+                      testcase.atoms, testcase.positions; functionals=LDA())
     basis = PlaneWaveBasis(model; Ecut=10, kgrid=(2, 1, 1))
 
     fermialg = DFTK.default_fermialg(basis.model)

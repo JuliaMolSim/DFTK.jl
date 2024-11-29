@@ -1,4 +1,4 @@
-@testsetup module SiliconNLCC
+@testmodule SiliconNLCC begin
 using DFTK
 using LazyArtifacts
 using ..RunSCF: run_scf_and_compare
@@ -30,8 +30,8 @@ function run_silicon_nlcc(T; Ecut=5, grid_size=15, spin_polarization=:none, kwar
     else
         magnetic_moments = []
     end
-    model = model_DFT(Array{T}(silicon.lattice), atoms, silicon.positions,
-                      [:lda_x, :lda_c_pw]; spin_polarization, magnetic_moments)
+    model = model_DFT(Array{T}(silicon.lattice), atoms, silicon.positions;
+                      functionals=[:lda_x, :lda_c_pw], spin_polarization, magnetic_moments)
     basis = PlaneWaveBasis(model; Ecut, kgrid=(3, 3, 3), fft_size=fill(grid_size, 3))
 
     spin_polarization == :collinear && (ref_nlcc = vcat(ref_nlcc, ref_nlcc))

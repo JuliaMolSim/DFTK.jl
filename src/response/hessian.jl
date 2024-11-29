@@ -37,24 +37,66 @@ end
 Compute the application of K defined at ψ to δψ. ρ is the density issued from ψ.
 δψ also generates a δρ, computed with `compute_δρ`.
 """
-@views @timing function apply_K(basis::PlaneWaveBasis, δψ, ψ, ρ, occupation)
+@views @timing function apply_K(basis::PlaneWaveBasis{T}, δψ, ψ, ρ, occupation) where {T}
+    # ~45% of apply_K is spent computing ifft(ψ) twice: once in compute_δρ and once again below.
+    # By caching the result, we could compute it only once for a single application of K,
+    # or even across many applications when using solve_ΩplusK.
+    # But we don't because the memory requirements would be too high (typically an order of magnitude higher than ψ).
+
     δψ = proj_tangent(δψ, ψ)
     δρ = compute_δρ(basis, ψ, δψ, occupation)
     δV = apply_kernel(basis, δρ; ρ)
 
+    ψnk_real = similar(G_vectors(basis), promote_type(T, eltype(ψ[1])))
     Kδψ = map(enumerate(ψ)) do (ik, ψk)
         kpt = basis.kpoints[ik]
         δVψk = similar(ψk)
 
         for n = 1:size(ψk, 2)
-            ψnk_real = ifft(basis, kpt, ψk[:, n])
-            δVψnk_real = δV[:, :, :, kpt.spin] .* ψnk_real
-            δVψk[:, n] = fft(basis, kpt, δVψnk_real)
+            ifft!(ψnk_real, basis, kpt, ψk[:, n])
+            ψnk_real .*= δV[:, :, :, kpt.spin]
+            fft!(δVψk[:, n], basis, kpt, ψnk_real)
         end
         δVψk
     end
     # ensure projection onto the tangent space
     proj_tangent!(Kδψ, ψ)
+end
+
+"""
+Default callback function for `solve_ΩplusK`,
+which prints a convergence table.
+"""
+struct ResponseCallback
+    prev_time::Ref{UInt64}
+end
+function ResponseCallback()
+    ResponseCallback(Ref(zero(UInt64)))
+end
+function (cb::ResponseCallback)(info)
+    mpi_master() || return info  # Only print on master
+
+    if info.stage == :finalize
+        info.converged || @warn "solve_ΩplusK not converged."
+        return info
+    end
+
+    if info.n_iter == 0
+        cb.prev_time[] = time_ns()
+        @printf "n     log10(Residual norm)   Δtime \n"
+        @printf "---   --------------------   ------\n"
+        return info
+    end
+
+    current_time = time_ns()
+    runtime_ns = current_time - cb.prev_time[]
+    cb.prev_time[] = current_time
+
+    resnorm = @sprintf "%20.2f" log10(info.residual_norm)
+    time = @sprintf "% 6s" TimerOutputs.prettytime(runtime_ns)
+    @printf "% 3d   %s   %s\n" info.n_iter resnorm time
+    flush(stdout)
+    info
 end
 
 """
@@ -64,15 +106,9 @@ end
 Return δψ where (Ω+K) δψ = rhs
 """
 @timing function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
-                              callback=identity, tol=1e-10) where {T}
-    filled_occ = filled_occupation(basis.model)
+                              callback=ResponseCallback(), tol=1e-10) where {T}
     # for now, all orbitals have to be fully occupied -> need to strip them beforehand
-    @assert all(all(occ_k .== filled_occ) for occ_k in occupation)
-
-    # To mpi-parallelise we have to deal with the fact that the linear algebra
-    # in the CG (dot products, norms) couples k-Points. Maybe take a look at
-    # the PencilArrays.jl package to get this done automatically.
-    @assert mpi_nprocs() == 1  # Distributed implementation not yet available
+    check_full_occupation(basis, occupation)
 
     # compute quantites at the point which define the tangent space
     ρ = compute_density(basis, ψ, occupation)
@@ -118,7 +154,7 @@ Return δψ where (Ω+K) δψ = rhs
         pack(δψ)
     end
     res = cg(J, rhs_pack; precon=FunctionPreconditioner(f_ldiv!), proj, tol,
-             callback)
+             callback, comm=basis.comm_kpts)
     (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norm,
      res.n_iter)
 end

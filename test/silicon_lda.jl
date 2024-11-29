@@ -1,4 +1,4 @@
-@testsetup module SiliconLDA
+@testmodule SiliconLDA begin
 using DFTK
 using ..RunSCF: run_scf_and_compare
 using ..TestCases: silicon
@@ -26,8 +26,8 @@ function run_silicon_lda(T; Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     else
         magnetic_moments = []
     end
-    model = model_DFT(silicon.lattice, atoms, silicon.positions, [:lda_x, :lda_c_vwn];
-                      spin_polarization, magnetic_moments)
+    model = model_DFT(silicon.lattice, atoms, silicon.positions;
+                      functionals=[:lda_x, :lda_c_vwn], spin_polarization, magnetic_moments)
     model = convert(Model{T}, model)
     basis = PlaneWaveBasis(model; Ecut, silicon.kgrid, fft_size=fill(grid_size, 3) )
 

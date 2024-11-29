@@ -36,7 +36,8 @@ function total_energy_from_eigenvalues(scfres::NamedTuple)
 end
 
 silicon = TestCases.silicon
-model   = model_PBE(silicon.lattice, silicon.atoms, silicon.positions, temperature=1e-2)
+model   = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                    functionals=PBE(), temperature=1e-2)
 basis   = PlaneWaveBasis(model; Ecut=15, kgrid=(1, 2, 3), kshift=(0, 1/2, 0))
 scfres  = self_consistent_field(basis; tol=1e-6)
 

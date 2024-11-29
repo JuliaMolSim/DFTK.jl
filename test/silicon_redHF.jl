@@ -1,4 +1,4 @@
-@testsetup module SiliconRedHF
+@testmodule SiliconRedHF begin
 using DFTK
 using ..RunSCF: run_scf_and_compare
 using ..TestCases: silicon
@@ -34,8 +34,8 @@ function run_silicon_redHF(T; Ecut=5, grid_size=15, spin_polarization=:none, kwa
     else
         magnetic_moments = []
     end
-    model = model_DFT(silicon.lattice, atoms, silicon.positions, []; temperature=0.05,
-                      spin_polarization, magnetic_moments)
+    model = model_DFT(silicon.lattice, atoms, silicon.positions;
+                      functionals=[], temperature=0.05, spin_polarization, magnetic_moments)
     model = convert(Model{T}, model)  # Ensure the selected floating-point type is used
     basis = PlaneWaveBasis(model; Ecut, kgrid=(3, 3, 3), fft_size)
 

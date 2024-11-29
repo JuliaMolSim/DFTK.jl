@@ -1,4 +1,4 @@
-@testsetup module SiliconPBE
+@testmodule SiliconPBE begin
 using DFTK
 using ..RunSCF: run_scf_and_compare
 using ..TestCases: silicon
@@ -30,8 +30,8 @@ function run_silicon_pbe(T; Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     else
         magnetic_moments = []
     end
-    model = model_PBE(silicon.lattice, atoms, silicon.positions; spin_polarization,
-                      magnetic_moments)
+    model = model_DFT(silicon.lattice, atoms, silicon.positions; functionals=PBE(),
+                      spin_polarization, magnetic_moments)
     model = convert(Model{T}, model)
     basis = PlaneWaveBasis(model; Ecut, kgrid=(3, 3, 3), fft_size=fill(grid_size, 3))
 

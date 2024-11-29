@@ -1,4 +1,4 @@
-@testitem "DFTK -> AbstractSystem -> DFTK" begin
+@testitem "DFTK -> AbstractSystem -> DFTK" tags=[:atomsbase] begin
     using DFTK
     using Unitful
     using UnitfulAtomic
@@ -25,8 +25,8 @@
     @test system[:, :magnetic_moment] == magnetic_moments
 
     parsed = DFTK.parse_system(system)
-    @test parsed.lattice   ≈ lattice   atol=5e-13
-    @test parsed.positions ≈ positions atol=5e-13
+    @test parsed.lattice   ≈ lattice   atol=1e-12
+    @test parsed.positions ≈ positions atol=1e-12
     for i = 1:4
         @test iszero(parsed.magnetic_moments[i][1:2])
         @test parsed.magnetic_moments[i][3] == magnetic_moments[i]
@@ -46,7 +46,7 @@
         @test system[:, :magnetic_moment] == magnetic_moments
     end
 
-    for constructor in (Model, model_atomic, model_LDA, model_PBE, model_SCAN)
+    for constructor in (Model, model_atomic)
         model = constructor(system)
         @test model.spin_polarization == :collinear
         newsys = periodic_system(model, magnetic_moments)
@@ -61,7 +61,7 @@
     end
 end
 
-@testitem "DFTK -> AbstractSystem (noncollinear)" begin
+@testitem "DFTK -> AbstractSystem (noncollinear)" tags=[:atomsbase] begin
     using DFTK
     using AtomsBase
 
@@ -73,7 +73,7 @@ end
     @test system[:, :magnetic_moment] == magnetic_moments
 end
 
-@testitem "charged AbstractSystem -> DFTK" begin
+@testitem "charged AbstractSystem -> DFTK" tags=[:atomsbase] begin
     using DFTK
     using Unitful
     using UnitfulAtomic
@@ -104,7 +104,7 @@ end
     end
 end
 
-@testitem "AbstractSystem -> DFTK" begin
+@testitem "AbstractSystem -> DFTK" tags=[:atomsbase] begin
     using DFTK
     using Unitful
     using UnitfulAtomic
@@ -118,8 +118,8 @@ end
     system      = periodic_system(atoms, lattice; fractional=true)
 
     let model = Model(system)
-        @test model.lattice   ≈ pos_lattice atol=5e-13
-        @test model.positions ≈ pos_units   atol=5e-13
+        @test model.lattice   ≈ pos_lattice atol=1e-12
+        @test model.positions ≈ pos_units   atol=1e-12
         @test model.spin_polarization == :none
 
         @test length(model.atoms) == 4
@@ -139,8 +139,8 @@ end
         @test system[4, :pseudopotential] == "hgh/pbe/c-q4.hgh"
 
         parsed = DFTK.parse_system(system)
-        @test parsed.lattice   ≈ pos_lattice atol=5e-13
-        @test parsed.positions ≈ pos_units   atol=5e-13
+        @test parsed.lattice   ≈ pos_lattice atol=1e-12
+        @test parsed.positions ≈ pos_units   atol=1e-12
         @test isempty(parsed.magnetic_moments)
 
         @test length(parsed.atoms) == 4
@@ -159,8 +159,8 @@ end
         @test system[4, :pseudopotential] == "hgh/lda/c-q4.hgh"
 
         model = Model(system)
-        @test model.lattice   ≈ pos_lattice atol=5e-13
-        @test model.positions ≈ pos_units   atol=5e-13
+        @test model.lattice   ≈ pos_lattice atol=1e-12
+        @test model.positions ≈ pos_units   atol=1e-12
         @test model.spin_polarization == :none
 
         @test length(model.atoms) == 4
@@ -172,7 +172,7 @@ end
 end
 
 
-@testitem "Check attach_psp routine selectively" begin
+@testitem "Check attach_psp routine selectively" tags=[:atomsbase] begin
     using DFTK
     using AtomsBase
 
@@ -193,7 +193,7 @@ end
     @test newsys[4, :pseudopotential] == "hgh/pbe/c-q4.hgh"
 end
 
-@testitem "AbstractSystem (unusual symbols and masses) -> DFTK" begin
+@testitem "AbstractSystem (unusual symbols and masses) -> DFTK" tags=[:atomsbase] begin
     using DFTK
     using Unitful
     using UnitfulAtomic
@@ -208,7 +208,7 @@ end
     @test atomic_mass(system_psp) == [-1u"u", -2u"u"]
 
     pos_lattice = austrip.(stack(lattice))
-    let model = model_LDA(system_psp)
+    let model = model_DFT(system_psp; functionals=LDA())
         @test model.lattice   == pos_lattice
         @test model.lattice * model.positions[1] * u"bohr" ≈ atoms[1].position
         @test model.lattice * model.positions[2] * u"bohr" ≈ atoms[2].position

@@ -21,7 +21,7 @@ function Xc(functionals::AbstractVector; kwargs...)
     end
     Xc(convert(Vector{Functional}, fun); kwargs...)
 end
-Xc(functional; kwargs...) = Xc([functional]; kwargs...)
+@deprecate Xc(functional; kwargs...) Xc([functional]; kwargs...)
 
 function Base.show(io::IO, xc::Xc)
     fac = isone(xc.scaling_factor) ? "" : ", scaling_factor=$(xc.scaling_factor)"
@@ -40,8 +40,12 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     end
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
-        newparams = convert_dual.(T, parameters(fun))
-        change_parameters(fun, newparams; keep_identifier=true)
+        params = parameters(fun)
+        if !isempty(params)
+            newparams = convert_dual.(T, params)
+            fun = change_parameters(fun, newparams; keep_identifier=true)
+        end
+        fun
     end
     TermXc(convert(Vector{Functional}, functionals),
            convert_dual(T, xc.scaling_factor),
@@ -226,7 +230,7 @@ energy. Then the potential Vxc is defined by
 where we performed an integration by parts in the last tho equations
 (boundary terms drop by periodicity). For GGA functionals we identify
     Vxc = Vρ - 2 div(Vσ ∇ρ),
-see also Richard Martin, Electronic stucture, p. 158. For meta-GGAs an extra term ΔVl appears
+see also Richard Martin, Electronic structure, p. 158. For meta-GGAs an extra term ΔVl appears
 and the Vτ term cannot be cast into a local potential form. We therefore define the
 potential-orbital product as:
     Vxc ψ = [Vρ - 2 div(Vσ ∇ρ) + Δ(Vl)] ψ + div(-½Vτ ∇ψ)
@@ -337,13 +341,18 @@ end
 
 
 function compute_kernel(term::TermXc, basis::PlaneWaveBasis; ρ, kwargs...)
-    density = LibxcDensities(basis, 0, ρ, nothing)
     n_spin  = basis.model.n_spin_components
     @assert 1 ≤ n_spin ≤ 2
     if !all(family(xc) == :lda for xc in term.functionals)
         error("compute_kernel only implemented for LDA")
     end
 
+    # Add the model core charge density (non-linear core correction)
+    if !isnothing(term.ρcore)
+        ρ = ρ + term.ρcore
+    end
+
+    density = LibxcDensities(basis, 0, ρ, nothing)
     kernel = kernel_terms(term.functionals, density).Vρρ
     fac = term.scaling_factor
     if n_spin == 1
@@ -370,6 +379,11 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArra
     if !iszero(q) && !isnothing(term.ρcore)
         error("Phonon computations are not supported for models using nonlinear core \
               correction.")
+    end
+
+    # Add the model core charge density (non-linear core correction)
+    if !isnothing(term.ρcore)
+        ρ = ρ + term.ρcore
     end
 
     # Take derivatives of the density and the perturbation if needed.

@@ -119,11 +119,11 @@ function PspUpf(path; identifier=path, rcut=nothing)
         count += nproj_l
     end
 
-    r2_pswfcs = [Vector{Float64}[] for _ = 0:lmax-1]
-    pswfc_occs = [Float64[] for _ = 0:lmax-1]
-    pswfc_energies = [Float64[] for _ = 0:lmax-1]
-    pswfc_labels = [String[] for _ = 0:lmax-1]
-    for l = 0:lmax-1
+    r2_pswfcs = [Vector{Float64}[] for _ = 0:lmax]
+    pswfc_occs = [Float64[] for _ = 0:lmax]
+    pswfc_energies = [Float64[] for _ = 0:lmax]
+    pswfc_labels = [String[] for _ = 0:lmax]
+    for l = 0:lmax
         pswfcs_l = filter(χ -> χ["angular_momentum"] == l, pseudo["atomic_wave_functions"])
         for pswfc_li in pswfcs_l
             # rχ -> r²χ
@@ -168,8 +168,10 @@ function eval_psp_projector_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     ircut_proj = min(psp.ircut, length(psp.r2_projs[l+1][i]))
     rgrid = @view psp.rgrid[1:ircut_proj]
     r2_proj = @view psp.r2_projs[l+1][i][1:ircut_proj]
-    return hankel(rgrid, r2_proj, l, p)
+    hankel(rgrid, r2_proj, l, p)
 end
+
+count_n_pswfc_radial(psp::PspUpf, l) = length(psp.r2_pswfcs[l+1])
 
 function eval_psp_pswfc_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
     psp.r2_pswfcs_interp[l+1][i](r) / r^2
@@ -180,7 +182,7 @@ function eval_psp_pswfc_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     # quantities. They are the reason that PseudoDojo UPF files have a much
     # larger radial grid than their psp8 counterparts.
     # If issues arise, try cutting them off too.
-    return hankel(psp.rgrid, psp.r2_pswfcs[l+1][i], l, p)
+    hankel(psp.rgrid, psp.r2_pswfcs[l+1][i], l, p)
 end
 
 eval_psp_local_real(psp::PspUpf, r::T) where {T<:Real} = psp.vloc_interp(r)
@@ -193,12 +195,10 @@ function eval_psp_local_fourier(psp::PspUpf, p::T)::T where {T<:Real}
     # ABINIT uses a more 'pure' Coulomb term with the same asymptotic behavior
     # C(r) = -Z/r; H[-Z/r] = -Z/p^2
     rgrid = @view psp.rgrid[1:psp.ircut]
-    vloc = @view psp.vloc[1:psp.ircut]
-    f = (
-        rgrid .* (rgrid .* vloc .- -psp.Zion * erf.(rgrid))
-        .* sphericalbesselj_fast.(0, p .* rgrid)
-    )
-    I = trapezoidal(rgrid, f)
+    vloc  = @view psp.vloc[1:psp.ircut]
+    I = simpson(rgrid) do i, r
+         r * (r * vloc[i] - -psp.Zion * erf(r)) * sphericalbesselj_fast(0, p * r)
+    end
     4T(π) * (I + -psp.Zion / p^2 * exp(-p^2 / T(4)))
 end
 
@@ -225,6 +225,7 @@ end
 function eval_psp_energy_correction(T, psp::PspUpf, n_electrons)
     rgrid = @view psp.rgrid[1:psp.ircut]
     vloc = @view psp.vloc[1:psp.ircut]
-    f = rgrid .* (rgrid .* vloc .- -psp.Zion)
-    4T(π) * n_electrons * trapezoidal(rgrid, f)
+    4T(π) * n_electrons * simpson(rgrid) do i, r
+        r * (r * vloc[i] - -psp.Zion)
+    end
 end

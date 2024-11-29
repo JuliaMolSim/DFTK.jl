@@ -216,7 +216,8 @@ function main(structure, pseudos; Ecut, kspacing)
     end
 
     system = attach_psp(load_system(structure); pseudos...)
-    model  = model_PBE(system; temperature=1e-3, smearing=Smearing.MarzariVanderbilt())
+    model  = model_DFT(system; functionals=PBE(),
+                       temperature=1e-3, smearing=Smearing.MarzariVanderbilt())
 
     kgrid = kgrid_from_minimal_spacing(model, kspacing)
     basis = PlaneWaveBasis(model; Ecut, kgrid)

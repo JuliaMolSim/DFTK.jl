@@ -28,7 +28,7 @@ lattice = [a  -a/2    0;
 C = ElementPsp(:C; psp=load_psp("hgh/pbe/c-q4"))
 atoms     = [C, C]
 positions = [[0.0, 0.0, 0.0], [1//3, 2//3, 0.0]]
-model  = model_PBE(lattice, atoms, positions)
+model  = model_DFT(lattice, atoms, positions; functionals=PBE())
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[5, 5, 1])
 nbandsalg = AdaptiveBands(basis.model; n_bands_converge=15)
 scfres = self_consistent_field(basis; nbandsalg, tol=1e-5);
@@ -124,7 +124,7 @@ end
 ## Feed to Wannier via the `projections` as before...
 
 # This example assumes that Wannier.jl version 0.3.2 is used,
-# and may need to be updated to accomodate for changes in Wannier.jl.
+# and may need to be updated to accommodate for changes in Wannier.jl.
 #
 # Note: Some parameters supported by Wannier90 may have to be passed to Wannier.jl differently,
 # for example the max number of iterations is passed to `disentangle` in Wannier.jl,

@@ -11,7 +11,7 @@
     lattice = a / 2 * [[0 1 1.]; [1 0 1.]; [1 1 0.]]
     atoms     = [Si, Si]
     positions = [ones(3)/8, -ones(3)/8]
-    model = model_LDA(lattice, atoms, positions)
+    model = model_atomic(lattice, atoms, positions)
     @test spglib_dataset(atomic_system(model)).spacegroup_number == 227
     @test spglib_standardize_cell(model).lattice ≈ a * I(3)
 
@@ -19,7 +19,7 @@
     lattice = a / 2 * [[0 -1 -1.]; [1 0 1.]; [1 1 0.]]
     atoms     = [Si, Si]
     positions = [ones(3)/8, -ones(3)/8]
-    model = model_LDA(lattice, atoms, positions)
+    model = model_atomic(lattice, atoms, positions)
     @test spglib_dataset(atomic_system(model)).spacegroup_number == 227
     @test spglib_standardize_cell(model).lattice ≈ a * I(3)
 
@@ -27,7 +27,7 @@
     lattice = a / 2 * [[0 1 1.]; [-1 0 1.]; [-1 1 0.]]
     atoms     = [Si, Si]
     positions = [[-1, 1, 1]/8, -[-1, 1, 1]/8]
-    model = model_LDA(lattice, atoms, positions)
+    model = model_atomic(lattice, atoms, positions)
     @test spglib_dataset(atomic_system(model)).spacegroup_number == 227
     @test spglib_standardize_cell(model).lattice ≈ a * I(3)
 
@@ -35,7 +35,7 @@
     lattice = a / 2 * [[0 1 1.]; [1 0 1.]; [1 1 0.]]
     atoms     = [Si, Ge]
     positions = [ones(3)/8, -ones(3)/8]
-    model = model_LDA(lattice, atoms, positions)
+    model = model_atomic(lattice, atoms, positions)
     @test spglib_dataset(atomic_system(model)).spacegroup_number == 216
     @test spglib_standardize_cell(model).lattice ≈ a * I(3)
 
@@ -43,7 +43,7 @@
     lattice = a / 2 * [[0 -1 -1.]; [1 0 1.]; [1 1 0.]]
     atoms     = [Si, Ge]
     positions = [ones(3)/8, -ones(3)/8]
-    model = model_LDA(lattice, atoms, positions)
+    model = model_atomic(lattice, atoms, positions)
     @test spglib_dataset(atomic_system(model)).spacegroup_number == 216
     @test spglib_standardize_cell(model).lattice ≈ a * I(3)
 
@@ -51,7 +51,7 @@
     lattice = a / 2 * [[0 1 1.]; [-1 0 1.]; [-1 1 0.]]
     atoms     = [Si, Ge]
     positions = [[-1, 1, 1]/8, -[-1, 1, 1]/8]
-    model = model_LDA(lattice, atoms, positions)
+    model = model_atomic(lattice, atoms, positions)
     @test spglib_dataset(atomic_system(model)).spacegroup_number == 216
     @test spglib_standardize_cell(model).lattice ≈ a * I(3)
 
@@ -59,7 +59,7 @@
     lattice = a * [[1. -1/2 0.]; [0. sqrt(3)/2 0.]; [0. 0. sqrt(8/3)]]
     atoms     = [Si, Si]
     positions = [[0, 0, 0], [1/3, 2/3, 1/2]]
-    model = model_LDA(lattice, atoms, positions)
+    model = model_atomic(lattice, atoms, positions)
     @test spglib_dataset(atomic_system(model)).spacegroup_number == 194
     @test spglib_standardize_cell(model).lattice ≈ lattice
 
@@ -67,7 +67,7 @@
     lattice = a * [[-1. 1/2 0.]; [0. sqrt(3)/2 0.]; [0. 0. sqrt(8/3)]]
     atoms     = [Si, Si]
     positions =  [[0, 0, 0], [1/3, 2/3, 1/2]]
-    model = model_LDA(lattice, atoms, positions)
+    model = model_atomic(lattice, atoms, positions)
     @test spglib_dataset(atomic_system(model)).spacegroup_number == 194
     @test !(spglib_standardize_cell(model).lattice ≈ lattice)
 
@@ -75,7 +75,7 @@
     lattice = a * [[-1. -1/2 0.]; [0. sqrt(3)/2 0.]; [0. 0. sqrt(8/3)]]
     atoms     = [Si, Si]
     positions =  [[0, 0, 0], [-1/3, 2/3, 1/2]]
-    model = model_LDA(lattice, atoms, positions)
+    model = model_atomic(lattice, atoms, positions)
     @test spglib_dataset(atomic_system(model)).spacegroup_number == 194
     @test (  spglib_standardize_cell(model).lattice
            ≈ a * [[1. -1/2 0.]; [0. sqrt(3)/2 0.]; [0. 0. sqrt(8/3)]])
