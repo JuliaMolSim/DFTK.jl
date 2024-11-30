@@ -22,7 +22,7 @@ which builds a standard atomic (kinetic + atomic potential) model.
 
 # Examples
 ```julia-repl
-julia> model_atomic(system; pseudopotentials=PseudoFamily("pd_nc_sr_pbe_standard_0.4.1_upf"))
+julia> model_atomic(system; pseudopotentials=PseudoFamily("dojo.nc.sr.pbe.v0_4_1.oncvpsp3.standard.upf"))
 ```
 Construct an atomic system using the specified pseudo-dojo pseudopotentials for all
 atoms of the system.
@@ -86,13 +86,12 @@ Alternative syntax specifying the functionals directly
 via their libxc codes.
 """
 function model_DFT(system::AbstractSystem;
-                   functionals,
                    pseudopotentials=fill(nothing, length(system)),
-                   kwargs...)
+                   functionals, kwargs...)
     # TODO Could check consistency between pseudos and passed functionals
     parsed = parse_system(system, pseudopotentials)
-    model_DFT(parsed.lattice, parsed.atoms, parsed.positions;
-              parsed.magnetic_moments, functionals, kwargs...)
+    _model_DFT(functionals, parsed.lattice, parsed.atoms, parsed.positions;
+               parsed.magnetic_moments, kwargs...)
 end
 function model_DFT(lattice::AbstractMatrix,
                    atoms::Vector{<:Element},

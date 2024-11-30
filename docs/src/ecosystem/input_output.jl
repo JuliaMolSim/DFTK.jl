@@ -40,10 +40,11 @@ system = load_system("Fe_afm.pwi")
 
 using DFTK
 using PseudoPotentialData
+pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf")
 model = model_DFT(system;
                   functionals=LDA(),
                   temperature=0.01,
-                  pseudopotentials=PseudoFamily("pd_nc_sr_lda_standard_0.4.1_upf"))
+                  pseudopotentials=pd_lda_family)
 
 # Finally we run the calculation:
 

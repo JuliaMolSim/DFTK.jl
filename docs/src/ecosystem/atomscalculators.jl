@@ -24,10 +24,10 @@
 using DFTK
 using PseudoPotentialData
 
-model_kwargs = (; functionals=LDA(),
-                  pseudopotentials=PseudoFamily("pd_nc_sr_lda_standard_0.4.1_upf"))
-basis_kwargs = (; kgrid=[4, 4, 4], Ecut=7)
-scf_kwargs   = (; tol=1e-5)
+pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf")
+model_kwargs  = (; functionals=LDA(), pseudopotentials=pd_lda_family)
+basis_kwargs  = (; kgrid=[4, 4, 4], Ecut=7)
+scf_kwargs    = (; tol=1e-5)
 calc = DFTKCalculator(; model_kwargs, basis_kwargs, scf_kwargs)
 
 # Note, that the `scf_kwargs` is optional and can be missing

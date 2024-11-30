@@ -122,7 +122,7 @@ Construct an `ElementPsp` again for silicon using the specified pseudpotential f
 (from the `PseudopotentialData` package).
 ```julia
 using PseudoPotentialData
-ElementPsp(:Si, PseudoFamily("pd_nc_sr_pbe_standard_0.4.1_upf"))
+ElementPsp(:Si, PseudoFamily("dojo.nc.sr.pbe.v0_4_1.oncvpsp3.standard.upf"))
 ```
 """
 function ElementPsp(symbol::Symbol, family::AbstractDict; mass=element(symbol).atomic_mass, kwargs...)

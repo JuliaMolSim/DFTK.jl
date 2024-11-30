@@ -11,7 +11,7 @@
 
     lattice = 5 * I(3)
     positions = [zeros(3)]
-    pd_lda_family = PseudoFamily("pd_nc_sr_lda_standard_0.4.1_upf")
+    pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf")
     for element in elements
         atoms = [ElementPsp(element, pd_lda_family)]
         model = model_DFT(lattice, atoms, positions; functionals=LDA())

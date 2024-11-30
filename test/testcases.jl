@@ -8,7 +8,7 @@ using LazyArtifacts
 
 # TODO This file keep us from removing the Artifact.toml from DFTK right now
 hgh_lda_family_dir = artifact"hgh_lda_hgh"
-pd_lda_family = PseudoFamily("pd_nc_sr_lda_standard_0.4.1_upf")
+pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf")
 
 silicon = (;
     lattice = [0.0  5.131570667152971 5.131570667152971;

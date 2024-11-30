@@ -160,10 +160,11 @@ using AtomsBuilder
 using PseudoPotentialData
 
 function aluminium_setup(repeat=1; Ecut=13.0, kgrid=[2, 2, 2])
-    al_supercell = bulk(:Al; cubic=true) * (repeat, 1, 1)
+    al_supercell  = bulk(:Al; cubic=true) * (repeat, 1, 1)
+    pd_pbe_family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.oncvpsp3.standard.upf")
     model = model_DFT(al_supercell;
                       functionals=PBE(), temperature=1e-3, symmetries=false,
-                      pseudopotentials=PseudoFamily("pd_nc_sr_pbe_standard_0.4.1_upf"))
+                      pseudopotentials=pd_pbe_family)
     PlaneWaveBasis(model; Ecut, kgrid)
 end;
 
