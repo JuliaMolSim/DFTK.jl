@@ -84,15 +84,15 @@ local_potential_real(el::ElementCoulomb, r::Real) = -el.Z / r
 struct ElementPsp <: Element
     Z::Int         # Nuclear charge
     symbol::Symbol # Element symbol
-    mass           # Atomic mass
     psp            # Pseudopotential data structure
+    mass           # Atomic mass
 end
 function Base.show(io::IO, el::ElementPsp)
     pspid = isempty(el.psp.identifier) ? "custom" : el.psp.identifier
     if el.mass == atomic_mass(el)
-        print(io, "ElementPsp($(el.symbol); psp=\"$pspid\")")
+        print(io, "ElementPsp($(el.symbol), \"$pspid\")")
     else
-        print(io, "ElementPsp($(el.symbol); psp=\"$pspid\", mass=\"$(el.mass)\")")
+        print(io, "ElementPsp($(el.symbol), \"$pspid\"; mass=\"$(el.mass)\")")
     end
 end
 
@@ -130,7 +130,7 @@ function ElementPsp(symbol::Symbol, family::AbstractDict; mass=element(symbol).a
 end
 function ElementPsp(symbol::Symbol, psp; mass=element(symbol).atomic_mass)
     Z = periodic_table[symbol].number
-    ElementPsp(Z, symbol, mass, psp)
+    ElementPsp(Z, symbol, psp, mass)
 end
 ElementPsp(symbol::Symbol, psp::Nothing; kwargs...) = ElementCoulomb(symbol; kwargs...)
 ElementPsp(key, psp; kwargs...) = ElementPsp(Symbol(periodic_table[key].symbol), psp; kwargs...)

@@ -52,13 +52,13 @@ scfres = self_consistent_field(basis, tol=1e-8);
 
 # ### Reading a system using AtomsIO
 #
+# Read a file using [AtomsIO](https://github.com/mfherbst/AtomsIO.jl),
+# which directly yields an AbstractSystem.
+#
 using AtomsIO
+system = load_system("Si.extxyz");
 
-## Read a file using [AtomsIO](https://github.com/mfherbst/AtomsIO.jl),
-## which directly yields an AbstractSystem.
-system = load_system("Si.extxyz")
-
-## Now run the LDA calculation:
+# Run the LDA calculation:
 pseudopotentials = Dict(:Si => "hgh/lda/si-q4")
 model  = model_DFT(system; pseudopotentials, functionals=LDA(), temperature=1e-3)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
