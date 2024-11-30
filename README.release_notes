@@ -10,11 +10,11 @@ Note that this release increases the minor version and contains a number of brea
 
 - The `model_DFT` syntax with an array of functionals in the last argument is deprecated and will be removed in a later DFTK version. Instead of `model_DFT(system, [:lda_x]; kwargs...)` use `model_DFT(system; functionals=[:lda_x], kwargs...)` (#994)
 
-- The model constructors in combination with `AtomsBase` systems no longer respect the `:pseudopotential` atom keys. To specify the pseudopotentials in combination with the `AtomsBase` interface now use the `pseudopotentials` keyword argument of the model constructors.   E.g. instead of running `system = attach_psp(system; Si="hgh/lda/si-q4"); model = model_DFT(system; kwargs...)` use `model = model_DFT(system; pseudopotentials=Dict(:Si => "hgh/lda/si-q4"))`. Note that the new `PseudoPotentialData.PseudoFamily` objects can also be passed as values to the `pseudopotentials` keywords, which is often simpler. (#???)
+- The model constructors in combination with `AtomsBase` systems no longer respect the `:pseudopotential` atom keys. To specify the pseudopotentials in combination with the `AtomsBase` interface now use the `pseudopotentials` keyword argument of the model constructors.   E.g. instead of running `system = attach_psp(system; Si="hgh/lda/si-q4"); model = model_DFT(system; kwargs...)` use `model = model_DFT(system; pseudopotentials=Dict(:Si => "hgh/lda/si-q4"))`. Note that the new `PseudoPotentialData.PseudoFamily` objects can also be passed as values to the `pseudopotentials` keywords, which is often simpler. (#1020)
 
-- The `attach_psp` function *has been removed* due to the above change. Use the new `model_DFT(system; pseudopotential=Dict(:Si => "hgh/lda/si-q4"), kwargs...)` syntax instead. (#???)
+- The `attach_psp` function *has been removed* due to the above change. Use the new `model_DFT(system; pseudopotential=Dict(:Si => "hgh/lda/si-q4"), kwargs...)` syntax instead. (#1020)
 
-- The `ElementPsp(key; psp)` constructor is deprecated and will be removed in a later DFTK version, use instead `Element(key, psp)` which is now more powerful (`psp` can be a `PspHgh`, `PspUpf` or `PseudoPotentialData.PseudoFamily`). (#???)
+- The `ElementPsp(key; psp)` constructor is deprecated and will be removed in a later DFTK version, use instead `Element(key, psp)` which is now more powerful (`psp` can be a `PspHgh`, `PspUpf` or `PseudoPotentialData.PseudoFamily`). (#1020)
 
 - The deprecated `kgrid_from_minimal_spacing` function has been removed in favour of `kgrid_from_maximal_spacing` (#994)
 
