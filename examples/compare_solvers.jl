@@ -9,8 +9,8 @@ using DFTK
 using LinearAlgebra
 using PseudoPotentialData
 
-model = model_DFT(bulk(:Si); functionals=PBEsol(),
-                  pseudopotentials=PseudoFamily("pd_nc_sr_pbesol_standard_0.4.1_upf"))
+pseudopotentials = PseudoFamily("dojo.nc.sr.pbesol.v0_4_1.oncvpsp3.standard.upf")
+model = model_DFT(bulk(:Si); functionals=PBEsol(), pseudopotentials)
 basis = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3])
 
 ## Convergence we desire in the density

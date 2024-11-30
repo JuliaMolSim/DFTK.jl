@@ -32,8 +32,9 @@ system_Al = bulk(:Al; cubic=true) * (4, 1, 1)
 
 using PseudoPotentialData
 
-model_Al = model_DFT(system_Al; functionals=LDA(), temperature=1e-3, symmetries=false,
-                     pseudopotentials=PseudoFamily("pd_nc_sr_lda_standard_0.4.1_upf"))
+pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf")
+model_Al = model_DFT(system_Al; functionals=LDA(), temperature=1e-3,
+                     symmetries=false, pseudopotentials)
 basis_Al = PlaneWaveBasis(model_Al; Ecut=7, kgrid=[1, 1, 1]);
 
 # On aluminium (a metal) already for moderate system sizes (like the 8 layers

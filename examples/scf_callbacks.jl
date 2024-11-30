@@ -16,9 +16,8 @@ using DFTK
 using AtomsBuilder
 using PseudoPotentialData
 
-model = model_DFT(bulk(:Si);
-                  functionals=LDA(),
-                  pseudopotentials=PseudoFamily("pd_nc_sr_lda_standard_0.4.1_upf"))
+pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf")
+model = model_DFT(bulk(:Si); functionals=LDA(), pseudopotentials)
 basis = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3]);
 
 # DFTK already defines a few callback functions for standard

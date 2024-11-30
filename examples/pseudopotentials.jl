@@ -47,7 +47,7 @@ using Plots
 # package. See [the documentation of PseudoPotentialData](https://juliamolsim.github.io/PseudoPotentialData.jl/stable/)
 # for the list of available pseudopotential families.
 
-pseudopotentials_upf = PseudoFamily("pd_nc_sr_lda_standard_0.4.1_upf")
+pseudopotentials_upf = PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf")
 
 # Such a `PseudoFamily` object acts like a dictionary from an element symbol
 # to a pseudopotential file. They can be directly employed to select the

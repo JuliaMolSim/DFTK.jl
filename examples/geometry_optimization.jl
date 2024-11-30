@@ -24,7 +24,7 @@ r0 = 1.4   # Initial bond length in Bohr
 a  = 10.0  # Box size in Bohr
 
 lattice = a * I(3)
-H = ElementPsp(:H, PseudoFamily("pd_nc_sr_pbe_standard_0.4.1_upf"))
+H = ElementPsp(:H, PseudoFamily("dojo.nc.sr.pbe.v0_4_1.oncvpsp3.standard.upf"))
 atoms = [H, H]
 positions = [zeros(3), lattice \ [r0, 0., 0.]]
 
