@@ -1,7 +1,6 @@
 @testitem "Kernels" setup=[TestCases] begin
     using DFTK
     using LinearAlgebra
-    using LazyArtifacts
 
     function test_kernel(spin_polarization, termtype; test_compute=true, psp=TestCases.silicon.psp_hgh)
         kgrid  = [2, 2, 2]

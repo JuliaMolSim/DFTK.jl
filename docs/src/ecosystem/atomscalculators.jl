@@ -22,10 +22,12 @@
 # the AtomsCalculators interface we define the calculator as such:
 
 using DFTK
+using PseudoPotentialData
 
-model_kwargs = (; functionals=LDA())
-basis_kwargs = (; kgrid=[4, 4, 4], Ecut=7)
-scf_kwargs   = (; tol=1e-5)
+pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf")
+model_kwargs  = (; functionals=LDA(), pseudopotentials=pd_lda_family)
+basis_kwargs  = (; kgrid=[4, 4, 4], Ecut=7)
+scf_kwargs    = (; tol=1e-5)
 calc = DFTKCalculator(; model_kwargs, basis_kwargs, scf_kwargs)
 
 # Note, that the `scf_kwargs` is optional and can be missing
@@ -47,7 +49,7 @@ using AtomsCalculators
 AC = AtomsCalculators
 
 ## Bulk silicon system of the Tutorial
-silicon = attach_psp(bulk(:Si); Si="hgh/lda/si-q4")
+silicon = bulk(:Si)
 AC.potential_energy(silicon, calc)  # Compute total energy
 
 # or we can compute the energy and forces:

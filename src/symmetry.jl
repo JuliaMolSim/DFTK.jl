@@ -109,7 +109,8 @@ on each of the atoms. The symmetries are determined using spglib.
     symmetries
 end
 function symmetry_operations(system::AbstractSystem; kwargs...)
-    parsed = parse_system(system)
+    pseudopotentials = fill(nothing, length(system))
+    parsed = parse_system(system, pseudopotentials)
     symmetry_operations(parsed.lattice, parsed.atoms, parsed.positions,
                         parsed.magnetic_moments; kwargs...)
 end

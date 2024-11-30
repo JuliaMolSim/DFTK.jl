@@ -7,10 +7,11 @@
 using AtomsBuilder
 using DFTK
 using LinearAlgebra
+using PseudoPotentialData
 
-system = attach_psp(bulk(:Si); Si="hgh/lda/Si-q4")
-model  = model_DFT(system; functionals=PBEsol())
-basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3])
+pseudopotentials = PseudoFamily("dojo.nc.sr.pbesol.v0_4_1.oncvpsp3.standard.upf")
+model = model_DFT(bulk(:Si); functionals=PBEsol(), pseudopotentials)
+basis = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3])
 
 ## Convergence we desire in the density
 tol = 1e-6

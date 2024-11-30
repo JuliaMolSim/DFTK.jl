@@ -1,25 +1,29 @@
 @testmodule mPspUpf begin  # PspUpf already exported by DFTK
-using DFTK
-using LazyArtifacts
+    using DFTK
+    using PseudoPotentialData
+    using LazyArtifacts
 
-upf_pseudos = Dict(
-    # Converged from HGH
-    :Si => load_psp(artifact"hgh_pbe_upf", "Si.pbe-hgh.UPF"),
-    :Tl => load_psp(artifact"hgh_pbe_upf", "Tl.pbe-d-hgh.UPF"),
-    # No NLCC
-    :Li => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Li.upf"),
-    :Mg => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Mg.upf"),
-    # With NLCC
-    :Co => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Co.upf"; rcut=10.0),
-    :Ge => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Ge.upf"),
-    # With cutoff
-    :Cu => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Cu.upf"; rcut=9.0),
-    :Cr => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Cu.upf"; rcut=12.0)
-)
-hgh_pseudos = [
-    (; hgh=load_psp("hgh/pbe/si-q4.hgh"), upf=upf_pseudos[:Si]),
-    (; hgh=load_psp("hgh/pbe/tl-q13.hgh"), upf=upf_pseudos[:Tl])
-]
+    pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf")
+    pd_pbe_family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.oncvpsp3.standard.upf")
+    upf_pseudos = Dict(
+        # Converged from HGH
+        # TODO These two files keep us from removing the Artifact.toml from DFTK right now
+        :Si => load_psp(artifact"hgh_pbe_upf/Si.pbe-hgh.UPF"),
+        :Tl => load_psp(artifact"hgh_pbe_upf/Tl.pbe-d-hgh.UPF"),
+        # No NLCC
+        :Li => load_psp(pd_lda_family[:Li]),
+        :Mg => load_psp(pd_lda_family[:Mg]),
+        # With NLCC
+        :Co => load_psp(pd_pbe_family[:Co]; rcut=10.0),
+        :Ge => load_psp(pd_pbe_family[:Ge]),
+        # With cutoff
+        :Cu => load_psp(pd_pbe_family[:Cu]; rcut=9.0),
+        :Cr => load_psp(pd_pbe_family[:Cr]; rcut=12.0)
+    )
+    hgh_pseudos = [
+        (; hgh=load_psp("hgh/pbe/si-q4.hgh"),  upf=upf_pseudos[:Si]),
+        (; hgh=load_psp("hgh/pbe/tl-q13.hgh"), upf=upf_pseudos[:Tl])
+    ]
 end
 
 
@@ -208,7 +212,7 @@ end
     lattice = 5 * I(3)
     positions = [zeros(3)]
     for (element, psp) in mPspUpf.upf_pseudos
-        atoms = [ElementPsp(element; psp)]
+        atoms = [ElementPsp(element, psp)]
         model = model_DFT(lattice, atoms, positions; functionals=LDA())
         basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
         ρ_val = guess_density(basis, ValenceDensityPseudo())
@@ -225,7 +229,7 @@ end
     positions = [zeros(3)]
     for (element, psp) in mPspUpf.upf_pseudos
         if sum(psp.r2_ρion) > 0  # Otherwise, it's all 0 in the UPF as a placeholder
-            atoms = [ElementPsp(element; psp)]
+            atoms = [ElementPsp(element, psp)]
             model = model_DFT(lattice, atoms, positions; functionals=LDA())
             basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
             ρ_val = guess_density(basis, ValenceDensityPseudo())

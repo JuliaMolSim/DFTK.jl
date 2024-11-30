@@ -7,14 +7,34 @@ Convenience constructor around [`Model`](@ref),
 which builds a standard atomic (kinetic + atomic potential) model.
 
 ## Keyword arguments
+- `pseudopotentials`: Set the pseudopotential information for the atoms
+   of the passed system. Can be (a) a list of pseudopotential objects
+   (one for each atom), where a `nothing` element indicates that the
+   Coulomb potential should be used for that atom or (b)
+   a `PseudoPotentialData.PseudoFamily` to automatically determine the
+   pseudopotential from the specified pseudo family or (c)
+   a `Dict{Symbol,String}` mapping an atomic symbol
+   to the pseudopotential to be employed.
 - `extra_terms`: Specify additional terms to be passed to the
   [`Model`](@ref) constructor.
 - `kinetic_blowup`: Specify a blowup function for the kinetic
   energy term, see e.g [`BlowupCHV`](@ref).
 
+# Examples
+```julia-repl
+julia> model_atomic(system; pseudopotentials=PseudoFamily("dojo.nc.sr.pbe.v0_4_1.oncvpsp3.standard.upf"))
+```
+Construct an atomic system using the specified pseudo-dojo pseudopotentials for all
+atoms of the system.
+
+```julia-repl
+julia> model_atomic(system; pseudopotentials=Dict(:Si => "hgh/lda/si-q4"))
+```
+same thing, but specify the pseudopotentials explicitly in a dictionary.
 """
-function model_atomic(system::AbstractSystem; kwargs...)
-    parsed = parse_system(system)
+function model_atomic(system::AbstractSystem;
+                      pseudopotentials=fill(nothing, length(system)), kwargs...)
+    parsed = parse_system(system, pseudopotentials)
     model_atomic(parsed.lattice, parsed.atoms, parsed.positions;
                  parsed.magnetic_moments, kwargs...)
 end
@@ -65,10 +85,13 @@ julia> model_DFT(system; functionals=[:lda_x, :lda_c_pw], temperature=0.01)
 Alternative syntax specifying the functionals directly
 via their libxc codes.
 """
-function model_DFT(system::AbstractSystem; functionals, kwargs...)
-    parsed = parse_system(system)
-    model_DFT(parsed.lattice, parsed.atoms, parsed.positions;
-              parsed.magnetic_moments, functionals, kwargs...)
+function model_DFT(system::AbstractSystem;
+                   pseudopotentials=fill(nothing, length(system)),
+                   functionals, kwargs...)
+    # TODO Could check consistency between pseudos and passed functionals
+    parsed = parse_system(system, pseudopotentials)
+    _model_DFT(functionals, parsed.lattice, parsed.atoms, parsed.positions;
+               parsed.magnetic_moments, kwargs...)
 end
 function model_DFT(lattice::AbstractMatrix,
                    atoms::Vector{<:Element},
