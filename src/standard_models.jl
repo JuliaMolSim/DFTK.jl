@@ -32,8 +32,12 @@ julia> model_atomic(system; pseudopotentials=Dict(:Si => "hgh/lda/si-q4"))
 ```
 same thing, but specify the pseudopotentials explicitly in a dictionary.
 """
-function model_atomic(system::AbstractSystem;
-                      pseudopotentials=fill(nothing, length(system)), kwargs...)
+function model_atomic(system::AbstractSystem; pseudopotentials, kwargs...)
+    # Note: We are enforcing to specify pseudopotentials at this interface
+    # (unlike the lower-level Model interface) because the argument is that
+    # automatically defaulting to the Coulomb potential will generally trip
+    # people over and could too easily lead to garbage results
+    #
     parsed = parse_system(system, pseudopotentials)
     model_atomic(parsed.lattice, parsed.atoms, parsed.positions;
                  parsed.magnetic_moments, kwargs...)
@@ -72,22 +76,31 @@ All other keyword arguments
 but `functional` are passed to [`model_atomic`](@ref) and from
 there to [`Model`](@ref).
 
+Note in particular that the `pseudopotential` keyword
+argument is mandatory to specify pseudopotential information. This can be easily
+achieved for example using the `PseudoFamily` struct from the `PseudoPotentialData`
+package as shown below:
+
 # Examples
 ```julia-repl
-julia> model_DFT(system; functionals=LDA(), temperature=0.01)
+julia> model_DFT(system; functionals=LDA(), temperature=0.01,
+                 pseudopotentials=PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf"))
+
 ```
 builds an [`LDA`](@ref) model for a passed system
 with specified smearing temperature.
 
 ```julia-repl
-julia> model_DFT(system; functionals=[:lda_x, :lda_c_pw], temperature=0.01)
+julia> model_DFT(system; functionals=[:lda_x, :lda_c_pw], temperature=0.01,
+                 pseudopotentials=PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf"))
 ```
 Alternative syntax specifying the functionals directly
 via their libxc codes.
 """
-function model_DFT(system::AbstractSystem;
-                   pseudopotentials=fill(nothing, length(system)),
-                   functionals, kwargs...)
+function model_DFT(system::AbstractSystem; pseudopotentials, functionals, kwargs...)
+    # Note: We are deliberately enforcing the user to specify pseudopotentials here.
+    # See the implementation of model_atomic for a rationale why
+    #
     # TODO Could check consistency between pseudos and passed functionals
     parsed = parse_system(system, pseudopotentials)
     _model_DFT(functionals, parsed.lattice, parsed.atoms, parsed.positions;
