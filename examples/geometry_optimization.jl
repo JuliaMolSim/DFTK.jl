@@ -3,32 +3,35 @@
 # We use DFTK and the [GeometryOptimization](https://github.com/JuliaMolSim/GeometryOptimization.jl/)
 # package to find the minimal-energy bond length of the ``H_2`` molecule.
 # First we set up an appropriate `DFTKCalculator` (see [AtomsCalculators integration](@ref)),
-# for which we use the LDA model just like in the [Tutorial](@ref) for silicon.
+# for which we use the LDA model just like in the [Tutorial](@ref) for silicon
+# in combination with a pseudodojo pseudopotential (see [Pseudopotentials](@ref)).
 
 using DFTK
+using PseudoPotentialData
 
+pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.oncvpsp3.standard.upf")
 calc = DFTKCalculator(;
-    model_kwargs = (; functionals=LDA()),        # model_DFT keyword arguments
+    model_kwargs = (; functionals=LDA(), pseudopotentials),  # model_DFT keyword arguments
     basis_kwargs = (; kgrid=[1, 1, 1], Ecut=10)  # PlaneWaveBasis keyword arguments
 )
 
 # Next we set up an initial hydrogen molecule within a box of vacuum.
 # We use the parameters of the
-# [equivalent tutorial from ABINIT](https://docs.abinit.org/tutorial/base1/),
-# that is a simulation box of 10 bohr times 10 bohr times 10 bohr and a
+# [equivalent tutorial from ABINIT](https://docs.abinit.org/tutorial/base1/)
+# and DFTK's [AtomsBase integration](@ref) to setup the hydrogen molecule.
+# We employ a simulation box of 10 bohr times 10 bohr times 10 bohr and a
 # pseudodojo pseudopotential.
 using LinearAlgebra
-using PseudoPotentialData
+using Unitful
+using UnitfulAtomic
 
 r0 = 1.4   # Initial bond length in Bohr
 a  = 10.0  # Box size in Bohr
 
-lattice = a * I(3)
-H = ElementPsp(:H, PseudoFamily("dojo.nc.sr.pbe.v0_4_1.oncvpsp3.standard.upf"))
-atoms = [H, H]
-positions = [zeros(3), lattice \ [r0, 0., 0.]]
-
-h2_crude = periodic_system(lattice, atoms, positions)
+cell_vectors = [[a, 0, 0]u"bohr", [0, a, 0]u"bohr", [0, 0, a]u"bohr"]
+h2_crude = periodic_system([:H => [0, 0, 0.]u"bohr",
+                            :H => [r0, 0, 0]u"bohr"],
+                           cell_vectors)
 
 # Finally we call `minimize_energy!` to start the geometry optimisation.
 # We use `verbosity=2` to get some insight into the minimisation.
