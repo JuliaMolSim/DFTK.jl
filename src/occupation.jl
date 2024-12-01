@@ -131,10 +131,11 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiTwoSt
 end
 
 """
-Bisection method to find εF  in the array εFs such that |excess_funcion(εF)| < tol_n_elec
+Discrete bisection method to find εF in the array εFs such that 
+|excess_funcion(εF)| < tol_n_elec 
 where excess_function is an increasing function and εFs is a sorted array (increasing).
 """
-function bisection(εFs, excess_function, tol_n_elec)
+function discrete_find_zero(excess_function, εFs, tol_n_elec)
     i_min = 1
     i_max = length(εFs)
     excess_min = excess_function(εFs[1])
@@ -160,7 +161,6 @@ function bisection(εFs, excess_function, tol_n_elec)
                 i_min = i
                 i_max = i
             end
-
         end
     end
     εF
@@ -193,20 +193,18 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
     
     # Search for the Fermi level in between the eigenvalues
     sort!((all_eigenvalues))
-    εFs = [ all_eigenvalues[i] + T(1/2)*(all_eigenvalues[i+1]-all_eigenvalues[i]) 
-            for i=1:length(all_eigenvalues)-1 ]
+    εFs = all_eigenvalues[1:end-1] .+ T(1/2)*diff(all_eigenvalues) # Candidates Fermi-levels
     # Remove candidate Fermi levels that are between two identical eigenvalues
     # (at machine precision)
-    εFs = εFs[ [abs(all_eigenvalues[i+1]-all_eigenvalues[i]) > all_eigenvalues[i]*2*eps(T) 
-               for i=1:length(all_eigenvalues)-1] ]
+    εFs = εFs[ diff(all_eigenvalues) .> 2*eps(T)*all_eigenvalues[1:end-1] ]
     push!(εFs, last(all_eigenvalues) + T(1))
     
     excess_function = εF->excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
-    εF = bisection(εFs, excess_function, tol_n_elec)
+    εF = discrete_find_zero(excess_function, εFs, tol_n_elec)
     
     occ = compute_occupation(basis, eigenvalues, εF; temperature, smearing).occupation
-    merged_spin_occupations = sum([ occ[krange_spin(basis, i)] 
-                                   for i in 1:basis.model.n_spin_components ])
+    merged_spin_occupations = sum(  occ[krange_spin(basis, i)] 
+                                    for i=1:basis.model.n_spin_components )
     if !allequal(merged_spin_occupations)
         @warn("Not all kpoints have the same number of occupied states, which could mean "*
               "that a metallic system is treated at zero temperature.")
