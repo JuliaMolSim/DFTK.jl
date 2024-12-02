@@ -4,7 +4,8 @@
 # [Wannier.jl](https://wannierjl.org) and [Wannier90](http://www.wannier.org/),
 # in order to compute maximally-localized Wannier functions (MLWFs)
 # from an initial self consistent field calculation.
-# All processes are handled by calling the routine `wannier_model` (for Wannier.jl) or `run_wannier90` (for Wannier90).
+# All processes are handled by calling the routine `Wannier.Model` (for Wannier.jl)
+# or `run_wannier90` (for Wannier90).
 #
 # !!! warning "No guarantees on Wannier interface"
 #     This code is at an early stage and has so far not been fully tested.
@@ -25,11 +26,11 @@ lattice = [a  -a/2    0;
            0  √3*a/2  0;
            0     0    d]
 
-C = ElementPsp(:C; psp=load_psp("hgh/pbe/c-q4"))
+C = ElementPsp(:C, load_psp("hgh/pbe/c-q4"))
 atoms     = [C, C]
 positions = [[0.0, 0.0, 0.0], [1//3, 2//3, 0.0]]
-model  = model_PBE(lattice, atoms, positions)
-basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[5, 5, 1])
+model = model_DFT(lattice, atoms, positions; functionals=PBE())
+basis = PlaneWaveBasis(model; Ecut=15, kgrid=[5, 5, 1])
 nbandsalg = AdaptiveBands(basis.model; n_bands_converge=15)
 scfres = self_consistent_field(basis; nbandsalg, tol=1e-5);
 
@@ -40,7 +41,7 @@ plot_bandstructure(bands)
 
 # ## Wannierization with Wannier.jl
 #
-# Now we use the `wannier_model` routine to generate a Wannier.jl model
+# Now we use the `Wannier.Model` routine to generate a Wannier.jl model
 # that can be used to perform the wannierization procedure.
 # For now, this model generation produces file in the Wannier90 convention,
 # where all files are named with the same prefix and only differ by
@@ -60,11 +61,11 @@ plot_bandstructure(bands)
 using Wannier # Needed to make Wannier.Model available
 
 # From chemical intuition, we know that the bonds with the lowest energy are:
-# - the 3 σ bonds,
-# - the π and π* bonds.
+#   - the 3 σ bonds,
+#   - the π and π* bonds.
 # We provide relevant initial projections to help Wannierization
 # converge to functions with a similar shape.
-s_guess(center) = DFTK.HydrogenicWannierProjection(center, 2, 0, 0, C.Z)
+s_guess(center)  = DFTK.HydrogenicWannierProjection(center, 2, 0, 0, C.Z)
 pz_guess(center) = DFTK.HydrogenicWannierProjection(center, 2, 1, 0, C.Z)
 projections = [
     ## Note: fractional coordinates for the centers!
@@ -85,7 +86,8 @@ wannier_model = Wannier.Model(scfres;
     projections,
     dis_froz_max=ustrip(auconvert(u"eV", scfres.εF))+1) # maximum frozen window, for example 1 eV above Fermi level
 
-# Once we have the `wannier_model`, we can use the functions in the Wannier.jl package:
+# Once we have the `wannier_model`,
+# we can use the functions in the Wannier.jl package:
 #
 # Compute MLWF:
 U = disentangle(wannier_model, max_iter=200);
@@ -108,7 +110,8 @@ rm("wannier", recursive=true)
 #
 # We can also provide custom initial guesses for Wannierization,
 # by passing a callable function in the `projections` array.
-# The function receives the basis and a list of points (fractional coordinates in reciprocal space),
+# The function receives the basis and a list of points
+# (fractional coordinates in reciprocal space),
 # and returns the Fourier transform of the initial guess function evaluated at each point.
 #
 # For example, we could use Gaussians for the σ and pz guesses with the following code:

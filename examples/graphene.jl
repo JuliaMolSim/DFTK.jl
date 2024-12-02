@@ -25,11 +25,11 @@ lattice = [a1 a2 a3]
 C1 = [1/3,-1/3,0.0]  # in reduced coordinates
 C2 = -C1
 positions = [C1, C2]
-C = ElementPsp(:C; psp=load_psp("hgh/pbe/c-q4"))
+C = ElementPsp(:C, load_psp("hgh/pbe/c-q4"))
 atoms = [C, C]
 
 ## Run SCF
-model = model_PBE(lattice, atoms, positions; temperature)
+model = model_DFT(lattice, atoms, positions; functionals=PBE(), temperature)
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 scfres = self_consistent_field(basis)
 

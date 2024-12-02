@@ -1,4 +1,4 @@
-@testsetup module ScfresAgreement
+@testmodule ScfresAgreement begin
 using Test
 using DFTK
 
@@ -46,8 +46,8 @@ end
     o2molecule = TestCases.o2molecule
 
     magnetic_moments = [1., 1.]
-    model = model_PBE(o2molecule.lattice, o2molecule.atoms, o2molecule.positions;
-                      temperature=0.02, smearing=Smearing.Gaussian(),
+    model = model_DFT(o2molecule.lattice, o2molecule.atoms, o2molecule.positions;
+                      functionals=PBE(), temperature=0.02, smearing=Smearing.Gaussian(),
                       magnetic_moments, symmetries=false)
 
     kgrid = [1, mpi_nprocs(), 1]   # Ensure at least 1 kpt per process
@@ -83,7 +83,8 @@ end
 
     function test_serialisation(testcase, label; modelargs=(; ),
                                 basisargs=(; Ecut=5, kgrid=(2, 3, 4)))
-        model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions; modelargs...)
+        model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                          functionals=LDA(), modelargs...)
 
         basis = PlaneWaveBasis(model; basisargs...)
         nbandsalg = FixedBands(; n_bands_converge=20)

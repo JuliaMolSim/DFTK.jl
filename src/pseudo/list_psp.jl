@@ -1,8 +1,6 @@
 import IterTools
 
 """
-    list_psp(element; functional, family, core)
-
 List the pseudopotential files known to DFTK. Allows various ways
 to restrict the displayed files.
 

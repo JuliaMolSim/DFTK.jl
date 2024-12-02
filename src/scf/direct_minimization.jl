@@ -71,6 +71,7 @@ function direct_minimization(basis::PlaneWaveBasis{T};
                              prec_type=PreconditionerTPA,
                              callback=ScfDefaultCallback(),
                              optim_method=Optim.LBFGS,
+                             alphaguess=LineSearches.InitialStatic(),
                              linesearch=LineSearches.BackTracking(),
                              kwargs...) where {T}
     if mpi_nprocs() > 1
@@ -163,7 +164,7 @@ function direct_minimization(basis::PlaneWaveBasis{T};
                                   # Disable convergence control by Optim
                                   x_tol=-1, f_tol=-1, g_tol=-1,
                                   iterations=maxiter, kwargs...)
-    optim_solver = optim_method(; P, precondprep=precondprep!, manifold, linesearch)
+    optim_solver = optim_method(; P, precondprep=precondprep!, manifold, linesearch, alphaguess)
     ψ_packed = pack(ψ)
     objective = OnceDifferentiable(Optim.only_fg!(fg!), ψ_packed, zero(T); inplace=true)
     optim_state = Optim.initial_state(optim_solver, optim_options, objective, ψ_packed)

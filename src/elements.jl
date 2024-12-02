@@ -52,9 +52,9 @@ Base.show(io::IO, el::Element) = print(io, "$(typeof(el))($(atomic_symbol(el)))"
 
 
 struct ElementCoulomb <: Element
-    Z::Int  # Nuclear charge
-    symbol  # Element symbol
-    mass    # Atomic mass
+    Z::Int          # Nuclear charge
+    symbol::Symbol  # Element symbol
+    mass            # Atomic mass
 end
 charge_ionic(el::ElementCoulomb)   = el.Z
 charge_nuclear(el::ElementCoulomb) = el.Z
@@ -83,27 +83,58 @@ local_potential_real(el::ElementCoulomb, r::Real) = -el.Z / r
 
 struct ElementPsp <: Element
     Z::Int         # Nuclear charge
-    symbol         # Element symbol
+    symbol::Symbol # Element symbol
     mass           # Atomic mass
     psp            # Pseudopotential data structure
 end
 function Base.show(io::IO, el::ElementPsp)
     pspid = isempty(el.psp.identifier) ? "custom" : el.psp.identifier
     if el.mass == atomic_mass(el)
-        print(io, "ElementPsp($(el.symbol); psp=\"$pspid\")")
+        print(io, "ElementPsp($(el.symbol), \"$pspid\")")
     else
-        print(io, "ElementPsp($(el.symbol); psp=\"$pspid\", mass=\"$(el.mass)\")")
+        print(io, "ElementPsp($(el.symbol), \"$pspid\"; mass=\"$(el.mass)\")")
     end
 end
 
 """
 Element interacting with electrons via a pseudopotential model.
 `key` may be an element symbol (like `:Si`), an atomic number (e.g. `14`)
-or an element name (e.g. `"silicon"`)
+or an element name (e.g. `"silicon"`).
+`psp` may be one of:
+- a `PseudoPotentialData.PseudoFamily` to automatically determine the
+  pseudopotential from the specified pseudo family. In this case
+  `kwargs` are used when calling [`load_psp`](@ref) to read the pseudopotential
+  from disk.
+- a `Dict{Symbol,String}` mapping an atomic symbol to the pseudopotential
+  to be employed. Again 
+  `kwargs` are used when calling [`load_psp`](@ref) to read the pseudopotential
+  from disk.
+- a pseudopotential object (like [`PspHgh`](@ref) or [`PspUpf`](@ref)),
+  usually obtained using [`load_psp`](@ref)
+- `nothing` (to return a `ElementCoulomb`)
+
+## Examples
+Construct an `ElementPsp` for silicon using a HGH pseudopotential from an identifier
+```julia
+ElementPsp(:Si, load_psp("psp/hgh/Si-q4"))
+```
+Construct an `ElementPsp` again for silicon using the specified pseudpotential family
+(from the `PseudopotentialData` package).
+```julia
+using PseudoPotentialData
+ElementPsp(:Si, PseudoFamily("dojo.nc.sr.pbe.v0_4_1.oncvpsp3.standard.upf"))
+```
 """
-function ElementPsp(key; psp, mass=element(Symbol(periodic_table[key].symbol)).atomic_mass)
-    ElementPsp(periodic_table[key].number, Symbol(periodic_table[key].symbol), mass, psp)
+function ElementPsp(symbol::Symbol, family::AbstractDict; mass=element(symbol).atomic_mass, kwargs...)
+    ElementPsp(symbol, load_psp(family[symbol]; kwargs...); mass)
 end
+function ElementPsp(symbol::Symbol, psp; mass=element(symbol).atomic_mass)
+    Z = periodic_table[symbol].number
+    ElementPsp(Z, symbol, mass, psp)
+end
+ElementPsp(symbol::Symbol, psp::Nothing; kwargs...) = ElementCoulomb(symbol; kwargs...)
+ElementPsp(key, psp; kwargs...) = ElementPsp(Symbol(periodic_table[key].symbol), psp; kwargs...)
+@deprecate ElementPsp(key; psp, kwargs...) ElementPsp(key, psp; kwargs...)
 
 charge_ionic(el::ElementPsp) = charge_ionic(el.psp)
 charge_nuclear(el::ElementPsp) = el.Z
@@ -133,9 +164,9 @@ function core_charge_density_fourier(el::ElementPsp, p::T) where {T <: Real}
 end
 
 struct ElementCohenBergstresser <: Element
-    Z::Int  # Nuclear charge
-    symbol  # Element symbol
-    mass    # Atomic mass
+    Z::Int          # Nuclear charge
+    symbol::Symbol  # Element symbol
+    mass            # Atomic mass
     V_sym   # Map |G|^2 (in units of (2π / lattice_constant)^2) to form factors
     lattice_constant  # Lattice constant (in Bohr) which is assumed
 end

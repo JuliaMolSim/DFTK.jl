@@ -78,7 +78,7 @@
         :K => [0.375, 0.375, 0.75]
     )
 
-    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
+    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions; functionals=LDA())
     kpath = irrfbz_path(model)
 
     @test length(kpath.points) == length(ref_klabels)
@@ -123,7 +123,7 @@ end
     Ecut = 7
     n_bands = 8
 
-    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
+    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions; functionals=LDA())
     kgrid = ExplicitKpoints(interpolate(irrfbz_path(model), density=3))
     basis = PlaneWaveBasis(model; Ecut, kgrid)
 
@@ -145,7 +145,7 @@ end
     using LinearAlgebra
     testcase = TestCases.silicon
 
-    model    = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
+    model    = model_DFT(testcase.lattice, testcase.atoms, testcase.positions; functionals=LDA())
     kpath    = irrfbz_path(model)
     kinter   = interpolate(irrfbz_path(model), density=3)
     basis    = PlaneWaveBasis(model; Ecut=5, kgrid=ExplicitKpoints(kinter))
@@ -196,13 +196,13 @@ end
     testcase = TestCases.silicon
 
     lattice_std = [0 1 1; 1 0 1; 1 1 0] .* 5.13
-    model_std   = model_LDA(lattice_std, testcase.atoms, testcase.positions)
+    model_std = model_DFT(lattice_std, testcase.atoms, testcase.positions; functionals=LDA())
 
     # Non-standard lattice parameters that describe the same system as model_standard.
     lattice_nst = copy(lattice_std)
     lattice_nst[:, 3] .+= lattice_nst[:, 1] .* 3
     position_nst = [[-2, 1, 1]/8, -[-2, 1, 1]/8]
-    model_nst = model_LDA(lattice_nst, testcase.atoms, position_nst)
+    model_nst = model_DFT(lattice_nst, testcase.atoms, position_nst; functionals=LDA())
 
     kpath_std = irrfbz_path(model_std)
     kpath_nst = irrfbz_path(model_nst)
