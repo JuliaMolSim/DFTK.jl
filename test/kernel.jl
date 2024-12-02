@@ -2,15 +2,17 @@
     using DFTK
     using LinearAlgebra
 
-    function test_kernel(spin_polarization, termtype; test_compute=true)
+    function test_kernel(spin_polarization, termtype; test_compute=true, psp=TestCases.silicon.psp_hgh)
         kgrid  = [2, 2, 2]
         kshift = ones(3) / 2
         testcase = TestCases.silicon
+        Si = ElementPsp(TestCases.silicon.atnum; psp=load_psp(psp))
+        atoms = [Si, Si]
         ε   = 1e-8
         tol = 1e-5
 
         xcsym = (termtype isa Xc) ? join(string.(termtype.functionals), " ") : ""
-        @testset "Kernel $(typeof(termtype)) $xcsym ($spin_polarization)" begin
+        @testset "Kernel $(typeof(termtype)) $xcsym ($spin_polarization) $(psp)" begin
             magnetic_moments = []
             n_spin = 1
             if spin_polarization == :collinear
@@ -18,7 +20,7 @@
                 n_spin = 2
             end
 
-            model = Model(testcase.lattice, testcase.atoms, testcase.positions;
+            model = Model(testcase.lattice, atoms, testcase.positions;
                           terms=[termtype], magnetic_moments, spin_polarization)
             @test model.n_spin_components == n_spin
             basis = PlaneWaveBasis(model; Ecut=2, kgrid, kshift)
@@ -50,7 +52,7 @@
 
 
     function test_kernel_collinear_vs_noncollinear(termtype)
-        Ecut=2
+        Ecut = 2
         kgrid = [2, 2, 2]
         kshift = ones(3) / 2
         testcase = TestCases.silicon
@@ -97,4 +99,10 @@
     test_kernel(:collinear, Xc([:gga_c_pbe]), test_compute=false)
     test_kernel(:collinear, Xc([:gga_x_pbe]), test_compute=false)
     test_kernel(:collinear, Xc([:gga_x_pbe, :gga_c_pbe]), test_compute=false)
+
+    @testset "Non-linear core correction (NLCC)" begin
+        psp = TestCases.silicon.psp_upf  # PseudoDojo v0.4.1 Si includes NLCC
+        @test DFTK.has_core_density(load_psp(psp))
+        test_kernel(:none, Xc([:lda_xc_teter93]); psp)
+    end
 end

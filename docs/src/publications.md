@@ -53,6 +53,10 @@ Additionally the following publications describe DFTK or one of its algorithms:
 The following publications report research employing DFTK as a core component.
 Feel free to drop us a line if you want your work to be added here.
 
+- A. Bordignon, G. Dusson, E. Cancès, G. Kemlin, R. A. L. Reyes and B. Stamm.
+  [*Fully guaranteed and computable error bounds on the energy for periodic Kohn-Sham equations with convex density functionals*](http://arxiv.org/abs/2409.11769v1) (2024).
+  ([Supplementary material and computational scripts](https://doi.org/10.18419/darus-4469)).
+
 - M. F. Herbst, V. H. Bakkestuen, A. Laestadius.
   [*Kohn-Sham inversion with mathematical guarantees*](https://arxiv.org/abs/2409.04372) (2024).
   ([Supplementary material and computational scripts](https://github.com/mfherbst/supporting-my-inversion)).

@@ -1,12 +1,13 @@
-@testitem "Test AtomsCalculators interfaces" setup=[TestCases] tags=[:atomsbase] begin
+@testitem "Test AtomsCalculators interfaces" setup=[TestCases] tags=[:atomsbase, :dont_test_mpi] begin
     using AtomsCalculators
     using AtomsCalculators.Testing: test_energy_forces_virial
     using Unitful
     using UnitfulAtomic
 
     silicon = TestCases.silicon
+    pseudopotentials = Dict(:Si => silicon.psp_hgh, )
     calculator = DFTKCalculator(;
-        model_kwargs=(; temperature=1e-3, functionals=LDA()),
+        model_kwargs=(; temperature=1e-3, functionals=LDA(), pseudopotentials),
         basis_kwargs=(; kgrid=[4, 4, 4], Ecut=5.0),
         scf_kwargs=(; tol=1e-7),
     )

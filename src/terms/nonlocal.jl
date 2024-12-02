@@ -70,7 +70,7 @@ end
             # We compute the forces from the irreductible BZ; they are symmetrized later.
             G_plus_k = Gplusk_vectors(basis, kpt)
             G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
-            form_factors = build_form_factors(element.psp, G_plus_k_cart)
+            form_factors = build_projector_form_factors(element.psp, G_plus_k_cart)
             for idx in group
                 r = model.positions[idx]
                 structure_factors = [cis2pi(-dot(p, r)) for p in G_plus_k]
@@ -173,7 +173,7 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     for (psp, positions) in zip(psps, psp_positions)
         # Compute position-independent form factors
         G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
-        form_factors  = build_form_factors(psp, G_plus_k_cart)
+        form_factors = build_projector_form_factors(psp, G_plus_k_cart)
 
         # Combine with structure factors
         for r in positions
@@ -193,47 +193,64 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
 end
 
 """
-Build form factors (Fourier transforms of projectors) for an atom centered at 0.
+Build form factors (Fourier transforms of projectors) for all orbitals of an atom centered at 0.
 """
-function build_form_factors(psp, G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
+function build_projector_form_factors(psp::NormConservingPsp,
+                                      G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
+    G_plus_ks = [G_plus_k]
+
+    n_proj = count_n_proj(psp)
+    form_factors = zeros(Complex{TT}, length(G_plus_k), n_proj)
+    for l = 0:psp.lmax, 
+        n_proj_l = count_n_proj_radial(psp, l)
+        offset = sum(x -> count_n_proj(psp, x), 0:l-1; init=0) .+ 
+                 n_proj_l .* (collect(1:2l+1) .- 1) # offset about m for a given l 
+        for i = 1:n_proj_l
+            proj_li(p) = eval_psp_projector_fourier(psp, i, l, p)
+            form_factors_li = build_form_factors(proj_li, l, G_plus_ks)
+            @views form_factors[:, offset.+i] = form_factors_li[1]
+        end
+    end
+
+    form_factors
+end
+
+"""
+Build Fourier transform factors of an atomic function centered at 0 for a given l.
+"""
+function build_form_factors(fun::Function, l::Int,
+                            G_plus_ks::AbstractVector{<:AbstractVector{Vec3{TT}}}) where {TT}
+    # TODO this function can be generally useful, should refactor to a separate file eventually
     T = real(TT)
 
-    # Pre-compute the radial parts of the non-local projectors at unique |p| to speed up
+    # Pre-compute the radial parts of the non-local atomic functions at unique |p| to speed up
     # the form factor calculation (by a lot). Using a hash map gives O(1) lookup.
 
-    # Maximum number of projectors over angular momenta so that form factors
-    # for a given `p` can be stored in an `nproj x (lmax + 1)` matrix.
-    n_proj_max = maximum(l -> count_n_proj_radial(psp, l), 0:psp.lmax; init=0)
-
-    radials = IdDict{T,Matrix{T}}()  # IdDict for Dual compatibility
-    for p in G_plus_k
-        p_norm = norm(p)
-        if !haskey(radials, p_norm)
-            radials_p = Matrix{T}(undef, n_proj_max, psp.lmax + 1)
-            for l = 0:psp.lmax, iproj_l = 1:count_n_proj_radial(psp, l)
-                # TODO This might  be faster if we do this in batches of l
-                #      (i.e. make the inner loop run over k-points and G_plus_k)
-                #      and did recursion over l to compute the spherical bessels
-                radials_p[iproj_l, l+1] = eval_psp_projector_fourier(psp, iproj_l, l, p_norm)
+    radials = IdDict{T,T}()  # IdDict for Dual compatibility
+    for G_plus_k in G_plus_ks
+        for p in G_plus_k
+            p_norm = norm(p)
+            if !haskey(radials, p_norm)
+                radials_p = fun(p_norm)
+                radials[p_norm] = radials_p
             end
-            radials[p_norm] = radials_p
         end
     end
 
-    form_factors = Matrix{Complex{T}}(undef, length(G_plus_k), count_n_proj(psp))
-    for (ip, p) in enumerate(G_plus_k)
-        radials_p = radials[norm(p)]
-        count = 1
-        for l = 0:psp.lmax, m = -l:l
-            # see "Fourier transforms of centered functions" in the docs for the formula
-            angular = (-im)^l * ylm_real(l, m, p)
-            for iproj_l = 1:count_n_proj_radial(psp, l)
-                form_factors[ip, count] = radials_p[iproj_l, l+1] * angular
-                count += 1
+    form_factors = Vector{Matrix{Complex{T}}}(undef, length(G_plus_ks))
+    for (ik, G_plus_k) in enumerate(G_plus_ks)
+        form_factors_ik = Matrix{Complex{T}}(undef, length(G_plus_k), 2l + 1)
+        for (ip, p) in enumerate(G_plus_k)
+            radials_p = radials[norm(p)]
+            for m = -l:l
+                # see "Fourier transforms of centered functions" in the docs for the formula
+                angular = (-im)^l * ylm_real(l, m, p)
+                form_factors_ik[ip, m+l+1] = radials_p * angular
             end
         end
-        @assert count == count_n_proj(psp) + 1
+        form_factors[ik] = form_factors_ik
     end
+
     form_factors
 end
 

@@ -126,7 +126,11 @@ function construct_value(psp::PspHgh{T}) where {T <: Dual}
            psp.identifier,
            psp.description)
 end
-
+function construct_value(psp::PspUpf{T,I}) where {T <: AbstractFloat, I <: AbstractArray{<:AbstractFloat}}
+    # NOTE: This permits non-Dual UPF pseudos to be used in ForwardDiff computations,
+    #       but does not yet permit response derivatives w.r.t. UPF parameters.
+    psp
+end
 
 function construct_value(basis::PlaneWaveBasis{T}) where {T <: Dual}
     # NOTE: This is a pretty slow function as it *recomputes* basically
@@ -243,18 +247,6 @@ function LinearAlgebra.norm(x::SVector{S,<:Dual{Tg,T,N}}) where {S,Tg,T,N}
     y = norm(x_value)
     dy = ntuple(j->real(dot(x_value, ForwardDiff.partials.(x,j))) * pinv(y), N)
     Dual{Tg}(y, dy)
-end
-
-# problem: the derivative of 1/(1+exp(x)) = -exp(x) / (1+exp(x))^2.
-# When x is too large, exp(x) = Inf and this is a NaN.
-function Smearing.occupation(S::Smearing.FermiDirac, d::Dual{T}) where {T}
-    x = ForwardDiff.value(d)
-    if exp(x) > floatmax(typeof(x)) / 1e3
-        ∂occ = -zero(x)
-    else
-        ∂occ = -exp(x) / (1 + exp(x))^2
-    end
-    Dual{T}(Smearing.occupation(S, x), ∂occ * ForwardDiff.partials(d))
 end
 
 # Fix for https://github.com/JuliaDiff/ForwardDiff.jl/issues/514

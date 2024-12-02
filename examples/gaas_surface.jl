@@ -39,26 +39,27 @@ ase.io.write("surface.png", surface * pytuple((3, 3, 1)), rotation="-90x, 30y, -
 #md # ```
 #nb # <img src="https://docs.dftk.org/stable/surface.png" width=500 height=500 />
 
-# Use the `pyconvert` function from `PythonCall` to convert to an AtomsBase-compatible system.
-# These two functions not only support importing ASE atoms into DFTK,
-# but a few more third-party data structures as well.
-# Typically the imported `atoms` use a bare Coulomb potential,
-# such that appropriate pseudopotentials need to be attached in a post-step:
+# Use the `pyconvert` function from `PythonCall` to convert the ASE atoms
+# to an AtomsBase-compatible system.
+# This can then be used in the same way as other `AtomsBase` systems
+# (see [AtomsBase integration](@ref) for details) to construct a DFTK model:
 
 using DFTK
-system = attach_psp(pyconvert(AbstractSystem, surface);
-                    Ga="hgh/pbe/ga-q3.hgh",
-                    As="hgh/pbe/as-q5.hgh")
 
-# We model this surface with (quite large a) temperature of 0.01 Hartree
-# to ease convergence. Try lowering the SCF convergence tolerance (`tol`)
-# or the `temperature` or try `mixing=KerkerMixing()`
-# to see the full challenge of this system.
-model = model_DFT(system;
+pseudopotentials = Dict(:Ga => "hgh/pbe/ga-q3.hgh",
+                        :As => "hgh/pbe/as-q5.hgh")
+model = model_DFT(pyconvert(AbstractSystem, surface);
                   functionals=PBE(),
-                  temperature=0.001, smearing=DFTK.Smearing.Gaussian())
-basis = PlaneWaveBasis(model; Ecut, kgrid)
+                  temperature=1e-3,
+                  smearing=DFTK.Smearing.Gaussian(),
+                  pseudopotentials)
 
-scfres = self_consistent_field(basis; tol=1e-4, mixing=LdosMixing());
+# In the above we use the `pseudopotential` keyword argument to
+# assign the respective pseudopotentials to the imported `model.atoms`.
+# Try lowering the SCF convergence tolerance (`tol`)
+# or try `mixing=KerkerMixing()` to see the full challenge of this system.
+
+basis  = PlaneWaveBasis(model; Ecut, kgrid)
+scfres = self_consistent_field(basis; tol=1e-6, mixing=LdosMixing());
 #-
 scfres.energies

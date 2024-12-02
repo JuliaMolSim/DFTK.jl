@@ -18,7 +18,7 @@ end
 end
 
 
-@testitem "Energy is exact for supersampling>2 without XC" #=
+@testitem "Energy is exact for supersampling>2 without XC" tags=[:dont_test_mpi] #=
     =#    setup=[Variational, TestCases] begin
     using LinearAlgebra: norm
     testcase = TestCases.silicon
@@ -36,7 +36,7 @@ end
     @test norm(energies[2] .- energies[3]) < 1e-5
 end
 
-@testitem "Energy is not exact for supersampling>2 with XC" #=
+@testitem "Energy is not exact for supersampling>2 with XC" tags=[:dont_test_mpi] #=
     =#    setup=[Variational, TestCases] begin
     testcase = TestCases.silicon
 

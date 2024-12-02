@@ -61,8 +61,8 @@ This project has received funding from the
 [Inria Research Centre Paris](https://www.inria.fr/fr/centre-inria-de-paris),
 [RWTH Aachen University](https://rwth-aachen.de/),
 [Swiss National Science Foundation](https://snf.ch/),
-and from the European Research Council (ERC) under the European Union's Horizon 2020 research and
-innovation program ([grant agreement No 810367](https://cordis.europa.eu/project/id/810367)).
+from the European Research Council (ERC) under the European Union's Horizon 2020 research and
+innovation program ([grant agreement No 810367](https://cordis.europa.eu/project/id/810367)) and from the Simons Foundation.
 
 ## Contributing
 If you stumble across issues in using DFTK

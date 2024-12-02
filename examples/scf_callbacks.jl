@@ -14,10 +14,11 @@
 # (see [AtomsBase integration](@ref) for more details.
 using DFTK
 using AtomsBuilder
+using PseudoPotentialData
 
-system = attach_psp(bulk(:Si); Si="hgh/pbe/si-q4")
-model  = model_DFT(system; functionals=LDA())
-basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3]);
+pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf")
+model = model_DFT(bulk(:Si); functionals=LDA(), pseudopotentials)
+basis = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3]);
 
 # DFTK already defines a few callback functions for standard
 # tasks. One example is the usual convergence table,
