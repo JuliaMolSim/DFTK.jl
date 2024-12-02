@@ -288,22 +288,14 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, sym
         #     ρ ̂_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
         invS = Mat3{Int}(inv(symop.S))
         for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
-            igired = index_G_vectors(basis.fft_size, invS * G)
+            igired = index_G_vectors(basis, invS * G)
             isnothing(igired) && continue
 
             if iszero(symop.τ)
                 @inbounds ρaccu[ig] += ρin[igired]
             else
-                x = -T(2.0*dot(G, symop.τ))
-                # Special case for integers, as exp(n*π*i) = +- 1. Since this is the
-                # most common occurence, lots of expensive cispi() evaluations are saved
-                if isinteger(x)
-                    isodd(x) ? factor = T(-1.0) : factor =  T(1.0)
-                else
-                    factor = cispi(x)
-                end
+                factor = cis2pi(-T(dot(G, symop.τ)))
                 @inbounds ρaccu[ig] += factor * ρin[igired]
-
             end
         end
     end  # symop
