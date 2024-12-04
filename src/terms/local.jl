@@ -137,12 +137,12 @@ end
 @timing "forces: local" function forces_local(S, basis::PlaneWaveBasis{T}, ρ, q) where {T}
     model = basis.model
     recip_lattice = model.recip_lattice
-    ρ_fourier = fft(basis, total_density(ρ))
+    ρ_fourier = to_cpu(fft(basis, total_density(ρ)))
     real_ifSreal = S <: Real ? real : identity
 
-    # TODO: Right now, forces are not GPU compatible. Refer to compute_local_potential
-    #       comments when working on this
-    Gqs_cart = [model.recip_lattice * (G + q) for G in G_vectors(basis)]
+    # TODO: currently, local forces entierly computed on the CPU.
+    #       This might not be optimal. See compute_local_potential() too.
+    Gqs_cart = [model.recip_lattice * (G + q) for G in to_cpu(G_vectors(basis))]
     form_factors = atomic_local_form_factors(basis, Gqs_cart)
 
     # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
@@ -157,7 +157,7 @@ end
                                               * cis2pi(-dot(G + q, r))
                                               * (-2T(π)) * (G + q) * im
                                               / sqrt(model.unit_cell_volume)
-                                        for (iG, G) in enumerate(G_vectors(basis))))
+                                        for (iG, G) in enumerate(to_cpu(G_vectors(basis)))))
         end
     end
     forces
