@@ -200,8 +200,7 @@ set using the flag `-t` passed to Julia or the *environment variable*
 to set an upper bound to the number of threads used by DFTK,
 regardless of `Threads.nthreads()` (for instance, if you want to
 thread several DFTK runs and don't want DFTK's threading to
-interfere with that). This is done through `Preferences.jl` and
-requires a restart of Julia.
+interfere with that).
 
 ### FFT threads
 Since FFT threading is only used in DFTK inside the regions already parallelized
