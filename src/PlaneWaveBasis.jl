@@ -400,7 +400,8 @@ Returns nothing if outside the range of valid wave vectors.
     end
 end
 
-function index_G_vectors(basis::PlaneWaveBasis, G::AbstractVector{<:Integer})
+# @inline is necessary here for the inner function to be inlined as well
+@inline function index_G_vectors(basis::PlaneWaveBasis, G::AbstractVector{<:Integer})
     index_G_vectors(basis.fft_size, G)
 end
 
