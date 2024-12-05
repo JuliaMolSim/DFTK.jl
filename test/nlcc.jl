@@ -2,22 +2,18 @@
     using DFTK
     using DFTK: CoreDensity, atomic_total_density
     using LinearAlgebra
-    using LazyArtifacts
+    using PseudoPotentialData
 
-    pseudos = Dict(
-        # With NLCC
-        :Si => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Si.upf"),
-        :Fe => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Fe.upf"),
-        :Ir => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Ir.upf"),
-        # Without NLCC
-        :Li => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Li.upf"),
-        :Mg => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Mg.upf")
+    elements = (
+        :Si, :Fe, :Ir,  # With NLCC
+        :Li, :Mg,       # without NLCC
     )
 
     lattice = 5 * I(3)
     positions = [zeros(3)]
-    for (element, psp) in pseudos
-        atoms = [ElementPsp(element; psp)]
+    pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf")
+    for element in elements
+        atoms = [ElementPsp(element, pd_lda_family)]
         model = model_DFT(lattice, atoms, positions; functionals=LDA())
         basis = PlaneWaveBasis(model; Ecut=24, kgrid=[2, 2, 2])
         ρ_core = @inferred atomic_total_density(basis, CoreDensity())

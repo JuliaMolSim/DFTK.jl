@@ -33,7 +33,20 @@ end
 AtomsCalculators.energy_unit(::DFTKCalculator) = u"hartree"
 AtomsCalculators.length_unit(::DFTKCalculator) = u"bohr"
 
-# TODO DFTKCalculator needs a custom show function (both brief and detailed)
+function Base.show(io::IO, calc::DFTKCalculator)
+    fields = String[]
+    for key in (:functionals, :pseudopotentials, :temperature, :smearing)
+        if haskey(calc.params.model_kwargs, key)
+            push!(fields, "$key=$(getproperty(calc.params.model_kwargs, key))")
+        end
+    end
+    for key in (:Ecut, :kgrid)
+        if haskey(calc.params.basis_kwargs, key)
+            push!(fields, "$key=$(getproperty(calc.params.basis_kwargs, key))")
+        end
+    end
+    print(io, "DFTKCalculator($(join(fields, ", ")))")
+end
 
 """
 Construct a [AtomsCalculators](https://github.com/JuliaMolSim/AtomsCalculators.jl)
