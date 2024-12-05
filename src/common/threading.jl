@@ -6,51 +6,36 @@ Setup the number of threads used by DFTK's own threading (`n_DFTK`), by BLAS (`n
 and by FFTW (`n_fft`). This is independent from the number of Julia threads (`Threads.nthreads()`).
 DFTK and FFTW threading are upper bounded by `Threads.nthreads()`, but not BLAS,
 which uses its own threading system.
-By default, use 1 FFT thread, and `Threads.nthreads()` BLAS and DFTK threads
-Changing `n_DFTK` requires a restart of Julia.
+By default, use 1 FFT thread, and `Threads.nthreads()` BLAS and DFTK threads.
 """
-function setup_threading(; n_fft=1, n_blas=Threads.nthreads(), n_DFTK=nothing)
-    if !isnothing(n_DFTK)
-        set_DFTK_threads!(n_DFTK)
-    end
-    n_DFTK = @load_preference("DFTK_threads", Threads.nthreads())
+function setup_threading(; n_fft=1, n_blas=Threads.nthreads(), n_DFTK=Threads.nthreads())
+    set_DFTK_threads!(n_DFTK)
     FFTW.set_num_threads(n_fft)
     BLAS.set_num_threads(n_blas)
     mpi_master() && @info "Threading setup: " Threads.nthreads() n_DFTK n_fft n_blas
 end
 
 """
-Convenience function to disable all threading in DFTK and assert that Julia threading
-is off as well.
+Convenience function to disable all threading in DFTK.
 """
 function disable_threading()
     setup_threading(;n_fft=1, n_blas=1, n_DFTK=1)
 end
 
+const DFTK_threads = Ref(Threads.nthreads())
+
 function set_DFTK_threads!(n)
     if n > Threads.nthreads()
-        error("You set your preference for DFTK threads using set_DFTK_threads!, " *
+        error("You set your preference for $n DFTK threads using set_DFTK_threads!, " *
               "but only ran julia with $(Threads.nthreads()) threads.")
     end
-    if @load_preference("DFTK_threads", nothing) != n
-        @info("DFTK_threads preference changed. This is a permanent change, " *
-              "restart julia to see the effect.")
+    if n <= 0
+        error("You tried to set DFTK threads to $n, at least 1 is required.")
     end
-    @set_preferences!("DFTK_threads" => n)
+    DFTK_threads[] = n
 end
-function set_DFTK_threads!()
-    @delete_preferences!("DFTK_threads")
-end
-# If unset, use nthreads() threads
 function get_DFTK_threads()
-    nthreads = @load_preference("DFTK_threads", nothing)
-    if isnothing(nthreads)
-        nthreads = Threads.nthreads()
-    elseif nthreads > Threads.nthreads()
-        error("You set your preference for DFTK threads using set_DFTK_threads!, " *
-              "but only ran julia with $(Threads.nthreads()) threads.")
-    end
-    nthreads
+    DFTK_threads[]
 end
 
 """

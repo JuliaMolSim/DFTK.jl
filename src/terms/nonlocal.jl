@@ -68,8 +68,12 @@ end
         C = build_projection_coefficients(T, element.psp)
         for (ik, kpt) in enumerate(basis.kpoints)
             # We compute the forces from the irreductible BZ; they are symmetrized later.
-            G_plus_k = Gplusk_vectors(basis, kpt)
+            # TODO: currently, nonlocal forces entierly computed on the CPU.
+            #       This might not be optimal.
             G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
+            G_plus_k = to_cpu(Gplusk_vectors(basis, kpt))
+            ψk = to_cpu(ψ[ik])
+            occupationk = to_cpu(occupation[ik])
             form_factors = build_projector_form_factors(element.psp, G_plus_k_cart)
             for idx in group
                 r = model.positions[idx]
@@ -78,9 +82,8 @@ end
 
                 forces[idx] += map(1:3) do α
                     dPdR = [-2T(π)*im*p[α] for p in G_plus_k] .* P
-                    ψk = ψ[ik]
                     δHψk = P * (C * (dPdR' * ψk))
-                    -sum(occupation[ik][iband] * basis.kweights[ik] *
+                    -sum(occupationk[iband] * basis.kweights[ik] *
                              2real(dot(ψk[:, iband], δHψk[:, iband]))
                          for iband=1:size(ψk, 2))
                 end  # α

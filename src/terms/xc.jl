@@ -163,11 +163,12 @@ end
     isnothing(term.ρcore) && return nothing
 
     Vxc_real = xc_potential_real(term, basis, ψ, occupation; ρ, τ).potential
-    # TODO: the factor of 2 here should be associated with the density, not the potential
+    # TODO: move arrays to the CPU to enable forces calculations on the GPU.
+    #       Might require optimizations in the future.
     if basis.model.spin_polarization in (:none, :spinless)
-        Vxc_fourier = fft(basis, Vxc_real[:,:,:,1])
+        Vxc_fourier = to_cpu(fft(basis, Vxc_real[:,:,:,1]))
     else
-        Vxc_fourier = fft(basis, mean(Vxc_real, dims=4))
+        Vxc_fourier = to_cpu(fft(basis, mean(Vxc_real, dims=4)))
     end
 
     model = basis.model
@@ -192,7 +193,7 @@ function _force_xc(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U}, form
                    igroup, r) where {T, U}
     TT = promote_type(T, real(U))
     f  = zero(Vec3{TT})
-    for (iG, (G, G_cart)) in enumerate(zip(G_vectors(basis), G_vectors_cart(basis)))
+    for (iG, (G, G_cart)) in enumerate(zip(to_cpu(G_vectors(basis)), to_cpu(G_vectors_cart(basis))))
         f -= real(conj(Vxc_fourier[iG])
                   .* form_factors[(igroup, norm(G_cart))]
                   .* cis2pi(-dot(G, r))
