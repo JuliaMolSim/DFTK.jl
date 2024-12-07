@@ -42,7 +42,7 @@ function test_agreement_bands(band_data, dict; explicit_reshape=false, test_ψ=t
         @test dict["model_name"]        == model.model_name
         @test dict["temperature"]       ≈  model.temperature  atol=1e-12
         @test dict["smearing"]          == "$(model.smearing)"
-        @test dict["atomic_symbols"]    == map(e -> string(atomic_symbol(e)), model.atoms)
+        @test dict["element_symbols"]   == map(e -> string(element_symbol(e)), model.atoms)
         @test dict["atomic_positions"] ≈ model.positions atol=1e-12
         @test dict["εF"]        ≈  band_data.εF  atol=1e-12
         @test dict["kcoords"]   ≈  DFTK.irreducible_kcoords_global(basis)  atol=1e-12

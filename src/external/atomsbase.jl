@@ -11,7 +11,7 @@ function parse_system(system::AbstractSystem{D},
     end
 
     # Parse abstract system and return data required to construct model
-    mtx = austrip.(stack(bounding_box(system)))
+    mtx = austrip.(stack(cell_vectors(system)))
     T = eltype(mtx)
     lattice = zeros(T, 3, 3)
     lattice[1:D, 1:D] .= mtx
@@ -22,9 +22,8 @@ function parse_system(system::AbstractSystem{D},
                   "Please use the `pseudopotential` keyword argument to the " *
                   "model constructors.")
         end
-
-        # Note if psp === nothing, this will make an ElementCoulomb
-        ElementPsp(atomic_number(atom), psp; mass=atomic_mass(atom))
+        # If psp === nothing, this will make an ElementCoulomb
+        ElementPsp(species(atom), psp; mass=AtomsBase.mass(atom))
     end
 
     positions = map(system) do atom
@@ -80,7 +79,7 @@ function AtomsBase.atomic_system(lattice::AbstractMatrix{<:Number},
 
     @assert length(atoms) == length(positions)
     @assert isempty(magnetic_moments) || length(magnetic_moments) == length(atoms)
-    atomsbase_atoms = map(enumerate(atoms)) do (i, element)
+    atomsbase_atoms = map(enumerate(atoms)) do (i, atom)
         kwargs = Dict{Symbol, Any}()
         if !isempty(magnetic_moments)
             magmom = normalize_magnetic_moment(magnetic_moments[i])
@@ -91,13 +90,8 @@ function AtomsBase.atomic_system(lattice::AbstractMatrix{<:Number},
             end
         end
 
-        position = lattice * positions[i] * u"bohr"
-        if atomic_symbol(element) == :X  # dummy element ... should solve this upstream
-            Atom(:X, position; atomic_symbol=:X, atomic_number=0, atomic_mass=0u"u", kwargs...)
-        else
-            Atom(atomic_symbol(element), position; atomic_mass=atomic_mass(element),
-                 kwargs...)
-        end
+        Atom(species(atom), lattice * positions[i] * u"bohr";
+             mass=AtomsBase.mass(atom), kwargs...)
     end
     periodic_system(atomsbase_atoms, collect(eachcol(lattice)) * u"bohr")
 end
@@ -123,4 +117,6 @@ function AtomsBase.periodic_system(lattice::AbstractMatrix{<:Number},
     atomic_system(lattice, atoms, positions, magnetic_moments)
 end
 
-AtomsBase.chemical_formula(model::Model) = chemical_formula(atomic_symbol.(model.atoms))
+function AtomsBase.chemical_formula(model::Model)
+    chemical_formula(element_symbol.(species.(model.atoms)))
+end
