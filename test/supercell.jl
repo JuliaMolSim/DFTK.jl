@@ -56,7 +56,8 @@ end
     tol     = 1e-6
 
     for system in (silicon, magnesium), extra_terms in ([], [Hartree()])
-        @testset "$(DFTK.periodic_table[system.atnum].symbol) with $extra_terms" begin
+        atsym = element_symbol(ChemicalSpecies(system.atnum))
+        @testset "$atsym with $extra_terms" begin
             model = model_atomic(system.lattice, system.atoms, system.positions;
                                  system.temperature, extra_terms)
             basis = PlaneWaveBasis(model; Ecut, kgrid)
