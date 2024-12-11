@@ -86,11 +86,13 @@ Base.adjoint(A::LazyHcat) = Adjoint(A)
     cols = size(B)[2]
     ret = similar(A.blocks[1], rows, cols)
 
+    #TODO: can we do some optimization for Hermitian results (i.e. just upper diag)
     orow = 0  # row offset
     for blA in A.blocks
         ocol = 0  # column offset
         for blB in B.blocks
-            ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))] .= blA' * blB
+            #ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))] .= blA' * blB
+            mul!(ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))], adjoint(blA), blB)
             ocol += size(blB, 2)
         end
         orow += size(blA, 2)
@@ -100,6 +102,24 @@ end
 
 Base.:*(Aadj::Adjoint{T,<:LazyHcat}, B::AbstractMatrix) where {T} = Aadj * LazyHcat(B)
 
+@views function mul!(buff::AbstractArray{T}, Aadj::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
+    A = Aadj.parent
+
+    orow = 0  # row offset
+    for blA in A.blocks
+        ocol = 0  # column offset
+        for blB in B.blocks
+            #buff[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))] .= blA' * blB
+            mul!(buff[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))], adjoint(blA), blB)
+            ocol += size(blB, 2)
+        end
+        orow += size(blA, 2)
+    end
+end
+
+mul!(buff::AbstractArray{T}, Aadj::Adjoint{T,<:LazyHcat}, B::AbstractArray{T}) where {T} = 
+    mul!(buff, Aadj, LazyHcat(B))
+
 @views function *(Ablock::LazyHcat, B::AbstractMatrix)
     res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
     offset = size(Ablock.blocks[1], 2)
@@ -108,6 +128,15 @@ Base.:*(Aadj::Adjoint{T,<:LazyHcat}, B::AbstractMatrix) where {T} = Aadj * LazyH
         offset += size(block, 2)
     end
     res
+end
+
+@views function mul!(buff::AbstractMatrix, Ablock::LazyHcat, B::AbstractMatrix, α::Number, β::Number)
+    mul!(buff, Ablock.blocks[1], B[1:size(Ablock.blocks[1], 2), :], α, β) # First multiplication
+    offset = size(Ablock.blocks[1], 2)
+    for block in Ablock.blocks[2:end]
+        mul!(buff, block, B[offset .+ (1:size(block, 2)), :], α, 1)
+        offset += size(block, 2)
+    end
 end
 
 function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::LazyHcat,
@@ -169,13 +198,14 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
     # return U*V', 1, 1
 
     growth_factor = one(real(T))
+    O = zeros(T, size(X)[2], size(X)[2])
 
     success = false
     nchol = 0
     while true
-        O = Hermitian(X'X)
+        mul!(O, X', X)
         try
-            R = cholesky(O).U
+            R = cholesky(Hermitian(O)).U
             nchol += 1
             success = true
         catch err
@@ -190,7 +220,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
                 O += α*eps(real(T))*norm(X)^2*I
                 α *= 10
                 try
-                    R = cholesky(O).U
+                    R = cholesky(Hermitian(O)).U
                     nchol += 1
                     break
                 catch err
@@ -257,15 +287,17 @@ end
 
     niter = 1
     ninners = zeros(Int,0)
+    BYX = zeros(T, size(Y)[2], size(X)[2])
     while true
-        BYX = BY' * X
+        #alloc1 = @allocated BYX = BY' * X
+        mul!(BYX, adjoint(BY), X)
         mul!(X, Y, BYX, -1, 1)  # X -= Y*BY'X
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho!(cP, cX)
         dropped = drop!(X)
         if dropped != []
-            X[:, dropped] .-= Y * (BY' * X[:, dropped])
+            X[:, dropped] .-= Y * (BY' * X[:, dropped]) #TODO: also do it in place?
         end
 
         if norm(BYX) < tol && niter > 1
@@ -466,7 +498,7 @@ end
             e[Xn_indices[1]:last(Xn_indices), 1:lenXn] = lower_diag
 
             cP = cX .- e
-            cP = cP[:, Xn_indices]
+            cP = cP[:, Xn_indices] #TODO: use some view?
             # orthogonalize against all Xn (including newly locked)
             ortho!(cP, cX, cX, tol=ortho_tol)
 
