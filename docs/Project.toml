@@ -33,8 +33,8 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 wannier90_jll = "c5400fa0-8d08-52c2-913f-1e3f656c1ce9"
 
 [compat]
-AtomsBuilder = "0.1"
-AtomsCalculators = "0.2"
+AtomsBuilder = "0.2"
+AtomsCalculators = "0.2.3"
 Documenter = "~1.8"
 GeometryOptimization = "0.1"
 PseudoPotentialData = "0.2.0"
