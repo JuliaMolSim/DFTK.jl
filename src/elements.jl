@@ -1,4 +1,3 @@
-import PeriodicTable
 using AtomsBase
 
 # Data structure for chemical element and the potential model via which
