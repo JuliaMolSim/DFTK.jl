@@ -2,6 +2,7 @@
 using Test
 using DFTK
 using MPI
+using AtomsBase
 
 function test_agreement_bands(band_data, dict; explicit_reshape=false, test_ψ=true)
     # NOTE: For MPI-parallel tests, this needs to be called on each processor
