@@ -19,7 +19,7 @@ function PairwisePotential(V, params; max_radius=100)
 end
 @timing "precomp: Pairwise" function (P::PairwisePotential)(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
-    symbols = element_symbols.(model.atoms)
+    symbols = element_symbol.(model.atoms)
     (; energy, forces) = energy_forces_pairwise(model.lattice, symbols, model.positions,
                                                 P.V, P.params; P.max_radius)
     TermPairwisePotential(P.V, P.params, T(P.max_radius), energy, forces)
