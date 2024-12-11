@@ -49,6 +49,7 @@ end
 @testitem "Supercell response" tags=[:dont_test_mpi] setup=[TestCases] begin
     using DFTK
     using LinearAlgebra
+    using AtomsBase
     (; silicon, magnesium) = TestCases.all_testcases
 
     Ecut    = 5.0
