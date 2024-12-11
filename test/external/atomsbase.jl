@@ -15,10 +15,10 @@
     magnetic_moments = rand(4)
 
     system = atomic_system(lattice, atoms, positions, magnetic_moments)
-    @test atomic_symbol(system) == [:Si, :C, :H, :C]
-    @test atomic_mass(system)   == [28.085u"u", 12.011u"u", 1.008u"u", 12.011u"u"]
-    @test bounding_box(system)  == collect(eachcol(lattice)) * u"bohr"
-    @test position(system)      == [lattice * p * u"bohr" for p in positions]
+    @test atomic_symbol(system, :) == [:Si, :C, :H, :C]
+    @test mass(system, :)       == [28.085u"u", 12.011u"u", 1.008u"u", 12.011u"u"]
+    @test cell_vectors(system)  == Tuple(v * u"bohr" for v in eachcol(lattice))
+    @test position(system, :)   == [lattice * p * u"bohr" for p in positions]
     @test system[:, :magnetic_moment] == magnetic_moments
 
     let parsed = DFTK.parse_system(system, fill(nothing, length(atoms)))
@@ -61,11 +61,11 @@
         @test model.spin_polarization == :collinear
         newsys = periodic_system(model, magnetic_moments)
 
-        @test atomic_symbol(system)       == atomic_symbol(newsys)
-        @test atomic_mass(system)         == atomic_mass(newsys)
-        @test bounding_box(system)        == bounding_box(newsys)
-        @test boundary_conditions(system) == boundary_conditions(newsys)
-        @test maximum(maximum, position(system) - position(newsys)) < 1e-12u"bohr"
+        @test atomic_symbol(system, :) == atomic_symbol(newsys, :)
+        @test mass(system, :)          == mass(newsys, :)
+        @test cell_vectors(system)     == cell_vectors(newsys)
+        @test periodicity(system)      == periodicity(newsys)
+        @test maximum(maximum, position(system, :) - position(newsys, :)) < 1e-12u"bohr"
         @test system[:, :magnetic_moment] == newsys[:, :magnetic_moment]
     end
 end
@@ -197,8 +197,8 @@ end
     # Later with AtomsBase 0.5
     # atoms   = [Atom(6, randn(3)u"Å"; species=ChemicalSpecies(:C12), mass=-1u"u"),
     #            Atom(6, randn(3)u"Å"; species=ChemicalSpecies(:C),   mass=-2u"u")]
-    atoms   = [Atom(6, randn(3)u"Å"; atomic_symbol=:C, atomic_mass=-1u"u"),
-               Atom(6, randn(3)u"Å"; atomic_symbol=:C, atomic_mass=-2u"u")]
+    atoms   = [Atom(6, randn(3)u"Å"; atomic_symbol=:C, mass=-1u"u"),
+               Atom(6, randn(3)u"Å"; atomic_symbol=:C, mass=-2u"u")]
     system  = periodic_system(atoms, lattice)
 
     pseudopotentials = Dict(:C => "hgh/lda/c-q4.hgh")
@@ -209,9 +209,9 @@ end
         @test model.spin_polarization == :none
 
         @test length(model.atoms) == 2
-        @test atomic_symbol(model.atoms[1]) == :C
-        @test atomic_symbol(model.atoms[2]) == :C
-        @test atomic_mass.(model.atoms) == [-1u"u", -2u"u"]
+        @test element_symbol(model.atoms[1]) == :C
+        @test element_symbol(model.atoms[2]) == :C
+        @test mass.(model.atoms) == [-1u"u", -2u"u"]
         @test model.atoms[1].psp.identifier == "hgh/lda/c-q4.hgh"
         @test model.atoms[2].psp.identifier == "hgh/lda/c-q4.hgh"
     end
