@@ -60,7 +60,7 @@ end
 
     function run_problem(; architecture)
         # Test with a core-corrected PSP for maximal coverage
-        Al = ElementPsp(aluminium.atnum, :Al, aluminium.mass, load_psp(aluminium.psp_upf))
+        Al = ElementPsp(aluminium.atnum, load_psp(aluminium.psp_upf))
         atoms = fill(Al, length(aluminium.atoms))
         model = model_DFT(aluminium.lattice, atoms, positions;
                           functionals=PBE(), temperature=0.01)
