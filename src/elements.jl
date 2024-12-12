@@ -13,13 +13,13 @@ AtomsBase.species(::Element) = ChemicalSpecies(0)  # dummy atom
 """Chemical symbol corresponding to an element"""
 AtomsBase.element_symbol(el::Element) = element_symbol(species(el))
 
-"""Return the atomic mass of an atom type"""
+"""Return the atomic mass of an element"""
 AtomsBase.mass(el::Element) = mass(species(el))
 
-"""Return the total nuclear charge of an atom type"""
+"""Return the total nuclear charge of an element"""
 charge_nuclear(el::Element) = atomic_number(species(el))
 
-"""Return the total ionic charge of an atom type (nuclear charge - core electrons)"""
+"""Return the total ionic charge of an element (nuclear charge - core electrons)"""
 charge_ionic(el::Element) = charge_nuclear(el)
 
 """Return the number of valence electrons"""

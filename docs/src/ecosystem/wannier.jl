@@ -65,8 +65,9 @@ using Wannier # Needed to make Wannier.Model available
 #   - the π and π* bonds.
 # We provide relevant initial projections to help Wannierization
 # converge to functions with a similar shape.
-s_guess(center)  = DFTK.HydrogenicWannierProjection(center, 2, 0, 0, C.Z)
-pz_guess(center) = DFTK.HydrogenicWannierProjection(center, 2, 1, 0, C.Z)
+C_Z = charge_nuclear(C)
+s_guess(center)  = DFTK.HydrogenicWannierProjection(center, 2, 0, 0, C_Z)
+pz_guess(center) = DFTK.HydrogenicWannierProjection(center, 2, 1, 0, C_Z)
 projections = [
     ## Note: fractional coordinates for the centers!
     ## 3 bond-centered 2s hydrogenic orbitals to imitate σ bonds
