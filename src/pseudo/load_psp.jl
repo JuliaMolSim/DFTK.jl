@@ -59,7 +59,7 @@ function load_psp(pseudofamily::AbstractDict{Symbol,<:AbstractString},
     # to deduce the atom_groups.
     cached_psps = Dict{String, Any}()
     map(system) do atom
-        file::String = pseudofamily[atomic_symbol(atom)]
+        file::String = pseudofamily[element_symbol(atom)]
         get!(cached_psps, file) do
             load_psp(file; kwargs...)
         end

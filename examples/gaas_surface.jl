@@ -22,6 +22,7 @@ kgrid = (4, 4, 1);   # Monkhorst-Pack mesh
 
 # Use ASE to build the structure:
 using ASEconvert
+using PythonCall
 
 a = 5.6537  # GaAs lattice parameter in Ångström (because ASE uses Å as length unit)
 gaas = ase.build.bulk("GaAs", "zincblende"; a)

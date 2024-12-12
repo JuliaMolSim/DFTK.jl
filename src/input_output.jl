@@ -78,7 +78,8 @@ function todict!(dict, model::Model)
     dict["temperature"]       = model.temperature
     dict["smearing"]          = string(model.smearing)
     dict["n_atoms"]           = length(model.atoms)
-    dict["atomic_symbols"]    = map(e -> string(atomic_symbol(e)), model.atoms)
+    dict["element_symbols"]   = map(e -> string(element_symbol(e)), model.atoms)
+    dict["species"]           = map(e -> string(species(e)), model.atoms)
     dict["atomic_positions"]  = model.positions
     dict["atomic_positions_cart"] = vector_red_to_cart.(model, model.positions)
     !isnothing(model.εF)          && (dict["εF"]          = model.εF)

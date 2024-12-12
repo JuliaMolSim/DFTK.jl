@@ -63,7 +63,7 @@
     lattice = a / 2 * [[0 1 1.1];
                        [1 0 1.];
                        [1 1 0.]]
-    element = ElementPsp(silicon.atnum, :Si, silicon.mass, load_psp(silicon.psp_hgh))
+    element = ElementPsp(silicon.atnum, load_psp(silicon.psp_hgh))
     test_stresses(lattice, element)
     test_stresses(lattice, element)
 end

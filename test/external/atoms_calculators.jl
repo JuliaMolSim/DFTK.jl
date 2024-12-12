@@ -41,10 +41,10 @@
     # TODO Since the most recent AtomsCalculator update (Aug 2024) this is broken
     # let
     #     calculator_cheap = DFTKCalculator(;
-    #         model_kwargs=(; temperature=1e-3, functionals=LDA()),
+    #         model_kwargs=(; temperature=1e-3, functionals=LDA(), pseudopotentials),
     #         basis_kwargs=(; kgrid=[1, 1, 1], Ecut=5.0),
-    #         scf_kwargs=(; tol=1e-4),
+    #         scf_kwargs=(; tol=1e-6),
     #     )
-    #     test_energy_forces_virial(perturbed_system, calculator_cheap)
+    #     test_energy_forces_virial(perturbed_system, calculator_cheap; rtol=1e-6)
     # end
 end
