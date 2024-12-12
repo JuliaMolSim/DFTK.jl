@@ -1,4 +1,5 @@
 module DFTKPlotsExt
+using AtomsBase
 using Brillouin: KPath
 using DFTK
 using DFTK: is_metal, data_for_plotting, spin_components, default_band_εrange

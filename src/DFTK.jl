@@ -55,10 +55,9 @@ export ElementPsp
 export ElementCohenBergstresser
 export ElementCoulomb
 export ElementGaussian
-export charge_nuclear
-export charge_ionic
-export n_elec_valence
-export n_elec_core
+export charge_nuclear, charge_ionic
+export n_elec_valence, n_elec_core
+export element_symbol, mass, species  # Note: Re-exported from AtomsBase
 include("elements.jl")
 
 export SymOp
