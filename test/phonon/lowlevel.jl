@@ -14,7 +14,7 @@
 
     lattice = 5 * n_atoms * rand(3, 3)
 
-    X = ElementGaussian(1.0, 0.5, :X)
+    X = ElementGaussian(1.0, 0.5)
     atoms = [X for _ in positions]
 
     model = Model(lattice, atoms, positions; n_electrons=n_atoms, symmetries=false,

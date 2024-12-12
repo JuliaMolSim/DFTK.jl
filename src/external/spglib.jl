@@ -29,11 +29,16 @@ function spglib_cell(lattice, atom_groups, positions, magnetic_moments)
     Spglib.SpglibCell(lattice, spg_positions, spg_atoms, spg_magmoms)
 end
 function spglib_cell(system::AbstractSystem)
-    parsed = parse_system(system)
-    atom_groups = [findall(Ref(pot) .== parsed.atoms) for pot in Set(parsed.atoms)]
+    # Using no pseudopotentials is ok, only magnetic moments are read from the system here.
+    pseudopotentials = fill(nothing, length(system))
+    parsed = parse_system(system, pseudopotentials)
+    atom_groups = [findall(Ref(spec) .== species(system, :))
+                   for spec in Set(species(system, :))]
     spglib_cell(parsed.lattice, atom_groups, parsed.positions, parsed.magnetic_moments)
 end
-spglib_cell(model::Model, magnetic_moments) = spglib_cell(atomic_system(model, magnetic_moments))
+function spglib_cell(model::Model, magnetic_moments)
+    spglib_cell(model.lattice, model.atom_groups, model.positions, magnetic_moments)
+end
 
 """
 Returns crystallographic conventional cell according to the International Table of

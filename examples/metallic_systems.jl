@@ -16,7 +16,7 @@ a = 3.01794  # bohr
 b = 5.22722  # bohr
 c = 9.77362  # bohr
 lattice = [[-a -a  0]; [-b  b  0]; [0   0 -c]]
-Mg = ElementPsp(:Mg; psp=load_psp("hgh/pbe/Mg-q2"))
+Mg = ElementPsp(:Mg, load_psp("hgh/pbe/Mg-q2"))
 atoms     = [Mg, Mg]
 positions = [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]];
 
@@ -39,8 +39,8 @@ smearing = DFTK.Smearing.FermiDirac() # Smearing method
 ##                                      MarzariVanderbilt,
 ##                                      and MethfesselPaxton(order)
 
-model = model_DFT(lattice, atoms, positions, [:gga_x_pbe, :gga_c_pbe];
-                  temperature, smearing)
+model = model_DFT(lattice, atoms, positions;
+                  functionals=[:gga_x_pbe, :gga_c_pbe], temperature, smearing)
 kgrid = kgrid_from_maximal_spacing(lattice, kspacing)
 basis = PlaneWaveBasis(model; Ecut, kgrid);
 

@@ -1,4 +1,4 @@
-@testitem "Comparison of diagonalisaton procedures" begin
+@testitem "Comparison of diagonalisaton procedures" tags=[:dont_test_mpi] begin
     using DFTK
 
     function test_solver(reference, eigensolver, prec_type)

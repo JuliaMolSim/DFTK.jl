@@ -14,7 +14,7 @@ conditions can be written as the non-linear eigenproblem
 ```math
 \begin{aligned}
 &\left( -\frac12 \Delta + V\left(\rho\right) \right) \psi_i = \varepsilon_i \psi_i, \\
-V(\rho) = &\, V_\text{nuc} + v_C \rho + V_\text{XC}(\rho), \\
+V(\rho) = &\, V_\text{nuc} + V_\text{H}^\rho + V_\text{XC}(\rho), \\
 \rho = &\sum_{i=1}^N f(\varepsilon_i)  \abs{\psi_i}^2, \\
 \end{aligned}
 ```
@@ -27,9 +27,10 @@ Further the potential terms that make up $V(\rho)$ are
 - the nuclear attraction potential $V_\text{nuc}$ (interaction of electrons and nuclei)
 - the exchange-correlation potential $V_\text{xc}$,
   depending on $\rho$ and potentially its derivatives.
-- The Hartree potential $v_C \rho$, which is obtained by solving the Poisson equation
+- The Hartree potential $V_\text{H}^\rho$, which is obtained as the unique zero-mean solution to the periodic Poisson equation
   ```math
-  -\Delta \left(v_C \rho\right) = 4\pi \rho
+  -\Delta V_\text{H}^\rho(r)
+  = 4\pi \left(\rho(r) - \frac{1}{|\Omega|} \int_\Omega \rho \right).
   ```
 The non-linearity is such due to the fact that the DFT Hamiltonian
 ```math

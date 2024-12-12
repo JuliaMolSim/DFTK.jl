@@ -39,6 +39,29 @@ function load_psp(key::AbstractString; kwargs...)
     end
 end
 
-function load_psp(dir::AbstractString, filename::AbstractString; kwargs...)
-    load_psp(joinpath(dir, filename); kwargs...)
+@deprecate(load_psp(dir::AbstractString, filename::AbstractString; kwargs...),
+           load_psp(joinpath(dir, filename); kwargs...))
+
+"""
+Load all pseudopotentials from the pseudopotential family `pseudofamily`
+corresponding to the atoms of a `system`. Returns the list of
+the pseudopotential objects in the same order as the atoms in `system`.
+Takes care that each pseudopotential object is only loaded once.
+Applies the keyword arguments when loading all pseudopotentials.
+`pseudofamily` can be a `PseudoPotentialData.PseudoFamily` or simply
+a `Dict{Symbol,String}` which returns a file path when indexed
+with an element symbol.
+"""
+function load_psp(pseudofamily::AbstractDict{Symbol,<:AbstractString},
+                  system::AbstractSystem; kwargs...)
+    # Cache for instantiated pseudopotentials. This is done to ensure that identical
+    # pseudos are indistinguishable in memory, which is used in the Model constructor
+    # to deduce the atom_groups.
+    cached_psps = Dict{String, Any}()
+    map(system) do atom
+        file::String = pseudofamily[element_symbol(atom)]
+        get!(cached_psps, file) do
+            load_psp(file; kwargs...)
+        end
+    end
 end

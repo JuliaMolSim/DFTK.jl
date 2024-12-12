@@ -29,7 +29,7 @@ end
 Integrate a function represented by the nodal points and function values
 given by the arrays `x`, `y`. Note the order (`y` comes first).
 """
-trapezoidal(y::AbstractArray, x::AbstractArray) = trapezoidal((i, xi) -> y[i], x)
+trapezoidal(y::AbstractVector, x::AbstractVector) = trapezoidal((i, xi) -> y[i], x)
 
 """
 Integrate the `integrand` function using the nodal points `x` using Simpson's rule.
@@ -51,7 +51,7 @@ end
 Integrate a function represented by the nodal points and function values
 given by the arrays `x`, `y`. Note the order (`y` comes first).
 """
-simpson(y::AbstractArray, x::AbstractArray) = simpson((i, xi) -> y[i], x)
+simpson(y::AbstractVector, x::AbstractVector) = simpson((i, xi) -> y[i], x)
 
 @inbounds function simpson_uniform(integrand, x::AbstractVector)
     dx = x[2] - x[1]

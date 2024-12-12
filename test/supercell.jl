@@ -6,9 +6,9 @@
     Ecut    = 4
     kgrid   = [2, 3, 1]
 
-    model = model_LDA(magnesium.lattice, magnesium.atoms, magnesium.positions;
-                      magnesium.temperature, εF=0.5, spin_polarization=:spinless,
-                      disable_electrostatics_check=true)
+    model = model_DFT(magnesium.lattice, magnesium.atoms, magnesium.positions;
+                      functionals=LDA(), magnesium.temperature, εF=0.5,
+                      spin_polarization=:spinless, disable_electrostatics_check=true)
     basis = PlaneWaveBasis(model; Ecut, kgrid)
     scfres = self_consistent_field(basis; nbandsalg=FixedBands(; n_bands_converge=20))
     scfres_supercell = cell_to_supercell(scfres)
@@ -27,7 +27,7 @@ end
     kshift  = zeros(3)
     tol     = 1e-10
 
-    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions; functionals=LDA())
     basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
     basis_supercell = cell_to_supercell(basis)
 
@@ -49,6 +49,7 @@ end
 @testitem "Supercell response" tags=[:dont_test_mpi] setup=[TestCases] begin
     using DFTK
     using LinearAlgebra
+    using AtomsBase
     (; silicon, magnesium) = TestCases.all_testcases
 
     Ecut    = 5.0
@@ -56,7 +57,8 @@ end
     tol     = 1e-6
 
     for system in (silicon, magnesium), extra_terms in ([], [Hartree()])
-        @testset "$(DFTK.periodic_table[system.atnum].symbol) with $extra_terms" begin
+        atsym = element_symbol(ChemicalSpecies(system.atnum))
+        @testset "$atsym with $extra_terms" begin
             model = model_atomic(system.lattice, system.atoms, system.positions;
                                  system.temperature, extra_terms)
             basis = PlaneWaveBasis(model; Ecut, kgrid)

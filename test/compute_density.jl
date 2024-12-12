@@ -18,8 +18,8 @@
             n_bands = div(testcase.n_electrons, 2, RoundUp) + 4
         end
 
-        model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions,
-                          :lda_xc_teter93; symmetries, kwargs...)
+        model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                          functionals=[:lda_xc_teter93], symmetries, kwargs...)
         basis = PlaneWaveBasis(model; Ecut, kgrid, kshift, symmetries_respect_rgrid=false)
         ham = Hamiltonian(basis; ρ=guess_density(basis))
 

@@ -9,11 +9,11 @@ a = 10.26  # Silicon lattice constant in Bohr
 lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
-Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
+Si = ElementPsp(:Si, load_psp("hgh/lda/Si-q4"))
 atoms = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
 
-model = model_LDA(lattice, atoms, positions)
+model = model_DFT(lattice, atoms, positions; functionals=LDA())
 basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
 
 DFTK.reset_timer!(DFTK.timer)
@@ -200,8 +200,7 @@ set using the flag `-t` passed to Julia or the *environment variable*
 to set an upper bound to the number of threads used by DFTK,
 regardless of `Threads.nthreads()` (for instance, if you want to
 thread several DFTK runs and don't want DFTK's threading to
-interfere with that). This is done through `Preferences.jl` and
-requires a restart of Julia.
+interfere with that).
 
 ### FFT threads
 Since FFT threading is only used in DFTK inside the regions already parallelized

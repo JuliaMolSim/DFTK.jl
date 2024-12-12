@@ -39,11 +39,10 @@
 
 * Third-party integrations:
     - Seamless integration with many standard [Input and output formats](@ref).
-    - Integration with [ASE](https://wiki.fysik.dtu.dk/ase/) and
-      [AtomsBase](https://github.com/JuliaMolSim/AtomsBase.jl) for passing
-      atomic structures (see [AtomsBase integration](@ref)).
+    - Integration with [AtomsBase](https://github.com/JuliaMolSim/AtomsBase.jl) for passing
+      atomic structures (see [AtomsBase integration](@ref)) as well as
+      the [Atomistic simulation environment](@ref).
     - [Wannierization using Wannier.jl or Wannier90](@ref)
-
 
 * Runs out of the box on Linux, macOS and Windows
 
