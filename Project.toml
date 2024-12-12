@@ -113,6 +113,7 @@ Primes = "0.5"
 Printf = "1"
 PseudoPotentialIO = "0.1"
 PseudoPotentialData = "0.2.0"
+PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
 Random = "1"
 Roots = "2"
 SparseArrays = "1"
@@ -157,4 +158,4 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 wannier90_jll = "c5400fa0-8d08-52c2-913f-1e3f656c1ce9"
 
 [targets]
-test = ["Test", "TestItemRunner", "ASEconvert", "AtomsBuilder", "Aqua", "AtomsIO", "AtomsIOPython", "CUDA", "CUDA_Runtime_jll", "ComponentArrays", "DoubleFloats", "FiniteDiff", "FiniteDifferences", "GenericLinearAlgebra", "GeometryOptimization", "IntervalArithmetic", "JLD2", "JSON3", "Logging", "Plots", "PseudoPotentialData", "QuadGK", "Random", "KrylovKit", "Wannier", "WriteVTK", "wannier90_jll"]
+test = ["Test", "TestItemRunner", "ASEconvert", "AtomsBuilder", "Aqua", "AtomsIO", "AtomsIOPython", "CUDA", "CUDA_Runtime_jll", "ComponentArrays", "DoubleFloats", "FiniteDiff", "FiniteDifferences", "GenericLinearAlgebra", "GeometryOptimization", "IntervalArithmetic", "JLD2", "JSON3", "Logging", "Plots", "PseudoPotentialData", "PythonCall", "QuadGK", "Random", "KrylovKit", "Wannier", "WriteVTK", "wannier90_jll"]
