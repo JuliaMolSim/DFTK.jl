@@ -16,6 +16,9 @@ For details see [Herbst, Levitt 2020](https://arxiv.org/abs/2009.01665).
 """
 @kwdef struct LdosModel <: χ0Model
     adjust_temperature = IncreaseMixingTemperature()
+    characteristic_length = 0  # in Bohr (0 means low-pass filtering is disabled)
+                               # Good values for filtering are between 2 and 0.1 Bohr
+                               # Fluctuations of the LDOS below this length are smoothened.
 end
 function (χ0::LdosModel)(basis::PlaneWaveBasis{T}; eigenvalues, ψ, εF, kwargs...) where {T}
     n_spin = basis.model.n_spin_components
@@ -25,6 +28,16 @@ function (χ0::LdosModel)(basis::PlaneWaveBasis{T}; eigenvalues, ψ, εF, kwargs
     iszero(temperature) && return nothing
     ldos = compute_ldos(εF, basis, eigenvalues, ψ; temperature)
     maximum(abs, ldos) < sqrt(eps(T)) && return nothing
+
+    if χ0.characteristic_length > 0
+        wavelength = 2π / χ0.characteristic_length
+        G₀ = 2wavelength / 3
+        Gslope = wavelength / 6
+        f_lowpass(G) = erfc((G - G₀) / Gslope) / 2
+
+        lowpass = [f_lowpass(norm(G)) for G in G_vectors_cart(basis)]
+        ldos = G_to_r(basis, r_to_G(basis, ldos) .* lowpass)
+    end
 
     tdos = sum(sum, ldos) * basis.dvol  # Integrate LDOS to form total DOS
     function apply!(δρ, δV, α=1)
