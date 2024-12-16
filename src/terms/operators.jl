@@ -108,7 +108,7 @@ struct NonlocalOperator{T <: Real, PT, DT} <: RealFourierOperator
     D::DT
 end
 function apply!(Hψ, op::NonlocalOperator, ψ)
-    Hψ.fourier .+= op.P * (op.D * (op.P' * ψ.fourier))
+    mul!(Hψ.fourier, op.P, (op.D * (op.P' * ψ.fourier)), 1, 1)
 end
 Matrix(op::NonlocalOperator) = op.P * op.D * op.P'
 
