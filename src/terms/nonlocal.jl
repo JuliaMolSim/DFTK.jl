@@ -75,17 +75,26 @@ end
             ψk = to_cpu(ψ[ik])
             occupationk = to_cpu(occupation[ik])
             form_factors = build_projector_form_factors(element.psp, G_plus_k_cart)
+
+            # Pre-allocation of large arrays
+            δHψk = similar(ψk)
+            P = similar(form_factors)
+            dPdR = similar(form_factors)
+            structure_factors = similar(form_factors, length(G_plus_k))
+            twoπp = similar(form_factors, length(G_plus_k))
+            
             for idx in group
                 r = model.positions[idx]
-                structure_factors = [cis2pi(-dot(p, r)) for p in G_plus_k]
-                P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
+                map!(p -> cis2pi(-dot(p, r)), structure_factors, G_plus_k)
+                P .= structure_factors .* form_factors ./ sqrt(unit_cell_volume)
 
                 forces[idx] += map(1:3) do α
-                    dPdR = [-2T(π)*im*p[α] for p in G_plus_k] .* P
-                    δHψk = P * (C * (dPdR' * ψk))
-                    -sum(occupationk[iband] * basis.kweights[ik] *
-                             2real(dot(ψk[:, iband], δHψk[:, iband]))
-                         for iband=1:size(ψk, 2))
+                    map!(p -> -2π*im*p[α], twoπp, G_plus_k)
+                    dPdR .= twoπp .* P
+                    mul!(δHψk, P, C * (dPdR' * ψk))
+                    @views -sum(occupationk[iband] * basis.kweights[ik] *
+                                2real(dot(ψk[:, iband], δHψk[:, iband]))
+                            for iband=1:size(ψk, 2))
                 end  # α
             end  # r
         end  # kpt
