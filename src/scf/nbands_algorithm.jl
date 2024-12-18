@@ -4,10 +4,10 @@ in each SCF step.
 """
 abstract type NbandsAlgorithm end
 
-function default_n_bands(model)
+function default_n_bands(model; percent_extra_bands=0.05)
     n_spin = model.n_spin_components
     min_n_bands = div(model.n_electrons, n_spin * filled_occupation(model), RoundUp)
-    n_extra = iszero(model.temperature) ? 0 : ceil(Int, 0.15 * min_n_bands)
+    n_extra = iszero(model.temperature) ? 0 : ceil(Int, percent_extra_bands * min_n_bands)
     min_n_bands + n_extra
 end
 default_occupation_threshold(T = Float64) = max(T(1e-6), 100eps(T))
@@ -23,9 +23,8 @@ In each SCF step converge exactly `n_bands_converge`, computing along the way ex
     # Threshold for orbital to be counted as occupied
     occupation_threshold::Float64 = default_occupation_threshold(Float64)
 end
-function FixedBands(model::Model{T}) where {T}
-    n_bands_converge = default_n_bands(model)
-    n_bands_converge += iszero(model.temperature) ? 0 : ceil(Int, 0.05 * n_bands_converge)
+function FixedBands(model::Model{T}; percent_extra_bands=0.20) where {T}
+    n_bands_converge = default_n_bands(model; percent_extra_bands)
     FixedBands(; n_bands_converge, n_bands_compute=n_bands_converge + 3,
                occupation_threshold=default_occupation_threshold(T))
 end
@@ -44,14 +43,15 @@ computed (but not converged) orbital of `gap_min` is ensured.
     n_bands_converge::Int  # Minimal number of bands to converge
     n_bands_compute::Int   # Minimal number of bands to compute
     occupation_threshold::Float64 = default_occupation_threshold(Float64)
-    gap_min::Float64 = 1e-3   # Minimal gap between converged and computed bands
+    gap_min::Float64 = 1e-2   # Minimal gap between converged and computed bands
 end
 function AdaptiveBands(model::Model{T};
-                       n_bands_converge=default_n_bands(model),
+                       percent_extra_bands=0.05,
+                       n_bands_converge=default_n_bands(model; percent_extra_bands),
                        occupation_threshold=default_occupation_threshold(T),
                        kwargs...) where {T}
-    n_extra = iszero(model.temperature) ? 3 : max(4, ceil(Int, 0.05 * n_bands_converge))
-    AdaptiveBands(; n_bands_converge, n_bands_compute=n_bands_converge + n_extra,
+    n_extra_compute = iszero(model.temperature) ? 3 : max(4, ceil(Int, 0.15 * n_bands_converge))
+    AdaptiveBands(; n_bands_converge, n_bands_compute=n_bands_converge + n_extra_compute,
                   occupation_threshold, kwargs...)
 end
 
@@ -61,9 +61,12 @@ function determine_n_bands(bands::AdaptiveBands, occupation::Nothing, eigenvalue
     else
         n_bands_compute = max(bands.n_bands_compute, maximum(ψk -> size(ψk, 2), ψ))
     end
-    # Boost number of bands to converge to have more information around in the next step
-    # and to thus make a better decision on the number of bands we actually care about.
+    # Boost number of bands to converge temporarily for the next SCF step to have more
+    # information around after the next step and to thus make a better decision
+    # on the number of bands we actually care about. Note that this is temporary, since
+    # not stored inside n_bands_converge.
     n_bands_converge = floor(Int, (bands.n_bands_converge + bands.n_bands_compute) / 2)
+    @debug "determine_n_bands" n_bands_converge n_bands_compute
     (; n_bands_converge, n_bands_compute)
 end
 function determine_n_bands(bands::AdaptiveBands, occupation::AbstractVector,
@@ -82,13 +85,14 @@ function determine_n_bands(bands::AdaptiveBands, occupation::AbstractVector,
     # Determine number of bands to be computed
     n_bands_compute_ε = maximum(eigenvalues) do εk
         n_bands_converge > length(εk) && return length(εk) + 1
-        something(findlast(εnk -> εnk ≥ εk[n_bands_converge] + bands.gap_min, εk),
+        something(findlast(εnk -> εnk ≤ εk[n_bands_converge] + bands.gap_min, εk),
                   length(εk) + 1)
     end
     n_bands_compute = max(bands.n_bands_compute, n_bands_compute_ε, n_bands_converge + 3)
     if !isnothing(ψ)
         n_bands_compute = max(n_bands_compute, maximum(ψk -> size(ψk, 2), ψ))
     end
+    @debug "determine_n_bands" n_bands_converge n_bands_compute n_bands_occ n_bands_compute_ε
     (; n_bands_converge, n_bands_compute)
 end
 
