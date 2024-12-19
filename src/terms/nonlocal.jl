@@ -73,7 +73,8 @@ end
             G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
             G_plus_k = Gplusk_vectors(basis, kpt)
             occupationk = to_cpu(occupation[ik])
-            form_factors = to_device(basis.architecture, build_projector_form_factors(element.psp, G_plus_k_cart))
+            form_factors = to_device(basis.architecture,
+                                     build_projector_form_factors(element.psp, G_plus_k_cart))
 
             # Pre-allocation of large arrays
             δHψk = similar(ψ[ik])
