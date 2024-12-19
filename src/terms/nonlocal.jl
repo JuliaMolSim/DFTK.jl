@@ -65,19 +65,18 @@ end
     for group in psp_groups
         element = model.atoms[first(group)]
 
-        C = build_projection_coefficients(T, element.psp)
+        C = to_device(basis.architecture, build_projection_coefficients(T, element.psp))
         for (ik, kpt) in enumerate(basis.kpoints)
             # We compute the forces from the irreductible BZ; they are symmetrized later.
             # TODO: currently, nonlocal forces entierly computed on the CPU.
             #       This might not be optimal.
             G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
-            G_plus_k = to_cpu(Gplusk_vectors(basis, kpt))
-            ψk = to_cpu(ψ[ik])
+            G_plus_k = Gplusk_vectors(basis, kpt)
             occupationk = to_cpu(occupation[ik])
-            form_factors = build_projector_form_factors(element.psp, G_plus_k_cart)
+            form_factors = to_device(basis.architecture, build_projector_form_factors(element.psp, G_plus_k_cart))
 
             # Pre-allocation of large arrays
-            δHψk = similar(ψk)
+            δHψk = similar(ψ[ik])
             P = similar(form_factors)
             dPdR = similar(form_factors)
             structure_factors = similar(form_factors, length(G_plus_k))
@@ -91,10 +90,10 @@ end
                 forces[idx] += map(1:3) do α
                     map!(p -> -2π*im*p[α], twoπp, G_plus_k)
                     dPdR .= twoπp .* P
-                    mul!(δHψk, P, C * (dPdR' * ψk))
+                    mul!(δHψk, P, C * (dPdR' * ψ[ik]))
                     @views -sum(occupationk[iband] * basis.kweights[ik] *
-                                2real(dot(ψk[:, iband], δHψk[:, iband]))
-                            for iband=1:size(ψk, 2))
+                                2real(dot(ψ[ik][:, iband], δHψk[:, iband]))
+                            for iband=1:size(ψ[ik], 2))
                 end  # α
             end  # r
         end  # kpt
