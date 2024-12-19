@@ -47,10 +47,15 @@ computed (but not converged) orbital of `gap_min` is ensured.
 end
 function AdaptiveBands(model::Model{T};
                        percent_extra_bands=0.05,
+                       percent_compute_bands=0.15,
                        n_bands_converge=default_n_bands(model; percent_extra_bands),
                        occupation_threshold=default_occupation_threshold(T),
                        kwargs...) where {T}
-    n_extra_compute = iszero(model.temperature) ? 3 : max(4, ceil(Int, 0.15 * n_bands_converge))
+    if iszero(model.temperature)
+        n_extra_compute = 3
+    else
+        n_extra_compute = max(4, ceil(Int, percent_compute_bands * n_bands_converge))
+    end
     AdaptiveBands(; n_bands_converge, n_bands_compute=n_bands_converge + n_extra_compute,
                   occupation_threshold, kwargs...)
 end
