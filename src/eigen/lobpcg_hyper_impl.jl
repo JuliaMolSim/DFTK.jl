@@ -82,8 +82,8 @@ Base.adjoint(A::LazyHcat) = Adjoint(A)
 
 @views function Base.:*(Aadj::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
     A = Aadj.parent
-    rows = size(A)[2]
-    cols = size(B)[2]
+    rows = size(A, 2)
+    cols = size(B, 2)
     ret = similar(A.blocks[1], rows, cols)
 
     orow = 0  # row offset
@@ -101,24 +101,24 @@ end
 # Special case of Hermitian result: can only actively compute the block upper diagonal
 @views function mul_hermi(Aadj::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
     A = Aadj.parent
-    rows = size(A)[2]
-    cols = size(B)[2]
+    rows = size(A, 2)
+    cols = size(B, 2)
     ret = similar(B.blocks[1], rows, cols)
-    fill!(ret, 0)
+    fill!(ret, zero(T))
 
     orow = 0  # row offset
     for (ia, blA) in enumerate(A.blocks)
         ocol = 0  # column offset
         for (ib, blB) in enumerate(B.blocks)
-            if ib > ia continue end
-            fac = 1.0
-            if ia == ib fac = 0.5 end
-            mul!(ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))], adjoint(blA), blB, fac, 0)
+            ib > ia && continue
+            fac = one(T)
+            if ia == ib fac = T(0.5) end
+            mul!(ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))], blA', blB, fac, 0)
             ocol += size(blB, 2)
         end
         orow += size(blA, 2)
     end
-    #populate the lower diagonal with conjugate
+    # populate the lower diagonal with conjugate
     ret + adjoint(ret)
 end
 
