@@ -76,12 +76,13 @@ end
             form_factors = to_device(basis.architecture,
                                      build_projector_form_factors(element.psp, G_plus_k_cart))
 
-            # Pre-allocation of large arrays
-            δHψk = similar(ψ[ik])
-            P = similar(form_factors)
-            dPdR = similar(form_factors)
-            structure_factors = similar(form_factors, length(G_plus_k))
+            # Pre-allocation of large arrays (Noticable performance improvements on
+            # CPU and GPU here)
+            δHψk  = similar(ψ[ik])
+            P     = similar(form_factors)
+            dPdR  = similar(form_factors)
             twoπp = similar(form_factors, length(G_plus_k))
+            structure_factors = similar(form_factors, length(G_plus_k))
             
             for idx in group
                 r = model.positions[idx]
