@@ -25,8 +25,7 @@
     - Easy access to all intermediate quantities (e.g. density, Bloch waves)
 
 * Response and response properties:
-    - Density-functional perturbation theory (DFPT), see [`solve_ΩplusK`](@ref)
-      and [`solve_ΩplusK_split`](@ref).
+    - Density-functional perturbation theory (DFPT)
     - Integration of DFPT with algorithmic differentiation,
       e.g. [Polarizability using automatic differentiation](@ref)
     - Phonons
