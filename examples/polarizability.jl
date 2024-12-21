@@ -67,7 +67,8 @@ println("Polarizability :   $polarizability")
 # quotes **1.65** with LSDA and **1.38** with CCSD(T).
 
 # ## Using linear response
-# Now we use linear response to compute this analytically; we refer to standard
+# Now we use linear response (also known as density-functional perturbation theory)
+# to compute this analytically; we refer to standard
 # textbooks for the formalism. In the following, ``χ_0`` is the
 # independent-particle polarizability, and ``K`` the
 # Hartree-exchange-correlation kernel. We denote with ``δV_{\rm ext}`` an external

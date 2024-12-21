@@ -100,10 +100,8 @@ function (cb::ResponseCallback)(info)
 end
 
 """
-    solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, res, occupation;
-                 tol=1e-10, verbose=false) where {T}
-
-Return δψ where (Ω+K) δψ = rhs
+Solve density-functional perturbation theory problem,
+that is return δψ where (Ω+K) δψ = rhs.
 """
 @timing function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
                               callback=ResponseCallback(), tol=1e-10) where {T}
@@ -161,7 +159,8 @@ end
 
 
 """
-Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is typically
+Solve the problem `(Ω+K) δψ = rhs` (density-functional perturbation theory)
+using a split algorithm, where `rhs` is typically
 `-δHextψ` (the negative matvec of an external perturbation with the SCF orbitals `ψ`) and
 `δψ` is the corresponding total variation in the orbitals `ψ`. Additionally returns:
     - `δρ`:  Total variation in density)
