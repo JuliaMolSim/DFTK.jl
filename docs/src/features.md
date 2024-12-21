@@ -29,6 +29,7 @@
       and [`solve_ΩplusK_split`](@ref).
     - Integration of DFPT with algorithmic differentiation,
       e.g. [Polarizability using automatic differentiation](@ref)
+    - Phonons
 
 * Unique features
     - Support for arbitrary floating point types, including `Float32` (single precision)
