@@ -45,7 +45,7 @@ For difficult cases with bad SCF convergence it can be helpful to *increase*
 slightly to ensure that more bands are fully converged.
 For example:
 ```julia
-nbandsalg = AdaptiveBands(; temperature_factor_converge=1.1)
+nbandsalg = AdaptiveBands(model; temperature_factor_converge=1.1)
 self_consistent_field(basis; nbandsalg, kwargs...)
 ```
 """

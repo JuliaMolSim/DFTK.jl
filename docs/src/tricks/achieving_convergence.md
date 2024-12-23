@@ -22,7 +22,7 @@ basis = PlaneWaveBasis(model; Ecut=15, kgrid=(3, 3, 3))
   ```@example convergence
   solver = scf_anderson_solver(; m=15)
   ```
-  All keyword arguments are passed through to [`AndersonAcceleration`](@ref).
+  All keyword arguments are passed through to [`DFTK.AndersonAcceleration`](@ref).
 
 - Try increasing convergence for for the bands in each SCF step
   by increasing the `ratio_ρdiff` parameter of the [`AdaptiveDiagtol`](@ref)
@@ -37,7 +37,8 @@ basis = PlaneWaveBasis(model; Ecut=15, kgrid=(3, 3, 3))
   nbandsalg = AdaptiveBands(model; temperature_factor_converge=1.1)
   ```
 
-- Try the adaptive damping algorithm by using [`scf_potential_mixing_adaptive`](@ref)
+- Try the adaptive damping algorithm by
+  using [`DFTK.scf_potential_mixing_adaptive`](@ref)
   instead of `self_consistent_field`:
   ```@example convergence
   DFTK.scf_potential_mixing_adaptive(basis; tol=1e-10)
