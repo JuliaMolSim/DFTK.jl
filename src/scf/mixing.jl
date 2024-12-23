@@ -267,6 +267,10 @@ end
             apply_term!(δρ, δF)  # δρ .+= χ₀ * δF
         end
         δρ .-= mean(δρ)
+
+        # Maybe needed ??
+        δρ = symmetrize_ρ(basis, δρ; do_lowpass=true)
+
         εδF = δF .- apply_kernel(basis, δρ; ρ=ρin, RPA=mixing.RPA)
         εδF .-= mean(εδF)
         vec(εδF)
