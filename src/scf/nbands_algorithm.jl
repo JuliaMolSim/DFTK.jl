@@ -4,11 +4,11 @@ in each SCF step.
 """
 abstract type NbandsAlgorithm end
 
-function default_n_bands(model; percent_extra_bands=0.05)
+function default_n_bands(model, temperature_factor=1.05)
     n_spin = model.n_spin_components
     min_n_bands = div(model.n_electrons, n_spin * filled_occupation(model), RoundUp)
-    n_extra = iszero(model.temperature) ? 0 : ceil(Int, percent_extra_bands * min_n_bands)
-    min_n_bands + n_extra
+    factor = iszero(model.temperature) ? 1.0 : temperature_factor
+    ceil(Int, min_n_bands * factor)
 end
 default_occupation_threshold(T = Float64) = max(T(1e-6), 100eps(T))
 
@@ -23,8 +23,8 @@ In each SCF step converge exactly `n_bands_converge`, computing along the way ex
     # Threshold for orbital to be counted as occupied
     occupation_threshold::Float64 = default_occupation_threshold(Float64)
 end
-function FixedBands(model::Model{T}; percent_extra_bands=0.20) where {T}
-    n_bands_converge = default_n_bands(model; percent_extra_bands)
+function FixedBands(model::Model{T}; temperature_factor_converge=1.20) where {T}
+    n_bands_converge = default_n_bands(model, temperature_factor_converge)
     FixedBands(; n_bands_converge, n_bands_compute=n_bands_converge + 3,
                occupation_threshold=default_occupation_threshold(T))
 end
@@ -38,6 +38,16 @@ Dynamically adapt number of bands to be converged to ensure that the orbitals of
 occupation are occupied to at most `occupation_threshold`. To obtain rapid convergence
 of the eigensolver a gap between the eigenvalues of the last occupied orbital and the last
 computed (but not converged) orbital of `gap_min` is ensured.
+
+# Examples
+For difficult cases with bad SCF convergence it can be helpful to *increase*
+`temperature_factor_converge` or `n_bands_converge`
+slightly to ensure that more bands are fully converged.
+For example:
+```julia
+nbandsalg = AdaptiveBands(; temperature_factor_converge=1.1)
+self_consistent_field(basis; nbandsalg, kwargs...)
+```
 """
 @kwdef struct AdaptiveBands <: NbandsAlgorithm
     n_bands_converge::Int  # Minimal number of bands to converge
@@ -46,18 +56,14 @@ computed (but not converged) orbital of `gap_min` is ensured.
     gap_min::Float64 = 1e-2   # Minimal gap between converged and computed bands
 end
 function AdaptiveBands(model::Model{T};
-                       percent_extra_bands=0.05,
-                       percent_compute_bands=0.15,
-                       n_bands_converge=default_n_bands(model; percent_extra_bands),
+                       temperature_factor_converge=1.05,
+                       temperature_factor_compute=1.20,
+                       n_bands_converge=default_n_bands(model, temperature_factor_converge),
                        occupation_threshold=default_occupation_threshold(T),
                        kwargs...) where {T}
-    if iszero(model.temperature)
-        n_extra_compute = 3
-    else
-        n_extra_compute = max(4, ceil(Int, percent_compute_bands * n_bands_converge))
-    end
-    AdaptiveBands(; n_bands_converge, n_bands_compute=n_bands_converge + n_extra_compute,
-                  occupation_threshold, kwargs...)
+    n_bands_compute = max(3 + n_bands_converge,
+                          default_n_bands(model, temperature_factor_compute))
+    AdaptiveBands(; n_bands_converge, n_bands_compute, occupation_threshold, kwargs...)
 end
 
 function determine_n_bands(bands::AdaptiveBands, occupation::Nothing, eigenvalues, ψ)
@@ -76,8 +82,6 @@ function determine_n_bands(bands::AdaptiveBands, occupation::Nothing, eigenvalue
 end
 function determine_n_bands(bands::AdaptiveBands, occupation::AbstractVector,
                            eigenvalues::AbstractVector, ψ::AbstractVector)
-    # TODO Could return different bands per k-Points
-
     # Determine number of bands to be actually converged
     # Bring occupation on the CPU, or findlast will fail
     occupation = [to_cpu(occk) for occk in occupation]
