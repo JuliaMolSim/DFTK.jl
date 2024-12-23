@@ -59,6 +59,7 @@ PAGES = [
     "Tips and tricks" => [
         # Resolving convergence issues, what solver to use, improving performance or
         # reliability of calculations.
+        "tricks/achieving_convergence.md",
         "tricks/parallelization.md",
         "tricks/scf_checkpoints.jl",
         "tricks/compute_clusters.md",
