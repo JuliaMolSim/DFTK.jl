@@ -188,8 +188,9 @@ Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `verbose`: Run the GMRES in verbose mode.
 - `reltol`: Relative tolerance for GMRES
 """
-function LdosMixing(; adjust_temperature=IncreaseMixingTemperature(), kwargs...)
-    χ0Mixing(; χ0terms=[LdosModel(;adjust_temperature)], kwargs...)
+function LdosMixing(; adjust_temperature=IncreaseMixingTemperature(),
+                    characteristic_length=0, kwargs...)
+    χ0Mixing(; χ0terms=[LdosModel(;adjust_temperature, characteristic_length)], kwargs...)
 end
 
 
@@ -240,7 +241,7 @@ end
 
 @timing "χ0Mixing" function mix_potential(mixing::χ0Mixing, basis, δF::AbstractArray; ρin, kwargs...)
     # Initialise χ0terms and remove nothings (terms that don't yield a contribution)
-    χ0applies = filter(!isnothing, [χ0(basis; ρin=ρin, kwargs...) for χ0 in mixing.χ0terms])
+    χ0applies = filter(!isnothing, [χ0(basis; ρin, kwargs...) for χ0 in mixing.χ0terms])
 
     # If no applies left, do not bother running GMRES and directly do simple mixing
     isempty(χ0applies) && return mix_potential(SimpleMixing(), basis, δF)
@@ -287,10 +288,10 @@ within the model as the SCF converges. Once the density change is below `above_�
 mixing temperature is equal to the model temperature.
 """
 function IncreaseMixingTemperature(; factor=25, above_ρdiff=1e-2, temperature_max=0.5)
-    function callback(temperature; n_iter, ρin=nothing, ρout=nothing, info...)
+    function callback(temperature; n_iter, history_Δρ=nothing, info...)
         if iszero(temperature) || temperature > temperature_max
             return temperature
-        elseif isnothing(ρin) || isnothing(ρout)
+        elseif isnothing(history_Δρ)
             return temperature
         elseif n_iter ≤ 1
             return factor * temperature
@@ -299,7 +300,7 @@ function IncreaseMixingTemperature(; factor=25, above_ρdiff=1e-2, temperature_m
         # Continuous piecewise linear function on a logarithmic scale
         # In [log(above_ρdiff), log(above_ρdiff) + switch_slope] it switches from 1 to factor
         switch_slope = 1
-        ρdiff = norm(ρout .- ρin)
+        ρdiff = last(history_Δρ)
         enhancement = clamp(1 + (factor - 1) / switch_slope * log10(ρdiff / above_ρdiff), 1, factor)
 
         # Between SCF iterations temperature may never grow

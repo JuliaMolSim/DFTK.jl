@@ -198,6 +198,8 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
          Vin, Vout=total_local_potential(new_ham), res_V...)
     end
 
+    history_Etot = eltype(ρ)[]
+    history_Δρ   = eltype(ρ)[]
     n_iter    = 1
     converged = false
     ΔEdown    = 0.0
@@ -206,11 +208,9 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
     diagtol   = determine_diagtol(diagtolalg, (; ρin=ρ, Vin=V, n_iter))
     info      = EVρ(V; diagtol, ψ)
     Pinv_δV   = mix_potential(mixing, basis, info.Vout - info.Vin;
-                              ρin=ρ, n_iter, info...)
+                              ρin=ρ, n_iter, history_Δρ, info...)
     info      = merge(info, (; α=NaN, diagonalization=[info.diagonalization], ρin=ρ,
                              n_iter, Pinv_δV))
-    history_Etot = eltype(ρ)[]
-    history_Δρ   = eltype(ρ)[]
 
     while n_iter < maxiter
         push!(history_Etot, info.energies.total)
@@ -244,7 +244,7 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
 
             info_next    = EVρ(Vnext; ψ=guess, diagtol, info.eigenvalues, info.occupation)
             Pinv_δV_next = mix_potential(mixing, basis, info_next.Vout - info_next.Vin;
-                                         ρin=info.ρout, n_iter, info_next...)
+                                         ρin=info_next.ρout, n_iter, history_Δρ, info_next...)
             push!(diagonalization, info_next.diagonalization)
             info_next = merge(info_next, (; α, diagonalization, ρin=info.ρout, n_iter,
                                           Pinv_δV=Pinv_δV_next, history_Δρ, history_Etot ))

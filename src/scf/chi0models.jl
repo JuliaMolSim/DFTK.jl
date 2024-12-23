@@ -36,7 +36,7 @@ function (χ0::LdosModel)(basis::PlaneWaveBasis{T}; eigenvalues, ψ, εF, kwargs
         f_lowpass(G) = erfc((G - G₀) / Gslope) / 2
 
         lowpass = [f_lowpass(norm(G)) for G in G_vectors_cart(basis)]
-        ldos = G_to_r(basis, r_to_G(basis, ldos) .* lowpass)
+        ldos = irfft(basis, fft(basis, ldos) .* lowpass)
     end
 
     tdos = sum(sum, ldos) * basis.dvol  # Integrate LDOS to form total DOS
