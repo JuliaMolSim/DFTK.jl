@@ -47,7 +47,7 @@ using Plots
 # package. See [the documentation of PseudoPotentialData](https://juliamolsim.github.io/PseudoPotentialData.jl/stable/)
 # for the list of available pseudopotential families.
 
-pseudopotentials_upf = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf");
+family_upf = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf");
 
 # Such a `PseudoFamily` object acts like a dictionary from an element symbol
 # to a pseudopotential file. They can be directly employed to select the
@@ -55,11 +55,12 @@ pseudopotentials_upf = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf");
 # or a model based on an `AtomsBase`-compatible system. For the latter
 # see the `run_bands` function below for an example.
 #
-# Note that an alternative to a `PseudoFamily` object is in all cases
-# a plain
+# An alternative to a `PseudoFamily` object is in all cases a plain
 # `Dict` to map from atomic symbols to the employed pseudopotential file.
-# This we employ in combination with the HGH-type pseudopotentials:
-pseudopotentials_hgh = Dict(:Si => "hgh/lda/si-q4.hgh");
+# For demonstration purposes we employ this
+# in combination with the HGH-type pseudopotentials:
+family_hgh = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
+pseudopotentials_hgh = Dict(:Si => family_hgh[:Si])
 
 # First, we'll take a look at the energy cutoff convergence of these two pseudopotentials.
 # For both pseudos, a reference energy is calculated with a cutoff of 140 Hartree, and
@@ -75,6 +76,18 @@ pseudopotentials_hgh = Dict(:Si => "hgh/lda/si-q4.hgh");
 # is much *harder*, i.e. it requires a higher energy cutoff, than the UPF PSP. In general,
 # numeric pseudopotentials tend to be softer than analytical pseudos because of the
 # flexibility of sampling arbitrary functions on a grid.
+
+# For some pseudopotentials the `PseudoFamily` contains hints for the recommended
+# cutoffs as metadata. For most PseudoDojo potentials this is indeed the case:
+recommended_cutoff(family_upf, :Si)
+
+# We see the recommended value is very close to what we determined above.
+# Sometimes more detailed information is also available by looking at the raw
+# metadata associated to this combination of pseudopotential family and element:
+
+pseudometa(family_upf, :Si)
+
+# Here, we see that multiple recommended cutoffs are made available in the metadata.
 
 # Next, to see that the different pseudopotentials give reasonably similar results,
 # we'll look at the bandstructures calculated using the HGH and UPF PSPs. Even though
@@ -98,7 +111,7 @@ end;
 result_hgh = run_bands(pseudopotentials_hgh)
 result_hgh.scfres.energies
 #-
-result_upf = run_bands(pseudopotentials_upf)
+result_upf = run_bands(family_upf)
 result_upf.scfres.energies
 
 # But while total energies are not physical and thus allowed to differ,
