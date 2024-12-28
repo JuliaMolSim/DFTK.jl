@@ -3,8 +3,8 @@
     using PseudoPotentialData
     using LazyArtifacts
 
-    pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf")
-    pd_pbe_family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.oncvpsp3.standard.upf")
+    pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
+    pd_pbe_family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
     upf_pseudos = Dict(
         # Converged from HGH
         # TODO These two files keep us from removing the Artifact.toml from DFTK right now

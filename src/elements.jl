@@ -121,7 +121,7 @@ Construct an `ElementPsp` again for silicon using the specified pseudpotential f
 (from the `PseudopotentialData` package).
 ```julia
 using PseudoPotentialData
-ElementPsp(:Si, PseudoFamily("dojo.nc.sr.pbe.v0_4_1.oncvpsp3.standard.upf"))
+ElementPsp(:Si, PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf"))
 ```
 """
 function ElementPsp(species::ChemicalSpecies, family::AbstractDict;
