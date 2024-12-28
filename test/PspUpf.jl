@@ -19,8 +19,8 @@
         :Cu => load_psp(pd_pbe_family[:Cu]; rcut=9.0),
         :Cr => load_psp(pd_pbe_family[:Cr]; rcut=12.0)
     )
-    hgh_pseudos = [(; gth=gth_lda_family[:Si], upf=upf_pseudos[:Si]),
-                   (; gth=gth_lda_family[:Tl], upf=upf_pseudos[:Tl])]
+    hgh_pseudos = [(; gth=load_psp(gth_lda_family[:Si]), upf=upf_pseudos[:Si]),
+                   (; gth=load_psp(gth_lda_family[:Tl]), upf=upf_pseudos[:Tl])]
 end
 
 
