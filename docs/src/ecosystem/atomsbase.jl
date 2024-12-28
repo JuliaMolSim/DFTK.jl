@@ -26,7 +26,7 @@ system = bulk(:Si)
 
 using PseudoPotentialData  # defines PseudoFamily
 
-pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf")
+pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
 model = model_DFT(system;
                   functionals=LDA(),
                   temperature=1e-3,

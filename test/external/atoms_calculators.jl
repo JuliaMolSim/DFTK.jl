@@ -5,7 +5,7 @@
     using UnitfulAtomic
 
     silicon = TestCases.silicon
-    pseudopotentials = Dict(:Si => silicon.psp_hgh, )
+    pseudopotentials = Dict(:Si => silicon.psp_gth, )
     calculator = DFTKCalculator(;
         model_kwargs=(; temperature=1e-3, functionals=LDA(), pseudopotentials),
         basis_kwargs=(; kgrid=[4, 4, 4], Ecut=5.0),

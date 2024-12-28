@@ -11,7 +11,7 @@
     calc = DFTKCalculator(;
         model_kwargs=(;
             functionals=LDA(),
-            pseudopotentials=PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf")
+            pseudopotentials=PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
         ),
         basis_kwargs=(; kgrid=[1, 1, 1], Ecut=10)  # Crude numerical parameters
     )

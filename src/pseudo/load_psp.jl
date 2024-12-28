@@ -8,12 +8,16 @@ If the `key` is a path to a valid file, the extension is used to determine
 the type of the pseudopotential file format and a respective class is returned.
 """
 function load_psp(key::AbstractString; kwargs...)
-    if startswith(key, "hgh/") || endswith(lowercase(key), ".hgh")
+    if endswith(lowercase(key), ".gth")
         pseudo_type = PspHgh
-        extension = ".hgh"
+        extension = ".gth"
     elseif endswith(lowercase(key), ".upf")
         pseudo_type = PspUpf
         extension = ".upf"
+    elseif startswith(key, "hgh/") || endswith(lowercase(key), ".hgh")
+        # TODO Legacy block still needed for GTH pseudos bundled with DFTK
+        pseudo_type = PspHgh
+        extension = ".hgh"
     else
         error("Could not determine pseudopotential family of '$key'")
     end

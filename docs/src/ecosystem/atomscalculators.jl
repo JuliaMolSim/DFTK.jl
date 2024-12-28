@@ -24,7 +24,7 @@
 using DFTK
 using PseudoPotentialData
 
-pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf")
+pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
 model_kwargs  = (; functionals=LDA(), pseudopotentials=pd_lda_family)
 basis_kwargs  = (; kgrid=[4, 4, 4], Ecut=7)
 scf_kwargs    = (; tol=1e-5)

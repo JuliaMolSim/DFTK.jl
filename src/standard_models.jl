@@ -22,7 +22,7 @@ which builds a standard atomic (kinetic + atomic potential) model.
 
 # Examples
 ```julia-repl
-julia> model_atomic(system; pseudopotentials=PseudoFamily("dojo.nc.sr.pbe.v0_4_1.oncvpsp3.standard.upf"))
+julia> model_atomic(system; pseudopotentials=PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf"))
 ```
 Construct an atomic system using the specified pseudo-dojo pseudopotentials for all
 atoms of the system.
@@ -84,7 +84,7 @@ package as shown below:
 # Examples
 ```julia-repl
 julia> model_DFT(system; functionals=LDA(), temperature=0.01,
-                 pseudopotentials=PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf"))
+                 pseudopotentials=PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf"))
 
 ```
 builds an [`LDA`](@ref) model for a passed system
@@ -92,7 +92,7 @@ with specified smearing temperature.
 
 ```julia-repl
 julia> model_DFT(system; functionals=[:lda_x, :lda_c_pw], temperature=0.01,
-                 pseudopotentials=PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf"))
+                 pseudopotentials=PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf"))
 ```
 Alternative syntax specifying the functionals directly
 via their libxc codes.

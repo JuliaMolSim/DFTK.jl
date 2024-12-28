@@ -45,7 +45,7 @@
         @test parsed.atoms[4].psp.identifier == pspmap[:C]
     end
 
-    family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.oncvpsp3.standard.upf")
+    family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
     let model = model_atomic(system; pseudopotentials=family)
         # Identifier is filename, but on windows we replace backslash path
         # delimiter by forward slash to homogenise the identifier
@@ -170,7 +170,7 @@ end
         @test model.atoms[4] == ElementPsp(:C,  psp_C)
     end
 
-    let family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.oncvpsp3.standard.upf")
+    let family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
         model = Model(system; pseudopotentials=family)
 
         @test model.lattice   ≈ pos_lattice atol=1e-12
