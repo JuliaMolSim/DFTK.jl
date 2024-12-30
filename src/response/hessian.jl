@@ -1,3 +1,5 @@
+using KrylovKit
+
 # The Hessian of P -> E(P) (E being the energy) is Ω+K, where Ω and K are
 # defined below (cf. [1] for more details).
 #
@@ -188,21 +190,19 @@ using a split algorithm, where `rhs` is typically
     δρ0 = compute_δρ(basis, ψ, δψ0, occupation, δoccupation0; occupation_threshold, q)
 
     # compute total δρ
-    pack(δρ)   = vec(δρ)
-    unpack(δρ) = reshape(δρ, size(ρ))
-    function eps_fun(δρ)
-        δρ = unpack(δρ)
+    function dielectric_adjoint(δρ)
         δV = apply_kernel(basis, δρ; ρ, q)
         # TODO
         # Would be nice to play with abstol / reltol etc. to avoid over-solving
         # for the initial GMRES steps.
         χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
                         occupation_threshold, tol=tol_sternheimer, q, kwargs...)
-        pack(δρ - χ0δV)
+        δρ - χ0δV
     end
-    J = LinearMap{T}(eps_fun, prod(size(δρ0)))
-    δρ, history = gmres(J, pack(δρ0); reltol=0, abstol=tol, verbose, log=true)
-    δρ = unpack(δρ)
+    δρ, gmres_info = linsolve(dielectric_adjoint, δρ0;
+                              ishermitian=false,
+                              tol, verbosity=(verbose ? 3 : 0))
+    gmres_info.converged == 0 && @warn "Solve_ΩplusK_split solver not converged"
 
     # Compute total change in Hamiltonian applied to ψ
     δVind = apply_kernel(basis, δρ; ρ, q)  # Change in potential induced by δρ
@@ -221,7 +221,7 @@ using a split algorithm, where `rhs` is typically
                                            occupation_threshold, tol=tol_sternheimer, q,
                                            kwargs...)
 
-    (; δψ, δρ, δHψ, δVind, δeigenvalues, δoccupation, δεF, history)
+    (; δψ, δρ, δHψ, δVind, δeigenvalues, δoccupation, δεF, gmres_info)
 end
 
 function solve_ΩplusK_split(scfres::NamedTuple, rhs; kwargs...)

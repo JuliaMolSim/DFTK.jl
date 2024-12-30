@@ -1,5 +1,5 @@
+using KrylovKit
 using LinearMaps
-using IterativeSolvers
 using Statistics
 import Base: @kwdef
 
@@ -211,14 +211,11 @@ end
                                                ρin, kwargs...) where {T}
     # Initialise χ0terms and remove nothings (terms that don't yield a contribution)
     χ0applies = filter(!isnothing, [χ₀(basis; ρin, kwargs...) for χ₀ in mixing.χ0terms])
-
     # If no applies left, do not bother running GMRES and directly do simple mixing
     isempty(χ0applies) && return mix_density(SimpleMixing(), basis, δF)
 
     # Solve (ε^†) δρ = δF with ε^† = (1 - χ₀ vc) and χ₀ given as the sum of the χ0terms
-    devec(x) = reshape(x, size(δF))
     function dielectric_adjoint(δF)
-        δF = devec(δF)
         # Apply Kernel (just vc for RPA and (vc + K_{xc}) if not RPA)
         δV = apply_kernel(basis, δF; ρ=ρin, mixing.RPA)
         δV .-= mean(δV)
@@ -227,13 +224,16 @@ end
             apply_term!(εδF, δV, -1)  # εδF .-= χ₀ * δV
         end
         εδF .-= mean(εδF)
-        vec(εδF)
+        εδF
     end
 
     DC_δF = mean(δF)
     δF .-= DC_δF
-    ε  = LinearMap{T}(dielectric_adjoint, length(δF))
-    δρ = devec(gmres(ε, vec(δF); mixing.verbose, reltol=T(mixing.reltol)))
+    δρ, info = linsolve(dielectric_adjoint, δF;
+                        verbosity=(mixing.verbose ? 3 : 0),
+                        rtol=T(mixing.reltol),
+                        ishermitian=false)
+    info.converged == 0 && @warn "LDOS mixing GMRES not converged"
     δρ .+= DC_δF  # Set DC from δF
     δρ
 end
