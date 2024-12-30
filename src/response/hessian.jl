@@ -199,10 +199,10 @@ using a split algorithm, where `rhs` is typically
                         occupation_threshold, tol=tol_sternheimer, q, kwargs...)
         δρ - χ0δV
     end
-    δρ, gmres_info = linsolve(dielectric_adjoint, δρ0;
+    δρ, info_gmres = linsolve(dielectric_adjoint, δρ0;
                               ishermitian=false,
                               tol, verbosity=(verbose ? 3 : 0))
-    gmres_info.converged == 0 && @warn "Solve_ΩplusK_split solver not converged"
+    info_gmres.converged == 0 && @warn "Solve_ΩplusK_split solver not converged"
 
     # Compute total change in Hamiltonian applied to ψ
     δVind = apply_kernel(basis, δρ; ρ, q)  # Change in potential induced by δρ
@@ -221,7 +221,7 @@ using a split algorithm, where `rhs` is typically
                                            occupation_threshold, tol=tol_sternheimer, q,
                                            kwargs...)
 
-    (; δψ, δρ, δHψ, δVind, δeigenvalues, δoccupation, δεF, gmres_info)
+    (; δψ, δρ, δHψ, δVind, δeigenvalues, δoccupation, δεF, info_gmres)
 end
 
 function solve_ΩplusK_split(scfres::NamedTuple, rhs; kwargs...)
