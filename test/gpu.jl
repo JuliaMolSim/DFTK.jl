@@ -65,7 +65,7 @@ end
         model = model_DFT(aluminium.lattice, atoms, positions;
                           functionals=PBE(), temperature=0.01)
         basis = PlaneWaveBasis(model; Ecut=32, kgrid=(1, 1, 1), architecture)
-        self_consistent_field(basis; tol=1e-10, mixing=SimpleMixing())
+        self_consistent_field(basis; tol=1e-10)
     end
 
     scfres_cpu = run_problem(; architecture=DFTK.CPU())
