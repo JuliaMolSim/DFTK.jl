@@ -86,12 +86,27 @@ function AtomsCalculators.set_state!(calc::DFTKCalculator, st)
     DFTKCalculator(calc.params, st; calc.enforce_convergence)
 end
 
+function is_converged_state(newmodel::Model, calc::DFTKCalculator, oldstate)
+    newparams = calc.params
+    newmodel != oldstate.basis.model             && return false
+    !newparams.scf_kwargs.is_converged(oldstate) && return false
+
+    # check if the following agree
+    newparams.basis_kwargs.Ecut
+    newparams.basis_kwargs.kgrid
+
+
+end
+
 
 function compute_scf(system::AbstractSystem, calc::DFTKCalculator, oldstate)
     # We re-use the symmetries from the oldstate to avoid issues if system
     # happens to be more symmetric than the structure used to make the oldstate.
     symmetries = haskey(oldstate, :basis) ? oldstate.basis.model.symmetries : true
     model = model_DFT(system; symmetries, calc.params.model_kwargs...)
+
+    error("check here if already converged, if yes don't even run the scf")
+
     basis = PlaneWaveBasis(model; calc.params.basis_kwargs...)
 
     # @something makes sure that the density is only evaluated if ρ not in the state
@@ -129,9 +144,3 @@ end
     virial = (-Ω * compute_stresses_cart(scfres)) * u"hartree"
     (; virial, energy=scfres.energies.total * u"hartree", state=scfres)
 end
-
-
-# TODO Something more clever when energy + other stuff is needed
-#      - This is right now tricky in AtomsCalculators, since energy_forces for example
-#        dispatches to potential_energy and forces, which is not able to make
-#        use of state sharing.

@@ -194,7 +194,7 @@ export DFTKCalculator
 include("external/atomsbase.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
 include("external/wannier_shared.jl")
-include("external/atoms_calculators.jl")
+include("external/DFTKCalculator.jl")
 
 export compute_bands
 export plot_bandstructure
