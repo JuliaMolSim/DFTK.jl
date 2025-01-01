@@ -126,7 +126,7 @@ ElementPsp(:Si, PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf"))
 """
 function ElementPsp(species::ChemicalSpecies, family::AbstractDict;
                     mass=AtomsBase.mass(species), kwargs...)
-    psp = load_psp(family[element_symbol(species)]; kwargs...)
+    psp = load_psp(family, element_symbol(species); kwargs...)
     ElementPsp(species, psp, mass)
 end
 function ElementPsp(species::ChemicalSpecies, psp; mass=AtomsBase.mass(species))

@@ -60,6 +60,19 @@ end
     @test local_potential_real(element, 2.0) == -1.999997661838144
 end
 
+@testitem "Check constructing ElementPsp from family" begin
+    using DFTK
+    using PseudoPotentialData
+    pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
+
+    element_from_family = ElementPsp(:Si, pd_lda_family)
+    element_from_psp = ElementPsp(:Si, load_psp(pd_lda_family[:Si]))
+
+    @test element_from_family.psp.rcut == 10
+    # Constructing a PSP from a file cannot infer the rcut
+    @test element_from_family.psp.rcut != element_from_psp.psp.rcut
+end
+
 @testitem "Check constructing ElementCohenBergstresser" begin
     using DFTK
     using Unitful
