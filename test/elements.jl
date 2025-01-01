@@ -68,6 +68,7 @@ end
     element_from_family = ElementPsp(:Si, pd_lda_family)
     element_from_psp = ElementPsp(:Si, load_psp(pd_lda_family[:Si]))
 
+    # Constructing a PSP from a PD family should give the right rcut (10)
     @test element_from_family.psp.rcut == 10
     # Constructing a PSP from a file cannot infer the rcut
     @test element_from_family.psp.rcut != element_from_psp.psp.rcut
