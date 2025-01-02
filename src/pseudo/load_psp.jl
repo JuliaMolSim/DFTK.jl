@@ -2,7 +2,7 @@
 datadir_psp() = normpath(joinpath(@__DIR__, "..", "..", "data", "psp"))
 
 # See also: DFTKPseudoPotentialDataExt
-extra_psp_kwargs(family::AbstractDict, element::Symbol) = (;)
+extra_pseudometa_kwargs(family::AbstractDict, element::Symbol) = (;)
 
 """
 Load a pseudopotential file from a pseudopotential family.
@@ -10,7 +10,7 @@ This method should be preferred because it can automatically
 use metadata from the pseudopotential family.
 """
 function load_psp(family::AbstractDict, element::Symbol; kwargs...)
-    load_psp(family[element]; extra_psp_kwargs(family, element)..., kwargs...)
+    load_psp(family[element]; extra_pseudometa_kwargs(family, element)..., kwargs...)
 end
 
 """
@@ -78,7 +78,7 @@ function load_psp(pseudofamily::AbstractDict{Symbol,<:AbstractString},
         symbol = element_symbol(atom)
         file::String = pseudofamily[symbol]
         get!(cached_psps, file) do
-            load_psp(file; extra_psp_kwargs(pseudofamily, symbol)..., kwargs...)
+            load_psp(file; extra_pseudometa_kwargs(pseudofamily, symbol)..., kwargs...)
         end
     end
 end
