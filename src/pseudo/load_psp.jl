@@ -1,6 +1,18 @@
 """Return the data directory with pseudopotential files"""
 datadir_psp() = normpath(joinpath(@__DIR__, "..", "..", "data", "psp"))
 
+# See also: DFTKPseudoPotentialDataExt
+extra_pseudometa_kwargs(family::AbstractDict, element::Symbol) = (;)
+
+"""
+Load a pseudopotential file from a pseudopotential family.
+This method should be preferred because it can automatically
+use metadata from the pseudopotential family.
+"""
+function load_psp(family::AbstractDict, element::Symbol; kwargs...)
+    load_psp(family[element]; extra_pseudometa_kwargs(family, element)..., kwargs...)
+end
+
 """
 Load a pseudopotential file from the library of pseudopotentials.
 The file is searched in the directory `datadir_psp()` and by the `key`.
@@ -63,9 +75,10 @@ function load_psp(pseudofamily::AbstractDict{Symbol,<:AbstractString},
     # to deduce the atom_groups.
     cached_psps = Dict{String, Any}()
     map(system) do atom
-        file::String = pseudofamily[element_symbol(atom)]
+        symbol = element_symbol(atom)
+        file::String = pseudofamily[symbol]
         get!(cached_psps, file) do
-            load_psp(file; kwargs...)
+            load_psp(file; extra_pseudometa_kwargs(pseudofamily, symbol)..., kwargs...)
         end
     end
 end
