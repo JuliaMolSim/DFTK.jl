@@ -112,6 +112,12 @@ function compute_scf(system::AbstractSystem, calc::DFTKCalculator, oldstate)
     # @something makes sure that the density is only evaluated if ρ not in the state
     ρ = @something get(oldstate, :ρ, nothing) guess_density(basis, system)
     ψ = get(oldstate, :ψ, nothing)
+    #
+    #
+    error("Check orbitals and density size are compatible")
+    # TODO Be more clever here in particular if the lattice changes
+    #      ... where right now we will get an error
+    #
     scfres = self_consistent_field(basis; ρ, ψ, calc.params.scf_kwargs...)
     calc.enforce_convergence && !scfres.converged && error("SCF not converged.")
     calc.counter_n_iter[] += scfres.n_iter
