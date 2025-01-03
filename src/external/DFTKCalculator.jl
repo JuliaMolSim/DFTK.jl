@@ -86,38 +86,11 @@ function AtomsCalculators.set_state!(calc::DFTKCalculator, st)
     DFTKCalculator(calc.params, st; calc.enforce_convergence)
 end
 
-function is_converged_state(calc::DFTKCalculator, newmodel::Model, oldstate)
-    !hasproperty(oldstate, :basis) && return false
-    println("basis exists")
-    oldbasis  = oldstate.basis
-
-    # TODO This does not work (never returns true):
-    error("dose not work")
-    newmodel != oldbasis.model && return false
-    println("model agrees")
-
-    newparams = calc.params.basis_kwargs
-    numerical_parameters_agree = all(
-        (hasproperty(oldbasis, symbol) &&
-         getproperty(oldbasis, symbol) == getproperty(newparams, symbol))
-        for symbol in propertynames(newparams)
-    )
-    !numerical_parameters_agree && return false
-    println("parameters agrees")
-
-    return calc.params.scf_kwargs.is_converged(oldstate)
-end
-
-
 function compute_scf(system::AbstractSystem, calc::DFTKCalculator, oldstate)
     # We re-use the symmetries from the oldstate to avoid issues if system
     # happens to be more symmetric than the structure used to make the oldstate.
     symmetries = haskey(oldstate, :basis) ? oldstate.basis.model.symmetries : true
     model = model_DFT(system; symmetries, calc.params.model_kwargs...)
-
-    if is_converged_state(calc, model, oldstate)
-        return oldstate
-    end
 
     # Check if we can re-use the density / wavefunction from the state
     # or interpolate one to the other.
@@ -139,10 +112,10 @@ function compute_scf(system::AbstractSystem, calc::DFTKCalculator, oldstate)
         end
     end
     if isnothing(ρ)
+        @debug "compute_scf: Forming new guess density"
         ρ = guess_density(basis, system)
     end
 
-    # Run SCF
     scfres = self_consistent_field(basis; ρ, ψ, calc.params.scf_kwargs...)
     calc.enforce_convergence && !scfres.converged && error("SCF not converged.")
     calc.counter_n_iter[] += scfres.n_iter

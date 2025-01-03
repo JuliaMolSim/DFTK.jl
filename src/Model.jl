@@ -253,26 +253,6 @@ end
 Base.convert(::Type{Model{T}}, model::Model{T}) where {T}    = model
 Base.convert(::Type{Model{U}}, model::Model{T}) where {T, U} = Model{U}(model)
 
-function Base.:(==)(l::Model, r::Model)
-    all_equal = all(getproperty(l, key) == getproperty(r, key)
-                    for key in (:lattice, :n_electrons, :εF, :spin_polarization,
-                                :temperature, :smearing, :symmetries))
-
-    @show all_equal
-    error("Not yet done, these are not tested:")
-
-
-
-    #=
-    atoms::Vector{Element}
-    positions::Vector{Vec3{T}}
-    term_types::Vector
-    =#
-
-    return all_equal
-end
-
-
 normalize_magnetic_moment(::Nothing)::Vec3{Float64}          = (0, 0, 0)
 normalize_magnetic_moment(mm::Number)::Vec3{Float64}         = (0, 0, mm)
 normalize_magnetic_moment(mm::AbstractVector)::Vec3{Float64} = mm
