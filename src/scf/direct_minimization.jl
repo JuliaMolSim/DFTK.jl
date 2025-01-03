@@ -116,6 +116,7 @@ function direct_minimization(basis::PlaneWaveBasis{T};
         # the next step would be ρout - ρ. We thus record convergence, but let Optim do
         # one more step.
         δψ = unsafe_unpack(optim_state.s)
+        # TODO This looks weird ... should there not be a retraction ?
         ψ_next = [ortho_qr(ψ[ik] - δψ[ik]) for ik in 1:Nk]
         compute_density(basis, ψ_next, occupation)
     end
