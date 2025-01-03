@@ -87,10 +87,15 @@ function AtomsCalculators.set_state!(calc::DFTKCalculator, st)
 end
 
 function is_converged_state(calc::DFTKCalculator, newmodel::Model, oldstate)
-    newmodel != oldstate.basis.model && return false
+    !hasproperty(oldstate, :basis) && return false
+    println("basis exists")
+    oldbasis  = oldstate.basis
+
+    # TODO This does not work (never returns true):
+    error("dose not work")
+    newmodel != oldbasis.model && return false
     println("model agrees")
 
-    oldbasis  = oldstate.basis
     newparams = calc.params.basis_kwargs
     numerical_parameters_agree = all(
         (hasproperty(oldbasis, symbol) &&
@@ -121,9 +126,9 @@ function compute_scf(system::AbstractSystem, calc::DFTKCalculator, oldstate)
     ψ = get(oldstate, :ψ, nothing)
     #
     #
-    error("Check orbitals and density size are compatible")
     # TODO Be more clever here in particular if the lattice changes
     #      ... where right now we will get an error
+    error("Check orbitals and density size are compatible")
     #
     scfres = self_consistent_field(basis; ρ, ψ, calc.params.scf_kwargs...)
     calc.enforce_convergence && !scfres.converged && error("SCF not converged.")
