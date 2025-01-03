@@ -28,7 +28,7 @@
     - Density-functional perturbation theory (DFPT)
     - Integration of DFPT with algorithmic differentiation,
       e.g. [Polarizability using automatic differentiation](@ref)
-    - Phonons *(preliminary implementation)*
+    - [Phonon computations](@ref) *(preliminary implementation)*
 
 * Unique features
     - Support for arbitrary floating point types, including `Float32` (single precision)
