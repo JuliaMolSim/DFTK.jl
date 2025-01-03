@@ -86,16 +86,21 @@ function AtomsCalculators.set_state!(calc::DFTKCalculator, st)
     DFTKCalculator(calc.params, st; calc.enforce_convergence)
 end
 
-function is_converged_state(newmodel::Model, calc::DFTKCalculator, oldstate)
-    newparams = calc.params
-    newmodel != oldstate.basis.model             && return false
-    !newparams.scf_kwargs.is_converged(oldstate) && return false
+function is_converged_state(calc::DFTKCalculator, newmodel::Model, oldstate)
+    newmodel != oldstate.basis.model && return false
+    println("model agrees")
 
-    # check if the following agree
-    newparams.basis_kwargs.Ecut
-    newparams.basis_kwargs.kgrid
+    oldbasis  = oldstate.basis
+    newparams = calc.params.basis_kwargs
+    numerical_parameters_agree = all(
+        (hasproperty(oldbasis, symbol) &&
+         getproperty(oldbasis, symbol) == getproperty(newparams, symbol))
+        for symbol in propertynames(newparams)
+    )
+    !numerical_parameters_agree && return false
+    println("parameters agrees")
 
-
+    return calc.params.scf_kwargs.is_converged(oldstate)
 end
 
 
@@ -105,7 +110,9 @@ function compute_scf(system::AbstractSystem, calc::DFTKCalculator, oldstate)
     symmetries = haskey(oldstate, :basis) ? oldstate.basis.model.symmetries : true
     model = model_DFT(system; symmetries, calc.params.model_kwargs...)
 
-    error("check here if already converged, if yes don't even run the scf")
+    if is_converged_state(calc, model, oldstate)
+        return oldstate
+    end
 
     basis = PlaneWaveBasis(model; calc.params.basis_kwargs...)
 
