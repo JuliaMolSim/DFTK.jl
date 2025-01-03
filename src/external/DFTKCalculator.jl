@@ -86,6 +86,7 @@ function AtomsCalculators.set_state!(calc::DFTKCalculator, st)
     DFTKCalculator(calc.params, st; calc.enforce_convergence)
 end
 
+
 function compute_scf(system::AbstractSystem, calc::DFTKCalculator, oldstate)
     # We re-use the symmetries from the oldstate to avoid issues if system
     # happens to be more symmetric than the structure used to make the oldstate.
