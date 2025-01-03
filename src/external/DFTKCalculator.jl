@@ -119,17 +119,30 @@ function compute_scf(system::AbstractSystem, calc::DFTKCalculator, oldstate)
         return oldstate
     end
 
+    # Check if we can re-use the density / wavefunction from the state
+    # or interpolate one to the other.
+    ρ = nothing
+    ψ = nothing
     basis = PlaneWaveBasis(model; calc.params.basis_kwargs...)
+    if (haskey(oldstate, :basis) && haskey(oldstate, :ρ))
+        lattice_agrees = maximum(abs, basis.model.lattice - oldstate.basis.model.lattice) < 1e-6
 
-    # @something makes sure that the density is only evaluated if ρ not in the state
-    ρ = @something get(oldstate, :ρ, nothing) guess_density(basis, system)
-    ψ = get(oldstate, :ψ, nothing)
-    #
-    #
-    # TODO Be more clever here in particular if the lattice changes
-    #      ... where right now we will get an error
-    error("Check orbitals and density size are compatible")
-    #
+        if lattice_agrees && basis.fft_size == size(oldstate.ρ)
+            @debug "compute_scf: Take ρ and ψ from oldstate"
+            ρ = oldstate.ρ
+
+            # Note: In principle the ψ may not be matching in size here ...
+            ψ = get(oldstate, :ψ, nothing)
+        else
+            @debug "compute_scf: Interpolate ρ"
+            ρ = interpolate_density(oldstate.ρ, oldstate.basis, basis)
+        end
+    end
+    if isnothing(ρ)
+        ρ = guess_density(basis, system)
+    end
+
+    # Run SCF
     scfres = self_consistent_field(basis; ρ, ψ, calc.params.scf_kwargs...)
     calc.enforce_convergence && !scfres.converged && error("SCF not converged.")
     calc.counter_n_iter[] += scfres.n_iter
