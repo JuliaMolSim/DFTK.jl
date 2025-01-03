@@ -99,9 +99,10 @@ function compute_scf(system::AbstractSystem, calc::DFTKCalculator, oldstate)
     ψ = nothing
     basis = PlaneWaveBasis(model; calc.params.basis_kwargs...)
     if (haskey(oldstate, :basis) && haskey(oldstate, :ρ))
-        lattice_agrees = maximum(abs, basis.model.lattice - oldstate.basis.model.lattice) < 1e-6
+        lattice_agrees = maximum(abs, model.lattice - oldstate.basis.model.lattice) < 1e-6
+        fft_size_agrees = (basis.fft_size..., model.n_spin_components) == size(oldstate.ρ)
 
-        if lattice_agrees && basis.fft_size == size(oldstate.ρ)
+        if lattice_agrees && fft_size_agrees
             @debug "compute_scf: Take ρ and ψ from oldstate"
             ρ = oldstate.ρ
 
