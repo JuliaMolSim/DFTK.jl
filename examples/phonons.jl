@@ -3,8 +3,9 @@
 # This is a quick sketch how to run a simple phonon calculation using DFTK.
 # First we run an SCF calculation.
 
-using PseudoPotentialData
 using AtomsBuilder
+using DFTK
+using PseudoPotentialData
 
 pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
 model  = model_DFT(bulk(:Si); pseudopotentials)
