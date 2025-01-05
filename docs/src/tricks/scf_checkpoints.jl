@@ -29,7 +29,8 @@ using JLD2
 d = 2.079  # oxygen-oxygen bondlength
 a = 9.0    # size of the simulation box
 lattice = a * I(3)
-O = ElementPsp(:O, load_psp("hgh/pbe/O-q6.hgh"))
+pseudopotentials = PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth")
+O = ElementPsp(:O, pseudopotentials)
 atoms     = [O, O]
 positions = d / 2a * [[0, 0, 1], [0, 0, -1]]
 magnetic_moments = [1., 1.]
