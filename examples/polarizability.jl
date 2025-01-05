@@ -18,11 +18,13 @@
 
 using DFTK
 using LinearAlgebra
+using PseudoPotentialData
 
 a = 10.
 lattice = a * I(3)  # cube of ``a`` bohrs
+pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
 ## Helium at the center of the box
-atoms     = [ElementPsp(:He, load_psp("hgh/lda/He-q2"))]
+atoms     = [ElementPsp(:He, pseudopotentials)]
 positions = [[1/2, 1/2, 1/2]]
 
 

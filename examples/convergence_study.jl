@@ -25,7 +25,8 @@ using LinearAlgebra
 using Statistics
 
 function run_scf(; a=5.0, Ecut, nkpt, tol)
-    atoms    = [ElementPsp(:Pt, load_psp("hgh/lda/Pt-q10"))]
+    pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
+    atoms    = [ElementPsp(:Pt, pseudopotentials)]
     position = [zeros(3)]
     lattice  = a * Matrix(I, 3, 3)
 

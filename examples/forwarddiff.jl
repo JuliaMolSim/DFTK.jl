@@ -12,9 +12,10 @@ using ForwardDiff
 ## Construct PlaneWaveBasis given a particular electric field strength
 ## Again we take the example of a Helium atom.
 function make_basis(ε::T; a=10., Ecut=30) where {T}
-    lattice=T(a) * I(3)  # lattice is a cube of ``a`` Bohrs
+    lattice = T(a) * I(3)  # lattice is a cube of ``a`` Bohrs
     ## Helium at the center of the box
-    atoms     = [ElementPsp(:He, load_psp("hgh/lda/He-q2"))]
+    pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
+    atoms     = [ElementPsp(:He, pseudopotentials)]
     positions = [[1/2, 1/2, 1/2]]
 
     model = model_DFT(lattice, atoms, positions;
