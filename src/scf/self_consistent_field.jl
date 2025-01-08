@@ -183,12 +183,11 @@ Overview of parameters:
         end
         history_Etot = vcat(info.history_Etot, energies.total)
         history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
-        # TODO : add if
-        history_ψ = vcat(info.history_ψ, ψ)
+        #history_ψ = vcat(info.history_ψ, ψ)
         history_eigenvalues = vcat(info.history_eigenvalues, eigenvalues)
         history_εF = vcat(info.history_εF, εF)
         info_next = merge(info_next, (; energies, history_Etot, history_Δρ, 
-            history_ψ, history_eigenvalues, history_εF)
+            history_eigenvalues, history_εF)
         )
 
         # Apply mixing and pass it the full info as kwargs
@@ -209,7 +208,7 @@ Overview of parameters:
     info_init = (; ρin=ρ, ψ=ψ, occupation=nothing, eigenvalues=nothing, εF=nothing, 
                    n_iter=0, n_matvec=0, timedout=false, converged=false,
                    history_Etot=T[], history_Δρ=T[],
-                   history_ψ=T[], history_eigenvalues=T[], history_εF=T[])
+                   history_eigenvalues=T[], history_εF=T[])
 
     # Convergence is flagged by is_converged inside the fixpoint_map.
     _, info = solver(fixpoint_map, ρ, info_init; maxiter)
@@ -224,9 +223,9 @@ Overview of parameters:
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
                 ρ=ρout, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
                 info.n_iter, info.n_matvec, ψ, info.diagonalization, stage=:finalize,
-                info.history_Δρ, info.history_Etot, info.history_ψ, 
-                info.history_eigenvalues, info.history_εF, info.timedout,
-                runtime_ns=time_ns() - start_ns, algorithm="SCF")
+                info.history_Δρ, info.history_Etot, info.history_eigenvalues, 
+                info.history_εF, info.timedout, runtime_ns=time_ns() - start_ns, 
+                algorithm="SCF")
     callback(scfres)
     scfres
 end
