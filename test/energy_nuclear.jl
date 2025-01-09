@@ -4,7 +4,7 @@
 
     lattice = 16 * Diagonal(ones(3))
     H  = ElementCoulomb(1)
-    Li = ElementPsp(3, load_psp("hgh/lda/Li-q1"))
+    Li = ElementPsp(:Li, PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth"))
     atoms = [H, Li]
     positions = [
         [1/2, 1/2, 0.5953697526034847],
@@ -18,11 +18,12 @@ end
 
 @testitem "energy_forces_ewald silicon" begin
     using DFTK
+    using PseudoPotentialData
 
     lattice = [0.0  5.131570667152971 5.131570667152971;
                5.131570667152971 0.0 5.131570667152971;
                5.131570667152971 5.131570667152971  0.0]
-    Si = ElementPsp(14, load_psp("hgh/lda/Si-q4"))
+    Si = ElementPsp(:Si, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
     atoms     = [Si, Si]
     positions = [[1/8, 1/8, 1/8], [-1/8, -1/8, -1/8]]
 
@@ -37,7 +38,7 @@ end
     lattice = [0.0  5.131570667152971 5.131570667152971;
                5.131570667152971 0.0 5.131570667152971;
                5.131570667152971 5.131570667152971  0.0]
-    Si = ElementPsp(14, load_psp("hgh/lda/Si-q4"))
+    Si = ElementPsp(:Si, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
     atoms     = [Si, Si]
     positions = [[1/8, 1/8, 1/8], [-1/8, -1/8, -1/8]]
     model = Model(lattice, atoms, positions; terms=[PspCorrection()])

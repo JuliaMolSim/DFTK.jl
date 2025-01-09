@@ -73,10 +73,11 @@ end
     using ForwardDiff
     using LinearAlgebra
     using ComponentArrays
+    using PseudoPotentialData
     aluminium = TestCases.aluminium
 
     function compute_band_energies(ε::T) where {T}
-        psp  = load_psp("hgh/lda/al-q3")
+        psp  = load_psp(PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth", :Al))
         rloc = convert(T, psp.rloc)
 
         pspmod = PspHgh(psp.Zion, rloc,
