@@ -89,7 +89,8 @@ function load_psp(key::AbstractString; kwargs...)
         @warn("Calling `load_psp` without specifying a full path to a pseudopotential file " *
               "(i.e. identifiers such as hgh/lda/Si-q4) are deprecated as DFTK's internal " *
               "pseudopotential library will be removed in the future. Please use the " *
-              "PseudoPotentialData package to supply pseudopotentials to DFTK.")
+              "PseudoPotentialData package to supply pseudopotentials to DFTK. (e.g. here " *
+              "`load_psp(PseudoFamily(\"cp2k.nc.sr.lda.v0_1.semicore.gth\"), :Si)`)")
         fullpath = joinpath(datadir_psp(), lowercase(key))
         isfile(fullpath) || (fullpath = fullpath * extension)
         identifier = replace(lowercase(key), "\\" => "/")
