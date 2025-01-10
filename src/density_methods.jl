@@ -37,7 +37,9 @@ end
 
 function guess_density(basis::PlaneWaveBasis, system::AbstractSystem,
                        n_electrons=basis.model.n_electrons)
-    parsed_system = parse_system(system)
+    # Using no pseudopotentials is ok, only magnetic moments are read from the system here.
+    pseudopotentials = fill(nothing, length(system))
+    parsed_system = parse_system(system, pseudopotentials)
     length(parsed_system.positions) == length(basis.model.positions) || error(
         "System and model contain different numbers of positions"
     )
@@ -89,7 +91,6 @@ function atomic_density(basis::PlaneWaveBasis, method::AtomicDensity, magnetic_m
     ρ = ρ_from_total_and_spin(ρtot, ρspin)
 
     N = sum(ρ) * basis.model.unit_cell_volume / prod(basis.fft_size)
-
     if !isnothing(n_electrons) && (N > 0)
         ρ .*= n_electrons / N  # Renormalize to the correct number of electrons
     end
@@ -127,7 +128,7 @@ function atomic_spin_density(basis::PlaneWaveBasis{T}, method::AtomicDensity,
     coefficients = map(basis.model.atoms, magmoms) do atom, magmom
         iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
         magmom[3] ≤ n_elec_valence(atom) || error(
-            "Magnetic moment $(magmom[3]) too large for element $(atomic_symbol(atom)) " *
+            "Magnetic moment $(magmom[3]) too large for element $(species(atom)) " *
             "with only $(n_elec_valence(atom)) valence electrons."
         )
         magmom[3] / n_elec_valence(atom)

@@ -79,13 +79,14 @@ end
 end
 
 @testitem "standardize_atoms" setup=[TestCases] begin
+    using AtomsBase
     silicon = TestCases.silicon
 
     # Test unperturbed structure
     std = standardize_atoms(silicon.lattice, silicon.atoms, silicon.positions, primitive=true)
     @test length(std.atoms) == 2
-    @test std.atoms[1].symbol == :Si
-    @test std.atoms[2].symbol == :Si
+    @test species(std.atoms[1]) == ChemicalSpecies(:Si)
+    @test species(std.atoms[2]) == ChemicalSpecies(:Si)
     @test length(std.positions) == 2
     @test std.positions[1] - std.positions[2] ≈ 0.25ones(3)
     @test std.lattice ≈ silicon.lattice
@@ -100,8 +101,8 @@ end
     a = std.lattice[1, 2]
     @test std.lattice == [0  a  a; a 0 a; a a 0]
     @test length(std.atoms) == 2
-    @test std.atoms[1].symbol == :Si
-    @test std.atoms[2].symbol == :Si
+    @test species(std.atoms[1]) == ChemicalSpecies(:Si)
+    @test species(std.atoms[2]) == ChemicalSpecies(:Si)
     @test length(std.positions) == 2
     @test std.positions[1] - std.positions[2] ≈ 0.25ones(3)
 end

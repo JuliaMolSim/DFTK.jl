@@ -1,4 +1,5 @@
 import IterTools
+import PeriodicTable
 
 """
 List the pseudopotential files known to DFTK. Allows various ways
@@ -21,7 +22,7 @@ will list all oxygen semicore pseudopotentials known to DFTK.
 """
 function list_psp(element=nothing; family=nothing, functional=nothing, core=nothing)
     # Normalize input keys
-    isnothing(element)    || (element = Symbol(periodic_table[element].symbol))
+    isnothing(element)    || (element = Symbol(PeriodicTable.elements[element].symbol))
     isnothing(functional) || (functional = lowercase(functional))
     isnothing(family)     || (family = lowercase(family))
 
@@ -41,7 +42,7 @@ function list_psp(element=nothing; family=nothing, functional=nothing, core=noth
             f_element, f_nvalence   = split(base, '-')
             f_nvalence[1] == 'q' || continue                # Need 'q' before valence number
             f_element = Symbol(uppercase(f_element[1]) * f_element[2:end])
-            haskey(periodic_table, Symbol(f_element)) || continue
+            haskey(PeriodicTable.elements, Symbol(f_element)) || continue
 
             f_identifier = joinpath(root, file)
             Sys.iswindows() && (f_identifier = replace(f_identifier, "\\" => "/"))

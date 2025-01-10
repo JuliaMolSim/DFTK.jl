@@ -1,33 +1,29 @@
 using AtomsBase
 # Key functionality to integrate DFTK and AtomsBase
 
-function parse_system(system::AbstractSystem{D}) where {D}
+function parse_system(system::AbstractSystem{D},
+                      pseudopotentials::AbstractVector) where {D}
     if !all(periodicity(system))
         error("DFTK only supports calculations with periodic boundary conditions.")
     end
+    if length(system) != length(pseudopotentials)
+        error("Length of pseudopotentials vector needs to agree with number of atoms.")
+    end
 
     # Parse abstract system and return data required to construct model
-    mtx = austrip.(stack(bounding_box(system)))
+    mtx = austrip.(stack(cell_vectors(system)))
     T = eltype(mtx)
     lattice = zeros(T, 3, 3)
     lattice[1:D, 1:D] .= mtx
 
-    # Cache for instantiated pseudopotentials. This is done to ensure that identical
-    # atoms are indistinguishable in memory, which is used in the Model constructor
-    # to deduce the atom_groups.
-    cached_pspelements = Dict{String, ElementPsp}()
-    atoms = map(system) do atom
-        pseudo = get(atom, :pseudopotential, "")
-        if isempty(pseudo)
-            ElementCoulomb(atomic_number(atom); mass=atomic_mass(atom))
-        else
-            key = pseudo * string(atomic_mass(atom))
-            get!(cached_pspelements, key) do
-                kwargs = get(atom, :pseudopotential_kwargs, ())
-                ElementPsp(atomic_number(atom); psp=load_psp(pseudo; kwargs...),
-                           mass=atomic_mass(atom))
-            end
+    atoms = map(system, pseudopotentials) do atom, psp
+        if hasproperty(atom, :pseudopotential)
+            @warn("The pseudopotential atom property is no longer respected. " *
+                  "Please use the `pseudopotential` keyword argument to the " *
+                  "model constructors.")
         end
+        # If psp === nothing, this will make an ElementCoulomb
+        ElementPsp(species(atom), psp; mass=AtomsBase.mass(atom))
     end
 
     positions = map(system) do atom
@@ -61,6 +57,10 @@ function parse_system(system::AbstractSystem{D}) where {D}
 
     (; lattice, atoms, positions, magnetic_moments)
 end
+function parse_system(system::AbstractSystem,
+                      family::AbstractDict{Symbol,<:AbstractString})
+    parse_system(system, load_psp(family, system))
+end
 
 
 # Extra methods to AtomsBase functions for DFTK data structures
@@ -79,7 +79,7 @@ function AtomsBase.atomic_system(lattice::AbstractMatrix{<:Number},
 
     @assert length(atoms) == length(positions)
     @assert isempty(magnetic_moments) || length(magnetic_moments) == length(atoms)
-    atomsbase_atoms = map(enumerate(atoms)) do (i, element)
+    atomsbase_atoms = map(enumerate(atoms)) do (i, atom)
         kwargs = Dict{Symbol, Any}()
         if !isempty(magnetic_moments)
             magmom = normalize_magnetic_moment(magnetic_moments[i])
@@ -89,26 +89,9 @@ function AtomsBase.atomic_system(lattice::AbstractMatrix{<:Number},
                 kwargs[:magnetic_moment] = magmom
             end
         end
-        if element isa ElementPsp
-            kwargs[:pseudopotential] = element.psp.identifier
-            if element.psp isa PspUpf
-                kwargs[:pseudopotential_kwargs] = (; element.psp.rcut)
-            end
-        elseif element isa ElementCoulomb
-            kwargs[:pseudopotential] = ""
-        elseif !(element isa ElementCoulomb)
-            @warn("Discarding DFTK-specific details for element type $(typeof(element)) " *
-                  "(i.e. this element is treated as a ElementCoulomb).")
-            kwargs[:pseudopotential] = ""
-        end
 
-        position = lattice * positions[i] * u"bohr"
-        if atomic_symbol(element) == :X  # dummy element ... should solve this upstream
-            Atom(:X, position; atomic_symbol=:X, atomic_number=0, atomic_mass=0u"u", kwargs...)
-        else
-            Atom(atomic_symbol(element), position; atomic_mass=atomic_mass(element),
-                 kwargs...)
-        end
+        Atom(species(atom), lattice * positions[i] * u"bohr";
+             mass=AtomsBase.mass(atom), kwargs...)
     end
     periodic_system(atomsbase_atoms, collect(eachcol(lattice)) * u"bohr")
 end
@@ -134,4 +117,6 @@ function AtomsBase.periodic_system(lattice::AbstractMatrix{<:Number},
     atomic_system(lattice, atoms, positions, magnetic_moments)
 end
 
-AtomsBase.chemical_formula(model::Model) = chemical_formula(atomic_symbol.(model.atoms))
+function AtomsBase.chemical_formula(model::Model)
+    chemical_formula(element_symbol.(species.(model.atoms)))
+end

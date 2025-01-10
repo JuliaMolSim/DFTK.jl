@@ -114,7 +114,7 @@ function construct_value(model::Model{T}) where {T <: Dual}
 end
 
 construct_value(el::Element) = el
-construct_value(el::ElementPsp) = ElementPsp(el.Z, el.symbol, el.mass, construct_value(el.psp))
+construct_value(el::ElementPsp) = ElementPsp(el.species, construct_value(el.psp), el.mass)
 construct_value(psp::PspHgh) = psp
 function construct_value(psp::PspHgh{T}) where {T <: Dual}
     PspHgh(psp.Zion,
@@ -202,7 +202,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     # This has to be changed whenever the scfres structure changes
     (; ham, basis=basis_dual, energies, ρ, eigenvalues, occupation, εF, ψ,
        # non-differentiable metadata:
-       response=getfield.(δresults, :history),
+       response=getfield.(δresults, :info_gmres),
        scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter,
        scfres.n_bands_converge, scfres.diagonalization, scfres.stage,
        scfres.algorithm, scfres.runtime_ns)
@@ -247,18 +247,6 @@ function LinearAlgebra.norm(x::SVector{S,<:Dual{Tg,T,N}}) where {S,Tg,T,N}
     y = norm(x_value)
     dy = ntuple(j->real(dot(x_value, ForwardDiff.partials.(x,j))) * pinv(y), N)
     Dual{Tg}(y, dy)
-end
-
-# problem: the derivative of 1/(1+exp(x)) = -exp(x) / (1+exp(x))^2.
-# When x is too large, exp(x) = Inf and this is a NaN.
-function Smearing.occupation(S::Smearing.FermiDirac, d::Dual{T}) where {T}
-    x = ForwardDiff.value(d)
-    if exp(x) > floatmax(typeof(x)) / 1e3
-        ∂occ = -zero(x)
-    else
-        ∂occ = -exp(x) / (1 + exp(x))^2
-    end
-    Dual{T}(Smearing.occupation(S, x), ∂occ * ForwardDiff.partials(d))
 end
 
 # Fix for https://github.com/JuliaDiff/ForwardDiff.jl/issues/514

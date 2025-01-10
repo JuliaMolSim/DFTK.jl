@@ -46,6 +46,7 @@ PAGES = [
     "Response and properties" => [
         "examples/polarizability.jl",
         "examples/forwarddiff.jl",
+        "examples/phonons.jl",
     ],
     "Ecosystem integration" => [
         # This concerns the discussion of interfaces, IO and integration
@@ -59,6 +60,7 @@ PAGES = [
     "Tips and tricks" => [
         # Resolving convergence issues, what solver to use, improving performance or
         # reliability of calculations.
+        "tricks/achieving_convergence.md",
         "tricks/parallelization.md",
         "tricks/scf_checkpoints.jl",
         "tricks/compute_clusters.md",
@@ -131,7 +133,6 @@ ENV["PLOTS_TEST"] = "true"
 using DFTK
 using Documenter
 using Literate
-import Artifacts
 
 #
 # Generate the docs
@@ -146,12 +147,6 @@ extract_paths(pair::Pair) = extract_paths(pair.second)
 transform_to_md(file::AbstractString) = first(splitext(file)) * ".md"
 transform_to_md(pages::AbstractArray) = transform_to_md.(pages)
 transform_to_md(pair::Pair) = (pair.first => transform_to_md(pair.second))
-
-# Setup Artifacts.toml system
-macro artifact_str(s)
-    @eval Artifacts.@artifact_str $s
-end
-cp(joinpath(ROOTPATH, "Artifacts.toml"), joinpath(@__DIR__, "Artifacts.toml"), force=true)
 
 # Copy assets over
 mkpath(joinpath(SRCPATH, "examples"))
@@ -241,8 +236,7 @@ makedocs(;
 
 # Dump files for managing dependencies in binder
 if CONTINUOUS_INTEGRATION && DFTKBRANCH == "master"
-    cp(joinpath(@__DIR__, "Project.toml"),   joinpath(BUILDPATH, "Project.toml");   force=true)
-    cp(joinpath(ROOTPATH, "Artifacts.toml"), joinpath(BUILDPATH, "Artifacts.toml"); force=true)
+    cp(joinpath(@__DIR__, "Project.toml"), joinpath(BUILDPATH, "Project.toml"); force=true)
 end
 
 # Deploy docs to gh-pages branch

@@ -2,8 +2,9 @@ using AtomsBuilder
 using DFTK
 using CUDA
 
-system = attach_psp(bulk(:Si); Si="hgh/pbe/Si-q4")
-model  = model_DFT(system; functionals=PBE())
+model  = model_DFT(bulk(:Si);
+                   functionals=PBE(),
+                   pseudopotentials=Dict(:Si => "hgh/pbe/Si-q4"))
 
 # If available, use CUDA to store DFT quantities and perform main computations
 architecture = has_cuda() ? DFTK.GPU(CuArray) : DFTK.CPU()

@@ -55,12 +55,9 @@ export ElementPsp
 export ElementCohenBergstresser
 export ElementCoulomb
 export ElementGaussian
-export charge_nuclear
-export charge_ionic
-export atomic_symbol
-export atomic_mass
-export n_elec_valence
-export n_elec_core
+export charge_nuclear, charge_ionic
+export n_elec_valence, n_elec_core
+export element_symbol, mass, species  # Note: Re-exported from AtomsBase
 include("elements.jl")
 
 export SymOp
@@ -188,10 +185,8 @@ include("density_methods.jl")
 
 export load_psp
 export list_psp
-export attach_psp
 include("pseudo/load_psp.jl")
 include("pseudo/list_psp.jl")
-include("pseudo/attach_psp.jl")
 
 export atomic_system, periodic_system  # Reexport from AtomsBase
 export run_wannier90
@@ -199,7 +194,7 @@ export DFTKCalculator
 include("external/atomsbase.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
 include("external/wannier_shared.jl")
-include("external/atoms_calculators.jl")
+include("external/DFTKCalculator.jl")
 
 export compute_bands
 export plot_bandstructure
@@ -228,6 +223,10 @@ export compute_current
 include("postprocess/current.jl")
 export phonon_modes
 include("postprocess/phonon.jl")
+export refine_scfres
+export refine_energies
+export refine_forces
+include("postprocess/refine.jl")
 
 # Workarounds
 include("workarounds/dummy_inplace_fft.jl")
@@ -235,13 +234,13 @@ include("workarounds/forwarddiff_rules.jl")
 include("workarounds/gpu_arrays.jl")
 
 # Precompilation block with a basic workflow
-@setup_workload begin
+@setup_workload let
     # very artificial silicon ground state example
     a = 10.26
     lattice = a / 2 * [[0 1 1.];
                        [1 0 1.];
                        [1 1 0.]]
-    Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
+    Si = ElementPsp(:Si, load_psp("hgh/lda/Si-q4"))
     atoms     = [Si, Si]
     positions = [ones(3)/8, -ones(3)/8]
     magnetic_moments = [2, -2]
@@ -253,6 +252,7 @@ include("workarounds/gpu_arrays.jl")
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
         ρ0 = guess_density(basis, magnetic_moments)
         scfres = self_consistent_field(basis; ρ=ρ0, tol=1e-2, maxiter=3, callback=identity)
+        compute_forces_cart(scfres)
     end
 end
 end # module DFTK

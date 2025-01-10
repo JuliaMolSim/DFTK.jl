@@ -101,7 +101,7 @@ end
     self_consistent_field(basis; [tol, mixing, damping, ρ, ψ])
 
 Solve the Kohn-Sham equations with a density-based SCF algorithm using damped, preconditioned
-iterations where ``ρ_\text{next} = α P^{-1} (ρ_\text{out} - ρ_\text{in})``.
+iterations where ``ρ_\text{next} = ρ_\text{in} + α P^{-1} (ρ_\text{out} - ρ_\text{in})``.
 
 Overview of parameters:
 - `ρ`:   Initial density
@@ -169,11 +169,10 @@ Overview of parameters:
                                  tol=determine_diagtol(diagtolalg, info))
         (; ψ, eigenvalues, occupation, εF, ρout) = nextstate
         Δρ = ρout - ρin
-        n_matvec = info.n_matvec + nextstate.n_matvec
 
         # Update info with results gathered so far
         info_next = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
-                       ρin, α=damping, n_iter, n_matvec, nbandsalg.occupation_threshold,
+                       ρin, α=damping, n_iter, nbandsalg.occupation_threshold,
                        runtime_ns=time_ns() - start_ns, nextstate...,
                        diagonalization=[nextstate.diagonalization])
 
@@ -183,11 +182,11 @@ Overview of parameters:
         end
         history_Etot = vcat(info.history_Etot, energies.total)
         history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
-        #history_ψ = vcat(info.history_ψ, ψ)
+        n_matvec = info.n_matvec + nextstate.n_matvec
         history_eigenvalues = vcat(info.history_eigenvalues, eigenvalues)
         history_εF = vcat(info.history_εF, εF)
         info_next = merge(info_next, (; energies, history_Etot, history_Δρ, 
-            history_eigenvalues, history_εF)
+            history_eigenvalues, history_εF, n_matvec)
         )
 
         # Apply mixing and pass it the full info as kwargs
