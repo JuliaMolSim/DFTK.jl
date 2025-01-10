@@ -27,19 +27,16 @@ system = bulk(:Si)
 using PseudoPotentialData  # defines PseudoFamily
 
 pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
-model = model_DFT(system;
-                  functionals=LDA(),
-                  temperature=1e-3,
+model = model_DFT(system; functionals=LDA(), temperature=1e-3,
                   pseudopotentials=pd_lda_family)
 
 # Alternatively the `pseudopotentials` object also accepts a `Dict{Symbol,String}`,
 # which provides for each element symbol the filename or identifier
 # of the pseudopotential to be employed, e.g.
 
-model = model_DFT(system;
-                  functionals=LDA(),
-                  temperature=1e-3,
-                  pseudopotentials=Dict(:Si => "hgh/lda/si-q4"))
+path_to_pspfile = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")[:Si]
+model = model_DFT(system; functionals=LDA(), temperature=1e-3,
+                  pseudopotentials=Dict(:Si => path_to_pspfile))
 
 # We can then discretise such a model and solve:
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
@@ -59,7 +56,7 @@ using AtomsIO
 system = load_system("Si.extxyz");
 
 # Run the LDA calculation:
-pseudopotentials = Dict(:Si => "hgh/lda/si-q4")
+pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
 model  = model_DFT(system; pseudopotentials, functionals=LDA(), temperature=1e-3)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 scfres = self_consistent_field(basis, tol=1e-8);
@@ -83,7 +80,7 @@ atoms  = [:Si => ones(3)/8, :Si => -ones(3)/8]
 system = periodic_system(atoms, lattice; fractional=true)
 
 ## Now run the LDA calculation:
-pseudopotentials = Dict(:Si => "hgh/lda/si-q4")
+pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
 model  = model_DFT(system; pseudopotentials, functionals=LDA(), temperature=1e-3)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 scfres = self_consistent_field(basis, tol=1e-4);
@@ -100,7 +97,7 @@ second_system = atomic_system(model)
 lattice = 5.431u"Å" / 2 * [[0 1 1.];
                            [1 0 1.];
                            [1 1 0.]];
-Si = ElementPsp(:Si, load_psp("hgh/lda/Si-q4"))
+Si = ElementPsp(:Si, pseudopotentials)
 atoms     = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
 

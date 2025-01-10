@@ -5,11 +5,13 @@ to monitor and influence performance of the code.
 
 ```@setup parallelization
 using DFTK
+using PseudoPotentialData
 a = 10.26  # Silicon lattice constant in Bohr
 lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
-Si = ElementPsp(:Si, load_psp("hgh/lda/Si-q4"))
+pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
+Si = ElementPsp(:Si, pseudopotentials)
 atoms = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
 
