@@ -1,4 +1,5 @@
 import Spglib
+import Brillouin.KPaths: KPathInterpolant
 
 """Bring ``k``-point coordinates into the range [-0.5, 0.5)"""
 function normalize_kpoint_coordinate(x::Real)
@@ -105,6 +106,11 @@ end
 function ExplicitKpoints(kcoords::AbstractVector{<:AbstractVector{T}}) where {T}
     ExplicitKpoints(kcoords, ones(T, length(kcoords)) ./ length(kcoords))
 end
+function ExplicitKpoints(kinter::KPathInterpolant{D}) where {D}
+    ExplicitKpoints(map(k -> vcat(k, zeros_like(k, 3 - D)), kinter))
+end
+Base.convert(::Type{<:AbstractKgrid}, kinter::KPathInterpolant) = ExplicitKpoints(kinter)
+
 function Base.show(io::IO, kgrid::ExplicitKpoints)
     print(io, "ExplicitKpoints with $(length(kgrid.kcoords)) k-points")
 end
@@ -122,7 +128,8 @@ apart (in inverse Bohrs). A reasonable spacing is `0.13` inverse Bohrs
 to specify an explicit shift for all ``k``-points.
 """
 function kgrid_from_maximal_spacing(system::AbstractSystem, spacing; kshift=[0, 0, 0])
-    kgrid_from_maximal_spacing(parse_system(system).lattice, spacing; kshift)
+    pseudopotentials = fill(nothing, length(system))
+    kgrid_from_maximal_spacing(parse_system(system, pseudopotentials).lattice, spacing; kshift)
 end
 function kgrid_from_maximal_spacing(lattice::AbstractMatrix, spacing; kshift=[0, 0, 0])
     lattice       = austrip.(lattice)
@@ -145,7 +152,8 @@ Selects a [`MonkhorstPack`](@ref) grid size which ensures that at least a
 achieve an identical minimal spacing in all directions.
 """
 function kgrid_from_minimal_n_kpoints(system::AbstractSystem, n_kpoints::Integer; kshift=[0, 0, 0])
-    kgrid_from_minimal_n_kpoints(parse_system(system).lattice, n_kpoints; kshift)
+    pseudopotentials = fill(nothing, length(system))
+    kgrid_from_minimal_n_kpoints(parse_system(system, pseudopotentials).lattice, n_kpoints; kshift)
 end
 function kgrid_from_minimal_n_kpoints(lattice, n_kpoints::Integer; kshift=[0, 0, 0])
     lattice = austrip.(lattice)

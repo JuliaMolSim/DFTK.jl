@@ -196,11 +196,22 @@ end
 
 AtomsBase-compatible Model constructor. Sets structural information (`atoms`, `positions`,
 `lattice`, `n_electrons` etc.) from the passed `system`.
+
+## Keyword arguments
+- `pseudopotentials`: Set the pseudopotential information for the atoms
+   of the passed system. Can be (a) a list of pseudopotential objects
+   (one for each atom), where a `nothing` element indicates that the
+   Coulomb potential should be used for that atom or (b)
+   a `PseudoPotentialData.PseudoFamily` to automatically determine the
+   pseudopotential from the specified pseudo family or (c)
+   a `Dict{Symbol,String}` mapping an atomic symbol
+   to the pseudopotential to be employed.
 """
-function Model(system::AbstractSystem; kwargs...)
-    @assert !(:magnetic_moments in keys(kwargs))
-    parsed = parse_system(system)
-    Model(parsed.lattice, parsed.atoms, parsed.positions; parsed.magnetic_moments, kwargs...)
+function Model(system::AbstractSystem;
+               pseudopotentials=fill(nothing, length(system)), kwargs...)
+    parsed = parse_system(system, pseudopotentials)
+    Model(parsed.lattice, parsed.atoms, parsed.positions;
+          parsed.magnetic_moments, kwargs...)
 end
 
 """

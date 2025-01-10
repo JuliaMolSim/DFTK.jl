@@ -198,6 +198,7 @@ DFTK = "acf6eb54-70d9-11e9-0013-234b7a5f5337"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 MKL = "33e6dc65-8f57-5167-99aa-e5a354878fb2"
 MPIPreferences = "3da0fdf6-3ccc-4f1b-acd9-58baa6c99267"
+PseudoPotentialData = "5751a51d-ac76-4487-a056-413ecf6fbe19"
 ```
 We additionally create a small file `dftk.jl` to run an MPI-parallelised
 calculation from a passed structure
@@ -205,20 +206,22 @@ calculation from a passed structure
 using MKL
 using DFTK
 using AtomsIO
+using PseudoPotentialData
 
 disable_threading()  # Threading and MPI not compatible
 
-function main(structure, pseudos; Ecut, kspacing)
+function main(structure; pseudofamily, Ecut, kspacing)
     if mpi_master()
         println("DEPOT_PATH=$DEPOT_PATH")
         println(DFTK.versioninfo())
         println()
     end
 
-    system = attach_psp(load_system(structure); pseudos...)
-    model  = model_DFT(system; functionals=PBE(),
-                       temperature=1e-3, smearing=Smearing.MarzariVanderbilt())
-
+    model  = model_DFT(load_system(structure);
+                       pseudopotentials=PseudoFamily(pseudofamily),
+                       functionals=PBE(),
+                       temperature=1e-3,
+                       smearing=Smearing.MarzariVanderbilt())
     kgrid = kgrid_from_minimal_spacing(model, kspacing)
     basis = PlaneWaveBasis(model; Ecut, kgrid)
 
@@ -274,12 +277,10 @@ module load julia
 # file as an include to make everything self-contained.
 srun julia -t 1 --project -e '
     include("dftk.jl")
-    pseudos = (; Si="hgh/pbe/si-q4.hgh" )
-    main("silicon.extxyz",
-         pseudos;
+    main("silicon.extxyz";
+         pseudofamily="pd_nc_sr_pbe_standard_0.4.1_upf",
          Ecut=10,
-         kspacing=0.3,
- )
+         kspacing=0.3)
 '
 ```
 

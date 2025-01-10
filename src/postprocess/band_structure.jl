@@ -71,8 +71,7 @@ ensure these are taken into account when determining the path.
 """
 function compute_bands(basis_or_scfres, kpath::KPath; kline_density=40u"bohr", kwargs...)
     kinter = Brillouin.interpolate(kpath, density=austrip(kline_density))
-    res = compute_bands(basis_or_scfres, ExplicitKpoints(kpath_get_kcoords(kinter));
-                        kwargs...)
+    res = compute_bands(basis_or_scfres, ExplicitKpoints(kinter); kwargs...)
     merge(res, (; kinter))
 end
 function compute_bands(scfres::NamedTuple; magnetic_moments=[], kwargs...)
@@ -149,10 +148,6 @@ end
 # TODO We should generalise irrfbz_path to AbstractSystem and move that to Brillouin
 
 
-"""Return kpoint coordinates in reduced coordinates"""
-function kpath_get_kcoords(kinter::KPathInterpolant{D}) where {D}
-    map(k -> vcat(k, zeros_like(k, 3 - D)), kinter)
-end
 function kpath_get_branch(kinter::KPathInterpolant{D}, ibranch::Integer) where {D}
     map(k -> vcat(k, zeros_like(k, 3 - D)), kinter.kpaths[ibranch])
 end

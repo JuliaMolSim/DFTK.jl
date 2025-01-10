@@ -14,7 +14,7 @@ using ForwardDiff
 function make_basis(ε::T; a=10., Ecut=30) where {T}
     lattice=T(a) * I(3)  # lattice is a cube of ``a`` Bohrs
     ## Helium at the center of the box
-    atoms     = [ElementPsp(:He; psp=load_psp("hgh/lda/He-q2"))]
+    atoms     = [ElementPsp(:He, load_psp("hgh/lda/He-q2"))]
     positions = [[1/2, 1/2, 1/2]]
 
     model = model_DFT(lattice, atoms, positions;
@@ -47,7 +47,8 @@ end
 
 # We do the same thing using automatic differentiation. Under the hood this uses
 # custom rules to implicitly differentiate through the self-consistent
-# field fixed-point problem.
+# field fixed-point problem. This leads to a density-functional perturbation
+# theory problem, which is automatically set up and solved in the background.
 polarizability = ForwardDiff.derivative(compute_dipole, 0.0)
 println()
 println("Polarizability via ForwardDiff:       $polarizability")

@@ -33,7 +33,20 @@ end
 AtomsCalculators.energy_unit(::DFTKCalculator) = u"hartree"
 AtomsCalculators.length_unit(::DFTKCalculator) = u"bohr"
 
-# TODO DFTKCalculator needs a custom show function (both brief and detailed)
+function Base.show(io::IO, calc::DFTKCalculator)
+    fields = String[]
+    for key in (:functionals, :pseudopotentials, :temperature, :smearing)
+        if haskey(calc.params.model_kwargs, key)
+            push!(fields, "$key=$(getproperty(calc.params.model_kwargs, key))")
+        end
+    end
+    for key in (:Ecut, :kgrid)
+        if haskey(calc.params.basis_kwargs, key)
+            push!(fields, "$key=$(getproperty(calc.params.basis_kwargs, key))")
+        end
+    end
+    print(io, "DFTKCalculator($(join(fields, ", ")))")
+end
 
 """
 Construct a [AtomsCalculators](https://github.com/JuliaMolSim/AtomsCalculators.jl)
@@ -79,11 +92,32 @@ function compute_scf(system::AbstractSystem, calc::DFTKCalculator, oldstate)
     # happens to be more symmetric than the structure used to make the oldstate.
     symmetries = haskey(oldstate, :basis) ? oldstate.basis.model.symmetries : true
     model = model_DFT(system; symmetries, calc.params.model_kwargs...)
-    basis = PlaneWaveBasis(model; calc.params.basis_kwargs...)
 
-    # @something makes sure that the density is only evaluated if ρ not in the state
-    ρ = @something get(oldstate, :ρ, nothing) guess_density(basis, system)
-    ψ = get(oldstate, :ψ, nothing)
+    # Check if we can re-use the density / wavefunction from the state
+    # or interpolate one to the other.
+    ρ = nothing
+    ψ = nothing
+    basis = PlaneWaveBasis(model; calc.params.basis_kwargs...)
+    if (haskey(oldstate, :basis) && haskey(oldstate, :ρ))
+        lattice_agrees = maximum(abs, model.lattice - oldstate.basis.model.lattice) < 1e-6
+        fft_size_agrees = (basis.fft_size..., model.n_spin_components) == size(oldstate.ρ)
+
+        if lattice_agrees && fft_size_agrees
+            @debug "compute_scf: Take ρ and ψ from oldstate"
+            ρ = oldstate.ρ
+
+            # Note: In principle the ψ may not be matching in size here ...
+            ψ = get(oldstate, :ψ, nothing)
+        else
+            @debug "compute_scf: Interpolate ρ"
+            ρ = interpolate_density(oldstate.ρ, oldstate.basis, basis)
+        end
+    end
+    if isnothing(ρ)
+        @debug "compute_scf: Forming new guess density"
+        ρ = guess_density(basis, system)
+    end
+
     scfres = self_consistent_field(basis; ρ, ψ, calc.params.scf_kwargs...)
     calc.enforce_convergence && !scfres.converged && error("SCF not converged.")
     calc.counter_n_iter[] += scfres.n_iter
@@ -116,9 +150,3 @@ end
     virial = (-Ω * compute_stresses_cart(scfres)) * u"hartree"
     (; virial, energy=scfres.energies.total * u"hartree", state=scfres)
 end
-
-
-# TODO Something more clever when energy + other stuff is needed
-#      - This is right now tricky in AtomsCalculators, since energy_forces for example
-#        dispatches to potential_energy and forces, which is not able to make
-#        use of state sharing.

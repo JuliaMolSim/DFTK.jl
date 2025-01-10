@@ -53,9 +53,9 @@ end
     silicon = TestCases.silicon
 
     function energy_forces(positions)
-        Si = ElementPsp(silicon.atnum, :Si, silicon.mass, load_psp(silicon.psp_upf))
+        Si = ElementPsp(silicon.atnum, load_psp(silicon.psp_upf))
         atoms = fill(Si, length(silicon.atoms))
-        model = model_DFT(silicon.lattice, atoms, positions; functionals=[:lda_x, :lda_c_pw])
+        model = model_DFT(silicon.lattice, atoms, positions; functionals=LDA())
         basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0],
                                symmetries_respect_rgrid=true,
                                fft_size=(18, 18, 18))  # FFT chosen to match QE
@@ -124,7 +124,7 @@ end
     end
 end
 
-@testitem "Forces on oxygen with spin and temperature" setup=[TestCases] begin
+@testitem "Forces on oxygen with spin and temperature" setup=[TestCases] tags=[:dont_test_mpi] begin
     using DFTK
     using DFTK: mpi_mean!
     using MPI

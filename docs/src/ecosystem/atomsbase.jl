@@ -16,28 +16,51 @@ using AtomsBuilder
 system = bulk(:Si)
 
 # By default the atoms of an `AbstractSystem` employ the bare Coulomb potential.
-# To make calculations feasible for plane-wave DFT we thus attach pseudopotential information,
-# before passing the `system` to construct a DFT model, discretise and solve:
-system = attach_psp(system; Si="hgh/lda/si-q4")
+# To employ pseudpotential models (which is almost always advisable for
+# plane-wave DFT) one employs the `pseudopotential` keyword argument in
+# model constructors such as [`model_DFT`](@ref).
+# For example we can employ a `PseudoFamily` object
+# from the [PseudoPotentialData](https://github.com/JuliaMolSim/PseudoPotentialData.jl)
+# package. See its documentation for more information on the available
+# pseudopotential families and how to select them.
 
-model  = model_DFT(system; functionals=LDA(), temperature=1e-3)
+using PseudoPotentialData  # defines PseudoFamily
+
+pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
+model = model_DFT(system;
+                  functionals=LDA(),
+                  temperature=1e-3,
+                  pseudopotentials=pd_lda_family)
+
+# Alternatively the `pseudopotentials` object also accepts a `Dict{Symbol,String}`,
+# which provides for each element symbol the filename or identifier
+# of the pseudopotential to be employed, e.g.
+
+model = model_DFT(system;
+                  functionals=LDA(),
+                  temperature=1e-3,
+                  pseudopotentials=Dict(:Si => "hgh/lda/si-q4"))
+
+# We can then discretise such a model and solve:
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 scfres = self_consistent_field(basis, tol=1e-8);
 
-# If we did not want to use ASE we could of course use any other package
+# If we did not want to use
+# [AtomsBuilder](https://github.com/JuliaMolSim/AtomsBuilder.jl)
+# we could of course use any other package
 # which yields an AbstractSystem object. This includes:
 
 # ### Reading a system using AtomsIO
 #
+# Read a file using [AtomsIO](https://github.com/mfherbst/AtomsIO.jl),
+# which directly yields an AbstractSystem.
+#
 using AtomsIO
+system = load_system("Si.extxyz");
 
-## Read a file using [AtomsIO](https://github.com/mfherbst/AtomsIO.jl),
-## which directly yields an AbstractSystem.
-system = load_system("Si.extxyz")
-
-## Now run the LDA calculation:
-system = attach_psp(system; Si="hgh/lda/si-q4")
-model  = model_DFT(system; functionals=LDA(), temperature=1e-3)
+# Run the LDA calculation:
+pseudopotentials = Dict(:Si => "hgh/lda/si-q4")
+model  = model_DFT(system; pseudopotentials, functionals=LDA(), temperature=1e-3)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 scfres = self_consistent_field(basis, tol=1e-8);
 
@@ -60,8 +83,8 @@ atoms  = [:Si => ones(3)/8, :Si => -ones(3)/8]
 system = periodic_system(atoms, lattice; fractional=true)
 
 ## Now run the LDA calculation:
-system = attach_psp(system; Si="hgh/lda/si-q4")
-model  = model_DFT(system; functionals=LDA(), temperature=1e-3)
+pseudopotentials = Dict(:Si => "hgh/lda/si-q4")
+model  = model_DFT(system; pseudopotentials, functionals=LDA(), temperature=1e-3)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 scfres = self_consistent_field(basis, tol=1e-4);
 
@@ -77,7 +100,7 @@ second_system = atomic_system(model)
 lattice = 5.431u"Å" / 2 * [[0 1 1.];
                            [1 0 1.];
                            [1 1 0.]];
-Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
+Si = ElementPsp(:Si, load_psp("hgh/lda/Si-q4"))
 atoms     = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
 

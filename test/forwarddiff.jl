@@ -5,15 +5,15 @@
     using LinearAlgebra
     silicon = TestCases.silicon
 
-    function compute_force(ε1, ε2; metal=false, tol=1e-10)
+    function compute_force(ε1, ε2; metal=false, tol=1e-10, atoms=silicon.atoms)
         T = promote_type(typeof(ε1), typeof(ε2))
         pos = [[1.01, 1.02, 1.03] / 8, -ones(3) / 8 + ε1 * [1., 0, 0] + ε2 * [0, 1., 0]]
         if metal
             # Silicon reduced HF is metallic
-            model = model_DFT(Matrix{T}(silicon.lattice), silicon.atoms, pos;
+            model = model_DFT(Matrix{T}(silicon.lattice), atoms, pos;
                               functionals=[], temperature=1e-3)
         else
-            model = model_DFT(Matrix{T}(silicon.lattice), silicon.atoms, pos;
+            model = model_DFT(Matrix{T}(silicon.lattice), atoms, pos;
                               functionals=LDA())
         end
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
@@ -52,6 +52,17 @@
             (compute_force(ε1, 0.0; metal) - compute_force(-ε1, 0.0; metal)) / 2ε1
         end
         derivative_ε1 = ForwardDiff.derivative(ε1 -> compute_force(ε1, 0.0; metal), 0.0)
+        @test norm(derivative_ε1 - derivative_ε1_fd) < 1e-4
+    end
+
+    @testset "Using PspUpf" begin
+        Si = ElementPsp(:Si; psp=load_psp(silicon.psp_upf))
+        atoms = [Si, Si]
+
+        derivative_ε1_fd = let ε1 = 1e-5
+            (compute_force(ε1, 0.0; atoms) - compute_force(-ε1, 0.0; atoms)) / 2ε1
+        end
+        derivative_ε1 = ForwardDiff.derivative(ε1 -> compute_force(ε1, 0.0; atoms), 0.0)
         @test norm(derivative_ε1 - derivative_ε1_fd) < 1e-4
     end
 end
@@ -142,6 +153,31 @@ end
     fd1 = ForwardDiff.derivative(erfcα, x0)
     fd2 = FiniteDifferences.central_fdm(5, 1)(erfcα, x0)
     @test norm(fd1 - fd2) < 1e-8
+end
+
+@testitem "Higher derivatives of Fermi-Dirac occupation" tags=[:dont_test_mpi] begin
+    using DFTK
+    using ForwardDiff
+
+    smearing = Smearing.FermiDirac()
+    f(x) = Smearing.occupation(smearing, x)
+
+    function compute_nth_derivative(n, f, x)
+        (n == 0) && return f(x)
+        ForwardDiff.derivative(x -> compute_nth_derivative(n - 1, f, x), x)
+    end
+
+    @testset "Avoid NaN from exp-overflow for large x" begin
+        T = Float64
+        x = log(floatmax(T)) / 2 + 1
+        for n in 0:8
+            @testset "Derivative order $n" begin
+                y = compute_nth_derivative(n, f, x)
+                @test isfinite(y)
+                @test abs(y) ≤ eps(T)
+            end
+        end
+    end
 end
 
 @testitem "LocalNonlinearity sensitivity using ForwardDiff" tags=[:dont_test_mpi] begin

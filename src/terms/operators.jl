@@ -43,7 +43,7 @@ end
 apply!(Hψ, op::NoopOperator, ψ) = nothing
 function Matrix(op::NoopOperator)
     n_Gk = length(G_vectors(op.basis, op.kpoint))
-    zeros_like(op.basis.G_vectors, eltype(op.basis), n_Gk, n_Gk)
+    zeros_like(G_vectors(op.basis), eltype(op.basis), n_Gk, n_Gk)
 end
 
 """
@@ -108,7 +108,7 @@ struct NonlocalOperator{T <: Real, PT, DT} <: RealFourierOperator
     D::DT
 end
 function apply!(Hψ, op::NonlocalOperator, ψ)
-    Hψ.fourier .+= op.P * (op.D * (op.P' * ψ.fourier))
+    mul!(Hψ.fourier, op.P, (op.D * (op.P' * ψ.fourier)), 1, 1)
 end
 Matrix(op::NonlocalOperator) = op.P * op.D * op.P'
 

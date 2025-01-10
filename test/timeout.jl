@@ -1,4 +1,4 @@
-@testitem "Timeout of SCF" setup=[TestCases] begin
+@testitem "Timeout of SCF" setup=[TestCases] tags=[:dont_test_mpi] begin
     using DFTK
     using Dates
     using Logging

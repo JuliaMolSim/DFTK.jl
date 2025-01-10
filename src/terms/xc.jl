@@ -40,8 +40,12 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     end
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
-        newparams = convert_dual.(T, parameters(fun))
-        change_parameters(fun, newparams; keep_identifier=true)
+        params = parameters(fun)
+        if !isempty(params)
+            newparams = convert_dual.(T, params)
+            fun = change_parameters(fun, newparams; keep_identifier=true)
+        end
+        fun
     end
     TermXc(convert(Vector{Functional}, functionals),
            convert_dual(T, xc.scaling_factor),
@@ -159,11 +163,12 @@ end
     isnothing(term.ρcore) && return nothing
 
     Vxc_real = xc_potential_real(term, basis, ψ, occupation; ρ, τ).potential
-    # TODO: the factor of 2 here should be associated with the density, not the potential
+    # TODO: move arrays to the CPU to enable forces calculations on the GPU.
+    #       Might require optimizations in the future.
     if basis.model.spin_polarization in (:none, :spinless)
-        Vxc_fourier = fft(basis, Vxc_real[:,:,:,1])
+        Vxc_fourier = to_cpu(fft(basis, Vxc_real[:,:,:,1]))
     else
-        Vxc_fourier = fft(basis, mean(Vxc_real, dims=4))
+        Vxc_fourier = to_cpu(fft(basis, mean(Vxc_real, dims=4)))
     end
 
     model = basis.model
@@ -188,7 +193,7 @@ function _force_xc(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U}, form
                    igroup, r) where {T, U}
     TT = promote_type(T, real(U))
     f  = zero(Vec3{TT})
-    for (iG, (G, G_cart)) in enumerate(zip(G_vectors(basis), G_vectors_cart(basis)))
+    for (iG, (G, G_cart)) in enumerate(zip(to_cpu(G_vectors(basis)), to_cpu(G_vectors_cart(basis))))
         f -= real(conj(Vxc_fourier[iG])
                   .* form_factors[(igroup, norm(G_cart))]
                   .* cis2pi(-dot(G, r))
@@ -337,13 +342,18 @@ end
 
 
 function compute_kernel(term::TermXc, basis::PlaneWaveBasis; ρ, kwargs...)
-    density = LibxcDensities(basis, 0, ρ, nothing)
     n_spin  = basis.model.n_spin_components
     @assert 1 ≤ n_spin ≤ 2
     if !all(family(xc) == :lda for xc in term.functionals)
         error("compute_kernel only implemented for LDA")
     end
 
+    # Add the model core charge density (non-linear core correction)
+    if !isnothing(term.ρcore)
+        ρ = ρ + term.ρcore
+    end
+
+    density = LibxcDensities(basis, 0, ρ, nothing)
     kernel = kernel_terms(term.functionals, density).Vρρ
     fac = term.scaling_factor
     if n_spin == 1
@@ -370,6 +380,11 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArra
     if !iszero(q) && !isnothing(term.ρcore)
         error("Phonon computations are not supported for models using nonlinear core \
               correction.")
+    end
+
+    # Add the model core charge density (non-linear core correction)
+    if !isnothing(term.ρcore)
+        ρ = ρ + term.ρcore
     end
 
     # Take derivatives of the density and the perturbation if needed.

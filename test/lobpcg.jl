@@ -36,7 +36,8 @@
 
     @testset "with Preconditioner" begin
         res = diagonalize_all_kblocks(lobpcg_hyper, ham, nev_per_k; tol,
-                                      prec_type=PreconditionerTPA, interpolate_kpoints=false)
+                                      prec_type=PreconditionerTPA,
+                                      interpolate_kpoints=false)
 
         @test res.converged
         for ik = 1:length(basis.kpoints)
@@ -51,7 +52,7 @@ end
     using DFTK
     silicon = TestCases.silicon
 
-    Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/lda/si-q4"))
+    Si = ElementPsp(silicon.atnum, load_psp("hgh/lda/si-q4"))
     model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                   terms=[Kinetic(),AtomicLocal()])
     basis = PlaneWaveBasis(model; Ecut=25, silicon.kgrid, fft_size=[33, 33, 33])
@@ -77,7 +78,7 @@ end
     using DFTK
     silicon = TestCases.silicon
 
-    Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/lda/si-q4"))
+    Si = ElementPsp(silicon.atnum, load_psp("hgh/lda/si-q4"))
     model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                   terms=[Kinetic(), AtomicLocal(), AtomicNonlocal()])
 
@@ -104,7 +105,7 @@ end
     using DFTK
     silicon = TestCases.silicon
 
-    Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/lda/si-q4"))
+    Si = ElementPsp(silicon.atnum, load_psp("hgh/lda/si-q4"))
     model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
                       functionals=[:lda_xc_teter93])
     basis = PlaneWaveBasis(model; Ecut=2, silicon.kgrid)

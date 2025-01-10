@@ -1,4 +1,5 @@
 module DFTKPlotsExt
+using AtomsBase
 using Brillouin: KPath
 using DFTK
 using DFTK: is_metal, data_for_plotting, spin_components, default_band_εrange
@@ -111,7 +112,7 @@ plot_dos(scfres; kwargs...) = plot_dos(scfres.basis, scfres.eigenvalues; scfres.
 function plot_ldos(basis, eigenvalues, ψ; εF=nothing, unit=u"hartree",
                    temperature=basis.model.temperature,
                    smearing=basis.model.smearing,
-                   εrange=default_band_εrange(eigenvalues; εF), 
+                   εrange=default_band_εrange(eigenvalues; εF),
                    n_points=1000, ldos_xyz=[:, 1, 1], kwargs...)
     eshift = something(εF, 0.0)
     εs = range(austrip.(εrange)..., length=n_points)
@@ -140,26 +141,26 @@ function plot_ldos(basis, eigenvalues, ψ; εF=nothing, unit=u"hartree",
 end
 plot_ldos(scfres; kwargs...) = plot_ldos(scfres.basis, scfres.eigenvalues, scfres.ψ; scfres.εF, kwargs...)
 
-function plot_pdos(basis, eigenvalues, ψ, i, l, 
+function plot_pdos(basis, eigenvalues, ψ, i, l,
                    psp, position, el::Symbol;
                    εF=nothing, unit=u"hartree",
                    temperature=basis.model.temperature,
                    smearing=basis.model.smearing,
-                   εrange=default_band_εrange(eigenvalues; εF), 
+                   εrange=default_band_εrange(eigenvalues; εF),
                    n_points=1000, p=nothing, kwargs...)
     eshift = something(εF, 0.0)
     εs = range(austrip.(εrange)..., length=n_points)
-    
+
     # Constant to convert from AU to the desired unit
     to_unit = ustrip(auconvert(unit, 1.0))
 
     # Calculate the projections of the atom with given i and l,
-    # and sum all angular momentums m=-l:l 
-    pdos = dropdims(sum(compute_pdos(εs, basis, eigenvalues, ψ, i, l, 
+    # and sum all angular momentums m=-l:l
+    pdos = dropdims(sum(compute_pdos(εs, basis, eigenvalues, ψ, i, l,
                     psp, position; temperature, smearing), dims=2); dims=2)
     label = String(el) * "-" * psp.pswfc_labels[l+1][i]
-    
-    # Plot pdos 
+
+    # Plot pdos
     p = something(p, Plots.plot(; kwargs...))
     Plots.plot!(p, (εs .- eshift) .* to_unit, pdos; label)
 
@@ -170,7 +171,7 @@ function plot_pdos(scfres; kwargs...)
     # Plot DOS
     p = plot_dos(scfres; scfres.εF, kwargs...)
 
-    # TODO do the symmetrization instead of unfolding    
+    # TODO do the symmetrization instead of unfolding
     scfres_unfold = DFTK.unfold_bz(scfres)
     basis = scfres_unfold.basis
     psp_groups = [group for group in basis.model.atom_groups
@@ -180,13 +181,13 @@ function plot_pdos(scfres; kwargs...)
     for group in psp_groups
         psp = basis.model.atoms[first(group)].psp
         position = basis.model.positions[first(group)]
-        el = basis.model.atoms[first(group)].symbol
+        el = element_symbol(basis.model.atoms[first(group)])
         for l = 0:psp.lmax
             for i = 1:DFTK.count_n_pswfc_radial(psp, l)
-                plot_pdos(basis, scfres_unfold.eigenvalues, scfres_unfold.ψ, 
+                plot_pdos(basis, scfres_unfold.eigenvalues, scfres_unfold.ψ,
                           i, l, psp, position, el; scfres.εF, p, kwargs...)
             end
-        end                  
+        end
     end
 
     p
