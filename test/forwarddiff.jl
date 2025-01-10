@@ -77,7 +77,7 @@ end
     aluminium = TestCases.aluminium
 
     function compute_band_energies(ε::T) where {T}
-        psp  = load_psp(PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth", :Al))
+        psp  = load_psp(PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"), :Al)
         rloc = convert(T, psp.rloc)
 
         pspmod = PspHgh(psp.Zion, rloc,

@@ -147,7 +147,7 @@ end
     pbegth = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
     ldagth = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
     pspmap = Dict(:H => pbegth[:H], :Si => pbegth[:Si], :C => ldagth[:C])
-    let model = Model(system; pseudopotentials=pbemap)
+    let model = Model(system; pseudopotentials=pspmap)
         @test model.lattice   ≈ pos_lattice atol=1e-12
         @test model.positions ≈ pos_units   atol=1e-12
         @test model.spin_polarization == :none

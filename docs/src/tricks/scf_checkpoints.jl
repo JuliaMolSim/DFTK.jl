@@ -25,6 +25,7 @@
 using DFTK
 using LinearAlgebra
 using JLD2
+using PseudoPotentialData
 
 d = 2.079  # oxygen-oxygen bondlength
 a = 9.0    # size of the simulation box
