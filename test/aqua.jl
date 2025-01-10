@@ -14,6 +14,6 @@
                   piracies=false,
                   deps_compat=(; check_extras=(; ignore=[:CUDA_Runtime_jll])),
                   stale_deps=(; ignore=[:Primes, ]),
-                  persistent_tasks=(; broken=true),
+                  persistent_tasks=(; broken=VERSION < v"1.11"),
                  )
 end
