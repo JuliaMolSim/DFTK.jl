@@ -6,8 +6,8 @@
     pd_pbe_family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
     upf_pseudos = Dict(
         # Converted from cp2k repo (in GTH format) to UPF
-        :Si => load_psp(joinpath(@__DIR__, "gth_pseudos_upf", "Si.pbe-hgh.UPF")),
-        :Tl => load_psp(joinpath(@__DIR__, "gth_pseudos_upf", "Tl.pbe-d-hgh.UPF")),
+        :Si => load_psp(joinpath(@__DIR__, "gth_pseudos", "Si.pbe-hgh.upf")),
+        :Tl => load_psp(joinpath(@__DIR__, "gth_pseudos", "Tl.pbe-d-hgh.upf")),
         # No NLCC
         :Li => load_psp(pd_lda_family[:Li]),
         :Mg => load_psp(pd_lda_family[:Mg]),
@@ -19,8 +19,8 @@
         :Cr => load_psp(pd_pbe_family[:Cr]; rcut=12.0)
     )
     gth_pseudos = [
-        (; gth=load_psp("hgh/pbe/si-q4.hgh"),  upf=upf_pseudos[:Si]),
-        (; gth=load_psp("hgh/pbe/tl-q13.hgh"), upf=upf_pseudos[:Tl])
+        (; gth=load_psp(joinpath(@__DIR__, "gth_pseudos", "Si-q4.hgh")),  upf=upf_pseudos[:Si]),
+        (; gth=load_psp(joinpath(@__DIR__, "gth_pseudos", "Tl-q13.hgh")), upf=upf_pseudos[:Tl]),
     ]
 end
 
@@ -233,6 +233,20 @@ end
             ρ_val = guess_density(basis, ValenceDensityPseudo())
             Z_valence = sum(ρ_val) * model.unit_cell_volume / prod(basis.fft_size)
             @test Z_valence ≈ charge_ionic(psp) rtol=1e-5 atol=1e-5
+        end
+    end
+end
+
+@testitem "All pseudopotentials from common UPF families can be loaded" begin
+    using PseudoPotentialData
+
+    for key in ("dojo.nc.sr.lda.v0_4_1.standard.upf",
+                "dojo.nc.sr.pbe.v0_5.standard.upf",
+                "dojo.nc.sr.pbesol.v0_4_1.standard.upf")
+        pseudopotentials = PseudoFamily(key)
+        for element in keys(pseudopotentials)
+            psp = load_psp(pseudopotentials, element)
+            @test psp isa PspUpf
         end
     end
 end

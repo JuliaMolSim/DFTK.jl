@@ -212,3 +212,16 @@ end
         @test reference ≈ eval_psp_energy_correction(psp, 1) atol=1e-3
     end
 end
+
+@testitem "All pseudopotentials from common GTH families can be loaded" begin
+    using PseudoPotentialData
+
+    for key in ("cp2k.nc.sr.lda.v0_1.semicore.gth",
+                "cp2k.nc.sr.pbe.v0_1.largecore.gth")
+        pseudopotentials = PseudoFamily(key)
+        for element in keys(pseudopotentials)
+            psp = load_psp(pseudopotentials, element)
+            @test psp isa PspHgh
+        end
+    end
+end
