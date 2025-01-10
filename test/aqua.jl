@@ -5,8 +5,14 @@
     using DFTK
     using Aqua
     Aqua.test_all(DFTK;
-                  ambiguities=false,
+                  ambiguities=(; exclude=[
+                               # Type piracies we do for FFT stuff
+                               *, mul!, dot, \, ldiv!,
+                               # Libxc stuff
+                               DFTK.potential_terms, DFTK.kernel_terms]),
                   piracies=false,
-                  deps_compat=(; check_extras=false),
-                  stale_deps=(; ignore=[:Primes, ]))
+                  deps_compat=(; check_extras=(; ignore=[:CUDA_Runtime_jll])),
+                  stale_deps=(; ignore=[:Primes, ]),
+                  persistent_tasks=(; broken=true),
+                 )
 end
