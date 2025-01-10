@@ -1,10 +1,12 @@
 @testitem "Check reading 'C-lda-q4'" tags=[:psp] begin
-    using LinearAlgebra
     using DFTK: load_psp
+    using LinearAlgebra
+    using PseudoPotentialData
 
-    psp = load_psp("hgh/lda/C-q4")
-
-    @test psp.identifier == "hgh/lda/c-q4"
+    filename = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")[:C]
+    psp = load_psp(filename)
+    @test psp isa PspHgh
+    @test psp.identifier == replace(filename, "\\" => "/")
     @test occursin("c", lowercase(psp.description))
     @test occursin("pade", lowercase(psp.description))
     @test psp.Zion == 4
@@ -17,12 +19,13 @@
 end
 
 @testitem "Check reading 'Ni-lda-q18'" tags=[:psp] begin
-    using LinearAlgebra
     using DFTK: load_psp
+    using LinearAlgebra
+    using PseudoPotentialData
 
-    psp = load_psp("hgh/lda/Ni-q18")
-
-    @test psp.identifier == "hgh/lda/ni-q18"
+    filename = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")[:Ni]
+    psp = load_psp(filename)
+    @test psp.identifier == replace(filename, "\\" => "/")
     @test occursin("ni", lowercase(psp.description))
     @test occursin("pade", lowercase(psp.description))
     @test psp.Zion == 18
@@ -38,8 +41,9 @@ end
 @testitem "Check evaluating 'Si-lda-q4'" tags=[:psp] begin
     using LinearAlgebra
     using DFTK: load_psp, eval_psp_projector_fourier, eval_psp_local_fourier
+    using PseudoPotentialData
 
-    psp = load_psp("hgh/lda/Si-q4")
+    psp = load_psp(PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"), :Si)
 
     # Test local part evaluation
     @test eval_psp_local_fourier(psp, norm([0.1,   0,    0])) ≈ -400.395448865164*4π
@@ -85,8 +89,9 @@ end
     using LinearAlgebra
     using DFTK: load_psp, eval_psp_projector_fourier, eval_psp_local_fourier
     using DFTK: pcut_psp_projector, pcut_psp_local
+    using PseudoPotentialData
 
-    psp = load_psp("hgh/pbe/au-q11.hgh")
+    psp = load_psp(PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth"), :Au)
     ε = 1e-6
 
     let
@@ -106,9 +111,11 @@ end
     using LinearAlgebra
     using DFTK: load_psp, eval_psp_projector_fourier, eval_psp_local_fourier
     using DFTK: psp_local_polynomial, psp_projector_polynomial, count_n_proj_radial
+    using PseudoPotentialData
 
+    family = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
     let
-        psp = load_psp("hgh/lda/Si-q4")
+        psp = load_psp(family, :Si)
         Qloc = psp_local_polynomial(Float64, psp)
         evalQloc(p) = let t = p * psp.rloc; Qloc(t) * exp(-t^2 / 2) / t^2; end
         for p in abs.(randn(10))
@@ -116,8 +123,8 @@ end
         end
     end
 
-    for pspfile in ["Au-q11", "Ba-q10"]
-        psp = load_psp("hgh/lda/" * pspfile)
+    for element in (:Au, :Ba)
+        psp = load_psp(family, element)
         for l = 0:psp.lmax, i = 1:count_n_proj_radial(psp, l)
             Qproj = psp_projector_polynomial(Float64, psp, i, l)
             evalQproj(p) = let t = p * psp.rp[l + 1]; Qproj(t) * exp(-t^2 / 2); end
@@ -134,6 +141,7 @@ end
     using DFTK: count_n_proj_radial
     using SpecialFunctions: besselj
     using QuadGK
+    using PseudoPotentialData
 
     # The spherical bessel function of the first kind in terms of ordinary bessels:
     function j(n, x::T) where {T}
@@ -146,8 +154,9 @@ end
         4π * x^2 * eval_psp_projector_real(psp, i, l, x) * j(l, p*x)
     end
 
-    for pspfile in ["Au-q11", "Ba-q10"]
-        psp = load_psp("hgh/lda/" * pspfile)
+    family = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
+    for element in (:Au, :Ba)
+        psp = load_psp(family, element)
         for l = 0:psp.lmax, i = 1:count_n_proj_radial(psp, l)
             for p in [0.01, 0.1, 0.2, 0.5, 1, 2, 5, 10]
                 reference = quadgk(r -> integrand(psp, i, l, p, r), 0, Inf)[1]
@@ -158,8 +167,9 @@ end
 end
 
 @testitem "Potentials are consistent in real and Fourier space" tags=[:psp] begin
-    using LinearAlgebra
     using DFTK: load_psp, eval_psp_local_fourier, eval_psp_local_real
+    using LinearAlgebra
+    using PseudoPotentialData
     using QuadGK
 
     reg_param = 1e-3  # divergent integral, needs regularization
@@ -167,8 +177,9 @@ end
         4π * eval_psp_local_real(psp, r) * exp(-reg_param * r) * sin(p*r) / p * r
     end
 
-    for pspfile in ["Au-q11", "Ba-q10"]
-        psp = load_psp("hgh/lda/" * pspfile)
+    family = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
+    for element in (:Au, :Ba)
+        psp = load_psp(family, element)
         for p in [0.01, 0.2, 1, 1.3]
             reference = quadgk(r -> integrand(psp, p, r), 0, Inf)[1]
             @test reference ≈ eval_psp_local_fourier(psp, p) rtol=.1 atol = .1
@@ -180,6 +191,7 @@ end
     using LinearAlgebra
     using DFTK: load_psp, eval_psp_local_real, eval_psp_energy_correction
     using QuadGK
+    using PseudoPotentialData
 
     reg_param = 1e-6  # divergent integral, needs regularization
     p_small = 1e-6    # We are interested in p→0 term
@@ -192,8 +204,9 @@ end
     end
 
     n_electrons = 20
-    for pspfile in ["Au-q11", "Ba-q10"]
-        psp = load_psp("hgh/lda/" * pspfile)
+    family = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
+    for element in (:Au, :Ba)
+        psp = load_psp(family, element)
         reference = quadgk(r -> integrand(psp, n_electrons, r), 0, Inf)[1]
         @test reference ≈ eval_psp_energy_correction(psp, n_electrons) atol=1e-2
     end
@@ -202,11 +215,13 @@ end
 @testitem "PSP energy correction is consistent with fourier-space potential" #=
     =#    tags=[:psp] begin
     using LinearAlgebra
+    using PseudoPotentialData
     using DFTK: load_psp, eval_psp_local_fourier, eval_psp_energy_correction
 
     p_small = 1e-3    # We are interested in p→0 term
-    for pspfile in ["Au-q11", "Ba-q10"]
-        psp = load_psp("hgh/lda/" * pspfile)
+    family = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
+    for element in (:Au, :Ba)
+        psp = load_psp(family, element)
         coulomb = -4π * psp.Zion / p_small^2
         reference = eval_psp_local_fourier(psp, p_small) - coulomb
         @test reference ≈ eval_psp_energy_correction(psp, 1) atol=1e-3
