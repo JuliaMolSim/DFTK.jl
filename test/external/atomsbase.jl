@@ -218,7 +218,7 @@ end
         @test element_symbol(model.atoms[1]) == :C
         @test element_symbol(model.atoms[2]) == :C
         @test mass.(model.atoms) == [-1u"u", -2u"u"]
-        @test model.atoms[1].psp.identifier == replace(gth[:C], "\\" -> "/")
-        @test model.atoms[2].psp.identifier == replace(gth[:C], "\\" -> "/")
+        @test model.atoms[1].psp.identifier == replace(gth[:C], "\\" => "/")
+        @test model.atoms[2].psp.identifier == replace(gth[:C], "\\" => "/")
     end
 end
