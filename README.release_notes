@@ -1,0 +1,7 @@
+@JuliaRegistrator register
+
+Release notes:
+
+Note that this release increases the minor version and contains a number of breaking changes:
+
+- The pseudopotential repository shipped with DFTK is now deprecated and slated for removal in a future version of DFTK. Please rely on the [PseudoPotentialData](https://github.com/JuliaMolSim/PseudoPotentialData.jl/) package for selecting pseudopotentials. Concretely this means that `list_psp` will be removed and `load_psp` will only be working with full paths to pseduopotential data files or e.g. combinations of `PseudoPotentialData.PseudoFamily` objects and an element symbol.

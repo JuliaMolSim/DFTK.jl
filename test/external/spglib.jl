@@ -2,10 +2,11 @@
     using DFTK
     using DFTK: spglib_dataset, spglib_standardize_cell
     using LinearAlgebra
+    using PseudoPotentialData
 
     a = 10.3
-    Si = ElementPsp(:Si, load_psp("hgh/lda/Si-q4"))
-    Ge = ElementPsp(:Ge, load_psp("hgh/lda/Ge-q4"))
+    Si = ElementPsp(:Si, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
+    Ge = ElementPsp(:Ge, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
 
     # silicon
     lattice = a / 2 * [[0 1 1.]; [1 0 1.]; [1 1 0.]]

@@ -25,13 +25,14 @@
 
 using AtomsBuilder
 using DFTK
+using PseudoPotentialData
 using Statistics
 
 a0 = 10.26  # Experimental lattice constant of silicon in bohr
 a_list = range(a0 - 1/2, a0 + 1/2; length=20)
 
 function compute_ground_state_energy(a; Ecut, kgrid, kinetic_blowup, kwargs...)
-    pseudopotentials = Dict(:Si => "hgh/pbe/Si-q4")
+    pseudopotentials = PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth")
     model  = model_DFT(bulk(:Si); functionals=PBE(), kinetic_blowup, pseudopotentials)
     basis  = PlaneWaveBasis(model; Ecut, kgrid)
     self_consistent_field(basis; callback=identity, kwargs...).energies.total
