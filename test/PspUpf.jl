@@ -19,8 +19,8 @@
         :Cr => load_psp(pd_pbe_family[:Cr]; rcut=12.0)
     )
     gth_pseudos = [
-        (; gth=load_psp(joinpath(@__DIR__, "gth_pseudos", "Si-q4.hgh")),  upf=upf_pseudos[:Si]),
-        (; gth=load_psp(joinpath(@__DIR__, "gth_pseudos", "Tl-q13.hgh")), upf=upf_pseudos[:Tl]),
+        (; gth=load_psp(joinpath(@__DIR__, "gth_pseudos", "Si-q4.gth")),  upf=upf_pseudos[:Si]),
+        (; gth=load_psp(joinpath(@__DIR__, "gth_pseudos", "Tl-q13.gth")), upf=upf_pseudos[:Tl]),
     ]
 end
 

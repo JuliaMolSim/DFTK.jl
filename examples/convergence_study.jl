@@ -23,6 +23,7 @@
 using DFTK
 using LinearAlgebra
 using Statistics
+using PseudoPotentialData
 
 function run_scf(; a=5.0, Ecut, nkpt, tol)
     pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
