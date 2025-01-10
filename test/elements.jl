@@ -48,7 +48,7 @@ end
     element = ElementPsp(:C, pseudopotentials)
     @test species(element) == ChemicalSpecies(:C)
     @test element.psp !== nothing
-    @test element.psp.identifier == pseudopotentials[:C]
+    @test element.psp.identifier == replace(pseudopotentials[:C], "\\" => "/")
 
     @test mass(element) == 12.011u"u"
     @test element_symbol(element) == :C
