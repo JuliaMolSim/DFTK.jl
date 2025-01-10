@@ -90,13 +90,15 @@ Base.adjoint(A::LazyHcat) = Adjoint(A)
     for blA in A.blocks
         ocol = 0  # column offset
         for blB in B.blocks
-            mul!(ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))], adjoint(blA), blB)
+            ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))] .= blA' * blB
             ocol += size(blB, 2)
         end
         orow += size(blA, 2)
     end
     ret
 end
+
+Base.:*(Aadj::Adjoint{T,<:LazyHcat}, B::AbstractMatrix) where {T} = Aadj * LazyHcat(B)
 
 # Special case of Hermitian result: can only actively compute the block upper diagonal
 @views function mul_hermi(Aadj::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
@@ -113,7 +115,7 @@ end
             ib > ia && continue
             fac = one(T)
             if ia == ib fac = T(0.5) end
-            mul!(ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))], blA', blB, fac, 0)
+            ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))] .= fac .* (blA' * blB)
             ocol += size(blB, 2)
         end
         orow += size(blA, 2)
@@ -123,26 +125,6 @@ end
 end
 
 mul_hermi(Aadj::AbstractArray{T}, B::AbstractArray{T}) where {T} = Aadj * B
-
-Base.:*(Aadj::Adjoint{T,<:LazyHcat}, B::AbstractMatrix) where {T} = Aadj * LazyHcat(B)
-
-@views function LinearAlgebra.mul!(buff::AbstractArray{T}, Aadj::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
-    A = Aadj.parent
-
-    orow = 0  # row offset
-    for blA in A.blocks
-        ocol = 0  # column offset
-        for blB in B.blocks
-            mul!(buff[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))], adjoint(blA), blB)
-            ocol += size(blB, 2)
-        end
-        orow += size(blA, 2)
-    end
-    buff
-end
-
-LinearAlgebra.mul!(buff::AbstractArray{T}, Aadj::Adjoint{T,<:LazyHcat}, B::AbstractArray{T}) where {T} = 
-    mul!(buff, Aadj, LazyHcat(B))
 
 @views function *(Ablock::LazyHcat, B::AbstractMatrix)
     res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
@@ -154,14 +136,15 @@ LinearAlgebra.mul!(buff::AbstractArray{T}, Aadj::Adjoint{T,<:LazyHcat}, B::Abstr
     res
 end
 
-@views function LinearAlgebra.mul!(buff::AbstractMatrix, Ablock::LazyHcat, B::AbstractMatrix, α::Number, β::Number)
-    mul!(buff, Ablock.blocks[1], B[1:size(Ablock.blocks[1], 2), :], α, β) # First multiplication
+@views function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::LazyHcat,
+                                   B::AbstractVecOrMat, α::Number, β::Number)
+    mul!(res, Ablock.blocks[1], B[1:size(Ablock.blocks[1], 2), :], α, β) # First multiplication
     offset = size(Ablock.blocks[1], 2)
     for block in Ablock.blocks[2:end]
-        mul!(buff, block, B[offset .+ (1:size(block, 2)), :], α, 1)
+        mul!(res, block, B[offset .+ (1:size(block, 2)), :], α, 1)
         offset += size(block, 2)
     end
-    buff
+    res
 end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
@@ -198,7 +181,7 @@ end
 # (which implies that X'BX is relatively well-conditioned, and
 # therefore that it is safe to cholesky it and reuse the B apply)
 function B_ortho!(X, BX)
-    O = Hermitian(X'*BX)
+    O = Hermitian(mul_hermi(X'*BX))
     U = cholesky(O).U
     @assert !any(isnan, U)
     rdiv!(X, U)
@@ -306,9 +289,8 @@ end
 
     niter = 1
     ninners = zeros(Int,0)
-    BYX = similar(X, size(Y)[2], size(X)[2])
     while true
-        mul!(BYX, BY', X)
+        BYX = BY' * X
         mul!(X, Y, BYX, -1, 1)  # X -= Y*BY'X
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
