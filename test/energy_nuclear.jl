@@ -1,5 +1,6 @@
 @testitem "energy_forces_ewald Lithium hydride" begin
     using DFTK
+    using PseudoPotentialData
     using LinearAlgebra: Diagonal
 
     lattice = 16 * Diagonal(ones(3))
@@ -34,6 +35,7 @@ end
 
 @testitem "energy_psp_correction silicon" begin
     using DFTK
+    using PseudoPotentialData
 
     lattice = [0.0  5.131570667152971 5.131570667152971;
                5.131570667152971 0.0 5.131570667152971;
