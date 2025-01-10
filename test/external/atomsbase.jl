@@ -144,8 +144,9 @@ end
         @test model.atoms[4] == ElementCoulomb(:C)
     end
 
-    gth = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
-    pspmap = Dict(:H => family[:H], :Si => family[:Si], :C => gth[:C])
+    pbegth = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
+    ldagth = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
+    pspmap = Dict(:H => pbegth[:H], :Si => pbegth[:Si], :C => ldagth[:C])
     let model = Model(system; pseudopotentials=pbemap)
         @test model.lattice   ≈ pos_lattice atol=1e-12
         @test model.positions ≈ pos_units   atol=1e-12

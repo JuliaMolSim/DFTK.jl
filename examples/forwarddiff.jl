@@ -8,6 +8,7 @@
 using DFTK
 using LinearAlgebra
 using ForwardDiff
+using PseudoPotentialData
 
 ## Construct PlaneWaveBasis given a particular electric field strength
 ## Again we take the example of a Helium atom.

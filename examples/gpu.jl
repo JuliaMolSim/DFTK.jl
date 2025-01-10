@@ -1,6 +1,7 @@
 using AtomsBuilder
 using DFTK
 using CUDA
+using PseudoPotentialData
 
 model  = model_DFT(bulk(:Si);
                    functionals=PBE(),
