@@ -82,8 +82,8 @@ Base.adjoint(A::LazyHcat) = Adjoint(A)
 
 @views function Base.:*(Aadj::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
     A = Aadj.parent
-    rows = size(A)[2]
-    cols = size(B)[2]
+    rows = size(A, 2)
+    cols = size(B, 2)
     ret = similar(A.blocks[1], rows, cols)
 
     orow = 0  # row offset
@@ -100,6 +100,32 @@ end
 
 Base.:*(Aadj::Adjoint{T,<:LazyHcat}, B::AbstractMatrix) where {T} = Aadj * LazyHcat(B)
 
+# Special case of Hermitian result: can only actively compute the block upper diagonal
+@views function mul_hermi(Aadj::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
+    A = Aadj.parent
+    rows = size(A, 2)
+    cols = size(B, 2)
+    ret = similar(B.blocks[1], rows, cols)
+    fill!(ret, zero(T))
+
+    orow = 0  # row offset
+    for (ia, blA) in enumerate(A.blocks)
+        ocol = 0  # column offset
+        for (ib, blB) in enumerate(B.blocks)
+            ib > ia && continue
+            fac = one(T)
+            if ia == ib fac = T(0.5) end
+            ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))] .= fac .* (blA' * blB)
+            ocol += size(blB, 2)
+        end
+        orow += size(blA, 2)
+    end
+    # populate the lower diagonal with conjugate
+    ret + adjoint(ret)
+end
+
+mul_hermi(Aadj::AbstractArray{T}, B::AbstractArray{T}) where {T} = Aadj * B
+
 @views function *(Ablock::LazyHcat, B::AbstractMatrix)
     res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
     offset = size(Ablock.blocks[1], 2)
@@ -110,14 +136,20 @@ Base.:*(Aadj::Adjoint{T,<:LazyHcat}, B::AbstractMatrix) where {T} = Aadj * LazyH
     res
 end
 
-function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::LazyHcat,
-                            B::AbstractVecOrMat, α::Number, β::Number)
-    mul!(res, Ablock*B, I, α, β)
+@views function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::LazyHcat,
+                                   B::AbstractVecOrMat, α::Number, β::Number)
+    mul!(res, Ablock.blocks[1], B[1:size(Ablock.blocks[1], 2), :], α, β) # First multiplication
+    offset = size(Ablock.blocks[1], 2)
+    for block in Ablock.blocks[2:end]
+        mul!(res, block, B[offset .+ (1:size(block, 2)), :], α, 1)
+        offset += size(block, 2)
+    end
+    res
 end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 @timing function rayleigh_ritz(X, AX, N)
-    XAX = X' * AX
+    XAX = mul_hermi(X', AX)
     @assert !any(isnan, XAX)
     rayleigh_ritz(Hermitian(XAX), N)
 end
@@ -149,7 +181,7 @@ end
 # (which implies that X'BX is relatively well-conditioned, and
 # therefore that it is safe to cholesky it and reuse the B apply)
 function B_ortho!(X, BX)
-    O = Hermitian(X'*BX)
+    O = Hermitian(mul_hermi(X'*BX))
     U = cholesky(O).U
     @assert !any(isnan, U)
     rdiv!(X, U)
@@ -173,7 +205,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
     success = false
     nchol = 0
     while true
-        O = Hermitian(X'X)
+        O = Hermitian(mul_hermi(X', X))
         try
             R = cholesky(O).U
             nchol += 1
