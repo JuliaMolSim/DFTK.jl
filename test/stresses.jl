@@ -10,7 +10,8 @@
     silicon = TestCases.silicon
 
     function make_basis(lattice, symmetries, element)
-        model = model_PBE(lattice, [element, element], silicon.positions; symmetries)
+        model = model_DFT(lattice, [element, element], silicon.positions;
+                          functionals=PBE(), symmetries)
         PlaneWaveBasis(model; Ecut=7, kgrid=(3, 3, 3))
     end
 
@@ -62,7 +63,7 @@
     lattice = a / 2 * [[0 1 1.1];
                        [1 0 1.];
                        [1 1 0.]]
-    element = ElementPsp(silicon.atnum, :Si, silicon.mass, load_psp(silicon.psp_hgh))
+    element = ElementPsp(silicon.atnum, load_psp(silicon.psp_gth))
     test_stresses(lattice, element)
     test_stresses(lattice, element)
 end

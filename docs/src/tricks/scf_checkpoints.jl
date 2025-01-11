@@ -16,13 +16,6 @@
 #     available once one has *both* imported DFTK and JLD2 (`using DFTK`
 #     and `using JLD2`).
 #
-# !!! warning "DFTK data formats are not yet fully matured"
-#     The data format in which DFTK saves data as well as the general interface
-#     of the [`load_scfres`](@ref) and [`save_scfres`](@ref) pair of functions
-#     are not yet fully matured. If you use the functions or the produced files
-#     expect that you need to adapt your routines in the future even with patch
-#     version bumps.
-#
 # To illustrate the use of the functions in practice we will compute
 # the total energy of the O₂ molecule at PBE level. To get the triplet
 # ground state we use a collinear spin polarisation
@@ -32,17 +25,21 @@
 using DFTK
 using LinearAlgebra
 using JLD2
+using PseudoPotentialData
 
 d = 2.079  # oxygen-oxygen bondlength
 a = 9.0    # size of the simulation box
 lattice = a * I(3)
-O = ElementPsp(:O; psp=load_psp("hgh/pbe/O-q6.hgh"))
+pseudopotentials = PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth")
+O = ElementPsp(:O, pseudopotentials)
 atoms     = [O, O]
 positions = d / 2a * [[0, 0, 1], [0, 0, -1]]
 magnetic_moments = [1., 1.]
 
 Ecut  = 10  # Far too small to be converged
-model = model_PBE(lattice, atoms, positions; temperature=0.02, smearing=Smearing.Gaussian(),
+model = model_DFT(lattice, atoms, positions;
+                  functionals=PBE(),
+                  temperature=0.02, smearing=Smearing.Gaussian(),
                   magnetic_moments)
 basis = PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])
 

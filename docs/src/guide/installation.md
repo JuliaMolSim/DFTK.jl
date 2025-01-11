@@ -3,7 +3,7 @@
 In case you don't have a working Julia installation yet, first
 [download the Julia binaries](https://julialang.org/downloads/)
 and follow the [Julia installation instructions](https://julialang.org/downloads/platform/).
-At least **Julia 1.9** is required for DFTK.
+At least **Julia 1.10** is required for DFTK.
 
 Afterwards you can install DFTK
 [like any other package](https://julialang.github.io/Pkg.jl/v1/getting-started/)
@@ -31,24 +31,22 @@ if you are not installing DFTK on a laptop or workstation.
     These will also be announced in the [release notes](https://github.com/JuliaMolSim/DFTK.jl/releases).
 
 ## Optional: Recommended packages
-While not strictly speaking required to use DFTK it is usually convenient to install
-a couple of standard packages from the [AtomsBase](https://github.com/JuliaMolSim/AtomsBase.jl)
-ecosystem to make working with DFT more convenient. Examples are
-
+While not strictly required to use DFTK it is usually convenient for computational
+workflows (setting up initial structures, transferring data to ML training, etc.)
+to install a few standard packages from the [AtomsBase](https://github.com/JuliaMolSim/AtomsBase.jl).
+Examples are
 - [AtomsIO](https://github.com/mfherbst/AtomsIO.jl) and
   [AtomsIOPython](https://github.com/mfherbst/AtomsIO.jl),
   which allow you to read (and write) a large range of standard file formats
   for atomistic structures. In particular AtomsIO is lightweight and highly recommended.
-- [ASEconvert](https://github.com/mfherbst/ASEconvert.jl),
-  which integrates DFTK with a number of convenience features of the
-  ASE, the [atomistic simulation environment](https://wiki.fysik.dtu.dk/ase/index.html).
-  See [Creating and modelling metallic supercells](@ref) for an example where
-  ASE is used within a DFTK workflow.
+- [AtomsBuilder](https://github.com/JuliaMolSim/AtomsBuilder.jl),
+  which provides a few convenience functions for setting up initial structures,
+  see [AtomsBase integration](@ref) for more details.
 
 You can install these packages using
 ```julia
 import Pkg
-Pkg.add(["AtomsIO", "AtomsIOPython", "ASEconvert"])
+Pkg.add(["AtomsIO", "AtomsIOPython", "AtomsBuilder"])
 ```
 
 !!! tip "Python dependencies in Julia"

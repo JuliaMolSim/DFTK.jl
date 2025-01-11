@@ -1,4 +1,4 @@
-@testsetup module Chi0
+@testmodule Chi0 begin
 using Test
 using DFTK
 using DFTK: mpi_mean!
@@ -31,8 +31,8 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
                         disable_electrostatics_check=true)
         basis_kwargs = (; kgrid, fft_size, Ecut)
 
-        model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions;
-                          model_kwargs...)
+        model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                          functionals=LDA(), model_kwargs...)
         basis = PlaneWaveBasis(model; basis_kwargs...)
         ρ0    = guess_density(basis, magnetic_moments)
         ham0  = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0).ham
@@ -53,8 +53,8 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
 
         function compute_ρ_FD(ε)
             term_builder = basis -> DFTK.TermExternal(ε * δV)
-            model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions;
-                              model_kwargs..., extra_terms=[term_builder])
+            model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                              functionals=LDA(), model_kwargs..., extra_terms=[term_builder])
             basis = PlaneWaveBasis(model; basis_kwargs...)
             ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0).ham
             res = DFTK.next_density(ham, nbandsalg; tol, eigensolver)

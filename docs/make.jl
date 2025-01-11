@@ -46,17 +46,21 @@ PAGES = [
     "Response and properties" => [
         "examples/polarizability.jl",
         "examples/forwarddiff.jl",
+        "examples/phonons.jl",
     ],
     "Ecosystem integration" => [
         # This concerns the discussion of interfaces, IO and integration
         # options we have
-        "examples/atomsbase.jl",
-        "examples/input_output.jl",
-        "examples/wannier.jl",
+        "ecosystem/atomsbase.jl",
+        "ecosystem/atomscalculators.jl",
+        "ecosystem/input_output.jl",
+        "ecosystem/atomistic_simulation_environment.md",
+        "ecosystem/wannier.jl",
     ],
-    "Tipps and tricks" => [
+    "Tips and tricks" => [
         # Resolving convergence issues, what solver to use, improving performance or
         # reliability of calculations.
+        "tricks/achieving_convergence.md",
         "tricks/parallelization.md",
         "tricks/scf_checkpoints.jl",
         "tricks/compute_clusters.md",
@@ -80,6 +84,7 @@ PAGES = [
     ],
     "Developer resources" => [
         "developer/setup.md",
+        "developer/testsystem.md",
         "developer/conventions.md",
         "developer/style_guide.md",
         "developer/data_structures.md",
@@ -93,7 +98,7 @@ PAGES = [
 
 # Files from the /examples folder that need to be copied over to the docs
 # (typically images, input or data files etc.)
-EXAMPLE_ASSETS = ["examples/Fe_afm.pwi", "examples/Si.extxyz"]
+EXAMPLE_ASSETS = []  # Specify e.g. as "examples/Fe_afm.pwi"
 
 #
 # Configuration and setup
@@ -128,7 +133,6 @@ ENV["PLOTS_TEST"] = "true"
 using DFTK
 using Documenter
 using Literate
-import Artifacts
 
 #
 # Generate the docs
@@ -143,12 +147,6 @@ extract_paths(pair::Pair) = extract_paths(pair.second)
 transform_to_md(file::AbstractString) = first(splitext(file)) * ".md"
 transform_to_md(pages::AbstractArray) = transform_to_md.(pages)
 transform_to_md(pair::Pair) = (pair.first => transform_to_md(pair.second))
-
-# Setup Artifacts.toml system
-macro artifact_str(s)
-    @eval Artifacts.@artifact_str $s
-end
-cp(joinpath(ROOTPATH, "Artifacts.toml"), joinpath(@__DIR__, "Artifacts.toml"), force=true)
 
 # Copy assets over
 mkpath(joinpath(SRCPATH, "examples"))
@@ -238,8 +236,7 @@ makedocs(;
 
 # Dump files for managing dependencies in binder
 if CONTINUOUS_INTEGRATION && DFTKBRANCH == "master"
-    cp(joinpath(@__DIR__, "Project.toml"),   joinpath(BUILDPATH, "Project.toml");   force=true)
-    cp(joinpath(ROOTPATH, "Artifacts.toml"), joinpath(BUILDPATH, "Artifacts.toml"); force=true)
+    cp(joinpath(@__DIR__, "Project.toml"), joinpath(BUILDPATH, "Project.toml"); force=true)
 end
 
 # Deploy docs to gh-pages branch

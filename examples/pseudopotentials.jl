@@ -33,30 +33,34 @@
 # Then, we will compare the bandstructure at the converged parameters calculated
 # using the two PSPs.
 
+using AtomsBuilder
 using DFTK
 using Unitful
+using UnitfulAtomic
+using PseudoPotentialData
 using Plots
-using LazyArtifacts
-import Main: @artifact_str # hide
 
-# Here, we will use a Perdew-Wang LDA PSP from [PseudoDojo](http://www.pseudo-dojo.org/),
-# which is available in the
-# [JuliaMolSim PseudoLibrary](https://github.com/JuliaMolSim/PseudoLibrary).
-# Directories in PseudoLibrary correspond to artifacts that you can load using `artifact`
-# strings which evaluate to a filepath on your local machine where the artifact has been
-# downloaded.
+# Here, we will use a Perdew-Wang LDA PSP
+# from [PseudoDojo](http://www.pseudo-dojo.org/),
+# which is available via the
+# [JuliaMolSim PseudoPotentialData](https://github.com/JuliaMolSim/PseudoPotentialData.jl)
+# package. See [the documentation of PseudoPotentialData](https://juliamolsim.github.io/PseudoPotentialData.jl/stable/)
+# for the list of available pseudopotential families.
+
+family_upf = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf");
+
+# Such a `PseudoFamily` object acts like a dictionary from an element symbol
+# to a pseudopotential file. They can be directly employed to select the
+# appropriate pseudopotential when constructing an [`ElementPsp`](@ref)
+# or a model based on an `AtomsBase`-compatible system. For the latter
+# see the `run_bands` function below for an example.
 #
-# !!! note "Using the PseudoLibrary in your own calculations"
-#     Instructions for using the [PseudoLibrary](https://github.com/JuliaMolSim/PseudoLibrary)
-#     in your own calculations can be found in its documentation.
-
-# We load the HGH and UPF PSPs using `load_psp`, which determines the
-# file format using the file extension. The `artifact` string literal resolves to the
-# directory where the file is stored by the Artifacts system. So, if you have your own
-# pseudopotential files, you can just provide the path to them as well.
-
-psp_hgh  = load_psp("hgh/lda/si-q4.hgh");
-psp_upf  = load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf");
+# An alternative to a `PseudoFamily` object is in all cases a plain
+# `Dict` to map from atomic symbols to the employed pseudopotential file.
+# For demonstration purposes we employ this
+# in combination with the HGH-type pseudopotentials:
+family_hgh = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
+pseudopotentials_hgh = Dict(:Si => family_hgh[:Si])
 
 # First, we'll take a look at the energy cutoff convergence of these two pseudopotentials.
 # For both pseudos, a reference energy is calculated with a cutoff of 140 Hartree, and
@@ -73,22 +77,28 @@ psp_upf  = load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf");
 # numeric pseudopotentials tend to be softer than analytical pseudos because of the
 # flexibility of sampling arbitrary functions on a grid.
 
+# For some pseudopotentials the `PseudoFamily` contains hints for the recommended
+# cutoffs as metadata. For most PseudoDojo potentials this is indeed the case:
+recommended_cutoff(family_upf, :Si)
+
+# We see the recommended value is very close to what we determined above.
+# Sometimes more detailed information is also available by looking at the raw
+# metadata associated to this combination of pseudopotential family and element:
+
+pseudometa(family_upf, :Si)
+
+# Here, we see that multiple recommended cutoffs are made available in the metadata.
+
 # Next, to see that the different pseudopotentials give reasonably similar results,
 # we'll look at the bandstructures calculated using the HGH and UPF PSPs. Even though
 # the converged cutoffs are higher, we perform these calculations with a cutoff of
 # 12 Ha for both PSPs.
 
-function run_bands(psp)
-    a = 10.26  # Silicon lattice constant in Bohr
-    lattice = a / 2 * [[0 1 1.];
-                       [1 0 1.];
-                       [1 1 0.]]
-    Si = ElementPsp(:Si; psp)
-    atoms     = [Si, Si]
-    positions = [ones(3)/8, -ones(3)/8]
+function run_bands(pseudopotentials)
+    system = bulk(:Si; a=10.26u"bohr")
 
     ## These are (as you saw above) completely unconverged parameters
-    model = model_LDA(lattice, atoms, positions; temperature=1e-2)
+    model = model_DFT(system; functionals=LDA(), temperature=1e-2, pseudopotentials)
     basis = PlaneWaveBasis(model; Ecut=12, kgrid=(4, 4, 4))
 
     scfres   = self_consistent_field(basis; tol=1e-4)
@@ -98,10 +108,10 @@ end;
 
 # The SCF and bandstructure calculations can then be performed using the two PSPs,
 # where we notice in particular the difference in total energies.
-result_hgh = run_bands(psp_hgh)
+result_hgh = run_bands(pseudopotentials_hgh)
 result_hgh.scfres.energies
 #-
-result_upf = run_bands(psp_upf)
+result_upf = run_bands(family_upf)
 result_upf.scfres.energies
 
 # But while total energies are not physical and thus allowed to differ,

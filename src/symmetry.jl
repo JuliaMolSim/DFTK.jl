@@ -109,7 +109,8 @@ on each of the atoms. The symmetries are determined using spglib.
     symmetries
 end
 function symmetry_operations(system::AbstractSystem; kwargs...)
-    parsed = parse_system(system)
+    pseudopotentials = fill(nothing, length(system))
+    parsed = parse_system(system, pseudopotentials)
     symmetry_operations(parsed.lattice, parsed.atoms, parsed.positions,
                         parsed.magnetic_moments; kwargs...)
 end
@@ -413,6 +414,11 @@ function unfold_array(basis_irred, basis_unfolded, data, is_ψ)
     end
     if !(basis_irred.comm_kpts == basis_irred.comm_kpts == MPI.COMM_WORLD)
         error("Brillouin zone symmetry unfolding not supported with MPI yet")
+    end
+    if basis_irred.n_irreducible_kpoints < mpi_nprocs(basis_irred.comm_kpts)
+        # Note: if this routine is ever generalised for MPI,
+        # need special care for potentially duplicated KP
+        error("Brillouin zone symmetry unfolding not supported with duplicated k-points")
     end
     data_unfolded = similar(data, length(basis_unfolded.kpoints))
     for ik_unfolded = 1:length(basis_unfolded.kpoints)

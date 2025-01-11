@@ -1,6 +1,7 @@
-@testsetup module ScfresAgreement
-using Test
+@testmodule ScfresAgreement begin
+using AtomsBase
 using DFTK
+using Test
 
 function test_scfres_agreement(tested, ref; test_ψ=true)
     @test tested.basis.model.lattice           == ref.basis.model.lattice
@@ -11,7 +12,7 @@ function test_scfres_agreement(tested, ref; test_ψ=true)
     @test tested.basis.model.spin_polarization == ref.basis.model.spin_polarization
 
     @test tested.basis.model.positions == ref.basis.model.positions
-    @test atomic_symbol.(tested.basis.model.atoms) == atomic_symbol.(ref.basis.model.atoms)
+    @test species.(tested.basis.model.atoms) == species.(ref.basis.model.atoms)
 
     @test tested.basis.Ecut      == ref.basis.Ecut
     @test tested.basis.kweights  == ref.basis.kweights
@@ -46,8 +47,8 @@ end
     o2molecule = TestCases.o2molecule
 
     magnetic_moments = [1., 1.]
-    model = model_PBE(o2molecule.lattice, o2molecule.atoms, o2molecule.positions;
-                      temperature=0.02, smearing=Smearing.Gaussian(),
+    model = model_DFT(o2molecule.lattice, o2molecule.atoms, o2molecule.positions;
+                      functionals=PBE(), temperature=0.02, smearing=Smearing.Gaussian(),
                       magnetic_moments, symmetries=false)
 
     kgrid = [1, mpi_nprocs(), 1]   # Ensure at least 1 kpt per process
@@ -83,7 +84,8 @@ end
 
     function test_serialisation(testcase, label; modelargs=(; ),
                                 basisargs=(; Ecut=5, kgrid=(2, 3, 4)))
-        model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions; modelargs...)
+        model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                          functionals=LDA(), modelargs...)
 
         basis = PlaneWaveBasis(model; basisargs...)
         nbandsalg = FixedBands(; n_bands_converge=20)

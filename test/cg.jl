@@ -1,6 +1,5 @@
 @testitem "CG" begin
     using DFTK
-    using IterativeSolvers
     using LinearAlgebra
 
     function test_cg(T)

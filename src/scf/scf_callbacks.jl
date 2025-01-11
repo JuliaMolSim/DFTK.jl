@@ -32,10 +32,10 @@ which prints a convergence table.
 struct ScfDefaultCallback
     show_damping::Bool
     show_time::Bool
-    prev_time::Ref{Int}
+    prev_time::Ref{UInt64}
 end
 function ScfDefaultCallback(; show_damping=true, show_time=true)
-    ScfDefaultCallback(show_damping, show_time, Ref(0))
+    ScfDefaultCallback(show_damping, show_time, Ref(zero(UInt64)))
 end
 function (cb::ScfDefaultCallback)(info)
     # If first iteration clear a potentially cached previous time
@@ -157,6 +157,15 @@ Algorithm for the tolerance used for the next diagonalization. This function tak
 ``|ρ_{\rm next} - ρ_{\rm in}|`` and multiplies it with `ratio_ρdiff` to get the next `diagtol`,
 ensuring additionally that the returned value is between `diagtol_min` and `diagtol_max`
 and never increases.
+
+# Examples
+For difficult cases with bad SCF convergence it can be helpful to *reduce*
+`ratio_ρdiff` to a slightly smaller value to enforce the bands to be converged more
+tightly in an SCF step. For example:
+```julia
+diagtolalg = AdaptiveDiagtol(; ratio_ρdiff=0.05)
+self_consistent_field(basis; diagtolalg, kwargs...)
+```
 """
 @kwdef struct AdaptiveDiagtol
     ratio_ρdiff   = 0.2
@@ -167,6 +176,10 @@ end
 function determine_diagtol(alg::AdaptiveDiagtol, info)
     info.n_iter ≤ 1 && return min(alg.diagtol_first, 5alg.diagtol_max)
 
+    # TODO if n_iter is small and the eigenvector residuals are all rather small,
+    #      then maybe we should clamp the tolerance more aggressively
+    #      (this likely indicates a restart or an extremely good initial guess)
+
     # This ensures diagtol can only shrink during an SCF
     diagtol = minimum(info.history_Δρ .* alg.ratio_ρdiff)
     @assert isfinite(diagtol)
@@ -174,11 +187,12 @@ function determine_diagtol(alg::AdaptiveDiagtol, info)
     diagtol_min = something(alg.diagtol_min, 100eps(eltype(info.history_Δρ)))
     clamp(diagtol, diagtol_min, alg.diagtol_max)
 end
-function ScfDiagtol(; diagtol_max=0.03, kwargs...)
-    @warn("Using `ScfDiagtol(; kwargs...)` is deprecated and will be removed in the " *
-          "next minor version bump. Use `AdaptiveDiagtol(; kwargs...)` instead.")
-    AdaptiveDiagtol(; diagtol_max=diagtol_max/5, diagtol_first=diagtol_max, kwargs...)
-end
+# Note: In the past we experimented with more involved criteria for adaptively
+# selecting the diagonalization tolerance, e.g. versions that take the system size
+# into account (e.g. ratio_ρdiff = 10/Nocc or a criterion similar to the adaptive
+# Sternheimer tolerance, i.e. ratio_ρdiff = 2Ω / (sqrt(prod(fft_size)) * Nocc)).
+# The differences were very minor and we decided for the simpler heuristic above
+# as opposed to any of these more sophisticated criteria.
 
 function default_diagtolalg(basis; tol, kwargs...)
     if any(t -> t isa TermNonlinear, basis.terms)

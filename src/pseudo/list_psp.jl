@@ -1,8 +1,7 @@
 import IterTools
+import PeriodicTable
 
 """
-    list_psp(element; functional, family, core)
-
 List the pseudopotential files known to DFTK. Allows various ways
 to restrict the displayed files.
 
@@ -22,8 +21,12 @@ julia> list_psp(:O, core=:semicore)
 will list all oxygen semicore pseudopotentials known to DFTK.
 """
 function list_psp(element=nothing; family=nothing, functional=nothing, core=nothing)
+    @warn("The function list_psp and the internal pseudopotential repository of DFTK are " *
+          "deprecated and will be removed in a future version of DFTK. Use the " *
+          "PseudoPotentialData julia package instead.")
+
     # Normalize input keys
-    isnothing(element)    || (element = Symbol(periodic_table[element].symbol))
+    isnothing(element)    || (element = Symbol(PeriodicTable.elements[element].symbol))
     isnothing(functional) || (functional = lowercase(functional))
     isnothing(family)     || (family = lowercase(family))
 
@@ -43,7 +46,7 @@ function list_psp(element=nothing; family=nothing, functional=nothing, core=noth
             f_element, f_nvalence   = split(base, '-')
             f_nvalence[1] == 'q' || continue                # Need 'q' before valence number
             f_element = Symbol(uppercase(f_element[1]) * f_element[2:end])
-            haskey(periodic_table, Symbol(f_element)) || continue
+            haskey(PeriodicTable.elements, Symbol(f_element)) || continue
 
             f_identifier = joinpath(root, file)
             Sys.iswindows() && (f_identifier = replace(f_identifier, "\\" => "/"))

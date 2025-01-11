@@ -8,16 +8,19 @@
 using DFTK
 using LinearAlgebra
 using ForwardDiff
+using PseudoPotentialData
 
 ## Construct PlaneWaveBasis given a particular electric field strength
 ## Again we take the example of a Helium atom.
 function make_basis(ε::T; a=10., Ecut=30) where {T}
-    lattice=T(a) * I(3)  # lattice is a cube of ``a`` Bohrs
+    lattice = T(a) * I(3)  # lattice is a cube of ``a`` Bohrs
     ## Helium at the center of the box
-    atoms     = [ElementPsp(:He; psp=load_psp("hgh/lda/He-q2"))]
+    pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
+    atoms     = [ElementPsp(:He, pseudopotentials)]
     positions = [[1/2, 1/2, 1/2]]
 
-    model = model_DFT(lattice, atoms, positions, [:lda_x, :lda_c_vwn];
+    model = model_DFT(lattice, atoms, positions;
+                      functionals=[:lda_x, :lda_c_vwn],
                       extra_terms=[ExternalFromReal(r -> -ε * (r[1] - a/2))],
                       symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])  # No k-point sampling on isolated system
@@ -46,7 +49,8 @@ end
 
 # We do the same thing using automatic differentiation. Under the hood this uses
 # custom rules to implicitly differentiate through the self-consistent
-# field fixed-point problem.
+# field fixed-point problem. This leads to a density-functional perturbation
+# theory problem, which is automatically set up and solved in the background.
 polarizability = ForwardDiff.derivative(compute_dipole, 0.0)
 println()
 println("Polarizability via ForwardDiff:       $polarizability")

@@ -25,16 +25,12 @@
 #     [ArXiv 2004.13549](https://arxiv.org/abs/2004.13549)
 
 using DFTK
+using PseudoPotentialData
+using AtomsBuilder
 
-## Setup silicon lattice
-a = 10.263141334305942  # lattice constant in Bohr
-lattice = a / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]]
-Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
-atoms = [Si, Si]
-positions = [ones(3)/8, -ones(3)/8]
-
-## Cast to Float32, setup model and basis
-model = model_LDA(lattice, atoms, positions)
+## Use AtomsBuilder to setup silicon lattice and cast model to Float32
+pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
+model = model_DFT(bulk(:Si); functionals=LDA(), pseudopotentials)
 basis = PlaneWaveBasis(convert(Model{Float32}, model), Ecut=7, kgrid=[4, 4, 4])
 
 ## Run the SCF

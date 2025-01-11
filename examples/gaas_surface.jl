@@ -1,14 +1,11 @@
 # # Modelling a gallium arsenide surface
 #
-# This example shows how to use the
-# [atomistic simulation environment](https://wiki.fysik.dtu.dk/ase/index.html),
-# or ASE for short,
+# This example shows how to use the atomistic simulation environment or ASE for short,
 # to set up and run a particular calculation of a gallium arsenide surface.
 # ASE is a Python package to simplify the process of setting up,
 # running and analysing results from atomistic simulations across different simulation codes.
-# By means of [ASEconvert](https://github.com/mfherbst/ASEconvert.jl) it is seamlessly
-# integrated with the AtomsBase ecosystem and thus available to DFTK via our own
-# [AtomsBase integration](@ref).
+# For more details on the integration DFTK provides with ASE,
+# see [Atomistic simulation environment](@ref).
 #
 # In this example we will consider modelling the (1, 1, 0) GaAs surface separated by vacuum.
 
@@ -25,6 +22,7 @@ kgrid = (4, 4, 1);   # Monkhorst-Pack mesh
 
 # Use ASE to build the structure:
 using ASEconvert
+using PythonCall
 
 a = 5.6537  # GaAs lattice parameter in Ångström (because ASE uses Å as length unit)
 gaas = ase.build.bulk("GaAs", "zincblende"; a)
@@ -42,25 +40,27 @@ ase.io.write("surface.png", surface * pytuple((3, 3, 1)), rotation="-90x, 30y, -
 #md # ```
 #nb # <img src="https://docs.dftk.org/stable/surface.png" width=500 height=500 />
 
-# Use the `pyconvert` function from `PythonCall` to convert to an AtomsBase-compatible system.
-# These two functions not only support importing ASE atoms into DFTK,
-# but a few more third-party data structures as well.
-# Typically the imported `atoms` use a bare Coulomb potential,
-# such that appropriate pseudopotentials need to be attached in a post-step:
+# Use the `pyconvert` function from `PythonCall` to convert the ASE atoms
+# to an AtomsBase-compatible system.
+# This can then be used in the same way as other `AtomsBase` systems
+# (see [AtomsBase integration](@ref) for details) to construct a DFTK model:
 
 using DFTK
-system = attach_psp(pyconvert(AbstractSystem, surface);
-                    Ga="hgh/pbe/ga-q3.hgh",
-                    As="hgh/pbe/as-q5.hgh")
+using PseudoPotentialData
 
-# We model this surface with (quite large a) temperature of 0.01 Hartree
-# to ease convergence. Try lowering the SCF convergence tolerance (`tol`)
-# or the `temperature` or try `mixing=KerkerMixing()`
-# to see the full challenge of this system.
-model = model_DFT(system, [:gga_x_pbe, :gga_c_pbe],
-                  temperature=0.001, smearing=DFTK.Smearing.Gaussian())
-basis = PlaneWaveBasis(model; Ecut, kgrid)
+pseudopotentials = PseudoFamily("cp2k.nc.sr.pbe.v0_1.largecore.gth")
+model = model_DFT(pyconvert(AbstractSystem, surface);
+                  functionals=PBE(),
+                  temperature=1e-3,
+                  smearing=DFTK.Smearing.Gaussian(),
+                  pseudopotentials)
 
-scfres = self_consistent_field(basis, tol=1e-4, mixing=LdosMixing());
+# In the above we use the `pseudopotential` keyword argument to
+# assign the respective pseudopotentials to the imported `model.atoms`.
+# Try lowering the SCF convergence tolerance (`tol`)
+# or try `mixing=KerkerMixing()` to see the full challenge of this system.
+
+basis  = PlaneWaveBasis(model; Ecut, kgrid)
+scfres = self_consistent_field(basis; tol=1e-6, mixing=LdosMixing());
 #-
 scfres.energies

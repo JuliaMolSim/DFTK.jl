@@ -9,15 +9,16 @@
 # This example discusses a few aspects of the `callback` function
 # taking again our favourite silicon example.
 
-# We setup silicon in an LDA model using the ASE interface
+# We setup silicon in an LDA model using `AtomsBuilder`
 # to build a bulk silicon lattice,
-# see [Input and output formats](@ref) for more details.
+# (see [AtomsBase integration](@ref) for more details.
 using DFTK
-using ASEconvert
+using AtomsBuilder
+using PseudoPotentialData
 
-system = pyconvert(AbstractSystem, ase.build.bulk("Si"))
-model  = model_LDA(attach_psp(system; Si="hgh/pbe/si-q4.hgh"))
-basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3]);
+pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
+model = model_DFT(bulk(:Si); functionals=LDA(), pseudopotentials)
+basis = PlaneWaveBasis(model; Ecut=5, kgrid=[3, 3, 3]);
 
 # DFTK already defines a few callback functions for standard
 # tasks. One example is the usual convergence table,

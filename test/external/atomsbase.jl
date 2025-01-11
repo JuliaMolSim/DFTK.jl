@@ -1,12 +1,14 @@
-@testitem "DFTK -> AbstractSystem -> DFTK" tags=[:atomsbase] begin
+@testitem "parse_system and DFTK -> AbstractSystem -> DFTK" tags=[:atomsbase] begin
     using DFTK
     using Unitful
     using UnitfulAtomic
     using AtomsBase
+    using PseudoPotentialData
 
+    family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
     Si = ElementCoulomb(:Si)
-    C  = ElementPsp(:C; psp=load_psp("hgh/pbe/c-q4.hgh"))
-    H  = ElementPsp(:H; psp=load_psp("hgh/lda/h-q1.hgh"))
+    C  = ElementPsp(:C, family)
+    H  = ElementPsp(:H, family)
 
     lattice   = randn(3, 3)
     atoms     = [Si, C, H, C]
@@ -14,50 +16,62 @@
     magnetic_moments = rand(4)
 
     system = atomic_system(lattice, atoms, positions, magnetic_moments)
-    @test atomic_symbol(system) == [:Si, :C, :H, :C]
-    @test atomic_mass(system)   == [28.085u"u", 12.011u"u", 1.008u"u", 12.011u"u"]
-    @test bounding_box(system)  == collect(eachcol(lattice)) * u"bohr"
-    @test position(system)      == [lattice * p * u"bohr" for p in positions]
-
-    @test system[:, :pseudopotential] == [
-        "", "hgh/pbe/c-q4.hgh", "hgh/lda/h-q1.hgh", "hgh/pbe/c-q4.hgh"
-    ]
+    @test atomic_symbol(system, :) == [:Si, :C, :H, :C]
+    @test mass(system, :)       == [28.085u"u", 12.011u"u", 1.008u"u", 12.011u"u"]
+    @test cell_vectors(system)  == Tuple(v * u"bohr" for v in eachcol(lattice))
+    @test position(system, :)   == [lattice * p * u"bohr" for p in positions]
     @test system[:, :magnetic_moment] == magnetic_moments
 
-    parsed = DFTK.parse_system(system)
-    @test parsed.lattice   ≈ lattice   atol=5e-13
-    @test parsed.positions ≈ positions atol=5e-13
-    for i = 1:4
-        @test iszero(parsed.magnetic_moments[i][1:2])
-        @test parsed.magnetic_moments[i][3] == magnetic_moments[i]
-    end
-    @test length(parsed.atoms) == 4
-    @test parsed.atoms[1] == ElementCoulomb(:Si)
-    @test parsed.atoms[2].psp.identifier == atoms[2].psp.identifier
-    @test parsed.atoms[3].psp.identifier == atoms[3].psp.identifier
-    @test parsed.atoms[4].psp.identifier == atoms[4].psp.identifier
-
-    let system = attach_psp(system; Si="hgh/lda/si-q4.hgh")
-        @test length(system) == 4
-        @test system[1, :pseudopotential] == "hgh/lda/si-q4.hgh"
-        @test system[2, :pseudopotential] == "hgh/pbe/c-q4.hgh"
-        @test system[3, :pseudopotential] == "hgh/lda/h-q1.hgh"
-        @test system[4, :pseudopotential] == "hgh/pbe/c-q4.hgh"
-        @test system[:, :magnetic_moment] == magnetic_moments
+    @testset "Parsing system without pseudopotentials" begin
+        parsed = DFTK.parse_system(system, fill(nothing, length(atoms)))
+        @test parsed.lattice   ≈ lattice   atol=1e-12
+        @test parsed.positions ≈ positions atol=1e-12
+        for i = 1:4
+            @test iszero(parsed.magnetic_moments[i][1:2])
+            @test parsed.magnetic_moments[i][3] == magnetic_moments[i]
+        end
+        @test length(parsed.atoms) == 4
+        @test parsed.atoms[1] == ElementCoulomb(:Si)
+        @test parsed.atoms[2] == ElementCoulomb(:C)
+        @test parsed.atoms[3] == ElementCoulomb(:H)
+        @test parsed.atoms[4] == ElementCoulomb(:C)
     end
 
-    for constructor in (Model, model_atomic, model_LDA, model_PBE, model_SCAN)
-        model = constructor(system)
-        @test model.spin_polarization == :collinear
-        newsys = periodic_system(model, magnetic_moments)
+    @testset "Parsing system with dictionary of explicit paths" begin
+        gth = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
+        pspmap = Dict(:H => family[:H], :Si => family[:Si], :C => gth[:C])
+        parsed = DFTK.parse_system(system, pspmap)
+        @test length(parsed.atoms) == 4
+        # Identifier is filename, but on windows we replace backslash path
+        # delimiter by forward slash to homogenise the identifier
+        @test parsed.atoms[1].psp.identifier == replace(pspmap[:Si], "\\" => "/")
+        @test parsed.atoms[2].psp.identifier == replace(pspmap[:C],  "\\" => "/")
+        @test parsed.atoms[3].psp.identifier == replace(pspmap[:H],  "\\" => "/")
+        @test parsed.atoms[4].psp.identifier == replace(pspmap[:C],  "\\" => "/")
+    end
 
-        @test atomic_symbol(system)       == atomic_symbol(newsys)
-        @test atomic_mass(system)         == atomic_mass(newsys)
-        @test bounding_box(system)        == bounding_box(newsys)
-        @test boundary_conditions(system) == boundary_conditions(newsys)
-        @test maximum(maximum, position(system) - position(newsys)) < 1e-12u"bohr"
-        @test system[:, :magnetic_moment] == newsys[:, :magnetic_moment]
-        @test system[:, :pseudopotential] == newsys[:, :pseudopotential]
+    @testset "Constructing model with pseudo family" begin
+        model = model_atomic(system; pseudopotentials=family)
+        @test length(model.atoms) == 4
+        @test model.atoms[1].psp.identifier == replace(family[:Si], "\\" => "/")
+        @test model.atoms[2].psp.identifier == replace(family[:C],  "\\" => "/")
+        @test model.atoms[3].psp.identifier == replace(family[:H],  "\\" => "/")
+        @test model.atoms[4].psp.identifier == replace(family[:C],  "\\" => "/")
+    end
+
+    @testset "system -> Model -> system" begin
+        for constructor in (Model, model_atomic)
+            model = constructor(system; pseudopotentials=family)
+            @test model.spin_polarization == :collinear
+            newsys = periodic_system(model, magnetic_moments)
+
+            @test atomic_symbol(system, :) == atomic_symbol(newsys, :)
+            @test mass(system, :)          == mass(newsys, :)
+            @test cell_vectors(system)     == cell_vectors(newsys)
+            @test periodicity(system)      == periodicity(newsys)
+            @test maximum(maximum, position(system, :) - position(newsys, :)) < 1e-12u"bohr"
+            @test system[:, :magnetic_moment] == newsys[:, :magnetic_moment]
+        end
     end
 end
 
@@ -104,11 +118,12 @@ end
     end
 end
 
-@testitem "AbstractSystem -> DFTK" tags=[:atomsbase] begin
+@testitem "AbstractSystem -> DFTK Model" tags=[:atomsbase] begin
     using DFTK
     using Unitful
     using UnitfulAtomic
     using AtomsBase
+    using PseudoPotentialData
 
     lattice     = [12u"bohr" * rand(3) for _ = 1:3]
     weirdatom   = Atom(6, randn(3)u"Å"; atomic_symsymbol=:C1)
@@ -118,8 +133,8 @@ end
     system      = periodic_system(atoms, lattice; fractional=true)
 
     let model = Model(system)
-        @test model.lattice   ≈ pos_lattice atol=5e-13
-        @test model.positions ≈ pos_units   atol=5e-13
+        @test model.lattice   ≈ pos_lattice atol=1e-12
+        @test model.positions ≈ pos_units   atol=1e-12
         @test model.spin_polarization == :none
 
         @test length(model.atoms) == 4
@@ -129,68 +144,54 @@ end
         @test model.atoms[4] == ElementCoulomb(:C)
     end
 
-    pbemap = Dict(:H => "hgh/pbe/h-q1.hgh", :Si => "hgh/pbe/si-q4.hgh",
-                  :C => "hgh/pbe/c-q4.hgh")
-    let system = attach_psp(system, pbemap)
-        @test length(system) == 4
-        @test system[1, :pseudopotential] == "hgh/pbe/c-q4.hgh"
-        @test system[2, :pseudopotential] == "hgh/pbe/si-q4.hgh"
-        @test system[3, :pseudopotential] == "hgh/pbe/h-q1.hgh"
-        @test system[4, :pseudopotential] == "hgh/pbe/c-q4.hgh"
-
-        parsed = DFTK.parse_system(system)
-        @test parsed.lattice   ≈ pos_lattice atol=5e-13
-        @test parsed.positions ≈ pos_units   atol=5e-13
-        @test isempty(parsed.magnetic_moments)
-
-        @test length(parsed.atoms) == 4
-        @test parsed.atoms[1].psp.identifier == "hgh/pbe/c-q4.hgh"
-        @test parsed.atoms[2].psp.identifier == "hgh/pbe/si-q4.hgh"
-        @test parsed.atoms[3].psp.identifier == "hgh/pbe/h-q1.hgh"
-        @test parsed.atoms[4].psp.identifier == "hgh/pbe/c-q4.hgh"
-    end
-
-    let system = attach_psp(system; C="hgh/lda/c-q4.hgh", H="hgh/lda/h-q1.hgh",
-                                    Si="hgh/lda/si-q4.hgh")
-        @test length(system) == 4
-        @test system[1, :pseudopotential] == "hgh/lda/c-q4.hgh"
-        @test system[2, :pseudopotential] == "hgh/lda/si-q4.hgh"
-        @test system[3, :pseudopotential] == "hgh/lda/h-q1.hgh"
-        @test system[4, :pseudopotential] == "hgh/lda/c-q4.hgh"
-
-        model = Model(system)
-        @test model.lattice   ≈ pos_lattice atol=5e-13
-        @test model.positions ≈ pos_units   atol=5e-13
+    pbegth = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
+    ldagth = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
+    pspmap = Dict(:H => pbegth[:H], :Si => pbegth[:Si], :C => ldagth[:C])
+    let model = Model(system; pseudopotentials=pspmap)
+        @test model.lattice   ≈ pos_lattice atol=1e-12
+        @test model.positions ≈ pos_units   atol=1e-12
         @test model.spin_polarization == :none
 
         @test length(model.atoms) == 4
-        @test model.atoms[1].psp.identifier == "hgh/lda/c-q4.hgh"
-        @test model.atoms[2].psp.identifier == "hgh/lda/si-q4.hgh"
-        @test model.atoms[3].psp.identifier == "hgh/lda/h-q1.hgh"
-        @test model.atoms[4].psp.identifier == "hgh/lda/c-q4.hgh"
+        @test model.atoms[1].psp.identifier == replace(pspmap[:C],  "\\" => "/")
+        @test model.atoms[2].psp.identifier == replace(pspmap[:Si], "\\" => "/")
+        @test model.atoms[3].psp.identifier == replace(pspmap[:H],  "\\" => "/")
+        @test model.atoms[4].psp.identifier == replace(pspmap[:C],  "\\" => "/")
     end
-end
 
+    let
+        gth = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
+        psp_Si = load_psp(gth, :Si)
+        psp_H  = load_psp(gth, :H)
+        psp_C  = load_psp(gth, :C)
+        model = Model(system; pseudopotentials=[nothing, psp_Si, psp_H, psp_C])
 
-@testitem "Check attach_psp routine selectively" tags=[:atomsbase] begin
-    using DFTK
-    using AtomsBase
+        @test model.lattice   ≈ pos_lattice atol=1e-12
+        @test model.positions ≈ pos_units   atol=1e-12
+        @test model.spin_polarization == :none
 
-    Si = ElementCoulomb(:Si)
-    C  = ElementCoulomb(:C)
-    H  = ElementPsp(:H; psp=load_psp("hgh/lda/h-q1.hgh"))
-    lattice   = randn(3, 3)
-    atoms     = [Si, C, H, C]
-    positions = [rand(3) for _ = 1:4]
-    system    = atomic_system(lattice, atoms, positions)
+        @test length(model.atoms) == 4
+        @test model.atoms[1] == ElementCoulomb(:C)
+        @test model.atoms[2] == ElementPsp(:Si, psp_Si)
+        @test model.atoms[3] == ElementPsp(:H,  psp_H)
+        @test model.atoms[4] == ElementPsp(:C,  psp_C)
+    end
 
-    @test_throws ErrorException attach_psp(system; Si="hgh/pbe/si-q4.hgh")
-    newsys = attach_psp(system; Si="hgh/pbe/si-q4.hgh", H="hgh/pbe/h-q1.hgh",
-                                C="hgh/pbe/c-q4.hgh")
-    @test newsys[1, :pseudopotential] == "hgh/pbe/si-q4.hgh"
-    @test newsys[2, :pseudopotential] == "hgh/pbe/c-q4.hgh"
-    @test newsys[3, :pseudopotential] == "hgh/lda/h-q1.hgh"
-    @test newsys[4, :pseudopotential] == "hgh/pbe/c-q4.hgh"
+    let family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
+        model = Model(system; pseudopotentials=family)
+
+        @test model.lattice   ≈ pos_lattice atol=1e-12
+        @test model.positions ≈ pos_units   atol=1e-12
+        @test model.spin_polarization == :none
+
+        # Identifier is filename, but on windows we replace backslash path
+        # delimiter by forward slash to homogenise the identifier
+        @test length(model.atoms) == 4
+        @test model.atoms[1].psp.identifier == replace(family[:C],  "\\" => "/")
+        @test model.atoms[2].psp.identifier == replace(family[:Si], "\\" => "/")
+        @test model.atoms[3].psp.identifier == replace(family[:H],  "\\" => "/")
+        @test model.atoms[4].psp.identifier == replace(family[:C],  "\\" => "/")
+    end
 end
 
 @testitem "AbstractSystem (unusual symbols and masses) -> DFTK" tags=[:atomsbase] begin
@@ -198,27 +199,26 @@ end
     using Unitful
     using UnitfulAtomic
     using AtomsBase
+    using PseudoPotentialData
 
-    lattice     = [12u"bohr" * rand(3) for _ = 1:3]
-    atoms       = [Atom(6, randn(3)u"Å"; atomic_symbol=:C1, atomic_mass=-1u"u"),
-                   Atom(6, randn(3)u"Å"; atomic_symbol=:C2, atomic_mass=-2u"u")]
-    system      = periodic_system(atoms, lattice)
-    system_psp  = attach_psp(system; C="hgh/lda/c-q4.hgh")
-    @test atomic_symbol(system_psp) == [:C1, :C2]
-    @test atomic_mass(system_psp) == [-1u"u", -2u"u"]
+    lattice = [12u"bohr" * rand(3) for _ = 1:3]
+    atoms   = [Atom(6, randn(3)u"Å"; species=ChemicalSpecies(:C12), mass=-1u"u"),
+               Atom(6, randn(3)u"Å"; species=ChemicalSpecies(:C),   mass=-2u"u")]
+    system  = periodic_system(atoms, lattice)
 
-    pos_lattice = austrip.(stack(lattice))
-    let model = model_LDA(system_psp)
-        @test model.lattice   == pos_lattice
+    gth = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
+    pseudopotentials = Dict(:C => gth[:C])
+    let model = model_DFT(system; functionals=LDA(), pseudopotentials)
+        @test model.lattice == austrip.(stack(lattice))
         @test model.lattice * model.positions[1] * u"bohr" ≈ atoms[1].position
         @test model.lattice * model.positions[2] * u"bohr" ≈ atoms[2].position
         @test model.spin_polarization == :none
 
         @test length(model.atoms) == 2
-        @test atomic_symbol(model.atoms[1]) == :C
-        @test atomic_symbol(model.atoms[2]) == :C
-        @test atomic_mass.(model.atoms) == [-1u"u", -2u"u"]
-        @test model.atoms[1].psp.identifier == "hgh/lda/c-q4.hgh"
-        @test model.atoms[2].psp.identifier == "hgh/lda/c-q4.hgh"
+        @test element_symbol(model.atoms[1]) == :C
+        @test element_symbol(model.atoms[2]) == :C
+        @test mass.(model.atoms) == [-1u"u", -2u"u"]
+        @test model.atoms[1].psp.identifier == replace(gth[:C], "\\" => "/")
+        @test model.atoms[2].psp.identifier == replace(gth[:C], "\\" => "/")
     end
 end

@@ -158,7 +158,7 @@ has_valence_density(psp::PspUpf) = !all(iszero, psp.r2_ρion)
 has_core_density(psp::PspUpf) = !all(iszero, psp.r2_ρcore)
 
 function eval_psp_projector_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
-    psp.r2_projs_interp[l+1][i](r) / r^2
+    psp.r2_projs_interp[l+1][i](r) / r^2  # TODO if r is below a threshold, return zero
 end
 
 function eval_psp_projector_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
@@ -171,8 +171,10 @@ function eval_psp_projector_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     hankel(rgrid, r2_proj, l, p)
 end
 
+count_n_pswfc_radial(psp::PspUpf, l) = length(psp.r2_pswfcs[l+1])
+
 function eval_psp_pswfc_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
-    psp.r2_pswfcs_interp[l+1][i](r) / r^2
+    psp.r2_pswfcs_interp[l+1][i](r) / r^2  # TODO if r is below a threshold, return zero
 end
 
 function eval_psp_pswfc_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
@@ -180,7 +182,15 @@ function eval_psp_pswfc_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     # quantities. They are the reason that PseudoDojo UPF files have a much
     # larger radial grid than their psp8 counterparts.
     # If issues arise, try cutting them off too.
-    hankel(psp.rgrid, psp.r2_pswfcs[l+1][i], l, p)
+    return hankel(psp.rgrid, psp.r2_pswfcs[l+1][i], l, p)
+    # / (2π)^3 ??
+
+    # normalisation constant for the atomic wave functions
+    R = (psp.r2_pswfcs[l+1][i]) .^ 2 ./ psp.rgrid .^ 2
+    R[1] = 0
+    N = DFTK.simpson(R, psp.rgrid)
+
+
 end
 
 eval_psp_local_real(psp::PspUpf, r::T) where {T<:Real} = psp.vloc_interp(r)
@@ -194,14 +204,14 @@ function eval_psp_local_fourier(psp::PspUpf, p::T)::T where {T<:Real}
     # C(r) = -Z/r; H[-Z/r] = -Z/p^2
     rgrid = @view psp.rgrid[1:psp.ircut]
     vloc  = @view psp.vloc[1:psp.ircut]
-    I = trapezoidal(rgrid) do i, r
+    I = simpson(rgrid) do i, r
          r * (r * vloc[i] - -psp.Zion * erf(r)) * sphericalbesselj_fast(0, p * r)
     end
     4T(π) * (I + -psp.Zion / p^2 * exp(-p^2 / T(4)))
 end
 
 function eval_psp_density_valence_real(psp::PspUpf, r::T) where {T<:Real}
-    psp.r2_ρion_interp(r) / r^2
+    psp.r2_ρion_interp(r) / r^2  # TODO if r is below a threshold, return zero
 end
 
 function eval_psp_density_valence_fourier(psp::PspUpf, p::T) where {T<:Real}
@@ -211,7 +221,7 @@ function eval_psp_density_valence_fourier(psp::PspUpf, p::T) where {T<:Real}
 end
 
 function eval_psp_density_core_real(psp::PspUpf, r::T) where {T<:Real}
-    psp.r2_ρcore_interp(r) / r^2
+    psp.r2_ρcore_interp(r) / r^2  # TODO if r is below a threshold, return zero
 end
 
 function eval_psp_density_core_fourier(psp::PspUpf, p::T) where {T<:Real}
@@ -223,7 +233,7 @@ end
 function eval_psp_energy_correction(T, psp::PspUpf, n_electrons)
     rgrid = @view psp.rgrid[1:psp.ircut]
     vloc = @view psp.vloc[1:psp.ircut]
-    4T(π) * n_electrons * trapezoidal(rgrid) do i, r
+    4T(π) * n_electrons * simpson(rgrid) do i, r
         r * (r * vloc[i] - -psp.Zion)
     end
 end

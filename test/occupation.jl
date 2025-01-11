@@ -1,4 +1,4 @@
-@testsetup module Occupation
+@testmodule Occupation begin
 using DFTK
 
 smearing_methods = (
@@ -200,8 +200,9 @@ end
     testcase = TestCases.iron_bcc
 
     magnetic_moments = [4.0]
-    model = model_PBE(testcase.lattice, testcase.atoms, testcase.positions;
-                      temperature=1e-2, smearing=Smearing.Gaussian(), magnetic_moments)
+    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                      functionals=PBE(), temperature=1e-2,
+                      smearing=Smearing.Gaussian(), magnetic_moments)
     basis = PlaneWaveBasis(model; Ecut=10, kgrid=[4, 4, 4])
     scfres = self_consistent_field(basis; ρ=guess_density(basis, magnetic_moments), tol=1e-4)
 

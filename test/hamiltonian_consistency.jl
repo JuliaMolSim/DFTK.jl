@@ -1,4 +1,4 @@
-@testsetup module HamConsistency
+@testmodule HamConsistency begin
 using Test
 using DFTK
 using Logging
@@ -28,7 +28,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
     @testset "$(typeof(term))$xc $sspol" begin
         n_dim = 3 - count(iszero, eachcol(lattice))
-        Si = n_dim == 3 ? ElementPsp(14; psp=load_psp(testcase.psp_hgh)) : ElementCoulomb(:Si)
+        Si = n_dim == 3 ? ElementPsp(14, load_psp(testcase.psp_gth)) : ElementCoulomb(:Si)
         atoms = [Si, Si]
         model = Model(lattice, atoms, testcase.positions; terms=[term], spin_polarization,
                       symmetries=true)
@@ -79,7 +79,7 @@ end
 end
 
 
-@testitem "Hamiltonian consistency" setup=[TestCases, HamConsistency] begin
+@testitem "Hamiltonian consistency" setup=[TestCases, HamConsistency] tags=[:dont_test_mpi] begin
     using DFTK
     using LinearAlgebra
     using .HamConsistency: test_consistency_term
@@ -93,14 +93,14 @@ end
     test_consistency_term(Hartree())
     test_consistency_term(Ewald())
     test_consistency_term(PspCorrection())
-    test_consistency_term(Xc(:lda_xc_teter93))
-    test_consistency_term(Xc(:lda_xc_teter93), spin_polarization=:collinear)
-    test_consistency_term(Xc(:gga_x_pbe), spin_polarization=:collinear)
-    test_consistency_term(Xc(:mgga_x_tpss))
-    test_consistency_term(Xc(:mgga_x_scan))
-    test_consistency_term(Xc(:mgga_c_scan), spin_polarization=:collinear)
-    test_consistency_term(Xc(:mgga_x_b00))
-    test_consistency_term(Xc(:mgga_c_b94), spin_polarization=:collinear)
+    test_consistency_term(Xc([:lda_xc_teter93]))
+    test_consistency_term(Xc([:lda_xc_teter93]), spin_polarization=:collinear)
+    test_consistency_term(Xc([:gga_x_pbe]), spin_polarization=:collinear)
+    test_consistency_term(Xc([:mgga_x_tpss]))
+    test_consistency_term(Xc([:mgga_x_scan]))
+    test_consistency_term(Xc([:mgga_c_scan]), spin_polarization=:collinear)
+    test_consistency_term(Xc([:mgga_x_b00]))
+    test_consistency_term(Xc([:mgga_c_b94]), spin_polarization=:collinear)
 
     let
         a = 6

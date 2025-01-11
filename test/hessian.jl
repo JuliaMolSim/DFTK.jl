@@ -1,9 +1,10 @@
-@testsetup module Hessian
+@testmodule Hessian begin
 using DFTK
 using DFTK: select_occupied_orbitals, compute_projected_gradient
 
 function setup_quantities(testcase)
-    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions, [:lda_xc_teter93])
+    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                      functionals=[:lda_xc_teter93])
     basis = PlaneWaveBasis(model; Ecut=3, kgrid=(3, 3, 3), fft_size=[9, 9, 9])
     scfres = self_consistent_field(basis; tol=10)
 

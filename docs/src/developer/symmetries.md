@@ -87,15 +87,15 @@ reducible points, determines the weight of each irreducible ``k`` point.
 ## Example
 ```@setup symmetries
 using DFTK
+using PseudoPotentialData
 a = 10.26
 lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
-Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
+pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
+Si = ElementPsp(:Si, pseudopotentials)
 atoms = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
-Ecut = 5
-kgrid = [4, 4, 4]
 ```
 Let us demonstrate this in practice.
 We consider silicon, setup appropriately in the `lattice`, `atoms` and `positions`
@@ -103,15 +103,15 @@ objects as in [Tutorial](@ref) and to reach a fast execution, we take a small `E
 and a `[4, 4, 4]` Monkhorst-Pack grid.
 First we perform the DFT calculation disabling symmetry handling
 ```@example symmetries
-model_nosym = model_LDA(lattice, atoms, positions; symmetries=false)
-basis_nosym = PlaneWaveBasis(model_nosym; Ecut, kgrid)
+model_nosym = model_DFT(lattice, atoms, positions; functionals=LDA(), symmetries=false)
+basis_nosym = PlaneWaveBasis(model_nosym; Ecut=5, kgrid=[4, 4, 4])
 scfres_nosym = @time self_consistent_field(basis_nosym, tol=1e-6)
 nothing  # hide
 ```
 and then redo it using symmetry (the default):
 ```@example symmetries
-model_sym = model_LDA(lattice, atoms, positions)
-basis_sym = PlaneWaveBasis(model_sym; Ecut, kgrid)
+model_sym = model_DFT(lattice, atoms, positions; functionals=LDA())
+basis_sym = PlaneWaveBasis(model_sym; Ecut=5, kgrid=[4, 4, 4])
 scfres_sym = @time self_consistent_field(basis_sym, tol=1e-6)
 nothing  # hide
 ```
