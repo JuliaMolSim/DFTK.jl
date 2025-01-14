@@ -126,6 +126,9 @@ Overview of parameters:
   recommend increasing the `occupation_threshold` of the `AdaptiveBands`.
 - `callback`: Function called at each SCF iteration. Usually takes care of printing the
   intermediate state.
+- `history_extra_functions` : Dictionary of functions 
+  `f(basis; energies, ham, ψ, occupation, eigenvalues, εF, ρin, ρout)` 
+  whose results are saved during the iterations in `history_extra`.
 """
 @timing function self_consistent_field(
     basis::PlaneWaveBasis{T};
@@ -146,6 +149,7 @@ Overview of parameters:
     callback=ScfDefaultCallback(; show_damping=false),
     compute_consistent_energies=true,
     response=ResponseOptions(),  # Dummy here, only for AD
+    history_extra_functions=Dict()
 ) where {T}
     if !isnothing(ψ)
         @assert length(ψ) == length(basis.kpoints)
@@ -180,14 +184,24 @@ Overview of parameters:
         if compute_consistent_energies
             (; energies) = energy(basis, ψ, occupation; ρ=ρout, eigenvalues, εF)
         end
+
+        # Update info with history
         history_Etot = vcat(info.history_Etot, energies.total)
         history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
-        n_matvec = info.n_matvec + nextstate.n_matvec
-        history_eigenvalues = vcat(info.history_eigenvalues, eigenvalues)
         history_εF = vcat(info.history_εF, εF)
-        info_next = merge(info_next, (; energies, history_Etot, history_Δρ, 
-            history_eigenvalues, history_εF, n_matvec)
+        history_eigenvalues = vcat(info.history_eigenvalues, eigenvalues)
+        n_matvec = info.n_matvec + nextstate.n_matvec
+        info_next = merge(info_next, (; energies, history_Etot, history_Δρ, history_εF,
+            history_eigenvalues, n_matvec)
         )
+        if !isempty(history_extra_functions)
+            extra = Dict(
+                k => f(basis; energies, ham, ψ, occupation, eigenvalues, εF, ρin, ρout) 
+                for (k, f) in history_extra_functions)
+            history_extra = vcat(info.history_extra, extra)
+            info_next = merge(info_next, (; history_extra))
+        end
+        
 
         # Apply mixing and pass it the full info as kwargs
         ρnext = ρin .+ T(damping) .* mix_density(mixing, basis, Δρ; info_next...)
@@ -206,8 +220,8 @@ Overview of parameters:
 
     info_init = (; ρin=ρ, ψ=ψ, occupation=nothing, eigenvalues=nothing, εF=nothing, 
                    n_iter=0, n_matvec=0, timedout=false, converged=false,
-                   history_Etot=T[], history_Δρ=T[],
-                   history_eigenvalues=T[], history_εF=T[])
+                   history_Etot=T[], history_Δρ=T[], history_εF=T[], 
+                   history_eigenvalues=T[], history_extra=[])
 
     # Convergence is flagged by is_converged inside the fixpoint_map.
     _, info = solver(fixpoint_map, ρ, info_init; maxiter)
