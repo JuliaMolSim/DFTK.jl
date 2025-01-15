@@ -1,5 +1,6 @@
 @testmodule SiliconPBE begin
 using DFTK
+using PseudoPotentialData
 using ..RunSCF: run_scf_and_compare
 using ..TestCases: silicon
 
@@ -22,7 +23,7 @@ function run_silicon_pbe(T; Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     ]
     ref_etot = -7.854477356672080
 
-    Si = ElementPsp(silicon.atnum, load_psp("hgh/pbe/si-q4"))
+    Si = ElementPsp(silicon.atnum, PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth"))
     atoms = [Si, Si]
 
     if spin_polarization == :collinear

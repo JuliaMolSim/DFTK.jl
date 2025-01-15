@@ -19,6 +19,7 @@ using DFTK
 using Plots
 using Unitful
 using UnitfulAtomic
+using PseudoPotentialData
 
 d = 10u"Å"
 a = 2.641u"Å"  # Graphene Lattice constant
@@ -26,7 +27,7 @@ lattice = [a  -a/2    0;
            0  √3*a/2  0;
            0     0    d]
 
-C = ElementPsp(:C, load_psp("hgh/pbe/c-q4"))
+C = ElementPsp(:C, PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth"))
 atoms     = [C, C]
 positions = [[0.0, 0.0, 0.0], [1//3, 2//3, 0.0]]
 model = model_DFT(lattice, atoms, positions; functionals=PBE())

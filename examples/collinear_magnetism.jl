@@ -6,25 +6,25 @@
 # and compare the resulting SCF energies. In particular
 # the ground state can only be found if collinear spins are allowed.
 #
-# First we setup BCC iron without spin polarization
-# using a single iron atom inside the unit cell.
+# The `bulk(:Fe)` function from `AtomsBuilder` returns a BCC iron setup
+# with a single iron atom inside the unit cell.
+
+using AtomsBuilder
+using PseudoPotentialData
 using DFTK
 
-a = 5.42352  # Bohr
-lattice = a / 2 * [[-1  1  1];
-                   [ 1 -1  1];
-                   [ 1  1 -1]]
-atoms     = [ElementPsp(:Fe, load_psp("hgh/lda/Fe-q8.hgh"))]
-positions = [zeros(3)];
+bulk(:Fe)
 
-# To get the ground-state energy we use an LDA model and rather moderate
-# discretisation parameters.
+# First we consider a setup without spin polarization.
+# To get the ground-state energy of this system we use an LDA model
+# and rather moderate discretisation parameters.
 
+Ecut  = 15         # kinetic energy cutoff in Hartree
 kgrid = [3, 3, 3]  # k-point grid (Regular Monkhorst-Pack grid)
-Ecut = 15          # kinetic energy cutoff in Hartree
-model_nospin = model_DFT(lattice, atoms, positions; functionals=LDA(), temperature=0.01)
-basis_nospin = PlaneWaveBasis(model_nospin; kgrid, Ecut)
+pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
 
+model_nospin  = model_DFT(bulk(:Fe); pseudopotentials, functionals=LDA(), temperature=0.01)
+basis_nospin  = PlaneWaveBasis(model_nospin; kgrid, Ecut)
 scfres_nospin = self_consistent_field(basis_nospin; tol=1e-4, mixing=KerkerDosMixing());
 #-
 scfres_nospin.energies
@@ -56,8 +56,8 @@ magnetic_moments = [4];
 # We repeat the calculation using the same model as before. DFTK now detects
 # the non-zero moment and switches to a collinear calculation.
 
-model = model_DFT(lattice, atoms, positions; functionals=LDA(),
-                  magnetic_moments, temperature=0.01)
+model = model_DFT(bulk(:Fe); pseudopotentials, functionals=LDA(),
+                  temperature=0.01, magnetic_moments)
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 ρ0 = guess_density(basis, magnetic_moments)
 scfres = self_consistent_field(basis, tol=1e-6; ρ=ρ0, mixing=KerkerDosMixing());
