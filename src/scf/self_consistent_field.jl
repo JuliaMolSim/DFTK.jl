@@ -189,10 +189,9 @@ Overview of parameters:
         history_Etot = vcat(info.history_Etot, energies.total)
         history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
         history_εF = vcat(info.history_εF, εF)
-        history_eigenvalues = push!(copy(info.history_eigenvalues), eigenvalues)
         n_matvec = info.n_matvec + nextstate.n_matvec
         info_next = merge(info_next, (; energies, history_Etot, history_Δρ, history_εF,
-            history_eigenvalues, n_matvec)
+            n_matvec)
         )
         if !isempty(history_extra_functions)
             extra = Dict(
@@ -219,8 +218,7 @@ Overview of parameters:
 
     info_init = (; ρin=ρ, ψ=ψ, occupation=nothing, eigenvalues=nothing, εF=nothing, 
                    n_iter=0, n_matvec=0, timedout=false, converged=false,
-                   history_Etot=T[], history_Δρ=T[], history_εF=T[], 
-                   history_eigenvalues=[])
+                   history_Etot=T[], history_Δρ=T[], history_εF=T[])
     if !isempty(history_extra_functions)
         info_init = merge(info_init, (; history_extra=[]))
     end
@@ -238,8 +236,7 @@ Overview of parameters:
                 ρ=ρout, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
                 info.n_iter, info.n_matvec, ψ, info.diagonalization, stage=:finalize,
                 info.history_Δρ, info.history_Etot, info.history_εF,
-                info.history_eigenvalues, info.timedout, 
-                runtime_ns=time_ns() - start_ns, algorithm="SCF")
+                info.timedout, runtime_ns=time_ns() - start_ns, algorithm="SCF")
     if !isempty(history_extra_functions)
         scfres = merge(scfres, (; info.history_extra))
     end
