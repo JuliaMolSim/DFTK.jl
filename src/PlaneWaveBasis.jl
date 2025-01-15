@@ -83,10 +83,13 @@ struct PlaneWaveBasis{T,
     ## Symmetry operations that leave the discretized model (k and r grids) invariant.
     # Subset of model.symmetries.
     symmetries::Vector{SymOp{VT}}
-    # Whether the symmetry operations leave the rgrid invariant
+    # Whether the symmetry operations leave the rgrid invariant.
     # If this is true, the symmetries are a property of the complete discretized model.
     # Therefore, all quantities should be symmetric to machine precision
     symmetries_respect_rgrid::Bool
+    # Whether the symmetry operations leave the basis invariant. Otherwise the symmetry
+    # operations will leave the lattice invariant.
+    symmetries_respect_basis::Bool
     # Whether symmetry is used to reduce the number of explicit k-points to the
     # irreducible BZMesh. This is a debug option, useful when a part in the code does
     # not yet implement symmetry. See `unfold_bz` as a convenient way to use this.
@@ -128,6 +131,7 @@ end
 function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, Int},
                         variational::Bool, kgrid::AbstractKgrid,
                         symmetries_respect_rgrid::Bool,
+                        symmetries_respect_basis::Bool,
                         use_symmetries_for_kpoint_reduction::Bool,
                         comm_kpts, architecture::Arch
                        ) where {T <: Real, Arch <: AbstractArchitecture}
@@ -162,7 +166,11 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
     if symmetries_respect_rgrid
         symmetries = symmetries_preserving_rgrid(symmetries, fft_size)
     end
-    symmetries = symmetries_preserving_kgrid(symmetries, kgrid)
+    # If false, symmetries will respect the model (leave the lattice invariant), as is the
+    # default behaviour for Abinit (nsym 0).
+    if symmetries_respect_basis
+        symmetries = symmetries_preserving_kgrid(symmetries, kgrid)
+    end
 
     # Build the irreducible k-point coordinates
     if use_symmetries_for_kpoint_reduction
@@ -248,7 +256,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
         kpoints, kweights, kgrid,
         kcoords_global, kweights_global, n_irreducible_kpoints,
         comm_kpts, krange_thisproc, krange_allprocs, krange_thisproc_allspin,
-        architecture, symmetries, symmetries_respect_rgrid,
+        architecture, symmetries, symmetries_respect_rgrid, symmetries_respect_basis,
         use_symmetries_for_kpoint_reduction, terms)
 
     # Instantiate the terms with the basis
@@ -282,6 +290,7 @@ Note, this disables certain symmetry features.
                                 kshift=[0, 0, 0],
                                 variational=true, fft_size=nothing,
                                 symmetries_respect_rgrid=isnothing(fft_size),
+                                symmetries_respect_basis=true,
                                 use_symmetries_for_kpoint_reduction=true,
                                 comm_kpts=MPI.COMM_WORLD, architecture=CPU()) where {T <: Real}
     if isnothing(fft_size)
@@ -313,8 +322,8 @@ Note, this disables certain symmetry features.
     end
 
     PlaneWaveBasis(model, austrip(Ecut), fft_size, variational, kgrid_inner,
-                   symmetries_respect_rgrid, use_symmetries_for_kpoint_reduction,
-                   comm_kpts, architecture)
+                   symmetries_respect_rgrid, symmetries_respect_basis,
+                   use_symmetries_for_kpoint_reduction, comm_kpts, architecture)
 end
 
 """
@@ -324,7 +333,7 @@ e.g. an [`MonkhorstPack`](@ref) or a [`ExplicitKpoints`](@ref) grid.
 @timing function PlaneWaveBasis(basis::PlaneWaveBasis, kgrid::AbstractKgrid)
     PlaneWaveBasis(basis.model, basis.Ecut,
                    basis.fft_size, basis.variational,
-                   kgrid, basis.symmetries_respect_rgrid,
+                   kgrid, basis.symmetries_respect_rgrid, basis.symmetries_respect_basis,
                    basis.use_symmetries_for_kpoint_reduction,
                    basis.comm_kpts, basis.architecture)
 end
@@ -492,6 +501,7 @@ function gather_kpts(basis::PlaneWaveBasis)
                        basis.variational,
                        basis.kgrid,
                        basis.symmetries_respect_rgrid,
+                       basis.symmetries_respect_basis,
                        basis.use_symmetries_for_kpoint_reduction,
                        MPI.COMM_SELF,
                        basis.architecture)
