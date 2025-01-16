@@ -1,4 +1,5 @@
 import Roots
+#import MPI
 
 # Functions for finding the Fermi level and occupation numbers for bands
 # The goal is to find εF so that
@@ -129,6 +130,41 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiTwoSt
     Roots.find_zero(excess, εF, Roots.Secant(), Roots.Bisection(); atol=eps(T))
 end
 
+"""
+Discrete bisection method to find εF in the array εFs such that 
+|excess_funcion(εF)| < tol_n_elec 
+where excess_function is an increasing function and εFs is a sorted array (increasing).
+"""
+function discrete_find_zero(excess_function, εFs, tol_n_elec)
+    i_min = 1
+    i_max = length(εFs)
+    excess_min = excess_function(εFs[1])
+    excess_max = excess_function(last(εFs))
+    if excess_max <= tol_n_elec         # Try to fill all the bands
+        εF = last(εFs)
+        if excess_max < -tol_n_elec
+            error("Could not obtain required number of electrons by filling every state. " *
+                    "Increase n_bands.")
+        end
+    elseif excess_min >= -tol_n_elec    # Try to fill only the smallest band(s)
+        εF = first(εFs)
+    else                                # Bissection to find first(εFs) < εF < last(εFs)
+        while i_max - i_min > 1
+            i = div(i_min+i_max, 2)
+            εF = εFs[i]
+            excess = excess_function(εF)
+            if excess < -tol_n_elec
+                i_min = i
+            elseif excess > tol_n_elec
+                i_max = i
+            else 
+                i_min = i
+                i_max = i
+            end
+        end
+    end
+    εF
+end
 
 # Note: This is not exported, but only called by the above algorithms for
 # the zero-temperature case.
@@ -137,42 +173,47 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroT
                              temperature, smearing, tol_n_elec) where {T}
     filled_occ  = filled_occupation(basis.model)
     n_electrons = basis.model.n_electrons
-    n_spin = basis.model.n_spin_components
     @assert iszero(temperature)
 
     # Sanity check that we can indeed fill the appropriate number of states
-    if n_electrons % (n_spin * filled_occ) != 0
+    if n_electrons % (filled_occ) != 0
         error("$n_electrons electrons cannot be attained by filling states with " *
               "occupation $filled_occ. Typically this indicates that you need to put " *
               "a temperature or switch to a calculation with collinear spin polarization.")
     end
-    n_fill = div(n_electrons, n_spin * filled_occ, RoundUp)
 
-    # For zero temperature, two cases arise: either there are as many bands
-    # as electrons, in which case we set εF to the highest energy level
-    # reached, or there are unoccupied conduction bands and we take
-    # εF as the midpoint between valence and conduction bands.
-    if n_fill == length(eigenvalues[1])
-        εF = maximum(maximum, eigenvalues) + 1
-        εF = mpi_max(εF, basis.comm_kpts)
-    else
-        # highest occupied energy level
-        HOMO = maximum([εk[n_fill] for εk in eigenvalues])
-        HOMO = mpi_max(HOMO, basis.comm_kpts)
-        # lowest unoccupied energy level, be careful that not all k-points
-        # might have at least n_fill+1 energy levels so we have to take care
-        # of that by specifying init to minimum
-        LUMO = minimum(minimum.([εk[n_fill+1:end] for εk in eigenvalues]; init=T(Inf)))
-        LUMO = mpi_min(LUMO, basis.comm_kpts)
-        εF = (HOMO + LUMO) / 2
+    # Gather the eigenvalues distributed over the kpoints in MPI
+    n_bands = length(eigenvalues[1])   # assuming that the same number of bands 
+                                       # are computed for each kpoint
+    counts = [ Int32(n_bands*sum(length.(basis.krange_allprocs[rank]))) 
+               for rank in 1:MPI.Comm_size(basis.comm_kpts) ]
+    all_eigenvalues = Array{T}(undef, sum(counts))
+    all_eigenvalues_vbuf = MPI.VBuffer(all_eigenvalues, counts)
+    MPI.Allgatherv!(reduce(vcat, eigenvalues), all_eigenvalues_vbuf, basis.comm_kpts)
+    
+    # Search for the Fermi level in between the eigenvalues
+    sort!((all_eigenvalues))
+    εFs = all_eigenvalues[1:end-1] .+ T(1/2)*diff(all_eigenvalues) # Candidates Fermi-levels
+    # Remove candidate Fermi levels that are between two identical eigenvalues
+    # (at machine precision)
+    εFs = εFs[ diff(all_eigenvalues) .> 2*eps(T)*all_eigenvalues[1:end-1] ]
+    push!(εFs, last(all_eigenvalues) + T(1))
+    
+    excess_function = εF->excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
+    εF = discrete_find_zero(excess_function, εFs, tol_n_elec)
+    
+    occ = compute_occupation(basis, eigenvalues, εF; temperature, smearing).occupation
+    merged_spin_occupations = sum(  occ[krange_spin(basis, i)] 
+                                    for i=1:basis.model.n_spin_components )
+    if !allequal(merged_spin_occupations)
+        @warn("Not all kpoints have the same number of occupied states, which could mean "*
+              "that a metallic system is treated at zero temperature.")
     end
-
-    excess(εF) = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
-    if abs(excess(εF)) > tol_n_elec
+    excess = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
+    if abs(excess) > tol_n_elec
         error("Unable to find non-fractional occupations that have the " *
               "correct number of electrons. You should add a temperature.")
     end
-
     εF
 end
 
