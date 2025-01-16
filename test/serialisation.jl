@@ -1,6 +1,7 @@
 @testmodule ScfresAgreement begin
-using Test
+using AtomsBase
 using DFTK
+using Test
 
 function test_scfres_agreement(tested, ref; test_ψ=true)
     @test tested.basis.model.lattice           == ref.basis.model.lattice
@@ -11,7 +12,7 @@ function test_scfres_agreement(tested, ref; test_ψ=true)
     @test tested.basis.model.spin_polarization == ref.basis.model.spin_polarization
 
     @test tested.basis.model.positions == ref.basis.model.positions
-    @test atomic_symbol.(tested.basis.model.atoms) == atomic_symbol.(ref.basis.model.atoms)
+    @test species.(tested.basis.model.atoms) == species.(ref.basis.model.atoms)
 
     @test tested.basis.Ecut      == ref.basis.Ecut
     @test tested.basis.kweights  == ref.basis.kweights

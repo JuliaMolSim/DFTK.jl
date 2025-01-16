@@ -260,15 +260,24 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
 end
 
 @doc raw"""
-Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` and a k-point grid.
+Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` for the Bloch waves
+and a k-point grid.
+
 By default a [`MonkhorstPack`](@ref) grid is employed, which can be specified as a
 [`MonkhorstPack`](@ref) object or by simply passing a vector of three integers as
 the `kgrid`. Optionally `kshift` allows to specify a shift (0 or 1/2 in each
 direction). If not specified a grid is generated using `kgrid_from_maximal_spacing`
 with a maximal spacing of `2π * 0.022` per Bohr.
+
+By default the size of the FFT grid is automatically chosen from the kinetic energy
+cutoff for the Bloch waves and a `supersampling` of 2.0 for the density. This is equal
+to a density cutoff of ``\text{supersampling}^2 * \text{Ecut}`` or `4 * Ecut`.
+A fully custom FFT grid size can also be chosen by specifying the `fft_size` parameter.
+Note, this disables certain symmetry features.
 """
 @timing function PlaneWaveBasis(model::Model{T};
                                 Ecut::Number,
+                                supersampling=2.0,
                                 kgrid=nothing,
                                 kshift=[0, 0, 0],
                                 variational=true, fft_size=nothing,
@@ -277,6 +286,7 @@ with a maximal spacing of `2π * 0.022` per Bohr.
                                 comm_kpts=MPI.COMM_WORLD, architecture=CPU()) where {T <: Real}
     if isnothing(fft_size)
         @assert variational
+        # TODO Move this to compute_fft_size ?
         if symmetries_respect_rgrid
             # ensure that the FFT grid is compatible with the "reasonable" symmetries
             # (those with fractional translations with denominators 2, 3, 4, 6,
@@ -289,7 +299,7 @@ with a maximal spacing of `2π * 0.022` per Bohr.
         else
             factors = (1, )
         end
-        fft_size = compute_fft_size(model, Ecut, kgrid; factors)
+        fft_size = compute_fft_size(model, Ecut, kgrid; supersampling, factors)
     else
         fft_size = Tuple{Int,Int,Int}(fft_size)
     end
@@ -400,7 +410,8 @@ Returns nothing if outside the range of valid wave vectors.
     end
 end
 
-function index_G_vectors(basis::PlaneWaveBasis, G::AbstractVector{<:Integer})
+# @inline is necessary here for the inner function to be inlined as well
+@inline function index_G_vectors(basis::PlaneWaveBasis, G::AbstractVector{<:Integer})
     index_G_vectors(basis.fft_size, G)
 end
 

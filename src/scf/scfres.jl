@@ -27,7 +27,7 @@ resulting `scfres` might not be fully consistent.
     end
     load_scfres(Val(ext), filename, basis; skip_hamiltonian, strict)
 end
-function load_scfres(::Any, filename::AbstractString; kwargs...)
+function load_scfres(::Val, filename::AbstractString, ::Any; kwargs...)
     error("The extension $(last(splitext(filename))) is currently not available. " *
           "A required package (e.g. JLD2 or HDF5) is not yet loaded.")
 end

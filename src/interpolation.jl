@@ -1,5 +1,5 @@
 import Interpolations
-import Interpolations: interpolate, extrapolate, scale, BSpline, Quadratic, OnCell
+import Interpolations: interpolate, extrapolate, scale, BSpline, Quadratic, Periodic, OnCell
 
 """
 Interpolate a density expressed in a basis `basis_in` to a basis `basis_out`.

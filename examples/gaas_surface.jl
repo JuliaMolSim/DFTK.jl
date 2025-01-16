@@ -22,6 +22,7 @@ kgrid = (4, 4, 1);   # Monkhorst-Pack mesh
 
 # Use ASE to build the structure:
 using ASEconvert
+using PythonCall
 
 a = 5.6537  # GaAs lattice parameter in Ångström (because ASE uses Å as length unit)
 gaas = ase.build.bulk("GaAs", "zincblende"; a)
@@ -45,9 +46,9 @@ ase.io.write("surface.png", surface * pytuple((3, 3, 1)), rotation="-90x, 30y, -
 # (see [AtomsBase integration](@ref) for details) to construct a DFTK model:
 
 using DFTK
+using PseudoPotentialData
 
-pseudopotentials = Dict(:Ga => "hgh/pbe/ga-q3.hgh",
-                        :As => "hgh/pbe/as-q5.hgh")
+pseudopotentials = PseudoFamily("cp2k.nc.sr.pbe.v0_1.largecore.gth")
 model = model_DFT(pyconvert(AbstractSystem, surface);
                   functionals=PBE(),
                   temperature=1e-3,

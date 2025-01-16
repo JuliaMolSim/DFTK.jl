@@ -2,7 +2,7 @@
 
 * Standard methods and models:
     - Standard DFT models (LDA, GGA, meta-GGA): Any functional from the
-      [libxc](https://tddft.org/programs/libxc/) library
+      [libxc](https://libxc.gitlab.io/) library
     - Norm-conserving pseudopotentials: Goedecker-type (GTH, HGH)
       or numerical (in UPF pseudopotential format),
       see [Pseudopotentials](@ref) for details.
@@ -10,20 +10,25 @@
     - Standard smearing functions (including Methfessel-Paxton
       and Marzari-Vanderbilt cold smearing)
     - Collinear spin polarization for magnetic systems
-    - Self-consistent field approaches including Kerker mixing,
-      [LDOS mixing](https://doi.org/10.1088/1361-648X/abcbdb),
-      [adaptive damping](https://arxiv.org/abs/2109.14018)
+    - Self-consistent field approaches including adaptive mixing methods,
+      e.g. [LDOS mixing](https://doi.org/10.1088/1361-648X/abcbdb) (autodetects metal versus insulator)
+      or [adaptive damping](https://arxiv.org/abs/2109.14018).
     - Direct minimization, Newton solver
     - Multi-level threading (``k``-points eigenvectors, FFTs, linear algebra)
     - MPI-based distributed parallelism (distribution over ``k``-points)
     - Treat systems of 1000 electrons
 
 * Ground-state properties and post-processing:
-    - Total energy
-    - Forces, stresses
+    - Total energy, forces, stresses
     - Density of states (DOS), local density of states (LDOS)
     - Band structures
     - Easy access to all intermediate quantities (e.g. density, Bloch waves)
+
+* Response and response properties:
+    - Density-functional perturbation theory (DFPT)
+    - Integration of DFPT with algorithmic differentiation,
+      e.g. [Polarizability using automatic differentiation](@ref)
+    - [Phonon computations](@ref) *(preliminary implementation)*
 
 * Unique features
     - Support for arbitrary floating point types, including `Float32` (single precision)

@@ -55,12 +55,9 @@ export ElementPsp
 export ElementCohenBergstresser
 export ElementCoulomb
 export ElementGaussian
-export charge_nuclear
-export charge_ionic
-export atomic_symbol
-export atomic_mass
-export n_elec_valence
-export n_elec_core
+export charge_nuclear, charge_ionic
+export n_elec_valence, n_elec_core
+export element_symbol, mass, species  # Note: Re-exported from AtomsBase
 include("elements.jl")
 
 export SymOp
@@ -197,7 +194,7 @@ export DFTKCalculator
 include("external/atomsbase.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
 include("external/wannier_shared.jl")
-include("external/atoms_calculators.jl")
+include("external/DFTKCalculator.jl")
 
 export compute_bands
 export plot_bandstructure
@@ -243,7 +240,8 @@ include("workarounds/gpu_arrays.jl")
     lattice = a / 2 * [[0 1 1.];
                        [1 0 1.];
                        [1 1 0.]]
-    Si = ElementPsp(:Si, load_psp("hgh/lda/Si-q4"))
+    pseudofile = joinpath(@__DIR__, "..", "test", "gth_pseudos", "Si.pbe-hgh.upf")
+    Si = ElementPsp(:Si, Dict(:Si => pseudofile))
     atoms     = [Si, Si]
     positions = [ones(3)/8, -ones(3)/8]
     magnetic_moments = [2, -2]

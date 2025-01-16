@@ -5,11 +5,13 @@ to monitor and influence performance of the code.
 
 ```@setup parallelization
 using DFTK
+using PseudoPotentialData
 a = 10.26  # Silicon lattice constant in Bohr
 lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
-Si = ElementPsp(:Si, load_psp("hgh/lda/Si-q4"))
+pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
+Si = ElementPsp(:Si, pseudopotentials)
 atoms = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
 
@@ -200,8 +202,7 @@ set using the flag `-t` passed to Julia or the *environment variable*
 to set an upper bound to the number of threads used by DFTK,
 regardless of `Threads.nthreads()` (for instance, if you want to
 thread several DFTK runs and don't want DFTK's threading to
-interfere with that). This is done through `Preferences.jl` and
-requires a restart of Julia.
+interfere with that).
 
 ### FFT threads
 Since FFT threading is only used in DFTK inside the regions already parallelized

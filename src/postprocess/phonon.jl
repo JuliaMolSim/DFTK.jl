@@ -17,7 +17,7 @@ end
 # the atomic masses of the atoms in a.u. on the diagonal.
 function mass_matrix(T, atoms)
     n_atoms = length(atoms)
-    atoms_mass = atomic_mass.(atoms)
+    atoms_mass = mass.(atoms)
     any(iszero.(atoms_mass)) && @warn "Some elements have unknown masses"
     masses = zeros(T, 3, n_atoms, 3, n_atoms)
     for s in eachindex(atoms_mass)
@@ -56,7 +56,6 @@ function _phonon_modes(basis::PlaneWaveBasis{T}, dynmat_cart) where {T}
     signs = sign.(real(res.values))
     frequencies = signs .* sqrt.(abs.(real(res.values)))
 
-    vectors_cart = 
     (; mass_matrix=M, frequencies, vectors_cart=reshape(res.vectors, 3, n_atoms, 3, n_atoms))
 end
 # For convenience

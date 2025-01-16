@@ -2,7 +2,7 @@
     using DFTK
     using LinearAlgebra
 
-    function test_kernel(spin_polarization, termtype; test_compute=true, psp=TestCases.silicon.psp_hgh)
+    function test_kernel(spin_polarization, termtype; test_compute=true, psp=TestCases.silicon.psp_gth)
         kgrid  = [2, 2, 2]
         kshift = ones(3) / 2
         testcase = TestCases.silicon

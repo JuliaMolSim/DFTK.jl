@@ -5,12 +5,13 @@
 using DFTK
 using Plots
 using Printf
+using PseudoPotentialData
 using LinearAlgebra
 
 # Calculation parameters
 kgrid = [1, 1, 1]
 Ecut = 15  # 30 in the paper
-Si = ElementPsp(:Si, load_psp("hgh/lda/Si-q4"))
+Si = ElementPsp(:Si, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
 atoms     = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
 

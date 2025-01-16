@@ -128,7 +128,7 @@ function atomic_spin_density(basis::PlaneWaveBasis{T}, method::AtomicDensity,
     coefficients = map(basis.model.atoms, magmoms) do atom, magmom
         iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
         magmom[3] ≤ n_elec_valence(atom) || error(
-            "Magnetic moment $(magmom[3]) too large for element $(atomic_symbol(atom)) " *
+            "Magnetic moment $(magmom[3]) too large for element $(species(atom)) " *
             "with only $(n_elec_valence(atom)) valence electrons."
         )
         magmom[3] / n_elec_valence(atom)

@@ -114,7 +114,7 @@ function construct_value(model::Model{T}) where {T <: Dual}
 end
 
 construct_value(el::Element) = el
-construct_value(el::ElementPsp) = ElementPsp(el.Z, el.symbol, el.mass, construct_value(el.psp))
+construct_value(el::ElementPsp) = ElementPsp(el.species, construct_value(el.psp), el.mass)
 construct_value(psp::PspHgh) = psp
 function construct_value(psp::PspHgh{T}) where {T <: Dual}
     PspHgh(psp.Zion,
@@ -202,7 +202,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     # This has to be changed whenever the scfres structure changes
     (; ham, basis=basis_dual, energies, ρ, eigenvalues, occupation, εF, ψ,
        # non-differentiable metadata:
-       response=getfield.(δresults, :history),
+       response=getfield.(δresults, :info_gmres),
        scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter,
        scfres.n_bands_converge, scfres.diagonalization, scfres.stage,
        scfres.algorithm, scfres.runtime_ns)

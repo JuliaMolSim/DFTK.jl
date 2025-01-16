@@ -1,3 +1,5 @@
+using KrylovKit
+
 # The Hessian of P -> E(P) (E being the energy) is Ω+K, where Ω and K are
 # defined below (cf. [1] for more details).
 #
@@ -100,10 +102,8 @@ function (cb::ResponseCallback)(info)
 end
 
 """
-    solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, res, occupation;
-                 tol=1e-10, verbose=false) where {T}
-
-Return δψ where (Ω+K) δψ = rhs
+Solve density-functional perturbation theory problem,
+that is return δψ where (Ω+K) δψ = rhs.
 """
 @timing function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
                               callback=ResponseCallback(), tol=1e-10) where {T}
@@ -161,7 +161,8 @@ end
 
 
 """
-Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is typically
+Solve the problem `(Ω+K) δψ = rhs` (density-functional perturbation theory)
+using a split algorithm, where `rhs` is typically
 `-δHextψ` (the negative matvec of an external perturbation with the SCF orbitals `ψ`) and
 `δψ` is the corresponding total variation in the orbitals `ψ`. Additionally returns:
     - `δρ`:  Total variation in density)
@@ -189,21 +190,19 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
     δρ0 = compute_δρ(basis, ψ, δψ0, occupation, δoccupation0; occupation_threshold, q)
 
     # compute total δρ
-    pack(δρ)   = vec(δρ)
-    unpack(δρ) = reshape(δρ, size(ρ))
-    function eps_fun(δρ)
-        δρ = unpack(δρ)
+    function dielectric_adjoint(δρ)
         δV = apply_kernel(basis, δρ; ρ, q)
         # TODO
         # Would be nice to play with abstol / reltol etc. to avoid over-solving
         # for the initial GMRES steps.
         χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
                         occupation_threshold, tol=tol_sternheimer, q, kwargs...)
-        pack(δρ - χ0δV)
+        δρ - χ0δV
     end
-    J = LinearMap{T}(eps_fun, prod(size(δρ0)))
-    δρ, history = gmres(J, pack(δρ0); reltol=0, abstol=tol, verbose, log=true)
-    δρ = unpack(δρ)
+    δρ, info_gmres = linsolve(dielectric_adjoint, δρ0;
+                              ishermitian=false,
+                              tol, verbosity=(verbose ? 3 : 0))
+    info_gmres.converged == 0 && @warn "Solve_ΩplusK_split solver not converged"
 
     # Compute total change in Hamiltonian applied to ψ
     δVind = apply_kernel(basis, δρ; ρ, q)  # Change in potential induced by δρ
@@ -222,7 +221,7 @@ Solve the problem `(Ω+K) δψ = rhs` using a split algorithm, where `rhs` is ty
                                            occupation_threshold, tol=tol_sternheimer, q,
                                            kwargs...)
 
-    (; δψ, δρ, δHψ, δVind, δeigenvalues, δoccupation, δεF, history)
+    (; δψ, δρ, δHψ, δVind, δeigenvalues, δoccupation, δεF, info_gmres)
 end
 
 function solve_ΩplusK_split(scfres::NamedTuple, rhs; kwargs...)
