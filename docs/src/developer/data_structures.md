@@ -3,8 +3,9 @@
 ```@setup data_structures
 using DFTK
 using AtomsBuilder
-model  = model_DFT(bulk(:Si); functionals=LDA(),
-                           pseudopotentials=Dict(:Si => "hgh/lda/si-q4"))
+using PseudoPotentialData
+pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
+model  = model_DFT(bulk(:Si); functionals=LDA(), pseudopotentials)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 scfres = self_consistent_field(basis; tol=1e-4);
 ```

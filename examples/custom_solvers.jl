@@ -1,18 +1,14 @@
 # # [Custom solvers](@id custom-solvers)
 # In this example, we show how to define custom solvers. Our system
 # will again be silicon, because we are not very imaginative
-using DFTK, LinearAlgebra
-
-a = 10.26
-lattice = a / 2 * [[0 1 1.];
-                   [1 0 1.];
-                   [1 1 0.]]
-Si = ElementPsp(:Si, load_psp("hgh/lda/Si-q4"))
-atoms = [Si, Si]
-positions =  [ones(3)/8, -ones(3)/8]
+using DFTK
+using LinearAlgebra
+using PseudoPotentialData
+using AtomsBuilder
 
 ## We take very (very) crude parameters
-model = model_DFT(lattice, atoms, positions; functionals=LDA())
+pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
+model = model_DFT(bulk(:Si); functionals=LDA(), pseudopotentials)
 basis = PlaneWaveBasis(model; Ecut=5, kgrid=[1, 1, 1]);
 
 # We define our custom fix-point solver: simply a damped fixed-point

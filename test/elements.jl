@@ -34,19 +34,21 @@ end
     using Unitful
     using UnitfulAtomic
     using AtomsBase
+    using PseudoPotentialData
     using DFTK: load_psp, charge_nuclear, charge_ionic, n_elec_core, n_elec_valence
     using DFTK: ElementPsp, local_potential_fourier, local_potential_real
 
-    el_by_symbol = ElementPsp(:W, load_psp("hgh/lda/w-q6"))
+    pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
+    el_by_symbol = ElementPsp(:W, pseudopotentials)
     @test charge_nuclear(el_by_symbol) == 74
     @test element_symbol(el_by_symbol) == :W
-    el_by_number = ElementPsp(1, load_psp("hgh/pbe/H-q1"))
+    el_by_number = ElementPsp(1, pseudopotentials)
     @test el_by_number.species == ChemicalSpecies(:H)
 
-    element = ElementPsp(:C, load_psp("hgh/lda/C-q4"))
+    element = ElementPsp(:C, pseudopotentials)
     @test species(element) == ChemicalSpecies(:C)
     @test element.psp !== nothing
-    @test element.psp.identifier == "hgh/lda/c-q4"
+    @test element.psp.identifier == replace(pseudopotentials[:C], "\\" => "/")
 
     @test mass(element) == 12.011u"u"
     @test element_symbol(element) == :C

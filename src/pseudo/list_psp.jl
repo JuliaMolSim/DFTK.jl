@@ -21,6 +21,10 @@ julia> list_psp(:O, core=:semicore)
 will list all oxygen semicore pseudopotentials known to DFTK.
 """
 function list_psp(element=nothing; family=nothing, functional=nothing, core=nothing)
+    @warn("The function list_psp and the internal pseudopotential repository of DFTK are " *
+          "deprecated and will be removed in a future version of DFTK. Use the " *
+          "PseudoPotentialData julia package instead.")
+
     # Normalize input keys
     isnothing(element)    || (element = Symbol(PeriodicTable.elements[element].symbol))
     isnothing(functional) || (functional = lowercase(functional))

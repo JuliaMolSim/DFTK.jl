@@ -113,12 +113,8 @@ or a chemical species (e.g. `ChemicalSpecies(:He3)`).
 - `nothing` (to return a `ElementCoulomb`)
 
 ## Examples
-Construct an `ElementPsp` for silicon using a HGH pseudopotential from an identifier
-```julia
-ElementPsp(:Si, load_psp("psp/hgh/Si-q4"))
-```
-Construct an `ElementPsp` again for silicon using the specified pseudpotential family
-(from the `PseudopotentialData` package).
+Construct an `ElementPsp` for silicon using a pseudodojo pseudopotential family
+(provided by the `PseudopotentialData` package)
 ```julia
 using PseudoPotentialData
 ElementPsp(:Si, PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf"))

@@ -12,6 +12,7 @@
 #     *Practical error bounds for properties in plane-wave electronic structure calculations*
 #     [SIAM Journal on Scientific Computing 44 (5), B1312-B1340](https://doi.org/10.1137/21M1456224)
 using DFTK
+using PseudoPotentialData
 using Printf
 using LinearAlgebra
 using ForwardDiff
@@ -19,8 +20,9 @@ using ForwardDiff
 # ## Setup
 # We setup manually the ``{\rm TiO}_2`` configuration from
 # [Materials Project](https://materialsproject.org/materials/mp-2657/).
-Ti = ElementPsp(:Ti, load_psp("hgh/lda/ti-q4.hgh"))
-O  = ElementPsp(:O,  load_psp("hgh/lda/o-q6.hgh"))
+pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
+Ti = ElementPsp(:Ti, pseudopotentials)
+O  = ElementPsp(:O,  pseudopotentials)
 atoms     = [Ti, Ti, O, O, O, O]
 positions = [[0.5,     0.5,     0.5],  # Ti
              [0.0,     0.0,     0.0],  # Ti

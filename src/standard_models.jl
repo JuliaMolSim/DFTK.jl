@@ -28,9 +28,9 @@ Construct an atomic system using the specified pseudo-dojo pseudopotentials for 
 atoms of the system.
 
 ```julia-repl
-julia> model_atomic(system; pseudopotentials=Dict(:Si => "hgh/lda/si-q4"))
+julia> model_atomic(system; pseudopotentials=Dict(:Si => "path/to/pseudofile.upf"))
 ```
-same thing, but specify the pseudopotentials explicitly in a dictionary.
+same thing, but specify the pseudopotential path explicitly in a dictionary.
 """
 function model_atomic(system::AbstractSystem; pseudopotentials, kwargs...)
     # Note: We are enforcing to specify pseudopotentials at this interface
