@@ -105,55 +105,40 @@ function (cb::ScfDefaultCallback)(info)
 end
 
 """
-Saves more convergence history history into a file (usually JLD2).
-Adds checkpointing to a DFTK self-consistent field calculation.
-The checkpointing file is silently overwritten. Requires the package for
-writing the output file (usually JLD2) to be loaded.
-- `filename`: Name of the file.
-- `compress`: Should compression be used on writing (rarely useful)
-- `history_extra_functions`: Dictionary of functions `f(; info...)` whose results are saved
-  during the iterations in `info.history_extra` and then saved.
+Callback that saves more convergence history
+- `use_default`: Whether or not to also use the default callback to print a convergence 
+  table.
+- `history_extra_functions`: Dictionary of functions `f(; info...)` whose results are 
+  computed during the iterations and then saved in `scfres.history_extra`.
 """
 struct ScfSaveHistory
     default::Union{ScfDefaultCallback, Nothing}
-    filename::String
-    compress::Bool
     history_extra_functions::Dict
+    history_extra::Dict
 end
-function ScfSaveHistory(; 
-    use_default=true, filename="dftk_scfres_history.jld2", compress=false, 
-    history_extra_functions=Dict(), default_kwargs...
-)
-    if use_default
-        return ScfSaveHistory(
-            ScfDefaultCallback(; default_kwargs...), 
-            filename, compress, history_extra_functions
-            )
+function ScfSaveHistory(; use_default=true, history_extra_functions=Dict(), default_kwargs...)
+    if isempty(history_extra_functions)
+        return ScfDefaultCallback(; default_kwargs...)
     else
-        return ScfSaveHistory(nothing, filename, compress, history_extra_functions)
+        default = use_default ? ScfDefaultCallback(; default_kwargs...) : nothing
+        history_extra = Dict(key => [] for (key, fun) in history_extra_functions)
+        return ScfSaveHistory(default, history_extra_functions, history_extra)
     end
 end
+
 function (cb::ScfSaveHistory)(info)
     # Calling default (ScfDefaultCallback) to print a convergence table.
     if !isnothing(cb.default)
         cb.default(info)
     end
-    # Adding extra history to info.
-    if !isempty(cb.history_extra_functions)
-        if info.n_iter == 1
-            merge(info, (; history_extra=[]))
-        end
-        if hasproperty(info, :history_extra)    # Safety
-            extra = Dict( k => f(;info...) for (k, f) in cb.history_extra_functions)
-            history_extra = vcat(info.history_extra, extra)
-            info = merge(info_next, (; history_extra))
+    if info.stage == :iterate
+        for (key, fun) in cb.history_extra_functions
+            extra = fun(; info...)
+            cb.history_extra[key] = push!(cb.history_extra[key], extra)
         end
     end
-    if info.stage == :iterate
-        # TODO save with JLD2
-        scfres_history = (; 
-            (k => v for (k, v) in pairs(info) if startswith(string(k), "history"))...)
-        save_scfres(cb.filename, scfres_history; cb.compress)
+    if info.stage == :finalize
+        info = merge(info, (; cb.history_extra))
     end
     info
 end
