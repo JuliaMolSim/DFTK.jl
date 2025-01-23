@@ -222,5 +222,6 @@ Overview of parameters:
                 info.n_iter, info.n_matvec, ψ, info.diagonalization, stage=:finalize,
                 info.history_Δρ, info.history_Etot, info.history_εF,
                 info.timedout, runtime_ns=time_ns() - start_ns, algorithm="SCF")
-    scfres = callback(scfres)
+    callback(scfres)
+    scfres
 end
