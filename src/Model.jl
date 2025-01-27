@@ -121,7 +121,7 @@ function Model(lattice::AbstractMatrix{T},
     else  # fixed number of electrons
         n_electrons < 0 && error("n_electrons should be non-negative.")
         if !disable_electrostatics_check && n_electrons_from_atoms(atoms) != n_electrons
-            error("Support for non-neutral cells is experimental and likely broken.")
+            error("Support for non-neutral cells is experimental and likely broken!!!")
         end
     end
 
