@@ -187,7 +187,7 @@ Overview of parameters:
         history_εF = vcat(info.history_εF, εF)
         n_matvec = info.n_matvec + nextstate.n_matvec
         info_next = merge(info_next, (; energies, history_Etot, history_Δρ, history_εF,
-            n_matvec))
+                                        n_matvec))
         
         # Apply mixing and pass it the full info as kwargs
         ρnext = ρin .+ T(damping) .* mix_density(mixing, basis, Δρ; info_next...)
@@ -207,6 +207,7 @@ Overview of parameters:
     info_init = (; ρin=ρ, ψ=ψ, occupation=nothing, eigenvalues=nothing, εF=nothing, 
                    n_iter=0, n_matvec=0, timedout=false, converged=false,
                    history_Etot=T[], history_Δρ=T[], history_εF=T[])
+    
     # Convergence is flagged by is_converged inside the fixpoint_map.
     _, info = solver(fixpoint_map, ρ, info_init; maxiter)
 
