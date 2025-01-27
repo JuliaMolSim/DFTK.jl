@@ -172,7 +172,7 @@ Overview of parameters:
 
         # Update info with results gathered so far
         info_next = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
-                       ρin, ρout, α=damping, n_iter, nbandsalg.occupation_threshold,
+                       ρin, α=damping, n_iter, nbandsalg.occupation_threshold,
                        runtime_ns=time_ns() - start_ns, nextstate...,
                        diagonalization=[nextstate.diagonalization])
 

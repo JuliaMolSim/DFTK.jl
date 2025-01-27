@@ -104,45 +104,6 @@ function (cb::ScfDefaultCallback)(info)
     info
 end
 
-"""
-Callback that saves more convergence history
-- `use_default`: Whether or not to also use the default callback to print a convergence 
-  table.
-- `history_extra_functions`: Dictionary of functions `f(; info...)` whose results are 
-  computed during the iterations and then saved in `scfres.history_extra`.
-"""
-struct ScfSaveHistory
-    default::Union{ScfDefaultCallback, Nothing}
-    history_extra_functions::Dict
-    history_extra::Dict
-end
-function ScfSaveHistory(; use_default=true, history_extra_functions=Dict(), default_kwargs...)
-    if isempty(history_extra_functions)
-        return ScfDefaultCallback(; default_kwargs...)
-    else
-        default = use_default ? ScfDefaultCallback(; default_kwargs...) : nothing
-        history_extra = Dict(key => [] for (key, fun) in history_extra_functions)
-        return ScfSaveHistory(default, history_extra_functions, history_extra)
-    end
-end
-
-function (cb::ScfSaveHistory)(info)
-    # Calling default (ScfDefaultCallback) to print a convergence table.
-    if !isnothing(cb.default)
-        cb.default(info)
-    end
-    if info.stage == :iterate
-        for (key, fun) in cb.history_extra_functions
-            extra = fun(; info...)
-            cb.history_extra[key] = push!(cb.history_extra[key], extra)
-        end
-    end
-    if info.stage == :finalize
-        info = merge(info, (; cb.history_extra))
-    end
-    info
-end
-
 #
 # Convergence checks
 #
