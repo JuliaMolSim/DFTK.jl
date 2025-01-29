@@ -493,10 +493,7 @@ function add_kernel_gradient_correction!(δV, terms, density, perturbation, cros
 end
 
 function mergesum(nt1::NamedTuple{An}, nt2::NamedTuple{Bn}) where {An, Bn}
-    all_keys = nothing
-    ChainRulesCore.@ignore_derivatives begin
-        all_keys = (union(An, Bn)..., )
-    end
+    all_keys = (union(An, Bn)..., )
     values = map(all_keys) do key
         if haskey(nt1, key)
             nt1[key] .+ get(nt2, key, false)
