@@ -87,34 +87,26 @@ Base.adjoint(A::LazyHcat) = Adjoint(A)
     cols = size(B, 2)
     ret = similar(B.blocks[1], rows, cols)
 
-    if hermitian isa Val{true}
-        # Only popuplate the upper block diagonal in Hermitian case
-        ocol = 0  # column offset
-        for (ib, blB) in enumerate(B.blocks)
-            orow = 0  # row offset
-            for (ia, blA) in enumerate(Ap.blocks)
-                ib < ia && continue
-                ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))] .= blA' * blB
-                orow += size(blA, 2)
-            end
-            ocol += size(blB, 2)
+    # Only popuplate the upper block diagonal in Hermitian case
+    ocol = 0  # column offset
+    for (ib, blB) in enumerate(B.blocks)
+        orow = 0  # row offset
+        for (ia, blA) in enumerate(Ap.blocks)
+            (hermitian isa Val{true} && ib < ia) && continue
+            ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))] .= blA' * blB
+            orow += size(blA, 2)
         end
+        ocol += size(blB, 2)
+    end
+
+    if hermitian isa Val{true}
         Hermitian(ret)
     else
-        ocol = 0  # column offset
-        for (ib, blB) in enumerate(B.blocks)
-            orow = 0  # row offset
-            for (ia, blA) in enumerate(Ap.blocks)
-                ret[orow .+ (1:size(blA, 2)), ocol .+ (1:size(blB, 2))] .= blA' * blB
-                orow += size(blA, 2)
-            end
-            ocol += size(blB, 2)
-        end
         ret
     end
 end
 
-@views function Base.:*(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
+function Base.:*(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
     _mul(A, B)
 end
 
@@ -122,7 +114,7 @@ Base.:*(A::Adjoint{T,<:LazyHcat}, B::AbstractMatrix) where {T} = A * LazyHcat(B)
 
 mul_hermi(A, B) = Hermitian(A * B)
 
-@views function mul_hermi(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
+function mul_hermi(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
     _mul(A, B; hermitian=Val(true))
 end
 
