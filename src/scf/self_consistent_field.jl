@@ -44,7 +44,7 @@ end
 # Struct to store some options for forward-diff / reverse-diff response
 # (unused in primal calculations)
 @kwdef struct ResponseOptions
-    verbose = false
+    verbose = true
 end
 
 """
