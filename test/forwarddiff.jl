@@ -67,6 +67,45 @@
     end
 end
 
+@testitem "Strain sensitivity using ForwardDiff" #=
+    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using ForwardDiff
+    using LinearAlgebra
+    using ComponentArrays
+    using PseudoPotentialData
+    aluminium = TestCases.aluminium
+    model = model_DFT(aluminium.lattice, aluminium.atoms, aluminium.positions;
+                      functionals=LDA(), temperature=1e-2, smearing=Smearing.Gaussian())
+    nbandsalg = FixedBands(; n_bands_converge=10)
+    response = ResponseOptions(; verbose=true)
+
+    function compute_properties(ε)
+        model_strained = Model(model; lattice=(1 + ε) * model.lattice)
+        basis = PlaneWaveBasis(model_strained; Ecut=5, kgrid=[2, 2, 2])
+        scfres = self_consistent_field(basis; tol=1e-10, nbandsalg, response)
+        ComponentArray(
+           eigenvalues=stack([ev[1:10] for ev in scfres.eigenvalues]),
+           ρ=scfres.ρ,
+           energies=collect(values(scfres.energies)),
+           εF=scfres.εF,
+           occupation=reduce(vcat, scfres.occupation),
+        )
+    end
+
+    dx = ForwardDiff.derivative(compute_properties, 0.)
+
+    h = 1e-4
+    x1 = compute_properties(-h)
+    x2 = compute_properties(+h)
+    dx_findiff = (x2 - x1) / 2h
+    @test norm(dx.ρ - dx_findiff.ρ) < 1e-8
+    @test maximum(abs, dx.eigenvalues - dx_findiff.eigenvalues) < 1e-8
+    @test maximum(abs, dx.energies - dx_findiff.energies) < 1e-8
+    @test dx.εF - dx_findiff.εF < 1e-8
+    @test dx.occupation - dx_findiff.occupation < 1e-6
+end
+
 @testitem "scfres PSP sensitivity using ForwardDiff" #=
     =#    tags=[:dont_test_mpi] setup=[TestCases] begin
     using DFTK
