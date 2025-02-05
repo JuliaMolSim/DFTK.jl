@@ -124,6 +124,7 @@ end
 @testitem "LOBPCG Internal data structures" setup=[TestCases] begin
     using DFTK
     using LinearAlgebra
+    import DFTK: mul_hermi
 
     a1 = rand(10, 5)
     a2 = rand(10, 2)
@@ -142,4 +143,6 @@ end
 
     D = rand(10, 4)
     @test mul!(D,Ablock, C, 1, 0) ≈ A*C
+
+    @test mul_hermi(Ablock', Ablock) ≈ A' * A
 end
