@@ -27,33 +27,35 @@ using AtomsBuilder
 using DFTK
 using PseudoPotentialData
 using Statistics
+using Unitful
+using UnitfulAtomic
 
 a0 = 10.26  # Experimental lattice constant of silicon in bohr
-a_list = range(a0 - 1/2, a0 + 1/2; length=20)
+a_list = range(a0 - 1/2, a0 + 1/2; length=20)u"bohr"
 
 function compute_ground_state_energy(a; Ecut, kgrid, kinetic_blowup, kwargs...)
     pseudopotentials = PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth")
-    model  = model_DFT(bulk(:Si); functionals=PBE(), kinetic_blowup, pseudopotentials)
-    basis  = PlaneWaveBasis(model; Ecut, kgrid)
+    model = model_DFT(bulk(:Si; a); functionals=PBE(), kinetic_blowup, pseudopotentials)
+    basis = PlaneWaveBasis(model; Ecut, kgrid)
     self_consistent_field(basis; callback=identity, kwargs...).energies.total
 end
 
 Ecut  = 5          # Very low Ecut to display big irregularities
-kgrid = (2, 2, 2)  # Very sparse k-grid to speed up convergence
+kgrid = (4, 4, 4)  # Very sparse k-grid to speed up convergence
 E0_naive = compute_ground_state_energy.(a_list; kinetic_blowup=BlowupIdentity(), Ecut, kgrid);
 
 # To be compared with the same computation for a high `Ecut=100`. The naive approximation
 # of the energy is shifted for the legibility of the plot.
-E0_ref = [-7.839775223322127, -7.843031658146996, -7.845961005280923,
-          -7.848576991754026, -7.850892888614151, -7.852921532056932,
-          -7.854675317792186, -7.85616622262217,  -7.85740584131599,
-          -7.858405359984107, -7.859175611288143, -7.859727053496513,
-          -7.860069804791132, -7.860213631865354, -7.8601679947736915,
-          -7.859942011410533, -7.859544518721661, -7.858984032385052,
-          -7.858268793303855, -7.857406769423708]
+E0_ref = [-7.85629863844717, -7.85895758976534, -7.861306569720426,
+          -7.863358899797531, -7.865127456229292, -7.866624685783936,
+          -7.867862620173609, -7.868852889579166, -7.869606735032384,
+          -7.870135025588102, -7.870448263782979, -7.870556602236114,
+          -7.8704698534020565, -7.870197499933428, -7.869748705263112,
+          -7.869132322357631, -7.868356905073334, -7.867430713949445,
+          -7.866361728566705, -7.8651576517331225]
 
 using Plots
-shift = mean(abs.(E0_naive .- E0_ref))
+shift = mean(E0_naive - E0_ref)
 p = plot(a_list, E0_naive .- shift, label="Ecut=5", xlabel="lattice parameter a (bohr)",
          ylabel="Ground state energy (Ha)", color=1)
 plot!(p, a_list, E0_ref, label="Ecut=100", color=2)
@@ -85,13 +87,13 @@ E0_modified = compute_ground_state_energy.(a_list; kinetic_blowup=BlowupCHV(), E
 #     `kinetic_blowup=BlowupAbinit(Ecutsm)` to the model constructors.
 #
 
-# We can know compare the approximation of the energy as well as the estimated
+# We can now compare the approximation of the energy as well as the estimated
 # lattice constant for each strategy.
 
 estimate_a0(E0_values) = a_list[findmin(E0_values)[2]]
 a0_naive, a0_ref, a0_modified = estimate_a0.([E0_naive, E0_ref, E0_modified])
 
-shift = mean(abs.(E0_modified .- E0_ref))  # Shift for legibility of the plot
+shift = mean(E0_modified - E0_ref)  # Shift for legibility of the plot
 plot!(p, a_list, E0_modified .- shift, label="Ecut=5 + BlowupCHV", color=3)
 vline!(p, [a0], label="experimental a0", linestyle=:dash, linecolor=:black)
 vline!(p, [a0_naive], label="a0 Ecut=5", linestyle=:dash, color=1)
