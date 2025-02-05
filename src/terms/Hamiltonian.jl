@@ -89,9 +89,8 @@ function LinearAlgebra.mul!(Hψ, H::Hamiltonian, ψ)
     end
     Hψ
 end
-# need `deepcopy` here to copy the elements of the array of arrays ψ (not just pointers)
 function Base.:*(H::Hamiltonian, ψ)
-    result = deepcopy(ψ) * one(eltype(H.basis))
+    result = ψ * one(eltype(H.basis))  # Includes type promotion
     mul!(result, H, ψ)
 end
 
