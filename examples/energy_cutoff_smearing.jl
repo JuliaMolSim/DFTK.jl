@@ -45,7 +45,7 @@ E0_naive = compute_ground_state_energy.(a_list; kinetic_blowup=BlowupIdentity(),
 
 # To be compared with the same computation for a high `Ecut=100`. The naive approximation
 # of the energy is shifted for the legibility of the plot.
-E0_ref - [-7.867399262300442, -7.867875504884598, -7.86831005961699,
+E0_ref = [-7.867399262300442, -7.867875504884598, -7.86831005961699,
           -7.868703712435519, -7.869057235894591, -7.869371393835255,
           -7.869646937992838, -7.869884611383302, -7.870085144568824,
           -7.8702492593753135, -7.870377668337734, -7.870471072484817,
