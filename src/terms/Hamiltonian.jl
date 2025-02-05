@@ -90,7 +90,8 @@ function LinearAlgebra.mul!(Hψ, H::Hamiltonian, ψ)
     Hψ
 end
 function Base.:*(H::Hamiltonian, ψ)
-    result = ψ * one(eltype(H.basis))  # Includes type promotion
+    # This allocates new memory for the result of promoted eltype
+    result = one(eltype(H.basis)) * ψ
     mul!(result, H, ψ)
 end
 
