@@ -19,9 +19,8 @@
 # or with respect to the system's unit cell volume - in the case of geometry optimization
 # for example - display big irregularities when `Ecut` is taken too small.
 #
-# Here is for example the variation of the ground state energy of face cubic centred
-# (FCC) silicon with respect to its lattice parameter,
-# around the experimental lattice constant.
+# Here is for example the variation of the ground state energy of diamond silicon
+# with respect to its lattice parameter, around the experimental lattice constant.
 
 using AtomsBuilder
 using DFTK
@@ -30,8 +29,8 @@ using Statistics
 using Unitful
 using UnitfulAtomic
 
-a0 = 10.26  # Experimental lattice constant of silicon in bohr
-a_list = range(a0 - 1/2, a0 + 1/2; length=20)u"bohr"
+a0 = 10.26u"bohr"  # Experimental lattice constant of silicon
+a_list = a0 * range(0.98, 1.02, length=20)
 
 function compute_ground_state_energy(a; Ecut, kgrid, kinetic_blowup, kwargs...)
     pseudopotentials = PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth")
@@ -46,18 +45,18 @@ E0_naive = compute_ground_state_energy.(a_list; kinetic_blowup=BlowupIdentity(),
 
 # To be compared with the same computation for a high `Ecut=100`. The naive approximation
 # of the energy is shifted for the legibility of the plot.
-E0_ref = [-7.85629863844717, -7.85895758976534, -7.861306569720426,
-          -7.863358899797531, -7.865127456229292, -7.866624685783936,
-          -7.867862620173609, -7.868852889579166, -7.869606735032384,
-          -7.870135025588102, -7.870448263782979, -7.870556602236114,
-          -7.8704698534020565, -7.870197499933428, -7.869748705263112,
-          -7.869132322357631, -7.868356905073334, -7.867430713949445,
-          -7.866361728566705, -7.8651576517331225]
+E0_ref - [-7.867399262300442, -7.867875504884598, -7.86831005961699,
+          -7.868703712435519, -7.869057235894591, -7.869371393835255,
+          -7.869646937992838, -7.869884611383302, -7.870085144568824,
+          -7.8702492593753135, -7.870377668337734, -7.870471072484817,
+          -7.870530163168231, -7.870555622590523, -7.870548125081617,
+          -7.870508333380078, -7.8704369010295006, -7.870334474350743,
+          -7.870201688247285, -7.870039170777946]
 
 using Plots
 shift = mean(E0_naive - E0_ref)
-p = plot(a_list, E0_naive .- shift, label="Ecut=5", xlabel="lattice parameter a (bohr)",
-         ylabel="Ground state energy (Ha)", color=1)
+p = plot(a_list, E0_naive .- shift, label="Ecut=5", xlabel="lattice parameter a",
+         ylabel="Ground state energy (Ha)", color=1, legend=:topright)
 plot!(p, a_list, E0_ref, label="Ecut=100", color=2)
 
 # The problem of non-smoothness of the approximated energy is typically avoided by
@@ -65,14 +64,15 @@ plot!(p, a_list, E0_ref, label="Ecut=100", color=2)
 # Another method consist in introducing a modified kinetic term defined through
 # the data of a blow-up function, a method which is also referred to as "energy cutoff
 # smearing". DFTK features energy cutoff smearing using the CHV blow-up
-# function introduced in [^CHV2022] that is mathematically ensured to provide ``C^2``
+# function introduced in [^CHV2024] that is mathematically ensured to provide ``C^2``
 # regularity of the energy bands.
 #
-# [^CHV2022]:
-#    Éric Cancès, Muhammad Hassan and Laurent Vidal
+# [^CHV2024]:  
+#    Eric Cancès, Muhammad Hassan and Laurent Vidal;
 #    *Modified-operator method for the calculation of band diagrams of
-#    crystalline materials*, 2022.
-#    [arXiv preprint.](https://arxiv.org/abs/2210.00442)
+#    crystalline materials*.
+#    Math. Comp. 93 (2024), 1203-1245
+#    DOI: https://doi.org/10.1090/mcom/3897
 
 # Let us launch the computation again with the modified kinetic term.
 E0_modified = compute_ground_state_energy.(a_list; kinetic_blowup=BlowupCHV(), Ecut, kgrid);
