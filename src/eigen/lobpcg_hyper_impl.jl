@@ -76,8 +76,7 @@ function Base.size(A::LazyHcat)
     (n, m)
 end
 
-Base.Array(A::LazyHcat) = stack(A.blocks)
-
+Base.Array(A::LazyHcat)   = stack(A.blocks)
 Base.adjoint(A::LazyHcat) = Adjoint(A)
 
 # Computes A*B matrix product for LazyHcat type. Special case if product is assumed to be Hermitian
@@ -106,17 +105,8 @@ Base.adjoint(A::LazyHcat) = Adjoint(A)
     end
 end
 
-function Base.:*(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
-    _mul(A, B)
-end
-
+Base.:*(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}       = _mul(A, B)
 Base.:*(A::Adjoint{T,<:LazyHcat}, B::AbstractMatrix) where {T} = A * LazyHcat(B)
-
-mul_hermi(A, B) = Hermitian(A * B)
-
-function mul_hermi(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
-    _mul(A, B; hermitian=Val(true))
-end
 
 @views function *(Ablock::LazyHcat, B::AbstractMatrix)
     res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
@@ -128,9 +118,14 @@ end
     res
 end
 
-@views function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::LazyHcat,
-                                   B::AbstractVecOrMat, α::Number, β::Number)
+function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::LazyHcat,
+                            B::AbstractVecOrMat, α::Number, β::Number)
     mul!(res, Ablock*B, I, α, β)
+end
+
+mul_hermi(A, B) = Hermitian(A * B)
+function mul_hermi(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
+    _mul(A, B; hermitian=Val(true))
 end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
