@@ -34,7 +34,7 @@
 #     *Practical error bounds for properties in plane-wave electronic structure calculations*
 #     [SIAM Journal on Scientific Computing 44 (5), B1312-B1340](https://doi.org/10.1137/21M1456224)
 
-using DiffResults
+using DifferentiationInterface
 
 """
 Invert the metric operator M.
@@ -172,14 +172,13 @@ The refined energies can be obtained by E + dE.
 """
 function refine_energies(refinement::RefinementResult{T}) where {T}
     term_names = [string(nameof(typeof(term))) for term in refinement.basis.model.term_types]
-    result = DiffResults.DiffResult(zeros(T, length(term_names)),
-                                    zeros(T, length(term_names)))
+
     f(ε) = energy(refinement.basis,
                   refinement.ψ + ε.*refinement.δψ,
                   refinement.occupation;
                   ρ=refinement.ρ + ε.*refinement.δρ).energies.values
-    result = ForwardDiff.derivative!(result, f, zero(T))
-    (; E=Energies(term_names, result.value), dE=Energies(term_names, result.derivs[1]))
+    result = value_and_derivative(f, AutoForwardDiff(), zero(T))
+    (; E=Energies(term_names, result[1]), dE=Energies(term_names, result[2]))
 end
 
 """
@@ -193,13 +192,11 @@ function refine_forces(refinement::RefinementResult{T}) where {T}
     pack(x) = reinterpret(eltype(eltype(x)), x) # eltype is a Dual not just T!
     unpack(x) = reinterpret(SVector{3, T}, x)
 
-    result = DiffResults.DiffResult(zeros(T, 3*length(refinement.basis.model.positions)),
-                                    zeros(T, 3*length(refinement.basis.model.positions)))
     f(ε) = pack(compute_forces(refinement.basis,
                                refinement.ψ .+ ε.*refinement.δψ,
                                refinement.occupation;
                                ρ=refinement.ρ + ε.*refinement.δρ))
-    result = ForwardDiff.derivative!(result, f, zero(T))
+    result = value_and_derivative(f, AutoForwardDiff(), zero(T))
 
-    (; F=unpack(result.value), dF=unpack(result.derivs[1]))
+    (; F=unpack(result[1]), dF=unpack(result[2]))
 end
