@@ -34,7 +34,7 @@
 #     *Practical error bounds for properties in plane-wave electronic structure calculations*
 #     [SIAM Journal on Scientific Computing 44 (5), B1312-B1340](https://doi.org/10.1137/21M1456224)
 
-import DifferentiationInterface: value_and_derivative
+import DifferentiationInterface: AutoForwardDiff, value_and_derivative
 
 """
 Invert the metric operator M.
