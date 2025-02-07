@@ -76,20 +76,20 @@ function atomic_local_form_factors(basis::PlaneWaveBasis{T}; q=zero(Vec3{T})) wh
     Gqs_cart = [basis.model.recip_lattice * (G + q) for G in to_cpu(G_vectors(basis))]
 
     iG2inorm_cpu = zeros(Int, length(Gqs_cart))
-    norms = IdDict{T, Int}()
+    norm_indices = IdDict{T, Int}()
     for (iG, G) in enumerate(Gqs_cart)
         p = norm(G)
-        get!(norms, p, length(norms) + 1)
-        iG2inorm_cpu[iG] = norms[p]
+        get!(norm_indices, p, length(norm_indices) + 1)
+        iG2inorm_cpu[iG] = norm_indices[p]
     end
 
-    norm_indices = []
-    form_factors_cpu = zeros(T, length(norms), length(basis.model.atom_groups))
+    form_factors_cpu = zeros(T, length(norm_indices), length(basis.model.atom_groups))
+    visited_norms = IdDict{T, Int}()
     for (iG, G) in enumerate(Gqs_cart)
         p = norm(G)
         inorm = iG2inorm_cpu[iG]
-        if inorm ∉ norm_indices
-            push!(norm_indices, inorm)
+        if !haskey(visited_norms, p)
+            visited_norms[p] = length(visited_norms) + 1
             for (igroup, group) in enumerate(basis.model.atom_groups)
                 element = basis.model.atoms[first(group)]
                 form_factors_cpu[inorm, igroup] = local_potential_fourier(element, p)
