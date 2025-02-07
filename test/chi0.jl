@@ -35,7 +35,9 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         ham0  = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0).ham
         nbandsalg = is_εF_fixed ? FixedBands(; n_bands_converge=6) : AdaptiveBands(model)
         res = DFTK.next_density(ham0, nbandsalg; tol, eigensolver)
-        scfres = (; ham=ham0, res...)
+        scfres = (; basis, ham=ham0, res...)
+
+        bandtolalg = DFTK.BandtolBalanced(scfres)
 
         # create external small perturbation εδV
         n_spin = model.n_spin_components
@@ -65,14 +67,14 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
 
         # Test apply_χ0 and compare against finite differences
         diff_applied_χ0 = apply_χ0(scfres, δV)
-        @test norm(diff_findiff.ρ - diff_applied_χ0) < atol
+        @test norm(diff_findiff.ρ - diff_applied_χ0.δρ) < atol
 
         # Test occupation and Fermi-level sensitivities
         (; ψ, occupation, eigenvalues, εF, occupation_threshold) = scfres
         q = zero(Vec3{eltype(ham0.basis)})
         δHψ = DFTK.multiply_ψ_by_blochwave(basis, ψ, δV, q)
         diff_applied_χ0_4P = DFTK.apply_χ0_4P(ham0, ψ, occupation, εF, eigenvalues, δHψ;
-                                              occupation_threshold, q)
+                                              occupation_threshold, bandtolalg, q)
         maximumabs(x) = maximum(abs, x)
         @test maximum(maximumabs, diff_applied_χ0_4P.δoccupation - diff_findiff.occupation) < atol
         @test abs(diff_applied_χ0_4P.δεF - diff_findiff.εF) < 1e-10
@@ -84,7 +86,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
 
         diff_applied_χ0_noextra = apply_χ0(scfres.ham, ψ_occ, occ_occ, scfres.εF, ε_occ, δV;
                                            scfres.occupation_threshold).δρ
-        @test norm(diff_applied_χ0_noextra - diff_applied_χ0) < atol
+        @test norm(diff_applied_χ0_noextra - diff_applied_χ0.δρ) < atol
 
         # just to cover it here
         if temperature > 0
