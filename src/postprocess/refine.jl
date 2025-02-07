@@ -177,8 +177,8 @@ function refine_energies(refinement::RefinementResult{T}) where {T}
                   refinement.ψ + ε.*refinement.δψ,
                   refinement.occupation;
                   ρ=refinement.ρ + ε.*refinement.δρ).energies.values
-    result = value_and_derivative(f, AutoForwardDiff(), zero(T))
-    (; E=Energies(term_names, result[1]), dE=Energies(term_names, result[2]))
+    E, dE = value_and_derivative(f, AutoForwardDiff(), zero(T))
+    (; E=Energies(term_names, E), dE=Energies(term_names, dE))
 end
 
 """
@@ -196,7 +196,7 @@ function refine_forces(refinement::RefinementResult{T}) where {T}
                                refinement.ψ .+ ε.*refinement.δψ,
                                refinement.occupation;
                                ρ=refinement.ρ + ε.*refinement.δρ))
-    result = value_and_derivative(f, AutoForwardDiff(), zero(T))
+    F, dF = value_and_derivative(f, AutoForwardDiff(), zero(T))
 
-    (; F=unpack(result[1]), dF=unpack(result[2]))
+    (; F=unpack(F), dF=unpack(dF))
 end
