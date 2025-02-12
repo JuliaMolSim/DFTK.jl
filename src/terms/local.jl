@@ -39,8 +39,6 @@ function (external::ExternalFromValues)(basis::PlaneWaveBasis{T}) where {T}
     TermExternal(convert_dual.(T, external.potential_values))
 end
 
-
-
 """
 External potential from an analytic function `V` (in Cartesian coordinates).
 No low-pass filtering is performed.
@@ -70,8 +68,10 @@ function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
     TermExternal(irfft(basis, pot_fourier))
 end
 
-# Returns the form factors at unique values of |G + q| (in Cartesian coordinates).
-# Additionally, returns a mapping from any G index to a unique |G + q| index
+"""
+Returns the form factors at unique values of |G + q| (in Cartesian coordinates).
+Additionally, returns a mapping from any G index to the corresponding entry in the form_factors array.
+"""
 function atomic_local_form_factors(basis::PlaneWaveBasis{T}; q=zero(Vec3{T})) where{T}
     Gqs_cart = [basis.model.recip_lattice * (G + q) for G in to_cpu(G_vectors(basis))]
 
@@ -79,8 +79,7 @@ function atomic_local_form_factors(basis::PlaneWaveBasis{T}; q=zero(Vec3{T})) wh
     norm_indices = IdDict{T, Int}()
     for (iG, G) in enumerate(Gqs_cart)
         p = norm(G)
-        get!(norm_indices, p, length(norm_indices) + 1)
-        iG2ifnorm_cpu[iG] = norm_indices[p]
+        iG2ifnorm_cpu[iG] = get!(norm_indices, p, length(norm_indices) + 1)
     end
 
     form_factors_cpu = zeros(T, length(norm_indices), length(basis.model.atom_groups))
@@ -97,7 +96,6 @@ function atomic_local_form_factors(basis::PlaneWaveBasis{T}; q=zero(Vec3{T})) wh
 end
 
 ## Atomic local potential
-
 struct TermAtomicLocal{AT} <: TermLocalPotential
     potential_values::AT
 end
@@ -122,7 +120,7 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
     indices = to_device(basis.architecture, collect(1:length(Gqs)))
 
     for (igroup, group) in enumerate(basis.model.atom_groups)
-        for r = positions[group]
+        for r in positions[group]
             ff_group = @view form_factors[:, igroup]
             map!(iG -> cis2pi(-dot(Gqs[iG], r)) * ff_group[iG2ifnorm[iG]], pot_tmp, indices)
             pot .+= pot_tmp ./ sqrt(basis.model.unit_cell_volume)
@@ -130,7 +128,6 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
     end
 
     pot_fourier = reshape(pot, basis.fft_size)
-
     if iszero(q)
         enforce_real!(pot, basis)  # Symmetrize coeffs to have real iFFT
         return irfft(basis, pot_fourier)
