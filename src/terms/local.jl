@@ -39,8 +39,6 @@ function (external::ExternalFromValues)(basis::PlaneWaveBasis{T}) where {T}
     TermExternal(convert_dual.(T, external.potential_values))
 end
 
-
-
 """
 External potential from an analytic function `V` (in Cartesian coordinates).
 No low-pass filtering is performed.
@@ -70,24 +68,34 @@ function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
     TermExternal(irfft(basis, pot_fourier))
 end
 
-# Returns the form factors at unique values of |G + q| (in Cartesian coordinates).
-# Uses a hash map for O(1) lookup.
-function atomic_local_form_factors(basis::PlaneWaveBasis{T}, Gqs_cart::AbstractArray) where{T}
-    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatibility
-    for G in Gqs_cart
+"""
+Returns the form factors at unique values of |G + q| (in Cartesian coordinates).
+Additionally, returns a mapping from any G index to the corresponding entry in the form_factors array.
+"""
+function atomic_local_form_factors(basis::PlaneWaveBasis{T}; q=zero(Vec3{T})) where{T}
+    Gqs_cart = [basis.model.recip_lattice * (G + q) for G in to_cpu(G_vectors(basis))]
+
+    iG2ifnorm_cpu = zeros(Int, length(Gqs_cart))
+    norm_indices = IdDict{T, Int}()
+    for (iG, G) in enumerate(Gqs_cart)
         p = norm(G)
+        iG2ifnorm_cpu[iG] = get!(norm_indices, p, length(norm_indices) + 1)
+    end
+
+    form_factors_cpu = zeros(T, length(norm_indices), length(basis.model.atom_groups))
+    for(p, ifnorm) in norm_indices
         for (igroup, group) in enumerate(basis.model.atom_groups)
-            if !haskey(form_factors, (igroup, p))
-                element = basis.model.atoms[first(group)]
-                form_factors[(igroup, p)] = local_potential_fourier(element, p)
-            end
+            element = basis.model.atoms[first(group)]
+            form_factors_cpu[ifnorm, igroup] = local_potential_fourier(element, p)
         end
     end
-    form_factors
+
+    form_factors = to_device(basis.architecture, form_factors_cpu)
+    iG2ifnorm = to_device(basis.architecture, iG2ifnorm_cpu)
+    (; form_factors, iG2ifnorm)
 end
 
 ## Atomic local potential
-
 struct TermAtomicLocal{AT} <: TermLocalPotential
     potential_values::AT
 end
@@ -102,28 +110,29 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
     # Since V is a sum of radial functions located at atomic
     # positions, this involves a form factor (`local_potential_fourier`)
     # and a structure factor e^{-i G·r}
-    model = basis.model
-    Gqs_cart = [model.recip_lattice * (G + q) for G in to_cpu(G_vectors(basis))]
-    # TODO Bring Gqs_cart on the CPU for compatibility with the pseudopotentials which
-    #      are not isbits ... might be able to solve this by restructuring the loop
+    form_factors, iG2ifnorm = atomic_local_form_factors(basis; q)
+    Gqs = map(G -> G+q, G_vectors(basis))
 
-    form_factors = atomic_local_form_factors(basis, Gqs_cart)
+    # Pre-allocation of large arrays for GPU efficiency
+    Tpot = promote_type(eltype(form_factors), eltype(eltype(positions)))
+    pot = to_device(basis.architecture, zeros(Complex{Tpot}, length(Gqs)))
+    pot_tmp = similar(pot)
+    indices = to_device(basis.architecture, collect(1:length(Gqs)))
 
-    Gqs = [G + q for G in to_cpu(G_vectors(basis))]  # TODO Again for GPU compatibility
-    pot_fourier = map(enumerate(Gqs)) do (iG, G)
-        p = norm(Gqs_cart[iG])
-        pot = sum(enumerate(model.atom_groups)) do (igroup, group)
-            structure_factor = sum(r -> cis2pi(-dot(G, r)), @view positions[group])
-            form_factors[(igroup, p)] * structure_factor
+    for (igroup, group) in enumerate(basis.model.atom_groups)
+        for r in positions[group]
+            ff_group = @view form_factors[:, igroup]
+            map!(iG -> cis2pi(-dot(Gqs[iG], r)) * ff_group[iG2ifnorm[iG]], pot_tmp, indices)
+            pot .+= pot_tmp ./ sqrt(basis.model.unit_cell_volume)
         end
-        pot / sqrt(model.unit_cell_volume)
     end
 
+    pot_fourier = reshape(pot, basis.fft_size)
     if iszero(q)
-        enforce_real!(pot_fourier, basis)  # Symmetrize coeffs to have real iFFT
-        return irfft(basis, to_device(basis.architecture, pot_fourier))
+        enforce_real!(pot, basis)  # Symmetrize coeffs to have real iFFT
+        return irfft(basis, pot_fourier)
     else
-        return ifft(basis, to_device(basis.architecture, pot_fourier))
+        return ifft(basis, pot_fourier)
     end
 end
 (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T} =
@@ -136,28 +145,35 @@ function compute_forces(::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occupat
 end
 @timing "forces: local" function forces_local(S, basis::PlaneWaveBasis{T}, ρ, q) where {T}
     model = basis.model
-    recip_lattice = model.recip_lattice
-    ρ_fourier = to_cpu(fft(basis, total_density(ρ)))
     real_ifSreal = S <: Real ? real : identity
 
-    # TODO: currently, local forces entierly computed on the CPU.
-    #       This might not be optimal. See compute_local_potential() too.
-    Gqs_cart = [model.recip_lattice * (G + q) for G in to_cpu(G_vectors(basis))]
-    form_factors = atomic_local_form_factors(basis, Gqs_cart)
+    form_factors, iG2ifnorm = atomic_local_form_factors(basis; q)
+
+    Gqs = map(G -> G+q, G_vectors(basis))
+    ρ_fourier = reshape(fft(basis, total_density(ρ)), length(Gqs))
+
+    # Pre-allocation of large arrays for GPU efficiency
+    indices = to_device(basis.architecture, collect(1:length(Gqs)))
+    ρ_pot = similar(ρ_fourier)
 
     # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
     # where struct_factor(G) = e^{-i G·r}
     forces = [zero(Vec3{S}) for _ = 1:length(model.positions)]
     for (igroup, group) in enumerate(model.atom_groups)
-        element = model.atoms[first(group)]
         for idx in group
             r = model.positions[idx]
-            forces[idx] = -real_ifSreal(sum(conj(ρ_fourier[iG])
-                                              * form_factors[(igroup, norm(Gqs_cart[iG]))]
-                                              * cis2pi(-dot(G + q, r))
-                                              * (-2T(π)) * (G + q) * im
-                                              / sqrt(model.unit_cell_volume)
-                                        for (iG, G) in enumerate(to_cpu(G_vectors(basis)))))
+
+            ff_group = @view form_factors[:, igroup]
+            map!(ρ_pot, indices) do iG
+                cis2pi(-dot(Gqs[iG], r)) * conj(ρ_fourier[iG]) * ff_group[iG2ifnorm[iG]]
+            end
+
+            forces[idx] += map(1:3) do α
+                tmp = sum(indices) do iG
+                    -2π*im*Gqs[iG][α] * ρ_pot[iG]
+                end
+                -real_ifSreal(tmp / sqrt(model.unit_cell_volume))
+            end
         end
     end
     forces

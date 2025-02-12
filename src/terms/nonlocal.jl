@@ -68,8 +68,6 @@ end
         C = to_device(basis.architecture, build_projection_coefficients(T, element.psp))
         for (ik, kpt) in enumerate(basis.kpoints)
             # We compute the forces from the irreductible BZ; they are symmetrized later.
-            # TODO: currently, nonlocal forces entierly computed on the CPU.
-            #       This might not be optimal.
             G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
             G_plus_k = Gplusk_vectors(basis, kpt)
             occupationk = to_cpu(occupation[ik])
