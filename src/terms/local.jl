@@ -75,31 +75,25 @@ end
 function atomic_local_form_factors(basis::PlaneWaveBasis{T}; q=zero(Vec3{T})) where{T}
     Gqs_cart = [basis.model.recip_lattice * (G + q) for G in to_cpu(G_vectors(basis))]
 
-    iG2inorm_cpu = zeros(Int, length(Gqs_cart))
+    iG2ifnorm_cpu = zeros(Int, length(Gqs_cart))
     norm_indices = IdDict{T, Int}()
     for (iG, G) in enumerate(Gqs_cart)
         p = norm(G)
         get!(norm_indices, p, length(norm_indices) + 1)
-        iG2inorm_cpu[iG] = norm_indices[p]
+        iG2ifnorm_cpu[iG] = norm_indices[p]
     end
 
     form_factors_cpu = zeros(T, length(norm_indices), length(basis.model.atom_groups))
-    visited_norms = IdDict{T, Int}()
-    for (iG, G) in enumerate(Gqs_cart)
-        p = norm(G)
-        inorm = iG2inorm_cpu[iG]
-        if !haskey(visited_norms, p)
-            visited_norms[p] = length(visited_norms) + 1
-            for (igroup, group) in enumerate(basis.model.atom_groups)
-                element = basis.model.atoms[first(group)]
-                form_factors_cpu[inorm, igroup] = local_potential_fourier(element, p)
-            end
+    for(p, ifnorm) in norm_indices
+        for (igroup, group) in enumerate(basis.model.atom_groups)
+            element = basis.model.atoms[first(group)]
+            form_factors_cpu[ifnorm, igroup] = local_potential_fourier(element, p)
         end
     end
 
     form_factors = to_device(basis.architecture, form_factors_cpu)
-    iG2inorm = to_device(basis.architecture, iG2inorm_cpu)
-    (; form_factors, iG2inorm)
+    iG2ifnorm = to_device(basis.architecture, iG2ifnorm_cpu)
+    (; form_factors, iG2ifnorm)
 end
 
 ## Atomic local potential
@@ -118,7 +112,7 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
     # Since V is a sum of radial functions located at atomic
     # positions, this involves a form factor (`local_potential_fourier`)
     # and a structure factor e^{-i G·r}
-    form_factors, iG2inorm = atomic_local_form_factors(basis; q)
+    form_factors, iG2ifnorm = atomic_local_form_factors(basis; q)
     Gqs = map(G -> G+q, G_vectors(basis))
 
     # Pre-allocation of large arrays for GPU efficiency
@@ -130,7 +124,7 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
     for (igroup, group) in enumerate(basis.model.atom_groups)
         for r = positions[group]
             ff_group = @view form_factors[:, igroup]
-            map!(iG -> cis2pi(-dot(Gqs[iG], r)) * ff_group[iG2inorm[iG]], pot_tmp, indices)
+            map!(iG -> cis2pi(-dot(Gqs[iG], r)) * ff_group[iG2ifnorm[iG]], pot_tmp, indices)
             pot .+= pot_tmp ./ sqrt(basis.model.unit_cell_volume)
         end
     end
@@ -156,7 +150,7 @@ end
     model = basis.model
     real_ifSreal = S <: Real ? real : identity
 
-    form_factors, iG2inorm = atomic_local_form_factors(basis; q)
+    form_factors, iG2ifnorm = atomic_local_form_factors(basis; q)
 
     Gqs = map(G -> G+q, G_vectors(basis))
     ρ_fourier = reshape(fft(basis, total_density(ρ)), length(Gqs))
@@ -164,7 +158,6 @@ end
     # Pre-allocation of large arrays for GPU efficiency
     indices = to_device(basis.architecture, collect(1:length(Gqs)))
     ρ_pot = similar(ρ_fourier)
-    twoπp_ρ_pot = similar(ρ_fourier)
 
     # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
     # where struct_factor(G) = e^{-i G·r}
@@ -174,12 +167,15 @@ end
             r = model.positions[idx]
 
             ff_group = @view form_factors[:, igroup]
-            map!(iG -> cis2pi(-dot(Gqs[iG], r)) * conj(ρ_fourier[iG]) *
-                      ff_group[iG2inorm[iG]], ρ_pot, indices)
+            map!(ρ_pot, indices) do iG
+                cis2pi(-dot(Gqs[iG], r)) * conj(ρ_fourier[iG]) * ff_group[iG2ifnorm[iG]]
+            end
 
             forces[idx] += map(1:3) do α
-                map!(iG -> -2π*im*Gqs[iG][α] * ρ_pot[iG], twoπp_ρ_pot, indices)
-                -real_ifSreal(sum(twoπp_ρ_pot) / sqrt(model.unit_cell_volume))
+                tmp = sum(indices) do iG
+                    -2π*im*Gqs[iG][α] * ρ_pot[iG]
+                end
+                -real_ifSreal(tmp / sqrt(model.unit_cell_volume))
             end
         end
     end
