@@ -88,9 +88,8 @@ function FFTGrid(fft_size::Tuple{Int, Int, Int}, unit_cell_volume::T,
     fft_normalization  = sqrt(unit_cell_volume) / length(ipFFT)
 
     VT = value_type(T)
-    r_vectors = [(Vec3{VT}(idx.I) .- (1, 1, 1)) ./ VT.(fft_size)
-                 for idx in CartesianIndices(fft_size)]
-    r_vectors = to_device(arch, r_vectors)
+    fac = 1 ./ VT.(fft_size)
+    r_vectors = map(idx -> Vec3{VT}(fac .* (idx.I .- (1, 1, 1))), CartesianIndices(fft_size))
 
     FFTGrid{T, VT, typeof(Gs), typeof(r_vectors)}(fft_size, opFFT, ipFFT, opBFFT, ipBFFT,
                                                   fft_normalization, ifft_normalization,
