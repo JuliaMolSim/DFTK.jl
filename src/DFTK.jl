@@ -232,6 +232,8 @@ include("workarounds/dummy_inplace_fft.jl")
 include("workarounds/forwarddiff_rules.jl")
 include("workarounds/gpu_arrays.jl")
 
+# Precompilation block with a basic workflow
+
 function precompilation_workflow(lattice, atoms, positions, magnetic_moments;
                                  Ecut=5, kgrid=[2, 2, 2], basis_kwargs...)
     # A very artificial workflow to be used in (CPU / GPU) precompilation
@@ -239,7 +241,7 @@ function precompilation_workflow(lattice, atoms, positions, magnetic_moments;
     model = model_DFT(lattice, atoms, positions;
                       functionals=LDA(), magnetic_moments,
                       temperature=0.1, spin_polarization=:collinear)
-    basis = PlaneWaveBasis(model; Ecut, kgrid)
+    basis = PlaneWaveBasis(model; Ecut, kgrid, basis_kwargs...)
     ρ0 = guess_density(basis, magnetic_moments)
     scfres = self_consistent_field(basis; ρ=ρ0, tol=1e-2, maxiter=3, callback=identity)
     compute_forces_cart(scfres)
@@ -247,7 +249,6 @@ function precompilation_workflow(lattice, atoms, positions, magnetic_moments;
     nothing
 end
 
-# Precompilation block with a basic workflow
 @setup_workload let
     # very artificial silicon ground state example
     a = 10.26
