@@ -17,7 +17,7 @@ for fun in (:potential_terms, :kernel_terms)
 end
 
 # Insure pre-compilation can proceed without error (old Julia/packages versions)
-if Libxc.has_cuda()
+if Libxc.has_cuda() && !isnothing(Base.get_extension(Libxc, :LibxcCudaExt))
 
     # Precompilation block with a basic workflow
     @setup_workload begin
