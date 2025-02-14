@@ -33,7 +33,8 @@ if !isnothing(Base.get_extension(Libxc, :LibxcCudaExt))
         magnetic_moments = [2, -2]
 
         @compile_workload begin
-            precompilation_workflow(lattice, atoms, positions, magnetic_moments)
+            precompilation_workflow(lattice, atoms, positions, magnetic_moments;
+                                    architecture=GPU(CuArray))
         end
     end
 end
