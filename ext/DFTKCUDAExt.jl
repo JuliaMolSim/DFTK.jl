@@ -37,3 +37,4 @@ if !isnothing(Base.get_extension(Libxc, :LibxcCudaExt))
         end
     end
 end
+end
