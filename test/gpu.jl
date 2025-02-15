@@ -80,5 +80,4 @@ end
 # TODO Direct minimisation
 # TODO Float32
 # TODO meta GGA
-# TODO Aluminium with LdosMixing
-# TODO Anderson acceleration
+# TODO Other architectures (amdgpu)
