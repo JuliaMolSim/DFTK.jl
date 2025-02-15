@@ -1,11 +1,12 @@
 using DFTK
 using AMDGPU
+using PseudoPotentialData
 
 a = 10.26  # Silicon lattice constant in Bohr
 lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
-Si = ElementPsp(:Si, psp=load_psp("hgh/lda/Si-q4"))
+Si = ElementPsp(:Si, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
 atoms     = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
 
@@ -27,7 +28,7 @@ else
 end
 
 println("basis done")
-psi = DFTK.random_orbitals(basis, basis.kpoints[1], 6)
+psi = [DFTK.random_orbitals(basis, basis.kpoints[1], 6)]
 @show typeof(psi)
 println("psi done")
 
@@ -37,7 +38,7 @@ println("ham done")
 res = ham * psi
 println("apply done")
 
-if false  # Do full eigensolve
+if true  # Do full eigensolve
     eigres = diagonalize_all_kblocks(DFTK.lobpcg_hyper, ham, 6);
     println("eigensolve done")
 end

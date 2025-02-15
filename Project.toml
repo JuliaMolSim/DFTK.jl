@@ -46,6 +46,7 @@ Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 UnitfulAtomic = "a7773ee8-282e-5fa2-be4e-bd808c38a91a"
 
 [weakdeps]
+AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 GenericLinearAlgebra = "14197337-ba66-59df-a3e3-ca00e7dcff7a"
 GeometryOptimization = "673bf261-a53d-43b9-876f-d3c1fc8329c2"
@@ -59,6 +60,7 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 wannier90_jll = "c5400fa0-8d08-52c2-913f-1e3f656c1ce9"
 
 [extensions]
+DFTKAMDGPUExt = "AMDGPU"
 DFTKCUDAExt = "CUDA"
 DFTKGenericLinearAlgebraExt = "GenericLinearAlgebra"
 DFTKGeometryOptimizationExt = "GeometryOptimization"
@@ -72,6 +74,7 @@ DFTKWannierExt = "Wannier"
 DFTKWriteVTKExt = "WriteVTK"
 
 [compat]
+AMDGPU = "1.2.3"
 ASEconvert = "0.1"
 AbstractFFTs = "1"
 Aqua = "0.8.5"
