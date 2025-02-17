@@ -169,47 +169,41 @@ end
         Vxc_fourier = fft(basis, mean(Vxc_real, dims=4))
     end
 
-    model = basis.model
     form_factors, iG2ifnorm = atomic_density_form_factors(basis, CoreDensity())
     nlcc_groups = [(igroup, group) for (igroup, group) in enumerate(basis.model.atom_groups)
-                   if has_core_density(model.atoms[first(group)])]
+                   if has_core_density(basis.model.atoms[first(group)])]
     @assert !isnothing(nlcc_groups)
 
-    # Pre-allocation of large arrays for GPU efficiency
-    TT = promote_type(T, eltype(Vxc_real))
+    _forces_xc(basis, Vxc_fourier, form_factors, iG2ifnorm, nlcc_groups) 
+end
+
+# Function barrier to work around various type instabilities.
+function _forces_xc(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U}, 
+                    form_factors, iG2ifnorm, nlcc_groups) where {T, U}
+    # Pre-allocation of large arrays for GPU Efficiency
+    TT = promote_type(T, real(U))
     Gs = G_vectors(basis)
     work = to_device(basis.architecture, zeros(Complex{TT}, length(Gs)))
     indices = to_device(basis.architecture, collect(1:length(Gs)))
 
-    forces = [zero(Vec3{TT}) for _ = 1:length(model.positions)]
+    forces = [zero(Vec3{TT}) for _ = 1:length(basis.model.positions)]
     for (igroup, group) in nlcc_groups
         for iatom in group
-            r = model.positions[iatom]
-            forces[iatom] = _force_xc(basis, Vxc_fourier, form_factors, iG2ifnorm,
-                                      igroup, r, Gs, work, indices)
+            r = basis.model.positions[iatom]
+            ff_group = @view form_factors[:, igroup]
+            map!(work, indices) do iG
+                cis2pi(-dot(Gs[iG], r)) * conj(Vxc_fourier[iG]) * ff_group[iG2ifnorm[iG]]
+            end
+
+            forces[iatom] += map(1:3) do α
+                tmp = sum(indices) do iG
+                    -2π*im*Gs[iG][α] * work[iG]
+                end
+                -real(tmp / sqrt(basis.model.unit_cell_volume))
+            end
         end
     end
     forces
-end
-
-# Function barrier to work around various type instabilities.
-function _force_xc(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U}, form_factors,
-                   iG2ifnorm, igroup, r, Gs, work, indices) where {T, U}
-    TT = promote_type(T, real(U))
-    f  = zero(Vec3{TT})
-
-    ff_group = @view form_factors[:, igroup]
-    map!(work, indices) do iG
-        cis2pi(-dot(Gs[iG], r)) * conj(Vxc_fourier[iG]) * ff_group[iG2ifnorm[iG]]
-    end
-
-    f += map(1:3) do α
-        tmp = sum(indices) do iG
-            -2π*im*Gs[iG][α] * work[iG]
-        end
-        -real(tmp / sqrt(basis.model.unit_cell_volume))
-    end
-    f
 end
 
 #=  meta-GGA energy and potential

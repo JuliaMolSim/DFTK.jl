@@ -180,7 +180,7 @@ function atomic_density_form_factors(basis::PlaneWaveBasis{T},
     end
 
     form_factors_cpu = zeros(T, length(norm_indices), length(basis.model.atom_groups))
-    for(p, ifnorm) in norm_indices
+    for (p, ifnorm) in norm_indices
         for (igroup, group) in enumerate(basis.model.atom_groups)
             element = basis.model.atoms[first(group)]
             form_factors_cpu[ifnorm, igroup] = atomic_density(element, p, method)
