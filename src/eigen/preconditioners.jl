@@ -28,7 +28,7 @@ mutable struct PreconditionerTPA{T <: Real}
     basis::PlaneWaveBasis
     kpt::Kpoint
     kin::AbstractVector{T}  # kinetic energy of every G
-    mean_kin::Union{Nothing, Vector{T}}  # mean kinetic energy of every band
+    mean_kin::Union{Nothing, AbstractVector{T}}  # mean kinetic energy of every band
     default_shift::T  # if mean_kin is not set by `precondprep!`, this will be used for the shift
 end
 
@@ -50,9 +50,9 @@ end
     if P.mean_kin === nothing
         ldiv!(Y, Diagonal(P.kin .+ P.default_shift), R)
     else
-    parallel_loop_over_range(1:size(Y, 2)) do n
-            Y[:, n] .= P.mean_kin[n] ./ (P.mean_kin[n] .+ P.kin) .* R[:, n]
-        end
+        # same as loop Y[:, n] .= P.mean_kin[n] ./ (P.mean_kin[n] .+ P.kin) .* R[:, n],
+        # but with efficient GPU array operations
+        Y .= (P.mean_kin' ./ (P.mean_kin' .+ P.kin)) .* R
     end
     Y
 end
@@ -64,16 +64,16 @@ ldiv!(P::PreconditionerTPA, R) = ldiv!(R, P, R)
     if P.mean_kin === nothing
         mul!(Y, Diagonal(P.kin .+ P.default_shift), R)
     else
-        parallel_loop_over_range(1:size(Y, 2)) do n
-            Y[:, n] .= (P.mean_kin[n] .+ P.kin) ./ P.mean_kin[n] .* R[:, n]
-        end
+        # same as loop Y[:, n] .= (P.mean_kin[n] .+ P.kin) ./ P.mean_kin[n] .* R[:, n]
+        Y .= ((P.mean_kin' .+ P.kin) ./ P.mean_kin') .* R
     end
     Y
 end
 (Base.:*)(P::PreconditionerTPA, R) = mul!(copy(R), P, R)
 
 function precondprep!(P::PreconditionerTPA, X::AbstractArray)
-    P.mean_kin = [real(dot(x, Diagonal(P.kin), x)) for x in eachcol(X)]
+    # real(dot(x, Diagonal(P.kin), x)), for all columns x of X (efficient on the GPU)
+    P.mean_kin = vec(real(sum(conj(X) .* (P.kin .* X); dims=1)))
 end
 precondprep!(P::PreconditionerTPA, ::Nothing) = 1  # fallback for edge cases
 
