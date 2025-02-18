@@ -186,7 +186,7 @@ function _forces_xc(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U},
     work = to_device(basis.architecture, zeros(Complex{TT}, length(Gs)))
     indices = to_device(basis.architecture, collect(1:length(Gs)))
 
-    forces = [zero(Vec3{TT}) for _ = 1:length(basis.model.positions)]
+    forces = Vec3{TT}[zero(Vec3{TT}) for _ = 1:length(basis.model.positions)]
     for (igroup, group) in nlcc_groups
         for iatom in group
             r = basis.model.positions[iatom]
