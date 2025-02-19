@@ -170,8 +170,8 @@ end
     end
 
     form_factors, iG2ifnorm = atomic_density_form_factors(basis, CoreDensity())
-    nlcc_groups = [(igroup, group) for (igroup, group) in enumerate(basis.model.atom_groups)
-                   if has_core_density(basis.model.atoms[first(group)])]
+    nlcc_groups = filter(group -> has_core_density(basis.model.atoms[first(group)]),
+                         basis.model.atom_groups)
     @assert !isnothing(nlcc_groups)
 
     _forces_xc(basis, Vxc_fourier, form_factors, iG2ifnorm, nlcc_groups) 
@@ -183,11 +183,11 @@ function _forces_xc(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U},
     # Pre-allocation of large arrays for GPU Efficiency
     TT = promote_type(T, real(U))
     Gs = G_vectors(basis)
-    work = to_device(basis.architecture, zeros(Complex{TT}, length(Gs)))
     indices = to_device(basis.architecture, collect(1:length(Gs)))
+    work = zeros_like(indices, Complex{TT}, length(indices))
 
     forces = Vec3{TT}[zero(Vec3{TT}) for _ = 1:length(basis.model.positions)]
-    for (igroup, group) in nlcc_groups
+    for (igroup, group) in enumerate(nlcc_groups)
         for iatom in group
             r = basis.model.positions[iatom]
             ff_group = @view form_factors[:, igroup]
