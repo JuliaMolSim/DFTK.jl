@@ -13,7 +13,7 @@ import SpecialFunctions: erfc
 # should be done e.g. by changing  the rounding mode ...
 #
 # Could be made more rigorous by using core-math C library, which provides
-# a interval rounding version
+# a interval rounding version.
 #
 erfc(i::Interval) = Interval(prevfloat(erfc(i.lo)), nextfloat(erfc(i.hi)))
 Base.nextfloat(x::Interval) = Interval(nextfloat(x.lo), nextfloat(x.hi))
@@ -24,7 +24,7 @@ Base.prevfloat(x::Interval) = Interval(prevfloat(x.lo), prevfloat(x.hi))
 # see issue #513 on IntervalArithmetic repository
 DFTK.cis2pi(x::Interval) = exp(2 * (pi * (im * x)))
 
-DFTK.value_type(::Type{<:Interval{T}}) where {T} = IntervalArithmetic.numtype(T)
+DFTK.value_type(::Type{<:Interval{T}}) where {T} = T  # IntervalArithmetic.numtype(T)
 
 function compute_Glims_fast(lattice::AbstractMatrix{<:Interval}, args...; kwargs...)
     # This is done to avoid a call like ceil(Int, ::Interval)
