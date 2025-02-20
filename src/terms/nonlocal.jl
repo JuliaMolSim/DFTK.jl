@@ -60,7 +60,7 @@ end
 
     # Energy terms are of the form <ψ, P C P' ψ>, where
     #   P(G) = form_factor(G) * structure_factor(G).
-    forces = [zero(Vec3{T}) for _ = 1:length(model.positions)]
+    forces = Vec3{T}[zero(Vec3{T}) for _ = 1:length(model.positions)]
 
     for group in psp_groups
         element = model.atoms[first(group)]
@@ -68,8 +68,6 @@ end
         C = to_device(basis.architecture, build_projection_coefficients(T, element.psp))
         for (ik, kpt) in enumerate(basis.kpoints)
             # We compute the forces from the irreductible BZ; they are symmetrized later.
-            # TODO: currently, nonlocal forces entierly computed on the CPU.
-            #       This might not be optimal.
             G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
             G_plus_k = Gplusk_vectors(basis, kpt)
             occupationk = to_cpu(occupation[ik])
