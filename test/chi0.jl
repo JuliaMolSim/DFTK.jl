@@ -1,5 +1,6 @@
 @testmodule Chi0 begin
 using Test
+using ComponentArrays
 using DFTK
 using DFTK: mpi_mean!
 using MPI
@@ -51,24 +52,34 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
             @test δV_sym ≈ δV
         end
 
-        function compute_ρ_FD(ε)
+        function compute_finite_perturbation(ε)
             term_builder = basis -> DFTK.TermExternal(ε * δV)
             model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
                               functionals=LDA(), model_kwargs..., extra_terms=[term_builder])
             basis = PlaneWaveBasis(model; basis_kwargs...)
             ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0).ham
-            res = DFTK.next_density(ham, nbandsalg; tol, eigensolver)
-            res.ρout
+            (; ρout, occupation, εF) = DFTK.next_density(ham, nbandsalg; tol, eigensolver)
+            ComponentArray(; ρ=ρout, occupation, εF)
         end
 
         # middle point finite difference for more precision
-        ρ1 = compute_ρ_FD(-ε)
-        ρ2 = compute_ρ_FD(ε)
-        diff_findiff = (ρ2 - ρ1) / (2ε)
+        res1 = compute_finite_perturbation(-ε)
+        res2 = compute_finite_perturbation(+ε)
+        diff_findiff = (res2 - res1) / (2ε)
 
         # Test apply_χ0 and compare against finite differences
         diff_applied_χ0 = apply_χ0(scfres, δV)
-        @test norm(diff_findiff - diff_applied_χ0) < testtol
+        @test norm(diff_findiff.ρ - diff_applied_χ0) < testtol
+
+        # Test occupation and Fermi-level sensitivities
+        (; ψ, occupation, eigenvalues, εF, occupation_threshold) = scfres
+        q = zero(Vec3{eltype(ham0.basis)})
+        δHψ = DFTK.multiply_ψ_by_blochwave(basis, ψ, δV, q)
+        diff_applied_χ0_4P = DFTK.apply_χ0_4P(ham0, ψ, occupation, εF, eigenvalues, δHψ;
+                                              occupation_threshold, q)
+        maximumabs(x) = maximum(abs, x)
+        @test maximum(maximumabs, diff_applied_χ0_4P.δoccupation - diff_findiff.occupation) < testtol
+        @test diff_applied_χ0_4P.δεF - diff_findiff.εF < 1e-10
 
         # Test apply_χ0 without extra bands
         ψ_occ, occ_occ = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation;
@@ -83,6 +94,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         if temperature > 0
             D = compute_dos(res.εF, basis, res.eigenvalues)
             LDOS = compute_ldos(res.εF, basis, res.eigenvalues, res.ψ)
+            @test sum(LDOS) * basis.dvol - sum(D) < 1e-12
         end
 
         if !symmetries
@@ -91,7 +103,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
             if compute_full_χ0
                 χ0 = compute_χ0(ham0)
                 diff_computed_χ0 = reshape(χ0 * vec(δV), basis.fft_size..., n_spin)
-                @test norm(diff_findiff - diff_computed_χ0) < testtol
+                @test norm(diff_findiff.ρ - diff_computed_χ0) < testtol
             end
 
             # Test that apply_χ0 is self-adjoint
