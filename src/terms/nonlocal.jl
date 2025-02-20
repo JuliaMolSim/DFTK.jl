@@ -60,7 +60,7 @@ end
 
     # Energy terms are of the form <ψ, P C P' ψ>, where
     #   P(G) = form_factor(G) * structure_factor(G).
-    forces = [zero(Vec3{T}) for _ = 1:length(model.positions)]
+    forces = Vec3{T}[zero(Vec3{T}) for _ = 1:length(model.positions)]
 
     for group in psp_groups
         element = model.atoms[first(group)]

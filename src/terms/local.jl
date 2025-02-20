@@ -158,7 +158,7 @@ end
 
     # energy = sum of form_factor(G) * struct_factor(G) * rho(G)
     # where struct_factor(G) = e^{-i G·r}
-    forces = [zero(Vec3{S}) for _ = 1:length(model.positions)]
+    forces = Vec3{S}[zero(Vec3{S}) for _ = 1:length(model.positions)]
     for (igroup, group) in enumerate(model.atom_groups)
         for idx in group
             r = model.positions[idx]
