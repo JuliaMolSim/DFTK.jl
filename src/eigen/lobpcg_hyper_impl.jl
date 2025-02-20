@@ -162,7 +162,8 @@ end
 # (which implies that X'BX is relatively well-conditioned, and
 # therefore that it is safe to cholesky it and reuse the B apply)
 function B_ortho!(X, BX)
-    O = mul_hermi(X', BX)
+    # O = mul_hermi(X, BX)
+    O = X'*BX
     U = cholesky(O).U
     @assert !any(isnan, U)
     rdiv!(X, U)
@@ -186,7 +187,8 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
     success = false
     nchol = 0
     while true
-        O = mul_hermi(X', X)
+        # O = mul_hermi(X, X)
+        O = X'*X
         try
             R = cholesky(O).U
             nchol += 1
