@@ -200,7 +200,7 @@ Overview of parameters:
         ρnext, info_next
     end
 
-    info_init = (; ρin=ρ, ψ=ψ, occupation=nothing, eigenvalues=nothing, εF=nothing, 
+    info_init = (; ρin=ρ, ψ=ψ, occupation=nothing, eigenvalues=nothing, εF=nothing,
                    n_iter=0, n_matvec=0, timedout=false, converged=false,
                    history_Etot=T[], history_Δρ=T[])
 
