@@ -13,6 +13,5 @@
                                DFTK.potential_terms, DFTK.kernel_terms]),
                   piracies=false,
                   deps_compat=(; check_extras=(; ignore=[:CUDA_Runtime_jll])),
-                  stale_deps=(; ignore=[:Primes, ]),
                  )
 end
