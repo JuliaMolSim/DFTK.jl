@@ -366,7 +366,8 @@ function build_fft_plans!(tmp::AbstractArray{Complex{T}}) where {T<:Union{Float3
 end
 
 # TODO Some grid sizes are broken in the generic FFT implementation
-# in FourierTransforms, for more details see workarounds/fft_generic.jl
+# in FourierTransforms, for more details see
+# ext/DFTKGenericLinearAlgebraExt/DFTKGenericLinearAlgebraExt.jl
 default_primes(::Type{Float32}) = (2, 3, 5)
 default_primes(::Type{Float64}) = default_primes(Float32)
 next_working_fft_size(::Type{Float32}, size::Int) = size
