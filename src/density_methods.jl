@@ -101,8 +101,7 @@ end
 # densities.
 function atomic_total_density(basis::PlaneWaveBasis{T}, method::AtomicDensity;
                               coefficients=ones(T, length(basis.model.atoms))) where {T}
-    form_factors = atomic_density_form_factors(basis, method)
-    atomic_density_superposition(basis, form_factors; coefficients)
+    atomic_density_superposition(basis, method; coefficients)
 end
 
 # Build a spin density from a superposition of atomic densities and provided magnetic
@@ -134,50 +133,63 @@ function atomic_spin_density(basis::PlaneWaveBasis{T}, method::AtomicDensity,
         magmom[3] / n_elec_valence(atom)
     end::AbstractVector{T}  # Needed to ensure type stability in final guess density
 
-    form_factors = atomic_density_form_factors(basis, method)
-    atomic_density_superposition(basis, form_factors; coefficients)
+    atomic_density_superposition(basis, method; coefficients)
 end
 
 # Perform an atomic density superposition. The density is constructed in reciprocal space
 # using the provided atomic form-factors and coefficients and applying an inverse Fourier
 # transform to yield the real-space density.
 function atomic_density_superposition(basis::PlaneWaveBasis{T},
-                                      form_factors::IdDict{Tuple{Int,T},T};
+                                      method::AtomicDensity;
                                       coefficients=ones(T, length(basis.model.atoms))
                                       ) where {T}
-    model = basis.model
-    G_cart = to_cpu(G_vectors_cart(basis))
-    ρ_cpu = map(enumerate(to_cpu(G_vectors(basis)))) do (iG, G)
-        Gnorm = norm(G_cart[iG])
-        ρ_iG = sum(enumerate(model.atom_groups); init=zero(complex(T))) do (igroup, group)
-            sum(group) do iatom
-                structure_factor = cis2pi(-dot(G, model.positions[iatom]))
-                coefficients[iatom] * form_factors[(igroup, Gnorm)] * structure_factor
-            end
+    form_factors, iG2ifnorm = atomic_density_form_factors(basis, method)
+
+    # Pre-allocation of large arrays for GPU efficiency
+    Gs = G_vectors(basis)
+    ρ = to_device(basis.architecture, zeros(Complex{T}, length(Gs)))
+    ρ_tmp = similar(ρ)
+    indices = to_device(basis.architecture, collect(1:length(Gs)))
+
+    for (igroup, group) in enumerate(basis.model.atom_groups)
+        for iatom in group
+            r = basis.model.positions[iatom]
+            ff_group = @view form_factors[:, igroup]
+            map!(iG -> cis2pi(-dot(Gs[iG], r)) * ff_group[iG2ifnorm[iG]], ρ_tmp, indices)
+            ρ .+= ρ_tmp .* (coefficients[iatom] / sqrt(basis.model.unit_cell_volume))
         end
-        ρ_iG / sqrt(model.unit_cell_volume)
     end
-    ρ = to_device(basis.architecture, ρ_cpu)
+
     enforce_real!(ρ, basis)  # Symmetrize Fourier coeffs to have real iFFT
-    irfft(basis, ρ)
+    irfft(basis, reshape(ρ, basis.fft_size))
 end
 
+"""
+Returns the form factors at unique values of |G + q| (in Cartesian coordinates).
+Additionally, returns a mapping from any G index to the corresponding entry in the form_factors array.
+"""
 function atomic_density_form_factors(basis::PlaneWaveBasis{T},
-                                     method::AtomicDensity
-                                     )::IdDict{Tuple{Int,T},T} where {T<:Real}
-    model = basis.model
-    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatibility
-    for G in to_cpu(G_vectors_cart(basis))
-        Gnorm = norm(G)
-        for (igroup, group) in enumerate(model.atom_groups)
-            if !haskey(form_factors, (igroup, Gnorm))
-                element = model.atoms[first(group)]
-                form_factor = atomic_density(element, Gnorm, method)
-                form_factors[(igroup, Gnorm)] = form_factor
-            end
+                                     method::AtomicDensity ) where {T<:Real}
+    G_cart = to_cpu(G_vectors_cart(basis))
+
+    iG2ifnorm_cpu = zeros(Int, length(G_cart))
+    norm_indices = IdDict{T, Int}()
+    for (iG, G) in enumerate(G_cart)
+        p = norm(G)
+        iG2ifnorm_cpu[iG] = get!(norm_indices, p, length(norm_indices) + 1)
+    end
+
+    form_factors_cpu = zeros(T, length(norm_indices), length(basis.model.atom_groups))
+    for (p, ifnorm) in norm_indices
+        for (igroup, group) in enumerate(basis.model.atom_groups)
+            element = basis.model.atoms[first(group)]
+            form_factors_cpu[ifnorm, igroup] = atomic_density(element, p, method)
         end
     end
-    form_factors
+
+    form_factors = to_device(basis.architecture, form_factors_cpu)
+    iG2ifnorm = to_device(basis.architecture, iG2ifnorm_cpu)
+    (; form_factors, iG2ifnorm)
 end
 
 function atomic_density(element::Element, Gnorm::T,

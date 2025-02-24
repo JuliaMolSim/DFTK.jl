@@ -60,32 +60,40 @@ end
 
     # Energy terms are of the form <ψ, P C P' ψ>, where
     #   P(G) = form_factor(G) * structure_factor(G).
-    forces = [zero(Vec3{T}) for _ = 1:length(model.positions)]
+    forces = Vec3{T}[zero(Vec3{T}) for _ = 1:length(model.positions)]
 
     for group in psp_groups
         element = model.atoms[first(group)]
 
-        C = build_projection_coefficients(T, element.psp)
+        C = to_device(basis.architecture, build_projection_coefficients(T, element.psp))
         for (ik, kpt) in enumerate(basis.kpoints)
             # We compute the forces from the irreductible BZ; they are symmetrized later.
-            # TODO: currently, nonlocal forces entierly computed on the CPU.
-            #       This might not be optimal.
             G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
-            G_plus_k = to_cpu(Gplusk_vectors(basis, kpt))
-            ψk = to_cpu(ψ[ik])
+            G_plus_k = Gplusk_vectors(basis, kpt)
             occupationk = to_cpu(occupation[ik])
-            form_factors = build_projector_form_factors(element.psp, G_plus_k_cart)
+            form_factors = to_device(basis.architecture,
+                                     build_projector_form_factors(element.psp, G_plus_k_cart))
+
+            # Pre-allocation of large arrays (Noticable performance improvements on
+            # CPU and GPU here)
+            δHψk  = similar(ψ[ik])
+            P     = similar(form_factors)
+            dPdR  = similar(form_factors)
+            twoπp = similar(form_factors, length(G_plus_k))
+            structure_factors = similar(form_factors, length(G_plus_k))
+            
             for idx in group
                 r = model.positions[idx]
-                structure_factors = [cis2pi(-dot(p, r)) for p in G_plus_k]
-                P = structure_factors .* form_factors ./ sqrt(unit_cell_volume)
+                map!(p -> cis2pi(-dot(p, r)), structure_factors, G_plus_k)
+                P .= structure_factors .* form_factors ./ sqrt(unit_cell_volume)
 
                 forces[idx] += map(1:3) do α
-                    dPdR = [-2T(π)*im*p[α] for p in G_plus_k] .* P
-                    δHψk = P * (C * (dPdR' * ψk))
-                    -sum(occupationk[iband] * basis.kweights[ik] *
-                             2real(dot(ψk[:, iband], δHψk[:, iband]))
-                         for iband=1:size(ψk, 2))
+                    map!(p -> -2π*im*p[α], twoπp, G_plus_k)
+                    dPdR .= twoπp .* P
+                    mul!(δHψk, P, C * (dPdR' * ψ[ik]))
+                    @views -sum(occupationk[iband] * basis.kweights[ik] *
+                                2real(dot(ψ[ik][:, iband], δHψk[:, iband]))
+                            for iband=1:size(ψ[ik], 2))
                 end  # α
             end  # r
         end  # kpt
@@ -123,7 +131,7 @@ end
 # The ordering of the projector indices is (l,m,i), where l, m are the
 # AM quantum numbers and i is running over all projectors for a given l.
 # The matrix is block-diagonal with non-zeros only if l and m agree.
-function build_projection_coefficients(T, psp::NormConservingPsp)
+function build_projection_coefficients(T::Type, psp::NormConservingPsp)
     n_proj = count_n_proj(psp)
     proj_coeffs = zeros(T, n_proj, n_proj)
     count = 0

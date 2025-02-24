@@ -15,7 +15,7 @@ using PseudoPotentialData
 # [PseudoDojo](http://www.pseudo-dojo.org/) v0.4 scalar-relativistic LDA standard stringency
 # family because it contains valence charge density which can be used for a more tailored
 # density guess.
-pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf")
+pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
 
 function silicon_scf(guess_method)
     model = model_DFT(bulk(:Si); functionals=LDA(), pseudopotentials)

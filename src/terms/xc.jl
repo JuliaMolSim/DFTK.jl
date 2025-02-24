@@ -163,44 +163,47 @@ end
     isnothing(term.ρcore) && return nothing
 
     Vxc_real = xc_potential_real(term, basis, ψ, occupation; ρ, τ).potential
-    # TODO: move arrays to the CPU to enable forces calculations on the GPU.
-    #       Might require optimizations in the future.
     if basis.model.spin_polarization in (:none, :spinless)
-        Vxc_fourier = to_cpu(fft(basis, Vxc_real[:,:,:,1]))
+        Vxc_fourier = fft(basis, Vxc_real[:,:,:,1])
     else
-        Vxc_fourier = to_cpu(fft(basis, mean(Vxc_real, dims=4)))
+        Vxc_fourier = fft(basis, mean(Vxc_real, dims=4))
     end
 
-    model = basis.model
-    form_factors = atomic_density_form_factors(basis, CoreDensity())
-    nlcc_groups = [(igroup, group) for (igroup, group) in enumerate(basis.model.atom_groups)
-                   if has_core_density(model.atoms[first(group)])]
+    form_factors, iG2ifnorm = atomic_density_form_factors(basis, CoreDensity())
+    nlcc_groups = filter(group -> has_core_density(basis.model.atoms[first(group)]),
+                         basis.model.atom_groups)
     @assert !isnothing(nlcc_groups)
 
-    TT = promote_type(T, eltype(Vxc_real))
-    forces = [zero(Vec3{TT}) for _ = 1:length(model.positions)]
-    for (igroup, group) in nlcc_groups
-        for iatom in group
-            r = model.positions[iatom]
-            forces[iatom] = _force_xc(basis, Vxc_fourier, form_factors, igroup, r)
-        end
-    end
-    forces
+    _forces_xc(basis, Vxc_fourier, form_factors, iG2ifnorm, nlcc_groups) 
 end
 
 # Function barrier to work around various type instabilities.
-function _force_xc(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U}, form_factors,
-                   igroup, r) where {T, U}
+function _forces_xc(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U}, 
+                    form_factors, iG2ifnorm, nlcc_groups) where {T, U}
+    # Pre-allocation of large arrays for GPU Efficiency
     TT = promote_type(T, real(U))
-    f  = zero(Vec3{TT})
-    for (iG, (G, G_cart)) in enumerate(zip(to_cpu(G_vectors(basis)), to_cpu(G_vectors_cart(basis))))
-        f -= real(conj(Vxc_fourier[iG])
-                  .* form_factors[(igroup, norm(G_cart))]
-                  .* cis2pi(-dot(G, r))
-                  .* (-2T(π)) .* G .* im
-                  ./ sqrt(basis.model.unit_cell_volume))
+    Gs = G_vectors(basis)
+    indices = to_device(basis.architecture, collect(1:length(Gs)))
+    work = zeros_like(indices, Complex{TT}, length(indices))
+
+    forces = Vec3{TT}[zero(Vec3{TT}) for _ = 1:length(basis.model.positions)]
+    for (igroup, group) in enumerate(nlcc_groups)
+        for iatom in group
+            r = basis.model.positions[iatom]
+            ff_group = @view form_factors[:, igroup]
+            map!(work, indices) do iG
+                cis2pi(-dot(Gs[iG], r)) * conj(Vxc_fourier[iG]) * ff_group[iG2ifnorm[iG]]
+            end
+
+            forces[iatom] += map(1:3) do α
+                tmp = sum(indices) do iG
+                    -2π*im*Gs[iG][α] * work[iG]
+                end
+                -real(tmp / sqrt(basis.model.unit_cell_volume))
+            end
+        end
     end
-    f
+    forces
 end
 
 #=  meta-GGA energy and potential
@@ -493,10 +496,7 @@ function add_kernel_gradient_correction!(δV, terms, density, perturbation, cros
 end
 
 function mergesum(nt1::NamedTuple{An}, nt2::NamedTuple{Bn}) where {An, Bn}
-    all_keys = nothing
-    ChainRulesCore.@ignore_derivatives begin
-        all_keys = (union(An, Bn)..., )
-    end
+    all_keys = (union(An, Bn)..., )
     values = map(all_keys) do key
         if haskey(nt1, key)
             nt1[key] .+ get(nt2, key, false)

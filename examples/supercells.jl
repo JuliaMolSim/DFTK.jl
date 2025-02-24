@@ -26,7 +26,7 @@ function aluminium_setup(repeat=1; Ecut=7.0, kgrid=[2, 2, 2])
     ## Note: We disable symmetries explicitly here. Otherwise the problem sizes
     ##       we are able to run on the CI are too simple to observe the numerical
     ##       instabilities we want to trigger here.
-    pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf")
+    pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
     model = model_DFT(supercell; pseudopotentials, functionals=LDA(),
                       temperature=1e-3, symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid)

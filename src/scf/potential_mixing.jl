@@ -152,6 +152,10 @@ trial_damping(damping::FixedDamping, args...) = damping.α
 
 # Notice: For adaptive damping to run smoothly, multiple defaults need to be changed.
 #         See the function scf_potential_mixing_adaptive for that use case.
+"""
+Simple SCF algorithm using potential mixing. Parameters are largely the same as
+[`self_consistent_field`](@ref).
+"""
 @timing function scf_potential_mixing(
     basis::PlaneWaveBasis;
     damping=FixedDamping(0.8),
@@ -287,7 +291,11 @@ trial_damping(damping::FixedDamping, args...) = damping.α
 end
 
 
-# Wrapper function setting a few good defaults for adaptive damping
+"""
+Wrapper function setting a few good defaults for adaptive damping
+in [`scf_potential_mixing`](@ref).
+
+"""
 function scf_potential_mixing_adaptive(basis; tol=1e-6, damping=AdaptiveDamping(), kwargs...)
     @assert damping isa AdaptiveDamping
     diagtolalg = AdaptiveDiagtol(ratio_ρdiff=0.03, diagtol_first=5e-3, diagtol_max=1e-3)

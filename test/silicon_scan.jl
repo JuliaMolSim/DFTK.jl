@@ -1,5 +1,6 @@
 @testitem "Silicon SCAN (small)" tags=[:core] setup=[TestCases, RunSCF] begin
     using DFTK
+    using PseudoPotentialData
     run_scf_and_compare = RunSCF.run_scf_and_compare
     silicon = TestCases.silicon
 
@@ -17,7 +18,7 @@
     ref_etot = -7.856498623457256
 
     T = Float64
-    Si = ElementPsp(silicon.atnum, load_psp("hgh/pbe/Si-q4"))
+    Si = ElementPsp(silicon.atnum, PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth"))
     model = model_DFT(silicon.lattice, [Si, Si], silicon.positions; functionals=SCAN())
     basis = PlaneWaveBasis(Model{T}(model); Ecut=15, fft_size=(27, 27, 27), kgrid=(3, 3, 3))
     run_scf_and_compare(T, basis, ref_scan, ref_etot; scf_ene_tol=1e-9, test_tol=5e-5,
@@ -27,6 +28,7 @@ end
 
 @testitem "Silicon SCAN (large)" tags=[:slow, :core] setup=[TestCases, RunSCF] begin
     using DFTK
+    using PseudoPotentialData
     run_scf_and_compare = RunSCF.run_scf_and_compare
     silicon = TestCases.silicon
 
@@ -44,7 +46,7 @@ end
     ref_etot = -7.857384389260792
 
     T = Float64
-    Si = ElementPsp(silicon.atnum, load_psp("hgh/pbe/Si-q4"))
+    Si = ElementPsp(silicon.atnum, PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth"))
     model = model_DFT(silicon.lattice, [Si, Si], silicon.positions; functionals=SCAN())
     basis = PlaneWaveBasis(Model{T}(model); Ecut=50, fft_size=(48, 48, 48), kgrid=(3, 3, 3))
     run_scf_and_compare(T, basis, ref_scan, ref_etot; test_tol=1e-8, n_ignored=2,

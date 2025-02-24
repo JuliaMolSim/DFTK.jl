@@ -1,5 +1,4 @@
 using LinearMaps
-using IterativeSolvers
 
 # Newton's algorithm to solve SCF equations
 #

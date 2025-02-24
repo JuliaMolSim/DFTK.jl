@@ -26,6 +26,8 @@
     end
 
     @testset "Inlining" begin
+        using PseudoPotentialData
+
         # Test that the index_G_vectors function is properly inlined by comparing timing
         # with a locally defined function known not to be inlined. Issue initially tackled
         # in PR https://github.com/JuliaMolSim/DFTK.jl/pull/1025
@@ -58,7 +60,7 @@
         end
 
         silicon = TestCases.silicon
-        Si = ElementPsp(silicon.atnum, load_psp("hgh/lda/si-q4"))
+        Si = ElementPsp(silicon.atnum, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
         atoms = [Si, Si]
         model = model_DFT(silicon.lattice, atoms, silicon.positions;
                           functionals=[:lda_x, :lda_c_vwn])

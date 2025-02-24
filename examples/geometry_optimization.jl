@@ -9,7 +9,7 @@
 using DFTK
 using PseudoPotentialData
 
-pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.oncvpsp3.standard.upf")
+pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
 calc = DFTKCalculator(;
     model_kwargs = (; functionals=LDA(), pseudopotentials),  # model_DFT keyword arguments
     basis_kwargs = (; kgrid=[1, 1, 1], Ecut=10)  # PlaneWaveBasis keyword arguments

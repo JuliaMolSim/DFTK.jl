@@ -46,6 +46,7 @@ PAGES = [
     "Response and properties" => [
         "examples/polarizability.jl",
         "examples/forwarddiff.jl",
+        "examples/phonons.jl",
     ],
     "Ecosystem integration" => [
         # This concerns the discussion of interfaces, IO and integration
@@ -59,6 +60,7 @@ PAGES = [
     "Tips and tricks" => [
         # Resolving convergence issues, what solver to use, improving performance or
         # reliability of calculations.
+        "tricks/achieving_convergence.md",
         "tricks/parallelization.md",
         "tricks/scf_checkpoints.jl",
         "tricks/compute_clusters.md",

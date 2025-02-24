@@ -32,7 +32,7 @@ system_Al = bulk(:Al; cubic=true) * (4, 1, 1)
 
 using PseudoPotentialData
 
-pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf")
+pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
 model_Al = model_DFT(system_Al; functionals=LDA(), temperature=1e-3,
                      symmetries=false, pseudopotentials)
 basis_Al = PlaneWaveBasis(model_Al; Ecut=7, kgrid=[1, 1, 1]);
