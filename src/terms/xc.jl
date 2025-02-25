@@ -58,6 +58,7 @@ struct TermXc{T,CT} <: TermNonlinear where {T,CT}
     potential_threshold::T
     ρcore::CT
 end
+DftFunctionals.needs_τ(term::TermXc) = any(needs_τ, term.functionals)
 
 function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupation;
                            ρ, τ=nothing) where {T}
@@ -74,12 +75,8 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     end
 
     # Compute kinetic energy density, if needed.
-    if isnothing(τ) && any(needs_τ, term.functionals)
-        if isnothing(ψ) || isnothing(occupation)
-            τ = zero(ρ)
-        else
-            τ = compute_kinetic_energy_density(basis, ψ, occupation)
-        end
+    if isnothing(τ) && needs_τ(term)
+        τ = compute_kinetic_energy_density(basis, ψ, occupation)
     end
 
     # Take derivatives of the density, if needed.

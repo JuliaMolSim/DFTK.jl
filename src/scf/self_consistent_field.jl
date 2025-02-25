@@ -156,12 +156,12 @@ Overview of parameters:
     # We do density mixing in the real representation
     # TODO support other mixing types
     function fixpoint_map(ρin, info)
-        (; ψ, occupation, eigenvalues, εF, n_iter, converged, timedout) = info
+        (; ψ, occupation, eigenvalues, εF, n_iter, converged, timedout, τ) = info
         n_iter += 1
 
         # Note that ρin is not the density of ψ, and the eigenvalues
         # are not the self-consistent ones, which makes this energy non-variational
-        energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρin, eigenvalues, εF)
+        energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρin, τ, eigenvalues, εF)
 
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
@@ -170,9 +170,18 @@ Overview of parameters:
         (; ψ, eigenvalues, occupation, εF, ρout) = nextstate
         Δρ = ρout - ρin
 
+        # TODO Dirty hack. This should be solved more generally and τ and ρ should be put
+        #      on the same footing. In the future such principles will also apply
+        #      to other quantities. See discussion in
+        #      https://github.com/JuliaMolSim/DFTK.jl/issues/1065
+        τ = nothing
+        if needs_τ(basis.terms)
+            τ = compute_kinetic_energy_density(basis, ψ, occupation)
+        end
+
         # Update info with results gathered so far
         info_next = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
-                       ρin, α=damping, n_iter, nbandsalg.occupation_threshold,
+                       ρin, τ, α=damping, n_iter, nbandsalg.occupation_threshold,
                        runtime_ns=time_ns() - start_ns, nextstate...,
                        diagonalization=[nextstate.diagonalization])
 
@@ -200,8 +209,8 @@ Overview of parameters:
         ρnext, info_next
     end
 
-    info_init = (; ρin=ρ, ψ=ψ, occupation=nothing, eigenvalues=nothing, εF=nothing, 
-                   n_iter=0, n_matvec=0, timedout=false, converged=false,
+    info_init = (; ρin=ρ, ψ=ψ, occupation=nothing, eigenvalues=nothing, εF=nothing,
+                   n_iter=0, n_matvec=0, timedout=false, converged=false, τ=nothing,
                    history_Etot=T[], history_Δρ=T[])
 
     # Convergence is flagged by is_converged inside the fixpoint_map.
@@ -215,7 +224,7 @@ Overview of parameters:
 
     # Callback is run one last time with final state to allow callback to clean up
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
-                ρ=ρout, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
+                ρ=ρout, info.τ, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
                 info.n_iter, info.n_matvec, ψ, info.diagonalization, stage=:finalize,
                 info.history_Δρ, info.history_Etot, info.timedout,
                 runtime_ns=time_ns() - start_ns, algorithm="SCF")
