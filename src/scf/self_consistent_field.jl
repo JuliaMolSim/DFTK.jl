@@ -175,7 +175,7 @@ Overview of parameters:
         #      to other quantities. See discussion in
         #      https://github.com/JuliaMolSim/DFTK.jl/issues/1065
         τ = nothing
-        if needs_τ(basis.terms)
+        if any(needs_τ, basis.terms)
             τ = compute_kinetic_energy_density(basis, ψ, occupation)
         end
 
