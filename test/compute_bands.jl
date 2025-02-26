@@ -224,7 +224,7 @@ end
     testcase = TestCases.silicon
 
     model   = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
-                        functionals=R2SCAN())
+                        functionals=r2SCAN())
     basis   = PlaneWaveBasis(model; Ecut=10, kgrid=(1, 1, 1))
     scfres  = self_consistent_field(basis; tol=1e-6)
     ref_gap = scfres.eigenvalues[1][5] - scfres.eigenvalues[1][4]

@@ -159,7 +159,7 @@ SCAN(; kwargs...) = Xc([:mgga_x_scan, :mgga_c_scan]; kwargs...)
 Specify a r2SCAN meta-GGA model in conjunction with [`model_DFT`](@ref)
 <http://doi.org/10.1021/acs.jpclett.0c02405>
 """
-R2SCAN(; kwargs...) = Xc([:mgga_x_r2scan, :mgga_c_r2scan]; kwargs...)
+r2SCAN(; kwargs...) = Xc([:mgga_x_r2scan, :mgga_c_r2scan]; kwargs...)
 
 
 @deprecate(model_LDA(lattice::AbstractMatrix, atoms::Vector{<:Element},
