@@ -102,12 +102,6 @@ end
 end
 
 @views @timing function compute_kinetic_energy_density(basis::PlaneWaveBasis, ψ, occupation)
-    if isnothing(ψ) || isnothing(occupation)
-        # TODO This may be weird ... we don't do this for the density itself.
-        return zeros_like(G_vectors(basis), eltype(basis),
-                          basis.fft_size..., basis.model.n_spin_components)
-    end
-
     T = promote_type(eltype(basis), real(eltype(ψ[1])))
     τ = similar(ψ[1], T, (basis.fft_size..., basis.model.n_spin_components))
     τ .= 0

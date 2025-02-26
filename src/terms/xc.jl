@@ -76,7 +76,8 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
 
     # Compute kinetic energy density, if needed.
     if isnothing(τ) && needs_τ(term)
-        τ = compute_kinetic_energy_density(basis, ψ, occupation)
+        throw(ArgumentError("TermXc needs the kinetic energy density τ. Please pass a `τ` " *
+                            "keyword argument to your `Hamiltonian` or `energy_hamiltonian` call."))
     end
 
     # Take derivatives of the density, if needed.

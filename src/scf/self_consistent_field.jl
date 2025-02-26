@@ -130,6 +130,7 @@ Overview of parameters:
 @timing function self_consistent_field(
     basis::PlaneWaveBasis{T};
     ρ=guess_density(basis),
+    τ=any(needs_τ, basis.terms) ? zero(ρ) : nothing,
     ψ=nothing,
     tol=1e-6,
     is_converged=ScfConvergenceDensity(tol),
@@ -174,7 +175,6 @@ Overview of parameters:
         #      on the same footing. In the future such principles will also apply
         #      to other quantities. See discussion in
         #      https://github.com/JuliaMolSim/DFTK.jl/issues/1065
-        τ = nothing
         if any(needs_τ, basis.terms)
             τ = compute_kinetic_energy_density(basis, ψ, occupation)
         end
@@ -209,7 +209,7 @@ Overview of parameters:
         ρnext, info_next
     end
 
-    info_init = (; ρin=ρ, ψ=ψ, occupation=nothing, eigenvalues=nothing, εF=nothing,
+    info_init = (; ρin=ρ, τ, ψ, occupation=nothing, eigenvalues=nothing, εF=nothing,
                    n_iter=0, n_matvec=0, timedout=false, converged=false, τ=nothing,
                    history_Etot=T[], history_Δρ=T[])
 
@@ -219,12 +219,12 @@ Overview of parameters:
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρout, so we return that. We also perform a last energy computation
     # to return a correct variational energy
-    (; ρin, ρout, ψ, occupation, eigenvalues, εF, converged) = info
-    energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρout, eigenvalues, εF)
+    (; ρin, ρout, τ, ψ, occupation, eigenvalues, εF, converged) = info
+    energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρout, τ, eigenvalues, εF)
 
     # Callback is run one last time with final state to allow callback to clean up
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
-                ρ=ρout, info.τ, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
+                ρ=ρout, τ, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
                 info.n_iter, info.n_matvec, ψ, info.diagonalization, stage=:finalize,
                 info.history_Δρ, info.history_Etot, info.timedout,
                 runtime_ns=time_ns() - start_ns, algorithm="SCF")
