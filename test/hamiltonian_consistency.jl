@@ -46,7 +46,8 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         ρ = with_logger(NullLogger()) do
             compute_density(basis, ψ, occupation)
         end
-        E0, ham = energy_hamiltonian(basis, ψ, occupation; ρ)
+        τ = compute_kinetic_energy_density(basis, ψ, occupation)
+        E0, ham = energy_hamiltonian(basis, ψ, occupation; ρ, τ)
 
         @assert length(basis.terms) == 1
 
@@ -56,10 +57,10 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
             ρ_trial = with_logger(NullLogger()) do
                 compute_density(basis, ψ_trial, occupation)
             end
-            E = energy_hamiltonian(basis, ψ_trial, occupation; ρ=ρ_trial).energies
-            E.total
+            τ_trial = compute_kinetic_energy_density(basis, ψ_trial, occupation)
+            (; energies) = energy_hamiltonian(basis, ψ_trial, occupation; ρ=ρ_trial, τ=τ_trial)
+            energies.total
         end
-
         diff = (compute_E(ε) - compute_E(-ε)) / (2ε)
 
         diff_predicted = 0.0

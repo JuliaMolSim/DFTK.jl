@@ -122,6 +122,7 @@ include("terms/terms.jl")
 export AbstractFermiAlgorithm, FermiBisection, FermiTwoStage
 include("occupation.jl")
 export compute_density
+export compute_kinetic_energy_density
 export total_density
 export spin_density
 export ρ_from_total_and_spin
@@ -141,7 +142,7 @@ include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
 
 export model_atomic, model_DFT
-export LDA, PBE, PBEsol, SCAN
+export LDA, PBE, PBEsol, SCAN, r2SCAN
 include("standard_models.jl")
 
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing
