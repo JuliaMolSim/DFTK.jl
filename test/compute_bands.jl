@@ -189,8 +189,7 @@ end
     @test  DFTK.is_metal(λ, 3.2)
 end
 
-@testitem "High-symmetry kpath for nonstandard lattice" #=
-    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+@testitem "High-symmetry kpath for nonstandard lattice" tags=[:dont_test_mpi] setup=[TestCases] begin
     using DFTK
     using Brillouin: interpolate
     testcase = TestCases.silicon
@@ -216,4 +215,22 @@ end
         @test(  model_std.recip_lattice * k_std
               ≈ model_nst.recip_lattice * k_nst)
     end
+end
+
+@testitem "compute_bands for meta-GGA" tags=[:dont_test_mpi] setup=[TestCases] begin
+    # This triggers a bug reported previously, see
+    # https://github.com/JuliaMolSim/DFTK.jl/issues/1065
+    using DFTK
+    testcase = TestCases.silicon
+
+    model   = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                        functionals=r2SCAN())
+    basis   = PlaneWaveBasis(model; Ecut=10, kgrid=(1, 1, 1))
+    scfres  = self_consistent_field(basis; tol=1e-6)
+    ref_gap = scfres.eigenvalues[1][5] - scfres.eigenvalues[1][4]
+
+    bands = compute_bands(scfres, MonkhorstPack(2, 2, 2); tol=1e-6)
+    gap   = bands.eigenvalues[1][5] - bands.eigenvalues[1][4]
+
+    @test abs(ref_gap - gap) < 1e-6
 end

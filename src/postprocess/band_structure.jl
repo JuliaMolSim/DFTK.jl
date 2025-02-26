@@ -13,8 +13,8 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
 """
 @timing function compute_bands(basis::PlaneWaveBasis, kgrid::AbstractKgrid;
                                n_bands=default_n_bands_bandstructure(basis.model),
-                               n_extra=3, ρ=nothing, εF=nothing, eigensolver=lobpcg_hyper,
-                               tol=1e-3, kwargs...)
+                               n_extra=3, ρ=nothing, τ=nothing, εF=nothing,
+                               eigensolver=lobpcg_hyper, tol=1e-3, kwargs...)
     # kcoords are the kpoint coordinates in fractional coordinates
     if isnothing(ρ)
         if any(t isa TermNonlinear for t in basis.terms)
@@ -24,11 +24,16 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
         end
         ρ = guess_density(basis)
     end
+    if isnothing(τ) && any(needs_τ, basis.terms)
+        error("A term reuqires evaluation of the kinetic energy density τ. Please pass this " *
+              "quantity to compute_bands as the τ keyword argument or use the " *
+              "compute_bands(scfres) function.")
+    end
 
     # Create new basis with new kpoints
     bs_basis = PlaneWaveBasis(basis, kgrid)
 
-    ham = Hamiltonian(bs_basis; ρ)
+    ham = Hamiltonian(bs_basis; ρ, τ)
     eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + n_extra;
                                      n_conv_check=n_bands, tol, kwargs...)
     if !eigres.converged
@@ -58,7 +63,8 @@ as `n_bands_scf + 5sqrt(n_bands_scf)`.
 """
 function compute_bands(scfres::NamedTuple, kgrid::AbstractKgrid;
                        n_bands=default_n_bands_bandstructure(scfres), kwargs...)
-    compute_bands(scfres.basis, kgrid; scfres.ρ, scfres.εF, n_bands, kwargs...)
+    τ = haskey(scfres, :τ) ? scfres.τ : nothing
+    compute_bands(scfres.basis, kgrid; scfres.ρ, τ, scfres.εF, n_bands, kwargs...)
 end
 
 """
