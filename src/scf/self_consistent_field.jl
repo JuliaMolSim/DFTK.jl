@@ -210,7 +210,7 @@ Overview of parameters:
     end
 
     info_init = (; ρin=ρ, τ, ψ, occupation=nothing, eigenvalues=nothing, εF=nothing,
-                   n_iter=0, n_matvec=0, timedout=false, converged=false, τ=nothing,
+                   n_iter=0, n_matvec=0, timedout=false, converged=false,
                    history_Etot=T[], history_Δρ=T[])
 
     # Convergence is flagged by is_converged inside the fixpoint_map.

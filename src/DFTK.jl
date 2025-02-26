@@ -122,6 +122,7 @@ include("terms/terms.jl")
 export AbstractFermiAlgorithm, FermiBisection, FermiTwoStage
 include("occupation.jl")
 export compute_density
+export compute_kinetic_energy_density
 export total_density
 export spin_density
 export ρ_from_total_and_spin
