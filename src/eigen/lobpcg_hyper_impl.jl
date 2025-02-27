@@ -310,17 +310,17 @@ end
     X
 end
 
-
 function final_retval(X, AX, BX, λ, resid_history, niter, n_matvec)
-    if !issorted(λ)
-        p = sortperm(λ)
-        λ = λ[p]
+    λ_host = oftype(ones(eltype(λ), 1), λ) # Copy to CPU for element-wise access
+    if !issorted(λ_host)
+        p = sortperm(λ_host)
+        λ = λ_host[p]
         X  = X[:, p]
         AX = AX[:, p]
         BX = BX[:, p]
         resid_history = resid_history[p, :]
     end
-    (; λ=λ, X, AX, BX,
+    (; λ=λ_host, X, AX, BX,
      residual_norms=resid_history[:, niter+1],
      residual_history=resid_history[:, 1:niter+1], n_matvec)
 end
