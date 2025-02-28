@@ -314,7 +314,7 @@ function final_retval(X, AX, BX, λ, resid_history, niter, n_matvec)
     λ_host = oftype(ones(eltype(λ), 1), λ) # Copy to CPU for element-wise access
     if !issorted(λ_host)
         p = sortperm(λ_host)
-        λ = λ_host[p]
+        λ_host = λ_host[p]
         X  = X[:, p]
         AX = AX[:, p]
         BX = BX[:, p]
