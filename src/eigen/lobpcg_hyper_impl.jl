@@ -311,7 +311,7 @@ end
 end
 
 function final_retval(X, AX, BX, λ, resid_history, niter, n_matvec)
-    λ_host = oftype(ones(eltype(λ), 1), λ) # Copy to CPU for element-wise access
+    λ_host = oftype(ones(eltype(λ), 1), λ)  # Copy to CPU for element-wise access
     if !issorted(λ_host)
         p = sortperm(λ_host)
         λ_host = λ_host[p]
@@ -331,6 +331,8 @@ end
 ### R is then recomputed, and orthonormalized explicitly wrt BX and BP
 ### We reuse applications of A/B when it is safe to do so, ie only with orthogonal transformations
 
+# Note that this function will return λ on the CPU,
+# but X and the history on the device (for GPU runs)
 @timing function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100;
                         miniter=1, ortho_tol=2eps(real(eltype(X))),
                         n_conv_check=nothing, display_progress=false)
