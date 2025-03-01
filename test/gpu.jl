@@ -23,10 +23,12 @@
         self_consistent_field(basis; tol=1e-9, solver=scf_damping_solver(damping=1.0))
     end
 
+    # Bad copy and paste for now ... think of something more clever later
     scfres_cpu = run_problem(; architecture=DFTK.CPU())
     @testset "CUDA" begin
     if CUDA.has_cuda() && CUDA.has_cuda_gpu()
         scfres_cuda = run_problem(; architecture=DFTK.GPU(CuArray))
+        @test scfres_cuda.ρ isa CuArray
         @test abs(scfres_cpu.energies.total - scfres_cuda.energies.total) < 1e-9
         @test norm(scfres_cpu.ρ - Array(scfres_cuda.ρ)) < 1e-9
         @test norm(compute_forces(scfres_cuda)) < 1e-6  # Symmetric structure
@@ -36,6 +38,7 @@
     @testset "AMDGPU" begin
     if AMDGPU.has_rocm_gpu()
         scfres_rocm = run_problem(; architecture=DFTK.GPU(ROCArray))
+        @test scfres_rocm.ρ isa ROCArray
         @test abs(scfres_cpu.energies.total - scfres_rocm.energies.total) < 1e-9
         @test norm(scfres_cpu.ρ - Array(scfres_rocm.ρ)) < 1e-9
         @test norm(compute_forces(scfres_rocm)) < 1e-6  # Symmetric structure
@@ -61,12 +64,15 @@ end
         self_consistent_field(basis; ρ, tol=1e-7, mixing=KerkerMixing())
     end
 
-    scfres_cpu  = run_problem(; architecture=DFTK.CPU())
-    scfres_cuda = run_problem(; architecture=DFTK.GPU(CuArray))
-    @test abs(scfres_cpu.energies.total - scfres_cuda.energies.total) < 1e-7
-    @test norm(scfres_cpu.ρ - Array(scfres_cuda.ρ)) < 1e-6
-    # Test that forces compute: symmetric structure, forces are zero
-    @test norm(compute_forces(scfres_cpu) - compute_forces(scfres_cuda)) < 1e-9
+    if CUDA.has_cuda() && CUDA.has_cuda_gpu()
+        ArrayType = CuArray
+        scfres_cpu  = run_problem(; architecture=DFTK.CPU())
+        scfres_cuda = run_problem(; architecture=DFTK.GPU(ArrayType))
+        @test abs(scfres_cpu.energies.total - scfres_cuda.energies.total) < 1e-7
+        @test norm(scfres_cpu.ρ - Array(scfres_cuda.ρ)) < 1e-6
+        # Test that forces compute: symmetric structure, forces are zero
+        @test norm(compute_forces(scfres_cpu) - compute_forces(scfres_cuda)) < 1e-9
+    end
 end
 
 @testitem "CUDA aluminium forces test" tags=[:gpu] setup=[TestCases] begin
@@ -88,9 +94,12 @@ end
         self_consistent_field(basis; tol=1e-10)
     end
 
-    scfres_cpu  = run_problem(; architecture=DFTK.CPU())
-    scfres_cuda = run_problem(; architecture=DFTK.GPU(CuArray))
-    @test abs(scfres_cpu.energies.total - scfres_cuda.energies.total) < 1e-10
-    @test norm(scfres_cpu.ρ - Array(scfres_cuda.ρ)) < 1e-8
-    @test norm(compute_forces(scfres_cpu) - compute_forces(scfres_cuda)) < 1e-7
+    if CUDA.has_cuda() && CUDA.has_cuda_gpu()
+        ArrayType = CuArray
+        scfres_cpu  = run_problem(; architecture=DFTK.CPU())
+        scfres_cuda = run_problem(; architecture=DFTK.GPU(ArrayType))
+        @test abs(scfres_cpu.energies.total - scfres_cuda.energies.total) < 1e-10
+        @test norm(scfres_cpu.ρ - Array(scfres_cuda.ρ)) < 1e-8
+        @test norm(compute_forces(scfres_cpu) - compute_forces(scfres_cuda)) < 1e-7
+    end
 end
