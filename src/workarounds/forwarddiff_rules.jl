@@ -50,8 +50,8 @@ end
 function build_fft_plans!(tmp::AbstractArray{Complex{T}}) where {T<:Dual}
     opFFT  = AbstractFFTs.plan_fft(tmp)
     opBFFT = AbstractFFTs.plan_bfft(tmp)
-    ipFFT  = DummyInplace{typeof(opFFT)}(opFFT)
-    ipBFFT = DummyInplace{typeof(opBFFT)}(opBFFT)
+    ipFFT  = DummyInplace(opFFT)
+    ipBFFT = DummyInplace(opBFFT)
     ipFFT, opFFT, ipBFFT, opBFFT
 end
 
