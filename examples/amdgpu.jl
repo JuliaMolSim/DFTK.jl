@@ -1,44 +1,16 @@
+using AtomsBuilder
 using DFTK
 using AMDGPU
 using PseudoPotentialData
 
-a = 10.26  # Silicon lattice constant in Bohr
-lattice = a / 2 * [[0 1 1.];
-                   [1 0 1.];
-                   [1 1 0.]]
-Si = ElementPsp(:Si, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
-atoms     = [Si, Si]
-positions = [ones(3)/8, -ones(3)/8]
+model  = model_DFT(bulk(:Si);
+                   functionals=PBE(),
+                   pseudopotentials=PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth"))
 
-architecture = DFTK.GPU(AMDGPU.ROCArray)
+# If available, use AMDGPU to store DFT quantities and perform main computations
+architecture = has_rocm_gpu() ? DFTK.GPU(AMDGPU.ROCArray) : DFTK.CPU()
 
-if false
-    # Full problem
-    model  = model_PBE(lattice, atoms, positions)
-    basis  = PlaneWaveBasis(model; Ecut=20, kgrid=(3, 3, 3), architecture)
-    scfres = self_consistent_field(basis; tol=1e-2, solver=scf_damping_solver())
-elseif false
-    # Slightly reduced problem
-    model = model_atomic(lattice, atoms, positions)
-    basis = PlaneWaveBasis(model; Ecut=20, kgrid=(1, 1, 1), architecture)
-else
-    # Simplest failing problem
-    model = Model(lattice, atoms, positions)
-    basis = PlaneWaveBasis(model; Ecut=20, kgrid=(1, 1, 1), architecture)
-end
+basis  = PlaneWaveBasis(model; Ecut=20, kgrid=(1, 1, 1), architecture)
 
-println("basis done")
-psi = [DFTK.random_orbitals(basis, basis.kpoints[1], 6)]
-@show typeof(psi)
-println("psi done")
-
-ham = Hamiltonian(basis)
-println("ham done")
-
-res = ham * psi
-println("apply done")
-
-if true  # Do full eigensolve
-    eigres = diagonalize_all_kblocks(DFTK.lobpcg_hyper, ham, 6);
-    println("eigensolve done")
-end
+# Anderson does not yet work ...
+scfres = self_consistent_field(basis; tol=1e-2, solver=scf_damping_solver())
