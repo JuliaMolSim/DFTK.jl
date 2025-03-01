@@ -116,7 +116,8 @@ function ifft!(f_real::AbstractArray3, fft_grid::FFTGrid,
     fill!(f_real, 0)
     f_real[Gvec_mapping] = f_fourier
 
-    mul!(f_real, fft_grid.ipBFFT, f_real)  # perform IFFT
+    # Perform iFFT, equivalent to mul!(f_real, fft_grid.ipBFFT, f_real)
+    f_real = fft_grid.ipBFFT * f_real
     normalize && (f_real .*= fft_grid.ifft_normalization)
     f_real
 end
@@ -165,8 +166,8 @@ function fft!(f_fourier::AbstractVector, fft_grid::FFTGrid,
     @assert size(f_real) == fft_grid.fft_size
     @assert length(f_fourier) == length(Gvec_mapping)
 
-    # FFT
-    mul!(f_real, fft_grid.ipFFT, f_real)
+    # Perform FFT, equivalent to mul!(f_real, fft_grid.ipFFT, f_real)
+    f_real = fft_grid.ipFFT * f_real
 
     # Truncate
     f_fourier .= view(f_real, Gvec_mapping)
@@ -365,7 +366,8 @@ function build_fft_plans!(tmp::AbstractArray{Complex{T}}) where {T<:Union{Float3
 end
 
 # TODO Some grid sizes are broken in the generic FFT implementation
-# in FourierTransforms, for more details see workarounds/fft_generic.jl
+# in FourierTransforms, for more details see
+# ext/DFTKGenericLinearAlgebraExt/DFTKGenericLinearAlgebraExt.jl
 default_primes(::Type{Float32}) = (2, 3, 5)
 default_primes(::Type{Float64}) = default_primes(Float32)
 next_working_fft_size(::Type{Float32}, size::Int) = size

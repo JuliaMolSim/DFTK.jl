@@ -16,6 +16,7 @@ runfile = joinpath(@__DIR__, "runtests_runner.jl")
 # Trigger some precompilation and build steps
 using ASEconvert
 using CUDA
+using AMDGPU
 using DFTK
 using Interpolations
 
