@@ -80,7 +80,7 @@ and secondly multiprocessing using MPI
 (via the [MPI.jl](https://github.com/JuliaParallel/MPI.jl) Julia interface).
 MPI-based parallelism is currently only over ``k``-points,
 such that it cannot be used for calculations with only a single ``k``-point.
-Otherwise combining both forms of parallelism is possible as well.
+There is also support for [Using DFTK on GPUs](@ref).
 
 The scaling of both forms of parallelism for a number of test cases
 is demonstrated in the following figure.
@@ -126,10 +126,10 @@ DFTK.mpi_master() || (redirect_stdout(); redirect_stderr())
 ```
 at the top of your script to disable printing on all processes but one.
 
-!!! info "MPI-based parallelism not fully supported"
-    While standard procedures (such as the SCF or band structure calculations)
-    fully support MPI, not all routines of DFTK are compatible with MPI yet
-    and will throw an error when being called in an MPI-parallel run.
+!!! info "MPI-based parallelism not supported everywhere"
+    While most standard procedures are now supported in combination with MPI,
+    some functionality is still missing and may error out when being called
+    in an MPI-parallel run.
     In most cases there is no intrinsic limitation it just has not yet been
     implemented. If you require MPI in one of our routines, where this is not
     yet supported, feel free to open an issue on github or otherwise get in touch.

@@ -116,3 +116,16 @@ plot_dos(bands; temperature=1e-3, smearing=Smearing.FermiDirac())
 # Note that directly employing the `scfres` also works, but the results
 # are much cruder:
 plot_dos(scfres; temperature=1e-3, smearing=Smearing.FermiDirac())
+
+# !!! info "Where to go from here"
+#     - **Background on DFT:**
+#       [Periodic problems](@ref periodic-problems),
+#       [Introduction to density-functional theory](@ref),
+#       [Self-consistent field methods](@ref)
+#     - **Running calculations:** For example
+#       [Temperature and metallic systems](@ref metallic-systems)
+#       [Performing a convergence study](@ref)
+#       [Geometry optimization](@ref)
+#     - **Tips and tricks:** [Using DFTK on compute clusters](@ref),
+#       [Using DFTK on GPUs](@ref),
+#       [Saving SCF results on disk and SCF checkpoints](@ref)
