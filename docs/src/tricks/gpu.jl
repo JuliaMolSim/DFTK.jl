@@ -1,9 +1,11 @@
 # # Using DFTK on GPUs
 #
 # In this example we will look how DFTK can be used on
-# Graphics Processing Units. We will mostly focus on Nvidia GPUs
-# based on the [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) Julia
-# package.
+# Graphics Processing Units.
+# In its current state runs based on Nvidia GPUs
+# using the [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) Julia
+# package are better supported and there are considerably less rough
+# edges.
 #
 # !!! info "GPU parallelism not supported everywhere"
 #     GPU support is still a relatively new feature in DFTK.
@@ -28,6 +30,7 @@ silicon = bulk(:Si)
 model  = model_DFT(silicon;
                    functionals=PBE(),
                    pseudopotentials=PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf"))
+nothing  # hide
 
 # Next is the selection of the computational architecture.
 # This effectively makes the choice, whether the computation will be run
@@ -42,7 +45,8 @@ CUDA.set_runtime_version!(v"11.8")  # Note: This requires a restart of Julia
 architecture = DFTK.GPU(CuArray)
 
 # **AMD GPUs.** Supported via [AMDGPU.jl](https://github.com/JuliaGPU/AMDGPU.jl).
-# Here you need to install ROCm manually and afterwards you just need to:
+# Here you need to [install ROCm](https://rocm.docs.amd.com/) manually.
+# With that in place you can then select:
 
 using AMDGPU
 architecture = DFTK.GPU(ROCArray)
@@ -55,19 +59,17 @@ architecture = DFTK.GPU(ROCArray)
 architecture = has_cuda() ? DFTK.GPU(CuArray) : DFTK.CPU()
 
 # **Basis and SCF.**
-# Based on the `architecture` we construct a `PlaneWaveBasis` object:
+# Based on the `architecture` we construct a [`PlaneWaveBasis`](@ref) object
+# as usual:
 
 basis  = PlaneWaveBasis(model; Ecut=30, kgrid=(5, 5, 5), architecture)
 nothing  # hide
 
-# From here again the calculation proceeds identical to the plain
-# CPU case by running the SCF and optionally force calculation.
+# ... and run the SCF and some post-processing:
 
 scfres = self_consistent_field(basis; tol=1e-6)
 compute_forces(scfres)
 
-# Some words of warning:
-#
 # !!! warning "GPU performance"
 #     Our current (February 2025) benchmarks show DFTK to have reasonable performance
 #     on Nvidia / CUDA GPUs with a 50-fold to 100-fold speed-up over single-threaded
