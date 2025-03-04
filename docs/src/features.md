@@ -16,6 +16,7 @@
     - Direct minimization, Newton solver
     - Multi-level threading (``k``-points eigenvectors, FFTs, linear algebra)
     - MPI-based distributed parallelism (distribution over ``k``-points)
+    - [Using DFTK on GPUs](@ref): Nvidia *(mostly supported)* and AMD GPUs *(preliminary support)*
     - Treat systems of 1000 electrons
 
 * Ground-state properties and post-processing:

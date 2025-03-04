@@ -62,6 +62,7 @@ PAGES = [
         # reliability of calculations.
         "tricks/achieving_convergence.md",
         "tricks/parallelization.md",
+        "tricks/gpu.jl",
         "tricks/scf_checkpoints.jl",
         "tricks/compute_clusters.md",
     ],
