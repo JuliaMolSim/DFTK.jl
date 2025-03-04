@@ -98,8 +98,8 @@ function PspUpf(path; identifier=path, rcut=nothing)
     # rβ [Ry Bohr^{-1/2}]  h [Ry^{-1}]
     # rβ [Bohr^{-1/2}]     h [Ry]
     # The quantity that's used in calculations is β h β, so the units don't practically
-    # matter. However, HGH pseudos in UPF format use the first units, so we assume them
-    # to facilitate comparison of the intermediate quantities with analytical HGH.
+    # matter. However, GTH pseudos in UPF format use the first units, so we assume them
+    # to facilitate comparison of the intermediate quantities with analytical GTH.
 
     r2_projs = map(0:lmax) do l
         betas_l = filter(beta -> beta["angular_momentum"] == l, pseudo["beta_projectors"])
