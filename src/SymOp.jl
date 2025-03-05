@@ -23,7 +23,9 @@ const SYMMETRY_TOLERANCE = convert(Float64, @load_preference("symmetry_tolerance
 # Whether symmetry determination and k-point reduction is checked explicitly in the code
 const SYMMETRY_CHECK = true
 
-is_approx_integer(r; atol) = all(ri -> abs(ri - round(ri)) ≤ atol, r)
+function is_approx_integer(r; atol=100eps(eltype(r)))
+    all(ri -> abs(ri - round(ri)) ≤ atol, r)
+end
 
 struct SymOp{T <: Real}
     # (Uu)(x) = u(W x + w) in real space
