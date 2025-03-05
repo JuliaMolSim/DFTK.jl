@@ -6,7 +6,7 @@
 #
 # Currently, DFTK supports norm-conserving (NC) PSPs in
 # separable (Kleinman-Bylander) form. Two file formats can currently
-# be read and used: analytical Hartwigsen-Goedecker-Hutter (HGH) PSPs
+# be read and used: analytical Goedecker-Teter-Hutter (GTH) PSPs
 # and numeric Unified Pseudopotential Format (UPF) PSPs.
 #
 # In brief, the pseudopotential approach replaces the all-electron
@@ -19,7 +19,7 @@
 # computational efficiency.
 #
 # Different PSP generation codes produce various file formats which contain the
-# same general quantities required for pesudopotential evaluation. HGH PSPs
+# same general quantities required for pesudopotential evaluation. GTH PSPs
 # are constructed from a fixed functional form based on Gaussians, and the files
 # simply tablulate various coefficients fitted for a given element. UPF PSPs
 # take a more flexible approach where the functional form used to generate the
@@ -27,7 +27,7 @@
 # in the file. The UPF file format is documented
 # [on the Quantum Espresso Website](http://pseudopotentials.quantum-espresso.org/home/unified-pseudopotential-format).
 #
-# In this example, we will compare the convergence of an analytical HGH PSP with
+# In this example, we will compare the convergence of an analytical GTH PSP with
 # a modern numeric norm-conserving PSP in UPF format from
 # [PseudoDojo](http://www.pseudo-dojo.org/).
 # Then, we will compare the bandstructure at the converged parameters calculated
@@ -58,9 +58,9 @@ family_upf = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf");
 # An alternative to a `PseudoFamily` object is in all cases a plain
 # `Dict` to map from atomic symbols to the employed pseudopotential file.
 # For demonstration purposes we employ this
-# in combination with the HGH-type pseudopotentials:
-family_hgh = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
-pseudopotentials_hgh = Dict(:Si => family_hgh[:Si])
+# in combination with the GTH-type pseudopotentials:
+family_gth = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
+pseudopotentials_gth = Dict(:Si => family_gth[:Si])
 
 # First, we'll take a look at the energy cutoff convergence of these two pseudopotentials.
 # For both pseudos, a reference energy is calculated with a cutoff of 140 Hartree, and
@@ -71,8 +71,8 @@ pseudopotentials_hgh = Dict(:Si => family_hgh[:Si])
 #md # ```
 #nb # <img src="https://docs.dftk.org/stable/assets/si_pseudos_ecut_convergence.png" width=600 height=400 />
 
-# The converged cutoffs are 26 Ha and 18 Ha for the HGH
-# and UPF pseudos respectively. We see that the HGH pseudopotential
+# The converged cutoffs are 26 Ha and 18 Ha for the GTH
+# and UPF pseudos respectively. We see that the GTH pseudopotential
 # is much *harder*, i.e. it requires a higher energy cutoff, than the UPF PSP. In general,
 # numeric pseudopotentials tend to be softer than analytical pseudos because of the
 # flexibility of sampling arbitrary functions on a grid.
@@ -90,7 +90,7 @@ pseudometa(family_upf, :Si)
 # Here, we see that multiple recommended cutoffs are made available in the metadata.
 
 # Next, to see that the different pseudopotentials give reasonably similar results,
-# we'll look at the bandstructures calculated using the HGH and UPF PSPs. Even though
+# we'll look at the bandstructures calculated using the GTH and UPF PSPs. Even though
 # the converged cutoffs are higher, we perform these calculations with a cutoff of
 # 12 Ha for both PSPs.
 
@@ -108,12 +108,12 @@ end;
 
 # The SCF and bandstructure calculations can then be performed using the two PSPs,
 # where we notice in particular the difference in total energies.
-result_hgh = run_bands(pseudopotentials_hgh)
-result_hgh.scfres.energies
+result_gth = run_bands(pseudopotentials_gth)
+result_gth.scfres.energies
 #-
 result_upf = run_bands(family_upf)
 result_upf.scfres.energies
 
 # But while total energies are not physical and thus allowed to differ,
 # the bands (as an example for a physical quantity) are very similar for both pseudos:
-plot(result_hgh.bandplot, result_upf.bandplot, titles=["HGH" "UPF"], size=(800, 400))
+plot(result_gth.bandplot, result_upf.bandplot, titles=["GTH" "UPF"], size=(800, 400))
