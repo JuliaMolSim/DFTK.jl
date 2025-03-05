@@ -24,6 +24,8 @@ const SYMMETRY_TOLERANCE = convert(Float64, @load_preference("symmetry_tolerance
 const SYMMETRY_CHECK = true
 
 function is_approx_integer(r; atol=100eps(eltype(r)))
+    # Note: This default on atol is deliberately chosen quite tight. In many applications
+    # of this function one probably wants to use SYMMETRY_TOLERANCE as atol.
     all(ri -> abs(ri - round(ri)) ≤ atol, r)
 end
 
