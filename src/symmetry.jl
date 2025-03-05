@@ -363,15 +363,15 @@ function symmetrize_forces(model::Model, forces;
             # (but careful that our symmetries are r -> Wr+w, not R(r+f))
             other_at = W \ (position - w)
 
-            # Find the index of the atom to which idx is mapped to
-            # by the symmetry operation. To avoid issues due to numerical noise
-            # we compute the deviations from being an integer shift (thus equivalent
-            # by translational symmetry) for all atoms in the group and pick
-            # the smallest one
+            # Find the index of the atom to which idx is mapped to by the symmetry operation.
+            # To avoid issues due to numerical noise we compute the deviations from being
+            # an integer shift (thus equivalent by translational symmetry) for all atoms in
+            # the group and pick the smallest one.
             smallest_deviation, i_other_at = findmin(positions_group) do at
                 δat = at - other_at
                 maximum(abs, δat - round.(δat))
             end
+            # Note, that without a fudging factor this occasionally fails:
             @assert smallest_deviation < 10tol_symmetry
 
             # (A.27) is in Cartesian coordinates, and since Wcart is orthogonal,
