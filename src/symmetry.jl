@@ -352,7 +352,8 @@ end
 Symmetrize the forces in *reduced coordinates*, forces given as an
 array `forces[iel][α,i]`.
 """
-function symmetrize_forces(model::Model, forces; symmetries)
+function symmetrize_forces(model::Model, forces;
+                           symmetries, tol_symmetry=SYMMETRY_TOLERANCE)
     symmetrized_forces = zero(forces)
     for group in model.atom_groups, symop in symmetries
         positions_group = model.positions[group]
@@ -361,7 +362,18 @@ function symmetrize_forces(model::Model, forces; symmetries)
             # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
             # (but careful that our symmetries are r -> Wr+w, not R(r+f))
             other_at = W \ (position - w)
-            i_other_at = findfirst(a -> is_approx_integer(a - other_at), positions_group)
+
+            # Find the index of the atom to which idx is mapped to
+            # by the symmetry operation. To avoid issues due to numerical noise
+            # we compute the deviations from being an integer shift (thus equivalent
+            # by translational symmetry) for all atoms in the group and pick
+            # the smallest one
+            smallest_deviation, i_other_at = findmin(positions_group) do at
+                δat = at - other_at
+                maximum(abs, δat - round.(δat))
+            end
+            @assert smallest_deviation < 10tol_symmetry
+
             # (A.27) is in Cartesian coordinates, and since Wcart is orthogonal,
             # Fsymcart = Wcart * Fcart <=> Fsymred = inv(Wred') Fred
             symmetrized_forces[idx] += inv(W') * forces[group[i_other_at]]
