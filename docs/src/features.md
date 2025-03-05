@@ -1,41 +1,46 @@
 # [DFTK features](@id package-features)
 
-* Standard methods and models:
-    - Standard DFT models (LDA, GGA, meta-GGA): Any functional from the
-      [libxc](https://libxc.gitlab.io/) library
-    - Norm-conserving pseudopotentials: Goedecker-type (GTH, HGH)
-      or numerical (in UPF pseudopotential format),
-      see [Pseudopotentials](@ref) for details.
-    - Brillouin zone symmetry for ``k``-point sampling using [spglib](https://atztogo.github.io/spglib/)
-    - Standard smearing functions (including Methfessel-Paxton
-      and Marzari-Vanderbilt cold smearing)
-    - Collinear spin polarization for magnetic systems
-    - Self-consistent field approaches including adaptive mixing methods,
-      e.g. [LDOS mixing](https://doi.org/10.1088/1361-648X/abcbdb) (autodetects metal versus insulator)
-      or [adaptive damping](https://arxiv.org/abs/2109.14018).
-    - Direct minimization, Newton solver
-    - Multi-level threading (``k``-points eigenvectors, FFTs, linear algebra)
-    - MPI-based distributed parallelism (distribution over ``k``-points)
-    - [Using DFTK on GPUs](@ref): Nvidia *(mostly supported)* and AMD GPUs *(preliminary support)*
-    - Treat systems of 1000 electrons
+The following gives an overview of the features of DFTK.
+We achieve this in **less than 10 000 lines** of code
+and having a performance comparable to standard DFT codes.
 
-* Ground-state properties and post-processing:
+* Standard methods and models:
+    - DFT models (LDA, GGA, meta-GGA): Any functional from the
+      [libxc](https://libxc.gitlab.io/) library
+    - **Norm-conserving pseudopotentials**: Goedecker-type (GTH)
+      or numerical (in UPF pseudopotential format),
+      see [Pseudopotentials](@ref).
+    - **Black-box self-consistent field approaches**, such as
+      [LDOS mixing](https://doi.org/10.1088/1361-648X/abcbdb) (autodetects metal versus insulator)
+      or [adaptive damping](https://arxiv.org/abs/2109.14018).
+    - Direct minimisation methods, see [Comparison of DFT solvers](@ref).
+    - Various smearing methods
+    - Collinear spin, see [Collinear spin and magnetic systems](@ref).
+
+* Parallelisation:
+    - **MPI-based distributed parallelism** (distribution over ``k``-points)
+    - [**Using DFTK on GPUs**](@ref): Nvidia *(mostly supported)* and AMD GPUs *(preliminary support)*
+    - Multi-level threading (``k``-points eigenvectors, FFTs, linear algebra)
+
+* **Ground-state properties** and post-processing:
     - Total energy, forces, stresses
     - Density of states (DOS), local density of states (LDOS)
     - Band structures
     - Easy access to all intermediate quantities (e.g. density, Bloch waves)
 
-* Response and response properties:
+* Response and **response properties**:
     - Density-functional perturbation theory (DFPT)
-    - Integration of DFPT with algorithmic differentiation,
+    - Integration of DFPT with **algorithmic differentiation**,
       e.g. [Polarizability using automatic differentiation](@ref)
     - [Phonon computations](@ref) *(preliminary implementation)*
 
 * Unique features
-    - Support for arbitrary floating point types, including `Float32` (single precision)
+    - Support for **arbitrary floating point types**,
+      including `Float32` (single precision)
       or `Double64` (from [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)).
-    - Forward-mode algorithmic differentiation (see [Polarizability using automatic differentiation](@ref))
-    - Flexibility to build your own Kohn-Sham model:
+    - Forward-mode algorithmic differentiation
+      (see [Polarizability using automatic differentiation](@ref))
+    - Flexibility to **build your own Kohn-Sham model**:
       Anything from [analytic potentials](@ref custom-potential),
       linear [Cohen-Bergstresser model](@ref),
       the [Gross-Pitaevskii equation](@ref gross-pitaevskii),
@@ -44,10 +49,9 @@
     - 1D / 2D / 3D systems (see [Tutorial on periodic problems](@ref periodic-problems))
 
 * Third-party integrations:
-    - Seamless integration with many standard [Input and output formats](@ref).
-    - Integration with [AtomsBase](https://github.com/JuliaMolSim/AtomsBase.jl) for passing
-      atomic structures (see [AtomsBase integration](@ref)) as well as
-      the [Atomistic simulation environment](@ref).
+    - Many standard [Input and output formats](@ref).
+    - [AtomsBase integration](@ref) and via this ecosystem an integration
+      with the [Atomistic simulation environment](@ref).
     - [Wannierization using Wannier.jl or Wannier90](@ref)
 
 * Runs out of the box on Linux, macOS and Windows
