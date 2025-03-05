@@ -82,7 +82,8 @@
         for (ik, kpt) in enumerate(ham_ir.basis.kpoints)
             for symop in ham_ir.basis.symmetries
                 ikfull = findfirst(1:length(kfull)) do idx
-                    all(is_approx_integer, kfull[idx] - symop.S * kpt.coordinate)
+                    is_approx_int(x) = is_approx_integer(x; atol=1e-10)
+                    all(is_approx_int, kfull[idx] - symop.S * kpt.coordinate)
                 end
                 @test ikfull !== nothing
 
@@ -106,7 +107,8 @@
                     Skpoint, ψSk = DFTK.apply_symop(symop, ham_ir.basis, Hk_ir.kpoint, ψ_ir[ik])
 
                     ikfull = findfirst(1:length(kfull)) do idx
-                        all(is_approx_integer, round.(kfull[idx] - Skpoint.coordinate, digits=10))
+                        is_approx_int(x) = is_approx_integer(x; atol=1e-10)
+                        all(is_approx_int, round.(kfull[idx] - Skpoint.coordinate, digits=10))
                     end
                     @test !isnothing(ikfull)
                     Hk_full = ham_full.blocks[ikfull]
