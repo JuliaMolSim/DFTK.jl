@@ -19,7 +19,7 @@ and having a performance comparable to standard DFT codes.
 
 * Parallelisation:
     - **MPI-based distributed parallelism** (distribution over ``k``-points)
-    - [**Using DFTK on GPUs**](@ref): Nvidia *(mostly supported)* and AMD GPUs *(preliminary support)*
+    - **[Using DFTK on GPUs](@ref)**: Nvidia *(mostly supported)* and AMD GPUs *(preliminary support)*
     - Multi-level threading (``k``-points eigenvectors, FFTs, linear algebra)
 
 * **Ground-state properties** and post-processing:
