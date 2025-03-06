@@ -348,14 +348,11 @@ function symmetrize_stresses(basis::PlaneWaveBasis, stresses)
     symmetrize_stresses(basis.model, stresses; basis.symmetries)
 end
 
-"""
-Symmetrize the forces in *reduced coordinates*, forces given as an
-array `forces[iel][α,i]`.
-"""
-function symmetrize_forces(model::Model, forces; symmetries, tol_symmetry=SYMMETRY_TOLERANCE)
+function symmetrize_forces(positions::AbstractVector, atom_groups::AbstractVector, forces;
+                           symmetries, tol_symmetry=SYMMETRY_TOLERANCE)
     symmetrized_forces = zero(forces)
-    for group in model.atom_groups, symop in symmetries
-        positions_group = model.positions[group]
+    for group in atom_groups, symop in symmetries
+        positions_group = positions[group]
         W, w = symop.W, symop.w
         for (idx, position) in enumerate(positions_group)
             # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
@@ -380,6 +377,13 @@ function symmetrize_forces(model::Model, forces; symmetries, tol_symmetry=SYMMET
     end
     symmetrized_forces / length(symmetries)
 end
+function symmetrize_forces(model::Model, forces; kwargs...)
+    symmetrize_forces(model.positions, model.atom_groups, forces; kwargs...)
+end
+
+"""
+Symmetrize the forces in *reduced coordinates*, forces given as an array `forces[iel][α,i]`.
+"""
 function symmetrize_forces(basis::PlaneWaveBasis, forces)
     symmetrize_forces(basis.model, forces; basis.symmetries)
 end
