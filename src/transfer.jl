@@ -47,7 +47,7 @@ function transfer_mapping(basis_in::PlaneWaveBasis,  kpt_in::Kpoint,
                           basis_out::PlaneWaveBasis, kpt_out::Kpoint)
     @assert basis_in.model.lattice == basis_out.model.lattice
     ΔG = kpt_out.coordinate .- kpt_in.coordinate  # kpt_out = kpt_in + ΔG
-    @assert all(is_approx_integer.(ΔG))
+    @assert all(is_approx_integer.(ΔG; atol=SYMMETRY_TOLERANCE))
     ΔG = round.(Int, ΔG)
 
     idcs_in  = 1:length(G_vectors(basis_in, kpt_in))  # All entries from idcs_in
@@ -181,7 +181,7 @@ function find_equivalent_kpt(basis::PlaneWaveBasis{T}, kcoord, spin; tol=sqrt(ep
 
     ΔG = kcoord_red - kcoord
     # ΔG should be an integer.
-    @assert all(is_approx_integer.(ΔG))
+    @assert all(is_approx_integer.(ΔG; atol=SYMMETRY_TOLERANCE))
     ΔG = round.(Int, ΔG)
 
     indices_σ = krange_spin(basis, spin)

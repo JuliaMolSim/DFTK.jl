@@ -81,7 +81,7 @@ end
             dPdR  = similar(form_factors)
             twoπp = similar(form_factors, length(G_plus_k))
             structure_factors = similar(form_factors, length(G_plus_k))
-            
+
             for idx in group
                 r = model.positions[idx]
                 map!(p -> cis2pi(-dot(p, r)), structure_factors, G_plus_k)
