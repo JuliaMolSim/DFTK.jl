@@ -1,7 +1,7 @@
 name = "DFTK"
 uuid = "acf6eb54-70d9-11e9-0013-234b7a5f5337"
 authors = ["Michael F. Herbst <info@michael-herbst.com>", "Antoine Levitt <antoine.levitt@inria.fr>"]
-version = "0.7.9"
+version = "0.7.10"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -31,7 +31,6 @@ PkgVersion = "eebad327-c553-4316-9ea0-9fa01ccd7688"
 Polynomials = "f27b6e38-b328-58d1-80ce-0feddd5e7a45"
 PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 Preferences = "21216c6a-2e73-6563-6e65-726566657250"
-Primes = "27ebfcd6-29c5-5fa9-bf4b-fb8fc14df3ae"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 PseudoPotentialIO = "cb339c56-07fa-4cb2-923a-142469552264"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
@@ -46,6 +45,7 @@ Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 UnitfulAtomic = "a7773ee8-282e-5fa2-be4e-bd808c38a91a"
 
 [weakdeps]
+AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 GenericLinearAlgebra = "14197337-ba66-59df-a3e3-ca00e7dcff7a"
 GeometryOptimization = "673bf261-a53d-43b9-876f-d3c1fc8329c2"
@@ -59,6 +59,7 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 wannier90_jll = "c5400fa0-8d08-52c2-913f-1e3f656c1ce9"
 
 [extensions]
+DFTKAMDGPUExt = "AMDGPU"
 DFTKCUDAExt = "CUDA"
 DFTKGenericLinearAlgebraExt = "GenericLinearAlgebra"
 DFTKGeometryOptimizationExt = "GeometryOptimization"
@@ -72,6 +73,7 @@ DFTKWannierExt = "Wannier"
 DFTKWriteVTKExt = "WriteVTK"
 
 [compat]
+AMDGPU = "1.2.3"
 ASEconvert = "0.1"
 AbstractFFTs = "1"
 Aqua = "0.8.5"
@@ -116,7 +118,6 @@ Plots = "1"
 Polynomials = "3, 4"
 PrecompileTools = "1"
 Preferences = "1"
-Primes = "0.5"
 Printf = "1"
 PseudoPotentialData = "0.2.2"
 PseudoPotentialIO = "0.1"
@@ -140,6 +141,7 @@ julia = "1.10"
 wannier90_jll = "3.1"
 
 [extras]
+AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
 ASEconvert = "3da9722f-58c2-4165-81be-b4d7253e8fd2"
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 AtomsBuilder = "f5cc8831-eeb7-4288-8d9f-d6c1ddb77004"
@@ -169,4 +171,4 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 wannier90_jll = "c5400fa0-8d08-52c2-913f-1e3f656c1ce9"
 
 [targets]
-test = ["Test", "TestItemRunner", "ASEconvert", "AtomsBuilder", "Aqua", "AtomsIO", "AtomsIOPython", "CUDA", "CUDA_Runtime_jll", "ComponentArrays", "DoubleFloats", "FiniteDiff", "FiniteDifferences", "GenericLinearAlgebra", "GeometryOptimization", "IntervalArithmetic", "JLD2", "JSON3", "Logging", "Plots", "PseudoPotentialData", "PythonCall", "QuadGK", "Random", "KrylovKit", "Wannier", "WriteVTK", "wannier90_jll"]
+test = ["Test", "TestItemRunner", "AMDGPU", "ASEconvert", "AtomsBuilder", "Aqua", "AtomsIO", "AtomsIOPython", "CUDA", "CUDA_Runtime_jll", "ComponentArrays", "DoubleFloats", "FiniteDiff", "FiniteDifferences", "GenericLinearAlgebra", "GeometryOptimization", "IntervalArithmetic", "JLD2", "JSON3", "Logging", "Plots", "PseudoPotentialData", "PythonCall", "QuadGK", "Random", "KrylovKit", "Wannier", "WriteVTK", "wannier90_jll"]

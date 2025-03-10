@@ -1,3 +1,5 @@
+using DftFunctionals
+
 include("operators.jl")
 
 ### Terms
@@ -26,6 +28,7 @@ function energy(term::Term, basis::AbstractBasis, ψ, occupation; kwargs...)
     ene_ops(term, basis, ψ, occupation; kwargs...).E
 end
 
+DftFunctionals.needs_τ(t::Term) = false
 
 """
 A term with a constant zero energy.

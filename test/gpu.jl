@@ -1,9 +1,18 @@
 # These are not yet the best tests, but just to ensure our GPU support
 # does not just break randomly
+#
+# TODO Also test other cases on AMDGPU
+# TODO Refactor this file to reduce code duplication
+#
+# TODO Test Hamiltonian application on GPU
+# TODO Direct minimisation
+# TODO Float32
+# TODO meta GGA
 
-@testitem "CUDA silicon functionality test" tags=[:gpu] setup=[TestCases] begin
+@testitem "GPU silicon functionality test" tags=[:gpu] setup=[TestCases] begin
     using DFTK
     using CUDA
+    using AMDGPU
     using LinearAlgebra
     silicon = TestCases.silicon
 
@@ -14,12 +23,27 @@
         self_consistent_field(basis; tol=1e-9, solver=scf_damping_solver(damping=1.0))
     end
 
+    # Bad copy and paste for now ... think of something more clever later
     scfres_cpu = run_problem(; architecture=DFTK.CPU())
-    scfres_gpu = run_problem(; architecture=DFTK.GPU(CuArray))
-    @test abs(scfres_cpu.energies.total - scfres_gpu.energies.total) < 1e-9
-    @test norm(scfres_cpu.ρ - Array(scfres_gpu.ρ)) < 1e-9
-    # Test that forces compute: symmetric structure, forces are zero
-    @test norm(compute_forces(scfres_cpu) - compute_forces(scfres_gpu)) < 1e-10
+    @testset "CUDA" begin
+    if CUDA.has_cuda() && CUDA.has_cuda_gpu()
+        scfres_cuda = run_problem(; architecture=DFTK.GPU(CuArray))
+        @test scfres_cuda.ρ isa CuArray
+        @test abs(scfres_cpu.energies.total - scfres_cuda.energies.total) < 1e-9
+        @test norm(scfres_cpu.ρ - Array(scfres_cuda.ρ)) < 1e-9
+        @test norm(compute_forces(scfres_cuda)) < 1e-6  # Symmetric structure
+    end
+    end
+
+    @testset "AMDGPU" begin
+    if AMDGPU.has_rocm_gpu()
+        scfres_rocm = run_problem(; architecture=DFTK.GPU(ROCArray))
+        @test scfres_rocm.ρ isa ROCArray
+        @test abs(scfres_cpu.energies.total - scfres_rocm.energies.total) < 1e-9
+        @test norm(scfres_cpu.ρ - Array(scfres_rocm.ρ)) < 1e-9
+        @test norm(compute_forces(scfres_rocm)) < 1e-6  # Symmetric structure
+    end
+    end
 end
 
 @testitem "CUDA iron functionality test" tags=[:gpu] setup=[TestCases] begin
@@ -37,16 +61,18 @@ end
         ρ = guess_density(basis, magnetic_moments)
 
         # TODO Bump tolerance a bit here ... still leads to NaNs unfortunately
-        self_consistent_field(basis; ρ, tol=1e-7, mixing=KerkerMixing(),
-                              solver=scf_damping_solver(damping=1.0))
+        self_consistent_field(basis; ρ, tol=1e-7, mixing=KerkerMixing())
     end
 
-    scfres_cpu = run_problem(; architecture=DFTK.CPU())
-    scfres_gpu = run_problem(; architecture=DFTK.GPU(CuArray))
-    @test abs(scfres_cpu.energies.total - scfres_gpu.energies.total) < 1e-7
-    @test norm(scfres_cpu.ρ - Array(scfres_gpu.ρ)) < 1e-6
-    # Test that forces compute: symmetric structure, forces are zero
-    @test norm(compute_forces(scfres_cpu) - compute_forces(scfres_gpu)) < 1e-9
+    if CUDA.has_cuda() && CUDA.has_cuda_gpu()
+        ArrayType = CuArray
+        scfres_cpu  = run_problem(; architecture=DFTK.CPU())
+        scfres_cuda = run_problem(; architecture=DFTK.GPU(ArrayType))
+        @test abs(scfres_cpu.energies.total - scfres_cuda.energies.total) < 1e-7
+        @test norm(scfres_cpu.ρ - Array(scfres_cuda.ρ)) < 1e-6
+        # Test that forces compute: symmetric structure, forces are zero
+        @test norm(compute_forces(scfres_cpu) - compute_forces(scfres_cuda)) < 1e-9
+    end
 end
 
 @testitem "CUDA aluminium forces test" tags=[:gpu] setup=[TestCases] begin
@@ -54,7 +80,7 @@ end
     using CUDA
     using LinearAlgebra
     aluminium = TestCases.aluminium
-    positions = aluminium.positions
+    positions = copy(aluminium.positions)
     # Perturb equilibrium position for non-zero forces
     positions[1] += [0.01, 0.0, -0.01]
 
@@ -68,17 +94,12 @@ end
         self_consistent_field(basis; tol=1e-10)
     end
 
-    scfres_cpu = run_problem(; architecture=DFTK.CPU())
-    scfres_gpu = run_problem(; architecture=DFTK.GPU(CuArray))
-    @test abs(scfres_cpu.energies.total - scfres_gpu.energies.total) < 1e-10
-    @test norm(scfres_cpu.ρ - Array(scfres_gpu.ρ)) < 1e-8
-    @test norm(compute_forces(scfres_cpu) - compute_forces(scfres_gpu)) < 1e-7
+    if CUDA.has_cuda() && CUDA.has_cuda_gpu()
+        ArrayType = CuArray
+        scfres_cpu  = run_problem(; architecture=DFTK.CPU())
+        scfres_cuda = run_problem(; architecture=DFTK.GPU(ArrayType))
+        @test abs(scfres_cpu.energies.total - scfres_cuda.energies.total) < 1e-10
+        @test norm(scfres_cpu.ρ - Array(scfres_cuda.ρ)) < 1e-8
+        @test norm(compute_forces(scfres_cpu) - compute_forces(scfres_cuda)) < 1e-7
+    end
 end
-
-
-# TODO Test hamiltonian application on GPU
-# TODO Direct minimisation
-# TODO Float32
-# TODO meta GGA
-# TODO Aluminium with LdosMixing
-# TODO Anderson acceleration
