@@ -157,7 +157,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     basis_primal = construct_value(basis_dual)
     scfres = self_consistent_field(basis_primal; kwargs...)
 
-    # Compute explicit density perturbation (including strain)
+    # Compute explicit density perturbation (including strain) due to normalization
     ρ_basis = compute_density(basis_dual, scfres.ψ, scfres.occupation)
 
     # Compute external perturbation (contained in ham_dual)
@@ -191,9 +191,9 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     end
     εF = DT(scfres.εF, getfield.(δresults, :δεF)...)
 
-    # Add contributions from the basis (ρ_basis) and implicit diff (ρ_response)
-    ρ_response = map((ρi, δρi...) -> DT(ρi, δρi), zero(scfres.ρ), getfield.(δresults, :δρ)...)
-    ρ = ρ_basis + ρ_response
+    # For strain, basis_dual contributes an explicit lattice contribution which
+    # is not contained in δresults, so we need to recompute ρ here
+    ρ = compute_density(basis_dual, ψ, occupation)
 
     # TODO Could add δresults[α].δVind the dual part of the total local potential in ham_dual
     # and in this way return a ham that represents also the total change in Hamiltonian
