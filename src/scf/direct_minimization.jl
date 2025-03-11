@@ -34,19 +34,20 @@ struct DMPreconditioner
     Nk::Int
     Pks::Vector # Pks[ik] is the preconditioner for k-point ik
     unpack::Function
+    kweights::Vector
 end
 function LinearAlgebra.ldiv!(p, P::DMPreconditioner, d)
     p_unpack = P.unpack(p)
     d_unpack = P.unpack(d)
     for ik = 1:P.Nk
-        ldiv!(p_unpack[ik], P.Pks[ik], d_unpack[ik])
+        ldiv!(p_unpack[ik], P.Pks[ik], ((P.kweights[ik])^-1)*d_unpack[ik])
     end
     p
 end
 function LinearAlgebra.dot(x, P::DMPreconditioner, y)
     x_unpack = P.unpack(x)
     y_unpack = P.unpack(y)
-    sum(dot(x_unpack[ik], P.Pks[ik], y_unpack[ik])
+    sum(dot(P.kweights[ik]*x_unpack[ik], P.Pks[ik], y_unpack[ik])
         for ik = 1:P.Nk)
 end
 function precondprep!(P::DMPreconditioner, x)
@@ -150,7 +151,7 @@ function direct_minimization(basis::PlaneWaveBasis{T};
             G = unsafe_unpack(G)
             for ik = 1:Nk
                 mul!(G[ik], ham.blocks[ik], ψ[ik])
-                G[ik] .*= 2*filled_occ
+                G[ik] .*= 2 * filled_occ * basis.kweights[ik]
             end
         end
         energies.total
@@ -158,7 +159,7 @@ function direct_minimization(basis::PlaneWaveBasis{T};
 
     manifold = DMManifold(Nk, unsafe_unpack)
     Pks = [prec_type(basis, kpt) for kpt in basis.kpoints]
-    P = DMPreconditioner(Nk, Pks, unsafe_unpack)
+    P = DMPreconditioner(Nk, Pks, unsafe_unpack, basis.kweights)
 
     optim_options = Optim.Options(; allow_f_increases=true,
                                   callback=optim_callback,
