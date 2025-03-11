@@ -89,8 +89,11 @@ function LinearAlgebra.mul!(Hψ, H::Hamiltonian, ψ)
     end
     Hψ
 end
-# need `deepcopy` here to copy the elements of the array of arrays ψ (not just pointers)
-Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
+function Base.:*(H::Hamiltonian, ψ)
+    # This allocates new memory for the result of promoted eltype
+    result = one(eltype(H.basis)) * ψ
+    mul!(result, H, ψ)
+end
 
 # Loop through bands, IFFT to get ψ in real space, loop through terms, FFT and accumulate into Hψ
 # For the common DftHamiltonianBlock there is an optimized version below
