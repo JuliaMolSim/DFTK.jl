@@ -67,7 +67,7 @@
     end
 end
 
-@testitem "Strain sensitivity using ForwardDiff" #=
+@testitem "Anisotropic strain sensitivity using ForwardDiff" #=
     =#    tags=[:dont_test_mpi] setup=[TestCases] begin
     using DFTK
     using ForwardDiff
@@ -78,15 +78,15 @@ end
     Ecut = 5
     kgrid = [2, 2, 2]
     model = model_DFT(aluminium.lattice, aluminium.atoms, aluminium.positions;
-                      functionals=LDA(), temperature=1e-2, smearing=Smearing.Gaussian())
+                      functionals=LDA(), temperature=1e-2, smearing=Smearing.Gaussian(),
+                      kinetic_blowup=BlowupCHV())
     basis = PlaneWaveBasis(model; Ecut, kgrid)
     nbandsalg = FixedBands(; n_bands_converge=10)
-    response = ResponseOptions(; verbose=true)
 
-    function compute_properties(ε)
-        model_strained = Model(model; lattice=(1 + ε) * model.lattice)
+    function compute_properties(lattice)
+        model_strained = Model(model; lattice)
         basis = PlaneWaveBasis(model_strained; Ecut, kgrid)
-        scfres = self_consistent_field(basis; tol=1e-10, nbandsalg, response)
+        scfres = self_consistent_field(basis; tol=1e-10, nbandsalg)
         ComponentArray(
            eigenvalues=stack([ev[1:10] for ev in scfres.eigenvalues]),
            ρ=scfres.ρ,
@@ -96,17 +96,23 @@ end
         )
     end
 
-    dx = ForwardDiff.derivative(compute_properties, 0.)
+    strain_isotropic(ε) = (1 + ε) * model.lattice
+    strain_anisotropic(ε) = DFTK.voigt_strain_to_full([ε, 0., 0., 0., 0., 0.]) * model.lattice
 
-    h = 1e-4
-    x1 = compute_properties(-h)
-    x2 = compute_properties(+h)
-    dx_findiff = (x2 - x1) / 2h
-    @test norm(dx.ρ - dx_findiff.ρ) * sqrt(basis.dvol) < 1e-6
-    @test maximum(abs, dx.eigenvalues - dx_findiff.eigenvalues) < 1e-6
-    @test maximum(abs, dx.energies - dx_findiff.energies) < 1e-5
-    @test dx.εF - dx_findiff.εF < 1e-6
-    @test maximum(abs, dx.occupation - dx_findiff.occupation) < 1e-5
+    @testset "$strain_fn" for strain_fn in [strain_isotropic, strain_anisotropic]
+        f(ε) = compute_properties(strain_fn(ε))
+        dx = ForwardDiff.derivative(f, 0.)
+
+        h = 1e-4
+        x1 = f(-h)
+        x2 = f(+h)
+        dx_findiff = (x2 - x1) / 2h
+        @test norm(dx.ρ - dx_findiff.ρ) * sqrt(basis.dvol) < 1e-6
+        @test maximum(abs, dx.eigenvalues - dx_findiff.eigenvalues) < 1e-6
+        @test maximum(abs, dx.energies - dx_findiff.energies) < 1e-5
+        @test dx.εF - dx_findiff.εF < 1e-6
+        @test maximum(abs, dx.occupation - dx_findiff.occupation) < 1e-4
+    end
 end
 
 @testitem "scfres PSP sensitivity using ForwardDiff" #=
