@@ -159,3 +159,48 @@ end
 
     @test abs(diff_findiff - diff_forces) < 5e-4
 end
+
+@testitem "Forces match partial derivative of each term" setup=[TestCases] begin
+    using LinearAlgebra
+
+    function get_term_forces(lattice, atoms, positions; kgrid=[1,1,1], Ecut=4, symmetries=false, ε=1e-8)
+        model = model_DFT(lattice, atoms, positions; functionals=LDA(), symmetries, temperature=1e-3)
+        basis = PlaneWaveBasis(model; kgrid, Ecut)
+
+        scfres = self_consistent_field(basis; tol=1e-7)
+
+        map(1:length(basis.terms)) do iterm
+            test_atom = rand(1:length(model.atoms))
+            test_dir = randn(3)
+
+            forces_HF = DFTK.compute_forces(basis.terms[iterm], basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
+            force_HF = isnothing(forces_HF) ? 0 : dot(test_dir, forces_HF[test_atom])
+
+            function term_energy(ε)
+                displacement = [[0.0, 0.0, 0.0] for _ in 1:length(model.atoms)]
+                displacement[test_atom] = test_dir
+                modmodel = Model(model; positions=model.positions .+ ε.*displacement)
+                basis = PlaneWaveBasis(modmodel; kgrid, Ecut)
+                DFTK.ene_ops(basis.terms[iterm], basis, scfres.ψ, scfres.occupation;
+                             ρ=scfres.ρ, εF=scfres.εF, eigenvalues=scfres.eigenvalues).E
+            end
+
+            e1 = term_energy(ε)
+            e2 = term_energy(-ε)
+            force_ε = -(e1 - e2) / 2ε
+
+            (; force_HF, force_ε)
+        end
+    end
+
+    tio2 = TestCases.tio2
+    # We apply a small displacement to one of the ``\rm Ti`` atoms to get nonzero
+    # forces.
+    positions = copy(tio2.positions)
+    positions[1] .+= [-0.022, 0.028, 0.035]
+
+    terms_forces = get_term_forces(tio2.lattice, tio2.atoms, positions)
+    for term_forces in terms_forces
+        @test abs(term_forces.force_HF - term_forces.force_ε) < 2e-5
+    end
+end
