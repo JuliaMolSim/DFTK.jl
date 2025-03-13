@@ -1,5 +1,6 @@
 @testmodule TestForces begin
     using Test
+    using AtomsBase
     using DFTK
     using DFTK: mpi_mean!
     using MPI
