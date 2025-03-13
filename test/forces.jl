@@ -34,7 +34,7 @@
         particles = [Atom(; pairs(atom)...) for atom in system]
         system = AbstractSystem(system; particles)
 
-        scfres = compute_energy(system, zeros(length(system)))
+        scfres = compute_energy(system, zeros(length(system)); kwargs...)
         forces = compute_forces_cart(scfres)
 
         for i in 1:testatoms
@@ -48,8 +48,8 @@
             end)
 
             Fε = let
-                (  compute_energy(dx,  ε).energies.total
-                 - compute_energy(dx, -ε).energies.total) / 2ε
+                (  compute_energy(dx,  ε; kwargs...).energies.total
+                 - compute_energy(dx, -ε; kwargs...).energies.total) / 2ε
             end
 
             @show Fε abs(Fε_ref - Fε)
