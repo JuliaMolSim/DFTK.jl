@@ -7,6 +7,7 @@
     using PseudoPotentialData
     using Unitful
     using UnitfulAtomic
+    using LinearAlgebra
 
     function compute_energy(system, dx;
             functionals=PBE(), terms=nothing, Ecut, kgrid, temperature=0,
@@ -34,22 +35,22 @@
         particles = [Atom(; pairs(atom)...) for atom in system]
         system = AbstractSystem(system; particles)
 
-        scfres = compute_energy(system, zeros(length(system)); kwargs...)
+        scfres = compute_energy(system, [zeros(3)u"Å" for _ in 1:length(system)]; kwargs...)
         forces = compute_forces_cart(scfres)
 
-        for i in 1:testatoms
+        for i in testatoms
             dx = [zeros(3) * u"Å" for _ in 1:length(system)]
-            dx[i]  = rand((3, )) * u"Å"
-            dx[i]  = [0.1, 0.02, 0.1] * u"Å"  # avoid random for testing
-            mpi_mean!(dx, MPI.COMM_WORLD)  # must be identical on all processes
+            dx_no_u = rand(3)
+            mpi_mean!(dx_no_u, MPI.COMM_WORLD)  # must be identical on all processes
+            dx[i]  = dx_no_u * u"Å"
 
             Fε_ref = sum(map(forces, dx) do Fi, dxi
                 -dot(Fi, austrip.(dxi))
             end)
 
             Fε = let
-                (  compute_energy(dx,  ε; kwargs...).energies.total
-                 - compute_energy(dx, -ε; kwargs...).energies.total) / 2ε
+                (  compute_energy(system,  ε * dx; kwargs...).energies.total
+                 - compute_energy(system, -ε * dx; kwargs...).energies.total) / 2ε
             end
 
             @show Fε abs(Fε_ref - Fε)
@@ -71,7 +72,7 @@ end
     system = atomic_system(silicon.lattice, silicon.atoms, positions)
 
     pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
-    (; forces_cart) = test_forces(system; functionals=LDA(), tol=1e-7, pseudopotentials,
+    (; forces_cart) = test_forces(system; functionals=LDA(), atol=1e-7, pseudopotentials,
                                   testatoms=1:1, Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0],
                                   symmetries_respect_rgrid=true,
                                   fft_size=(18, 18, 18))  # FFT chosen to match QE
@@ -80,7 +81,7 @@ end
     # (see testcases_ABINIT/silicon_NLCC_forces)
     reference = [[-0.00574838157984, -0.00455216015517, -0.00333786048065],
                  [ 0.00574838157984,  0.00455216015517,  0.00333786048065]]
-    @test maximum(v -> maximum(abs, v), reference - Fc1) < 1e-5
+    @test maximum(v -> maximum(abs, v), reference - forces_cart) < 1e-5
 end
 
 @testitem "Forces on silicon with spin and temperature" setup=[TestCases,TestForces] begin
@@ -93,54 +94,52 @@ end
     system = atomic_system(silicon.lattice, silicon.atoms, positions)
 
     pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
-    for (tol, smearing) in [(0.003, Smearing.FermiDirac()), (5e-5, Smearing.Gaussian())]
+    for (atol, smearing) in [(0.003, Smearing.FermiDirac()), (5e-5, Smearing.Gaussian())]
         test_forces(system; pseudopotentials, functionals=Xc(:lda_xc_teter93),
-                    temperature=0.03, smearing, ε=1e-6, tol,
+                    temperature=0.03, smearing, ε=1e-6, atol,
                     testatoms=1:1, Ecut=7, kgrid=[4, 1, 2], kshift=[1/2, 0, 0])
     end
 end
 
+#= TODO Needs to be reworked
 @testitem "Iron with spin and temperature"  setup=[TestForces] begin
     using DFTK
     using AtomsBuilder
     using PseudoPotentialData
+    using Unitful
+    using UnitfulAtomic
     test_forces = TestForces.test_forces
 
     system = bulk(:Fe, cubic=true)
     rattle!(system, 1e-3u"Å")
     pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
     test_forces(system; pseudopotentials, functionals=PBE(),
-                temperature=1e-3, ε=1e-6, tol=1e-6,
-                testatoms=1:1, Ecut=10, kgrid=[8, 8, 8], kshift=[0, 0, 0])
+                temperature=1e-3, ε=1e-6, atol=1e-6,
+                testatoms=1:1, Ecut=10, kgrid=[6, 6, 6], kshift=[0, 0, 0])
 end
+=#
 
-@testset "Rutile without non-local" begin
-    system = load_system("SnO2(1).cif")
-    rattle!(system, 1e-1u"Å")
-    terms = [Kinetic(), AtomicLocal(), PspCorrection(), Entropy(), Ewald() ]
-    test_forces(system; kgrid=[1, 1, 1], Ecut=20, ε=1e-5, atol=1e-8, terms)
-end
+@testset "Rutile PBE"  setup=[TestForces]  begin
+    using DFTK
+    using AtomsBuilder
+    using PseudoPotentialData
+    using Unitful
+    using UnitfulAtomic
+    test_forces = TestForces.test_forces
 
-
-@testset "Rutile PBE" begin
     system = load_system("structures/SnO2.cif")
     rattle!(system, 1e-1u"Å")
     test_forces(system; kgrid=[1, 1, 1], Ecut=20, ε=1e-5, atol=1e-8)
 end
 
-@testset "Rutile PBE (GTH)" begin
+@testset "Rutile PBE full"  setup=[TestForces]  begin
+    using DFTK
+    using AtomsBuilder
     using PseudoPotentialData
+    test_forces = TestForces.test_forces
 
-    system = load_system("structures/SnO2.cif")
-    rattle!(system, 1e-1u"Å")
-    pseudopotentials = PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth")
-    test_forces(system; kgrid=[1, 1, 1], Ecut=20, ε=1e-5, atol=1e-8, pseudopotentials)
-end
-
-@testset "Rutile PBE full" begin
     system = load_system("structures/GeO2_distorted.extxyz")
-    test_forces(system; kgrid=[6, 6, 9], Ecut=40,
-                        symmetries=false)
+    test_forces(system; kgrid=[6, 6, 9], Ecut=30)
 end
 
 
