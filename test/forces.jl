@@ -1,51 +1,138 @@
-# TODO: refactor tests to avoid code repetition
-@testitem "Forces on silicon" setup=[TestCases] begin
+@testmodule TestForces begin
     using DFTK
     using DFTK: mpi_mean!
     using MPI
-    using LinearAlgebra
-    silicon = TestCases.silicon
+    using PesudoPotentialData
 
-    function energy_forces(positions)
-        model = model_DFT(silicon.lattice, silicon.atoms, positions;
-                          functionals=[:lda_x, :lda_c_pw])
-        basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0],
-                               symmetries_respect_rgrid=true,
-                               fft_size=(18, 18, 18))  # FFT chosen to match QE
-        is_converged = DFTK.ScfConvergenceDensity(1e-11)
-        scfres = self_consistent_field(basis; is_converged)
-        scfres.energies.total, compute_forces(scfres), compute_forces_cart(scfres)
+    function compute_energy(system, dx;
+            functionals=PBE(), terms=nothing, Ecut, kgrid, temperature=0,
+            smearing=Smearing.Gaussian(),
+            pseudopotentials=PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf"),
+            symmetries=true, basis_kwargs...)
+        particles = map(system, position(system, :) + dx) do atom, pos
+            Atom(atom; position=pos)
+        end
+        sysmod = AbstractSystem(system; particles)
+
+        if isnothing(terms)
+            model = model_DFT(sysmod; functionals, pseudopotentials, symmetries,
+                              temperature, smearing)
+        else
+            model = Model(sysmod; terms, pseudopotentials, symmetries,
+                          temperature, smearing)
+        end
+        basis = PlaneWaveBasis(model; kgrid, Ecut, basis_kwargs...)
+
+        self_consistent_field(basis; tol=1e-12)
     end
 
-    # symmetrical positions, forces should be 0
-    _, F0, _ = energy_forces([(ones(3)) / 8, -ones(3) / 8])
-    @test norm(F0) < 1e-4
+    function test_forces(system; testatoms=1:length(system), ε=1e-5, atol=1e-8, kwargs...)
+        particles = [Atom(; pairs(atom)...) for atom in system]
+        system = AbstractSystem(system; particles)
 
-    pos1 = [([1.01, 1.02, 1.03]) / 8, -ones(3) / 8]  # displace a bit from equilibrium
-    disp = rand(3)
-    mpi_mean!(disp, MPI.COMM_WORLD)  # must be identical on all processes
-    ε = 1e-5
-    pos2 = [pos1[1] + ε * disp, pos1[2]]
-    pos3 = [pos1[1] - ε * disp, pos1[2]]
+        scfres = compute_energy(system, zeros(length(system)))
+        forces = compute_forces_cart(scfres)
 
-    # second-order finite differences for accurate comparison
-    # TODO switch the other tests to this too
-    E1, F1, Fc1 = energy_forces(pos1)
-    E2,  _,  _  = energy_forces(pos2)
-    E3,  _,  _  = energy_forces(pos3)
+        for i in 1:testatoms
+            dx = [zeros(3) * u"Å" for _ in 1:length(system)]
+            dx[i]  = rand((3, )) * u"Å"
+            dx[i]  = [0.1, 0.02, 0.1] * u"Å"  # avoid random for testing
+            mpi_mean!(dx, MPI.COMM_WORLD)  # must be identical on all processes
 
-    diff_findiff = -(E2 - E3) / (2ε)
-    diff_forces = dot(F1[1], disp)
-    @test abs(diff_findiff - diff_forces) < 1e-7
+            Fε_ref = sum(map(forces, dx) do Fi, dxi
+                -dot(Fi, austrip.(dxi))
+            end)
 
-    # Test against QE v7.1 using LibXC v5.3.2 lda_x+lda_c_pw
-    # (see testcases_QuantumESPRESSO/silicon_LDA_forces)
-    reference = [[-5.809880257762980e-3, -4.601261807107919e-3, -3.374609176201532e-3],
-                 [ 5.809880257762980e-3,  4.601261807107919e-3,  3.374609176201532e-3]]
+            Fε = let
+                (  compute_energy(dx,  ε).energies.total
+                 - compute_energy(dx, -ε).energies.total) / 2ε
+            end
+
+            @show Fε abs(Fε_ref - Fε)
+            @test abs(Fε_ref - Fε) < atol
+        end
+
+        (; forces_cart=forces)
+    end
+end
+
+@testitem "Forces silicon with non-linear core correction" setup=[TestCases,TestForces] begin
+    using DFTK
+    silicon = TestCases.silicon
+    test_forces = TestForces.test_forces
+
+    positions = [([1.01, 1.02, 1.03]) / 8, -ones(3) / 8]  # displace a bit from equilibrium
+    system = atomic_system(silicon.lattice, silicon.atoms, positions)
+
+    pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
+    (; forces_cart) = test_forces(system; functionals=LDA(), tol=1e-7, pseudopotentials,
+                                  testatoms=1:1, Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0],
+                                  symmetries_respect_rgrid=true,
+                                  fft_size=(18, 18, 18))  # FFT chosen to match QE
+
+    # Test against Abinit v9.6.2 using LibXC v4.3.2 lda_x+lda_c_pw
+    # (see testcases_ABINIT/silicon_NLCC_forces)
+    reference = [[-0.00574838157984, -0.00455216015517, -0.00333786048065],
+                 [ 0.00574838157984,  0.00455216015517,  0.00333786048065]]
     @test maximum(v -> maximum(abs, v), reference - Fc1) < 1e-5
 end
 
-@testitem "Forces on silicon with non-linear core correction" setup=[TestCases] begin
+@testitem "Forces on silicon with spin and temperature" setup=[TestCases,TestForces] begin
+    using DFTK
+    silicon = TestCases.silicon
+    test_forces = TestForces.test_forces
+
+    positions = [([1.01, 1.02, 1.03]) / 8, -ones(3) / 8]  # displace a bit from equilibrium
+    system = atomic_system(silicon.lattice, silicon.atoms, positions)
+
+    pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
+    for (tol, smearing) in [(0.003, Smearing.FermiDirac()), (5e-5, Smearing.Gaussian())]
+        test_forces(system; pseudopotentials, functionals=Xc(:lda_xc_teter93),
+                    temperature=0.03, smearing, ε=1e-6, tol,
+                    testatoms=1:1, Ecut=7, kgrid=[4, 1, 2], kshift=[1/2, 0, 0])
+    end
+end
+
+@testitem "Iron with spin and temperature"  setup=[TestForces] begin
+    using DFTK
+    using AtomsBuilder
+    test_forces = TestForces.test_forces
+
+    system = bulk(:Fe, cubic=true)
+    rattle!(system, 1e-3u"Å")
+    pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
+    test_forces(system; pseudopotentials, functionals=PBE(),
+                temperature=1e-3, ε=1e-6, tol=1e-6,
+                testatoms=1:1, Ecut=10, kgrid=[8, 8, 8], kshift=[0, 0, 0])
+end
+
+@testset "Rutile without non-local" begin
+    system = load_system("SnO2(1).cif")
+    rattle!(system, 1e-1u"Å")
+    terms = [Kinetic(), AtomicLocal(), PspCorrection(), Entropy(), Ewald() ]
+    test_forces(system; kgrid=[1, 1, 1], Ecut=20, ε=1e-5, atol=1e-8, terms)
+end
+
+
+@testset "Rutile PBE" begin
+    system = load_system("structures/SnO2.cif")
+    rattle!(system, 1e-1u"Å")
+    test_forces(system; kgrid=[1, 1, 1], Ecut=20, ε=1e-5, atol=1e-8)
+end
+
+@testset "Rutile PBE full" begin
+    system = load_system("structures/GeO2_distorted.extxyz")
+    test_forces(system; kgrid=[6, 6, 9], Ecut=40,
+                        symmetries=false)
+end
+
+
+# --------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------
+
+
+@testitem "Forces silicon with non-linear core correction" setup=[TestCases] begin
     using DFTK
     using DFTK: mpi_mean!
     using MPI
