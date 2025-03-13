@@ -3,6 +3,8 @@
     using DFTK: mpi_mean!
     using MPI
     using PseudoPotentialData
+    using Unitful
+    using UnitfulAtomic
 
     function compute_energy(system, dx;
             functionals=PBE(), terms=nothing, Ecut, kgrid, temperature=0,
