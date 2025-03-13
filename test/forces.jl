@@ -123,6 +123,13 @@ end
     test_forces(system; kgrid=[1, 1, 1], Ecut=20, ε=1e-5, atol=1e-8)
 end
 
+@testset "Rutile PBE (GTH)" begin
+    system = load_system("structures/SnO2.cif")
+    rattle!(system, 1e-1u"Å")
+    pseudopotentials = PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth")
+    test_forces(system; kgrid=[1, 1, 1], Ecut=20, ε=1e-5, atol=1e-8, pseudopotentials)
+end
+
 @testset "Rutile PBE full" begin
     system = load_system("structures/GeO2_distorted.extxyz")
     test_forces(system; kgrid=[6, 6, 9], Ecut=40,
