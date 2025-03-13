@@ -2,7 +2,7 @@
     using DFTK
     using DFTK: mpi_mean!
     using MPI
-    using PesudoPotentialData
+    using PseudoPotentialData
 
     function compute_energy(system, dx;
             functionals=PBE(), terms=nothing, Ecut, kgrid, temperature=0,
