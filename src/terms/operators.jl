@@ -104,7 +104,8 @@ struct NonlocalOperator{T <: Real, PT, DT} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
     kpoint::Kpoint{T}
     # not typed, can be anything that supports PDP'ψ
-    P::PT
+    P1::PT
+    P2::PT
     D::DT
 end
 function apply!(Hψ, op::NonlocalOperator, ψ)
