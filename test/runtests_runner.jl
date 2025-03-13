@@ -29,5 +29,4 @@ function dftk_testfilter(ti)
         return false
     end
 end
-# @run_package_tests filter=dftk_testfilter verbose=true
-@run_package_tests filter = ti -> (occursin("forces.jl", ti.filename)) verbose=true
+@run_package_tests filter=dftk_testfilter verbose=true

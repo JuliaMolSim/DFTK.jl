@@ -13,31 +13,31 @@ concurrency:
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 
 jobs:
-  # docs:
-  #   name: Documentation
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: julia-actions/setup-julia@v2
-  #       with:
-  #         version: '1'
-  #     - uses: julia-actions/cache@v2
-  #     - uses: julia-actions/julia-buildpkg@v1
-  #     - uses: julia-actions/julia-docdeploy@v1
-  #       timeout-minutes: 60
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #         DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
-  #     - name: Run doctests
-  #       run: |
-  #         julia --project=docs -e '
-  #           using Documenter: DocMeta, doctest
-  #           using DFTK
-  #           DocMeta.setdocmeta!(DFTK, :DocTestSetup, :(using DFTK); recursive=true)
-  #           doctest(DFTK)'
-  #     - name: Upload Docs
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: documentation
-  #         path: docs/build
-  #         retention-days: 1
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-docdeploy@v1
+        timeout-minutes: 60
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+      - name: Run doctests
+        run: |
+          julia --project=docs -e '
+            using Documenter: DocMeta, doctest
+            using DFTK
+            DocMeta.setdocmeta!(DFTK, :DocTestSetup, :(using DFTK); recursive=true)
+            doctest(DFTK)'
+      - name: Upload Docs
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation
+          path: docs/build
+          retention-days: 1
