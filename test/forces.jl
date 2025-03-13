@@ -61,6 +61,8 @@ end
 
 @testitem "Forces silicon with non-linear core correction" setup=[TestCases,TestForces] begin
     using DFTK
+    using PseudoPotentialData
+
     silicon = TestCases.silicon
     test_forces = TestForces.test_forces
 
@@ -82,6 +84,7 @@ end
 
 @testitem "Forces on silicon with spin and temperature" setup=[TestCases,TestForces] begin
     using DFTK
+    using PseudoPotentialData
     silicon = TestCases.silicon
     test_forces = TestForces.test_forces
 
@@ -99,6 +102,7 @@ end
 @testitem "Iron with spin and temperature"  setup=[TestForces] begin
     using DFTK
     using AtomsBuilder
+    using PseudoPotentialData
     test_forces = TestForces.test_forces
 
     system = bulk(:Fe, cubic=true)
@@ -124,6 +128,8 @@ end
 end
 
 @testset "Rutile PBE (GTH)" begin
+    using PseudoPotentialData
+
     system = load_system("structures/SnO2.cif")
     rattle!(system, 1e-1u"Å")
     pseudopotentials = PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth")
