@@ -126,21 +126,6 @@ o2molecule = merge(o2molecule,
                    (; atoms=fill(ElementPsp(o2molecule.atnum,
                                             load_psp(o2molecule.psp_gth)), 2)))
 
-tio2 = (;
-    atoms = let
-        Ti = ElementPsp(:Ti, gth_lda_semi)
-        O  = ElementPsp(:O,  gth_lda_semi)
-        [Ti, Ti, O, O, O, O]
-    end,
-    positions = [[0.5,     0.5,     0.5],  # Ti
-                 [0.0,     0.0,     0.0],  # Ti
-                 [0.19542, 0.80458, 0.5],  # O
-                 [0.80458, 0.19542, 0.5],  # O
-                 [0.30458, 0.30458, 0.0],  # O
-                 [0.69542, 0.69542, 0.0]], # O
-    lattice = [[8.79341 0.0 0.0]; [0.0 8.79341 0.0]; [0.0 0.0 5.61098]],
-)
-
 all_testcases = (; silicon, magnesium, aluminium, aluminium_primitive, platinum_hcp,
-                 iron_bcc, o2molecule, tio2)
+                 iron_bcc, o2molecule)
 end

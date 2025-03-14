@@ -161,17 +161,21 @@ end
 end
 
 @testitem "Forces match partial derivative of each term" setup=[TestCases] begin
+    using AtomsIO
+    using DFTK: mpi_mean!
     using LinearAlgebra
+    using MPI
 
-    function get_term_forces(lattice, atoms, positions; kgrid=[1,1,1], Ecut=4, symmetries=false, ε=1e-8)
-        model = model_DFT(lattice, atoms, positions; functionals=LDA(), symmetries, temperature=1e-3)
+    function get_term_forces(system; kgrid=[1,1,1], Ecut=4, symmetries=false, ε=1e-8)
+        model = model_DFT(system; pseudopotentials=TestCases.gth_lda_semi,
+                                  functionals=LDA(), symmetries, temperature=1e-3)
         basis = PlaneWaveBasis(model; kgrid, Ecut)
 
         scfres = self_consistent_field(basis; tol=1e-7)
 
         map(1:length(basis.terms)) do iterm
             # must be identical on all processes
-            test_atom = MPI.Bcast(rand(1:length(model.atoms), 0, MPI.COMM_WORLD))
+            test_atom = MPI.Bcast(rand(1:length(model.atoms)), 0, MPI.COMM_WORLD)
             test_dir = rand(3)
             mpi_mean!(test_dir, MPI.COMM_WORLD)
 
@@ -195,13 +199,8 @@ end
         end
     end
 
-    tio2 = TestCases.tio2
-    # We apply a small displacement to one of the ``\rm Ti`` atoms to get nonzero
-    # forces.
-    positions = copy(tio2.positions)
-    positions[1] .+= [-0.022, 0.028, 0.035]
-
-    terms_forces = get_term_forces(tio2.lattice, tio2.atoms, positions)
+    system = load_system("structures/tio2_stretched.extxyz")
+    terms_forces = get_term_forces(system)
     for term_forces in terms_forces
         @test abs(term_forces.force_HF - term_forces.force_ε) < 2e-5
     end
