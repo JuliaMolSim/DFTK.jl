@@ -170,8 +170,10 @@ end
         scfres = self_consistent_field(basis; tol=1e-7)
 
         map(1:length(basis.terms)) do iterm
-            test_atom = rand(1:length(model.atoms))
-            test_dir = randn(3)
+            # must be identical on all processes
+            test_atom = MPI.Bcast(rand(1:length(model.atoms), 0, MPI.COMM_WORLD))
+            test_dir = rand(3)
+            mpi_mean!(test_dir, MPI.COMM_WORLD)
 
             forces_HF = DFTK.compute_forces(basis.terms[iterm], basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
             force_HF = isnothing(forces_HF) ? 0 : dot(test_dir, forces_HF[test_atom])
