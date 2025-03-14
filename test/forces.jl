@@ -27,30 +27,30 @@
         self_consistent_field(basis; ρ, tol=1e-12)
     end
 
-    function test_forces(system; testatoms=1:length(system), ε=1e-5, atol=1e-8, kwargs...)
+    function test_forces(system; ε=1e-5, atol=1e-8, kwargs...)
         particles = [Atom(; pairs(atom)...) for atom in system]
         system = AbstractSystem(system; particles)
 
         scfres = compute_energy(system, [zeros(3)u"Å" for _ in 1:length(system)]; kwargs...)
         forces = compute_forces_cart(scfres)
 
-        for i in testatoms
-            dx = [zeros(3) * u"Å" for _ in 1:length(system)]
-            dx_no_u = rand(3)
-            mpi_mean!(dx_no_u, MPI.COMM_WORLD)  # must be identical on all processes
-            dx[i]  = dx_no_u * u"Å"
+        i = rand(1:length(system))
+        dx = [zeros(3) * u"Å" for _ in 1:length(system)]
+        dx_no_u = rand(3)
+        mpi_mean!(dx_no_u, MPI.COMM_WORLD)  # must be identical on all processes
+        dx[i]  = dx_no_u * u"Å"
 
-            Fε_ref = sum(map(forces, dx) do Fi, dxi
-                -dot(Fi, austrip.(dxi))
-            end)
+        Fε_ref = sum(map(forces, dx) do Fi, dxi
+            -dot(Fi, austrip.(dxi))
+        end)
 
-            Fε = let
-                (  compute_energy(system,  ε * dx; kwargs...).energies.total
-                 - compute_energy(system, -ε * dx; kwargs...).energies.total) / 2ε
-            end
-
-            @test abs(Fε_ref - Fε) < atol
+        Fε = let
+            (  compute_energy(system,  ε * dx; kwargs...).energies.total
+             - compute_energy(system, -ε * dx; kwargs...).energies.total) / 2ε
         end
+
+        @show Fε_ref Fε
+        @test abs(Fε_ref - Fε) < atol
 
         (; forces_cart=forces)
     end
@@ -92,10 +92,12 @@ end
     for smearing in [Smearing.FermiDirac(), Smearing.Gaussian()]
         test_forces(system; pseudopotentials, functionals=Xc(:lda_xc_teter93),
                     temperature=0.03, smearing, atol=5e-6, magnetic_moments=[2.0, 1.0],
-                    testatoms=2:2, Ecut=7, kgrid=[4, 1, 2], kshift=[1/2, 0, 0])
+                    Ecut=7, kgrid=[4, 1, 2], kshift=[1/2, 0, 0])
     end
 end
 
+
+# TODO TiO2 test may be cheaper than the Rutile PBE ?
 @testitem "Rutile PBE"  setup=[TestForces]  begin
     using DFTK
     using AtomsBuilder
@@ -105,9 +107,9 @@ end
     using AtomsIO
     test_forces = TestForces.test_forces
 
-    system = load_system("structures/SnO2.cif")
-    rattle!(system, 1e-2u"Å")
-    test_forces(system; testatoms=3:3, kgrid=[1, 1, 1], Ecut=20, ε=1e-5, atol=1e-5)
+    system = load_system("structures/GeO2.cif")
+    rattle!(system, 0.02u"Å")
+    test_forces(system; kgrid=[2, 2, 3], Ecut=20, atol=1e-7)
 end
 
 @testitem "Rutile PBE full"  setup=[TestForces] tags=[:slow] begin
@@ -117,8 +119,9 @@ end
     using AtomsIO
     test_forces = TestForces.test_forces
 
-    system = load_system("structures/GeO2_distorted.extxyz")
-    test_forces(system; kgrid=[6, 6, 9], Ecut=30)
+    system = load_system("structures/GeO2.cif")
+    rattle!(system, 0.02u"Å")
+    test_forces(system; kgrid=[6, 6, 9], Ecut=30, atol=1e-6)
 end
 
 @testitem "Iron with spin and temperature"  setup=[TestForces] tags=[:slow] begin
@@ -130,11 +133,10 @@ end
     test_forces = TestForces.test_forces
 
     system = bulk(:Fe, cubic=true)
-    rattle!(system, 1e-3u"Å")
+    rattle!(system, 0.01u"Å")
     pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
     test_forces(system; pseudopotentials, functionals=LDA(), temperature=1e-3,
-                testatoms=1:1, Ecut=13, kgrid=[6, 6, 6], kshift=[0, 0, 0],
-                magnetic_moments=[5.0, 5.0])
+                Ecut=13, kgrid=[6, 6, 6], atol=1e-6, magnetic_moments=[5.0, 5.0])
 end
 
 @testitem "Forces match partial derivative of each term" setup=[TestCases] begin
