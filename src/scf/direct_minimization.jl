@@ -40,7 +40,8 @@ function LinearAlgebra.ldiv!(p, P::DMPreconditioner, d)
     p_unpack = P.unpack(p)
     d_unpack = P.unpack(d)
     for ik = 1:P.Nk
-        ldiv!(p_unpack[ik], P.Pks[ik], ((P.kweights[ik])^-1)*d_unpack[ik])
+        ldiv!(p_unpack[ik], P.Pks[ik], d_unpack[ik])
+        ldiv!(P.kweights[ik], p_unpack[ik])
     end
     p
 end
