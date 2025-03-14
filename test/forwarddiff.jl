@@ -257,3 +257,28 @@ end
     derivative_fd = ForwardDiff.derivative(compute_force, 0.0)
     @test norm(derivative_ε - derivative_fd) < 1e-4
 end
+
+
+@testitem "Symmetry-breaking perturbation using ForwardDiff" #=
+    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+
+    function run_scf(ε)
+        v = ε * [0., 0., 0., 0., 0., 1.]
+        lattice = voigt_strain_to_full(v) * aluminium.lattice
+        model = model_DFT(lattice, aluminium.atoms, aluminium.positions;
+                    functionals=LDA(), temperature=1e-2, smearing=Smearing.Gaussian(),
+                    kinetic_blowup=BlowupCHV())
+        basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
+        self_consistent_field(basis; tol=1e-10)
+    end
+
+    h = 1e-4
+    scfres0 = run_scf(0.)
+    scfres1 = run_scf(-h)
+    scfres2 = run_scf(+h)
+    δρ_finitediff = (scfres2.ρ - scfres1.ρ) / 2h
+
+    δρ = ForwardDiff.derivative(ε -> run_scf(ε).ρ, 0.)
+
+    @test norm(δρ - δρ_finitediff) * sqrt(scfres0.basis.dvol) < 1e-7
+end
