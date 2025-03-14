@@ -27,18 +27,18 @@
         self_consistent_field(basis; ρ, tol=1e-12)
     end
 
-    function test_forces(system; ε=1e-5, atol=1e-8, kwargs...)
+    function test_forces(system; ε=1e-5, atol=1e-8, δx=nothing,
+                         iatom=rand(1:length(system)), kwargs...)
         particles = [Atom(; pairs(atom)...) for atom in system]
         system = AbstractSystem(system; particles)
 
         scfres = compute_energy(system, [zeros(3)u"Å" for _ in 1:length(system)]; kwargs...)
         forces = compute_forces_cart(scfres)
 
-        i = rand(1:length(system))
         dx = [zeros(3) * u"Å" for _ in 1:length(system)]
-        dx_no_u = rand(3)
-        mpi_mean!(dx_no_u, MPI.COMM_WORLD)  # must be identical on all processes
-        dx[i]  = dx_no_u * u"Å"
+        δx = @something δx rand(3)
+        mpi_mean!(δx, MPI.COMM_WORLD)  # must be identical on all processes
+        dx[iatom]  = δx * u"Å"
 
         Fε_ref = sum(map(forces, dx) do Fi, dxi
             -dot(Fi, austrip.(dxi))
@@ -49,9 +49,7 @@
              - compute_energy(system, -ε * dx; kwargs...).energies.total) / 2ε
         end
 
-        @show Fε_ref Fε
         @test abs(Fε_ref - Fε) < atol
-
         (; forces_cart=forces)
     end
 end
@@ -109,7 +107,9 @@ end
 
     system = load_system("structures/GeO2.cif")
     rattle!(system, 0.02u"Å")
-    test_forces(system; kgrid=[2, 2, 3], Ecut=20, atol=1e-7)
+    iatom = 2
+    δx = [0.482, 0.105, 0.452]
+    test_forces(system; kgrid=[2, 2, 3], Ecut=20, atol=1e-7, iatom, δx)
 end
 
 @testitem "Rutile PBE full"  setup=[TestForces] tags=[:slow] begin
@@ -121,7 +121,9 @@ end
 
     system = load_system("structures/GeO2.cif")
     rattle!(system, 0.02u"Å")
-    test_forces(system; kgrid=[6, 6, 9], Ecut=30, atol=1e-6)
+    iatom = 2
+    δx = [0.482, 0.105, 0.452]
+    test_forces(system; kgrid=[6, 6, 9], Ecut=30, atol=1e-6, iatom, δx)
 end
 
 @testitem "Iron with spin and temperature"  setup=[TestForces] tags=[:slow] begin
