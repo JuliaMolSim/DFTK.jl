@@ -8,22 +8,24 @@
     using UnitfulAtomic
     using LinearAlgebra
 
-    function test_term_forces(system; ε=1e-5, atol=1e-8,
-        functionals=PBE(), Ecut, kgrid, temperature=1e-3, smearing=Smearing.Gaussian(),
+    function test_term_forces(system; ε=1e-6, atol=1e-8,
+        functionals=PBE(), Ecut, kgrid, temperature=0, smearing=Smearing.Gaussian(),
         pseudopotentials=PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf"),
-        magnetic_moments=[], symmetries=true, basis_kwargs...)
+        magnetic_moments=[], symmetries=true, mixing=HybridMixing(), basis_kwargs...)
 
         model = model_DFT(system; functionals, pseudopotentials, symmetries,
                           temperature, smearing, magnetic_moments)
         basis = PlaneWaveBasis(model; kgrid, Ecut, basis_kwargs...)
-        scfres = self_consistent_field(basis; tol=1e-10)
+        scfres = self_consistent_field(basis; tol=1e-12, mixing)
+
+        # must be identical on all processes
+        test_atom = MPI.bcast(rand(1:length(model.atoms)), 0, MPI.COMM_WORLD)
+        test_dir  = MPI.bcast(rand(3), 0, MPI.COMM_WORLD)
+        normalize!(test_dir)
 
         for iterm in 1:length(basis.terms)
-            @testset "$(typeof(model.term_types[iterm]))" begin
-                # must be identical on all processes
-                test_atom = MPI.Bcast(rand(1:length(model.atoms)), 0, MPI.COMM_WORLD)
-                test_dir  = MPI.Bcast(rand(3), 0, MPI.COMM_WORLD)
-
+            term_type = model.term_types[iterm]
+            @testset "$(typeof(term_type))" begin
                 forces_HF = DFTK.compute_forces(basis.terms[iterm], basis,
                                                 scfres.ψ, scfres.occupation; scfres.ρ, scfres.τ)
                 force_HF  = isnothing(forces_HF) ? 0.0 : dot(test_dir, forces_HF[test_atom])
@@ -32,14 +34,13 @@
                     displacement = [zeros(3) for _ in 1:length(model.atoms)]
                     displacement[test_atom] = test_dir
                     modmodel = Model(model; positions=model.positions .+ ε.*displacement)
-                    basis = PlaneWaveBasis(modmodel; kgrid, Ecut)
-                    DFTK.ene_ops(basis.terms[iterm], basis, scfres.ψ, scfres.occupation;
+                    modbasis = PlaneWaveBasis(modmodel; kgrid, Ecut, basis_kwargs...)
+                    DFTK.ene_ops(modbasis.terms[iterm], modbasis, scfres.ψ, scfres.occupation;
                                  scfres.ρ, scfres.εF, scfres.τ, scfres.eigenvalues).E
                 end
 
                 force_ε = -( (term_energy(ε) - term_energy(-ε)) / 2ε )
-                @show force_ε force_HF abs(term_forces.force_HF - term_forces.force_ε)
-                @test abs(term_forces.force_HF - term_forces.force_ε) < atol
+                @test abs(force_HF - force_ε) < atol
             end
         end
     end
@@ -48,7 +49,8 @@
             functionals=PBE(), Ecut, kgrid, temperature=0,
             smearing=Smearing.Gaussian(),
             pseudopotentials=PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf"),
-            magnetic_moments=[], symmetries=true, basis_kwargs...)
+            magnetic_moments=[], symmetries=true, ρ=nothing,
+            mixing=HybridMixing(), basis_kwargs...)
         particles = map(system, position(system, :) + dx) do atom, pos
             Atom(atom; position=pos)
         end
@@ -58,12 +60,12 @@
                           temperature, smearing, magnetic_moments)
         basis = PlaneWaveBasis(model; kgrid, Ecut, basis_kwargs...)
 
-        ρ = guess_density(basis, magnetic_moments)
-        self_consistent_field(basis; ρ, tol=1e-12)
+        ρ = @something ρ guess_density(basis, magnetic_moments)
+        self_consistent_field(basis; ρ, tol=1e-12, mixing)
     end
 
     function test_forces(system; ε=1e-5, atol=1e-8, δx=nothing,
-                         iatom=rand(1:length(system)),
+                         forward_ρ=true, iatom=rand(1:length(system)),
                          kwargs...)
         particles = [Atom(; pairs(atom)...) for atom in system]
         system = AbstractSystem(system; particles)
@@ -73,8 +75,8 @@
 
         dx = [zeros(3) * u"Å" for _ in 1:length(system)]
         δx = @something δx rand(3)
-        δx    = MPI.Bcast(δx, 0, MPI.COMM_WORLD)
-        iatom = MPI.Bcast(iatom, 0, MPI.COMM_WORLD)
+        δx    = MPI.bcast(δx, 0, MPI.COMM_WORLD)
+        iatom = MPI.bcast(iatom, 0, MPI.COMM_WORLD)
         dx[iatom]  = δx * u"Å"
 
         Fε_ref = sum(map(forces, dx) do Fi, dxi
@@ -82,8 +84,9 @@
         end)
 
         Fε = let
-            (  compute_energy(system,  ε * dx; kwargs...).energies.total
-             - compute_energy(system, -ε * dx; kwargs...).energies.total) / 2ε
+            ρ = forward_ρ ? scfres.ρ : nothing
+            (  compute_energy(system,  ε * dx; ρ, kwargs...).energies.total
+             - compute_energy(system, -ε * dx; ρ, kwargs...).energies.total) / 2ε
         end
 
         @test abs(Fε_ref - Fε) < atol
@@ -91,16 +94,24 @@
     end
 end
 
-@testitem "Forces match partial derivative of each term" setup=[TestCases] begin
+@testitem "Forces match per term (GTH)" setup=[TestForces] tags=[:forces] begin
     using AtomsIO
-    using LinearAlgebra
-    using MPI
-
+    using PseudoPotentialData
     system = load_system("structures/tio2_stretched.extxyz")
-    test_term_forces(system, Ecut=10, kgrid=(2,2,2), atol=1e-6)
+    pseudopotentials = PseudoFamily("cp2k.nc.sr.pbe.v0_1.largecore.gth")
+    TestForces.test_term_forces(system; Ecut=15, kgrid=(2,2,3), temperature=1e-4, pseudopotentials,
+                                atol=5e-7, mixing=DielectricMixing(εr=10))
 end
 
-@testitem "Forces silicon" setup=[TestCases,TestForces] begin
+@testitem "Forces match per term (UPF)" setup=[TestForces] tags=[:slow,:forces] begin
+    using AtomsIO
+    using PseudoPotentialData
+    system = load_system("structures/tio2_stretched.extxyz")
+    TestForces.test_term_forces(system; Ecut=25, kgrid=(2,2,3), temperature=1e-4,
+                                atol=5e-7, mixing=DielectricMixing(εr=10))
+end
+
+@testitem "Forces silicon" setup=[TestCases,TestForces] tags=[:forces] begin
     using DFTK
     using PseudoPotentialData
 
@@ -112,7 +123,7 @@ end
 
     pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
     (; forces_cart) = test_forces(system; functionals=LDA(), atol=1e-8, pseudopotentials,
-                                  Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0],
+                                  Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0], forward_ρ=false,
                                   symmetries_respect_rgrid=true,
                                   fft_size=(18, 18, 18))  # FFT chosen to match QE
 
@@ -123,7 +134,7 @@ end
     @test maximum(v -> maximum(abs, v), reference - forces_cart) < 1e-5
 end
 
-@testitem "Forces on silicon with spin and temperature" setup=[TestCases,TestForces] begin
+@testitem "Forces silicon (spin, temperature)" setup=[TestCases,TestForces] tags=[:forces] begin
     using DFTK
     using PseudoPotentialData
     silicon = TestCases.silicon
@@ -136,44 +147,35 @@ end
     for smearing in [Smearing.FermiDirac(), Smearing.Gaussian()]
         test_forces(system; pseudopotentials, functionals=Xc(:lda_xc_teter93),
                     temperature=0.03, smearing, atol=5e-6, magnetic_moments=[2.0, 1.0],
-                    Ecut=7, kgrid=[4, 1, 2], kshift=[1/2, 0, 0])
+                    Ecut=7, kgrid=[4, 1, 2], kshift=[1/2, 0, 0], forward_ρ=false)
     end
 end
 
-
-# TODO TiO2 test may be cheaper than the Rutile PBE ?
-@testitem "Rutile PBE"  setup=[TestForces]  begin
-    using DFTK
-    using AtomsBuilder
-    using PseudoPotentialData
-    using Unitful
-    using UnitfulAtomic
+@testitem "Forces TiO2 PBE"  setup=[TestForces] tags=[:forces] begin
     using AtomsIO
-    test_forces = TestForces.test_forces
-
-    system = load_system("structures/GeO2.cif")
-    rattle!(system, 0.02u"Å")
-    iatom = 2
-    δx = [0.482, 0.105, 0.452]
-    test_forces(system; kgrid=[2, 2, 3], Ecut=20, atol=1e-7, iatom, δx)
+    system = load_system("structures/tio2_stretched.extxyz")
+    TestForces.test_forces(system; kgrid=[2, 2, 3], Ecut=15,
+                           mixing=DielectricMixing(εr=10),
+                           atol=1e-7, temperature=1e-4)
 end
 
-@testitem "Rutile PBE full"  setup=[TestForces] tags=[:slow] begin
-    using DFTK
-    using AtomsBuilder
-    using PseudoPotentialData
+@testitem "Forces Rutile PBE"  setup=[TestForces] tags=[:slow,:forces] begin
     using AtomsIO
-    test_forces = TestForces.test_forces
-
-    system = load_system("structures/GeO2.cif")
-    rattle!(system, 0.02u"Å")
-    iatom = 2
+    using PseudoPotentialData
+    system = load_system("structures/GeO2_rattled.cif")
     δx = [0.482, 0.105, 0.452]
-    test_forces(system; kgrid=[6, 6, 9], Ecut=30, atol=1e-6, iatom, δx)
+    TestForces.test_forces(system; kgrid=[2, 2, 3], Ecut=20, atol=1e-7, iatom=2, δx)
 end
 
-@testitem "Iron with spin and temperature"  setup=[TestForces] tags=[:slow] begin
-    using DFTK
+@testitem "Forces Rutile PBE full"  setup=[TestForces] tags=[:slow,:forces] begin
+    using PseudoPotentialData
+    using AtomsIO
+    system = load_system("structures/GeO2_rattled.cif")
+    δx = [0.482, 0.105, 0.452]
+    TestForces.test_forces(system; kgrid=[6, 6, 9], Ecut=30, atol=1e-6, iatom=2, δx)
+end
+
+@testitem "Forces Iron"  setup=[TestForces] tags=[:slow,:forces] begin
     using AtomsBuilder
     using PseudoPotentialData
     using Unitful
