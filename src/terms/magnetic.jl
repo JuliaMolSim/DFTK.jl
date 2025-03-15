@@ -10,6 +10,18 @@ struct Magnetic
 end
 (M::Magnetic)(basis) = TermMagnetic(basis, M.Afunction)
 
+struct MagneticFromValues
+    # Apotential[α] is an array of size fft_size for α=1:3
+    Apotential::Vector{<:AbstractArray}
+end
+function (M::MagneticFromValues)(Apotential)
+    @assert length(Apotential) == 3
+    @assert size(Apotential[1]) == basis.fft_size
+    @assert size(Apotential[2]) == basis.fft_size
+    @assert size(Apotential[3]) == basis.fft_size
+    TermMagnetic(basis, Apotential)
+end
+
 struct TermMagnetic <: Term
     # Apotential[α] is an array of size fft_size for α=1:3
     Apotential::Vector{<:AbstractArray}
