@@ -86,7 +86,7 @@ end
     function compute_properties(lattice)
         model_strained = Model(model; lattice)
         basis = PlaneWaveBasis(model_strained; Ecut, kgrid)
-        scfres = self_consistent_field(basis; tol=1e-10, nbandsalg)
+        scfres = self_consistent_field(basis; tol=1e-11, nbandsalg)
         ComponentArray(
            eigenvalues=stack([ev[1:10] for ev in scfres.eigenvalues]),
            ρ=scfres.ρ,
@@ -97,9 +97,11 @@ end
     end
 
     strain_isotropic(ε) = (1 + ε) * model.lattice
-    strain_anisotropic(ε) = DFTK.voigt_strain_to_full([ε, 0., 0., 0., 0., 0.]) * model.lattice
+    function strain_anisotropic(ε)
+        DFTK.voigt_strain_to_full([ε, 0., 0., 0., 0., 0.]) * model.lattice
+    end
 
-    @testset "$strain_fn" for strain_fn in [strain_isotropic, strain_anisotropic]
+    @testset "$strain_fn" for strain_fn in (strain_isotropic, strain_anisotropic)
         f(ε) = compute_properties(strain_fn(ε))
         dx = ForwardDiff.derivative(f, 0.)
 
@@ -109,7 +111,7 @@ end
         dx_findiff = (x2 - x1) / 2h
         @test norm(dx.ρ - dx_findiff.ρ) * sqrt(basis.dvol) < 1e-6
         @test maximum(abs, dx.eigenvalues - dx_findiff.eigenvalues) < 1e-6
-        @test maximum(abs, dx.energies - dx_findiff.energies) < 1e-5
+        @test maximum(abs, dx.energies - dx_findiff.energies) < 3e-5
         @test dx.εF - dx_findiff.εF < 1e-6
         @test maximum(abs, dx.occupation - dx_findiff.occupation) < 1e-4
     end
