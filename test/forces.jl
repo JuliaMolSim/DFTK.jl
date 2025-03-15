@@ -2,12 +2,47 @@
     using Test
     using AtomsBase
     using DFTK
-    using DFTK: mpi_mean!
     using MPI
     using PseudoPotentialData
     using Unitful
     using UnitfulAtomic
     using LinearAlgebra
+
+    function test_term_forces(system; ε=1e-5, atol=1e-8,
+        functionals=PBE(), Ecut, kgrid, temperature=1e-3, smearing=Smearing.Gaussian(),
+        pseudopotentials=PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf"),
+        magnetic_moments=[], symmetries=true, basis_kwargs...)
+
+        model = model_DFT(system; functionals, pseudopotentials, symmetries,
+                          temperature, smearing, magnetic_moments)
+        basis = PlaneWaveBasis(model; kgrid, Ecut, basis_kwargs...)
+        scfres = self_consistent_field(basis; tol=1e-10)
+
+        for iterm in 1:length(basis.terms)
+            @testset "$(typeof(model.term_types[iterm]))" begin
+                # must be identical on all processes
+                test_atom = MPI.Bcast(rand(1:length(model.atoms)), 0, MPI.COMM_WORLD)
+                test_dir  = MPI.Bcast(rand(3), 0, MPI.COMM_WORLD)
+
+                forces_HF = DFTK.compute_forces(basis.terms[iterm], basis,
+                                                scfres.ψ, scfres.occupation; scfres.ρ, scfres.τ)
+                force_HF  = isnothing(forces_HF) ? 0.0 : dot(test_dir, forces_HF[test_atom])
+
+                function term_energy(ε)
+                    displacement = [zeros(3) for _ in 1:length(model.atoms)]
+                    displacement[test_atom] = test_dir
+                    modmodel = Model(model; positions=model.positions .+ ε.*displacement)
+                    basis = PlaneWaveBasis(modmodel; kgrid, Ecut)
+                    DFTK.ene_ops(basis.terms[iterm], basis, scfres.ψ, scfres.occupation;
+                                 scfres.ρ, scfres.εF, scfres.τ, scfres.eigenvalues).E
+                end
+
+                force_ε = -( (term_energy(ε) - term_energy(-ε)) / 2ε )
+                @show force_ε force_HF abs(term_forces.force_HF - term_forces.force_ε)
+                @test abs(term_forces.force_HF - term_forces.force_ε) < atol
+            end
+        end
+    end
 
     function compute_energy(system, dx;
             functionals=PBE(), Ecut, kgrid, temperature=0,
@@ -28,7 +63,8 @@
     end
 
     function test_forces(system; ε=1e-5, atol=1e-8, δx=nothing,
-                         iatom=rand(1:length(system)), kwargs...)
+                         iatom=rand(1:length(system)),
+                         kwargs...)
         particles = [Atom(; pairs(atom)...) for atom in system]
         system = AbstractSystem(system; particles)
 
@@ -37,7 +73,8 @@
 
         dx = [zeros(3) * u"Å" for _ in 1:length(system)]
         δx = @something δx rand(3)
-        mpi_mean!(δx, MPI.COMM_WORLD)  # must be identical on all processes
+        δx    = MPI.Bcast(δx, 0, MPI.COMM_WORLD)
+        iatom = MPI.Bcast(iatom, 0, MPI.COMM_WORLD)
         dx[iatom]  = δx * u"Å"
 
         Fε_ref = sum(map(forces, dx) do Fi, dxi
@@ -52,6 +89,15 @@
         @test abs(Fε_ref - Fε) < atol
         (; forces_cart=forces)
     end
+end
+
+@testitem "Forces match partial derivative of each term" setup=[TestCases] begin
+    using AtomsIO
+    using LinearAlgebra
+    using MPI
+
+    system = load_system("structures/tio2_stretched.extxyz")
+    test_term_forces(system, Ecut=10, kgrid=(2,2,2), atol=1e-6)
 end
 
 @testitem "Forces silicon" setup=[TestCases,TestForces] begin
@@ -139,50 +185,4 @@ end
     pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
     test_forces(system; pseudopotentials, functionals=LDA(), temperature=1e-3,
                 Ecut=13, kgrid=[6, 6, 6], atol=1e-6, magnetic_moments=[5.0, 5.0])
-end
-
-@testitem "Forces match partial derivative of each term" setup=[TestCases] begin
-    using AtomsIO
-    using DFTK: mpi_mean!
-    using LinearAlgebra
-    using MPI
-
-    function get_term_forces(system; kgrid=[1,1,1], Ecut=4, symmetries=false, ε=1e-8)
-        model = model_DFT(system; pseudopotentials=TestCases.gth_lda_semi,
-                                  functionals=LDA(), symmetries, temperature=1e-3)
-        basis = PlaneWaveBasis(model; kgrid, Ecut)
-
-        scfres = self_consistent_field(basis; tol=1e-7)
-
-        map(1:length(basis.terms)) do iterm
-            # must be identical on all processes
-            test_atom = MPI.Bcast(rand(1:length(model.atoms)), 0, MPI.COMM_WORLD)
-            test_dir = rand(3)
-            mpi_mean!(test_dir, MPI.COMM_WORLD)
-
-            forces_HF = DFTK.compute_forces(basis.terms[iterm], basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
-            force_HF = isnothing(forces_HF) ? 0 : dot(test_dir, forces_HF[test_atom])
-
-            function term_energy(ε)
-                displacement = [[0.0, 0.0, 0.0] for _ in 1:length(model.atoms)]
-                displacement[test_atom] = test_dir
-                modmodel = Model(model; positions=model.positions .+ ε.*displacement)
-                basis = PlaneWaveBasis(modmodel; kgrid, Ecut)
-                DFTK.ene_ops(basis.terms[iterm], basis, scfres.ψ, scfres.occupation;
-                             ρ=scfres.ρ, εF=scfres.εF, eigenvalues=scfres.eigenvalues).E
-            end
-
-            e1 = term_energy(ε)
-            e2 = term_energy(-ε)
-            force_ε = -(e1 - e2) / 2ε
-
-            (; force_HF, force_ε)
-        end
-    end
-
-    system = load_system("structures/tio2_stretched.extxyz")
-    terms_forces = get_term_forces(system)
-    for term_forces in terms_forces
-        @test abs(term_forces.force_HF - term_forces.force_ε) < 2e-5
-    end
 end
