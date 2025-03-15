@@ -1,4 +1,5 @@
 @testmodule TestForces begin
+    using Logging
     using Test
     using AtomsBase
     using DFTK
@@ -16,7 +17,8 @@
         model = model_DFT(system; functionals, pseudopotentials, symmetries,
                           temperature, smearing, magnetic_moments)
         basis = PlaneWaveBasis(model; kgrid, Ecut, basis_kwargs...)
-        scfres = self_consistent_field(basis; tol=1e-12, mixing)
+        ρ = guess_density(basis, magnetic_moments)
+        scfres = self_consistent_field(basis; ρ, tol=1e-12, mixing)
 
         # must be identical on all processes
         test_atom = MPI.bcast(rand(1:length(model.atoms)), 0, MPI.COMM_WORLD)
@@ -33,8 +35,10 @@
                 function term_energy(ε)
                     displacement = [zeros(3) for _ in 1:length(model.atoms)]
                     displacement[test_atom] = test_dir
-                    modmodel = Model(model; positions=model.positions .+ ε.*displacement)
-                    modbasis = PlaneWaveBasis(modmodel; kgrid, Ecut, basis_kwargs...)
+                    modbasis = with_logger(NullLogger()) do
+                        modmodel = Model(model; positions=model.positions .+ ε.*displacement)
+                        PlaneWaveBasis(modmodel; kgrid, Ecut, basis_kwargs...)
+                    end
                     DFTK.ene_ops(modbasis.terms[iterm], modbasis, scfres.ψ, scfres.occupation;
                                  scfres.ρ, scfres.εF, scfres.τ, scfres.eigenvalues).E
                 end
@@ -76,6 +80,7 @@
         dx = [zeros(3) * u"Å" for _ in 1:length(system)]
         δx = @something δx rand(3)
         δx    = MPI.bcast(δx, 0, MPI.COMM_WORLD)
+        normalize!(δx)
         iatom = MPI.bcast(iatom, 0, MPI.COMM_WORLD)
         dx[iatom]  = δx * u"Å"
 
@@ -94,7 +99,8 @@
     end
 end
 
-@testitem "Forces match per term (GTH)" setup=[TestForces] tags=[:forces] begin
+@testitem "Forces term-wise TiO2 (GTH)" setup=[TestForces] tags=[:forces] begin
+    # Test HF forces on non-symmetric multi-species structure using analytical pseudos
     using AtomsIO
     using PseudoPotentialData
     system = load_system("structures/tio2_stretched.extxyz")
@@ -103,7 +109,8 @@ end
                                 atol=5e-7, mixing=DielectricMixing(εr=10))
 end
 
-@testitem "Forces match per term (UPF)" setup=[TestForces] tags=[:slow,:forces] begin
+@testitem "Forces term-wise TiO2 (UPF)" setup=[TestForces] tags=[:forces] begin
+    # Test HF forces on non-symmetric multi-species structure with NLCC
     using AtomsIO
     using PseudoPotentialData
     system = load_system("structures/tio2_stretched.extxyz")
@@ -111,7 +118,34 @@ end
                                 atol=5e-7, mixing=DielectricMixing(εr=10))
 end
 
+@testitem "Forces term-wise Fe (GTH)"  setup=[TestForces] tags=[:forces] begin
+    # TODO: If this test is too slow for github CI, then we should add the :slow tag above
+    # Test HF forces on system with spin and magnetism
+    using AtomsBuilder
+    using PseudoPotentialData
+    using Unitful
+    using UnitfulAtomic
+    using AtomsIO
+
+    system = bulk(:Fe, cubic=true)
+    rattle!(system, 0.001u"Å")
+    system = load_system("structures/Fe_rattled.extxyz")
+    pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
+    TestForces.test_term_forces(system; pseudopotentials, functionals=LDA(),
+                                temperature=1e-3, Ecut=20, kgrid=[6, 6, 6],
+                                atol=1e-6, magnetic_moments=[5.0, 5.0],
+                                mixing=KerkerMixing())
+end
+
+@testitem "Forces term-wise Rutile (full)"  setup=[TestForces] tags=[:slow,:forces] begin
+    # An example that failed previously with realistic Ecut and k-grid
+    using AtomsIO
+    system = load_system("structures/GeO2.cif")
+    TestForces.test_term_forces(system; kgrid=[6, 6, 9], Ecut=30, atol=1e-6)
+end
+
 @testitem "Forces silicon" setup=[TestCases,TestForces] tags=[:forces] begin
+    # End-to end test on silicon and comparison against quantum espresso
     using DFTK
     using PseudoPotentialData
 
@@ -135,6 +169,7 @@ end
 end
 
 @testitem "Forces silicon (spin, temperature)" setup=[TestCases,TestForces] tags=[:forces] begin
+    # End-to end test on silicon using setup with very strange k-grid
     using DFTK
     using PseudoPotentialData
     silicon = TestCases.silicon
@@ -151,40 +186,10 @@ end
     end
 end
 
-@testitem "Forces TiO2 PBE"  setup=[TestForces] tags=[:forces] begin
+@testitem "Forces TiO2 PBE" setup=[TestForces] tags=[:forces,:slow] begin
     using AtomsIO
     system = load_system("structures/tio2_stretched.extxyz")
-    TestForces.test_forces(system; kgrid=[2, 2, 3], Ecut=15,
+    TestForces.test_forces(system; kgrid=[2, 2, 3], Ecut=20,
                            mixing=DielectricMixing(εr=10),
                            atol=1e-7, temperature=1e-4)
-end
-
-@testitem "Forces Rutile PBE"  setup=[TestForces] tags=[:slow,:forces] begin
-    using AtomsIO
-    using PseudoPotentialData
-    system = load_system("structures/GeO2_rattled.cif")
-    δx = [0.482, 0.105, 0.452]
-    TestForces.test_forces(system; kgrid=[2, 2, 3], Ecut=20, atol=1e-7, iatom=2, δx)
-end
-
-@testitem "Forces Rutile PBE full"  setup=[TestForces] tags=[:slow,:forces] begin
-    using PseudoPotentialData
-    using AtomsIO
-    system = load_system("structures/GeO2_rattled.cif")
-    δx = [0.482, 0.105, 0.452]
-    TestForces.test_forces(system; kgrid=[6, 6, 9], Ecut=30, atol=1e-6, iatom=2, δx)
-end
-
-@testitem "Forces Iron"  setup=[TestForces] tags=[:slow,:forces] begin
-    using AtomsBuilder
-    using PseudoPotentialData
-    using Unitful
-    using UnitfulAtomic
-    test_forces = TestForces.test_forces
-
-    system = bulk(:Fe, cubic=true)
-    rattle!(system, 0.01u"Å")
-    pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
-    test_forces(system; pseudopotentials, functionals=LDA(), temperature=1e-3,
-                Ecut=13, kgrid=[6, 6, 6], atol=1e-6, magnetic_moments=[5.0, 5.0])
 end
