@@ -372,7 +372,7 @@ function symmetrize_forces(positions::AbstractVector, atom_groups::AbstractVecto
 
             # (A.27) is in Cartesian coordinates, and since Wcart is orthogonal,
             # Fsymcart = Wcart * Fcart <=> Fsymred = inv(Wred') Fred
-            symmetrized_forces[idx] += inv(W') * forces[group[i_other_at]]
+            symmetrized_forces[group[idx]] += inv(W') * forces[group[i_other_at]]
         end
     end
     symmetrized_forces / length(symmetries)
