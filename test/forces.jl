@@ -140,7 +140,7 @@ end
 @testitem "Forces term-wise Rutile (full)"  setup=[TestForces] tags=[:slow,:forces] begin
     # An example that failed previously with realistic Ecut and k-grid
     using AtomsIO
-    system = load_system("structures/GeO2.cif")
+    system = load_system("structures/GeO2_stretched.extxyz")
     TestForces.test_term_forces(system; kgrid=[6, 6, 9], Ecut=30, atol=1e-6)
 end
 
@@ -189,7 +189,7 @@ end
 @testitem "Forces TiO2 PBE" setup=[TestForces] tags=[:forces,:slow] begin
     using AtomsIO
     system = load_system("structures/tio2_stretched.extxyz")
-    TestForces.test_forces(system; kgrid=[2, 2, 3], Ecut=20,
+    TestForces.test_forces(system; kgrid=[2, 2, 3], Ecut=25,
                            mixing=DielectricMixing(εr=10),
-                           atol=1e-7, temperature=1e-4)
+                           atol=1e-7, temperature=1e-3)
 end
