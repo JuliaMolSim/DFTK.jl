@@ -261,10 +261,15 @@ end
 
 @testitem "Symmetry-breaking perturbation using ForwardDiff" #=
     =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using ForwardDiff
+    using LinearAlgebra
+    aluminium = TestCases.aluminium
+
 
     function run_scf(ε)
         v = ε * [0., 0., 0., 0., 0., 1.]
-        lattice = voigt_strain_to_full(v) * aluminium.lattice
+        lattice = DFTK.voigt_strain_to_full(v) * aluminium.lattice
         model = model_DFT(lattice, aluminium.atoms, aluminium.positions;
                     functionals=LDA(), temperature=1e-2, smearing=Smearing.Gaussian(),
                     kinetic_blowup=BlowupCHV())
