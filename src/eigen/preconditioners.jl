@@ -50,8 +50,7 @@ end
     if P.mean_kin === nothing
         ldiv!(Y, Diagonal(P.kin .+ P.default_shift), R)
     else
-        # same as loop Y[:, n] .= P.mean_kin[n] ./ (P.mean_kin[n] .+ P.kin) .* R[:, n],
-        # but with efficient GPU array operations
+        # same as loop Y[:, n] .= P.mean_kin[n] ./ (P.mean_kin[n] .+ P.kin) .* R[:, n]
         Y .= (P.mean_kin' ./ (P.mean_kin' .+ P.kin)) .* R
     end
     Y

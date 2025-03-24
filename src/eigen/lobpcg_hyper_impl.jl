@@ -33,6 +33,14 @@
 # other eigenvectors (which is not the case in many - all ? - other
 # implementations)
 
+# - The massive parallelism of the GPU can only be fully expoloited when
+# operating on whole arrays. For performance reasons, one should avoid
+# explicitly looping over columns or element. For example, computing
+# the norms of the columns of an array A should be dones as:
+# norms = vec(sqrt.(sum(abs2, A; dims=1)))
+# Rather than the more eloquant:
+# norms = norm.(eachcol(A))
+
 
 ## TODO micro-optimization of buffer reuse
 ## TODO write a version that doesn't assume that B is well-conditioned, and doesn't reuse B applications at all
@@ -247,11 +255,14 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
     (; X, nchol, growth_factor)
 end
 
+# Calculate the norms of the columns of an array X
+function colnorms(X::AbstractArray{T}) where{T}
+    vec(sqrt.(sum(abs2, X; dims=1)))
+end
+
 # Randomize the columns of X if the norm is below tol
 function drop!(X::AbstractArray{T}, tol=2eps(real(T))) where {T}
-    # Using array operations for GPU performance
-    norms = vec(sqrt.(sum(abs2, X; dims=1)))
-    dropped = findall(n -> n <= tol, norms)
+    dropped = findall(n -> n <= tol, colnorms(X))
     @views randn!(TaskLocalRNG(), X[:, dropped])
     dropped
 end
@@ -259,9 +270,7 @@ end
 # Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
 @timing "ortho! X vs Y" function ortho!(X::AbstractArray{T}, Y, BY; tol=2eps(real(T))) where {T}
     # normalize to try to cheaply improve conditioning
-    # using array operations for GPU efficiency
-    norms = sqrt.(sum(abs2, X; dims=1))
-    X ./= norms
+    X ./= colnorms(X)'
 
     niter = 1
     ninners = zeros(Int,0)
@@ -305,32 +314,18 @@ end
     X
 end
 
-# Computes λ = real((X' * AX) / (X' *BX)), for each column of X
-function compute_λ(X, AX, BX)
-    # using array operations for GPU performance
-    num = sum(conj(X) .* AX, dims=1)
-    den = sum(conj(X) .* BX, dims=1)
-    vec(real.(num ./ den))
-end
-
-function final_retval(X, AX, BX, resid_history, niter, n_matvec)
-    λ_device = compute_λ(X, AX, BX)
-    λ = oftype(ones(eltype(λ_device), 1), λ_device)
-    residuals = AX .- BX .* λ_device'
-    if !issorted(λ)
-        p = sortperm(λ)
-        λ = λ[p]
-        residuals = residuals[:, p]
+function final_retval(X, AX, BX, λ, resid_history, niter, n_matvec)
+    λ_host = to_cpu(λ)  # Copy to CPU for element-wise access
+    if !issorted(λ_host)
+        p = sortperm(λ_host)
+        λ_host = λ_host[p]
         X  = X[:, p]
         AX = AX[:, p]
         BX = BX[:, p]
         resid_history = resid_history[p, :]
     end
-
-    # compute norms of column vectors with array operations for GPU performance
-    norms = vec(sqrt.(sum(abs2, residuals; dims=1)))
-    (; λ=λ_device, X, AX, BX,
-     residual_norms=oftype(ones(eltype(norms), 1), norms),
+    (; λ=λ_host, X, AX, BX,
+     residual_norms=resid_history[:, niter+1],
      residual_history=resid_history[:, 1:niter+1], n_matvec)
 end
 
@@ -387,12 +382,8 @@ end
     end
     nlocked = 0
     niter = 0  # the first iteration is fake
-<<<<<<< HEAD
     λs = @views [real((X[:, n]'*AX[:, n]) / (X[:, n]'BX[:, n])) for n=1:M]
     λs = oftype(real(X[:, 1]), λs)  # Offload to GPU if needed
-=======
-    λs = compute_λ(X, AX, BX)
->>>>>>> d6a6f961 (GPU optimization of LOBPCG)
     new_X  = X
     new_AX = AX
     new_BX = BX
@@ -433,9 +424,8 @@ end
         ### Compute new residuals
         @timing "Update residuals" begin
             new_R = new_AX .- new_BX .* λs'
-            # norms with array operations for GPU efficiency, then copied to the host
-            norms = oftype(resid_history, sqrt.(sum(abs2, new_R; dims=1)))
-            @views resid_history[1 + nlocked: size(new_R, 2) + nlocked, niter+1] .= norms[1, :]
+            norms = to_cpu(colnorms(new_R))
+            @views resid_history[1 + nlocked: size(new_R, 2) + nlocked, niter+1] .= norms[:]
         end
         vprintln(niter, "   ", resid_history[:, niter+1])
 
