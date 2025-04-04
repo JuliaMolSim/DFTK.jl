@@ -20,8 +20,8 @@ function displayresult(result)
 end
 
 
-function run_benchmark(id=nothing; nmpi=1, print_results=true)
-    @assert nmpi == 1 # TODO Later also run benchmarks on multiple MPI processors
+function run_benchmark(id=nothing; n_mpi=1, print_results=true, output_folder="dftk_benchmark")
+    @assert n_mpi == 1 # TODO Later also run benchmarks on multiple MPI processors
 
     juliacmd = `$(joinpath(Sys.BINDIR, Base.julia_exename()))`
     env = Dict("JULIA_NUM_THREADS" => "1", "OMP_NUM_THREADS" => "1")
@@ -30,7 +30,7 @@ function run_benchmark(id=nothing; nmpi=1, print_results=true)
     if !isnothing(id)
         fn = "result_$(id).json"
     end
-    resultfile = joinpath(@__DIR__, "results", fn)
+    resultfile = joinpath(output_folder, fn)
 
     if isfile(resultfile) && !isnothing(id)
         result = PkgBenchmark.readresults(resultfile)
