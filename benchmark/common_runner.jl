@@ -20,7 +20,7 @@ function displayresult(result)
 end
 
 
-function run_benchmark(id; nmpi=1, print_results=true)
+function run_benchmark(id=nothing; nmpi=1, print_results=true)
     @assert nmpi == 1 # TODO Later also run benchmarks on multiple MPI processors
 
     juliacmd = `$(joinpath(Sys.BINDIR, Base.julia_exename()))`
@@ -45,7 +45,7 @@ function run_benchmark(id; nmpi=1, print_results=true)
     result
 end
 
-function run_judge(baseline, target; print_results=true, kwargs...)
+function run_judge(baseline="master", target=nothing; print_results=true, kwargs...)
     group_target   = run_benchmark(;id=target, print_results=false, kwargs...)
     group_baseline = run_benchmark(;id=target, print_results=false, kwargs...)
     judgement      = judge(group_target, group_baseline)
