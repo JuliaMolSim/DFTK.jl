@@ -35,6 +35,7 @@ function run_benchmark(id=nothing; n_mpi=1, print_results=true, output_folder="d
     if isfile(resultfile) && !isnothing(id)
         result = PkgBenchmark.readresults(resultfile)
     else
+        mkpath(output_folder)
         config = BenchmarkConfig(; env, id, juliacmd)
         result = benchmarkpkg(dirname(@__DIR__), config; resultfile)
     end
