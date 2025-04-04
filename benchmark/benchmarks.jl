@@ -9,6 +9,8 @@ using BenchmarkTools
 using DFTK
 using PseudoPotentialData
 
+setup_threading()
+
 # TODO:
 #  - Hamiltonian application
 #  - Diagonalisation
@@ -32,3 +34,6 @@ SUITE["fullrun"]["silicon"] = @benchmarkable let
     basis  = PlaneWaveBasis(model; Ecut=35, kgrid=[8, 8, 8])
     scfres = self_consistent_field(basis, tol=1e-8, callback=identity)
 end
+
+
+# TODO Use setup / teardown integration of BenchmarkTools to collect and store timings using TimerOutputs
