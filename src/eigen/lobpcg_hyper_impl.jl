@@ -33,13 +33,8 @@
 # other eigenvectors (which is not the case in many - all ? - other
 # implementations)
 
-# - The massive parallelism of the GPU can only be fully expoloited when
-# operating on whole arrays. For performance reasons, one should avoid
-# explicitly looping over columns or element. For example, computing
-# the norms of the columns of an array A should be dones as:
-# norms = vec(sqrt.(sum(abs2, A; dims=1)))
-# Rather than the more eloquant:
-# norms = norm.(eachcol(A))
+# - Some functions are reimplemented in a GPU optimized way as part of
+# the DFTK CUDA Extension (ext/DFTKCUDAExt/lobpcg.jl).
 
 
 ## TODO micro-optimization of buffer reuse
@@ -177,7 +172,7 @@ function B_ortho!(X, BX)
     rdiv!(BX, U)
 end
 
-normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
+normest(M) = maximum(abs, diag(M)) + norm(M - Diagonal(diag(M)))
 # Orthogonalizes X to tol
 # Returns the new X, the number of Cholesky factorizations algorithm, and the
 # growth factor by which small perturbations of X can have been
@@ -255,14 +250,14 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
     (; X, nchol, growth_factor)
 end
 
-# Calculate the norms of the columns of an array X
-function colnorms(X::AbstractArray{T}) where{T}
+# Calculate the norms of the columns of an array
+function columnwise_norms(X::AbstractArray{T}) where{T}
     vec(sqrt.(sum(abs2, X; dims=1)))
 end
 
 # Randomize the columns of X if the norm is below tol
 function drop!(X::AbstractArray{T}, tol=2eps(real(T))) where {T}
-    dropped = findall(n -> n <= tol, colnorms(X))
+    dropped = findall(n -> n <= tol, columnwise_norms(X))
     @views randn!(TaskLocalRNG(), X[:, dropped])
     dropped
 end
@@ -270,7 +265,7 @@ end
 # Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
 @timing "ortho! X vs Y" function ortho!(X::AbstractArray{T}, Y, BY; tol=2eps(real(T))) where {T}
     # normalize to try to cheaply improve conditioning
-    X ./= colnorms(X)'
+    X ./= columnwise_norms(X)'
 
     niter = 1
     ninners = zeros(Int,0)
@@ -329,6 +324,12 @@ function final_retval(X, AX, BX, λ, resid_history, niter, n_matvec)
      residual_history=resid_history[:, 1:niter+1], n_matvec)
 end
 
+# Computes λ = real((X' * AX) / (X' *BX)), for each column of X
+function compute_λ(X, AX, BX)
+    λs = @views [real((X[:, n]'*AX[:, n]) / (X[:, n]'BX[:, n])) for n=1:size(X, 2)]
+    oftype(real(X[:, 1]), λs)  # Offload to GPU if needed
+end
+
 ### The algorithm is Xn+1 = rayleigh_ritz(hcat(Xn, A*Xn, Xn-Xn-1))
 ### We follow the strategy of Hetmaniuk and Lehoucq, and maintain a B-orthonormal basis Y = (X,R,P)
 ### After each rayleigh_ritz step, the B-orthonormal X and P are deduced by an orthogonal rotation from Y
@@ -382,8 +383,7 @@ end
     end
     nlocked = 0
     niter = 0  # the first iteration is fake
-    λs = @views [real((X[:, n]'*AX[:, n]) / (X[:, n]'BX[:, n])) for n=1:M]
-    λs = oftype(real(X[:, 1]), λs)  # Offload to GPU if needed
+    λs = compute_λ(X, AX, BX)
     new_X  = X
     new_AX = AX
     new_BX = BX
@@ -424,7 +424,7 @@ end
         ### Compute new residuals
         @timing "Update residuals" begin
             new_R = new_AX .- new_BX .* λs'
-            norms = to_cpu(colnorms(new_R))
+            norms = to_cpu(columnwise_norms(new_R))
             @views resid_history[1 + nlocked: size(new_R, 2) + nlocked, niter+1] .= norms[:]
         end
         vprintln(niter, "   ", resid_history[:, niter+1])
@@ -504,7 +504,7 @@ end
         end
 
         # Quick sanity check
-        diffs = abs.(sum(conj(BX) .* X, dims=1) .-1)
+        diffs = abs.(diag_prod(BX, X) .-1)
         if any(diffs .>= sqrt(eps(real(eltype(X)))))
            error("LOBPCG is badly failing to keep the vectors normalized; this should never happen")
         end
