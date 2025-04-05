@@ -63,8 +63,8 @@ function run_benchmark(id=nothing; n_mpi=1, print_results=true, output_folder="d
 end
 
 function run_judge(baseline="master", target=nothing; print_results=true, kwargs...)
-    group_target   = run_benchmark(;id=target,   print_results=false, kwargs...)
-    group_baseline = run_benchmark(;id=baseline, print_results=false, kwargs...)
+    group_target   = run_benchmark(target;   print_results=false, kwargs...)
+    group_baseline = run_benchmark(baseline; print_results=false, kwargs...)
     judgement      = judge(group_target, group_baseline)
 
     if print_results
