@@ -1,15 +1,12 @@
-using Pkg
-tempdir = mktempdir()
-Pkg.activate(tempdir)
-Pkg.develop(PackageSpec(path = joinpath(@__DIR__, "..")))
-Pkg.add(["BenchmarkTools", "PkgBenchmark"])
-Pkg.resolve()
-
 using BenchmarkTools
 using DFTK
 using PseudoPotentialData
 
 setup_threading()
+
+# For inspiration see
+# https://github.com/gridap/Gridap.jl/blob/master/benchmark/benchmarks.jl
+# https://github.com/gridap/Gridap.jl/blob/master/benchmark/README.md
 
 # TODO:
 #  - Hamiltonian application
