@@ -1,7 +1,23 @@
+#!/bin/bash
+#=
+THISDIR=$(readlink -f $(dirname ${BASH_SOURCE[0]}))
+julia --project="${THISDIR}" -e "
+    using Pkg
+    Pkg.develop(PackageSpec(path=\"$THISDIR/..\"))
+    Pkg.instantiate()
+"
+julia --project="${THISDIR}" -L "${THISDIR}/run_benchmarks.jl" -e '
+    baseline = length(ARGS) > 1 ? ARGS[1] : "master"
+    target   = length(ARGS) > 2 ? ARGS[2] : nothing
+    println("Comparing $target against $baseline")
+    run_judge(baseline, target)
+' "$@"
+exit $?
+=#
+
 using PkgBenchmark
 using Markdown
 using LibGit2
-using DFTK
 
 function printnewsection(name)
     println()
@@ -21,7 +37,7 @@ function displayresult(result)
     display(Markdown.parse(md))
 end
 
-lookup_id_in_dftk_repo(id::Nothing) = "current"
+lookup_id_in_dftk_repo(::Nothing) = nothing
 function lookup_id_in_dftk_repo(id::AbstractString)
     try
         repo = LibGit2.GitRepo(dirname(@__DIR__))
@@ -37,15 +53,17 @@ function lookup_id_in_dftk_repo(id::AbstractString)
     end
 end
 
-function run_benchmark(id=nothing; n_mpi=1, print_results=true, output_folder="dftk_benchmark")
+function run_benchmark(id=nothing; n_mpi=1,
+                       print_results=true, output_folder="dftk_benchmark")
     @assert n_mpi == 1 # TODO Later also run benchmarks on multiple MPI processors
 
     juliacmd = `$(joinpath(Sys.BINDIR, Base.julia_exename()))`
     env = Dict("JULIA_NUM_THREADS" => "1", "OMP_NUM_THREADS" => "1")
 
     id = lookup_id_in_dftk_repo(id)
-    resultfile = joinpath(output_folder, "result_$(id).json")
-    mdfile     = joinpath(output_folder, "result_$(id).json")
+    suffix = isnothing(id) ? "current" : id
+    resultfile = joinpath(output_folder, "result_$(suffix).json")
+    mdfile     = joinpath(output_folder, "result_$(suffix).json")
 
     if isfile(resultfile) && !isnothing(id)
         result = PkgBenchmark.readresults(resultfile)
@@ -62,9 +80,10 @@ function run_benchmark(id=nothing; n_mpi=1, print_results=true, output_folder="d
     result
 end
 
-function run_judge(baseline="master", target=nothing; print_results=true, kwargs...)
-    group_target   = run_benchmark(target;   print_results=false, kwargs...)
-    group_baseline = run_benchmark(baseline; print_results=false, kwargs...)
+function run_judge(baseline="master", target=nothing;
+                   print_results=true, output_folder="dftk_benchmark", kwargs...)
+    group_target   = run_benchmark(target;   print_results=false, output_folder, kwargs...)
+    group_baseline = run_benchmark(baseline; print_results=false, output_folder, kwargs...)
     judgement      = judge(group_target, group_baseline)
 
     if print_results
@@ -74,6 +93,7 @@ function run_judge(baseline="master", target=nothing; print_results=true, kwargs
         printnewsection("Baseline result")
         displayresult(group_baseline)
     end
+    export_markdown(joinpath(output_folder, "judge.md"))
 
     judgement
 end
