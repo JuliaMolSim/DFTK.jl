@@ -53,8 +53,7 @@ function lookup_id_in_dftk_repo(id::AbstractString)
     end
 end
 
-function run_benchmark(id=nothing; n_mpi=1,
-                       print_results=true, output_folder="results")
+function run_benchmark(id=nothing; n_mpi=1, print_results=true)
     @assert n_mpi == 1 # TODO Later also run benchmarks on multiple MPI processors
 
     juliacmd = `$(joinpath(Sys.BINDIR, Base.julia_exename()))`
@@ -62,13 +61,14 @@ function run_benchmark(id=nothing; n_mpi=1,
 
     id = lookup_id_in_dftk_repo(id)
     suffix = isnothing(id) ? "current" : id
-    resultfile = joinpath(output_folder, "result_$(suffix).json")
-    mdfile     = joinpath(output_folder, "result_$(suffix).json")
+
+    mkpath(joinpath(@__DIR__, "results"))
+    resultfile = joinpath(@__DIR__, "results" "benchmark_$(suffix).json")
+    mdfile     = joinpath(@__DIR__, "results","benchmark_$(suffix).md")
 
     if isfile(resultfile) && !isnothing(id)
         result = PkgBenchmark.readresults(resultfile)
     else
-        mkpath(output_folder)
         config = BenchmarkConfig(; env, id, juliacmd)
         result = benchmarkpkg(dirname(@__DIR__), config; resultfile)
     end
@@ -80,10 +80,9 @@ function run_benchmark(id=nothing; n_mpi=1,
     result
 end
 
-function run_judge(baseline="master", target=nothing;
-                   print_results=true, output_folder="results", kwargs...)
-    group_target   = run_benchmark(target;   print_results=false, output_folder, kwargs...)
-    group_baseline = run_benchmark(baseline; print_results=false, output_folder, kwargs...)
+function run_judge(baseline="master", target=nothing; print_results=true, kwargs...)
+    group_target   = run_benchmark(target;   print_results=false, kwargs...)
+    group_baseline = run_benchmark(baseline; print_results=false, kwargs...)
     judgement      = judge(group_target, group_baseline)
 
     if print_results
@@ -93,7 +92,7 @@ function run_judge(baseline="master", target=nothing;
         printnewsection("Baseline result")
         displayresult(group_baseline)
     end
-    export_markdown(joinpath(output_folder, "judge.md"))
+    export_markdown(joinpath(@__DIR__, "results", "judge.md"))
 
     judgement
 end
