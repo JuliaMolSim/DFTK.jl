@@ -54,7 +54,7 @@ function lookup_id_in_dftk_repo(id::AbstractString)
 end
 
 function run_benchmark(id=nothing; n_mpi=1,
-                       print_results=true, output_folder="dftk_benchmark")
+                       print_results=true, output_folder="results")
     @assert n_mpi == 1 # TODO Later also run benchmarks on multiple MPI processors
 
     juliacmd = `$(joinpath(Sys.BINDIR, Base.julia_exename()))`
@@ -81,7 +81,7 @@ function run_benchmark(id=nothing; n_mpi=1,
 end
 
 function run_judge(baseline="master", target=nothing;
-                   print_results=true, output_folder="dftk_benchmark", kwargs...)
+                   print_results=true, output_folder="results", kwargs...)
     group_target   = run_benchmark(target;   print_results=false, output_folder, kwargs...)
     group_baseline = run_benchmark(baseline; print_results=false, output_folder, kwargs...)
     judgement      = judge(group_target, group_baseline)
