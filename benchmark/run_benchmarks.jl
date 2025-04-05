@@ -63,8 +63,8 @@ function run_benchmark(id=nothing; n_mpi=1, print_results=true)
     suffix = isnothing(id) ? "current" : id
 
     mkpath(joinpath(@__DIR__, "results"))
-    resultfile = joinpath(@__DIR__, "results" "benchmark_$(suffix).json")
-    mdfile     = joinpath(@__DIR__, "results","benchmark_$(suffix).md")
+    resultfile = joinpath(@__DIR__, "results", "benchmark_$(suffix).json")
+    mdfile     = joinpath(@__DIR__, "results", "benchmark_$(suffix).md")
 
     if isfile(resultfile) && !isnothing(id)
         result = PkgBenchmark.readresults(resultfile)
