@@ -92,7 +92,7 @@ function run_judge(baseline="master", target=nothing; print_results=true, kwargs
         printnewsection("Baseline result")
         displayresult(group_baseline)
     end
-    export_markdown(joinpath(@__DIR__, "results", "judge.md"))
+    export_markdown(joinpath(@__DIR__, "results", "judge.md"), judgement)
 
     judgement
 end
