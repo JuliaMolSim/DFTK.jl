@@ -1,5 +1,7 @@
 using PkgBenchmark
 using Markdown
+using LibGit2
+using DFTK
 
 function printnewsection(name)
     println()
@@ -28,7 +30,18 @@ function run_benchmark(id=nothing; n_mpi=1, print_results=true, output_folder="d
 
     fn = "result_current.json"
     if !isnothing(id)
-        fn = "result_$(id).json"
+        fn = try
+            repo = LibGit2.GitRepo(pkgdir(DFTK))
+            obj  = LibGit2.GitObject(repo, id)
+            sha  = string(LibGit2.GitHash(obj))
+            "result_$(sha).json"
+        catch e
+            if e isa LibGit2.GitError
+                "result_$(id).json"
+            else
+                rethrow()
+            end
+        end
     end
     resultfile = joinpath(output_folder, fn)
 
@@ -37,7 +50,7 @@ function run_benchmark(id=nothing; n_mpi=1, print_results=true, output_folder="d
     else
         mkpath(output_folder)
         config = BenchmarkConfig(; env, id, juliacmd)
-        result = benchmarkpkg(dirname(@__DIR__), config; resultfile)
+        result = benchmarkpkg(pkgdir(DFTK), config; resultfile)
     end
 
     if print_results
@@ -58,4 +71,6 @@ function run_judge(baseline="master", target=nothing; print_results=true, kwargs
         printnewsection("Baseline result")
         displayresult(group_baseline)
     end
+
+    judgement
 end
