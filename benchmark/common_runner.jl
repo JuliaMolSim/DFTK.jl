@@ -21,6 +21,21 @@ function displayresult(result)
     display(Markdown.parse(md))
 end
 
+lookup_id_in_dftk_repo(id::Nothing) = "current"
+function lookup_id_in_dftk_repo(id::AbstractString)
+    try
+        repo = LibGit2.GitRepo(dirname(@__DIR__))
+        obj  = LibGit2.GitObject(repo, id)
+        sha  = string(LibGit2.GitHash(obj))
+        return string(sha)
+    catch e
+        if e isa LibGit2.GitError
+            return id
+        else
+            rethrow()
+        end
+    end
+end
 
 function run_benchmark(id=nothing; n_mpi=1, print_results=true, output_folder="dftk_benchmark")
     @assert n_mpi == 1 # TODO Later also run benchmarks on multiple MPI processors
@@ -28,21 +43,9 @@ function run_benchmark(id=nothing; n_mpi=1, print_results=true, output_folder="d
     juliacmd = `$(joinpath(Sys.BINDIR, Base.julia_exename()))`
     env = Dict("JULIA_NUM_THREADS" => "1", "OMP_NUM_THREADS" => "1")
 
-    fn = "result_current.json"
-    if !isnothing(id)
-        fn = try
-            repo = LibGit2.GitRepo(pkgdir(DFTK))
-            obj  = LibGit2.GitObject(repo, id)
-            sha  = string(LibGit2.GitHash(obj))
-            "result_$(sha).json"
-        catch e
-            if e isa LibGit2.GitError
-                "result_$(id).json"
-            else
-                rethrow()
-            end
-        end
-    end
+    id = lookup_id_in_dftk_repo(id)
+    fn = "result_$(id).json"
+
     resultfile = joinpath(output_folder, fn)
 
     if isfile(resultfile) && !isnothing(id)
@@ -50,7 +53,7 @@ function run_benchmark(id=nothing; n_mpi=1, print_results=true, output_folder="d
     else
         mkpath(output_folder)
         config = BenchmarkConfig(; env, id, juliacmd)
-        result = benchmarkpkg(pkgdir(DFTK), config; resultfile)
+        result = benchmarkpkg(dirname(@__DIR__), config; resultfile)
     end
 
     if print_results
