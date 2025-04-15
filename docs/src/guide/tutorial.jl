@@ -101,7 +101,7 @@ stack(scfres.occupation)
 # and then in the spin component.
 rvecs = collect(r_vectors(basis))[:, 1, 1]  # slice along the x axis
 x = [r[1] for r in rvecs]                   # only keep the x coordinate
-plot(x, scfres.ρ[1, :, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
+plot(x, scfres.ρ[:, 1, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
 
 # We can also perform various postprocessing steps:
 # We can get the Cartesian forces (in Hartree / Bohr):
