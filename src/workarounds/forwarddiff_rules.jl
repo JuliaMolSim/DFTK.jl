@@ -71,12 +71,102 @@ end
 
 next_working_fft_size(::Type{<:Dual}, size::Int) = size
 
-# determine symmetry operations only from primal lattice values
+# determine symmetry operations only from primal values, then filter out symmetries broken by dual part
 function symmetry_operations(lattice::AbstractMatrix{<:Dual},
-                             atoms, positions, magnetic_moments=[]; kwargs...)
+                             atoms, positions, magnetic_moments=[];
+                             tol_symmetry=SYMMETRY_TOLERANCE, kwargs...)
     positions_value = [ForwardDiff.value.(pos) for pos in positions]
-    symmetry_operations(ForwardDiff.value.(lattice), atoms, positions_value,
-                        magnetic_moments; kwargs...)
+    symmetries = symmetry_operations(ForwardDiff.value.(lattice), atoms,
+                                     positions_value, magnetic_moments; tol_symmetry, kwargs...)
+    filter_out_dual_symmetries(lattice, atoms, positions, symmetries; tol_symmetry)
+end
+
+function filter_out_dual_symmetries(lattice, atoms, positions, symmetries; tol_symmetry=SYMMETRY_TOLERANCE)
+    ret = [symmetry for symmetry in symmetries if check_dual_symmetry(lattice, atoms, positions, symmetry)]
+    println("Symmetries before: $(length(symmetries)), after: $(length(ret))")
+    @assert length(ret) > 0
+    ret
+end
+
+# TODO: temp workaround until we bump FD to 1.0.0
+function Base.inv(matrix::Matrix{ForwardDiff.Dual{T,V,N}}) where {T,V,N}
+    inv_primal = inv(ForwardDiff.value.(matrix))
+    inv_duals = map(1:N) do n
+        -inv_primal * ForwardDiff.partials.(matrix, n) * inv_primal
+    end
+    map(inv_primal, inv_duals...) do val, partials...
+        Dual{T, V, N}(val, ForwardDiff.Partials(NTuple{N,V}(partials...)))
+    end
+end
+
+# check if a symmetry that holds for primal numbers also holds for the dual part
+function check_dual_symmetry(lattice, atoms, positions, symmetry::SymOp; tol_symmetry=SYMMETRY_TOLERANCE)
+    # For any lattice atom at position x, W*x + w should be in the lattice.
+    # In cartesian coordinates, with a perturbed lattice A = A₀ + εA₁,
+    # this means that for any atom position xcart in the unit cell and any 3 integers m,
+    # there should be an atom at position ycart and 3 integers n such that:
+    # Wcart * (xcart + A*m) + wcart = ycart + A*n
+    # where
+    # - Wcart = A₀ * W * A₀⁻¹; note that W is an integer matrix
+    # - wcart = A₀ * w.
+    #
+    # In relative coordinates this gives:
+    # A⁻¹ * Wcart * (A*x + A*m) + A⁻¹ * wcart = y + n   (*)
+    #
+    # The strategy is then to check that:
+    # 1. A⁻¹ * Wcart * A is still an integer matrix (i.e. no dual part),
+    #    such that any change in m is easily compensated for in n.
+    # 2. The primal component of (*), i.e. with ε=0, is already known to hold.
+    #    Since n does not have a dual component, it is enough to check that
+    #    the dual part of the following is 0:
+    #      A⁻¹ * Wcart * A*x + A⁻¹ * wcart - y 
+
+    lattice_primal = ForwardDiff.value.(lattice)
+    W = inv(lattice) * lattice_primal * symmetry.W * inv(lattice_primal) * lattice
+    w = inv(lattice) * lattice_primal * symmetry.w
+
+    has_nonzero_dual(x::AbstractArray) = any(x) do xi
+        maximum(abs, ForwardDiff.partials(xi)) >= tol_symmetry
+    end
+    # Check 1.
+    if has_nonzero_dual(W)
+        if symmetry == one(SymOp)
+            println("Removing identity because of check 1.")
+            @show W lattice inv(lattice)
+        end
+        return false
+    end
+
+    atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
+    for group in atom_groups
+        positions_group = positions[group]
+        for position in positions_group
+            position_primal = ForwardDiff.value.(position)
+            # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
+            # (but careful that our symmetries are r -> Wr+w, not R(r+f))
+            other_at = symmetry.W \ (position_primal - symmetry.w)
+            # TODO: would it not be easier to check symmetry.W * position_primal + symmetry.w == other_at?
+
+            # Find the index of the atom to which idx is mapped to by the symmetry operation.
+            # To avoid issues due to numerical noise we compute the deviations from being
+            # an integer shift (thus equivalent by translational symmetry) for all atoms in
+            # the group and pick the smallest one.
+            smallest_deviation, i_other_at = findmin(positions_group) do at
+                δat = ForwardDiff.value.(at) - other_at
+                maximum(abs, δat - round.(δat))
+            end
+            # Note, that without a fudging factor this occasionally fails:
+            @assert smallest_deviation < 10tol_symmetry
+
+            # Check 2.
+            if has_nonzero_dual(positions_group[i_other_at] - inv(W) * (position - w))
+                symmetry == one(SymOp) && println("Removing identity because of check 2")
+                return false
+            end
+        end
+    end
+
+    true
 end
 
 function _is_well_conditioned(A::AbstractArray{<:Dual}; kwargs...)

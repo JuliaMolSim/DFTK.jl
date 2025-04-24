@@ -1,0 +1,76 @@
+model.symmetries = DFTK.SymOp{Float64}[
+    # Identity
+    DFTK.SymOp{Float64}([1 0 0; 0 1 0; 0 0 1], [0.0, 0.0, 0.0], [1 0 0; 0 1 0; 0 0 1], [-0.0, -0.0, -0.0]),
+    # Mirror xyz
+    DFTK.SymOp{Float64}([-1 0 0; 0 -1 0; 0 0 -1], [0.0, 0.0, 0.0], [-1 0 0; 0 -1 0; 0 0 -1], [0.0, 0.0, 0.0]),
+    # Mirror xy
+    DFTK.SymOp{Float64}([-1 0 0; 0 -1 0; 0 0 1], [0.0, 0.0, 0.0], [-1 0 0; 0 -1 0; 0 0 1], [-0.0, -0.0, -0.0]),
+    # Mirror z
+    DFTK.SymOp{Float64}([1 0 0; 0 1 0; 0 0 -1], [0.0, 0.0, 0.0], [1 0 0; 0 1 0; 0 0 -1], [0.0, 0.0, 0.0]),
+    # Mirror yz
+    DFTK.SymOp{Float64}([1 0 0; 0 -1 0; 0 0 -1], [0.0, 0.0, 0.0], [1 0 0; 0 -1 0; 0 0 -1], [-0.0, -0.0, -0.0]),
+    # Mirror x
+    DFTK.SymOp{Float64}([-1 0 0; 0 1 0; 0 0 1], [0.0, 0.0, 0.0], [-1 0 0; 0 1 0; 0 0 1], [0.0, 0.0, 0.0]),
+    # Mirror xz
+    DFTK.SymOp{Float64}([-1 0 0; 0 1 0; 0 0 -1], [0.0, 0.0, 0.0], [-1 0 0; 0 1 0; 0 0 -1], [-0.0, -0.0, -0.0]),
+    # Mirror y
+    DFTK.SymOp{Float64}([1 0 0; 0 -1 0; 0 0 1], [0.0, 0.0, 0.0], [1 0 0; 0 -1 0; 0 0 1], [0.0, 0.0, 0.0]),
+    # Rotation in yz plane
+    DFTK.SymOp{Float64}([1 0 0; 0 0 1; 0 -1 0], [0.0, 0.0, 0.0], [1 0 0; 0 0 -1; 0 1 0], [-0.0, -0.0, -0.0]),
+    DFTK.SymOp{Float64}([-1 0 0; 0 0 -1; 0 1 0], [0.0, 0.0, 0.0], [-1 0 0; 0 0 1; 0 -1 0], [0.0, 0.0, 0.0]),
+    DFTK.SymOp{Float64}([-1 0 0; 0 0 1; 0 1 0], [0.0, 0.0, 0.0], [-1 0 0; 0 0 1; 0 1 0], [-0.0, -0.0, -0.0]),
+    DFTK.SymOp{Float64}([1 0 0; 0 0 -1; 0 -1 0], [0.0, 0.0, 0.0], [1 0 0; 0 0 -1; 0 -1 0], [0.0, 0.0, 0.0]),
+    DFTK.SymOp{Float64}([-1 0 0; 0 0 -1; 0 -1 0], [0.0, 0.0, 0.0], [-1 0 0; 0 0 -1; 0 -1 0], [-0.0, -0.0, -0.0]),
+    DFTK.SymOp{Float64}([1 0 0; 0 0 1; 0 1 0], [0.0, 0.0, 0.0], [1 0 0; 0 0 1; 0 1 0], [0.0, 0.0, 0.0]),
+    DFTK.SymOp{Float64}([1 0 0; 0 0 -1; 0 1 0], [0.0, 0.0, 0.0], [1 0 0; 0 0 1; 0 -1 0], [-0.0, -0.0, -0.0]),
+    DFTK.SymOp{Float64}([-1 0 0; 0 0 1; 0 -1 0], [0.0, 0.0, 0.0], [-1 0 0; 0 0 -1; 0 1 0], [0.0, 0.0, 0.0]),
+    # Translation by 0.5 in x
+    DFTK.SymOp{Float64}([1 0 0; 0 1 0; 0 0 1], [0.5, 0.0, 0.0], [1 0 0; 0 1 0; 0 0 1], [-0.5, -0.0, -0.0]),
+    DFTK.SymOp{Float64}([-1 0 0; 0 -1 0; 0 0 -1], [0.5, 0.0, 0.0], [-1 0 0; 0 -1 0; 0 0 -1], [0.5, 0.0, 0.0]),
+    DFTK.SymOp{Float64}([-1 0 0; 0 -1 0; 0 0 1], [0.5, 0.0, 0.0], [-1 0 0; 0 -1 0; 0 0 1], [0.5, -0.0, -0.0]),
+    DFTK.SymOp{Float64}([1 0 0; 0 1 0; 0 0 -1], [0.5, 0.0, 0.0], [1 0 0; 0 1 0; 0 0 -1], [-0.5, 0.0, 0.0]),
+    DFTK.SymOp{Float64}([1 0 0; 0 -1 0; 0 0 -1], [0.5, 0.0, 0.0], [1 0 0; 0 -1 0; 0 0 -1], [-0.5, -0.0, -0.0]),
+    DFTK.SymOp{Float64}([-1 0 0; 0 1 0; 0 0 1], [0.5, 0.0, 0.0], [-1 0 0; 0 1 0; 0 0 1], [0.5, 0.0, 0.0]),
+    DFTK.SymOp{Float64}([-1 0 0; 0 1 0; 0 0 -1], [0.5, 0.0, 0.0], [-1 0 0; 0 1 0; 0 0 -1], [0.5, -0.0, -0.0]),
+    DFTK.SymOp{Float64}([1 0 0; 0 -1 0; 0 0 1], [0.5, 0.0, 0.0], [1 0 0; 0 -1 0; 0 0 1], [-0.5, 0.0, 0.0]),
+    # Translation by 0.5 in x + rotation in yz plane
+    DFTK.SymOp{Float64}([1 0 0; 0 0 1; 0 -1 0], [0.5, 0.0, 0.0], [1 0 0; 0 0 -1; 0 1 0], [-0.5, -0.0, -0.0]),
+    DFTK.SymOp{Float64}([-1 0 0; 0 0 -1; 0 1 0], [0.5, 0.0, 0.0], [-1 0 0; 0 0 1; 0 -1 0], [0.5, 0.0, 0.0]),
+    DFTK.SymOp{Float64}([-1 0 0; 0 0 1; 0 1 0], [0.5, 0.0, 0.0], [-1 0 0; 0 0 1; 0 1 0], [0.5, -0.0, -0.0]),
+    DFTK.SymOp{Float64}([1 0 0; 0 0 -1; 0 -1 0], [0.5, 0.0, 0.0], [1 0 0; 0 0 -1; 0 -1 0], [-0.5, 0.0, 0.0]),
+    DFTK.SymOp{Float64}([-1 0 0; 0 0 -1; 0 -1 0], [0.5, 0.0, 0.0], [-1 0 0; 0 0 -1; 0 -1 0], [0.5, -0.0, -0.0]),
+    DFTK.SymOp{Float64}([1 0 0; 0 0 1; 0 1 0], [0.5, 0.0, 0.0], [1 0 0; 0 0 1; 0 1 0], [-0.5, 0.0, 0.0]),
+    DFTK.SymOp{Float64}([1 0 0; 0 0 -1; 0 1 0], [0.5, 0.0, 0.0], [1 0 0; 0 0 1; 0 -1 0], [-0.5, -0.0, -0.0]),
+    DFTK.SymOp{Float64}([-1 0 0; 0 0 1; 0 -1 0], [0.5, 0.0, 0.0], [-1 0 0; 0 0 -1; 0 1 0], [0.5, 0.0, 0.0])]
+
+
+W=ForwardDiff.Dual{ForwardDiff.Tag{Main.var"##245".var"#3#4", Float64}, Float64, 1}[
+    Dual{ForwardDiff.Tag{Main.var"##245".var"#3#4", Float64}}(1.0,0.0) Dual{ForwardDiff.Tag{Main.var"##245".var"#3#4", Float64}}(0.0,0.125) Dual{ForwardDiff.Tag{Main.var"##245".var"#3#4", Float64}}(0.0,0.0);
+    Dual{ForwardDiff.Tag{Main.var"##245".var"#3#4", Float64}}(0.0,2.0) Dual{ForwardDiff.Tag{Main.var"##245".var"#3#4", Float64}}(1.0,0.0) Dual{ForwardDiff.Tag{Main.var"##245".var"#3#4", Float64}}(0.0,0.0);
+    Dual{ForwardDiff.Tag{Main.var"##245".var"#3#4", Float64}}(0.0,0.0) Dual{ForwardDiff.Tag{Main.var"##245".var"#3#4", Float64}}(0.0,0.0) Dual{ForwardDiff.Tag{Main.var"##245".var"#3#4", Float64}}(1.0,0.0)]
+
+((lattice \ lattice_primal) / lattice_primal) * lattice =
+    ForwardDiff.Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}, Float64, 1}[
+        Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(1.0,0.0) Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(0.0,0.125) Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(0.0,0.0);
+        Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(0.0,2.0) Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(1.0,0.0) Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(0.0,0.0);
+        Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(0.0,0.0) Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(0.0,0.0) Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(1.0,0.0)]
+
+lattice = ForwardDiff.Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}, Float64, 1}[
+    Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(30.529883575431146,0.0) Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(0.0,3.8162354469288933) Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(0.0,0.0);
+    Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(0.0,15.264941787715573) Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(7.6324708938577865,0.0) Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(0.0,0.0);
+    Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(0.0,0.0) Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(0.0,0.0) Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(7.6324708938577865,0.0)]
+
+lattice \ lattice_primal = ForwardDiff.Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}, Float64, 1}[
+    Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(1.0,-0.0) Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(0.0,-0.0) Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(0.0,-0.0);
+    Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(0.0,-0.0) Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(1.0,-0.0) Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(0.0,-0.0);
+    Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(0.0,-0.0) Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(0.0,-0.0) Dual{ForwardDiff.Tag{Main.var"##246".var"#3#4", Float64}}(1.0,-0.0)]
+
+lattice = ForwardDiff.Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}, Float64, 1}[
+    Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}}(30.529883575431146,0.0) Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}}(0.0,3.8162354469288933) Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}}(0.0,0.0);
+    Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}}(0.0,15.264941787715573) Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}}(7.6324708938577865,0.0) Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}}(0.0,0.0);
+    Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}}(0.0,0.0) Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}}(0.0,0.0) Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}}(7.6324708938577865,0.0)
+]
+inv(lattice) = ForwardDiff.Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}, Float64, 1}[
+    Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}}(0.03275479244882374,0.0) Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}}(0.0,-0.01637739622441187) Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}}(0.0,0.0);
+    Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}}(0.0,0.0) Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}}(0.13101916979529496,0.0) Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}}(0.0,0.0);
+    Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}}(0.0,0.0) Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}}(0.0,0.0) Dual{ForwardDiff.Tag{Main.var"##249".var"#3#4", Float64}}(0.13101916979529496,0.0)]
