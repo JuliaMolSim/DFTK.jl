@@ -250,3 +250,25 @@ end
         end
     end
 end
+
+@testitem "Test nonlocal term operations" tags=[:psp] setup=[mPspUpf] begin
+    using DFTK
+    using LinearAlgebra
+
+    lattice = 5 * I(3)
+    positions = [zeros(3), 1/3 .* ones(3), 2/3 .* ones(3)]
+    for (element, psp) in mPspUpf.upf_pseudos
+        if sum(psp.r2_ρion) > 0  # Otherwise, it's all 0 in the UPF as a placeholder
+            el = ElementPsp(element, psp)
+            atoms = [el, el, el]
+            model = model_DFT(lattice, atoms, positions; functionals=LDA())
+            basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
+            n_bands = 7
+            ψ = [DFTK.random_orbitals(basis, kpt, n_bands) for kpt in basis.kpoints]
+            occ = [2.0 * ones(n_bands) for _ in basis.kpoints]
+            ρ = DFTK.compute_density(basis, ψ, occ)
+
+            DFTK.energy(basis, ψ, occ)
+        end
+    end
+end
