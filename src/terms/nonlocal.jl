@@ -17,15 +17,31 @@ function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
 
     isempty(psp_groups) && return TermNoop()
     ops = map(basis.kpoints) do kpt
-        (P1, P2) = build_projection_vectors(basis, kpt, psps, psp_positions)
+        P = build_projection_vectors_mem(basis, kpt, psps, psp_positions)
         D = build_projection_coefficients(T, psps, psp_positions)
-        NonlocalOperator(basis, kpt, P1, P2, to_device(basis.architecture, D))
+        NonlocalOperator(basis, kpt, P, to_device(basis.architecture, D))
     end
     TermAtomicNonlocal(ops)
 end
 
 struct TermAtomicNonlocal <: Term
     ops::Vector{NonlocalOperator}
+end
+
+struct AtomProjectors{T <: Real,
+                      VT <: AbstractVector{<: Complex{T}},
+                      PT <: AbstractMatrix{<: Complex{T}}}
+    # nbasis
+    structure_factors::VT
+    # nbasis x nproj
+    projectors::PT
+end
+
+# TODO: implement AbstractMatrix?
+struct NonlocalProjectors{T <: Real}
+    # nbasis
+    ψ_scratch::AbstractVector{<:Complex{T}}
+    projectors::Vector{<:AtomProjectors{T}}
 end
 
 @timing "ene_ops: nonlocal" function ene_ops(term::TermAtomicNonlocal,
@@ -166,41 +182,38 @@ where ``\widehat{\rm proj}_i(p) = ∫_{ℝ^3} {\rm proj}_i(r) e^{-ip·r} dr``.
 
 We store ``\frac{1}{\sqrt Ω} \widehat{\rm proj}_i(k+G)`` in `proj_vectors`.
 """
-function build_projection_form_factors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
+function build_projection_vectors_mem(basis::PlaneWaveBasis{T}, kpt::Kpoint,
                                   psps::AbstractVector{<: NormConservingPsp},
                                   psp_positions) where {T}
     unit_cell_volume = basis.model.unit_cell_volume
     n_proj = count_n_proj(psps, psp_positions)
+    n_G    = length(G_vectors(basis, kpt))
+    proj_vectors = zeros(Complex{eltype(psp_positions[1][1])}, n_G, n_proj)
     G_plus_k = to_cpu(Gplusk_vectors(basis, kpt))
-    form_factors = Vector(undef, n_proj)
-    structure_factors = Vector(undef, n_proj)
 
     # Compute the columns of proj_vectors = 1/√Ω \hat proj_i(k+G)
     # Since the proj_i are translates of each others, \hat proj_i(k+G) decouples as
     # \hat proj_i(p) = ∫ proj(r-R) e^{-ip·r} dr = e^{-ip·R} \hat proj(p).
     # The first term is the structure factor, the second the form factor.
-    offset = 0 # offset into form_factors and structure_factors
-    for (psp, positions) in zip(psps, psp_positions) do
+    atom_projectors = reduce(vcat, map(zip(psps, psp_positions)) do (psp, positions)
         # Compute position-independent form factors
         G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
         psp_form_factors = build_projector_form_factors(psp, G_plus_k_cart)
         psp_form_factors ./= sqrt(unit_cell_volume)
-        # Make sure to reuse the allocation of the columns for all atoms in the group
-        form_factor_cols = [to_device(basis.architecture, Vector{eltype(col)}(col))
-                            for col in eachcol(psp_form_factors)]
+        # Offload potential values to a device (like a GPU),
+        # and make sure to share this allocation for all atoms in the group
+        psp_form_factors = to_device(basis.architecture, psp_form_factors)
 
-        for r in positions
+        # Combine with structure factors
+        map(positions) do r
             # k+G in this formula can also be G, this only changes an unimportant phase factor
-            # Once again make sure to reuse the allocation for all projectors
-            atom_structure_factors = to_device(basis.architecture, map(p -> cis2pi(-dot(p, r)), G_plus_k))
-            for iproj = 1:count_n_proj(psp)
-                form_factors[offset] = form_factor_cols[iproj]
-                structure_factors[offset] = atom_structure_factors
-                offset += 1
-            end
+            structure_factors = to_device(basis.architecture, map(p -> cis2pi(-dot(p, r)), G_plus_k))
+            AtomProjectors(structure_factors, psp_form_factors)
         end
-    end
-    (form_factors, structure_factors)
+    end)
+
+    # TODO: to_device
+    NonlocalProjectors(zeros(Complex{eltype(psp_positions[1][1])}, n_G), atom_projectors)
 end
 
 
