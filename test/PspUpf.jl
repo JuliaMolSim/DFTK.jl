@@ -268,7 +268,12 @@ end
             occ = [2.0 * ones(n_bands) for _ in basis.kpoints]
             ρ = DFTK.compute_density(basis, ψ, occ)
 
-            DFTK.energy(basis, ψ, occ)
+            energies, ham = DFTK.energy_hamiltonian(basis, ψ, occ; ρ)
+            hamψ = ham * ψ
+
+            hblock = ham.blocks[1]
+            nonloc = hblock.nonlocal_op
+            nonlocal_dense = Matrix(nonloc)
         end
     end
 end

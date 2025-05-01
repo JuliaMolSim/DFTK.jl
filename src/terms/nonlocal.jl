@@ -38,10 +38,62 @@ struct AtomProjectors{T <: Real,
 end
 
 # TODO: implement AbstractMatrix?
-struct NonlocalProjectors{T <: Real}
+struct NonlocalProjectors{T <: Real} <: AbstractMatrix{Complex{T}}
     # nbasis
     ψ_scratch::AbstractVector{<:Complex{T}}
     projectors::Vector{<:AtomProjectors{T}}
+end
+
+function Base.size(P::NonlocalProjectors)
+    n = length(P.ψ_scratch)
+    m = sum(size(p.projectors, 2) for p in P.projectors)
+    (n, m)
+end
+function Base.Matrix(P::NonlocalProjectors{T}) where {T}
+    n, m = size(P)
+    out = zeros(Complex{T}, n, m)
+    iproj = 1
+    for p in P.projectors
+        for proj in eachcol(p.projectors)
+            out[:, iproj] .= p.structure_factors .* proj
+            iproj += 1
+        end
+    end
+    out
+end
+
+function LinearAlgebra.mul!(C::AbstractMatrix, A::Adjoint{TA, <:NonlocalProjectors}, ψk::AbstractMatrix) where {TA}
+    # TODO: check dimensions?
+    iproj = 1
+    ψ_scratch = A.parent.ψ_scratch
+    for p in A.parent.projectors
+        for proj in eachcol(p.projectors)
+            # TODO: what allocates here? and does it use BLAS?
+            ψ_scratch .= p.structure_factors .* proj
+            C[iproj, :] .= dropdims(ψ_scratch' * ψk; dims=1)
+            iproj += 1
+        end
+    end
+    C
+end
+
+function LinearAlgebra.mul!(C::AbstractMatrix, A::NonlocalProjectors, B::AbstractMatrix, α::Number, β::Number)
+    # TODO: check dimensions?
+    C .*= β
+
+    iproj = 1
+    ψ_scratch = A.ψ_scratch
+    for p in A.projectors
+        for proj in eachcol(p.projectors)
+            # TODO: what allocates here? and does it use BLAS?
+            ψ_scratch .= p.structure_factors .* proj
+            for iband in size(B, 2)
+                C[:, iband] .+= ψ_scratch .* (α * B[iproj, iband])
+            end
+            iproj += 1
+        end
+    end
+    C
 end
 
 @timing "ene_ops: nonlocal" function ene_ops(term::TermAtomicNonlocal,
@@ -213,7 +265,12 @@ function build_projection_vectors_mem(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     end)
 
     # TODO: to_device
-    NonlocalProjectors(zeros(Complex{eltype(psp_positions[1][1])}, n_G), atom_projectors)
+    ret = NonlocalProjectors(zeros(Complex{eltype(psp_positions[1][1])}, n_G), atom_projectors)
+
+    # TODO: remove this
+    @assert Matrix(ret) ≈ build_projection_vectors(basis, kpt, psps, psp_positions)
+
+    ret
 end
 
 
