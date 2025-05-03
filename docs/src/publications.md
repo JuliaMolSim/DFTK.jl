@@ -53,6 +53,17 @@ Additionally the following publications describe DFTK or one of its algorithms:
 The following publications report research employing DFTK as a core component.
 Feel free to drop us a line if you want your work to be added here.
 
+- M. Herbst, B. Sun.
+  [*Efficient Krylov methods for linear response in plane-wave electronic structure calculations](https://arxiv.org/abs/2505.02319) (2025).
+  ([Supplementary material and computational scripts](https://github.com/bonans/inexact_Krylov_response)).
+
+- A. Levitt, D. Lundholm, N. Rougerie.
+  [*Magnetic Thomas-Fermi theory for 2D abelian anyons*](https://arxiv.org/abs/2504.13481) (2025).
+
+- D. Petersheim, J. Püschel, T. Stykel.
+  [*Energy-adaptive Riemannian Conjugate Gradient method for density functional theory*](https://arxiv.org/abs/2503.16225) (2025).
+  ([Implementation](https://github.com/jonas-pueschel/RCG_DFTK/)
+
 - A. Bordignon, G. Dusson, E. Cancès, G. Kemlin, R. A. L. Reyes and B. Stamm.
   [*Fully guaranteed and computable error bounds on the energy for periodic Kohn-Sham equations with convex density functionals*](http://arxiv.org/abs/2409.11769v1) (2024).
   ([Supplementary material and computational scripts](https://doi.org/10.18419/darus-4469)).
