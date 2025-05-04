@@ -38,10 +38,13 @@ struct AtomProjectors{T <: Real,
 end
 
 # TODO: implement AbstractMatrix?
-struct NonlocalProjectors{T <: Real} <: AbstractMatrix{Complex{T}}
+struct NonlocalProjectors{T <: Real,
+                          ST <: AbstractVector{Complex{T}},
+                          PT <: AtomProjectors{T}
+                         } <: AbstractMatrix{Complex{T}}
     # nbasis
-    ψ_scratch::AbstractVector{<:Complex{T}}
-    projectors::Vector{<:AtomProjectors{T}}
+    ψ_scratch::ST
+    projectors::Vector{PT}
 end
 
 function Base.size(P::NonlocalProjectors)
@@ -68,9 +71,8 @@ function LinearAlgebra.mul!(C::AbstractMatrix, A::Adjoint{TA, <:NonlocalProjecto
     ψ_scratch = A.parent.ψ_scratch
     for p in A.parent.projectors
         for proj in eachcol(p.projectors)
-            # TODO: what allocates here? and does it use BLAS?
             ψ_scratch .= p.structure_factors .* proj
-            C[iproj, :] .= dropdims(ψ_scratch' * ψk; dims=1)
+            @views mul!(C[iproj:iproj, :], ψ_scratch', ψk)
             iproj += 1
         end
     end
@@ -85,10 +87,10 @@ function LinearAlgebra.mul!(C::AbstractMatrix, A::NonlocalProjectors, B::Abstrac
     ψ_scratch = A.ψ_scratch
     for p in A.projectors
         for proj in eachcol(p.projectors)
-            # TODO: what allocates here? and does it use BLAS?
+            # TODO: does this use BLAS?
             ψ_scratch .= p.structure_factors .* proj
-            for iband in size(B, 2)
-                C[:, iband] .+= ψ_scratch .* (α * B[iproj, iband])
+            for iband in axes(B, 2)
+                @views C[:, iband] .+= ψ_scratch .* (α * B[iproj, iband])
             end
             iproj += 1
         end
