@@ -274,6 +274,18 @@ end
             hblock = ham.blocks[1]
             nonloc = hblock.nonlocal_op
             nonlocal_dense = Matrix(nonloc)
+            ψk = ψ[1]
+
+            Hψk = zero(ψk)
+            DFTK.apply!((;fourier=Hψk), nonloc, (; fourier=ψk))
+            Hψk_dense = nonlocal_dense * ψk
+
+            Pψk = nonloc.P' * ψk
+            DPψk = nonloc.D * Pψk
+            @show norm(nonloc.P * DPψk) norm(Matrix(nonloc.P) * DPψk)
+            @assert @show(norm(nonloc.P * DPψk - Matrix(nonloc.P) * DPψk)) < 1e-10
+
+            @assert @show(norm(Hψk - Hψk_dense)) < 1e-10
         end
     end
 end
