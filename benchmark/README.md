@@ -2,7 +2,7 @@
 ## Running locally
 ```plain
 cd benchmarks
-./run_benchmarks.sh baseline target
+./run_benchmarks.jl baseline target
 ```
 Run locally comparing baseline commit against target commit.
 
