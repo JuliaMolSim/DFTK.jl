@@ -28,69 +28,94 @@ struct TermAtomicNonlocal <: Term
     ops::Vector{NonlocalOperator}
 end
 
+"""
+Projector set of a single atom (independent of the atom's position),
+and the structure factor for the atom position. Used inside NonlocalProjectors
+such that the projector set can be reused for multiple atoms in the same atom group.
+"""
 struct AtomProjectors{T <: Real,
-                      VT <: AbstractVector{<: Complex{T}},
-                      PT <: AbstractMatrix{<: Complex{T}}}
+                      VT <: AbstractVector{Complex{T}},
+                      PT <: AbstractMatrix{Complex{T}}}
     # nbasis
     structure_factors::VT
     # nbasis x nproj
     projectors::PT
 end
 
-# TODO: implement AbstractMatrix?
+"""
+Matrix-like type to represent the nonlocal projectors P without
+allocating the full matrix.
+This type extends AbstractMatrix, but it does not implement all
+the required methods, only those that were shown to be needed.
+In particular, random access to the matrix elements is not supported.
+"""
 struct NonlocalProjectors{T <: Real,
                           ST <: AbstractVector{Complex{T}},
                           PT <: AtomProjectors{T}
                          } <: AbstractMatrix{Complex{T}}
+    # TODO: this is a real problem wrt. thread-safety, no?
     # nbasis
-    ψ_scratch::ST
-    projectors::Vector{PT}
+    proj_scratch::ST
+    atoms::Vector{PT}
 end
 
 function Base.size(P::NonlocalProjectors)
-    n = length(P.ψ_scratch)
-    m = sum(size(p.projectors, 2) for p in P.projectors)
+    n = length(P.proj_scratch)
+    m = sum(size(at.projectors, 2) for at in P.atoms)
     (n, m)
 end
 function Base.Matrix(P::NonlocalProjectors{T}) where {T}
     n, m = size(P)
     out = zeros(Complex{T}, n, m)
     iproj = 1
-    for p in P.projectors
-        for proj in eachcol(p.projectors)
-            out[:, iproj] .= p.structure_factors .* proj
+    for at in P.atoms
+        for proj in eachcol(at.projectors)
+            out[:, iproj] .= at.structure_factors .* proj
             iproj += 1
         end
     end
     out
 end
 
-function LinearAlgebra.mul!(C::AbstractMatrix, A::Adjoint{TA, <:NonlocalProjectors}, ψk::AbstractMatrix) where {TA}
+# Add a level of indirection here to avoid ambiguity with the mul! method provided by Julia.
+LinearAlgebra.mul!(C::AbstractVector, A::Adjoint{<:Any, <:NonlocalProjectors},
+                   ψk::AbstractVector) = _mul!(C, A, ψk)
+LinearAlgebra.mul!(C::AbstractMatrix, A::Adjoint{<:Any, <:NonlocalProjectors},
+                   ψk::AbstractMatrix) = _mul!(C, A, ψk)
+
+LinearAlgebra.mul!(C::AbstractVector, A::NonlocalProjectors, B::AbstractVector,
+                   α::Number, β::Number) = _mul!(C, A, B, α, β)
+LinearAlgebra.mul!(C::AbstractMatrix, A::NonlocalProjectors, B::AbstractMatrix,
+                   α::Number, β::Number) = _mul!(C, A, B, α, β)
+
+function _mul!(C::AbstractVecOrMat, A::Adjoint{<:Any, <:NonlocalProjectors},
+               ψk::AbstractVecOrMat)
     # TODO: check dimensions?
     iproj = 1
-    ψ_scratch = A.parent.ψ_scratch
-    for p in A.parent.projectors
-        for proj in eachcol(p.projectors)
-            ψ_scratch .= p.structure_factors .* proj
-            @views mul!(C[iproj:iproj, :], ψ_scratch', ψk)
+    proj_scratch = A.parent.proj_scratch
+    for at in A.parent.atoms
+        for proj in eachcol(at.projectors)
+            proj_scratch .= at.structure_factors .* proj
+            @views mul!(C[iproj:iproj, :], proj_scratch', ψk)
             iproj += 1
         end
     end
     C
 end
 
-function LinearAlgebra.mul!(C::AbstractMatrix, A::NonlocalProjectors, B::AbstractMatrix, α::Number, β::Number)
+function _mul!(C::AbstractArray, A::NonlocalProjectors, B::AbstractArray,
+               α::Number, β::Number)
     # TODO: check dimensions?
     C .*= β
 
     iproj = 1
-    ψ_scratch = A.ψ_scratch
-    for p in A.projectors
-        for proj in eachcol(p.projectors)
+    proj_scratch = A.proj_scratch
+    for at in A.atoms
+        for proj in eachcol(at.projectors)
             # TODO: does this use BLAS?
-            ψ_scratch .= p.structure_factors .* proj
+            proj_scratch .= at.structure_factors .* proj
             for iband in axes(B, 2)
-                @views C[:, iband] .+= ψ_scratch .* (α * B[iproj, iband])
+                @views C[:, iband] .+= proj_scratch .* (α * B[iproj, iband])
             end
             iproj += 1
         end
