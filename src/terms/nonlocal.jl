@@ -90,7 +90,10 @@ LinearAlgebra.mul!(C::AbstractMatrix, A::NonlocalProjectors, B::AbstractMatrix,
 
 function _mul!(C::AbstractVecOrMat, A::Adjoint{<:Any, <:NonlocalProjectors},
                ψk::AbstractVecOrMat)
-    # TODO: check dimensions?
+    if size(C, 1) != size(A, 1) || size(A, 2) != size(ψk, 1) || size(ψk, 2) != size(C, 2)
+        throw(DimensionMismatch(lazy"A has size $(size(A)), B has size $(size(ψk)), C has size $(size(C))"))
+    end
+
     iproj = 1
     proj_scratch = A.parent.proj_scratch
     for at in A.parent.atoms
@@ -105,7 +108,10 @@ end
 
 function _mul!(C::AbstractArray, A::NonlocalProjectors, B::AbstractArray,
                α::Number, β::Number)
-    # TODO: check dimensions?
+    if size(C, 1) != size(A, 1) || size(A, 2) != size(B, 1) || size(B, 2) != size(C, 2)
+        throw(DimensionMismatch(lazy"A has size $(size(A)), B has size $(size(B)), C has size $(size(C))"))
+    end
+
     C .*= β
 
     iproj = 1
