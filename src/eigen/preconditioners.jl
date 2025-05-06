@@ -11,6 +11,19 @@
 import LinearAlgebra: ldiv!
 import LinearAlgebra: mul!
 
+# Returns dot(A[:, i], Diagonal(P.kin), B[:, i])), for all columns of A, B
+@views function diag_prod(A::AbstractArray{T}, B::AbstractArray{T}; diag=nothing) where {T}
+
+    @assert size(A) == size(B)
+    if isnothing(diag)
+        res = [real(dot(A[:, i], B[:, i])) for i = 1:size(A, 2)]
+    else
+        @assert length(diag) == size(B, 1)
+        res = [real(dot(A[:, i], Diagonal(diag), B[:, i])) for i = 1:size(A, 2)]
+    end
+    res
+end
+
 precondprep!(P, X) = P  # This API is also used in Optim.jl
 
 """
@@ -28,7 +41,7 @@ mutable struct PreconditionerTPA{T <: Real}
     basis::PlaneWaveBasis
     kpt::Kpoint
     kin::AbstractVector{T}  # kinetic energy of every G
-    mean_kin::Union{Nothing, Vector{T}}  # mean kinetic energy of every band
+    mean_kin::Union{Nothing, AbstractVector{T}}  # mean kinetic energy of every band
     default_shift::T  # if mean_kin is not set by `precondprep!`, this will be used for the shift
 end
 
@@ -50,7 +63,7 @@ end
     if P.mean_kin === nothing
         ldiv!(Y, Diagonal(P.kin .+ P.default_shift), R)
     else
-    parallel_loop_over_range(1:size(Y, 2)) do n
+        for n = 1:size(Y, 2)
             Y[:, n] .= P.mean_kin[n] ./ (P.mean_kin[n] .+ P.kin) .* R[:, n]
         end
     end
@@ -64,7 +77,7 @@ ldiv!(P::PreconditionerTPA, R) = ldiv!(R, P, R)
     if P.mean_kin === nothing
         mul!(Y, Diagonal(P.kin .+ P.default_shift), R)
     else
-        parallel_loop_over_range(1:size(Y, 2)) do n
+        for n = 1:size(Y, 2)
             Y[:, n] .= (P.mean_kin[n] .+ P.kin) ./ P.mean_kin[n] .* R[:, n]
         end
     end
@@ -73,7 +86,7 @@ end
 (Base.:*)(P::PreconditionerTPA, R) = mul!(copy(R), P, R)
 
 function precondprep!(P::PreconditionerTPA, X::AbstractArray)
-    P.mean_kin = [real(dot(x, Diagonal(P.kin), x)) for x in eachcol(X)]
+    P.mean_kin = vec(real(diag_prod(X, X; diag=P.kin)))
 end
 precondprep!(P::PreconditionerTPA, ::Nothing) = 1  # fallback for edge cases
 
