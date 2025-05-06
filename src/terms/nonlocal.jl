@@ -28,111 +28,6 @@ struct TermAtomicNonlocal <: Term
     ops::Vector{NonlocalOperator}
 end
 
-"""
-Projector set of a single atom (independent of the atom's position),
-and the structure factor for the atom position. Used inside NonlocalProjectors
-such that the projector set can be reused for multiple atoms in the same atom group.
-"""
-struct AtomProjectors{VT <: AbstractVector, PT <: AbstractMatrix}
-    # nbasis
-    structure_factors::VT
-    # nbasis x nproj
-    projectors::PT
-end
-
-"""
-Matrix-like type to represent the nonlocal projectors P without
-allocating the full matrix.
-This type extends AbstractMatrix, but it does not implement all
-the required methods, only those that were shown to be needed.
-In particular, random access to the matrix elements is not supported.
-"""
-struct NonlocalProjectors{T <: Real,
-                          ST <: AbstractVector{Complex{T}},
-                          PT <: AtomProjectors,
-                         } <: AbstractMatrix{Complex{T}}
-    # TODO: this is a real problem wrt. thread-safety, no?
-    # nbasis
-    proj_scratch::ST
-    atoms::Vector{PT}
-end
-function NonlocalProjectors(atoms::Vector{<:AtomProjectors})
-    at = first(atoms)
-    T = promote_type(eltype(at.structure_factors), eltype(at.projectors))
-    proj_scratch = similar(at.structure_factors, T)
-    NonlocalProjectors(proj_scratch, atoms)
-end
-
-function Base.size(P::NonlocalProjectors)
-    n = length(P.proj_scratch)
-    m = sum(size(at.projectors, 2) for at in P.atoms)
-    (n, m)
-end
-function Base.Matrix(P::NonlocalProjectors{T}) where {T}
-    n, m = size(P)
-    out = zeros(Complex{T}, n, m)
-    iproj = 1
-    for at in P.atoms
-        for proj in eachcol(at.projectors)
-            out[:, iproj] .= at.structure_factors .* proj
-            iproj += 1
-        end
-    end
-    out
-end
-
-# Add a level of indirection here to avoid ambiguity with the mul! method provided by Julia.
-LinearAlgebra.mul!(C::AbstractVector, A::Adjoint{<:Any, <:NonlocalProjectors},
-                   ψk::AbstractVector) = _mul!(C, A, ψk)
-LinearAlgebra.mul!(C::AbstractMatrix, A::Adjoint{<:Any, <:NonlocalProjectors},
-                   ψk::AbstractMatrix) = _mul!(C, A, ψk)
-
-LinearAlgebra.mul!(C::AbstractVector, A::NonlocalProjectors, B::AbstractVector,
-                   α::Number, β::Number) = _mul!(C, A, B, α, β)
-LinearAlgebra.mul!(C::AbstractMatrix, A::NonlocalProjectors, B::AbstractMatrix,
-                   α::Number, β::Number) = _mul!(C, A, B, α, β)
-
-function _mul!(C::AbstractVecOrMat, A::Adjoint{<:Any, <:NonlocalProjectors},
-               ψk::AbstractVecOrMat)
-    if size(C, 1) != size(A, 1) || size(A, 2) != size(ψk, 1) || size(ψk, 2) != size(C, 2)
-        throw(DimensionMismatch(lazy"A has size $(size(A)), B has size $(size(ψk)), C has size $(size(C))"))
-    end
-
-    iproj = 1
-    proj_scratch = A.parent.proj_scratch
-    for at in A.parent.atoms
-        for proj in eachcol(at.projectors)
-            proj_scratch .= at.structure_factors .* proj
-            @views mul!(C[iproj:iproj, :], proj_scratch', ψk)
-            iproj += 1
-        end
-    end
-    C
-end
-
-function _mul!(C::AbstractArray, A::NonlocalProjectors, B::AbstractArray,
-               α::Number, β::Number)
-    if size(C, 1) != size(A, 1) || size(A, 2) != size(B, 1) || size(B, 2) != size(C, 2)
-        throw(DimensionMismatch(lazy"A has size $(size(A)), B has size $(size(B)), C has size $(size(C))"))
-    end
-
-    C .*= β
-
-    iproj = 1
-    proj_scratch = A.proj_scratch
-    for at in A.atoms
-        for proj in eachcol(at.projectors)
-            # TODO: does this use BLAS?
-            proj_scratch .= at.structure_factors .* proj
-            for iband in axes(B, 2)
-                @views C[:, iband] .+= proj_scratch .* (α * B[iproj, iband])
-            end
-            iproj += 1
-        end
-    end
-    C
-end
-
 @timing "ene_ops: nonlocal" function ene_ops(term::TermAtomicNonlocal,
                                              basis::PlaneWaveBasis{T},
                                              ψ, occupation; kwargs...) where {T}
@@ -247,6 +142,111 @@ function build_projection_coefficients(T::Type, psp::NormConservingPsp)
         count += n_proj_l
     end
     proj_coeffs
+end
+
+"""
+Projector set of a single atom (independent of the atom's position),
+and the structure factor for the atom position. Used inside NonlocalProjectors
+such that the projector set can be reused for multiple atoms in the same atom group.
+"""
+struct AtomProjectors{VT <: AbstractVector, PT <: AbstractMatrix}
+    # nbasis
+    structure_factors::VT
+    # nbasis x nproj
+    projectors::PT
+end
+
+"""
+Matrix-like type to represent the nonlocal projection vectors P without
+allocating the full matrix.
+This type extends AbstractMatrix, but it does not implement all
+the required methods, only those that were shown to be needed.
+In particular, random access to the matrix elements is not supported.
+"""
+struct NonlocalProjectors{T <: Real,
+                          ST <: AbstractVector{Complex{T}},
+                          PT <: AtomProjectors,
+                         } <: AbstractMatrix{Complex{T}}
+    # TODO: this is a real problem wrt. thread-safety, no?
+    # nbasis
+    proj_scratch::ST
+    atoms::Vector{PT}
+end
+function NonlocalProjectors(atoms::Vector{<:AtomProjectors})
+    at = first(atoms)
+    T = promote_type(eltype(at.structure_factors), eltype(at.projectors))
+    proj_scratch = similar(at.structure_factors, T)
+    NonlocalProjectors(proj_scratch, atoms)
+end
+
+function Base.size(P::NonlocalProjectors)
+    n = length(P.proj_scratch)
+    m = sum(size(at.projectors, 2) for at in P.atoms)
+    (n, m)
+end
+function Base.Matrix(P::NonlocalProjectors{T}) where {T}
+    n, m = size(P)
+    out = zeros(Complex{T}, n, m)
+    iproj = 1
+    for at in P.atoms
+        for proj in eachcol(at.projectors)
+            out[:, iproj] .= at.structure_factors .* proj
+            iproj += 1
+        end
+    end
+    out
+end
+
+# Add a level of indirection here to avoid ambiguity with the mul! method provided by Julia.
+LinearAlgebra.mul!(C::AbstractVector, A::Adjoint{<:Any, <:NonlocalProjectors},
+                   ψk::AbstractVector) = _mul!(C, A, ψk)
+LinearAlgebra.mul!(C::AbstractMatrix, A::Adjoint{<:Any, <:NonlocalProjectors},
+                   ψk::AbstractMatrix) = _mul!(C, A, ψk)
+
+LinearAlgebra.mul!(C::AbstractVector, A::NonlocalProjectors, B::AbstractVector,
+                   α::Number, β::Number) = _mul!(C, A, B, α, β)
+LinearAlgebra.mul!(C::AbstractMatrix, A::NonlocalProjectors, B::AbstractMatrix,
+                   α::Number, β::Number) = _mul!(C, A, B, α, β)
+
+function _mul!(C::AbstractVecOrMat, A::Adjoint{<:Any, <:NonlocalProjectors},
+               ψk::AbstractVecOrMat)
+    if size(C, 1) != size(A, 1) || size(A, 2) != size(ψk, 1) || size(ψk, 2) != size(C, 2)
+        throw(DimensionMismatch(lazy"A has size $(size(A)), B has size $(size(ψk)), C has size $(size(C))"))
+    end
+
+    iproj = 1
+    proj_scratch = A.parent.proj_scratch
+    for at in A.parent.atoms
+        for proj in eachcol(at.projectors)
+            proj_scratch .= at.structure_factors .* proj
+            @views mul!(C[iproj:iproj, :], proj_scratch', ψk)
+            iproj += 1
+        end
+    end
+    C
+end
+
+function _mul!(C::AbstractArray, A::NonlocalProjectors, B::AbstractArray,
+               α::Number, β::Number)
+    if size(C, 1) != size(A, 1) || size(A, 2) != size(B, 1) || size(B, 2) != size(C, 2)
+        throw(DimensionMismatch(lazy"A has size $(size(A)), B has size $(size(B)), C has size $(size(C))"))
+    end
+
+    C .*= β
+
+    iproj = 1
+    proj_scratch = A.proj_scratch
+    for at in A.atoms
+        for proj in eachcol(at.projectors)
+            # TODO: does this use BLAS?
+            proj_scratch .= at.structure_factors .* proj
+            for iband in axes(B, 2)
+                @views C[:, iband] .+= proj_scratch .* (α * B[iproj, iband])
+            end
+            iproj += 1
+        end
+    end
+    C
 end
 
 @doc raw"""
