@@ -33,9 +33,7 @@ Projector set of a single atom (independent of the atom's position),
 and the structure factor for the atom position. Used inside NonlocalProjectors
 such that the projector set can be reused for multiple atoms in the same atom group.
 """
-struct AtomProjectors{T <: Real,
-                      VT <: AbstractVector{Complex{T}},
-                      PT <: AbstractMatrix{Complex{T}}}
+struct AtomProjectors{VT <: AbstractVector, PT <: AbstractMatrix}
     # nbasis
     structure_factors::VT
     # nbasis x nproj
@@ -51,12 +49,18 @@ In particular, random access to the matrix elements is not supported.
 """
 struct NonlocalProjectors{T <: Real,
                           ST <: AbstractVector{Complex{T}},
-                          PT <: AtomProjectors{T}
+                          PT <: AtomProjectors,
                          } <: AbstractMatrix{Complex{T}}
     # TODO: this is a real problem wrt. thread-safety, no?
     # nbasis
     proj_scratch::ST
     atoms::Vector{PT}
+end
+function NonlocalProjectors(atoms::Vector{<:AtomProjectors})
+    at = first(atoms)
+    T = promote_type(eltype(at.structure_factors), eltype(at.projectors))
+    proj_scratch = similar(at.structure_factors, T)
+    NonlocalProjectors(proj_scratch, atoms)
 end
 
 function Base.size(P::NonlocalProjectors)
@@ -295,8 +299,7 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
         end
     end)
 
-    # TODO: to_device
-    NonlocalProjectors(zeros(Complex{eltype(psp_positions[1][1])}, n_G), atom_projectors)
+    NonlocalProjectors(atom_projectors)
 end
 
 """
