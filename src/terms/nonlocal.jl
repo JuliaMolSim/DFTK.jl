@@ -301,7 +301,11 @@ function build_projection_vectors_mem(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     ret = NonlocalProjectors(zeros(Complex{eltype(psp_positions[1][1])}, n_G), atom_projectors)
 
     # TODO: remove this
-    @assert Matrix(ret) ≈ build_projection_vectors(basis, kpt, psps, psp_positions)
+    denseold = build_projection_vectors(basis, kpt, psps, psp_positions)
+    densenew = Matrix(ret)
+    if !(denseold ≈ densenew)
+        throw(AssertionError("Old and new projectors don't match. Norm of difference: $(norm(denseold - densenew)). Norm of old: $(norm(denseold)). Norm of new: $(norm(densenew))."))
+    end
 
     ret
 end
