@@ -110,7 +110,7 @@ end
 function apply!(Hψ, op::NonlocalOperator, ψ)
     mul!(Hψ.fourier, op.P, (op.D * (op.P' * ψ.fourier)), 1, 1)
 end
-Matrix(op::NonlocalOperator) = op.P * op.D * op.P'
+Matrix(op::NonlocalOperator) = op.P * op.D * Matrix(op.P)'
 
 """
 Magnetic field operator A⋅(-i∇).
