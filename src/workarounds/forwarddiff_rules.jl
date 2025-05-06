@@ -142,6 +142,7 @@ function construct_value(basis::PlaneWaveBasis{T}) where {T <: Dual}
                    basis.variational,
                    basis.kgrid,
                    basis.symmetries_respect_rgrid,
+                   basis.symmetries_respect_basis,
                    basis.use_symmetries_for_kpoint_reduction,
                    basis.comm_kpts,
                    basis.architecture)

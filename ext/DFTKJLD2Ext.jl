@@ -42,6 +42,7 @@ function load_basis(jld)
                       jld["variational"],
                       jld["kgrid"],
                       jld["symmetries_respect_rgrid"],
+                      jld["symmetries_respect_basis"],
                       jld["use_symmetries_for_kpoint_reduction"])
     else
         basis_args = nothing

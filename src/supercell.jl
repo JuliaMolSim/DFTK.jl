@@ -44,9 +44,11 @@ function cell_to_supercell(basis::PlaneWaveBasis{T}) where {T}
     supercell_model = Model(model; supercell.lattice, supercell.atoms, supercell.positions,
                             n_electrons=n_electrons_supercell, symmetries=false)
     symmetries_respect_rgrid = true
+    symmetries_respect_basis = true
     use_symmetries_for_kpoint_reduction = true
     PlaneWaveBasis(supercell_model, basis.Ecut, supercell_fft_size,
-                   basis.variational, supercell_kgrid, symmetries_respect_rgrid,
+                   basis.variational, supercell_kgrid,
+                   symmetries_respect_rgrid, symmetries_respect_basis,
                    use_symmetries_for_kpoint_reduction,
                    basis.comm_kpts, basis.architecture)
 end
