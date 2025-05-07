@@ -81,6 +81,8 @@ end
 
     if basis.model.n_spin_components == 1
         ρ_from_total_and_spin(δρtot, nothing)
+    elseif abs(ΔDOS_Ω) < eps(T)
+        ρ_from_total_and_spin(δρtot, δFspin_fourier)
     else
         δρspin_fourier = @. δFspin_fourier - δFtot_fourier * (4π * ΔDOS_Ω) / (kTF^2 + G²)
         enforce_real!(δρspin_fourier, basis)
@@ -107,7 +109,7 @@ end
         temperature = mixing.adjust_temperature(basis.model.temperature; kwargs...)
         dos_per_vol  = compute_dos(εF, basis, eigenvalues; temperature) ./ Ω
         kTF  = sqrt(4π * sum(dos_per_vol))
-        ΔDOS_Ω = n_spin == 2 ? dos_per_vol[1] - dos_per_vol[2] : 0.0
+        ΔDOS_Ω = n_spin == 2 ? dos_per_vol[1] - dos_per_vol[2] : zero(kTF)
         mix_density(KerkerMixing(; kTF, ΔDOS_Ω), basis, δF)
     end
 end

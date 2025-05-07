@@ -184,14 +184,18 @@ function guess_fermi_level_intocc_(basis::PlaneWaveBasis, eigenvalues)
     HOMO = maximum([εk[n_fill] for εk in eigenvalues])
     HOMO = mpi_max(HOMO, basis.comm_kpts)
 
-    # Lowest unoccupied energy level: all k-points might have at least n_fill+1
+    # Lowest unoccupied energy level: not all k-points might have at least n_fill+1
     # energy levels so we have to take care of that by specifying init to minimum
     LUMO = minimum(eigenvalues) do εk
-        minimum(εk[n_fill+1:end]; init=HOMO+1)
+        minimum(εk[n_fill+1:end], init=typemax(HOMO))
     end
     LUMO = mpi_min(LUMO, basis.comm_kpts)
 
-    (HOMO + LUMO) / 2
+    if LUMO == typemax(HOMO)
+        HOMO + 1  # Just to make sure the εF is a sane number and above HOMO
+    else
+        (HOMO + LUMO) / 2
+    end
 end
 
 """
