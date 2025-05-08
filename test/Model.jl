@@ -60,6 +60,6 @@ end
     @test length(model_broken.symmetries) < length(model.symmetries)
 
     # Test symmetries=true triggers a re-determination of the symmetries
-    model_update = Model(model; position=pos_broken, symmetries=true)
+    model_update = Model(model; positions=pos_broken, symmetries=true)
     @test model_update.symmetries == model_broken.symmetries
 end

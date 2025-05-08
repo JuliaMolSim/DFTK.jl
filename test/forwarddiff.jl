@@ -195,7 +195,8 @@ end
     using DFTK
     using ForwardDiff
     using LinearAlgebra
-    using SpecialFunctions, FiniteDifferences
+    using SpecialFunction
+    using FiniteDifferences
 
     α = randn(ComplexF64)
     erfcα = x -> erfc(α * x)
