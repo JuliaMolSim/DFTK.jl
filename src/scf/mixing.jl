@@ -81,7 +81,7 @@ end
 
     if basis.model.n_spin_components == 1
         ρ_from_total_and_spin(δρtot, nothing)
-    elseif abs(ΔDOS_Ω) < eps(T)
+    elseif abs(ΔDOS_Ω) < eps(real(T))
         ρ_from_total_and_spin(δρtot, δFspin_fourier)
     else
         δρspin_fourier = @. δFspin_fourier - δFtot_fourier * (4π * ΔDOS_Ω) / (kTF^2 + G²)
