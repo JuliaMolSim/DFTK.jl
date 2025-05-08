@@ -261,7 +261,6 @@ function is_insulator(basis::PlaneWaveBasis, eigenvalues, εF::T;
         # This is the largest possible value the occupation has in the
         # orbital just above the Fermi level
         max_occupation = Smearing.occupation(smearing, min_enred)
-
         return max_occupation < atol
     end
 end
