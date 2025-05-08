@@ -106,7 +106,7 @@ end
     system = load_system("structures/tio2_stretched.extxyz")
     pseudopotentials = PseudoFamily("cp2k.nc.sr.pbe.v0_1.largecore.gth")
     TestForces.test_term_forces(system; Ecut=15, kgrid=(2,2,3), temperature=1e-4, pseudopotentials,
-                                atol=5e-7, mixing=DielectricMixing(εr=10))
+                                mixing=DielectricMixing(εr=10))
 end
 
 @testitem "Forces term-wise TiO2 (UPF)" setup=[TestForces] tags=[:forces] begin
@@ -115,7 +115,7 @@ end
     using PseudoPotentialData
     system = load_system("structures/tio2_stretched.extxyz")
     TestForces.test_term_forces(system; Ecut=25, kgrid=(2,2,3), temperature=1e-4,
-                                atol=5e-7, mixing=DielectricMixing(εr=10))
+                                mixing=DielectricMixing(εr=10))
 end
 
 @testitem "Forces term-wise Fe (GTH)"  setup=[TestForces] tags=[:forces] begin
@@ -133,8 +133,7 @@ end
     pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
     TestForces.test_term_forces(system; pseudopotentials, functionals=LDA(),
                                 temperature=1e-3, Ecut=20, kgrid=[6, 6, 6],
-                                atol=1e-6, magnetic_moments=[5.0, 5.0],
-                                mixing=KerkerMixing())
+                                magnetic_moments=[5.0, 5.0], mixing=KerkerMixing())
 end
 
 @testitem "Forces term-wise Rutile (full)"  setup=[TestForces] tags=[:slow,:forces] begin

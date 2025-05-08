@@ -17,6 +17,7 @@ silicon = (;
     mass = 28.085u"u",
     n_electrons = 8,
     temperature = 0.0,
+    is_metal = false,
     psp_gth = gth_lda_semi[:Si],
     psp_upf = pd_lda_family[:Si],
     positions = [ones(3)/8, -ones(3)/8],      # in fractional coordinates
@@ -47,6 +48,7 @@ magnesium = (;
                              [1/3, 1/3, 1/3]],
                             [1/27, 6/27, 2/27, 2/27, 12/27, 4/27]),
     temperature = 0.01,
+    is_metal = true,
 )
 magnesium = merge(magnesium,
                   (; atoms=fill(ElementPsp(magnesium.atnum, load_psp(magnesium.psp_gth)), 2)))
@@ -62,6 +64,7 @@ aluminium = (;
     psp_upf = pd_lda_family[:Al],
     positions = [[0, 0, 0], [0, 1/2, 1/2], [1/8, 0, 1/2], [1/8, 1/2, 0]],
     temperature = 0.0009500431544769484,
+    is_metal = true,
 )
 aluminium = merge(aluminium,
                   (; atoms=fill(ElementPsp(aluminium.atnum, load_psp(aluminium.psp_gth)), 4)))
@@ -78,6 +81,7 @@ aluminium_primitive = (;
     psp_upf = pd_lda_family[:Al],
     positions = [zeros(3)],
     temperature = 0.0009500431544769484,
+    is_metal = true,
 )
 aluminium_primitive = merge(aluminium_primitive,
                             (; atoms=fill(ElementPsp(aluminium_primitive.atnum,
@@ -95,6 +99,7 @@ platinum_hcp = (;
     psp_upf = pd_lda_family[:Pt],
     positions = [zeros(3), ones(3) / 3],
     temperature = 0.0009500431544769484,
+    is_metal = true,
 )
 platinum_hcp = merge(platinum_hcp,
                      (; atoms=fill(ElementPsp(platinum_hcp.atnum,
@@ -109,6 +114,7 @@ iron_bcc = (;
     psp_upf = pd_lda_family[:Fe],
     positions = [zeros(3)],
     temperature = 0.01,
+    is_metal = true,
 )
 iron_bcc = merge(iron_bcc, (; atoms=[ElementPsp(iron_bcc.atnum, load_psp(iron_bcc.psp_gth))]))
 
@@ -121,6 +127,7 @@ o2molecule = (;
     psp_upf = pd_lda_family[:O],
     positions = 0.1155 * [[0, 0, 1], [0, 0, -1]],
     temperature = 0.02,
+    is_metal = true,
 )
 o2molecule = merge(o2molecule,
                    (; atoms=fill(ElementPsp(o2molecule.atnum,

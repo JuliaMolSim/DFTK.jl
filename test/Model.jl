@@ -48,3 +48,18 @@ end
     @test_throws ErrorException model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
                                           n_electrons=1, functionals=LDA())
 end
+
+@testitem "Test symmetries in update constructor" setup=[TestCases] begin
+    using DFTK
+    silicon = TestCases.silicon
+    pos_broken = [silicon.positions[1], silicon.positions[2] .+ [0, 0, 0.1]]
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                      functionals=LDA())
+    model_broken = model_DFT(silicon.lattice, silicon.atoms, pos_broken;
+                             functionals=LDA())
+    @test length(model_broken.symmetries) < length(model.symmetries)
+
+    # Test symmetries=true triggers a re-determination of the symmetries
+    model_update = Model(model; positions=pos_broken, symmetries=true)
+    @test model_update.symmetries == model_broken.symmetries
+end
