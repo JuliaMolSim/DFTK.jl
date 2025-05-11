@@ -223,15 +223,17 @@ the contained parameters. This constructor is useful for changing the data
 type in the model or for changing `lattice` or `positions` in
 geometry/lattice optimisations.
 
-!!! warning
+!!! warning "Symmetries need to be updated manually."
     Unless a `symmetries` keyword argument is given
     this constructor copies the symmetries from `model`.
     This means if you update the `positions`, `lattice`, `atoms`
     or `terms` in a way that they *break* some of the original symmetries,
     you should either also supply matching `symmetries` or specify
     `symmetries=true`, which will re-determine the symmetries corresponding
-    to the new structure. In the case of spin do also re-supply the appropriate
-    `magnetic_moments` of the atoms.
+    to the new structure. In the case of spin do also re-supply the
+    appropriate `magnetic_moments` of the atoms.
+
+    This behaviour is slated to change in an upcoming breaking release.
 """
 function Model{T}(model::Model;
                   lattice::AbstractMatrix=model.lattice,
@@ -240,6 +242,11 @@ function Model{T}(model::Model;
                   symmetries=model.symmetries,
                   magnetic_moments=T[],
                   kwargs...) where {T <: Real}
+    # TODO In an upcoming breaking release come up with a way to store the symmetry-equivalent
+    #      atoms in the model (including the effect magnetic moments), such that if the atoms
+    #      do not change (the usual case) the default symmetry determination routine can still
+    #      work with updated positions without the need to re-provide the magnetic_moments.
+
     Model(T.(lattice), atoms, positions;
           model.model_name,
           model.n_electrons,
