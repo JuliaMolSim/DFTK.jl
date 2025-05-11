@@ -69,9 +69,8 @@ end
     #     δρtot  = G² δFtot / (G² + kTF²)
     #     δρspin = δFspin - 4π * ΔDOS / (G² + kTF²) δFtot
 
-    δF_fourier     = fft(basis, δF)
-    δFtot_fourier  = total_density(δF_fourier)
-    δFspin_fourier = spin_density(δF_fourier)
+    δF_fourier    = fft(basis, δF)
+    δFtot_fourier = total_density(δF_fourier)
     δρtot_fourier = δFtot_fourier .* G² ./ (kTF.^2 .+ G²)
     enforce_real!(δρtot_fourier, basis)
     δρtot = irfft(basis, δρtot_fourier)
@@ -82,8 +81,9 @@ end
     if basis.model.n_spin_components == 1
         ρ_from_total_and_spin(δρtot, nothing)
     elseif abs(ΔDOS_Ω) < eps(real(T))
-        ρ_from_total_and_spin(δρtot, δFspin_fourier)
+        ρ_from_total_and_spin(δρtot, spin_density(δF))
     else
+        δFspin_fourier = spin_density(δF_fourier)
         δρspin_fourier = @. δFspin_fourier - δFtot_fourier * (4π * ΔDOS_Ω) / (kTF^2 + G²)
         enforce_real!(δρspin_fourier, basis)
         δρspin = irfft(basis, δρspin_fourier)
