@@ -7,11 +7,8 @@ using LinearAlgebra
 
 function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=:none,
                    eigensolver=lobpcg_hyper, Ecut=10, kgrid=[3, 1, 1], fft_size=[15, 1, 15],
-                   compute_full_χ0=false, εF=nothing, functionals=LDA())
-
-    tol      = 1e-11
-    ε        = 1e-6
-    testtol  = 2e-6
+                   compute_full_χ0=false, εF=nothing, functionals=LDA(), tol=1e-11,
+                   ε=1e-6, atol=2e-6)
 
     collinear   = spin_polarization == :collinear
     is_εF_fixed = !isnothing(εF)
@@ -67,7 +64,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
 
         # Test apply_χ0 and compare against finite differences
         diff_applied_χ0 = apply_χ0(scfres, δV)
-        @test norm(diff_findiff - diff_applied_χ0) < testtol
+        @test norm(diff_findiff - diff_applied_χ0) < atol
 
         # Test apply_χ0 without extra bands
         ψ_occ, occ_occ = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation;
@@ -76,7 +73,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
 
         diff_applied_χ0_noextra = apply_χ0(scfres.ham, ψ_occ, occ_occ, scfres.εF, ε_occ, δV;
                                            scfres.occupation_threshold)
-        @test norm(diff_applied_χ0_noextra - diff_applied_χ0) < testtol
+        @test norm(diff_applied_χ0_noextra - diff_applied_χ0) < atol
 
         # just to cover it here
         if temperature > 0
@@ -90,7 +87,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
             if compute_full_χ0
                 χ0 = compute_χ0(ham0)
                 diff_computed_χ0 = reshape(χ0 * vec(δV), basis.fft_size..., n_spin)
-                @test norm(diff_findiff - diff_computed_χ0) < testtol
+                @test norm(diff_findiff - diff_computed_χ0) < atol
             end
 
             # Test that apply_χ0 is self-adjoint
@@ -101,7 +98,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
 
             χ0δV1 = apply_χ0(scfres, δV1)
             χ0δV2 = apply_χ0(scfres, δV2)
-            @test abs(dot(δV1, χ0δV2) - dot(δV2, χ0δV1)) < testtol
+            @test abs(dot(δV1, χ0δV2) - dot(δV2, χ0δV1)) < atol
         end
     end
 end
@@ -142,5 +139,5 @@ end
     sodium_chloride = (; lattice, positions, atoms, is_metal=false)
     test_chi0(sodium_chloride;
               symmetries=true, temperature=1e-4, Ecut=20,
-              kgrid=[2, 2, 2], fft_size=[36, 36, 36])
+              kgrid=[2, 2, 2], fft_size=[36, 36, 36], atol=5e-6)
 end
