@@ -92,16 +92,30 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiBisec
                                    temperature, smearing, tol_n_elec)
     end
 
-    # Get rough bounds to bracket εF
-    min_ε = minimum(minimum, eigenvalues) - 1
-    min_ε = mpi_min(min_ε, basis.comm_kpts)
-    max_ε = maximum(maximum, eigenvalues) + 1
-    max_ε = mpi_max(max_ε, basis.comm_kpts)
-
     excess(εF) = excess_n_electrons(basis, eigenvalues, εF; smearing, temperature)
+
+    # Check if band gap is so large that a rough guess based on integer occupations is sufficient.
+    εFint = guess_fermi_level_intocc_(basis, eigenvalues)
+    excess_int = excess(εFint)
+    if abs(excess_int) < tol_n_elec / 10
+        return εFint
+    end
+
+    # Get rough bounds to bracket εF
+    if excess_int < 0
+        min_ε = εFint
+        max_ε = maximum(maximum, eigenvalues) + 1
+        max_ε = mpi_max(max_ε, basis.comm_kpts)
+    else
+        min_ε = minimum(minimum, eigenvalues) - 1
+        min_ε = mpi_min(min_ε, basis.comm_kpts)
+        max_ε = εFint
+    end
+
     @assert excess(min_ε) < 0 < excess(max_ε)
     εF = Roots.find_zero(excess, (min_ε, max_ε), Roots.Bisection(), atol=eps(T))
-    abs(excess(εF)) > tol_n_elec && error("This should not happen ...")
+    @assert abs(excess(εF)) ≤ tol_n_elec
+
     εF
 end
 
@@ -122,58 +136,66 @@ function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiTwoSt
                              temperature, tol_n_elec, smearing=Smearing.Gaussian())
 
     # Improve using a Newton-type method in two stages
-    excess(εF)  = excess_n_electrons(basis, eigenvalues, εF; smearing, temperature)
-
     # TODO Could try to use full Newton here instead of Secant, but the combination
     #      Newton + bracketing method seems buggy in Roots
+    excess(εF)  = excess_n_electrons(basis, eigenvalues, εF; smearing, temperature)
     Roots.find_zero(excess, εF, Roots.Secant(), Roots.Bisection(); atol=eps(T))
 end
-
 
 # Note: This is not exported, but only called by the above algorithms for
 # the zero-temperature case.
 struct FermiZeroTemperature <: AbstractFermiAlgorithm end
-function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiZeroTemperature;
-                             temperature, smearing, tol_n_elec) where {T}
+function compute_fermi_level(basis::PlaneWaveBasis, eigenvalues, ::FermiZeroTemperature;
+                             temperature, smearing, tol_n_elec)
+    # Sanity check that we can indeed fill the appropriate number of states
     filled_occ  = filled_occupation(basis.model)
     n_electrons = basis.model.n_electrons
     n_spin = basis.model.n_spin_components
-    @assert iszero(temperature)
-
-    # Sanity check that we can indeed fill the appropriate number of states
     if n_electrons % (n_spin * filled_occ) != 0
         error("$n_electrons electrons cannot be attained by filling states with " *
               "occupation $filled_occ. Typically this indicates that you need to put " *
               "a temperature or switch to a calculation with collinear spin polarization.")
     end
-    n_fill = div(n_electrons, n_spin * filled_occ, RoundUp)
 
-    # For zero temperature, two cases arise: either there are as many bands
-    # as electrons, in which case we set εF to the highest energy level
-    # reached, or there are unoccupied conduction bands and we take
-    # εF as the midpoint between valence and conduction bands.
-    if n_fill == length(eigenvalues[1])
-        εF = maximum(maximum, eigenvalues) + 1
-        εF = mpi_max(εF, basis.comm_kpts)
-    else
-        # highest occupied energy level
-        HOMO = maximum([εk[n_fill] for εk in eigenvalues])
-        HOMO = mpi_max(HOMO, basis.comm_kpts)
-        # lowest unoccupied energy level, be careful that not all k-points
-        # might have at least n_fill+1 energy levels so we have to take care
-        # of that by specifying init to minimum
-        LUMO = minimum(minimum.([εk[n_fill+1:end] for εk in eigenvalues]; init=T(Inf)))
-        LUMO = mpi_min(LUMO, basis.comm_kpts)
-        εF = (HOMO + LUMO) / 2
-    end
-
-    excess(εF) = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
-    if abs(excess(εF)) > tol_n_elec
+    εF = guess_fermi_level_intocc_(basis, eigenvalues)
+    excess_elec = excess_n_electrons(basis, eigenvalues, εF; temperature, smearing)
+    if abs(excess_elec) > tol_n_elec
         error("Unable to find non-fractional occupations that have the " *
               "correct number of electrons. You should add a temperature.")
     end
 
     εF
+end
+
+
+"""
+Estimate a Fermi level by assuming (a) integer occupation and (b) an equal number of bands
+is filled for each k-point. This is largely the setting for occupation without temperature.
+Note, that while this function can be used in cases with spin or with temperature, there
+is no guarantee that the Fermi-level estimated by this function *is* the actual Fermi level.
+Therefore this function should generally only be used as a starting point for other routines.
+"""
+function guess_fermi_level_intocc_(basis::PlaneWaveBasis, eigenvalues)
+    filled_occ = filled_occupation(basis.model)
+    n_spin = basis.model.n_spin_components
+    n_fill = div(basis.model.n_electrons, n_spin * filled_occ, RoundUp)
+
+    # Highest occupied energy level
+    HOMO = maximum([εk[n_fill] for εk in eigenvalues])
+    HOMO = mpi_max(HOMO, basis.comm_kpts)
+
+    # Lowest unoccupied energy level: not all k-points might have at least n_fill+1
+    # energy levels so we have to take care of that by specifying init to minimum
+    LUMO = minimum(eigenvalues) do εk
+        minimum(εk[n_fill+1:end], init=typemax(HOMO))
+    end
+    LUMO = mpi_min(LUMO, basis.comm_kpts)
+
+    if LUMO == typemax(HOMO)
+        HOMO + 1  # Just to make sure the εF is a sane number and above HOMO
+    else
+        (HOMO + LUMO) / 2
+    end
 end
 
 """

@@ -8,23 +8,19 @@ using LinearAlgebra
 
 function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=:none,
                    eigensolver=lobpcg_hyper, Ecut=10, kgrid=[3, 1, 1], fft_size=[15, 1, 15],
-                   compute_full_χ0=false, εF=nothing)
-
-    tol      = 1e-11
-    ε        = 1e-6
-    testtol  = 2e-6
+                   compute_full_χ0=false, εF=nothing, functionals=LDA(), tol=1e-11,
+                   ε=1e-6, atol=2e-6)
 
     collinear   = spin_polarization == :collinear
-    is_metal    = !iszero(testcase.temperature)
     is_εF_fixed = !isnothing(εF)
     eigsol = eigensolver == lobpcg_hyper
     label = [
-        is_metal        ? "    metal" : "insulator",
-        eigsol          ? "   lobpcg" : "full diag",
-        symmetries      ? "   symm" : "no symm",
-        temperature > 0 ? "temp" : "  0K",
-        collinear       ? "coll" : "none",
-        is_εF_fixed     ? "  εF" : "none",
+        testcase.is_metal ? "    metal" : "insulator",
+        eigsol            ? "   lobpcg" : "full diag",
+        symmetries        ? "   symm" : "no symm",
+        temperature > 0   ? "temp" : "  0K",
+        collinear         ? "coll" : "none",
+        is_εF_fixed       ? "  εF" : "none",
     ]
     @testset "Computing χ0 ($(join(label, ", ")))" begin
         magnetic_moments = collinear ? [0.3, 0.7] : []
@@ -33,7 +29,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         basis_kwargs = (; kgrid, fft_size, Ecut)
 
         model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
-                          functionals=LDA(), model_kwargs...)
+                          functionals, model_kwargs...)
         basis = PlaneWaveBasis(model; basis_kwargs...)
         ρ0    = guess_density(basis, magnetic_moments)
         ham0  = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0).ham
@@ -55,7 +51,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         function compute_finite_perturbation(ε)
             term_builder = basis -> DFTK.TermExternal(ε * δV)
             model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
-                              functionals=LDA(), model_kwargs..., extra_terms=[term_builder])
+                              functionals, model_kwargs..., extra_terms=[term_builder])
             basis = PlaneWaveBasis(model; basis_kwargs...)
             ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0).ham
             (; ρout, occupation, εF) = DFTK.next_density(ham, nbandsalg; tol, eigensolver)
@@ -69,7 +65,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
 
         # Test apply_χ0 and compare against finite differences
         diff_applied_χ0 = apply_χ0(scfres, δV)
-        @test norm(diff_findiff.ρ - diff_applied_χ0) < testtol
+        @test norm(diff_findiff.ρ - diff_applied_χ0) < atol
 
         # Test occupation and Fermi-level sensitivities
         (; ψ, occupation, eigenvalues, εF, occupation_threshold) = scfres
@@ -78,8 +74,8 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         diff_applied_χ0_4P = DFTK.apply_χ0_4P(ham0, ψ, occupation, εF, eigenvalues, δHψ;
                                               occupation_threshold, q)
         maximumabs(x) = maximum(abs, x)
-        @test maximum(maximumabs, diff_applied_χ0_4P.δoccupation - diff_findiff.occupation) < testtol
-        @test diff_applied_χ0_4P.δεF - diff_findiff.εF < 1e-10
+        @test maximum(maximumabs, diff_applied_χ0_4P.δoccupation - diff_findiff.occupation) < atol
+        @test abs(diff_applied_χ0_4P.δεF - diff_findiff.εF) < 1e-10
 
         # Test apply_χ0 without extra bands
         ψ_occ, occ_occ = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation;
@@ -88,13 +84,13 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
 
         diff_applied_χ0_noextra = apply_χ0(scfres.ham, ψ_occ, occ_occ, scfres.εF, ε_occ, δV;
                                            scfres.occupation_threshold)
-        @test norm(diff_applied_χ0_noextra - diff_applied_χ0) < testtol
+        @test norm(diff_applied_χ0_noextra - diff_applied_χ0) < atol
 
         # just to cover it here
         if temperature > 0
             D = compute_dos(res.εF, basis, res.eigenvalues)
             LDOS = compute_ldos(res.εF, basis, res.eigenvalues, res.ψ)
-            @test sum(LDOS) * basis.dvol - sum(D) < 1e-12
+            @test abs(sum(LDOS) * basis.dvol - sum(D)) < 1e-12
         end
 
         if !symmetries
@@ -103,7 +99,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
             if compute_full_χ0
                 χ0 = compute_χ0(ham0)
                 diff_computed_χ0 = reshape(χ0 * vec(δV), basis.fft_size..., n_spin)
-                @test norm(diff_findiff.ρ - diff_computed_χ0) < testtol
+                @test norm(diff_findiff.ρ - diff_computed_χ0) < atol
             end
 
             # Test that apply_χ0 is self-adjoint
@@ -114,12 +110,11 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
 
             χ0δV1 = apply_χ0(scfres, δV1)
             χ0δV2 = apply_χ0(scfres, δV2)
-            @test abs(dot(δV1, χ0δV2) - dot(δV2, χ0δV1)) < testtol
+            @test abs(dot(δV1, χ0δV2) - dot(δV2, χ0δV1)) < atol
         end
     end
 end
 end
-
 
 @testitem "Computing χ0" setup=[Chi0, TestCases] begin
     using DFTK
@@ -140,4 +135,21 @@ end
                   Ecut=3, fft_size=[10, 1, 10], compute_full_χ0=true)
         test_chi0(magnesium; spin_polarization, temperature=0.01, εF=0.3)
     end
+end
+
+@testitem "Apply χ0 for large band gap" setup=[Chi0, TestCases] begin
+    using DFTK
+    using PseudoPotentialData
+    using .Chi0: test_chi0
+
+    pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_5.standard.upf")
+    atoms = [ElementPsp(:Na, pseudopotentials),
+             ElementPsp(:Cl, pseudopotentials)]
+    positions = [[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]]
+    lattice = (10.92 / 2) * [0 1 1; 1 0 1; 1 1 0]
+
+    sodium_chloride = (; lattice, positions, atoms, is_metal=false)
+    test_chi0(sodium_chloride;
+              symmetries=true, temperature=1e-4, Ecut=20,
+              kgrid=[2, 2, 2], fft_size=[36, 36, 36], atol=5e-6)
 end

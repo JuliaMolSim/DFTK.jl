@@ -14,7 +14,9 @@ In this case the matrix has effectively 4 blocks, which are:
 \end{array}\right)
 ```
 """
-function compute_χ0(ham; temperature=ham.basis.model.temperature)
+function compute_χ0(ham;
+                    temperature=ham.basis.model.temperature,
+                    smearing=ham.basis.model.smearing)
     # We're after χ0(r,r') such that δρ = ∫ χ0(r,r') δV(r') dr'
     # where (up to normalizations)
     # ρ = ∑_nk f(εnk - εF) |ψnk|^2
@@ -41,7 +43,6 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature)
     # Therefore the kernel is LDOS(r) LDOS(r') / DOS + ∑_{n,m} (fn-fm)/(εn-εm) ρnm(r) ρmn(r')
     basis = ham.basis
     filled_occ = filled_occupation(basis.model)
-    smearing = basis.model.smearing
     n_spin   = basis.model.n_spin_components
     n_fft    = prod(basis.fft_size)
     fermialg = default_fermialg(smearing)
@@ -85,7 +86,7 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature)
     mpi_sum!(χ0, basis.comm_kpts)
 
     # Add variation wrt εF (which is not diagonal wrt. spin)
-    if temperature > 0
+    if !is_effective_insulator(basis, Es, εF; temperature, smearing)
         dos  = compute_dos(εF, basis, Es)
         ldos = compute_ldos(εF, basis, Es, Vs)
         χ0 .+= vec(ldos) .* vec(ldos)' .* basis.dvol ./ sum(dos)
@@ -246,6 +247,25 @@ function compute_αmn(fm, fn, ratio)
     ratio * fn / (fn^2 + fm^2)
 end
 
+function is_effective_insulator(basis::PlaneWaveBasis, eigenvalues, εF::T;
+                                atol=eps(T),
+                                smearing=basis.model.smearing,
+                                temperature=basis.model.temperature) where {T}
+    if iszero(temperature) || smearing isa Smearing.None
+        return true
+    else
+        min_enred = minimum(eigenvalues) do εk
+            minimum(εnk -> abs(εnk - εF) / temperature, εk)
+        end
+        min_enred = mpi_min(min_enred, basis.comm_kpts)
+
+        # This is the largest possible value the occupation has in the
+        # orbital just above the Fermi level
+        max_occupation = Smearing.occupation(smearing, min_enred)
+        return max_occupation < atol
+    end
+end
+
 """
 Compute the derivatives of the occupations (and of the Fermi level).
 The derivatives of the occupations are in-place stored in δocc.
@@ -257,29 +277,32 @@ function compute_δocc!(δocc, basis::PlaneWaveBasis{T}, ψ, εF, ε, δHψ) whe
     temperature = model.temperature
     smearing = model.smearing
     filled_occ = filled_occupation(model)
-    Nk = length(basis.kpoints)
 
     # δocc = fn' * (δεn - δεF)
     δεF = zero(T)
-    if temperature > 0
+    if !is_effective_insulator(basis, ε, εF; smearing, temperature)
         # First compute δocc without self-consistent Fermi δεF.
         D = zero(T)
-        for ik = 1:Nk, (n, εnk) in enumerate(ε[ik])
+        for ik = 1:length(basis.kpoints), (n, εnk) in enumerate(ε[ik])
             enred = (εnk - εF) / temperature
             δεnk = real(dot(ψ[ik][:, n], δHψ[ik][:, n]))
             fpnk = filled_occ * Smearing.occupation_derivative(smearing, enred) / temperature
             δocc[ik][n] = δεnk * fpnk
             D += fpnk * basis.kweights[ik]
         end
-        # Compute δεF…
         D = mpi_sum(D, basis.comm_kpts)  # equal to minus the total DOS
-        δocc_tot = mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)
-        δεF = !isnothing(model.εF) ? zero(δεF) : δocc_tot / D  # no δεF when Fermi level is fixed
-        # … and recompute δocc, taking into account δεF.
-        for ik = 1:Nk, (n, εnk) in enumerate(ε[ik])
-            enred = (εnk - εF) / temperature
-            fpnk = filled_occ * Smearing.occupation_derivative(smearing, enred) / temperature
-            δocc[ik][n] -= fpnk * δεF
+
+        if isnothing(model.εF)  # εF === nothing means that Fermi level is fixed by model
+            # Compute δεF…
+            δocc_tot = mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)
+            δεF = δocc_tot / D
+
+            # … and recompute δocc, taking into account δεF.
+            for ik = 1:length(basis.kpoints), (n, εnk) in enumerate(ε[ik])
+                enred = (εnk - εF) / temperature
+                fpnk = filled_occ * Smearing.occupation_derivative(smearing, enred) / temperature
+                δocc[ik][n] -= fpnk * δεF
+            end
         end
     end
 
