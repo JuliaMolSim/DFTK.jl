@@ -73,7 +73,8 @@ end
     using LinearAlgebra
     silicon = TestCases.silicon
 
-    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, [:lda_xc_teter93])
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                      functionals=[:lda_xc_teter93])
     basis = PlaneWaveBasis(model; Ecut=3, kgrid=(3, 3, 3), fft_size=[9, 9, 9])
     scfres = self_consistent_field(basis; tol=10)
 
@@ -103,8 +104,8 @@ end
     using LinearAlgebra
     magnesium = TestCases.magnesium
 
-    model = model_DFT(magnesium.lattice, magnesium.atoms, magnesium.positions,
-                      [:lda_xc_teter93]; magnesium.temperature)
+    model = model_DFT(magnesium.lattice, magnesium.atoms, magnesium.positions;
+                      functionals=[:lda_xc_teter93], magnesium.temperature)
     basis = PlaneWaveBasis(model; Ecut=5, kgrid=(3, 3, 3), fft_size=[9, 9, 9])
     nbandsalg = AdaptiveBands(basis.model; occupation_threshold=1e-10)
     scfres = self_consistent_field(basis; tol=1e-12, nbandsalg)

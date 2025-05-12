@@ -1,17 +1,17 @@
 @testmodule Occupation begin
-using DFTK
+    using DFTK
 
-smearing_methods = (
-    DFTK.Smearing.None(),
-    DFTK.Smearing.FermiDirac(),
-    DFTK.Smearing.Gaussian(),
-    DFTK.Smearing.MarzariVanderbilt(),
-    DFTK.Smearing.MethfesselPaxton.(1:4)...
-)
-fermialgs = (
-    FermiBisection(),
-    FermiTwoStage(),
-)
+    smearing_methods = (
+        DFTK.Smearing.None(),
+        DFTK.Smearing.FermiDirac(),
+        DFTK.Smearing.Gaussian(),
+        DFTK.Smearing.MarzariVanderbilt(),
+        DFTK.Smearing.MethfesselPaxton.(1:4)...
+    )
+    fermialgs = (
+        FermiBisection(),
+        FermiTwoStage(),
+    )
 end
 
 
@@ -54,14 +54,16 @@ end
     εLUMO = minimum(eigenvalues[ik][n_occ + 1] for ik = 1:n_k)
 
     # Occupation for zero temperature
-    occupation0 = let
+    occupation0, εF0 = let
         model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                       temperature=0.0, terms=[Kinetic()])
         basis = PlaneWaveBasis(model; Ecut, silicon.kgrid, fft_size)
-        occupation, εF = DFTK.compute_occupation(basis, eigenvalues, FermiZeroTemperature())
+        (; occupation, εF) = DFTK.compute_occupation(basis, eigenvalues, FermiZeroTemperature())
         @test εHOMO < εF < εLUMO
         @test DFTK.weighted_ksum(basis, sum.(occupation)) ≈ model.n_electrons
-        occupation
+        @test (εHOMO + εLUMO)/2 ≈ εF
+
+        occupation, εF
     end
 
     # See that the electron count still works if we add temperature
@@ -70,10 +72,11 @@ end
         model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                       temperature, smearing, terms=[Kinetic()])
         basis = PlaneWaveBasis(model; Ecut, silicon.kgrid, fft_size)
-        occs = with_logger(NullLogger()) do
-            DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-12).occupation
+        (; occupation, εF) = with_logger(NullLogger()) do
+            DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-12)
         end
-        @test sum(basis.kweights .* sum.(occs)) ≈ model.n_electrons
+        @test εHOMO < εF < εLUMO
+        @test sum(basis.kweights .* sum.(occupation)) ≈ model.n_electrons
     end
 
     # See that the occupation is largely uneffected with only a bit of temperature
@@ -82,8 +85,9 @@ end
         model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                       temperature, smearing, terms=[Kinetic()])
         basis = PlaneWaveBasis(model; Ecut, silicon.kgrid, fft_size)
-        (; occupation) = DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-6)
+        (; εF, occupation) = DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-6)
 
+        @test εF ≈ εF0
         for ik = 1:n_k
             @test all(isapprox.(occupation[ik], occupation0[ik]; atol=1e-2))
         end
