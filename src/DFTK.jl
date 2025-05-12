@@ -138,6 +138,7 @@ export PreconditionerNone
 export lobpcg_hyper
 export diag_full
 export diagonalize_all_kblocks
+include("eigen/linalg.jl")
 include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
 

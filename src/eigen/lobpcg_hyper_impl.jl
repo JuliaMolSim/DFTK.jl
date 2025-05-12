@@ -250,11 +250,6 @@ normest(M) = maximum(abs, diag(M)) + norm(M - Diagonal(diag(M)))
     (; X, nchol, growth_factor)
 end
 
-# Calculate the norms of the columns of an array
-function columnwise_norms(X::AbstractArray{T}) where{T}
-    vec(sqrt.(sum(abs2, X; dims=1)))
-end
-
 # Randomize the columns of X if the norm is below tol
 function drop!(X::AbstractArray{T}, tol=2eps(real(T))) where {T}
     dropped = findall(n -> n <= tol, columnwise_norms(X))

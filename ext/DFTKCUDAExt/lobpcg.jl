@@ -11,15 +11,15 @@ function DFTK.compute_λ(X::CUDA.CuArray{T}, AX::CUDA.CuArray{T}, BX::CUDA.CuArr
     vec(real.(num ./ den))
 end
 
-function DFTK.diag_prod(A::CUDA.CuArray{T}, B::CUDA.CuArray{T}; diag=nothing) where {T}
+function DFTK.diag_prod(A::CUDA.CuArray{T}, B::CUDA.CuArray{T}) where {T}
     @assert size(A) == size(B)
-    if isnothing(diag)
-        res = sum(conj(A) .* B; dims=1)
-    else
-        @assert length(diag) == size(B, 1)
-        res = sum(conj(A) .* (diag .* B); dims=1)
-    end
-    res
+    sum(conj(A) .* B; dims=1)
+end
+
+function DFTK.diag_prod(A::CUDA.CuArray{T}, diag::CUDA.CuArray{T}, B::CUDA.CuArray{T}) where {T}
+    @assert size(A) == size(B)
+    @assert length(diag) == size(B, 1)
+    sum(conj(A) .* (diag .* B); dims=1)
 end
 
 function DFTK.ldiv!(Y::CUDA.CuArray{T}, P::PreconditionerTPA, R::CUDA.CuArray{T}) where {T}
