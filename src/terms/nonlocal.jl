@@ -197,6 +197,15 @@ function Base.Matrix(P::NonlocalProjectors{T}) where {T}
     out
 end
 
+function Base.show(io::IO, P::NonlocalProjectors)
+    print(io, "DFTK.NonlocalProjectors{")
+    show(io, P.atoms)
+    print(io, "}")
+end
+function Base.show(io::IO, ::MIME"text/plain", P::NonlocalProjectors)
+    print(io, summary(P))
+end
+
 # Add a level of indirection here to avoid ambiguity with the mul! method provided by Julia.
 LinearAlgebra.mul!(C::AbstractVector, A::Adjoint{<:Any, <:NonlocalProjectors},
                    ψk::AbstractVector) = _mul!(C, A, ψk)
