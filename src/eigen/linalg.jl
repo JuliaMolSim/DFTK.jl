@@ -9,11 +9,11 @@ end
     [real(dot(A[:, i], B[:, i])) for i = 1:size(A, 2)]
 end
 
-# Returns a vector of dot(A[:, i], Diagonal(diag), B[:, i]), for all columns of
-# A, B, and a vector diag
-@views function diag_prod(A::AbstractArray{T}, diag::AbstractVector,
+# Returns a vector of dot(A[:, i], M, B[:, i]), for all columns of
+# A, B, and matrix M
+@views function diag_prod(A::AbstractArray{T}, M::AbstractMatrix,
                           B::AbstractArray{T}) where {T}
     @assert size(A) == size(B)
-    @assert length(diag) == size(B, 1)
-    [real(dot(A[:, i], Diagonal(diag), B[:, i])) for i = 1:size(A, 2)]
+    @assert size(M, 2) == size(B, 1)
+    [real(dot(A[:, i], M, B[:, i])) for i = 1:size(A, 2)]
 end

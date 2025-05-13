@@ -16,10 +16,16 @@ function DFTK.diag_prod(A::CUDA.CuArray{T}, B::CUDA.CuArray{T}) where {T}
     sum(conj(A) .* B; dims=1)
 end
 
-function DFTK.diag_prod(A::CUDA.CuArray{T}, diag::CUDA.CuArray{T}, B::CUDA.CuArray{T}) where {T}
+function DFTK.diag_prod(A::CUDA.CuArray{T}, M::CUDA.CuArray, B::CUDA.CuArray{T}) where {T}
     @assert size(A) == size(B)
-    @assert length(diag) == size(B, 1)
-    sum(conj(A) .* (diag .* B); dims=1)
+    @assert size(M, 2) == size(B, 1)
+    sum(conj(A) .* (M * B); dims=1)
+end
+
+function DFTK.diag_prod(A::CUDA.CuArray{T}, D::CUDA.Diagonal, B::CUDA.CuArray{T}) where {T}
+    @assert size(A) == size(B)
+    @assert length(D.diag) == size(B, 1)
+    sum(conj(A) .* (D.diag .* B); dims=1)
 end
 
 function DFTK.ldiv!(Y::CUDA.CuArray{T}, P::PreconditionerTPA, R::CUDA.CuArray{T}) where {T}
