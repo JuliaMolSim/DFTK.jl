@@ -39,10 +39,6 @@
 ## TODO it seems there is a lack of orthogonalization immediately after locking, maybe investigate this to save on some Choleskys
 ## TODO debug orthogonalizations when A=I
 
-# TODO Use @debug for this
-# vprintln(args...) = println(args...)  # Uncomment for output
-vprintln(args...) = nothing
-
 using LinearAlgebra
 import LinearAlgebra: BlasFloat
 import Base: *
@@ -172,15 +168,9 @@ end
 normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
 # Orthogonalizes X to tol
 # Returns the new X, the number of Cholesky factorizations algorithm, and the
-# growth factor by which small perturbations of X can have been
-# magnified
+# growth factor by which small perturbations of X can have been magnified
 @timing function ortho!(X::AbstractArray{T}; tol=2eps(real(T))) where {T}
     local R
-
-    # # Uncomment for "gold standard"
-    # U,S,V = svd(X)
-    # return U*V', 1, 1
-
     growth_factor = one(real(T))
 
     success = false
@@ -193,7 +183,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
             success = true
         catch err
             @assert isa(err, PosDefException)
-            vprintln("fail")
+            @debug "Cholesky failed in ortho(X)"
             # see https://arxiv.org/pdf/1809.11085.pdf for a nice analysis
             # We are not being very clever here; but this should very rarely happen
             # so it should be OK
@@ -211,7 +201,9 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
                 end
                 nbad += 1
                 if nbad > 10
-                    error("Cholesky shifting is failing badly, this should never happen")
+                    @error "Cholesky shifting is failing badly, falling back to SVD"
+                    U, _, V = svd(X)  # Fall back to gold standard
+                    return (; X=U*V', nchol=1000, growth_factor=1)
                 end
             end
             success = false
@@ -233,13 +225,17 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
         # condR = 1/LAPACK.trcon!('I', 'U', 'N', Array(R))
         condR = normest(R)*norminvR  # in practice this seems to be an OK estimate
 
-        vprintln("Ortho(X) success? $success ", eps(real(T))*condR^2, " < $tol")
+        @debug "Ortho(X) success? $success : $(eps(real(T))*condR^2) < $tol"
 
         # a good a posteriori error is that X'X - I is eps()*κ(R)^2;
         # in practice this seems to be sometimes very overconservative
         success && eps(real(T))*condR^2 < tol && break
 
-        nchol > 10 && error("Ortho(X) is failing badly, this should never happen")
+        if nchol > 10
+            @error "Ortho(X) is failing badly, falling back to SVD"
+            U, _, V = svd(X)  # Fall back to gold standard
+            return (; X=U*V', nchol=100, growth_factor=1)
+        end
     end
 
     # @assert norm(X'X - I) < tol
@@ -248,7 +244,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
 end
 
 # Randomize the columns of X if the norm is below tol
-function drop!(X::AbstractArray{T}, tol=2eps(real(T))) where {T}
+function drop_small!(X::AbstractArray{T}; tol=2eps(real(T))) where {T}
     dropped = Int[]
     for i=1:size(X,2)
         n = norm(@views X[:,i])
@@ -269,15 +265,15 @@ end
     end
 
     niter = 1
-    ninners = zeros(Int,0)
+    ninners = zeros(Int, 0)
     while true
         BYX = BY' * X
         mul!(X, Y, BYX, -1, 1)  # X -= Y*BY'X
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho!(cP, cX)
-        dropped = drop!(X)
-        if dropped != []
+        dropped = drop_small!(X; tol)
+        if !isempty(dropped)
             X[:, dropped] .-= Y * (BY' * X[:, dropped])
         end
 
@@ -295,14 +291,18 @@ end
         # Y-orthogonalization, BY'X is O(eps), so BY'X will be bounded
         # by O(eps * growth_factor).
 
-        # If we're at a fixed point, growth_factor is 1 and if tol >
-        # eps(), the loop will terminate, even if BY'Y != 0
+        # If we're at a fixed point, growth_factor is 1 and if tol > eps(),
+        # the loop will terminate, even if BY'Y != 0
         growth_factor * eps(real(T)) < tol && break
 
-        niter > 10 && error("Ortho(X,Y) is failing badly, this should never happen")
+        if niter > 10
+            @error "Ortho(X, Y) is failing badly, falling back to SVD"
+            U, _, V = svd(X)  # Fall back to gold standard
+            return U*V'
+        end
         niter += 1
     end
-    vprintln("ortho choleskys: ", ninners)  # get how many Choleskys are performed
+    @debug "Required $ninners choleskys in ortho!(X, Y)"
 
     # @assert (norm(BY'X)) < tol
     # @assert (norm(X'X-I)) < tol
@@ -424,7 +424,7 @@ end
                 resid_history[i + nlocked, niter+1] = norm(new_R[:, i])
             end
         end
-        vprintln(niter, "   ", resid_history[:, niter+1])
+        @debug niter resid_history[:, niter+1]
 
         # it is actually a good question of knowing when to
         # precondition. Here seems sensible, but it could plausibly be
@@ -442,7 +442,7 @@ end
             for i=nlocked+1:M
                 if resid_history[i, niter+1] < tol
                     nlocked += 1
-                    vprintln("locked $nlocked")
+                    @debug "Locked eigenvector $nlocked"
                 else
                     # We lock in order, assuming that the lowest
                     # eigenvectors converge first; might be tricky otherwise
@@ -484,7 +484,7 @@ end
             ortho!(cP, cX, cX, tol=ortho_tol)
 
             # Get new P
-            new_P  = Y * cP
+            new_P  = Y  * cP
             new_AP = AY * cP
             if B != I
                 new_BP = BY * cP
