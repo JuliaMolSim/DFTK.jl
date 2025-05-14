@@ -1,4 +1,4 @@
-module silion
+module silicon
 include("common.jl")
 
 const SUITE = BenchmarkGroup(["insulator", "LDA"])
