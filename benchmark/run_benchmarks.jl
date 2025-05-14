@@ -1,5 +1,19 @@
 #!/bin/bash
 #=
+if [ "$1" == "-h" -o "$1" == "--help" -o "$1" == "help" ]; then
+    cat << EOF
+run_benchmark.jl (help | benchmark [<target>] | judge [<baseline>] [<target>])
+
+If <target> is absent, the current commit is the target
+If additionally <baseline> is absent, 'master' is selected as the baseline.
+EOF
+    exit 0
+fi
+if [ -z "$1" ]; then
+    echo "First argument should be one of: 'help' 'benchmark' 'judge'" >&2
+    exit 1
+fi
+
 THISDIR=$(readlink -f $(dirname ${BASH_SOURCE[0]}))
 julia --project="${THISDIR}" -e "
     using Pkg
@@ -7,10 +21,18 @@ julia --project="${THISDIR}" -e "
     Pkg.instantiate()
 "
 julia --project="${THISDIR}" -L "${THISDIR}/run_benchmarks.jl" -e '
-    baseline = length(ARGS) > 1 ? ARGS[1] : "master"
-    target   = length(ARGS) > 2 ? ARGS[2] : nothing
-    println("Comparing $target against $baseline")
-    run_judge(baseline, target)
+    method = ARGS[1]
+    if method == "judge"
+        baseline = length(ARGS) > 1 ? ARGS[2] : "master"
+        target   = length(ARGS) > 2 ? ARGS[3] : nothing
+        println("Comparing $target against $baseline")
+        run_judge(baseline, target)
+    elseif method == "benchmark"
+        target = length(ARGS) > 1 ? ARGS[2] : nothing
+        run_benchmark(target)
+    else
+        error("Not a valid method: $method")
+    end
 ' "$@"
 exit $?
 =#
