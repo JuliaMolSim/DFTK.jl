@@ -11,7 +11,7 @@ function setup_basis()
     atoms     = [Si, Si]
     positions = [ones(3)/8, -ones(3)/8]
 
-    model = model_DFT(lattice, atoms, positions; functional=LDA())
+    model = model_DFT(lattice, atoms, positions; functionals=LDA())
     PlaneWaveBasis(model; Ecut=35, kgrid=(8, 8, 8))
 end
 
