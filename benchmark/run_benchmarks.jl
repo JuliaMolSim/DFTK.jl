@@ -9,7 +9,7 @@ If additionally <baseline> is absent, 'master' is selected as the baseline.
 EOF
     exit 0
 fi
-if [ -z "$1" ]; then
+if [ "$1" != "benchmark" -a "$1" != "judge" ]; then
     echo "First argument should be one of: 'help' 'benchmark' 'judge'" >&2
     exit 1
 fi
