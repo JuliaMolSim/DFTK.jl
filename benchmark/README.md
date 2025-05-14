@@ -2,16 +2,19 @@
 ## Benchmarking locally
 ```plain
 cd benchmarks
-./run_benchmarks.jl benchmark target
+./run_benchmarks.jl benchmark <target>
 ```
 Run the benchmarks locally on a target commit.
 If the target commit is missing, the benchmark is run on the currently checked out code
-(which may be dirty).
+(which may be dirty). Most commonly you will just want to run
+```plain
+./run_benchmarks.jl benchmark
+```
 
 ## Judging locally
 ```plain
 cd benchmarks
-./run_benchmarks.jl judge baseline target
+./run_benchmarks.jl judge <baseline> <target>
 ```
 Run locally comparing baseline commit against target commit.
 
@@ -28,7 +31,7 @@ const SUITE = BenchmarkGroup()
 
 [... Further benchmark code ...]
 
-end # module
+end
 ```
 
 Add the following line to the `benchmarks.jl`:
