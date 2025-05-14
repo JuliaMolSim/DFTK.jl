@@ -1,7 +1,9 @@
+# Simple system for some super rapid testing
+
 module silicon
 include("common.jl")
 
-const SUITE = BenchmarkGroup(["insulator", "LDA"])
+const SUITE = BenchmarkGroup(["insulator", "LDA", "fast"])
 function setup_basis()
     a = 10.26  # Silicon lattice constant in Bohr
     lattice = a / 2 * [[0 1 1.];

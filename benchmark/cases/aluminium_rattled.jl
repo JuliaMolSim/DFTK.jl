@@ -1,3 +1,7 @@
+# This is a large 64-atoms Al supercell with manually rattled atoms. It is a Gamma-point
+# calculation with low symmetry and a large number of electrons. Particularly useful
+# to measure force timings.
+
 module aluminium_rattled
 include("common.jl")
 

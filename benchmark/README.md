@@ -1,4 +1,10 @@
 # Basic DFTK benchmark suite
+This is a series of benchmarks for DFTK, which should be useful for performance measurement,
+particularly on the GPU. These files try to cover various realistic cases with different computational
+hot spots. They are meant to be used for performance measurement over time/commit in a consistent manner.
+While these calculations are too large for GPU profiling (e.g. with NVIDIA nsys), they can serve as a
+starting point before an isolated call to the function of interest.
+
 ## Benchmarking locally
 ```plain
 cd benchmarks
@@ -25,6 +31,9 @@ Omitting both baseline and target compares the current code against master.
 To add a new benchmark suite `xyx`, create a new file `cases/xyx.jl` with the following structure:
 
 ```julia
+# Some comment explaining the rough characteristics of this system and why
+# it is included in the benchmark set.
+
 module xyx
 include("common.jl")
 const SUITE = BenchmarkGroup()

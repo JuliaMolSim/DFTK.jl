@@ -1,3 +1,6 @@
+# This is a highly symmetric structure with a dense k-point mesh and multiple atomic species.
+# It is useful to measure the cumulative time of the iterative solver.
+
 module SrVO3
 include("common.jl")
 
