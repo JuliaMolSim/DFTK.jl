@@ -5,6 +5,11 @@ hot spots. They are meant to be used for performance measurement over time/commi
 While these calculations are too large for GPU profiling (e.g. with NVIDIA nsys), they can serve as a
 starting point before an isolated call to the function of interest.
 
+These benchmarks are automatically executed over night on every commit to master,
+producing a report. For technical reasons this report is currently only available
+via the private repository [epfl-matmat/DFTK-benchrunner/](https://github.com/epfl-matmat/DFTK-benchrunner/).
+If you think you require access please get in touch.
+
 ## Benchmarking locally
 ```plain
 cd benchmarks
