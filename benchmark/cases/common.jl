@@ -2,6 +2,7 @@ using AtomsIO
 using BenchmarkTools
 using DFTK
 using PseudoPotentialData
+using Random
 
 # TODO other benchmarks to include:
 #  - Hamiltonian application
