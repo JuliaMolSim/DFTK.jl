@@ -54,3 +54,4 @@ This includes this new benchmark into the global suite.
 - [BenchmarkTools](https://juliaci.github.io/BenchmarkTools.jl/stable/)
 - [PkgBenchmark](https://juliaci.github.io/PkgBenchmark.jl/stable)
 - [Gridap benchmarks](https://github.com/gridap/Gridap.jl/blob/master/benchmark/README.md)
+- [Earlier attempt of some DFTK benchmarking](https://github.com/mfherbst/DFTK_thread_timings)
