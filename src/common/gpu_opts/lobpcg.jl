@@ -5,30 +5,33 @@
 # necessarily the most performant on CPU, as the allocation of large
 # temporary arrays hurts cache locality. It is also harder to read.
 
-function DFTK.compute_λ(X::CUDA.CuArray{T}, AX::CUDA.CuArray{T}, BX::CUDA.CuArray{T}) where {T}
+using LinearAlgebra
+using GPUArraysCore
+
+function compute_λ(X::AbstractGPUArray{T}, AX::AbstractGPUArray{T}, BX::AbstractGPUArray{T}) where {T}
     num = sum(conj(X) .* AX, dims=1)
     den = sum(conj(X) .* BX, dims=1)
     vec(real.(num ./ den))
 end
 
-function DFTK.diag_prod(A::CUDA.CuArray{T}, B::CUDA.CuArray{T}) where {T}
+function diag_prod(A::AbstractGPUArray{T}, B::AbstractGPUArray{T}) where {T}
     @assert size(A) == size(B)
     sum(conj(A) .* B; dims=1)
 end
 
-function DFTK.diag_prod(A::CUDA.CuArray{T}, M::CUDA.CuArray, B::CUDA.CuArray{T}) where {T}
+function diag_prod(A::AbstractGPUArray{T}, M, B::AbstractGPUArray{T}) where {T}
     @assert size(A) == size(B)
     @assert size(M, 2) == size(B, 1)
     sum(conj(A) .* (M * B); dims=1)
 end
 
-function DFTK.diag_prod(A::CUDA.CuArray{T}, D::CUDA.Diagonal, B::CUDA.CuArray{T}) where {T}
+function diag_prod(A::AbstractGPUArray{T}, D::Diagonal, B::AbstractGPUArray{T}) where {T}
     @assert size(A) == size(B)
     @assert length(D.diag) == size(B, 1)
     sum(conj(A) .* (D.diag .* B); dims=1)
 end
 
-function DFTK.ldiv!(Y::CUDA.CuArray{T}, P::PreconditionerTPA, R::CUDA.CuArray{T}) where {T}
+function ldiv!(Y::AbstractGPUArray{T}, P::PreconditionerTPA, R::AbstractGPUArray{T}) where {T}
     if P.mean_kin === nothing
         ldiv!(Y, Diagonal(P.kin .+ P.default_shift), R)
     else
@@ -37,7 +40,7 @@ function DFTK.ldiv!(Y::CUDA.CuArray{T}, P::PreconditionerTPA, R::CUDA.CuArray{T}
     Y
 end
 
-function DFTK.mul!(Y::CUDA.CuArray{T}, P::PreconditionerTPA, R::CUDA.CuArray{T}) where {T}
+function mul!(Y::AbstractGPUArray{T}, P::PreconditionerTPA, R::AbstractGPUArray{T}) where {T}
     if P.mean_kin === nothing
         mul!(Y, Diagonal(P.kin .+ P.default_shift), R)
     else

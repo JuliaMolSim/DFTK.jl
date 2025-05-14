@@ -141,6 +141,7 @@ export diagonalize_all_kblocks
 include("eigen/linalg.jl")
 include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
+include("common/gpu_opts/lobpcg.jl")
 
 export model_atomic, model_DFT
 export LDA, PBE, PBEsol, SCAN, r2SCAN

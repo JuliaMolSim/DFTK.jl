@@ -6,8 +6,6 @@ using DftFunctionals
 using DFTK
 using Libxc
 
-include("lobpcg.jl")
-
 DFTK.synchronize_device(::GPU{<:CUDA.CuArray}) = CUDA.synchronize()
 
 for fun in (:potential_terms, :kernel_terms)
@@ -28,7 +26,7 @@ if Libxc.has_cuda() && !isnothing(Base.get_extension(Libxc, :LibxcCudaExt))
         lattice = a / 2 * [[0 1 1.];
                            [1 0 1.];
                            [1 1 0.]]
-        pseudofile = joinpath(@__DIR__, "..", "..", "test", "gth_pseudos", "Si.pbe-hgh.upf")
+        pseudofile = joinpath(@__DIR__, "..", "test", "gth_pseudos", "Si.pbe-hgh.upf")
         Si = ElementPsp(:Si, Dict(:Si => pseudofile))
         atoms     = [Si, Si]
         positions = [ones(3)/8, -ones(3)/8]
