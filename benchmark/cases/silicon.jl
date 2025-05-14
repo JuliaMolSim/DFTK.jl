@@ -20,8 +20,7 @@ end
 basis  = setup_basis()
 scfres = setup_dummy_scfres(basis)
 
-SUITE["setup"]          = @benchmarkable setup_basis()                 evals=1 samples=3
-SUITE["scf_3steps"]     = @benchmarkable bm_scf_3steps($basis)         evals=1 samples=1
-SUITE["scf_full"]       = @benchmarkable bm_scf_full($basis; tol=1e-8) evals=1 samples=1
-SUITE["compute_forces"] = @benchmarkable bm_compute_forces($scfres)    evals=1 samples=1
+# Assemble benchmarks
+SUITE["setup"] = @benchmarkable setup_basis() evals=1 samples=3
+add_default_benchmarks!(SUITE, basis, scfres)
 end
