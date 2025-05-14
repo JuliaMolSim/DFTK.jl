@@ -21,14 +21,18 @@ julia --project="${THISDIR}" -e "
     Pkg.instantiate()
 "
 julia --project="${THISDIR}" -L "${THISDIR}/run_benchmarks.jl" -e '
+    friendly(s::AbstractString) = s
+    friendly(::Nothing) = "checked out copy"
+
     method = ARGS[1]
     if method == "judge"
         baseline = length(ARGS) > 1 ? ARGS[2] : "master"
         target   = length(ARGS) > 2 ? ARGS[3] : nothing
-        println("Comparing $target against $baseline")
+        println("Comparing $(friendly(target)) against $baseline")
         run_judge(baseline, target)
     elseif method == "benchmark"
         target = length(ARGS) > 1 ? ARGS[2] : nothing
+        println("Running benchmarks on $(friendly(target))")
         run_benchmark(target)
     else
         error("Not a valid method: $method")
