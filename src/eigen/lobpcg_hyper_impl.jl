@@ -254,7 +254,7 @@ normest(M) = maximum(abs, diag(M)) + norm(M - Diagonal(diag(M)))
 end
 
 # Randomize the columns of X if the norm is below tol
-function drop_small!(X::AbstractArray{T}, tol=2eps(real(T))) where {T}
+function drop_small!(X::AbstractArray{T}; tol=2eps(real(T))) where {T}
     dropped = findall(n -> n <= tol, columnwise_norms(X))
     @views randn!(TaskLocalRNG(), X[:, dropped])
     dropped
