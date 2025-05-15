@@ -138,18 +138,23 @@ end
     vectors[:, 1:N], values[1:N]
 end
 @views function rayleigh_ritz(XAX::Hermitian{<:BlasFloat, <:Array}, N)
-    # LAPACK sysevr (the Julia default dense eigensolver) can actually return eigenvectors
-    # that are significantly non-orthogonal (1e-4 in Float32 in some tests) here,
-    # presumably because it tries hard to make them eigenvectors in the presence
-    # of small gaps. Since we care more about them being orthogonal
-    # than about them being eigenvectors, re-orthogonalize.
-    # TODO To avoid orthogonalization: Use syevd,
-    # which does a much better job, see https://github.com/JuliaLang/julia/pull/49262
-    # and https://github.com/JuliaLang/julia/pull/49355
-    values, vectors = eigen(XAX)
-    v = vectors[:, 1:N]
-    ortho!(v)
-    v, values[1:N]
+    # LAPACK sysevr (the Julia default eigensolver up to 1.11 ) can actually return
+    # eigenvectors that are significantly non-orthogonal (1e-4 in Float32 in some tests)
+    # here, presumably because it tries hard to make them eigenvectors in the presence
+    # of small gaps. syevd (or DivideAndConquer()) does a much better job, see
+    # https://github.com/JuliaLang/julia/pull/49262 and
+    # https://github.com/JuliaLang/julia/pull/49355. It will be the default in 1.12.
+    # For versions < 1.12, since we mainly care about eigenvectors being orthogonal
+    # we re-orthogonalise explicitly.
+    @static if VERSION >= v"1.12"
+        values, vectors = eigen(XAX; alg=DivideAndConquer())
+        return vectors[:, 1:N], values[1:N]
+    else
+        values, vectors = eigen(XAX)
+        v = vectors[:, 1:N]
+        ortho!(v)
+        return v, values[1:N]
+    end
 end
 
 # B-orthogonalize X (in place) using only one B apply.
@@ -202,7 +207,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
                 nbad += 1
                 if nbad > 10
                     @error "Cholesky shifting is failing badly, falling back to SVD"
-                    U, _, V = svd(X)  # Fall back to gold standard
+                    U, _, V = svd(X)
                     return (; X=U*V', nchol=1000, growth_factor=1)
                 end
             end
@@ -229,11 +234,13 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
 
         # a good a posteriori error is that X'X - I is eps()*κ(R)^2;
         # in practice this seems to be sometimes very overconservative
-        success && eps(real(T))*condR^2 < tol && break
+        estimated_error = eps(real(T))*condR^2
+        success && estimated_error < tol && break
 
         if nchol > 10
-            @error "Ortho(X) is failing badly, falling back to SVD"
-            U, _, V = svd(X)  # Fall back to gold standard
+            @error("Ortho(X) is failing badly, falling back to SVD",
+                   estimated_error=round(estimated_error; sigdigits=2), tol=tol)
+            U, _, V = svd(X)
             return (; X=U*V', nchol=100, growth_factor=1)
         end
     end
@@ -293,12 +300,16 @@ end
 
         # If we're at a fixed point, growth_factor is 1 and if tol > eps(),
         # the loop will terminate, even if BY'Y != 0
-        growth_factor * eps(real(T)) < tol && break
+        estimated_error = growth_factor * eps(real(T))
+        estimated_error < tol && break
 
         if niter > 10
-            @error "Ortho(X, Y) is failing badly, falling back to SVD"
             U, _, V = svd(X)  # Fall back to gold standard
-            return U*V'
+            X = U*V'
+            @error("Ortho(X, Y) is failing badly, falling back to SVD",
+                   ninners=ninners, error=round(norm(BY'X); sigdigits=2), tol=tol,
+                   estimated_error=round(estimated_error; sigdigits=2))
+            return X
         end
         niter += 1
     end
