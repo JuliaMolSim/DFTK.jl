@@ -320,7 +320,7 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
 """
 @views @timing function symmetrize_ρ(basis, ρ::AbstractArray{T};
                                      symmetries=basis.symmetries, do_lowpass=true) where {T}
-    ρin_fourier  = to_cpu(fft(basis, ρ))
+    ρin_fourier  = fft(basis, ρ)
     ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρ, 4)
         accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
@@ -328,7 +328,7 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
         do_lowpass && lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
     end
     inv_fft = T <: Real ? irfft : ifft
-    inv_fft(basis, to_device(basis.architecture, ρout_fourier) ./ length(symmetries))
+    inv_fft(basis, ρout_fourier ./ length(symmetries))
 end
 
 """
