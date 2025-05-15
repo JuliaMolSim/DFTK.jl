@@ -14,18 +14,18 @@ function compute_λ(X::AbstractGPUArray{T}, AX::AbstractGPUArray{T}, BX::Abstrac
     vec(real.(num ./ den))
 end
 
-function diag_prod(A::AbstractGPUArray{T}, B::AbstractGPUArray{T}) where {T}
+function columnwise_dots(A::AbstractGPUArray{T}, B::AbstractGPUArray{T}) where {T}
     @assert size(A) == size(B)
     sum(conj(A) .* B; dims=1)
 end
 
-function diag_prod(A::AbstractGPUArray{T}, M, B::AbstractGPUArray{T}) where {T}
+function columnwise_dots(A::AbstractGPUArray{T}, M, B::AbstractGPUArray{T}) where {T}
     @assert size(A) == size(B)
     @assert size(M, 2) == size(B, 1)
     sum(conj(A) .* (M * B); dims=1)
 end
 
-function diag_prod(A::AbstractGPUArray{T}, D::Diagonal, B::AbstractGPUArray{T}) where {T}
+function columnwise_dots(A::AbstractGPUArray{T}, D::Diagonal, B::AbstractGPUArray{T}) where {T}
     @assert size(A) == size(B)
     @assert length(D.diag) == size(B, 1)
     sum(conj(A) .* (D.diag .* B); dims=1)

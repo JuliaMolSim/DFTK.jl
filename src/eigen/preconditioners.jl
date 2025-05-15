@@ -73,7 +73,7 @@ end
 (Base.:*)(P::PreconditionerTPA, R) = mul!(copy(R), P, R)
 
 function precondprep!(P::PreconditionerTPA, X::AbstractArray)
-    P.mean_kin = vec(real(diag_prod(X, Diagonal(P.kin), X)))
+    P.mean_kin = vec(real(columnwise_dots(X, Diagonal(P.kin), X)))
 end
 precondprep!(P::PreconditionerTPA, ::Nothing) = 1  # fallback for edge cases
 

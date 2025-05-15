@@ -499,7 +499,7 @@ end
         end
 
         # Quick sanity check
-        diffs = abs.(diag_prod(BX, X) .-1)
+        diffs = abs.(columnwise_dots(BX, X) .-1)
         if any(diffs .>= sqrt(eps(real(eltype(X)))))
            error("LOBPCG is badly failing to keep the vectors normalized; this should never happen")
         end

@@ -141,7 +141,6 @@ export diagonalize_all_kblocks
 include("eigen/linalg.jl")
 include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
-include("common/gpu_opts/lobpcg.jl")
 
 export model_atomic, model_DFT
 export LDA, PBE, PBEsol, SCAN, r2SCAN
@@ -233,7 +232,10 @@ include("postprocess/refine.jl")
 # Workarounds
 include("workarounds/dummy_inplace_fft.jl")
 include("workarounds/forwarddiff_rules.jl")
-include("workarounds/gpu_arrays.jl")
+
+# Optimized generic GPU functions and GPU workarounds
+include("gpu/linalg.jl")
+include("gpu/gpu_arrays.jl")
 
 # Precompilation block with a basic workflow
 
