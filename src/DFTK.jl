@@ -138,6 +138,7 @@ export PreconditionerNone
 export lobpcg_hyper
 export diag_full
 export diagonalize_all_kblocks
+include("eigen/linalg.jl")
 include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
 
@@ -231,7 +232,10 @@ include("postprocess/refine.jl")
 # Workarounds
 include("workarounds/dummy_inplace_fft.jl")
 include("workarounds/forwarddiff_rules.jl")
-include("workarounds/gpu_arrays.jl")
+
+# Optimized generic GPU functions and GPU workarounds
+include("gpu/linalg.jl")
+include("gpu/gpu_arrays.jl")
 
 # Precompilation block with a basic workflow
 

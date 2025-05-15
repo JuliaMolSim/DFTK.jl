@@ -33,6 +33,9 @@
 # other eigenvectors (which is not the case in many - all ? - other
 # implementations)
 
+# - Some functions are reimplemented in a GPU optimized way as part of
+# the DFTK CUDA Extension (ext/DFTKCUDAExt/lobpcg.jl).
+
 
 ## TODO micro-optimization of buffer reuse
 ## TODO write a version that doesn't assume that B is well-conditioned, and doesn't reuse B applications at all
@@ -170,7 +173,7 @@ function B_ortho!(X, BX)
     rdiv!(BX, U)
 end
 
-normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
+normest(M) = maximum(abs, diag(M)) + norm(M - Diagonal(diag(M)))
 # Orthogonalizes X to tol
 # Returns the new X, the number of Cholesky factorizations algorithm, and the
 # growth factor by which small perturbations of X can have been magnified
@@ -252,24 +255,15 @@ end
 
 # Randomize the columns of X if the norm is below tol
 function drop_small!(X::AbstractArray{T}; tol=2eps(real(T))) where {T}
-    dropped = Int[]
-    for i=1:size(X,2)
-        n = norm(@views X[:,i])
-        if n <= tol
-            X[:,i] = randn(T, size(X,1))
-            push!(dropped, i)
-        end
-    end
+    dropped = findall(n -> n <= tol, columnwise_norms(X))
+    @views randn!(TaskLocalRNG(), X[:, dropped])
     dropped
 end
 
 # Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
 @timing "ortho! X vs Y" function ortho!(X::AbstractArray{T}, Y, BY; tol=2eps(real(T))) where {T}
     # normalize to try to cheaply improve conditioning
-    parallel_loop_over_range(1:size(X, 2)) do i
-        n = norm(@views X[:,i])
-        @views X[:,i] ./= n
-    end
+    X ./= columnwise_norms(X)'
 
     niter = 1
     ninners = zeros(Int, 0)
@@ -322,7 +316,7 @@ end
 end
 
 function final_retval(X, AX, BX, λ, resid_history, niter, n_matvec)
-    λ_host = oftype(ones(eltype(λ), 1), λ)  # Copy to CPU for element-wise access
+    λ_host = to_cpu(λ)  # Copy to CPU for element-wise access
     if !issorted(λ_host)
         p = sortperm(λ_host)
         λ_host = λ_host[p]
@@ -334,6 +328,12 @@ function final_retval(X, AX, BX, λ, resid_history, niter, n_matvec)
     (; λ=λ_host, X, AX, BX,
      residual_norms=resid_history[:, niter+1],
      residual_history=resid_history[:, 1:niter+1], n_matvec)
+end
+
+# Computes λ = real((X' * AX) / (X' *BX)), for each column of X
+function compute_λ(X, AX, BX)
+    λs = @views [real((X[:, n]'*AX[:, n]) / (X[:, n]'BX[:, n])) for n=1:size(X, 2)]
+    oftype(real(X[:, 1]), λs)  # Offload to GPU if needed
 end
 
 ### The algorithm is Xn+1 = rayleigh_ritz(hcat(Xn, A*Xn, Xn-Xn-1))
@@ -389,8 +389,7 @@ end
     end
     nlocked = 0
     niter = 0  # the first iteration is fake
-    λs = @views [real((X[:, n]'*AX[:, n]) / (X[:, n]'BX[:, n])) for n=1:M]
-    λs = oftype(real(X[:, 1]), λs)  # Offload to GPU if needed
+    λs = compute_λ(X, AX, BX)
     new_X  = X
     new_AX = AX
     new_BX = BX
@@ -431,9 +430,8 @@ end
         ### Compute new residuals
         @timing "Update residuals" begin
             new_R = new_AX .- new_BX .* λs'
-            @views for i = 1:size(X, 2)
-                resid_history[i + nlocked, niter+1] = norm(new_R[:, i])
-            end
+            norms = to_cpu(columnwise_norms(new_R))
+            @views resid_history[1 + nlocked: size(new_R, 2) + nlocked, niter+1] .= norms[:]
         end
         @debug niter resid_history[:, niter+1]
 
@@ -512,10 +510,9 @@ end
         end
 
         # Quick sanity check
-        for i = 1:size(X, 2)
-            @views if abs(BX[:, i]'X[:, i] - 1) >= sqrt(eps(real(eltype(X))))
-                error("LOBPCG is badly failing to keep the vectors normalized; this should never happen")
-            end
+        diffs = abs.(columnwise_dots(BX, X) .-1)
+        if any(diffs .>= sqrt(eps(real(eltype(X)))))
+           error("LOBPCG is badly failing to keep the vectors normalized; this should never happen")
         end
 
         # Restrict all views to active
