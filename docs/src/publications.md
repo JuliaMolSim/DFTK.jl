@@ -79,7 +79,7 @@ Feel free to drop us a line if you want your work to be added here.
   ([Computational script](https://github.com/JuliaMolSim/DFTK.jl/blob/f7fcc31c79436b2582ac1604d4ed8ac51a6fd3c8/examples/publications/2022_cazalis.jl)).
 
 - E. Cancès, G. Kemlin, A. Levitt.
-  [*A Priori Error Analysis of Linear and Nonlinear Periodic Schr\"{o}dinger Equations with Analytic Potentials*](https://doi.org/10.1007/s10915-023-02421-0)
+  [*A Priori Error Analysis of Linear and Nonlinear Periodic Schrödinger Equations with Analytic Potentials*](https://doi.org/10.1007/s10915-023-02421-0)
   J. Sci. Comp., **98**, 25 (2024).
   [ArXiv:2206.04954](https://arxiv.org/abs/2206.04954).
 

@@ -14,6 +14,16 @@ They are roughly ordered from beginner to advanced.
 For a list of articles dealing with novel research aspects achieved using DFTK,
 see [Publications](@ref).
 
+## Julia resources
+- There are tons of great resources for learning Julia on the internet.
+  For a comprehensive overview see the [JuliaLang learning website](https://julialang.org/learning/)
+
+- Condensed introductions are also provided in
+  [Michael's numerical analysis course](https://teaching.matmat.org/numerical-analysis/exercises/ex0_introduction_julia_pluto_statement.html)
+  or the
+  [programming for mathematical applications](http://persson.berkeley.edu/Programming_for_Mathematical_Applications/)
+  class at UC Berkeley.
+
 ## Workshop material and tutorials
 - [DFTK school 2022: Numerical methods for density-functional theory simulations](https://school2022.dftk.org):
   Summer school centred around the DFTK code and modern approaches to density-functional theory.
