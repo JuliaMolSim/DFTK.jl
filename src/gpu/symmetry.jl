@@ -1,47 +1,46 @@
 using GPUArraysCore
 
-function accumulate_over_symmetries!(ρaccu::AbstractGPUArray, ρin::AbstractGPUArray,
-                                     basis::PlaneWaveBasis{T}, symmetries) where {T}
-    if all(isone, symmetries)
-        ρaccu .+= ρin
-        return ρaccu
-    end
-
-    Gs = vec(G_vectors(basis))
-    ρtmp = similar(ρaccu)
+function accumulate_over_symmetries!(ρaccu::AbstractArray, ρin::AbstractArray,
+    basis::PlaneWaveBasis{T}, symmetries) where {T}
+    Gs = reshape(G_vectors(basis), size(ρaccu))
     fft_size = basis.fft_size
 
-    for symop in symmetries
-        if isone(symop)
-            ρaccu .+= ρin
-            continue
-        end
+    symm_invS = to_device(basis.architecture, [Mat3{Int}(inv(symop.S)) for symop in symmetries])
+    symm_τ = to_device(basis.architecture, [symop.τ for symop in symmetries])
+    n_symm = length(symmetries)
 
-        invS = Mat3{Int}(inv(symop.S))
-        map!(ρtmp, Gs) do G
+    map!(ρaccu, Gs) do G
+        acc = zero(complex(T))
+        # Explicit loop over indicies because AMDGPU does not support zip() in map!
+        for i_symm in 1:n_symm
+            invS = symm_invS[i_symm]
+            τ = symm_τ[i_symm]
             idx = index_G_vectors(fft_size, invS * G)
-            isnothing(idx) ? zero(complex(T)) : cis2pi(-T(dot(G, symop.τ))) * ρin[idx]
+            acc += isnothing(idx) ? zero(complex(T)) : cis2pi(-T(dot(G, τ))) * ρin[idx]
         end
-        ρaccu .+= ρtmp
+        acc
     end
     ρaccu
 end
-        
+
 function lowpass_for_symmetry!(ρ::AbstractGPUArray, basis::PlaneWaveBasis{T};
                                symmetries=basis.symmetries) where {T}
     all(isone, symmetries) && return ρ
 
-    Gs = vec(G_vectors(basis))
+    Gs = reshape(G_vectors(basis), size(ρ))
     fft_size = basis.fft_size
     ρtmp = similar(ρ)
 
-    for symop in symmetries
-        isone(symop) && continue
-        map!(ρtmp, ρ, Gs) do ρ_i, G
-            idx = index_G_vectors(fft_size, symop.S * G)
-            isnothing(idx) ? zero(complex(T)) : ρ_i
+    symm_S = to_device(basis.architecture, [symop.S for symop in symmetries])
+
+    map!(ρtmp, ρ, Gs) do ρ_i, G
+        acc = ρ_i
+	    for S in symm_S
+            idx = index_G_vectors(fft_size, S * G)
+            acc *= isnothing(idx) ? zero(complex(T)) : one(complex(T))
         end
-        ρ .= ρtmp
+        acc
     end
+    ρ .= ρtmp
     ρ
 end
