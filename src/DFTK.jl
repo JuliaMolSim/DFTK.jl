@@ -234,6 +234,7 @@ include("workarounds/dummy_inplace_fft.jl")
 include("workarounds/forwarddiff_rules.jl")
 
 # Optimized generic GPU functions and GPU workarounds
+include("gpu/symmetry.jl")
 include("gpu/linalg.jl")
 include("gpu/gpu_arrays.jl")
 
