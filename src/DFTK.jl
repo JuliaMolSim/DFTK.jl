@@ -266,8 +266,8 @@ end
     positions = [ones(3)/8, -ones(3)/8]
     magnetic_moments = [2, -2]
 
-    @compile_workload begin
-        precompilation_workflow(lattice, atoms, positions, magnetic_moments)
-    end
+    # @compile_workload begin
+    #     precompilation_workflow(lattice, atoms, positions, magnetic_moments)
+    # end
 end
 end # module DFTK
