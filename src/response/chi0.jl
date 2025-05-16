@@ -111,6 +111,9 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
                             callback=identity, cg_callback=identity,
                             ψk_extra=zeros_like(ψk, size(ψk, 1), 0), εk_extra=zeros(0),
                             Hψk_extra=zeros_like(ψk, size(ψk, 1), 0), tol=1e-9)
+    # do not use tol smaller than eps(T)/2
+    tol = max(0.5*eps(eltype(ε)), tol)
+    
     basis = Hk.basis
     kpoint = Hk.kpoint
 
@@ -316,8 +319,8 @@ to zero.
 For phonon, `δHψ[ik]` is ``δH·ψ_{k-q}``, expressed in `basis.kpoints[ik]`.
 """
 function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε_minus_q=ε;
-                     ψ_extra=[zeros_like(ψk, size(ψk,1), 0) for ψk in ψ],
-                     q=zero(Vec3{T}), kwargs_sternheimer...) where {T}
+                     ψ_extra=[zeros_like(ψk, size(ψk,1), 0) for ψk in ψ], q=zero(Vec3{T}),
+                     CG_tol_scale=nothing, kwargs_sternheimer...) where {T}
     # We solve the Sternheimer equation
     #   (H_k - ε_{n,k-q}) δψ_{n,k} = - (1 - P_{k}) δHψ_{n, k-q},
     # where P_{k} is the projector on ψ_{k} and with the conventions:
@@ -330,6 +333,10 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
     smearing = model.smearing
     filled_occ = filled_occupation(model)
 
+    flag = !isnothing(CG_tol_scale)
+    if flag
+        tol_sternheimer = kwargs_sternheimer[:tol]
+    end
     # Compute δψnk band per band
     for ik = 1:length(ψ)
         Hk  = H[ik]
@@ -356,7 +363,10 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
                 δψk[:, n] .+= ψk[:, m] .* αmn .* dot(ψk[:, m], δHψ[ik][:, n])
             end
 
-            # Sternheimer contribution
+            # Sternheimer contribution with adaptive CG tolerance
+            if flag
+                kwargs_sternheimer = merge(kwargs_sternheimer, Dict(:tol => tol_sternheimer / CG_tol_scale[ik][n]))
+            end
             δψk[:, n] .+= sternheimer_solver(Hk, ψk, εk_minus_q[n], δHψ[ik][:, n]; ψk_extra,
                                              εk_extra, Hψk_extra, kwargs_sternheimer...)
         end
@@ -413,12 +423,91 @@ end
     (; δψ, δoccupation, δεF)
 end
 
+function get_apply_χ0_info(ham, ψ, occupation, εF::T, eigenvalues;
+                           occupation_threshold=default_occupation_threshold(T),
+                           q=zero(Vec3{eltype(ham.basis)}),CG_tol_type="hdmd") where {T}
+
+    CG_tol_type = lowercase(string(CG_tol_type))
+
+    basis = ham.basis
+    num_kpoints = length(basis.kpoints)
+    k_to_k_minus_q = k_to_kpq_permutation(basis, -q)
+
+    mask_occ   = map(occk -> findall(occnk -> abs(occnk) ≥ occupation_threshold, occk), occupation)
+    mask_extra = map(occk -> findall(occnk -> abs(occnk) < occupation_threshold, occk), occupation)
+
+    ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
+    ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
+    ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
+
+    ε_minus_q_occ = [eigenvalues[k_to_k_minus_q[ik]][mask_occ[k_to_k_minus_q[ik]]]
+                     for ik = 1:num_kpoints]
+
+    Nocc_ks = [length(ε_occ[ik]) for ik in 1:num_kpoints]
+    Nocc = sum(Nocc_ks)
+
+    # compute CG_tol_scale
+    fn_occ = [occupation[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
+    if CG_tol_type == "hdmd"
+        CG_tol_scale = [fn_occ[ik] * basis.kweights[ik] for ik in 1:num_kpoints] * Nocc * sqrt(prod(basis.fft_size)) / basis.model.unit_cell_volume
+    elseif CG_tol_type == "grt"
+        kcoef = zeros(num_kpoints)
+        for k in 1:num_kpoints
+        accum = zeros(basis.fft_size)
+        for n in 1:Nocc_ks[k]
+            accum += (abs2.(real.(ifft(basis, basis.kpoints[k], ψ[k][:, n]))))
+        end
+        kcoef[k] = sqrt(maximum(accum)) * basis.kweights[k]
+        end
+
+        CG_tol_scale = [fn_occ[ik] * kcoef[ik] for ik in 1:num_kpoints] * sqrt(Nocc) * sqrt(prod(basis.fft_size)) / sqrt(basis.model.unit_cell_volume)
+    else
+        CG_tol_scale = [[1.0 for _ in 1:Nocc_ks[ik]] for ik in 1:num_kpoints]
+        if !occursin(CG_tol_type, "agrplain1.0")
+            @warn("CG_tol_type is not recognized, set CG_tol_scale to 1.0 for all bands")
+        end
+    end
+
+    (; k_to_k_minus_q, mask_occ, ψ_occ, ψ_extra, ε_occ, ε_minus_q_occ, CG_tol_scale)
+end
+
+@views @timing function apply_χ0_4P(ham, occupation, εF, δHψ, apply_χ0_info::NamedTuple;
+                                    q=zero(Vec3{eltype(ham.basis)}), kwargs_sternheimer...)
+
+    basis = ham.basis
+    mask_occ = apply_χ0_info.mask_occ
+    k_to_k_minus_q = apply_χ0_info.k_to_k_minus_q
+    ψ_occ = apply_χ0_info.ψ_occ
+    ε_occ = apply_χ0_info.ε_occ
+
+    δHψ_minus_q_occ = [δHψ[ik][:, mask_occ[k_to_k_minus_q[ik]]] for ik = 1:length(basis.kpoints)]
+
+    δoccupation = zero.(occupation)
+    if iszero(q)
+        δocc_occ = [δoccupation[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
+        (; δεF) = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_minus_q_occ)
+    else
+        # When δH is not periodic, δH ψnk is a Bloch wave at k+q and ψnk at k,
+        # so that δεnk = <ψnk|δH|ψnk> = 0 and there is no occupation shift
+        δεF = zero(εF)
+    end
+
+    # Then we compute δψ (again in-place into a zero-padded array) with elements of
+    # `basis.kpoints` that are equivalent to `k+q`.
+    δψ = zero.(δHψ)
+    δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ[k_to_k_minus_q])]
+    compute_δψ!(δψ_occ, ham.basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, apply_χ0_info.ε_minus_q_occ;
+                apply_χ0_info.ψ_extra, q, apply_χ0_info.CG_tol_scale, kwargs_sternheimer...)
+
+    (; δψ, δoccupation, δεF)
+end
+
 """
 Get the density variation δρ corresponding to a potential variation δV.
 """
 function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{TδV};
-                  occupation_threshold=default_occupation_threshold(TδV),
-                  q=zero(Vec3{eltype(ham.basis)}), kwargs_sternheimer...) where {T, TδV}
+                  occupation_threshold=default_occupation_threshold(TδV), q=zero(Vec3{eltype(ham.basis)}),
+                  apply_χ0_info=nothing, kwargs_sternheimer...) where {T, TδV}
 
     basis = ham.basis
 
@@ -437,15 +526,21 @@ function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{
     # For phonon calculations, assemble
     #   δHψ_k = δV_{q} · ψ_{k-q}.
     δHψ = multiply_ψ_by_blochwave(basis, ψ, δV, q)
-    (; δψ, δoccupation) = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                                      occupation_threshold, q, kwargs_sternheimer...)
+    if isnothing(apply_χ0_info)
+        (; δψ, δoccupation) = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+                                          occupation_threshold, q, kwargs_sternheimer...)
+    else
+        (; δψ, δoccupation) = apply_χ0_4P(ham, occupation, εF, δHψ, apply_χ0_info;
+                                          q, kwargs_sternheimer...)
+    end
 
     δρ = compute_δρ(basis, ψ, δψ, occupation, δoccupation; occupation_threshold, q)
 
     δρ * normδV
 end
 
-function apply_χ0(scfres, δV; kwargs_sternheimer...)
+function apply_χ0(scfres, δV; apply_χ0_info=nothing, kwargs_sternheimer...)
     apply_χ0(scfres.ham, scfres.ψ, scfres.occupation, scfres.εF, scfres.eigenvalues, δV;
-             scfres.occupation_threshold, kwargs_sternheimer...)
+             occupation_threshold=scfres.occupation_threshold,
+             apply_χ0_info=apply_χ0_info, kwargs_sternheimer...)
 end
