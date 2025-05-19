@@ -165,14 +165,19 @@ Solve the problem `(Ω+K) δψ = rhs` (density-functional perturbation theory)
 using a split algorithm, where `rhs` is typically
 `-δHextψ` (the negative matvec of an external perturbation with the SCF orbitals `ψ`) and
 `δψ` is the corresponding total variation in the orbitals `ψ`. Additionally returns:
-    - `δρ`:  Total variation in density)
+    - `δρ`:  Total variation in density
     - `δHψ`: Total variation in Hamiltonian applied to orbitals
     - `δeigenvalues`: Total variation in eigenvalues
     - `δVind`: Change in potential induced by `δρ` (the term needed on top of `δHextψ`
       to get `δHψ`).
+
+Input parameters:
+- `tol`: Desired tolerance in the density variation and orbital variation
+- `bandtolalg`: Algorithm for adaptive selection of Sternheimer tolerances,
+  see [arxiv 2505.02319](https://arxiv.org/pdf/2505.02319) for more details.
 """
 @timing function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
-                                    eigenvalues, rhs; tol=1e-8, tol_sternheimer=tol/10,
+                                    eigenvalues, rhs; tol=1e-8, bandtolalg=SternheimerBalanced(),
                                     verbose=false, occupation_threshold, q=zero(Vec3{real(T)}),
                                     kwargs...) where {T}
     # Using χ04P = -Ω^-1, E extension operator (2P->4P) and R restriction operator:
@@ -183,9 +188,11 @@ using a split algorithm, where `rhs` is typically
     basis = ham.basis
     @assert size(rhs[1]) == size(ψ[1])  # Assume the same number of bands in ψ and rhs
 
-    # compute δρ0 (ignoring interactions)
+    # compute δρ0 (ignoring interactions) using an adaptively chosen Sternheimer tolerance
+    bandtol = determine_band_tolerances(bandtolalg, basis, ψ, eigenvalues, occupation,
+                                        tol_density=tol; occupation_threshold)
     δψ0, δoccupation0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
-                                    tol=tol_sternheimer, occupation_threshold, q,
+                                    bandtol, occupation_threshold, q,
                                     kwargs...)  # = -χ04P * rhs
     δρ0 = compute_δρ(basis, ψ, δψ0, occupation, δoccupation0; occupation_threshold, q)
 
@@ -196,7 +203,7 @@ using a split algorithm, where `rhs` is typically
         # Would be nice to play with abstol / reltol etc. to avoid over-solving
         # for the initial GMRES steps.
         χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
-                        occupation_threshold, tol=tol_sternheimer, q, kwargs...)
+                        occupation_threshold, tol_density=tol, bandtolalg, q, kwargs...).δρ
         δρ - χ0δV
     end
     δρ, info_gmres = linsolve(dielectric_adjoint, δρ0;
@@ -206,6 +213,7 @@ using a split algorithm, where `rhs` is typically
 
     # Compute total change in Hamiltonian applied to ψ
     δVind = apply_kernel(basis, δρ; ρ, q)  # Change in potential induced by δρ
+
     # For phonon calculations, assemble
     #   δHψ_k = δV_{q} · ψ_{k-q}.
     δHψ = multiply_ψ_by_blochwave(basis, ψ, δVind, q) .- rhs
@@ -217,8 +225,13 @@ using a split algorithm, where `rhs` is typically
         end
     end
 
+    # Compute final orbital response such that each orbital is accurate to at least tol
+    # TODO Maybe we are being to careful here and just using the bandtolalg is enough ?
+    bandtol = determine_band_tolerances(bandtolalg, basis, ψ, eigenvalues, occupation,
+                                        tol_density=tol; occupation_threshold)
+    bandtol = [min.(tk, tol) for tk in bandtol]
     (; δψ, δoccupation, δεF) = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                                           occupation_threshold, tol=tol_sternheimer, q,
+                                           occupation_threshold, tol=bandtol, q,
                                            kwargs...)
 
     (; δψ, δρ, δHψ, δVind, δeigenvalues, δoccupation, δεF, info_gmres)
