@@ -421,6 +421,14 @@ each Sternheimer equation needs to be solved.
 
     # Determine adaptive Sternheimer tolerances
     bandtol = determine_band_tolerances(bandtolalg, basis, ψ_occ, ε_occ, occ_occ, tol_density)
+    if !(bandtolalg isa SternheimerFactor) && !iszero(q)
+        # TODO probably we need to shuffle around the tolerances somehow
+        #      as the non-zero q maps the computed δψ to different k-points,
+        #      i.e. our adaptive tolerances at k no longer match up with
+        #      the δψ they are estimated for.
+        @warn("Adaptive Sternheimer tolerances with non-zero q points are not " *
+              "yet well-tested. You are on your own.")
+    end
 
     # First we compute δoccupation. We only need to do this for the actually occupied
     # orbitals. So we make a fresh array padded with zeros, but only alter the elements
@@ -534,11 +542,26 @@ function determine_band_tolerances(alg::Union{SternheimerGuaranteed,SternheimerB
     Nocc = sum(length, occupation)
     bandtol_min = @something alg.bandtol_min eps(T)/2
 
-    map(1:length(basis.kpoints), basis.kpoints) do ik, kpt
-        orbital_term = adaptive_sternheimer_orbital_term_(alg, basis, kpt, ψ[ik])
+    # Including k-points the expression (3.11) in 2505.02319 becomes
+    #   with Φ   = (ψ_{1,k} … ψ_{n,k})_k  (Concatenation of all orbitals for all k)
+    #        w_k = kweights[ik]
+    #        Y   = [w_k f_{1k} z_{1k} … w_k f_{nk} z_{nk}]_k  (Concatenation of all solutions times kweight)
+    #        w   = sqrt(Ω / Ng)
+    # error ≤ 2 ‖K v_i‖ ‖Re(F⁻¹ Φ)‖_{2,∞} ‖Re(F⁻¹ Y)‖_{1,2} sqrt(Nocc)
+    #       ≤ 2 ‖K v_i‖ sqrt(Nocc) ‖Re(F⁻¹ Φ)‖_{2,∞} w^{-1} max_{n,k} f_{nk} w_k ‖z_{nk}‖
+    # leading to ‖z_{nk}‖ ≤ 1 / (‖K v_i‖ sqrt(Nocc) ‖Re(F⁻¹ Φ)‖_{2,∞}) * sqrt(Ω / Ng) / (2f_{n,k} w_k)
+    # If we bound ‖Re(F⁻¹ Φ)‖_{2,∞} from below this is sqrt(Nocc / Ω).
+    #
+    # Note that the kernel term ||K v_i|| of 2505.02319 is dropped here as it purely arises
+    # from the rescaling of the RHS performed in apply_χ0 below. Consequently the function
+    # apply_χ0 also takes care of introducing this term if `SternheimerGuaranteed` is employed.
+    #
+    orbital_term = adaptive_sternheimer_orbital_term_(alg, basis, ψ)
+
+    map(1:length(basis.kpoints)) do ik
         map(1:length(eigenvalues[ik])) do n
-            tol = (tol_density * sqrt(Ω) / (2 * sqrt(Ng) * sqrt(Nocc))
-                   / basis.kweights[ik] / occupation[ik][n] / orbital_term)
+            tol = (tol_density * sqrt(Ω) / orbital_term
+                   / (2 * occupation[ik][n] * basis.kweights[ik] * sqrt(Ng) * sqrt(Nocc)))
             tol = max(bandtol_min, tol)
             if !isnothing(alg.bandtol_max)
                 tol = min(alg.bandtol_max, tol)
@@ -547,31 +570,37 @@ function determine_band_tolerances(alg::Union{SternheimerGuaranteed,SternheimerB
         end
     end
 
-    # Note that the kernel term ||K v|| of 2505.02319 is dropped here as it purely arises
-    # from the rescaling of the RHS performed in apply_χ0 below. Consequently the function
-    # apply_χ0 also takes care of introducing this term if `SternheimerGuaranteed` is employed.
+    # An alternative (not pursued here) is to employ
+    #   with Φ   = (ψ_{1,k} … ψ_{n,k})
+    #        w_k = kweights[ik]
+    #        Y_k = [f_{1k} z_{1k} … f_{nk} z_{nk}]
+    #        w   = sqrt(Ω / Ng)
+    #        Nocc_k = number of occupied orbitals for k-point k
+    # error ≤ 2 ‖K v_i‖ ∑_k w_k ‖Re(F⁻¹ Φ_k)‖_{2,∞} ‖Re(F⁻¹ Y_k)‖_{1,2} sqrt(Nocc_k)
+    #       ≤ 2 ‖K v_i‖ ∑_k w_k sqrt(Nocc_k) ‖Re(F⁻¹ Φ_k)‖_{2,∞} w^{-1} max_{n,k} f_{nk} ‖z_{nk}‖
+    # leading to ‖z_{nk}‖ ≤ 1 / (‖K v_i‖ ∑_k w_k sqrt(Nocc_k) ‖Re(F⁻¹ Φ_k)‖_{2,∞}) * sqrt(Ω / Ng) / (2f_{n,k})
+
 
     # TODO: To be discussed
-    #   - Where is the factor 2 in Bonan's work
-    #   - Balanced strategy: For the orbital term lower bound we should not use the *total* Nocc
     #   - Think about what happens if we use q ≠ 0. Are we running into problems ?
     #     Should we rather disable this mechanism for q ≠ 0 or at least throw a warning ?
 end
 
-function adaptive_sternheimer_orbital_term_(::SternheimerGuaranteed, basis, kpt, ψk)
-    # Orbital term: One maximal row-sum per k-point
-    Nocc_k = size(ψk, 2)
-    row_sums_squared = sum(1:Nocc_k) do n
-        ψnk_real = ifft(basis, kpt, ψk[:, n])
-        abs2.(real.(ψnk_real))
+function adaptive_sternheimer_orbital_term_(::SternheimerGuaranteed, basis, ψ)
+    # Orbital term ‖Re(F⁻¹ Φ)‖_{2,∞}
+    row_sums_squared = sum(1:length(basis.kpoints)) do ik
+        sum(1:size(ψ[ik], 2)) do n
+            ψnk_real = @views ifft(basis, basis.kpoints[ik], ψ[ik][:, n])
+            abs2.(real.(ψnk_real))
+        end
     end
     sqrt(maximum(row_sums_squared))
 end
-function adaptive_sternheimer_orbital_term_(::SternheimerBalanced, basis, kpt, ψk)
+function adaptive_sternheimer_orbital_term_(::SternheimerBalanced, basis, ψ)
     # Lower bound of the orbital term for each entry
     Ω = basis.model.unit_cell_volume
-    Nocc_k = size(ψk, 2)
-    sqrt(Nocc_k) / sqrt(Ω)
+    Nocc = sum(size(ψk, 2) for ψk in ψ)
+    sqrt(Nocc) / sqrt(Ω)
 end
 
 
@@ -579,10 +608,11 @@ end
 Set the convergence tolerance for each Sternheimer solver to be a fixed factor
 times the desired density tolerance.
 """
-struct SternheimerFixedFactor{T}
-    factor::T = true
+struct SternheimerFactor{T}
+    factor::T
 end
-function determine_band_tolerances(alg::SternheimerFixedFactor, ::PlaneWaveBasis,
+SternheimerFactor() = SternheimerFactor(1)
+function determine_band_tolerances(alg::SternheimerFactor, ::PlaneWaveBasis,
                                    ψ, eigenvalues, occupation, tol_density; kwargs...)
     alg.factor * tol_density  # Use simply the desired density tolerance everywhere
 end
