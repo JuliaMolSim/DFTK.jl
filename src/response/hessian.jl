@@ -177,11 +177,13 @@ Input parameters:
   see [arxiv 2505.02319](https://arxiv.org/pdf/2505.02319) for more details.
 """
 @timing function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
-                                    eigenvalues, rhs; tol=1e-8, bandtolalg=SternheimerBalanced(),
+                                    eigenvalues, rhs;
+                                    tol=1e-8, q=zero(Vec3{real(T)}),
+                                    bandtolalg=iszero(q) ? SternheimerBalanced() : SternheimerFactor(1/10),
                                     mixing=LdosMixing(; adjust_temperature=UseScfTemperature()),
                                     verbose=false,
                                     factor_initial=1/10, factor_final=1/10,
-                                    occupation_threshold, q=zero(Vec3{real(T)}), kwargs...) where {T}
+                                    occupation_threshold, kwargs...) where {T}
     # Using χ04P = -Ω^-1, E extension operator (2P->4P) and R restriction operator:
     # (Ω+K)^-1 =  Ω^-1 ( 1 -   K   (1 + Ω^-1 K  )^-1    Ω^-1  )
     #          = -χ04P ( 1 -   K   (1 - χ04P K  )^-1   (-χ04P))
@@ -241,7 +243,7 @@ Input parameters:
     #      a fixed Sternheimer tolerance of tol_density / 10. There are probably
     #      smarter things one could do here
     resfinal = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                           bandtolalg=SternheimerFixedFactor(factor_final),
+                           bandtolalg=SternheimerFactor(factor_final),
                            tol_density=tol, occupation_threshold, q, kwargs...)
     # TODO Useful printing based on data in resfinal, i.e.
     # (; δψ, δoccupation, δεF, res.n_iter, res.residual_norms, bandtol, res.converged)
