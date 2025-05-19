@@ -2,8 +2,6 @@ using LinearMaps
 using KrylovKit: OrthonormalBasis, Orthogonalizer
 using LinearAlgebra: Givens
 
-# TODO Preconditioning ?
-
 # Perform an inexact matrix-vector product, ensuring that
 # maximum(norm, eachcol(Y - A*X)) < tol
 inexact_mul(A, x; tol=0.0) = A * x
@@ -141,6 +139,10 @@ end
 function inexact_gmres(A, b; kwargs...)
     inexact_gmres!(zeros_like(b, eltype(b), size(A, 1)), A, b; kwargs...)
 end
+
+
+
+
 
 
 
