@@ -178,8 +178,10 @@ Input parameters:
 """
 @timing function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
                                     eigenvalues, rhs; tol=1e-8, bandtolalg=SternheimerBalanced(),
-                                    verbose=false, occupation_threshold, q=zero(Vec3{real(T)}),
-                                    kwargs...) where {T}
+                                    mixing=LdosMixing(; adjust_temperature=UseScfTemperature()),
+                                    verbose=false,
+                                    factor_initial=1/10, factor_final=1/10,
+                                    occupation_threshold, q=zero(Vec3{real(T)}), kwargs...) where {T}
     # Using χ04P = -Ω^-1, E extension operator (2P->4P) and R restriction operator:
     # (Ω+K)^-1 =  Ω^-1 ( 1 -   K   (1 + Ω^-1 K  )^-1    Ω^-1  )
     #          = -χ04P ( 1 -   K   (1 - χ04P K  )^-1   (-χ04P))
@@ -188,13 +190,22 @@ Input parameters:
     basis = ham.basis
     @assert size(rhs[1]) == size(ψ[1])  # Assume the same number of bands in ψ and rhs
 
-    # compute δρ0 (ignoring interactions) using an adaptively chosen Sternheimer tolerance
-    bandtol = determine_band_tolerances(bandtolalg, basis, ψ, eigenvalues, occupation,
-                                        tol_density=tol; occupation_threshold)
-    δψ0, δoccupation0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
-                                    bandtol, occupation_threshold, q,
-                                    kwargs...)  # = -χ04P * rhs
-    δρ0 = compute_δρ(basis, ψ, δψ0, occupation, δoccupation0; occupation_threshold, q)
+    # TODO Better initial guess handling. Especially between the last iteration of the GMRES
+    #      and the concluding Sternheimer solve we should be able to benefit from passing
+    #      around the orbitals
+
+    # TODO Use tol_density=tol/10 to make sure that the density is very accurate.
+    #      This is likely overdoing it and we should investigate if a smaller
+    #      value also does the trick.
+
+    # compute δρ0 (ignoring interactions)
+    res0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
+                       bandtolalg, tol_density=tol * factor_initial,
+                       occupation_threshold, q, kwargs...)  # = -χ04P * rhs
+    # TODO Useful printing based on data in res0, i.e.
+    # (; δψ, δoccupation, δεF, res.n_iter, res.residual_norms, bandtol, res.converged)
+    δρ0 = compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation; occupation_threshold, q)
+    res0 = nothing
 
     # compute total δρ
     function dielectric_adjoint(δρ)
@@ -202,7 +213,7 @@ Input parameters:
         # TODO
         # Would be nice to play with abstol / reltol etc. to avoid over-solving
         # for the initial GMRES steps.
-        χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
+        χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV; miniter=1,
                         occupation_threshold, tol_density=tol, bandtolalg, q, kwargs...).δρ
         δρ - χ0δV
     end
@@ -225,20 +236,21 @@ Input parameters:
         end
     end
 
-    # Compute final orbital response such that each orbital is accurate to at least tol
-    # TODO Maybe we are being to careful here and just using the bandtolalg is enough ?
-    bandtol = determine_band_tolerances(bandtolalg, basis, ψ, eigenvalues, occupation,
-                                        tol_density=tol; occupation_threshold)
-    bandtol = [min.(tk, tol) for tk in bandtol]
-    (; δψ, δoccupation, δεF) = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                                           occupation_threshold, tol=bandtol, q,
-                                           kwargs...)
+    # Compute final orbital response
+    # TODO Here we just use what DFTK did before the inexact Krylov busyness, namely
+    #      a fixed Sternheimer tolerance of tol_density / 10. There are probably
+    #      smarter things one could do here
+    resfinal = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+                           bandtolalg=SternheimerFixedFactor(factor_final),
+                           tol_density=tol, occupation_threshold, q, kwargs...)
+    # TODO Useful printing based on data in resfinal, i.e.
+    # (; δψ, δoccupation, δεF, res.n_iter, res.residual_norms, bandtol, res.converged)
 
-    (; δψ, δρ, δHψ, δVind, δeigenvalues, δoccupation, δεF, info_gmres)
+    (; resfinal.δψ, δρ, δHψ, δVind, δeigenvalues, resfinal.δoccupation, resfinal.δεF, info_gmres)
 end
 
 function solve_ΩplusK_split(scfres::NamedTuple, rhs; kwargs...)
     solve_ΩplusK_split(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation,
                        scfres.εF, scfres.eigenvalues, rhs;
-                       scfres.occupation_threshold, kwargs...)
+                       scfres.occupation_threshold, scfres.mixing, kwargs...)
 end

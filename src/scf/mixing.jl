@@ -272,3 +272,6 @@ function IncreaseMixingTemperature(; factor=25, above_ρdiff=1e-2, temperature_m
         return temperature
     end
 end
+function UseScfTemperature()
+    callback(temperature; info...) = temperature
+end
