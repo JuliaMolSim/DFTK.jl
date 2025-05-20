@@ -110,7 +110,8 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 function sternheimer_solver(Hk, ψk, ε, rhs;
                             callback=identity, cg_callback=identity,
                             ψk_extra=zeros_like(ψk, size(ψk, 1), 0), εk_extra=zeros(0),
-                            Hψk_extra=zeros_like(ψk, size(ψk, 1), 0), tol=1e-9, miniter=1)
+                            Hψk_extra=zeros_like(ψk, size(ψk, 1), 0), tol=1e-9,
+                            miniter=1, maxiter=100)
     basis = Hk.basis
     kpoint = Hk.kpoint
 
@@ -178,9 +179,7 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
     cg_res = cg(J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
-                callback=cg_callback, miniter)
-    !cg_res.converged && @warn("Sternheimer CG not converged", cg_res.n_iter,
-                               cg_res.tol, cg_res.residual_norm)
+                callback=cg_callback, miniter, maxiter)
     δψknᴿ = cg_res.x
     info = (; basis, kpoint, cg_res)
     callback(info)
@@ -331,7 +330,7 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
     temperature = basis.model.temperature
     smearing = basis.model.smearing
     filled_occ = filled_occupation(basis.model)
-    @assert !(:tol in kwargs_sternheimer)
+    @assert !haskey(kwargs_sternheimer, :tol)
 
     # Reporting
     residual_norms = [Vector{T}() for _ in 1:length(ψ)]
@@ -375,6 +374,9 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
                                      εk_extra, Hψk_extra, tol=tolk[n],
                                      kwargs_sternheimer...)
 
+            !res.converged && @warn("Sternheimer CG not converged", ik, n, res.n_iter,
+                                    res.tol, res.residual_norm)
+
             δψk[:, n] .+= res.δψkn
             push!(rnorm_k,  res.residual_norm)
             push!(n_iter_k, res.n_iter)
@@ -408,14 +410,20 @@ such that `bandtol[ik][n]` provides the tolerance for `δψ[ik][n]`.
     mask_occ   = map(occk -> findall(occnk -> abs(occnk) ≥ occ_thresh, occk), occupation)
     mask_extra = map(occk -> findall(occnk -> abs(occnk) < occ_thresh, occk), occupation)
 
+    if bandtol isa Number
+        bandtol_occ = [bandtol * ones(length(maskk)) for maskk in mask_occ]
+    else
+        bandtol_occ = [bandtol[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
+    end
+
     ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
     ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
     ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-    δHψ_minus_q_occ = [δHψ[ik][:, mask_occ[k_to_k_minus_q[ik]]] for ik = 1:length(basis.kpoints)]
+    δHψ_minus_q_occ = [δHψ[ik][:, mask_occ[k_to_k_minus_q[ik]]]
+                       for ik = 1:length(basis.kpoints)]
     # Only needed for phonon calculations.
     ε_minus_q_occ  = [eigenvalues[k_to_k_minus_q[ik]][mask_occ[k_to_k_minus_q[ik]]]
                       for ik = 1:length(basis.kpoints)]
-    bandtol_occ = [bandtol[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
 
     # First we compute δoccupation. We only need to do this for the actually occupied
     # orbitals. So we make a fresh array padded with zeros, but only alter the elements
@@ -445,17 +453,24 @@ end
 
 """
 Get the density variation `δρ` corresponding to a potential variation `δV`.
-The resulting density variation is computed targeting an accuracy of `δρ` of
-`tol_density`. For this the tolerances when solving the Sternheimer equations
-are chosen by the `bandtolalg` algorithm, by default the balanced strategy of
-[arxiv 2505.02319](https://arxiv.org/pdf/2505.02319).
+
+Parameters:
+- `bandtolalg` and `tol`:
+  The resulting density variation is computed targeting an accuracy of `δρ` of
+  `tol`. For this the tolerances when solving the Sternheimer equations
+  are chosen by the `bandtolalg` algorithm, by default the balanced strategy of
+  [arxiv 2505.02319](https://arxiv.org/pdf/2505.02319).
+- `bandtol`: If not nothing takes preference over `tol` and `bandtolalg`
+  as the tolerances to employ for the oribital responses when solving the
+  Sternheimer equations. Should be either a flat number or an array of arrays
+  such that `bandtol[ik][n]` provides the tolerance for `δψ[ik][n]`.
 """
 function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{TδV};
                   occupation_threshold=default_occupation_threshold(TδV),
                   q=zero(Vec3{eltype(ham.basis)}),
                   bandtolalg=BandtolBalanced(ham.basis, ψ, occupation, eigenvalues;
                                              occupation_threshold),
-                  tol_density=1e-9, kwargs_sternheimer...) where {T, TδV}
+                  tol=1e-9, bandtol=nothing, kwargs_sternheimer...) where {T, TδV}
     basis = ham.basis
 
     # Make δV respect the basis symmetry group, since we won't be able
@@ -466,16 +481,17 @@ function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{
     # but it simplifies the interaction with the Sternheimer linear solver
     # (it makes the rhs be order 1 even if δV is small)
     normδH = norm(δV)
-    normδH < eps(T) && return zero(δV)
+    normδH < eps(T) && return (; δρ=zero(δV), normδH)
     δV ./= normδH
 
     # Determine adaptive Sternheimer tolerances
-    if bandtolalg isa BandtolGuaranteed
-        # This is the ||K v|| term of arxiv 2505.02319, see also the discussion
-        # of the determine_band_tolerances(::BandtolGuaranteed, ...) below.
-        bandtol = determine_band_tolerances(bandtolalg, tol_density / normδH)
-    else
-        bandtol = determine_band_tolerances(bandtolalg, tol_density)
+    if isnothing(bandtol)
+        bandtol = determine_band_tolerances(bandtolalg, tol)
+        if bandtolalg isa BandtolGuaranteed
+            # This is the ||K v|| term of arxiv 2505.02319, see also the discussion
+            # of the determine_band_tolerances(::BandtolGuaranteed, ...) below.
+            bandtol = bandtol / normδH
+        end
     end
 
     # For phonon calculations, assemble
@@ -539,14 +555,14 @@ function BandtolBalanced(args...; kwargs...)
 end
 
 
-function construct_bandtol(Bandtol::Type, basis::PlaneWaveBasis, ψ, occupation,
-                           eigenvalues::AbstractVector{<:AbstractVector{T}};
-                           occupation_threshold, bandtol_min=eps(T)/2, bandtol_max=typemax(T))
+function construct_bandtol(Bandtol::Type, basis::PlaneWaveBasis, ψ,
+                           occupation::AbstractVector{<:AbstractVector{T}}, eigenvalues;
+                           occupation_threshold, bandtol_min=eps(T)/2, bandtol_max=typemax(T)) where {T}
     Ω  = basis.model.unit_cell_volume
     Ng = prod(basis.fft_size)
-    mask_occ = map(ok -> findall(occnk -> abs(ok) ≥ occupation_threshold, ok), occupation)
+    mask_occ = map(ok -> findall(onk -> abs(onk) ≥ occupation_threshold, ok), occupation)
     Nocc = sum(length, mask_occ)
-    Nocc = mpi_sum(basis.comm_kpts, Nocc)
+    Nocc = mpi_sum(Nocc, basis.comm_kpts)
 
     # Including k-points the expression (3.11) in 2505.02319 becomes
     #   with Φ   = (ψ_{1,k} … ψ_{n,k})_k  (Concatenation of all orbitals for all k)
@@ -559,7 +575,7 @@ function construct_bandtol(Bandtol::Type, basis::PlaneWaveBasis, ψ, occupation,
     # If we bound ‖Re(F⁻¹ Φ)‖_{2,∞} from below this is sqrt(Nocc / Ω).
     #
     # Note that the kernel term ||K v_i|| of 2505.02319 is dropped here as it purely arises
-    # from the rescaling of the RHS performed in apply_χ0 below. Consequently the function
+    # from the rescaling of the RHS performed in apply_χ0 above. Consequently the function
     # apply_χ0 also takes care of introducing this term if `BandtolGuaranteed` is employed.
     #
     orbital_term = adaptive_bandtol_orbital_term_(Bandtol, basis, ψ, mask_occ)
@@ -595,14 +611,14 @@ function adaptive_bandtol_orbital_term_(::Type{BandtolGuaranteed}, basis, ψ, ma
             abs2.(real.(ψnk_real))
         end
     end
-    row_sums_squared = mpi_sum(basis.comm_kpts, row_sums_squared)
+    row_sums_squared = mpi_sum(row_sums_squared, basis.comm_kpts)
     sqrt(maximum(row_sums_squared))
 end
 function adaptive_bandtol_orbital_term_(::Type{BandtolBalanced}, basis, ψ, mask_occ)
     # Lower bound of the orbital term for each entry
     Ω = basis.model.unit_cell_volume
     Nocc = sum(length, mask_occ)
-    Nocc = mpi_sum(basis.comm_kpts, Nocc)
+    Nocc = mpi_sum(Nocc, basis.comm_kpts)
     sqrt(Nocc) / sqrt(Ω)
 end
 
