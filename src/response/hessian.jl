@@ -159,6 +159,43 @@ that is return δψ where (Ω+K) δψ = rhs.
      res.n_iter)
 end
 
+function OmegaPlusKDefaultCallback()
+    function callback(info)
+        avgCG = 0.0
+        if haskey(info, :Axinfo) && haskey(info.Axinfo, :n_iter)
+            # info named tuple retured by mul_inexact(::DielectricAdjoint, ...)
+            Axinfo = info.Axinfo
+            # Sum all CG iterations over all bands, average over k-points
+            avgCG = mpi_mean(mean(sum, Axinfo.n_iter), Axinfo.basis.comm_kpts)
+        end
+
+        !mpi_master() && return info  # Rest is printing => only do on master
+
+        if info.stage == :noninteracting
+            # Non-interacting run before the main Dyson equation solve
+            @printf("%4s  %6s  %6s  %6s  %15s  %6s  %15s\n",
+                    "iter", "restrt", "krydim", "s", "residual", "avgCG", "comment")
+            @printf("%4s  %6s  %6s  %6s  %15s  %6s  %15s\n",
+                    "-"^4, "-"^6, "-"^6, "-"^6,"-"^15, "-"^6, "-"^15)
+            @printf("%4i  %6s  %6s  %6s  %15s  %6.2f  %15s\n",
+                    0, "", "", "", "", avgCG, "Non-interacting")
+        elseif info.stage == :iterate
+            n_iter = info.n_iter
+            comment = ""
+            if ((n_iter-1) in info.restart_history)
+                comment = "Restart"
+            end
+            @printf("%4i  %6i  %6i  %6.2f  %15.8g  %6.2f  %15s\n",
+                    n_iter, length(info.restart_history), info.k, info.s,
+                    info.resid_history[n_iter], avgCG, comment)
+        elseif info.stage == :final
+            @printf("%4i  %6s  %6s  %6s  %15s  %6.2f  %15s\n",
+                    0, "", "", "", "", avgCG, "Final")
+        end
+        info
+    end
+end
+
 """
 Solve the problem `(Ω+K) δψ = rhs` (density-functional perturbation theory)
 using a split algorithm, where `rhs` is typically
@@ -184,7 +221,7 @@ Input parameters:
 """
 @timing function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
                                     eigenvalues, rhs;
-                                    tol=1e-8, verbose=false,
+                                    tol=1e-8, verbose=true,
                                     mixing=LdosMixing(; adjust_temperature=UseScfTemperature()),
                                     factor_initial=1/10, factor_final=1/10,
                                     occupation_threshold,
@@ -193,6 +230,7 @@ Input parameters:
                                     q=zero(Vec3{real(T)}),
                                     maxiter_sternheimer=100,
                                     maxiter=100, krylovdim=10, s=1.0, debug_use_old_solver=true,
+                                    callback=verbose ? OmegaPlusKDefaultCallback() : identity,
                                     kwargs...) where {T}
     # Using χ04P = -Ω^-1, E extension operator (2P->4P) and R restriction operator:
     # (Ω+K)^-1 =  Ω^-1 ( 1 -   K   (1 + Ω^-1 K  )^-1    Ω^-1  )
@@ -211,14 +249,17 @@ Input parameters:
     #      value also does the trick.
 
     # compute δρ0 (ignoring interactions)
-    bandtol0 = determine_band_tolerances(bandtolalg, tol * factor_initial)
-    res0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
-                       maxiter=maxiter_sternheimer, bandtol=bandtol0, occupation_threshold,
-                       q, kwargs...)  # = -χ04P * rhs
-    # TODO Useful printing based on data in res0, i.e.
-    # (; δψ, δoccupation, δεF, res.n_iter, res.residual_norms, bandtol, res.converged)
-    δρ0 = compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation; occupation_threshold, q)
-    res0 = nothing
+    δρ0 = let  # Make sure memory owned by res0 is freed
+        bandtol0 = determine_band_tolerances(bandtolalg, tol * factor_initial)
+        res0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
+                           maxiter=maxiter_sternheimer,
+                           bandtol=bandtol0, occupation_threshold,
+                           q, kwargs...)  # = -χ04P * rhs
+        callback((; stage=:noninteracting,
+                    Axinfo=(; basis, tol=tol*factor_initial, res0...)))
+        δρ0 = compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
+                         occupation_threshold, q)
+    end
 
     if debug_use_old_solver
         # compute total δρ
@@ -241,7 +282,6 @@ Input parameters:
         ε = DielectricAdjoint(ham, ρ, ψ, occupation, εF, eigenvalues, occupation_threshold,
                               bandtolalg, maxiter_sternheimer, q)
         precon = I  # TODO Use mixing
-        callback = identity
         info_gmres = inexact_gmres(ε, vec(δρ0);
                                    precon, krylovdim, maxiter, s, callback, kwargs...)
         δρ = reshape(info_gmres.x, size(ρ))
@@ -271,8 +311,8 @@ Input parameters:
     resfinal = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                            bandtol=factor_final * tol, maxiter=maxiter_sternheimer,
                            occupation_threshold, q, kwargs...)
-    # TODO Useful printing based on data in resfinal, i.e.
-    # (; δψ, δoccupation, δεF, res.n_iter, res.residual_norms, bandtol, res.converged)
+    callback((; stage=:final,
+                Axinfo=(; basis, tol=tol*factor_final, resfinal...)))
 
     (; resfinal.δψ, δρ, δHψ, δVind, δeigenvalues, resfinal.δoccupation, resfinal.δεF, info_gmres)
 end
@@ -308,7 +348,7 @@ function inexact_mul(ε::DielectricAdjoint, δρ; tol=0.0)
                    ε.bandtolalg, ε.q, ε.maxiter)
     χ0δV = res.δρ
     Ax = vec(δρ - χ0δV)  # (1 - χ0 K δρ)
-    (; Ax, info=(; tol, res...))
+    (; Ax, info=(; tol, basis, res...))
 end
 function size(ε::DielectricAdjoint, i::Integer)
     if 1 ≤ i ≤ 2
