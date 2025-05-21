@@ -283,7 +283,7 @@ Input parameters:
                               bandtolalg, maxiter_sternheimer, q)
         precon = I  # TODO Use mixing
         info_gmres = inexact_gmres(ε, vec(δρ0);
-                                   precon, krylovdim, maxiter, s, callback, kwargs...)
+                                   tol, precon, krylovdim, maxiter, s, callback, kwargs...)
         δρ = reshape(info_gmres.x, size(ρ))
         if !info_gmres.converged
             @warn "Solve_ΩplusK_split solver not converged"

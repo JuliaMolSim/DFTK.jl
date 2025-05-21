@@ -560,41 +560,34 @@ function construct_bandtol(Bandtol::Type, basis::PlaneWaveBasis, ψ,
                            occupation_threshold, bandtol_min=eps(T)/2, bandtol_max=typemax(T)) where {T}
     Ω  = basis.model.unit_cell_volume
     Ng = prod(basis.fft_size)
+    Nk = length(basis.kpoints)
     mask_occ = map(ok -> findall(onk -> abs(onk) ≥ occupation_threshold, ok), occupation)
-    Nocc = sum(length, mask_occ)
-    Nocc = mpi_sum(Nocc, basis.comm_kpts)
 
     # Including k-points the expression (3.11) in 2505.02319 becomes
-    #   with Φ   = (ψ_{1,k} … ψ_{n,k})_k  (Concatenation of all orbitals for all k)
-    #        w_k = kweights[ik]
-    #        Y   = [w_k f_{1k} z_{1k} … w_k f_{nk} z_{nk}]_k  (Concatenation of all solutions times kweight)
-    #        w   = sqrt(Ω / Ng)
-    # error ≤ 2 ‖K v_i‖ ‖Re(F⁻¹ Φ)‖_{2,∞} ‖Re(F⁻¹ Y)‖_{1,2} sqrt(Nocc)
-    #       ≤ 2 ‖K v_i‖ sqrt(Nocc) ‖Re(F⁻¹ Φ)‖_{2,∞} w^{-1} max_{n,k} f_{nk} w_k ‖z_{nk}‖
-    # leading to ‖z_{nk}‖ ≤ 1 / (‖K v_i‖ sqrt(Nocc) ‖Re(F⁻¹ Φ)‖_{2,∞}) * sqrt(Ω / Ng) / (2f_{n,k} w_k)
-    # If we bound ‖Re(F⁻¹ Φ)‖_{2,∞} from below this is sqrt(Nocc / Ω).
+    #   with Φk = (ψ_{1,k} … ψ_{n,k})_k  (Concatenation of all occupied orbitals for this k)
+    #        wk = kweights[ik]
+    #        Nocck = Number of occupied orbitals for k
+    #        Yk = [f_{1k} z_{1k} … f_{nk} z_{nk}]_k  (Concatenation of all solutions)
+    # error ≤ 2 ‖K v_i‖ ∑_k wk ‖Re(F⁻¹ Φk)‖_{2,∞} ‖Re(F⁻¹ Yk)‖_{1,2} sqrt(Nocck)
+    #       ≤ 2 ‖K v_i‖ ∑_k wk ‖Re(F⁻¹ Φk)‖_{2,∞} w^{-1} max_{n} f_{nk} ‖z_{nk}‖ sqrt(Nocck)
+    # Distributing the error equally across all k-points leads to (with w = sqrt(Ω / Ng))
+    #   ‖z_{nk}‖ ≤ sqrt(Ω / Ng) / (‖K v_i‖ sqrt(Nocck) ‖Re(F⁻¹ Φk)‖_{2,∞} * 2f_{nk} Nk wk)
+    # If we bound ‖Re(F⁻¹ Φk)‖_{2,∞} from below this is sqrt(Nocc / Ω).
     #
     # Note that the kernel term ||K v_i|| of 2505.02319 is dropped here as it purely arises
     # from the rescaling of the RHS performed in apply_χ0 above. Consequently the function
     # apply_χ0 also takes care of introducing this term if `BandtolGuaranteed` is employed.
     #
-    orbital_term = adaptive_bandtol_orbital_term_(Bandtol, basis, ψ, mask_occ)
-    bandtol_factors = map(1:length(basis.kpoints)) do ik
-        map(1:length(occupation[ik])) do n
-            (sqrt(Ω) / orbital_term
-             / (2 * occupation[ik][n] * basis.kweights[ik] * sqrt(Ng) * sqrt(Nocc)))
+
+    bandtol_factors = map(1:Nk) do ik
+        Nocck = length(mask_occ[ik])
+        orbital_term = adaptive_bandtol_orbital_term_(Bandtol, basis, basis.kpoints[ik],
+                                                      ψ[ik], mask_occ[ik])
+        map(mask_occ[ik]) do n
+            (  (sqrt(Ω/Ng) / sqrt(Nocck) / orbital_term)
+             / (2 * occupation[ik][n] * Nk * basis.kweights[ik]))
         end
     end
-
-    # An alternative (not pursued here) is to employ
-    #   with Φ   = (ψ_{1,k} … ψ_{n,k})
-    #        w_k = kweights[ik]
-    #        Y_k = [f_{1k} z_{1k} … f_{nk} z_{nk}]
-    #        w   = sqrt(Ω / Ng)
-    #        Nocc_k = number of occupied orbitals for k-point k
-    # error ≤ 2 ‖K v_i‖ ∑_k w_k ‖Re(F⁻¹ Φ_k)‖_{2,∞} ‖Re(F⁻¹ Y_k)‖_{1,2} sqrt(Nocc_k)
-    #       ≤ 2 ‖K v_i‖ ∑_k w_k sqrt(Nocc_k) ‖Re(F⁻¹ Φ_k)‖_{2,∞} w^{-1} max_{n,k} f_{nk} ‖z_{nk}‖
-    # leading to ‖z_{nk}‖ ≤ 1 / (‖K v_i‖ ∑_k w_k sqrt(Nocc_k) ‖Re(F⁻¹ Φ_k)‖_{2,∞}) * sqrt(Ω / Ng) / (2f_{n,k})
 
     Bandtol(bandtol_factors, bandtol_min, bandtol_max)
 end
@@ -603,23 +596,16 @@ function construct_bandtol(Bandtol::Type, scfres::NamedTuple; kwargs...)
                       scfres.eigenvalues; scfres.occupation_threshold, kwargs...)
 end
 
-function adaptive_bandtol_orbital_term_(::Type{BandtolGuaranteed}, basis, ψ, mask_occ)
-    # Orbital term ‖Re(F⁻¹ Φ)‖_{2,∞}
-    row_sums_squared = sum(1:length(basis.kpoints)) do ik
-        sum(mask_occ[ik]) do n
-            ψnk_real = @views ifft(basis, basis.kpoints[ik], ψ[ik][:, n])
-            abs2.(real.(ψnk_real))
-        end
+function adaptive_bandtol_orbital_term_(::Type{BandtolGuaranteed}, basis, kpt, ψk, mask_k)
+    # Orbital term ‖Re(F⁻¹ Φk)‖_{2,∞} for thik k-point
+    row_sums_squared = sum(mask_k) do n
+        ψnk_real = @views ifft(basis, kpt, ψk[:, n])
+        abs2.(real.(ψnk_real))
     end
-    row_sums_squared = mpi_sum(row_sums_squared, basis.comm_kpts)
     sqrt(maximum(row_sums_squared))
 end
-function adaptive_bandtol_orbital_term_(::Type{BandtolBalanced}, basis, ψ, mask_occ)
-    # Lower bound of the orbital term for each entry
-    Ω = basis.model.unit_cell_volume
-    Nocc = sum(length, mask_occ)
-    Nocc = mpi_sum(Nocc, basis.comm_kpts)
-    sqrt(Nocc) / sqrt(Ω)
+function adaptive_bandtol_orbital_term_(::Type{BandtolBalanced}, basis, kpt, ψ, mask_k)
+    sqrt(length(mask_k)) / sqrt(basis.model.unit_cell_volume) # Lower bound of above
 end
 
 function determine_band_tolerances(alg, density_tol)
