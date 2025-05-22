@@ -159,41 +159,58 @@ that is return δψ where (Ω+K) δψ = rhs.
      res.n_iter)
 end
 
-function OmegaPlusKDefaultCallback()
-    function callback(info)
-        avgCG = 0.0
-        if haskey(info, :Axinfo) && haskey(info.Axinfo, :n_iter)
-            # info named tuple retured by mul_inexact(::DielectricAdjoint, ...)
-            Axinfo = info.Axinfo
-            # Sum all CG iterations over all bands, average over k-points
-            avgCG = mpi_mean(mean(sum, Axinfo.n_iter), Axinfo.basis.comm_kpts)
-        end
-
-        !mpi_master() && return info  # Rest is printing => only do on master
-
-        if info.stage == :noninteracting
-            # Non-interacting run before the main Dyson equation solve
-            @printf("%4s  %6s  %6s  %6s  %15s  %6s  %15s\n",
-                    "iter", "restrt", "krydim", "s", "residual", "avgCG", "comment")
-            @printf("%4s  %6s  %6s  %6s  %15s  %6s  %15s\n",
-                    "-"^4, "-"^6, "-"^6, "-"^6,"-"^15, "-"^6, "-"^15)
-            @printf("%4i  %6s  %6s  %6s  %15s  %6.2f  %15s\n",
-                    0, "", "", "", "", avgCG, "Non-interacting")
-        elseif info.stage == :iterate
-            n_iter = info.n_iter
-            comment = ""
-            if ((n_iter-1) in info.restart_history)
-                comment = "Restart"
-            end
-            @printf("%4i  %6i  %6i  %6.2f  %15.8g  %6.2f  %15s\n",
-                    n_iter, length(info.restart_history), info.k, info.s,
-                    info.resid_history[n_iter], avgCG, comment)
-        elseif info.stage == :final
-            @printf("%4i  %6s  %6s  %6s  %15s  %6.2f  %15s\n",
-                    0, "", "", "", "", avgCG, "Final")
-        end
-        info
+struct OmegaPlusKDefaultCallback
+    show_time::Bool
+    show_s::Bool
+    prev_time::Ref{UInt64}
+end
+function OmegaPlusKDefaultCallback(; show_s=true, show_time=true)
+    OmegaPlusKDefaultCallback(show_time, show_s, Ref(zero(UInt64)))
+end
+function (cb::OmegaPlusKDefaultCallback)(info)
+    io = stdout
+    avgCG = 0.0
+    if haskey(info, :Axinfo) && haskey(info.Axinfo, :n_iter)
+        # Axinfo: NamedTuple returned by mul_inexact(::DielectricAdjoint, ...)
+        # Sum all CG iterations over all bands, average over k-points
+        avgCG = mpi_mean(mean(sum, info.Axinfo.n_iter), info.Axinfo.basis.comm_kpts)
     end
+
+    !mpi_master() && return info  # Rest is printing => only do on master
+
+    show_time  = (hasproperty(info, :runtime_ns) && cb.show_time)
+    label_time = show_time ? ("  Δtime ", "  ------", " "^8) : ("", "", "")
+    label_s    = cb.show_s ? ("  s    ",   "  -----",  " "^7) : ("", "", "")
+
+    tstr = ""
+    if show_time
+        # Clear a potentially previously cached time
+        info.stage == :noninteracting && (cb.prev_time[] = 0)
+        tstr = @sprintf "  % 6s" TimerOutputs.prettytime(info.runtime_ns - cb.prev_time[])
+        cb.prev_time[] = info.runtime_ns
+    end
+
+    if info.stage == :noninteracting
+        # Non-interacting run before the main Dyson equation solve
+        println(io, "Iter  Restart  Krydim", label_s[1], "  log10(res)  avg(CG)",
+                label_time[1], "  Comment")
+        @printf(io, "%s  %s  %s%s  %s  %s%s  %s\n",
+                "-"^4, "-"^7, "-"^6, label_s[2], "-"^10, "-"^7, label_time[2], "-"^15)
+        @printf(io, "%21s%s  %10s  %7.2f%s  %15s\n",
+                "", label_s[3], "", avgCG, tstr, "Non-interacting")
+    elseif info.stage == :iterate
+        n_iter  = info.n_iter
+        resstr  = format_log8(info.resid_history[n_iter])
+        comment = ((n_iter-1) in info.restart_history) ? "Restart" : ""
+        sstr    = cb.show_s ? (@sprintf "  %5.2f" info.s) : ""
+        restart = length(info.restart_history)
+        @printf(io, "%4i  %7i  %6i%s  %10s  %7.2f%s  %s\n",
+                n_iter, restart, info.k, sstr, resstr, avgCG, tstr, comment)
+    elseif info.stage == :final
+        @printf(io, "%21s%s  %10s  %7.2f%s  %s\n",
+                "", label_s[3], "", avgCG, tstr, "Final orbitals")
+    end
+    info
 end
 
 """
@@ -212,6 +229,7 @@ Input parameters:
 - `mixing`: Mixing to use to precondition GMRES
 - `maxiter_sternheimer`: Maximal number of iterations for each of the Sternheimer solvers
 - `maxiter`: Maximal number of iterations for the Dyson equation solver
+   convergence, it will automatically stop.
 - `krylovdim`: Maximal Krylov subspace dimension in the Dyson equation solver
 - `s`: Initial guess for the smallest singular value of the upper Hessenberg matrix
    in the Dyson equation solver.
@@ -239,6 +257,7 @@ Input parameters:
     # where χ02P = R χ04P E and K2P = R K E
     basis = ham.basis
     @assert size(rhs[1]) == size(ψ[1])  # Assume the same number of bands in ψ and rhs
+    start_ns = time_ns()
 
     # TODO Better initial guess handling. Especially between the last iteration of the GMRES
     #      and the concluding Sternheimer solve we should be able to benefit from passing
@@ -255,7 +274,7 @@ Input parameters:
                            maxiter=maxiter_sternheimer,
                            bandtol=bandtol0, occupation_threshold,
                            q, kwargs...)  # = -χ04P * rhs
-        callback((; stage=:noninteracting,
+        callback((; stage=:noninteracting, runtime_ns=time_ns() - start_ns,
                     Axinfo=(; basis, tol=tol*factor_initial, res0...)))
         δρ0 = compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
                          occupation_threshold, q)
@@ -282,8 +301,10 @@ Input parameters:
         ε = DielectricAdjoint(ham, ρ, ψ, occupation, εF, eigenvalues, occupation_threshold,
                               bandtolalg, maxiter_sternheimer, q)
         precon = I  # TODO Use mixing
+        callback_inner(info) = callback(merge(info, (; runtime_ns=time_ns() - start_ns)))
         info_gmres = inexact_gmres(ε, vec(δρ0);
-                                   tol, precon, krylovdim, maxiter, s, callback, kwargs...)
+                                   tol, precon, krylovdim, maxiter, s,
+                                   callback=callback_inner, kwargs...)
         δρ = reshape(info_gmres.x, size(ρ))
         if !info_gmres.converged
             @warn "Solve_ΩplusK_split solver not converged"
@@ -311,7 +332,7 @@ Input parameters:
     resfinal = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                            bandtol=factor_final * tol, maxiter=maxiter_sternheimer,
                            occupation_threshold, q, kwargs...)
-    callback((; stage=:final,
+    callback((; stage=:final, runtime_ns=time_ns() - start_ns,
                 Axinfo=(; basis, tol=tol*factor_final, resfinal...)))
 
     (; resfinal.δψ, δρ, δHψ, δVind, δeigenvalues, resfinal.δoccupation, resfinal.δεF, info_gmres)
