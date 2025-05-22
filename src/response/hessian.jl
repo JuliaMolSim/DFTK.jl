@@ -247,7 +247,7 @@ Input parameters:
                                                                eigenvalues; occupation_threshold),
                                     q=zero(Vec3{real(T)}),
                                     maxiter_sternheimer=100,
-                                    maxiter=100, krylovdim=10, s=1.0, debug_use_old_solver=true,
+                                    maxiter=100, krylovdim=10, s=10.0,
                                     callback=verbose ? OmegaPlusKDefaultCallback() : identity,
                                     kwargs...) where {T}
     # Using χ04P = -Ω^-1, E extension operator (2P->4P) and R restriction operator:
@@ -280,35 +280,18 @@ Input parameters:
                          occupation_threshold, q)
     end
 
-    if debug_use_old_solver
-        # compute total δρ
-        function dielectric_adjoint(δρ)
-            δV = apply_kernel(basis, δρ; ρ, q)
-            # TODO
-            # Would be nice to play with abstol / reltol etc. to avoid over-solving
-            # for the initial GMRES steps.
-            χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV; miniter=1,
-                            occupation_threshold, tol, bandtolalg, q, kwargs...).δρ
-            δρ - χ0δV
-        end
-        δρ, info_gmres = linsolve(dielectric_adjoint, δρ0;
-                                  ishermitian=false, krylovdim,
-                                  tol, verbosity=(verbose ? 3 : 0))
-        info_gmres.converged == 0 && @warn "Solve_ΩplusK_split solver not converged"
-    else
-        # compute total δρ
-        # TODO Can be smarter here, e.g. use mixing to come up with initial guess.
-        ε = DielectricAdjoint(ham, ρ, ψ, occupation, εF, eigenvalues, occupation_threshold,
-                              bandtolalg, maxiter_sternheimer, q)
-        precon = I  # TODO Use mixing
-        callback_inner(info) = callback(merge(info, (; runtime_ns=time_ns() - start_ns)))
-        info_gmres = inexact_gmres(ε, vec(δρ0);
-                                   tol, precon, krylovdim, maxiter, s,
-                                   callback=callback_inner, kwargs...)
-        δρ = reshape(info_gmres.x, size(ρ))
-        if !info_gmres.converged
-            @warn "Solve_ΩplusK_split solver not converged"
-        end
+    # compute total δρ
+    # TODO Can be smarter here, e.g. use mixing to come up with initial guess.
+    ε = DielectricAdjoint(ham, ρ, ψ, occupation, εF, eigenvalues, occupation_threshold,
+                          bandtolalg, maxiter_sternheimer, q)
+    precon = I  # TODO Use mixing
+    callback_inner(info) = callback(merge(info, (; runtime_ns=time_ns() - start_ns)))
+    info_gmres = inexact_gmres(ε, vec(δρ0);
+                               tol, precon, krylovdim, maxiter, s,
+                               callback=callback_inner, kwargs...)
+    δρ = reshape(info_gmres.x, size(ρ))
+    if !info_gmres.converged
+        @warn "Solve_ΩplusK_split solver not converged"
     end
 
     # Compute total change in Hamiltonian applied to ψ
@@ -335,7 +318,8 @@ Input parameters:
     callback((; stage=:final, runtime_ns=time_ns() - start_ns,
                 Axinfo=(; basis, tol=tol*factor_final, resfinal...)))
 
-    (; resfinal.δψ, δρ, δHψ, δVind, δeigenvalues, resfinal.δoccupation, resfinal.δεF, info_gmres)
+    (; resfinal.δψ, δρ, δHψ, δVind, δρ0, δeigenvalues, resfinal.δoccupation, resfinal.δεF,
+     ε, info_gmres)
 end
 
 function solve_ΩplusK_split(scfres::NamedTuple, rhs; kwargs...)
@@ -360,13 +344,17 @@ struct DielectricAdjoint{Tρ, Tψ, Toccupation, TεF, Teigenvalues, Tq}
     maxiter::Int  # CG maximum number of iterations
     q::Tq
 end
-function inexact_mul(ε::DielectricAdjoint, δρ; tol=0.0)
+function DielectricAdjoint(scfres; bandtolalg=BandtolBalanced(scfres), q=zero(Vec3{Float64}), maxiter=100)
+    DielectricAdjoint(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation, scfres.εF,
+                      scfres.eigenvalues, scfres.occupation_threshold, bandtolalg, maxiter, q)
+end
+function inexact_mul(ε::DielectricAdjoint, δρ; tol=0.0, kwargs...)
     δρ = reshape(δρ, size(ε.ρ))
     basis = ε.ham.basis
     δV = apply_kernel(basis, δρ; ε.ρ, ε.q)
     res = apply_χ0(ε.ham, ε.ψ, ε.occupation, ε.εF, ε.eigenvalues, δV;
                    miniter=1, ε.occupation_threshold, tol,
-                   ε.bandtolalg, ε.q, ε.maxiter)
+                   ε.bandtolalg, ε.q, ε.maxiter, kwargs...)
     χ0δV = res.δρ
     Ax = vec(δρ - χ0δV)  # (1 - χ0 K δρ)
     (; Ax, info=(; tol, basis, res...))

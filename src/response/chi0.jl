@@ -108,7 +108,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 # /!\ It is assumed (and not checked) that ψk'Hk*ψk = Diagonal(εk) (extra states
 # included).
 function sternheimer_solver(Hk, ψk, ε, rhs;
-                            callback=identity, cg_callback=identity,
+                            callback=identity,
                             ψk_extra=zeros_like(ψk, size(ψk, 1), 0), εk_extra=zeros(0),
                             Hψk_extra=zeros_like(ψk, size(ψk, 1), 0), tol=1e-9,
                             miniter=1, maxiter=100)
@@ -179,10 +179,9 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
     cg_res = cg(J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
-                callback=cg_callback, miniter, maxiter)
+                callback=info -> callback(merge(info, (; basis, kpoint))),
+                miniter, maxiter)
     δψknᴿ = cg_res.x
-    info = (; basis, kpoint, cg_res)
-    callback(info)
 
     # 2) solve for αkn now that we know δψknᴿ
     # Note that αkn is an empty array if there is no extra bands.
@@ -618,10 +617,10 @@ end
 Set the convergence tolerance for each Sternheimer solver to be a fixed factor
 times the desired density tolerance.
 """
-struct SternheimerFactor{T}
+struct BandtolFactor{T}
     factor::T
 end
-SternheimerFactor() = SternheimerFactor(1)
-function determine_band_tolerances(alg::SternheimerFactor, tol_density)
+BandtolFactor() = BandtolFactor(1)
+function determine_band_tolerances(alg::BandtolFactor, tol_density)
     alg.factor * tol_density
 end
