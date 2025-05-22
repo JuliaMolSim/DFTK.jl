@@ -196,7 +196,7 @@ function (cb::OmegaPlusKDefaultCallback)(info)
                 label_time[1], "  Comment")
         @printf(io, "%s  %s  %s%s  %s  %s%s  %s\n",
                 "-"^4, "-"^7, "-"^6, label_s[2], "-"^10, "-"^7, label_time[2], "-"^15)
-        @printf(io, "%21s%s  %10s  %7.2f%s  %15s\n",
+        @printf(io, "%21s%s  %10s  %7.1f%s  %15s\n",
                 "", label_s[3], "", avgCG, tstr, "Non-interacting")
     elseif info.stage == :iterate
         n_iter  = info.n_iter
@@ -204,7 +204,7 @@ function (cb::OmegaPlusKDefaultCallback)(info)
         comment = ((n_iter-1) in info.restart_history) ? "Restart" : ""
         sstr    = cb.show_s ? (@sprintf "  %5.2f" info.s) : ""
         restart = length(info.restart_history)
-        @printf(io, "%4i  %7i  %6i%s  %10s  %7.2f%s  %s\n",
+        @printf(io, "%4i  %7i  %6i%s  %10s  %7.1f%s  %s\n",
                 n_iter, restart, info.k, sstr, resstr, avgCG, tstr, comment)
     elseif info.stage == :final
         @printf(io, "%21s%s  %10s  %7.2f%s  %s\n",
@@ -247,7 +247,7 @@ Input parameters:
                                                                eigenvalues; occupation_threshold),
                                     q=zero(Vec3{real(T)}),
                                     maxiter_sternheimer=100,
-                                    maxiter=100, krylovdim=10, s=10.0,
+                                    maxiter=100, krylovdim=20, s=krylovdim,
                                     callback=verbose ? OmegaPlusKDefaultCallback() : identity,
                                     kwargs...) where {T}
     # Using χ04P = -Ω^-1, E extension operator (2P->4P) and R restriction operator:

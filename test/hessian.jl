@@ -120,3 +120,74 @@ end
                         atol=1e-7)
     end
 end
+
+@testitem "Test solve_ΩplusK_split achieves promised accuracies" begin
+    using DFTK
+    using LinearAlgebra
+    using PseudoPotentialData
+
+    function test_solve_ΩplusK(scfres, δVext)
+        # Compute a reference solution
+        δHψ = DFTK.multiply_ψ_by_blochwave(scfres.basis, scfres.ψ, δVext)
+        bandtolalg = DFTK.BandtolGuaranteed(scfres)
+        ref = DFTK.solve_ΩplusK_split(scfres, -δHψ; tol=1e-12, verbose=false, bandtolalg)
+
+        # Test agreement of non-interacting response
+        δρ0 = apply_χ0(scfres, δVext, tol=1e-14).δρ
+        @test maximum(abs, δρ0 - ref.δρ0) < 5e-11
+        @test norm(δρ0 - ref.δρ0)         < 5e-11
+
+        # Check residual is small
+        ε = DFTK.DielectricAdjoint(scfres; bandtolalg=DFTK.BandtolGuaranteed(scfres))
+        εδρ = reshape(DFTK.inexact_mul(ε, ref.δρ; tol=1e-14).Ax, size(δρ0))
+        @test norm(δρ0 - εδρ)         < 1e-12
+        @test maximum(abs, δρ0 - εδρ) < 1e-12
+
+        # TODO δψ agreement not tested
+        @assert length(scfres.basis.kpoints) == 1
+
+        for tol in (1e-2, 1e-4, 1e-6, 1e-8, 1e-10)
+            res = DFTK.solve_ΩplusK_split(scfres, -δHψ; tol, verbose=false)
+            @test norm(res.δρ - ref.δρ) < tol
+
+            # This is probably a bit flaky ... orbitals could rotate
+            @test maximum(abs, res.δψ[1] - ref.δψ[1]) < tol
+        end
+
+        for s in (1, 10, 100, 10^5)
+            tol = 1e-8
+            res = DFTK.solve_ΩplusK_split(scfres, -δHψ; tol, s, verbose=false)
+            @test norm(res.δρ - ref.δρ) < tol
+            @test maximum(abs, res.δψ[1] - ref.δψ[1]) < tol
+        end
+    end
+
+    @testset "Polarisability in Helium" begin
+        # Helium at the centre of the box
+        a = 10.0
+        lattice = a * I(3)  # cube of ``a`` bohrs
+        pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
+        atoms     = [ElementPsp(:He, pseudopotentials)]
+        positions = [[1/2, 1/2, 1/2]]
+
+        model  = model_DFT(lattice, atoms, positions;
+                           functionals=PBE(), symmetries=false)
+        basis  = PlaneWaveBasis(model; Ecut=30, kgrid=(1, 1, 1))
+        scfres = self_consistent_field(basis; tol=1e-12)
+
+        # δVext is the potential from a uniform field interacting with the dielectric dipole
+        # of the density. Note, that this expression only makes sense for a molecule
+        δVext = [-(r[1] - a/2) for r in r_vectors_cart(basis)]
+        δVext = cat(δVext; dims=4)
+
+        test_solve_ΩplusK(scfres, δVext)
+    end
+
+    @testset "Aluminium atomic displacements" begin
+
+
+        # TODO displace some atoms and solve response
+
+
+    end
+end
