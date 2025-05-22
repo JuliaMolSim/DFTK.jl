@@ -344,11 +344,8 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
         δψk  = δψ[ik]
         tolk = bandtol[ik]
         εk_minus_q = ε_minus_q[ik]
-
-        rnorm_k  = residual_norms[ik]
-        n_iter_k = n_iter[ik]
-        sizehint!(rnorm_k,  length(εk_minus_q))
-        sizehint!(n_iter_k, length(εk_minus_q))
+        sizehint!(residual_norms[ik], length(εk_minus_q))
+        sizehint!(n_iter[ik], length(εk_minus_q))
 
         ψk_extra = ψ_extra[ik]
         Hψk_extra = Hk * ψk_extra
@@ -377,8 +374,8 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
                                     res.tol, res.residual_norm)
 
             δψk[:, n] .+= res.δψkn
-            push!(rnorm_k,  res.residual_norm)
-            push!(n_iter_k, res.n_iter)
+            push!(residual_norms[ik], res.residual_norm)
+            push!(n_iter[ik], res.n_iter)
             converged = converged && res.converged
         end
     end
