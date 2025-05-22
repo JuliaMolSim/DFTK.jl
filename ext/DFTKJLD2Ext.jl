@@ -151,6 +151,7 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict)
     if !skip_hamiltonian && has_ψ && !isnothing(scfdict[:ρ])
         energies, ham = DFTK.energy_hamiltonian(basis, scfdict[:ψ], scfdict[:occupation];
                                                 ρ=scfdict[:ρ],
+                                                τ=scfdict[:τ],
                                                 eigenvalues=scfdict[:eigenvalues],
                                                 εF=scfdict[:εF])
         scfdict[:energies] = energies
