@@ -189,11 +189,15 @@ Overview of parameters:
         if compute_consistent_energies
             (; energies) = energy(basis, ψ, occupation; ρ=ρout, τ, eigenvalues, εF)
         end
+
+        # Update info with history
         history_Etot = vcat(info.history_Etot, energies.total)
         history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
+        history_εF = vcat(info.history_εF, εF)
         n_matvec = info.n_matvec + nextstate.n_matvec
-        info_next = merge(info_next, (; energies, history_Etot, history_Δρ, n_matvec))
-
+        info_next = merge(info_next, (; energies, history_Etot, history_Δρ, history_εF,
+                                        n_matvec))
+        
         # Apply mixing and pass it the full info as kwargs
         ρnext = ρin .+ T(damping) .* mix_density(mixing, basis, Δρ; info_next...)
 
@@ -211,8 +215,8 @@ Overview of parameters:
 
     info_init = (; ρin=ρ, τ, ψ, occupation=nothing, eigenvalues=nothing, εF=nothing,
                    n_iter=0, n_matvec=0, timedout=false, converged=false,
-                   history_Etot=T[], history_Δρ=T[])
-
+                   history_Etot=T[], history_Δρ=T[], history_εF=T[])
+    
     # Convergence is flagged by is_converged inside the fixpoint_map.
     _, info = solver(fixpoint_map, ρ, info_init; maxiter)
 
@@ -226,8 +230,8 @@ Overview of parameters:
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
                 ρ=ρout, τ, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
                 info.n_iter, info.n_matvec, ψ, info.diagonalization, stage=:finalize,
-                info.history_Δρ, info.history_Etot, info.timedout,
-                runtime_ns=time_ns() - start_ns, algorithm="SCF")
+                info.history_Δρ, info.history_Etot, info.history_εF,
+                info.timedout, runtime_ns=time_ns() - start_ns, algorithm="SCF")
     callback(scfres)
     scfres
 end
