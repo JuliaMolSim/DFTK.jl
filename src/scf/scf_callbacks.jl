@@ -81,7 +81,6 @@ function (cb::ScfDefaultCallback)(info)
     end
     cb.prev_time[] = info.runtime_ns
 
-    format_log8(e) = @sprintf "%8.2f" log10(abs(e))
     Estr    = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
     if info.n_iter < 2
         ΔE = " "^9
@@ -103,6 +102,8 @@ function (cb::ScfDefaultCallback)(info)
     flush(stdout)
     info
 end
+
+format_log8(e) = @sprintf "%8.2f" log10(abs(e))
 
 #
 # Convergence checks
