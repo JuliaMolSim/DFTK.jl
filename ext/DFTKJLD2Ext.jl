@@ -103,6 +103,7 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict)
         scfdict = Dict{Symbol, Any}(
             :εF       => get(jld, "εF", nothing),
             :ρ        => get(jld, "ρ", nothing),
+            :τ        => get(jld, "τ", nothing),
             :ψ        => nothing,
             :energies => DFTK.Energies(e_keys, e_values),
         )
@@ -148,7 +149,8 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict)
         end
     end
 
-    if !skip_hamiltonian && has_ψ && !isnothing(scfdict[:ρ])
+    ham_needs_τ = any([DFTK.needs_τ(term) for term in basis.terms]) 
+    if !skip_hamiltonian && has_ψ && !isnothing(scfdict[:ρ]) && (!ham_needs_τ || (ham_needs_τ && !isnothing(scfdict[:τ])))
         energies, ham = DFTK.energy_hamiltonian(basis, scfdict[:ψ], scfdict[:occupation];
                                                 ρ=scfdict[:ρ],
                                                 τ=scfdict[:τ],
