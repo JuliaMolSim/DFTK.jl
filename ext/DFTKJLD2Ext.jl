@@ -1,4 +1,5 @@
 module DFTKJLD2Ext
+using DftFunctionals
 using DFTK
 using JLD2
 using MPI
