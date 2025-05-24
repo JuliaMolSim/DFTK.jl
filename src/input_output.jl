@@ -319,13 +319,14 @@ function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true, save_ρ=true)
 
     # These are either already done above or will be ignored or dealt with below.
     special = (:ham, :basis, :energies, :stage,
-               :ρ, :ψ, :eigenvalues, :occupation, :εF, :diagonalization,
+               :τ, :ρ, :ψ, :eigenvalues, :occupation, :εF, :diagonalization,
                :optim_res # from direct_minimization, ignore it as it can be huge
                )
     propmap = Dict(:α => :damping_value, )  # compatibility mapping
     if mpi_master()
         if save_ρ
             dict["ρ"] = scfres.ρ
+            dict["τ"] = get(scfres, :τ, nothing)
         end
         energies = make_subdict!(dict, "energies")
         for (key, value) in todict(scfres.energies)
