@@ -26,17 +26,17 @@
 
 
 The density-functional toolkit, **DFTK** for short, is a collection of
-Julia routines for experimentation with plane-wave density-functional theory (DFT).
+Julia routines for plane-wave density-functional theory (DFT).
 The unique feature of this code is its emphasis on simplicity and flexibility
 with the goal of facilitating algorithmic and numerical developments as well as
 interdisciplinary collaboration in solid-state research.
 
-Having started in 2019 we already support a
-[sizeable set of features](https://docs.dftk.org/stable/features/).
-Within the system size currently accessible to our code (ca. 1000 electrons)
-our performance is of the same order of magnitude as more established packages
-such as [Abinit](https://www.abinit.org/) or
-[Quantum Espresso](http://quantum-espresso.org/).
+In only around 10k lines of code DFTK already has
+a [sizeable set of features](https://docs.dftk.org/stable/features/)
+including GPU support or parallelisation using MPI.
+Our performance is of the same order of magnitude
+as more established packages and systems up to 1000 electrons
+can be routinely treated.
 
 For getting started with DFTK, see [our documentation](https://docs.dftk.org):
 - [Installation instructions](https://docs.dftk.org/stable/guide/installation/)
