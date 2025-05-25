@@ -159,21 +159,96 @@ that is return δψ where (Ω+K) δψ = rhs.
      res.n_iter)
 end
 
+struct OmegaPlusKDefaultCallback
+    show_time::Bool
+    show_s::Bool
+    prev_time::Ref{UInt64}
+end
+function OmegaPlusKDefaultCallback(; show_s=true, show_time=true)
+    OmegaPlusKDefaultCallback(show_time, show_s, Ref(zero(UInt64)))
+end
+function (cb::OmegaPlusKDefaultCallback)(info)
+    io = stdout
+    avgCG = 0.0
+    if haskey(info, :Axinfo) && haskey(info.Axinfo, :n_iter)
+        # Axinfo: NamedTuple returned by mul_inexact(::DielectricAdjoint, ...)
+        # Sum all CG iterations over all bands, average over k-points
+        avgCG = mpi_mean(mean(sum, info.Axinfo.n_iter), info.Axinfo.basis.comm_kpts)
+    end
+
+    !mpi_master() && return info  # Rest is printing => only do on master
+
+    show_time  = (hasproperty(info, :runtime_ns) && cb.show_time)
+    label_time = show_time ? ("  Δtime ", "  ------", " "^8) : ("", "", "")
+    label_s    = cb.show_s ? ("  s    ",   "  -----",  " "^7) : ("", "", "")
+
+    tstr = ""
+    if show_time
+        # Clear a potentially previously cached time
+        info.stage == :noninteracting && (cb.prev_time[] = 0)
+        tstr = @sprintf "  % 6s" TimerOutputs.prettytime(info.runtime_ns - cb.prev_time[])
+        cb.prev_time[] = info.runtime_ns
+    end
+
+    if info.stage == :noninteracting
+        # Non-interacting run before the main Dyson equation solve
+        println(io, "Iter  Restart  Krydim", label_s[1], "  log10(res)  avg(CG)",
+                label_time[1], "  Comment")
+        @printf(io, "%s  %s  %s%s  %s  %s%s  %s\n",
+                "-"^4, "-"^7, "-"^6, label_s[2], "-"^10, "-"^7, label_time[2], "-"^15)
+        @printf(io, "%21s%s  %10s  %7.1f%s  %15s\n",
+                "", label_s[3], "", avgCG, tstr, "Non-interacting")
+    elseif info.stage == :iterate
+        n_iter  = info.n_iter
+        resstr  = format_log8(info.resid_history[n_iter])
+        comment = ((n_iter-1) in info.restart_history) ? "Restart" : ""
+        sstr    = cb.show_s ? (@sprintf "  %5.2f" info.s) : ""
+        restart = length(info.restart_history)
+        @printf(io, "%4i  %7i  %6i%s  %10s  %7.1f%s  %s\n",
+                n_iter, restart, info.k, sstr, resstr, avgCG, tstr, comment)
+    elseif info.stage == :final
+        @printf(io, "%21s%s  %10s  %7.2f%s  %s\n",
+                "", label_s[3], "", avgCG, tstr, "Final orbitals")
+    end
+    info
+end
 
 """
 Solve the problem `(Ω+K) δψ = rhs` (density-functional perturbation theory)
 using a split algorithm, where `rhs` is typically
 `-δHextψ` (the negative matvec of an external perturbation with the SCF orbitals `ψ`) and
 `δψ` is the corresponding total variation in the orbitals `ψ`. Additionally returns:
-    - `δρ`:  Total variation in density)
+    - `δρ`:  Total variation in density
     - `δHψ`: Total variation in Hamiltonian applied to orbitals
     - `δeigenvalues`: Total variation in eigenvalues
     - `δVind`: Change in potential induced by `δρ` (the term needed on top of `δHextψ`
       to get `δHψ`).
+
+Input parameters:
+- `tol`: Desired tolerance in the density variation and orbital variation
+- `mixing`: Mixing to use to precondition GMRES
+- `maxiter_sternheimer`: Maximal number of iterations for each of the Sternheimer solvers
+- `maxiter`: Maximal number of iterations for the Dyson equation solver
+   convergence, it will automatically stop.
+- `krylovdim`: Maximal Krylov subspace dimension in the Dyson equation solver
+- `s`: Initial guess for the smallest singular value of the upper Hessenberg matrix
+   in the Dyson equation solver.
+- `bandtolalg`: Algorithm for adaptive selection of Sternheimer tolerances
+   in the Dyson equation solver,
+   see [arxiv 2505.02319](https://arxiv.org/pdf/2505.02319) for more details.
 """
 @timing function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
-                                    eigenvalues, rhs; tol=1e-8, tol_sternheimer=tol/10,
-                                    verbose=false, occupation_threshold, q=zero(Vec3{real(T)}),
+                                    eigenvalues, rhs;
+                                    tol=1e-8, verbose=true,
+                                    mixing=LdosMixing(; adjust_temperature=UseScfTemperature()),
+                                    factor_initial=1/10, factor_final=1/10,
+                                    occupation_threshold,
+                                    bandtolalg=BandtolBalanced(ham.basis, ψ, occupation,
+                                                               eigenvalues; occupation_threshold),
+                                    q=zero(Vec3{real(T)}),
+                                    maxiter_sternheimer=100,
+                                    maxiter=100, krylovdim=20, s=krylovdim,
+                                    callback=verbose ? OmegaPlusKDefaultCallback() : identity,
                                     kwargs...) where {T}
     # Using χ04P = -Ω^-1, E extension operator (2P->4P) and R restriction operator:
     # (Ω+K)^-1 =  Ω^-1 ( 1 -   K   (1 + Ω^-1 K  )^-1    Ω^-1  )
@@ -182,30 +257,46 @@ using a split algorithm, where `rhs` is typically
     # where χ02P = R χ04P E and K2P = R K E
     basis = ham.basis
     @assert size(rhs[1]) == size(ψ[1])  # Assume the same number of bands in ψ and rhs
+    start_ns = time_ns()
+
+    # TODO Better initial guess handling. Especially between the last iteration of the GMRES
+    #      and the concluding Sternheimer solve we should be able to benefit from passing
+    #      around the orbitals
+
+    # TODO Use tol_density=tol/10 to make sure that the density is very accurate.
+    #      This is likely overdoing it and we should investigate if a smaller
+    #      value also does the trick.
 
     # compute δρ0 (ignoring interactions)
-    δψ0, δoccupation0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
-                                    tol=tol_sternheimer, occupation_threshold, q,
-                                    kwargs...)  # = -χ04P * rhs
-    δρ0 = compute_δρ(basis, ψ, δψ0, occupation, δoccupation0; occupation_threshold, q)
+    δρ0 = let  # Make sure memory owned by res0 is freed
+        bandtol0 = determine_band_tolerances(bandtolalg, tol * factor_initial)
+        res0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
+                           maxiter=maxiter_sternheimer,
+                           bandtol=bandtol0, occupation_threshold,
+                           q, kwargs...)  # = -χ04P * rhs
+        callback((; stage=:noninteracting, runtime_ns=time_ns() - start_ns,
+                    Axinfo=(; basis, tol=tol*factor_initial, res0...)))
+        δρ0 = compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
+                         occupation_threshold, q)
+    end
 
     # compute total δρ
-    function dielectric_adjoint(δρ)
-        δV = apply_kernel(basis, δρ; ρ, q)
-        # TODO
-        # Would be nice to play with abstol / reltol etc. to avoid over-solving
-        # for the initial GMRES steps.
-        χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
-                        occupation_threshold, tol=tol_sternheimer, q, kwargs...)
-        δρ - χ0δV
+    # TODO Can be smarter here, e.g. use mixing to come up with initial guess.
+    ε = DielectricAdjoint(ham, ρ, ψ, occupation, εF, eigenvalues, occupation_threshold,
+                          bandtolalg, maxiter_sternheimer, q)
+    precon = I  # TODO Use mixing
+    callback_inner(info) = callback(merge(info, (; runtime_ns=time_ns() - start_ns)))
+    info_gmres = inexact_gmres(ε, vec(δρ0);
+                               tol, precon, krylovdim, maxiter, s,
+                               callback=callback_inner, kwargs...)
+    δρ = reshape(info_gmres.x, size(ρ))
+    if !info_gmres.converged
+        @warn "Solve_ΩplusK_split solver not converged"
     end
-    δρ, info_gmres = linsolve(dielectric_adjoint, δρ0;
-                              ishermitian=false,
-                              tol, verbosity=(verbose ? 3 : 0))
-    info_gmres.converged == 0 && @warn "Solve_ΩplusK_split solver not converged"
 
     # Compute total change in Hamiltonian applied to ψ
     δVind = apply_kernel(basis, δρ; ρ, q)  # Change in potential induced by δρ
+
     # For phonon calculations, assemble
     #   δHψ_k = δV_{q} · ψ_{k-q}.
     δHψ = multiply_ψ_by_blochwave(basis, ψ, δVind, q) .- rhs
@@ -217,15 +308,61 @@ using a split algorithm, where `rhs` is typically
         end
     end
 
-    (; δψ, δoccupation, δεF) = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                                           occupation_threshold, tol=tol_sternheimer, q,
-                                           kwargs...)
+    # Compute final orbital response
+    # TODO Here we just use what DFTK did before the inexact Krylov business, namely
+    #      a fixed Sternheimer tolerance of tol / 10. There are probably
+    #      smarter things one could do here
+    resfinal = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+                           bandtol=factor_final * tol, maxiter=maxiter_sternheimer,
+                           occupation_threshold, q, kwargs...)
+    callback((; stage=:final, runtime_ns=time_ns() - start_ns,
+                Axinfo=(; basis, tol=tol*factor_final, resfinal...)))
 
-    (; δψ, δρ, δHψ, δVind, δeigenvalues, δoccupation, δεF, info_gmres)
+    (; resfinal.δψ, δρ, δHψ, δVind, δρ0, δeigenvalues, resfinal.δoccupation, resfinal.δεF,
+     ε, info_gmres)
 end
 
 function solve_ΩplusK_split(scfres::NamedTuple, rhs; kwargs...)
     solve_ΩplusK_split(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation,
                        scfres.εF, scfres.eigenvalues, rhs;
-                       scfres.occupation_threshold, kwargs...)
+                       scfres.occupation_threshold, scfres.mixing,
+                       bandtolalg=BandtolBalanced(scfres), kwargs...)
+end
+
+# TODO This feels a bit hackish, because for all other entities
+#      (like Ω+K or χ0 or K) we don't have a struct, but just an apply function
+#      so why have a struct here ?
+struct DielectricAdjoint{Tρ, Tψ, Toccupation, TεF, Teigenvalues, Tq}
+    ham::Hamiltonian
+    ρ::Tρ
+    ψ::Tψ
+    occupation::Toccupation
+    εF::TεF
+    eigenvalues::Teigenvalues
+    occupation_threshold::Float64
+    bandtolalg
+    maxiter::Int  # CG maximum number of iterations
+    q::Tq
+end
+function DielectricAdjoint(scfres; bandtolalg=BandtolBalanced(scfres), q=zero(Vec3{Float64}), maxiter=100)
+    DielectricAdjoint(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation, scfres.εF,
+                      scfres.eigenvalues, scfres.occupation_threshold, bandtolalg, maxiter, q)
+end
+function inexact_mul(ε::DielectricAdjoint, δρ; tol=0.0, kwargs...)
+    δρ = reshape(δρ, size(ε.ρ))
+    basis = ε.ham.basis
+    δV = apply_kernel(basis, δρ; ε.ρ, ε.q)
+    res = apply_χ0(ε.ham, ε.ψ, ε.occupation, ε.εF, ε.eigenvalues, δV;
+                   miniter=1, ε.occupation_threshold, tol,
+                   ε.bandtolalg, ε.q, ε.maxiter, kwargs...)
+    χ0δV = res.δρ
+    Ax = vec(δρ - χ0δV)  # (1 - χ0 K δρ)
+    (; Ax, info=(; tol, basis, res...))
+end
+function size(ε::DielectricAdjoint, i::Integer)
+    if 1 ≤ i ≤ 2
+        return prod(size(ε.ρ))
+    else
+        return one(i)
+    end
 end

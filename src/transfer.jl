@@ -208,7 +208,7 @@ end
 Return the Fourier coefficients for the Bloch waves ``f^{\rm real}_{q} ψ_{k-q}`` in an
 element of `basis.kpoints` equivalent to ``k-q``.
 """
-@views function multiply_ψ_by_blochwave(basis::PlaneWaveBasis, ψ, f_real, q)
+@views function multiply_ψ_by_blochwave(basis::PlaneWaveBasis{T}, ψ, f_real, q=zero(Vec3{T})) where {T}
     fψ = zero.(ψ)
     # First, express ψ_{[k-q]} in the basis of k-q points…
     ψ_minus_q = transfer_blochwave_equivalent_to_actual(basis, ψ, -q)
@@ -229,6 +229,9 @@ For Bloch waves ``ψ`` such that `ψ[ik]` is defined in a point in `basis.kpoint
 to `basis.kpoints[ik] + q`, return the Bloch waves `ψ_plus_q[ik]` defined on `kpt_plus_q[ik]`.
 """
 @views function transfer_blochwave_equivalent_to_actual(basis, ψ_plus_q_equivalent, q)
+    if iszero(q)
+        return [(; kpt, ψk) for (kpt, ψk) in zip(basis.kpoints, ψ_plus_q_equivalent)]
+    end
     k_to_k_plus_q = k_to_kpq_permutation(basis, q)
     map(enumerate(basis.kpoints)) do (ik, kpt)
         # Express ψ_plus_q_equivalent_{[k-q]} in the basis of k-q points.
