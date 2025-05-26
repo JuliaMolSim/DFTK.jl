@@ -1,4 +1,4 @@
-module DFTKManoptExt
+module DFTKManifoldsManoptExt
     using Manopt
     using Manifolds
     using DFTK
