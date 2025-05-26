@@ -103,41 +103,47 @@ end
     StopWhenFunctionLess
 
 TODO Improve naming
+TODO Document formula that is used
+
+# Fields
+* `tolerance::Float64`: tolerance for the stopping criterion
+* `at_iteration::Int`: an internal field to indicate that at a certain iteration, the stop was indicated
+* `get_current_measure::Function`: TODO: Check what this should be
+* `last_measure::M`: TODO Check what this should be
+* `Δ_measure::R`: TODO: Check what this should be
 """
-mutable struct StopWhenFunctionLess{M} <: Manopt.StoppingCriterion
+mutable struct StopWhenFunctionLess{M,R<:Real} <: Manopt.StoppingCriterion
     tolerance::Float64
     at_iteration::Int
     get_current_measure::Function # f(P, state) -> M
-    last_measure::Union{Nothing,M}
-    Δ_measure::Union{Nothing,Float64}
+    last_measure::M
+    Δ_measure::R
 end
 function StopWhenFunctionLess(tol::Float64, f::Function, m)
-    return StopWhenFunctionLess{typeof(m)}(tol, -1, f, nothing, nothing)
+    #TODO: Can we initialise the last measure?
+    return StopWhenFunctionLess{typeof(m)}(tol, -1, f, nothing, 0.0)
 end
 function (c::StopWhenFunctionLess{M})(
-    cgf::CostGradFunctor!, state::S, k::Int
-) where {M,CostGradFunctor!,S<:AbstractManoptSolverState}
+    problem::P, state::S, k::Int
+) where {M,P<:Manopt.AbstractManoptProblem,S<:Manopt.AbstractManoptState}
+    current_measure = c.get_current_measure(problem, state)
     if k == 0 # reset on init
         c.at_iteration = -1
-        c.last_measure = nothing
-        c.Δ_measure = nothing
+        # TODO: Change to something more reasonable.
+        c.last_measure .= current_measure
+        c.Δ_measure = 0.0
         return false
-    end
-    current_measure = c.get_current_measure(cgf, state)
-
-    if c.last_measure === nothing
-        c.last_measure = deepcopy(current_measure)
-        return false
-    end
-    # basis.dvol::Float64 = model.unit_cell_volume ./ prod(fft_size)
-    # is the volume element for real-space integration:
-    # sum(ρ) * dvol ~ ∫ρ.
-    c.Δ_measure = norm(current_measure .- c.last_measure) * sqrt(basis.dvol)
-    # ^ gives the L²-norm of ρ normalized over a unit cell
-    c.last_measure .= current_measure
-    if c.tolerance > c.Δ_measure
-        c.at_iteration = k
-        return true
+    else
+        # basis.dvol::Float64 = model.unit_cell_volume ./ prod(fft_size)
+        # is the volume element for real-space integration:
+        # sum(ρ) * dvol ~ ∫ρ.
+        c.Δ_measure = norm(current_measure .- c.last_measure) * sqrt(basis.dvol)
+        # gives the L²-norm of ρ normalized over a unit cell
+        c.last_measure .= current_measure
+        if c.tolerance > c.Δ_measure
+            c.at_iteration = k
+            return true
+        end
     end
     return false
 end
@@ -175,8 +181,9 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     prec_functor=ManoptPreconditioner!,
     prec_type=DFTK.PreconditionerTPA,
     solver=QuasiNewtonState,       #previously: optim_method=Manopt.quasi_Newton,
-    alphaguess=nothing,           #TODO: not implemented
-    # linesearch=LineSearches.BackTracking(), #TODO: Take one form Manopt as default?
+    alphaguess=nothing,           #TODO: not implemented - wht was that? How to set?
+    linesearch=ArmijoLineSearch(),
+    #Former default: LineSearches.BackTracking(),
     manifold_constructor=(n, k) -> Manifolds.Stiefel(n, k, ℂ),
     kwargs...                     # TODO: pass kwargs to solver
 
@@ -206,37 +213,30 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     # Part II: Setup solver
     #
     #
-
     # Initialize the product manifold
-    # ⚠️ TODO: It's hard-coded to be Stiefel, but could be made to be generalized
-    # Stifel & Grassmann
     dimensions = size.(ψ) # Vector of toupples of ψ dimensions
-    # Should just be able to switch to grassmann on this line only!!
     manifold_array = map(dim -> manifold_constructor(dim[1], dim[2]), dimensions)
     product_manifold = ProductManifold(manifold_array...)
-
     # Initialize the preconditioner
     Pks = [prec_type(basis, kpt) for kpt in basis.kpoints]
     Preconditioner = prec_functor(Nk, Pks, basis.kweights)
-
     # Repackage the ψ into a more efficient structure
     recursive_ψ = ArrayPartition(ψ...)
     X = deepcopy(recursive_ψ) * NaN
-    cost_rgrad! = CostGradFunctor!(basis,      # not modifying
-        occupation, # not modifying
-        Nk,         # not modifying
-        filled_occ, # not modifying
+    cost_rgrad! = CostGradFunctor!(basis,
+        occupation,
+        Nk,
+        filled_occ,
+        # We use the following ones as cache to here we generate copies of the corresponding
+        # DFTK variables
         deepcopy(ψ),
         deepcopy(X),
         deepcopy(ρ),
         deepcopy(energies),
         deepcopy(ham)
     )
-    # TODO : move to a generic linesearch argument
-    ls_custom = Manopt.LineSearchesStepsize(product_manifold, linesearch)
-
     # should be able to handle both Δψ and Δρ
-    # TODO: Is that necessary?
+    # TODO: Is that necessary? What would be best to store in the StoppingCriterion?
     function fetch_ρ(cost_rgrad!, state)
         return cost_rgrad!.objective.cost.ρ # if no LRU cache
         #return cost_rgrad!.objective.objective.objective.cost.ρ # return_objective = true
