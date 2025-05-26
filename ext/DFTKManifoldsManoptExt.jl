@@ -185,6 +185,11 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     linesearch=ArmijoLineSearch(),
     #Former default: LineSearches.BackTracking(),
     manifold_constructor=(n, k) -> Manifolds.Stiefel(n, k, ℂ),
+    # TODO:
+    # Add a generic stopping criterion
+    # Add a retraction
+    # find a way to specify a good preconditioner keyword argument
+    # find a way to maybe nicely specify cost and grad?
     kwargs...                     # TODO: pass kwargs to solver
 
 ) where {T}
@@ -279,6 +284,10 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
             stopping_criterion=custom_stopping_crit | StopAfterIteration(maxiter),
         )
     end
+    # TODO: Generate Problem
+    # TODO: Decorate problem and state
+    # TODO: call solve!
+
     # Parti III: Collect result in a struct and return that
     #
     #
