@@ -102,6 +102,13 @@ end
 """
     StopWhenFunctionLess
 
+    StopWhenRhoDensityLess
+    (Check, they are listed in )
+
+TODO Check to adapt to wrap
+  `ScfConvergenceDensity(tol)` (the default), `ScfConvergenceEnergy(tol)` or `ScfConvergenceForce(tol)`.
+
+
 TODO Improve naming
 TODO Document formula that is used
 
@@ -115,18 +122,21 @@ TODO Document formula that is used
 mutable struct StopWhenFunctionLess{M,R<:Real} <: Manopt.StoppingCriterion
     tolerance::Float64
     at_iteration::Int
+    #Call this one get_density,
     get_current_measure::Function # f(P, state) -> M
-    last_measure::M
+    last_measure::M # Maybe just density measure? becomes last_density
     Δ_measure::R
 end
 function StopWhenFunctionLess(tol::Float64, f::Function, m)
     #TODO: Can we initialise the last measure?
-    return StopWhenFunctionLess{typeof(m)}(tol, -1, f, nothing, 0.0)
+    return StopWhenFunctionLess{typeof(m)}(tol, -1, f, m, 0.0)
 end
 function (c::StopWhenFunctionLess{M})(
     problem::P, state::S, k::Int
 ) where {M,P<:Manopt.AbstractManoptProblem,S<:Manopt.AbstractManoptState}
     current_measure = c.get_current_measure(problem, state)
+    # get_density(problem, get_iterate(state))
+    # or use get_parameter(problem :Cost, :Density)  from Manopt
     if k == 0 # reset on init
         c.at_iteration = -1
         # TODO: Change to something more reasonable.
@@ -182,6 +192,7 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     prec_type=DFTK.PreconditionerTPA,
     solver=QuasiNewtonState,       #previously: optim_method=Manopt.quasi_Newton,
     alphaguess=nothing,           #TODO: not implemented - wht was that? How to set?
+    # This is the initial linesearch guess for a lineserach (LineSearches.jl or Armijo or so.)
     linesearch=ArmijoLineSearch(),
     #Former default: LineSearches.BackTracking(),
     manifold_constructor=(n, k) -> Manifolds.Stiefel(n, k, ℂ),
@@ -190,6 +201,7 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     # Add a retraction
     # find a way to specify a good preconditioner keyword argument
     # find a way to maybe nicely specify cost and grad?
+    # TODO Check the old callback= keyword
     kwargs...                     # TODO: pass kwargs to solver
 
 ) where {T}
@@ -247,6 +259,10 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
         #return cost_rgrad!.objective.objective.objective.cost.ρ # return_objective = true
         #return cost_rgrad!.objective.objective.cost.ρ # using LRU cache
     end
+    # Can be simplified if we just use Rho
+    # maybe use set_parameter! for Rho on SC and that updates.
+    # Check what yould be done for the other checks.deltaCost
+
     custom_stopping_crit = StopWhenFunctionLess(tol, fetch_ρ, ρ)
 
     # TODO: Generalize to all solver states instead of high-level interfaces
@@ -295,6 +311,7 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     rgrad_cost_function = cost_rgrad!(product_manifold, X, recursive_ψ)
     # Bundle the variables in a NamedTuple for debugging:
     # TODO: Check which we need and should return
+    # TODO: Check with the PR which one we should add here
     debug_info = (
         info="This object is summarizing variables for debugging purposes",
         #=
@@ -312,7 +329,7 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
         =#
         cost_function=cost_function,
         rgrad_cost_function=rgrad_cost_function,
-        solved_state=solved_state,
+        solver_state=solver_state,
     )
     debug_info
 end
