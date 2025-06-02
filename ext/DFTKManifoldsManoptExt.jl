@@ -42,31 +42,36 @@ end
 
 TODO: Document and improve naming
 """
-mutable struct CostGradFunctor!{T,S,P,X,R,E,H} # Parametric constructor
+mutable struct CostGradFunctor!{T,S,P,X,R,E,H}
     basis::PlaneWaveBasis{T}
     occupation::Vector{S}
     Nk::Int
     filled_occ::Int
-    dftk_p::P # store p as a vector of matrices, as expected by DFTK
-    local_X::X  # Memoization
-    ρ::R        # Memoization
-    energies::E # Memoization
-    ham::H      # Memoization
+    ψ::P        # last iterate, While it is an `ArrayPartition` `p` iterate in Manopt, we store it as a vector, i.e. in the ψ format for DFTK
+    local_X::X  # last gradient
+    ρ::R        # the last density
+    energies::E # the last vector of energies
+    ham::H      # the last Hamiltonian
 end
 # Function shared by both cost and gradient of cost:
 function _compute_density_energy_hamiltonian!(cgf::CostGradFunctor!,
     M::ProductManifold,
     p::ArrayPartition)
-    copyto!(cgf.dftk_p, (copy(x) for x in p.x)) # deepcopyto!
-    copyto!(cgf.ρ, compute_density(cgf.basis, cgf.dftk_p, cgf.occupation))
+    # Can we improve this by copying elementwise?
+    # copyto!(cgf.ψ, (copy(x) for x in p.x)) # deepcopyto!
+    # Maybe like
+    for i in eachindex(cgf.ψ)
+        copyto!(cgf.ψ[i], p[M,i])
+    end
+    copyto!(cgf.ρ, compute_density(cgf.basis, cgf.ψ, cgf.occupation))
     # Below not inplace, but probably not that important.
-    cgf.energies, cgf.ham = energy_hamiltonian(cgf.basis, cgf.dftk_p, cgf.occupation; cgf.ρ)
+    cgf.energies, cgf.ham = energy_hamiltonian(cgf.basis, cgf.ψ, cgf.occupation; cgf.ρ)
 end
 # The cost function:
 function (cgf::CostGradFunctor!)(M::ProductManifold,
     p::ArrayPartition)
     # Memoization check: Are we still at the same point?
-    if any(cgf.dftk_p[i] != p[M, i] for i in eachindex(cgf.dftk_p))
+    if any(cgf.ψ[i] != p[M, i] for i in eachindex(cgf.ψ))
         _compute_density_energy_hamiltonian!(cgf, M, p)
     end
     return cgf.energies.total
@@ -76,14 +81,14 @@ function (cgf::CostGradFunctor!)(M::ProductManifold,
     X::ArrayPartition,
     p::ArrayPartition)
     # Memoization check: Is this X allready been computed?
-    if any(cgf.local_X[M, i] == X[M, i] for i in eachindex(cgf.dftk_p))
+    if all(cgf.local_X[M, i] == X[M, i] for i in eachindex(cgf.ψ))
         # Are we still at the same point?
-        if any(cgf.dftk_p[i] == p[M, i] for i in eachindex(cgf.dftk_p))
+        if all(cgf.ψ[i] == p[M, i] for i in eachindex(cgf.ψ))
             return X
         end
     end
     # Memoization check: Are we still at the same point?
-    if any(cgf.dftk_p[i] != p[M, i] for i in eachindex(cgf.dftk_p))
+    if any(cgf.ψ[i] != p[M, i] for i in eachindex(cgf.ψ))
         _compute_density_energy_hamiltonian!(cgf, M, p)
     end
     # Compute the Euclidean gradient in-place
@@ -201,7 +206,7 @@ TODO: Documentation
 
 # Keyword Arguments
 * `manifold_constructor=(n,k) -> Stiefel(n,k,ℂ)`: A function that constructs the manifold for the optimization.
-  It maps the dimensions `(n,k)` to a manifold to be used per compponent. The default is the complex Stiefel manifold
+  It maps the dimensions `(n,k)` to a manifold to be used per component. The default is the complex Stiefel manifold
 """
 function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     ψ=nothing,
@@ -221,6 +226,7 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     stepsize=ArmijoLineSearch(),
     #Former default: LineSearches.BackTracking(),
     manifold_constructor=(n, k) -> Manifolds.Stiefel(n, k, ℂ),
+    # TODO: Should this be unifies with the functors in scf_callbacks.jl? We do not have the info-magic available here
     stopping_criterion = Manopt.StopAfterIteration(maxiter) | StopWhenDensityChangeLess(tol, _ρ),
     retraction_method=Manifolds.ProjectionRetraction(),
     vector_transport_method=Manifolds.ProjectionTransport(),
@@ -252,7 +258,6 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     Preconditioner = prec_functor(Nk, Pks, basis.kweights)
     # Repackage the ψ into a more efficient structure
     recursive_ψ = ArrayPartition(ψ...)
-    X = deepcopy(recursive_ψ) * NaN
     if isnothing(cost_grad!!)
         cost_rgrad!! = CostGradFunctor!(basis,
             _occupation,
@@ -320,6 +325,7 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
         occupation  	 = occupation,
         ρ 				 = cost_rgrad!.ρ,
         =#
+        # The “pure” solver state without debug/records.
         solver_state=Manopt.get_state(deco_state,true),
     )
     debug_info
