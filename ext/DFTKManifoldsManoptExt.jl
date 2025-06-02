@@ -98,79 +98,98 @@ end
 
 #
 #
-#
+# Stopping Criteria
+get_parameter(energy_costgrad::CostGradFunctor!, ::Val{:ρ}) = energy_costgrad.ρ
+get_parameter(energy_costgrad::CostGradFunctor!, ::Val{:energies}) = energy_costgrad.energies
+
 """
-    StopWhenFunctionLess
+    StopWhenDensityChangeLess{T}
 
-    StopWhenRhoDensityLess
-    (Check, they are listed in )
-
-TODO Check to adapt to wrap
-  `ScfConvergenceDensity(tol)` (the default), `ScfConvergenceEnergy(tol)` or `ScfConvergenceForce(tol)`.
-
-
-TODO Improve naming
-TODO Document formula that is used
-
-# Fields
-* `tolerance::Float64`: tolerance for the stopping criterion
-* `at_iteration::Int`: an internal field to indicate that at a certain iteration, the stop was indicated
-* `get_current_measure::Function`: TODO: Check what this should be
-* `last_measure::M`: TODO Check what this should be
-* `Δ_measure::R`: TODO: Check what this should be
+TODO: Document
 """
-mutable struct StopWhenFunctionLess{M,R<:Real} <: Manopt.StoppingCriterion
-    tolerance::Float64
+mutable struct StopWhenDensityChangeLess{T,F<:Real} <: Manopt.StoppingCriterion
+    tolerance::F
     at_iteration::Int
-    #Call this one get_density,
-    get_current_measure::Function # f(P, state) -> M
-    last_measure::M # Maybe just density measure? becomes last_density
-    Δ_measure::R
+    #TODO: Ask and document: Is ρ just a 4D array or does it live on some manifold?
+    last_ρ::T
+    last_change::F
 end
-function StopWhenFunctionLess(tol::Float64, f::Function, m)
-    #TODO: Can we initialise the last measure?
-    return StopWhenFunctionLess{typeof(m)}(tol, -1, f, m, 0.0)
+function StopWhenDensityChangeLess(tol::F, ρ::T) where {T, F<:Real}
+    return StopWhenDensityChangeLess{T,F}(tol, -1, ρ, 2*tol)
 end
-function (c::StopWhenFunctionLess{M})(
-    problem::P, state::S, k::Int
-) where {M,P<:Manopt.AbstractManoptProblem,S<:Manopt.AbstractManoptState}
-    current_measure = c.get_current_measure(problem, state)
-    # get_density(problem, get_iterate(state))
-    # or use get_parameter(problem :Cost, :Density)  from Manopt
+function (c::StopWhenDensityChangeLess)(problem::P, state::S, k::Int) where {P<:Manopt.AbstractManoptProblem,S<:Manopt.AbstractManoptState}
+    current_ρ = get_parameter(Manopt.get_objective(problem), :ρ)
     if k == 0 # reset on init
         c.at_iteration = -1
-        # TODO: Change to something more reasonable.
-        c.last_measure .= current_measure
-        c.Δ_measure = 0.0
+        c.last_ρ .= current_ρ
+        c.last_change = 2*c.tolerance
         return false
-    else
-        # basis.dvol::Float64 = model.unit_cell_volume ./ prod(fft_size)
-        # is the volume element for real-space integration:
-        # sum(ρ) * dvol ~ ∫ρ.
-        c.Δ_measure = norm(current_measure .- c.last_measure) * sqrt(basis.dvol)
-        # gives the L²-norm of ρ normalized over a unit cell
-        c.last_measure .= current_measure
-        if c.tolerance > c.Δ_measure
-            c.at_iteration = k
-            return true
-        end
+    end
+    c.last_change = norm(current_ρ - c.last_ρ)
+    c.last_ρ .= current_ρ
+    if c.last_change < c.tolerance
+        c.at_iteration = k
+        return true
     end
     return false
 end
-function Manopt.get_reason(c::StopWhenFunctionLess)
+function Manopt.get_reason(c::StopWhenDensityChangeLess)
     if c.at_iteration >= 0
-        return "At iteration $(c.at_iteration) the algorithm performed a step with a change (log10: $(@sprintf("%.2e", log10(c.Δ_measure)))) less than ($(@sprintf("%.2e", c.tolerance))).\n"
+        return "At iteration $(c.at_iteration) the algorithm performed a step with a Density change ($(c.last_change)) less than $(c.tolerance)."
     end
     return ""
 end
-function Manopt.status_summary(c::StopWhenFunctionLess)
+function Manopt.status_summary(c::StopWhenDensityChangeLess)
     has_stopped = (c.at_iteration >= 0)
     s = has_stopped ? "reached" : "not reached"
-    return "|Δ_measure| = $(c.Δ_measure) < $(c.tolerance):\t$s"
+    return "|Δρ| = $(c.last_change) < $(c.tolerance):\t$s"
 end
-function Base.show(io::IO, c::StopWhenFunctionLess)
-    return print(io, "StopWhenChangeLess with threshold $(c.tolerance)$(s).\n    $(status_summary(c))")
+function Base.show(io::IO, c::StopWhenDensityChangeLess)
+    return print(io, "StopWhenDensityChangeLess with threshold $(c.tolerance)$.\n    $(status_summary(c))")
 end
+# TODO: This is also the same as generically Saying StopWhenCostChangeLess?
+# If so we could generically implement that in Manopt as well
+"""
+    StopWhenEnergyChangeLess{T}
+
+
+"""
+mutable struct StopWhenEnergyChangeLess{T,F<:Real} <: Manopt.StoppingCriterion
+    tolerance::F
+    at_iteration::Int
+    last_energy_total::T
+    last_change::F
+end
+function StopWhenEnergyChangeLess(tol::F, energy_total::T=0.0) where {T, F<:Real}
+    return StopWhenEnergyChangeLess{T,F}(tol, -1, energy_total, 2*tol)
+end
+function Manopt.get_reason(c::StopWhenEnergyChangeLess)
+    if c.at_iteration >= 0
+        return "At iteration $(c.at_iteration) the algorithm performed a step with a Energy change ($(c.last_change)) less than $(c.tolerance)."
+    end
+    return ""
+end
+function Manopt.status_summary(c::StopWhenEnergyChangeLess)
+    has_stopped = (c.at_iteration >= 0)
+    s = has_stopped ? "reached" : "not reached"
+    return "|ΔE| = $(c.last_change) < $(c.tolerance):\t$s"
+end
+function Base.show(io::IO, c::StopWhenEnergyChangeLess)
+    return print(io, "StopWhenEnergyChangeLess with threshold $(c.tolerance).\n    $(status_summary(c))")
+end
+
+# TODO: Add a StopWhenForceLess?
+
+# TODO: Should we have Records / Debugs for
+# * ρ
+# * energies
+# * total energy
+# * anything else the cost computes interimswise?
+# (fields from the solver can automatically be recorded anyways)
+
+#
+#
+# The direct minimization interface
 
 """
     direct_minimization(basis::DFTK.PlaneWaveBasis{T}; kwargs...
@@ -186,22 +205,30 @@ TODO: Documentation
 """
 function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     ψ=nothing,
+    # small internal helpers to make keywords nicer
+    _n_bands=div(basis.model.n_electrons, basis.model.n_spin_components * filled_occupation(model), RoundUp),
+    _ψ=isnothing(ψ) ? [random_orbitals(basis, kpt, _n_bands) for kpt in basis.kpoints] : ψ,
+    _occupation=[DFTK.filled_occupation(basis.model) * ones(T, _n_bands) for _ = 1:length(basis.kpoints)],
+    _ρ=compute_density(basis, _ψ, _occupation),
+    _energies=DFTK.energy(basis, _ψ, _occupation; ρ=_ρ)[:energies],
     tol=1e-6,
     maxiter=1_000,
     prec_functor=ManoptPreconditioner!,
     prec_type=DFTK.PreconditionerTPA,
     solver=QuasiNewtonState,       #previously: optim_method=Manopt.quasi_Newton,
     alphaguess=nothing,           #TODO: not implemented - wht was that? How to set?
-    # This is the initial linesearch guess for a lineserach (LineSearches.jl or Armijo or so.)
-    linesearch=ArmijoLineSearch(),
+    # This is the initial linesearch guess for a linesearch (LineSearches.jl or Armijo or so.)
+    stepsize=ArmijoLineSearch(),
     #Former default: LineSearches.BackTracking(),
     manifold_constructor=(n, k) -> Manifolds.Stiefel(n, k, ℂ),
-    # TODO:
-    # Add a generic stopping criterion
-    # Add a retraction
+    stopping_criterion = Manopt.StopAfterIteration(maxiter) | StopWhenDensityChangeLess(tol, _ρ),
+    retraction_method=Manifolds.ProjectionRetraction(),
+    vector_transport_method=Manifolds.ProjectionTransport(),
+    evaluation=InplaceEvaluation(),
+    # TODO
     # find a way to specify a good preconditioner keyword argument
     # find a way to maybe nicely specify cost and grad?
-    # TODO Check the old callback= keyword
+    # TODO Check the old callback= keyword – can we adapt those?
     kwargs...                     # TODO: pass kwargs to solver
 
 ) where {T}
@@ -211,113 +238,79 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     model = basis.model
     @assert iszero(model.temperature)  # temperature is not yet supported
     @assert isnothing(model.εF)        # neither are computations with fixed
-    # Fermi level
-    # Maximal occupation of a state (2 for non-spin-polarized electrons, 1 otherwise).
-    filled_occ = DFTK.filled_occupation(model)
-    n_spin = model.n_spin_components
-    n_bands = div(model.n_electrons, n_spin * filled_occ, RoundUp)
     Nk = length(basis.kpoints)
-    if isnothing(ψ)
-        ψ = [DFTK.random_orbitals(basis, kpt, n_bands) for kpt in basis.kpoints]
-        # Filling it with wandom complex numbers. Prob. normalized
-    else
-        ψ = deepcopy(ψ)
-    end
-    occupation = [filled_occ * ones(T, n_bands) for _ = 1:Nk]
-    ρ = compute_density(basis, ψ, occupation)
-    energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ)
-
+    energies, ham = energy_hamiltonian(basis, _ψ, _occupation; ρ = _ρ)
     # Part II: Setup solver
     #
     #
     # Initialize the product manifold
     dimensions = size.(ψ) # Vector of toupples of ψ dimensions
     manifold_array = map(dim -> manifold_constructor(dim[1], dim[2]), dimensions)
-    product_manifold = ProductManifold(manifold_array...)
-    # Initialize the preconditioner
+    manifold = ProductManifold(manifold_array...)
+    # Initialize the preconditioner TODO: Improve interface/construction
     Pks = [prec_type(basis, kpt) for kpt in basis.kpoints]
     Preconditioner = prec_functor(Nk, Pks, basis.kweights)
     # Repackage the ψ into a more efficient structure
     recursive_ψ = ArrayPartition(ψ...)
     X = deepcopy(recursive_ψ) * NaN
-    cost_rgrad! = CostGradFunctor!(basis,
-        occupation,
-        Nk,
-        filled_occ,
-        # We use the following ones as cache to here we generate copies of the corresponding
-        # DFTK variables
-        deepcopy(ψ),
-        deepcopy(X),
-        deepcopy(ρ),
-        deepcopy(energies),
-        deepcopy(ham)
-    )
-    # should be able to handle both Δψ and Δρ
-    # TODO: Is that necessary? What would be best to store in the StoppingCriterion?
-    function fetch_ρ(cost_rgrad!, state)
-        return cost_rgrad!.objective.cost.ρ # if no LRU cache
-        #return cost_rgrad!.objective.objective.objective.cost.ρ # return_objective = true
-        #return cost_rgrad!.objective.objective.cost.ρ # using LRU cache
+    if isnothing(cost_grad!!)
+        cost_rgrad!! = CostGradFunctor!(basis,
+            _occupation,
+            Nk,
+            filled_occupation(model),
+            deepcopy(ψ),
+            zero_vector(manifold, recursive_ψ), # X is a zero vector of the same type as ψ
+            deepcopy(_ρ), # TODO: deepcopy necessary?
+            deepcopy(energies),
+            deepcopy(ham)
+        )
     end
-    # Can be simplified if we just use Rho
-    # maybe use set_parameter! for Rho on SC and that updates.
-    # Check what yould be done for the other checks.deltaCost
+    local_cost = (M,p) -> cost_rgrad!(M, p) # local cost function
+    if evaluation == InplaceEvaluation()
+        local_grad!! = (M,X,p) -> cost_rgrad!(M, X, p)
+    else
+        local_grad!! = (M,p) -> cost_rgrad!(M, zero_vector(M,p), p)
+    end
+    # Build Objective & Problem
+    objective = Manopt.ManifoldGradientObjective(local_cost, local_grad!!; evaluation=evaluation)
+    deco_obj = Manopt.decorate!(manifold, objective; kwargs...)
+    problem = Manopt.DefaultManoptProblem(manifold, deco_obj)
 
-    custom_stopping_crit = StopWhenFunctionLess(tol, fetch_ρ, ρ)
-
-    # TODO: Generalize to all solver states instead of high-level interfaces
-    solved_state = 0 # initialize
-    if optim_method == Manopt.gradient_descent
-        solved_state = gradient_descent!(
-            product_manifold,
-            #cost_rgrad_wrapper,
-            cost_rgrad!, # cost functor;     (cgf)(M,p)
-            cost_rgrad!, # gradient functor; (cgf)(M,X,p)
-            recursive_ψ;
-            return_state=true,
-            evaluation=InplaceEvaluation(),
-            stepsize=ls_custom,
-            #
+    state = solver(
+        manifold,
+        recursive_ψ;
+        stopping_criterion=stopping_criterion,
+        retraction_method=retraction_method,
+        vector_transport_method=vector_transport_method,
+        stepsize=stepsize,
+    # TODO: Add a way to specify the preconditioner depending on the solver
+    # preconditioner=Preconditioner,
+    kwargs...)
+    #=  Gradient Descent Precon was:
             direction=PreconditionedDirection(
                 (M, Y, p, X) -> Preconditioner(M, Y, p, X);
                 evaluation=InplaceEvaluation()
             ),
-            stopping_criterion=custom_stopping_crit | StopAfterIteration(maxiter),
-        )
-    elseif optim_method == Manopt.quasi_Newton
-        solved_state = quasi_Newton!(
-            product_manifold,
-            #cost_rgrad_wrapper,
-            cost_rgrad!, # cost functor;     (cgf)(M,p)
-            cost_rgrad!, # gradient functor; (cgf)(M,X,p)
-            recursive_ψ;
-            return_state=true,
-            evaluation=InplaceEvaluation(),
-            stepsize=ls_custom,
-            memory_size=10,
-            vector_transport_method=ProjectionTransport(),
+        Quasi Newton Precon was:
             preconditioner=(M, Y, p, X) -> Preconditioner(M, Y, p, X),
-            stopping_criterion=custom_stopping_crit | StopAfterIteration(maxiter),
-        )
-    end
-    # TODO: Generate Problem
-    # TODO: Decorate problem and state
-    # TODO: call solve!
-
+        ...and it furher had
+            memory_size=10,
+        ...but they could also just be kwargs I think
+    =#
+    deco_state = Manopt.decorate!(state; kwargs...)
+    Manopt.solve!(problem, deco_state;)
     # Parti III: Collect result in a struct and return that
     #
     #
-    cost_function = cost_rgrad!(product_manifold, recursive_ψ)
-    rgrad_cost_function = cost_rgrad!(product_manifold, X, recursive_ψ)
     # Bundle the variables in a NamedTuple for debugging:
     # TODO: Check which we need and should return
     # TODO: Check with the PR which one we should add here
     debug_info = (
         info="This object is summarizing variables for debugging purposes",
-        #=
         recursive_ψ=recursive_ψ,
+        product_manifold=manifold,
+        #=
         ψ_reconstructed = typeof(collect(recursive_ψ.x)),
-        product_manifold = product_manifold,
         model       	 = model,
         filled_occ  	 = filled_occ,
         n_spin      	 = n_spin,
@@ -327,9 +320,7 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
         occupation  	 = occupation,
         ρ 				 = cost_rgrad!.ρ,
         =#
-        cost_function=cost_function,
-        rgrad_cost_function=rgrad_cost_function,
-        solver_state=solver_state,
+        solver_state=Manopt.get_state(deco_state,true),
     )
     debug_info
 end
