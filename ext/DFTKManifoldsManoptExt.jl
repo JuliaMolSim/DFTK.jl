@@ -263,7 +263,7 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
             (M, Y, p, X) -> Preconditioner(M, Y, p, X);
             evaluation=InplaceEvaluation()
         ),
-        # Set default, can stil be overwritten by kwargs...
+        # Set default, can still be overwritten by kwargs...
         stepsize=Manopt.ArmijoLineSearch(),
         retraction_method=Manifolds.ProjectionRetraction(),
         vector_transport_method=Manifolds.ProjectionTransport(),
