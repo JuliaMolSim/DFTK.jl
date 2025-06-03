@@ -280,7 +280,6 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     # TODO: Check with the PR which one we should add here
     debug_info = (
         info="This object is summarizing variables for debugging purposes",
-        recursive_ψ=recursive_ψ,
         product_manifold=manifold,
         ψ_reconstructed = collect(recursive_ψ.x),
         model       	 = model,
