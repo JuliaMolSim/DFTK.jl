@@ -8,6 +8,8 @@ Note. Requires now Manopt to work.
 """
 function direct_minimization end
 
+function StopWhenDensityChangeLess end
+
 #=
 
 TODO Remove once transcription to Manopt is complete and tests are running again

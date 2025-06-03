@@ -71,7 +71,7 @@ end
 function (cgf::CostGradFunctor!)(M::ProductManifold,
     p::ArrayPartition)
     # Memoization check: Are we still at the same point?
-    if any(cgf.ψ[i] != p[M, i] for i in eachindex(cgf.ψ))
+    if all(cgf.ψ[i] == p[M, i] for i in eachindex(cgf.ψ))
         _compute_density_energy_hamiltonian!(cgf, M, p)
     end
     return cgf.energies.total
@@ -88,7 +88,7 @@ function (cgf::CostGradFunctor!)(M::ProductManifold,
         end
     end
     # Memoization check: Are we still at the same point?
-    if any(cgf.ψ[i] != p[M, i] for i in eachindex(cgf.ψ))
+    if all(cgf.ψ[i] == p[M, i] for i in eachindex(cgf.ψ))
         _compute_density_energy_hamiltonian!(cgf, M, p)
     end
     # Compute the Euclidean gradient in-place
@@ -105,14 +105,13 @@ end
 #
 # Stopping Criteria
 get_parameter(energy_costgrad::CostGradFunctor!, ::Val{:ρ}) = energy_costgrad.ρ
-get_parameter(energy_costgrad::CostGradFunctor!, ::Val{:energies}) = energy_costgrad.energies
 
 """
     StopWhenDensityChangeLess{T}
 
 TODO: Document
 """
-mutable struct StopWhenDensityChangeLess{T,F<:Real} <: Manopt.StoppingCriterion
+mutable struct DFTK.StopWhenDensityChangeLess{T,F<:Real} <: Manopt.StoppingCriterion
     tolerance::F
     at_iteration::Int
     #TODO: Ask and document: Is ρ just a 4D array or does it live on some manifold?
@@ -121,6 +120,10 @@ mutable struct StopWhenDensityChangeLess{T,F<:Real} <: Manopt.StoppingCriterion
 end
 function StopWhenDensityChangeLess(tol::F, ρ::T) where {T, F<:Real}
     return StopWhenDensityChangeLess{T,F}(tol, -1, ρ, 2*tol)
+end
+# Do a factory for the case we do not have a ρ yet.
+function StopWhenDensityChangeLess(tol::F)
+    return Manopt.ManifoldsDefaultFactory(StopWhenDensityChangeLess{F})(tol)
 end
 function (c::StopWhenDensityChangeLess)(problem::P, state::S, k::Int) where {P<:Manopt.AbstractManoptProblem,S<:Manopt.AbstractManoptState}
     current_ρ = get_parameter(Manopt.get_objective(problem), :ρ)
@@ -152,43 +155,13 @@ end
 function Base.show(io::IO, c::StopWhenDensityChangeLess)
     return print(io, "StopWhenDensityChangeLess with threshold $(c.tolerance)$.\n    $(status_summary(c))")
 end
-# TODO: This is also the same as generically Saying StopWhenCostChangeLess?
-# If so we could generically implement that in Manopt as well
-"""
-    StopWhenEnergyChangeLess{T}
-
-
-"""
-mutable struct StopWhenEnergyChangeLess{T,F<:Real} <: Manopt.StoppingCriterion
-    tolerance::F
-    at_iteration::Int
-    last_energy_total::T
-    last_change::F
-end
-function StopWhenEnergyChangeLess(tol::F, energy_total::T=0.0) where {T, F<:Real}
-    return StopWhenEnergyChangeLess{T,F}(tol, -1, energy_total, 2*tol)
-end
-function Manopt.get_reason(c::StopWhenEnergyChangeLess)
-    if c.at_iteration >= 0
-        return "At iteration $(c.at_iteration) the algorithm performed a step with a Energy change ($(c.last_change)) less than $(c.tolerance)."
-    end
-    return ""
-end
-function Manopt.status_summary(c::StopWhenEnergyChangeLess)
-    has_stopped = (c.at_iteration >= 0)
-    s = has_stopped ? "reached" : "not reached"
-    return "|ΔE| = $(c.last_change) < $(c.tolerance):\t$s"
-end
-function Base.show(io::IO, c::StopWhenEnergyChangeLess)
-    return print(io, "StopWhenEnergyChangeLess with threshold $(c.tolerance).\n    $(status_summary(c))")
-end
 
 # TODO: Add a StopWhenForceLess?
 
 # TODO: Should we have Records / Debugs for
 # * ρ
 # * energies
-# * total energy
+# * total energy (cost)
 # * anything else the cost computes interimswise?
 # (fields from the solver can automatically be recorded anyways)
 
@@ -218,16 +191,17 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     _energies=DFTK.energy(basis, _ψ, _occupation; ρ=_ρ)[:energies],
     tol=1e-6,
     maxiter=1_000,
+    # TODO Naming and format
     prec_functor=ManoptPreconditioner!,
     prec_type=DFTK.PreconditionerTPA,
-    solver=QuasiNewtonState,       #previously: optim_method=Manopt.quasi_Newton,
+    solver=QuasiNewtonState,       # previously: optim_method=Manopt.quasi_Newton,
     alphaguess=nothing,           #TODO: not implemented - wht was that? How to set?
     # This is the initial linesearch guess for a linesearch (LineSearches.jl or Armijo or so.)
-    stepsize=ArmijoLineSearch(),
+    stepsize=Manopt.ArmijoLineSearch(),
     #Former default: LineSearches.BackTracking(),
     manifold_constructor=(n, k) -> Manifolds.Stiefel(n, k, ℂ),
     # TODO: Should this be unifies with the functors in scf_callbacks.jl? We do not have the info-magic available here
-    stopping_criterion = Manopt.StopAfterIteration(maxiter) | StopWhenDensityChangeLess(tol, _ρ),
+    stopping_criterion = Manopt.StopAfterIteration(maxiter) | StopWhenDensityChangeLess(tol),
     retraction_method=Manifolds.ProjectionRetraction(),
     vector_transport_method=Manifolds.ProjectionTransport(),
     evaluation=InplaceEvaluation(),
