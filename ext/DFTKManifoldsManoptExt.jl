@@ -156,14 +156,8 @@ function Base.show(io::IO, c::StopWhenDensityChangeLess)
     return print(io, "StopWhenDensityChangeLess with threshold $(c.tolerance)$.\n    $(status_summary(c))")
 end
 
-# TODO: Add a StopWhenForceLess?
-
 # TODO: Should we have Records / Debugs for
-# * ρ
-# * energies
-# * total energy (cost)
-# * anything else the cost computes interimswise?
-# (fields from the solver can automatically be recorded anyways)
+# * ρ ? A user could also easily to a record/debug themselves.
 
 #
 #
@@ -191,8 +185,7 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     _energies=DFTK.energy(basis, _ψ, _occupation; ρ=_ρ)[:energies],
     tol=1e-6,
     maxiter=1_000,
-    # TODO Naming and format
-    prec_functor=ManoptPreconditioner!,
+    # TODO Naming and format,
     prec_type=DFTK.PreconditionerTPA,
     solver=QuasiNewtonState,       # previously: optim_method=Manopt.quasi_Newton,
     alphaguess=nothing,           #TODO: not implemented - wht was that? How to set?
@@ -206,10 +199,8 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     vector_transport_method=Manifolds.ProjectionTransport(),
     evaluation=InplaceEvaluation(),
     # TODO
-    # find a way to specify a good preconditioner keyword argument
     # find a way to maybe nicely specify cost and grad?
-    # TODO Check the old callback= keyword – can we adapt those?
-    kwargs...                     # TODO: pass kwargs to solver
+    kwargs...
 
 ) where {T}
     # Part 1: Get DFTK variables
@@ -229,7 +220,7 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     manifold = ProductManifold(manifold_array...)
     # Initialize the preconditioner TODO: Improve interface/construction
     Pks = [prec_type(basis, kpt) for kpt in basis.kpoints]
-    Preconditioner = prec_functor(Nk, Pks, basis.kweights)
+    Preconditioner = ManoptPreconditioner!(Nk, Pks, basis.kweights)
     # Repackage the ψ into a more efficient structure
     recursive_ψ = ArrayPartition(ψ...)
     if isnothing(cost_grad!!)
