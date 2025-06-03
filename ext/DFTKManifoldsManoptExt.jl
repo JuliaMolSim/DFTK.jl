@@ -121,9 +121,9 @@ end
 function StopWhenDensityChangeLess(tol::F, ρ::T) where {T, F<:Real}
     return StopWhenDensityChangeLess{T,F}(tol, -1, ρ, 2*tol)
 end
-# Do a factory for the case we do not have a ρ yet.
+# Use the manifold factory trick to postpone the creation here.
 function StopWhenDensityChangeLess(tol::F)
-    return Manopt.ManifoldsDefaultFactory(StopWhenDensityChangeLess{F})(tol)
+    return Manopt.ManifoldDefaultsFactory(StopWhenDensityChangeLess, tol; requires_manifold=false)
 end
 function (c::StopWhenDensityChangeLess)(problem::P, state::S, k::Int) where {P<:Manopt.AbstractManoptProblem,S<:Manopt.AbstractManoptState}
     current_ρ = get_parameter(Manopt.get_objective(problem), :ρ)
@@ -172,31 +172,32 @@ TODO: Documentation
 * `basis::DFTK.PlaneWaveBasis{T}`: The plane wave basis to use for the DFT calculation.
 
 # Keyword Arguments
-* `manifold_constructor=(n,k) -> Stiefel(n,k,ℂ)`: A function that constructs the manifold for the optimization.
+* `manifold_constructor=(n,k) -> Stiefel(n,k,ℂ)`: A function that constructs a single component of the product manifold, which is the domain of the energy functional (cost)
   It maps the dimensions `(n,k)` to a manifold to be used per component. The default is the complex Stiefel manifold
+* `ψ=nothing`: The initial guess for the wave functions. If not provided, random orbitals will be generated.
+* `tol=1e-6`: stop when the change in the density is less than this tolerance. If you set the `stopping_criterion=` directly, this keyword has no effect.
+* `maxiter=1000`: The maximum number of iterations for the optimization. If you set the `stopping_criterion=` directly, this keyword has no effect.
+* `preconditioner=DFTK.PreconditionerTPA`: The preconditioner to use for the optimization.
+* `solver=QuasiNewtonState`: The solver to use for the optimization. Defaults to a quasi-Newton method.
+* `alphaguess=nothing`: ???
+* `stopping_criterion=Manopt.StopAfterIteration(maxiter) | StopWhenDensityChangeLess(tol)`: The stopping criterion for the optimization.
+* `evaluation=InplaceEvaluation()`: The evaluation strategy for the cost and gradient.
+
+All other keyword argments are passed to the solver state constructor as well as to
+both a decorate for the objective and the state.
+This allows to change defaults in the solver settings,
+add for example a cache “around” the objective or add debug and/or recording functionality to the solver run.
 """
 function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     ψ=nothing,
-    # small internal helpers to make keywords nicer
-    _n_bands=div(basis.model.n_electrons, basis.model.n_spin_components * filled_occupation(model), RoundUp),
-    _ψ=isnothing(ψ) ? [random_orbitals(basis, kpt, _n_bands) for kpt in basis.kpoints] : ψ,
-    _occupation=[DFTK.filled_occupation(basis.model) * ones(T, _n_bands) for _ = 1:length(basis.kpoints)],
-    _ρ=compute_density(basis, _ψ, _occupation),
-    _energies=DFTK.energy(basis, _ψ, _occupation; ρ=_ρ)[:energies],
     tol=1e-6,
     maxiter=1_000,
     # TODO Naming and format,
-    prec_type=DFTK.PreconditionerTPA,
-    solver=QuasiNewtonState,       # previously: optim_method=Manopt.quasi_Newton,
-    alphaguess=nothing,           #TODO: not implemented - wht was that? How to set?
-    # This is the initial linesearch guess for a linesearch (LineSearches.jl or Armijo or so.)
-    stepsize=Manopt.ArmijoLineSearch(),
-    #Former default: LineSearches.BackTracking(),
+    preconditioner=DFTK.PreconditionerTPA,
+    solver=QuasiNewtonState,
+    alphaguess=nothing, # TODO: not implemented - wht was that? How to set?
     manifold_constructor=(n, k) -> Manifolds.Stiefel(n, k, ℂ),
-    # TODO: Should this be unifies with the functors in scf_callbacks.jl? We do not have the info-magic available here
     stopping_criterion = Manopt.StopAfterIteration(maxiter) | StopWhenDensityChangeLess(tol),
-    retraction_method=Manifolds.ProjectionRetraction(),
-    vector_transport_method=Manifolds.ProjectionTransport(),
     evaluation=InplaceEvaluation(),
     # TODO
     # find a way to maybe nicely specify cost and grad?
@@ -210,27 +211,32 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     @assert iszero(model.temperature)  # temperature is not yet supported
     @assert isnothing(model.εF)        # neither are computations with fixed
     Nk = length(basis.kpoints)
-    energies, ham = energy_hamiltonian(basis, _ψ, _occupation; ρ = _ρ)
+    n_bands = div(basis.model.n_electrons, basis.model.n_spin_components * filled_occupation(model), RoundUp),
+    ψ = isnothing(ψ) ? [random_orbitals(basis, kpt, n_bands) for kpt in basis.kpoints] : ψ,
+    occupation = [DFTK.filled_occupation(basis.model) * ones(T, n_bands) for _ = 1:length(basis.kpoints)],
+    ρ = compute_density(basis, ψ, occupation),
+    energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
+
     # Part II: Setup solver
     #
     #
     # Initialize the product manifold
-    dimensions = size.(ψ) # Vector of toupples of ψ dimensions
+    dimensions = size.(ψ) # Vector of touples of ψ dimensions
     manifold_array = map(dim -> manifold_constructor(dim[1], dim[2]), dimensions)
     manifold = ProductManifold(manifold_array...)
     # Initialize the preconditioner TODO: Improve interface/construction
-    Pks = [prec_type(basis, kpt) for kpt in basis.kpoints]
+    Pks = [preconditioner(basis, kpt) for kpt in basis.kpoints]
     Preconditioner = ManoptPreconditioner!(Nk, Pks, basis.kweights)
     # Repackage the ψ into a more efficient structure
     recursive_ψ = ArrayPartition(ψ...)
     if isnothing(cost_grad!!)
         cost_rgrad!! = CostGradFunctor!(basis,
-            _occupation,
+            occupation,
             Nk,
             filled_occupation(model),
             deepcopy(ψ),
             zero_vector(manifold, recursive_ψ), # X is a zero vector of the same type as ψ
-            deepcopy(_ρ), # TODO: deepcopy necessary?
+            deepcopy(ρ), # TODO: deepcopy necessary?
             deepcopy(energies),
             deepcopy(ham)
         )
@@ -250,23 +256,20 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
         manifold,
         recursive_ψ;
         stopping_criterion=stopping_criterion,
-        retraction_method=retraction_method,
-        vector_transport_method=vector_transport_method,
-        stepsize=stepsize,
-    # TODO: Add a way to specify the preconditioner depending on the solver
-    # preconditioner=Preconditioner,
-    kwargs...)
-    #=  Gradient Descent Precon was:
-            direction=PreconditionedDirection(
-                (M, Y, p, X) -> Preconditioner(M, Y, p, X);
-                evaluation=InplaceEvaluation()
-            ),
-        Quasi Newton Precon was:
-            preconditioner=(M, Y, p, X) -> Preconditioner(M, Y, p, X),
-        ...and it furher had
-            memory_size=10,
-        ...but they could also just be kwargs I think
-    =#
+        # TODO: Add a way to specify the preconditioner depending on the solver
+        # These two passed to all solvers might be misleading
+        preconditioner=(M, Y, p, X) -> Preconditioner(M, Y, p, X),
+        direction=PreconditionedDirection(
+            (M, Y, p, X) -> Preconditioner(M, Y, p, X);
+            evaluation=InplaceEvaluation()
+        ),
+        # Set default, can stil be overwritten by kwargs...
+        stepsize=Manopt.ArmijoLineSearch(),
+        retraction_method=Manifolds.ProjectionRetraction(),
+        vector_transport_method=Manifolds.ProjectionTransport(),
+        memory_size=10,
+        kwargs...
+    )
     deco_state = Manopt.decorate!(state; kwargs...)
     Manopt.solve!(problem, deco_state;)
     # Parti III: Collect result in a struct and return that
