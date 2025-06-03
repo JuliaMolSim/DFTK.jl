@@ -271,7 +271,7 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
         kwargs...
     )
     deco_state = Manopt.decorate!(state; kwargs...)
-    Manopt.solve!(problem, deco_state;)
+    Manopt.solve!(problem, deco_state)
     # Parti III: Collect result in a struct and return that
     #
     #
@@ -282,17 +282,13 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
         info="This object is summarizing variables for debugging purposes",
         recursive_ψ=recursive_ψ,
         product_manifold=manifold,
-        #=
-        ψ_reconstructed = typeof(collect(recursive_ψ.x)),
+        ψ_reconstructed = collect(recursive_ψ.x),
         model       	 = model,
-        filled_occ  	 = filled_occ,
-        n_spin      	 = n_spin,
         n_bands     	 = n_bands,
-        #Nk          	 = Nk,
+        Nk          	 = Nk,
         ψ           	 = ψ,
         occupation  	 = occupation,
-        ρ 				 = cost_rgrad!.ρ,
-        =#
+        ρ 				 = cost_rgrad!!.ρ,
         # The “pure” solver state without debug/records.
         solver_state=Manopt.get_state(deco_state,true),
     )
