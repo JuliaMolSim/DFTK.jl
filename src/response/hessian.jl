@@ -284,7 +284,11 @@ Input parameters:
     # TODO Can be smarter here, e.g. use mixing to come up with initial guess.
     ε = DielectricAdjoint(ham, ρ, ψ, occupation, εF, eigenvalues, occupation_threshold,
                           bandtolalg, maxiter_sternheimer, q)
-    precon = I  # TODO Use mixing
+
+    # precon = FunctionPreconditioner() do (Pδρ, δρ)
+    #     Pδρ .= mix_density(mixing, basis, δρ; ham, basis, ρin=ρ, εF, eigenvalues, ψ)
+    # end
+    precon = I
     callback_inner(info) = callback(merge(info, (; runtime_ns=time_ns() - start_ns)))
     info_gmres = inexact_gmres(ε, vec(δρ0);
                                tol, precon, krylovdim, maxiter, s,
