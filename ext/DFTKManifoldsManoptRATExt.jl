@@ -98,8 +98,8 @@ function (cgf::CostGradFunctor!)(M::ProductManifold, X, p)
     end
     # Compute the Euclidean gradient in-place
     for ik = 1:cgf.Nk
-        mul!(X[M, ik], cgf.ham.blocks[ik], p[M, ik]) # mul! overload in DFTK
-        get_component(M, X, ik) .*= 2 * cgf.filled_occ * cgf.basis.kweights[ik] # Using get_component(), as "X[M, ik] .*=" is not yet supported in ManifoldsBase.jl
+        DFTK.mul!(X[M, ik], cgf.ham.blocks[ik], p[M, ik]) # mul! overload in DFTK
+        Manifolds.get_component(M, X, ik) .*= 2 * cgf.filled_occ * cgf.basis.kweights[ik] # Using get_component(), as "X[M, ik] .*=" is not yet supported in ManifoldsBase.jl
     end
     riemannian_gradient!(M, X, p, X) # Convert to Riemannian gradient
     copyto!(cgf.local_X, X) # Memoization
@@ -109,6 +109,8 @@ end
 #
 #
 # Stopping Criteria
+get_parameter(objective::Manopt.AbstractManifoldCostObjective, s) = get_parameter(Manopt.get_cost_function(objective), s)
+get_parameter(energy_costgrad::CostGradFunctor!, s::Symbol) = get_parameter(energy_costgrad, Val(s))
 get_parameter(energy_costgrad::CostGradFunctor!, ::Val{:ρ}) = energy_costgrad.ρ
 
 """
@@ -125,10 +127,6 @@ mutable struct StopWhenDensityChangeLess{T,F<:Real} <: Manopt.StoppingCriterion
 end
 function StopWhenDensityChangeLess(tol::F, ρ::T) where {T,F<:Real}
     return StopWhenDensityChangeLess{T,F}(tol, -1, ρ, 2 * tol)
-end
-# Use the manifold factory trick to postpone the creation here.
-function StopWhenDensityChangeLess(tol)
-    return Manopt.ManifoldDefaultsFactory(StopWhenDensityChangeLess, tol; requires_manifold=false)
 end
 function (c::StopWhenDensityChangeLess)(problem::P, state::S, k::Int) where {P<:Manopt.AbstractManoptProblem,S<:Manopt.AbstractManoptSolverState}
     current_ρ = get_parameter(Manopt.get_objective(problem), :ρ)
@@ -195,16 +193,18 @@ add for example a cache “around” the objective or add debug and/or recording
 """
 function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     ψ=nothing,
-    # ρ=guess_density(basis), # would be consistent with other scf solvers
+    ρ=guess_density(basis), # would be consistent with other scf solvers
     tol=1e-6,
     maxiter=1_000,
     # TODO Naming and format,
     preconditioner=DFTK.PreconditionerTPA,
     solver=QuasiNewtonState,
     alphaguess=nothing, # TODO: not implemented - wht was that? How to set?
-    manifold_constructor=(n, k) -> Manifolds.Stiefel(n, k, ℂ),
-    stopping_criterion = Manopt.StopAfterIteration(maxiter) | StopWhenDensityChangeLess(tol),
-    evaluation=InplaceEvaluation(),
+    _manifold=Manifolds.Stiefel,
+    manifold_constructor=(n, k) -> _manifold(n, k, ℂ),
+    stopping_criterion = Manopt.StopAfterIteration(maxiter) | StopWhenDensityChangeLess(tol,ρ),
+    evaluation=Manopt.InplaceEvaluation(),
+    stepsize=Manopt.ArmijoLinesearch(),
     # TODO
     # find a way to maybe nicely specify cost and grad?
     kwargs...
@@ -221,7 +221,6 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     n_bands = div(model.n_electrons, n_spin * filled_occ, RoundUp) # Int
     ψ = isnothing(ψ) ? [DFTK.random_orbitals(basis, kpt, n_bands) for kpt in basis.kpoints] : ψ
     occupation = [filled_occ * ones(T, n_bands) for _ = 1:Nk]
-    ρ = compute_density(basis, ψ, occupation),
     energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
 
     # Part II: Setup solver
@@ -230,7 +229,7 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     # Initialize the product manifold
     dimensions = size.(ψ) # Vector of touples of ψ dimensions
     manifold_array = map(dim -> manifold_constructor(dim[1], dim[2]), dimensions)
-    manifold = ProductManifold(manifold_array...)
+    _manifold = ProductManifold(manifold_array...)
     # Initialize the preconditioner TODO: Improve interface/construction
     Pks = [preconditioner(basis, kpt) for kpt in basis.kpoints]
     Preconditioner = ManoptPreconditioner!(Nk, Pks, basis.kweights)
@@ -240,14 +239,14 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     cost_rgrad! = CostGradFunctor!(basis,
         occupation,
         Nk,
-        filled_occupation(model),
+        filled_occ,
         deepcopy(ψ),
-        zero_vector(manifold, recursive_ψ), # X is a zero vector of the same type as ψ
+        zero_vector(_manifold, recursive_ψ), # X is a zero vector of the same type as ψ
         deepcopy(ρ), # TODO: deepcopy necessary?
         deepcopy(energies),
         deepcopy(ham),
    )
-    local_cost = (M,p) -> cost_rgrad!(M, p) # local cost function
+    local_cost = cost_rgrad! # local cost function
     if evaluation == InplaceEvaluation()
         local_grad!! = (M,X,p) -> cost_rgrad!(M, X, p)
     else
@@ -255,28 +254,28 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     end
     # Build Objective & Problem
     objective = Manopt.ManifoldGradientObjective(local_cost, local_grad!!; evaluation=evaluation)
-    deco_obj = Manopt.decorate!(manifold, objective; kwargs...)
-    problem = Manopt.DefaultManoptProblem(manifold, deco_obj)
-
+    deco_obj = Manopt.decorate_objective!(_manifold, objective; kwargs...)
+    problem = Manopt.DefaultManoptProblem(_manifold, deco_obj)
+    _stepsize = Manopt._produce_type(stepsize, _manifold)
     state = solver(
-        manifold,
-        recursive_ψ;
+        _manifold;
+        p=recursive_ψ,
         stopping_criterion=stopping_criterion,
         # TODO: Add a way to specify the preconditioner depending on the solver
         # These two passed to all solvers might be misleading
-        preconditioner=(M, Y, p, X) -> Preconditioner(M, Y, p, X),
+        preconditioner=QuasiNewtonPreconditioner((M, Y, p, X) -> Preconditioner(M, Y, p, X); evaluation=InplaceEvaluation()),
         direction=PreconditionedDirection(
             (M, Y, p, X) -> Preconditioner(M, Y, p, X);
             evaluation=InplaceEvaluation()
         ),
         # Set default, can still be overwritten by kwargs...
-        stepsize=Manopt.ArmijoLineSearch(),
+        stepsize=_stepsize,
         retraction_method=Manifolds.ProjectionRetraction(),
         vector_transport_method=Manifolds.ProjectionTransport(),
         memory_size=10,
         kwargs...
     )
-    deco_state = Manopt.decorate!(state; kwargs...)
+    deco_state = Manopt.decorate_state!(state; kwargs...)
     Manopt.solve!(problem, deco_state)
     # Parti III: Collect result in a struct and return that
     #
@@ -286,14 +285,14 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     # TODO: Check with the PR which one we should add here
     debug_info = (
         info="This object is summarizing variables for debugging purposes",
-        product_manifold=manifold,
+        product_manifold=_manifold,
         ψ_reconstructed = collect(recursive_ψ.x),
         model       	 = model,
         n_bands     	 = n_bands,
         Nk          	 = Nk,
         ψ           	 = ψ,
         occupation  	 = occupation,
-        ρ 				 = cost_rgrad!!.ρ,
+        ρ                = cost_rgrad!.ρ,
         # The “pure” solver state without debug/records.
         solver_state=Manopt.get_state(deco_state,true),
     )
