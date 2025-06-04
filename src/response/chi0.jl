@@ -107,12 +107,15 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 # where 1-P is the projector on the orthogonal of ψk
 # /!\ It is assumed (and not checked) that ψk'Hk*ψk = Diagonal(εk) (extra states
 # included).
-function sternheimer_solver(Hk, ψk, ε, rhs;
-                            callback=identity,
-                            ψk_extra=zeros_like(ψk, size(ψk, 1), 0), εk_extra=zeros(0),
-                            Hψk_extra=zeros_like(ψk, size(ψk, 1), 0), tol=1e-9,
-                            miniter=1, maxiter=100)
-    basis = Hk.basis
+@timing function sternheimer_solver(Hk, ψk, ε, rhs;
+                                    callback=identity,
+                                    ψk_extra=zeros_like(ψk, size(ψk, 1), 0), εk_extra=zeros(0),
+                                    Hψk_extra=zeros_like(ψk, size(ψk, 1), 0), tol=1e-9,
+                                    miniter=1, maxiter=100)
+    # TODO This whole projector business allocates a lot, which is rather slow.
+    #      We should optimise this a bit to avoid allocations where possible.
+
+    basis  = Hk.basis
     kpoint = Hk.kpoint
 
     # We use a Schur decomposition of the orthogonal of the occupied states
@@ -164,7 +167,7 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     #
     b = -Q(rhs)
     bb = R(b -  Hψk_extra * (ψk_exHψk_ex \ ψk_extra'b))
-    function RAR(ϕ)
+    @timing function RAR(ϕ)
         Rϕ = R(ϕ)
         # Schur complement of (1-P) (H-ε) (1-P)
         # with the splitting Ran(1-P) = Ran(P_extra) ⊕ Ran(R)
@@ -174,7 +177,7 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     # First column of ψk as there is no natural kinetic energy.
     # We take care of the (rare) cases when ψk is empty.
     precondprep!(precon, size(ψk, 2) ≥ 1 ? ψk[:, 1] : nothing)
-    function R_ldiv!(x, y)
+    @timing function R_ldiv!(x, y)
         x .= R(precon \ R(y))
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
@@ -185,7 +188,7 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
 
     # 2) solve for αkn now that we know δψknᴿ
     # Note that αkn is an empty array if there is no extra bands.
-    αkn = ψk_exHψk_ex \ ψk_extra' * (b - H(δψknᴿ))
+    αkn = ψk_exHψk_ex \ (ψk_extra' * (b - H(δψknᴿ)))
 
     δψkn = ψk_extra * αkn + δψknᴿ
 
@@ -347,9 +350,11 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
         sizehint!(residual_norms[ik], length(εk_minus_q))
         sizehint!(n_iter[ik], length(εk_minus_q))
 
-        ψk_extra = ψ_extra[ik]
-        Hψk_extra = Hk * ψk_extra
-        εk_extra  = diag(real.(ψk_extra' * Hψk_extra))
+        ψk_extra  = ψ_extra[ik]
+        @timing "Prepare extra bands" begin
+            Hψk_extra = Hk * ψk_extra
+            εk_extra  = diag(real.(ψk_extra' * Hψk_extra))
+        end
         for n = 1:length(εk_minus_q)
             fnk_minus_q = filled_occ * Smearing.occupation(smearing, (εk_minus_q[n]-εF) / temperature)
 

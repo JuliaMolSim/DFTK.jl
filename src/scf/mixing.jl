@@ -252,12 +252,12 @@ within the model as the SCF converges. Once the density change is below `above_�
 mixing temperature is equal to the model temperature.
 """
 function IncreaseMixingTemperature(; factor=25, above_ρdiff=1e-2, temperature_max=0.5)
-    function callback(temperature; n_iter, ρin=nothing, ρout=nothing, info...)
+    function callback(temperature; n_iter=nothing, ρin=nothing, ρout=nothing, info...)
         if iszero(temperature) || temperature > temperature_max
             return temperature
         elseif isnothing(ρin) || isnothing(ρout)
             return temperature
-        elseif n_iter ≤ 1
+        elseif !isnothing(n_iter) && n_iter ≤ 1
             return factor * temperature
         end
 

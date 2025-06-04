@@ -170,10 +170,15 @@ end
 function (cb::OmegaPlusKDefaultCallback)(info)
     io = stdout
     avgCG = 0.0
-    if haskey(info, :Axinfo) && haskey(info.Axinfo, :n_iter)
+    if haskey(info, :Axinfos) && haskey(first(info.Axinfos), :n_iter)
         # Axinfo: NamedTuple returned by mul_inexact(::DielectricAdjoint, ...)
-        # Sum all CG iterations over all bands, average over k-points
-        avgCG = mpi_mean(mean(sum, info.Axinfo.n_iter), info.Axinfo.basis.comm_kpts)
+        # Axinfos is the collection of all these named tuples since the last callback
+
+        # Sum all CG iterations over all bands and all Axinfos, average over k-points
+        avgCG = sum(info.Axinfos) do Axinfo
+            mean(sum, Axinfo.n_iter)
+        end
+        avgCG = mpi_mean(avgCG, first(info.Axinfos).basis.comm_kpts)
     end
 
     !mpi_master() && return info  # Rest is printing => only do on master
@@ -240,7 +245,7 @@ Input parameters:
 @timing function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
                                     eigenvalues, rhs;
                                     tol=1e-8, verbose=true,
-                                    mixing=LdosMixing(; adjust_temperature=UseScfTemperature()),
+                                    mixing=SimpleMixing(),
                                     factor_initial=1/10, factor_final=1/10,
                                     occupation_threshold,
                                     bandtolalg=BandtolBalanced(ham.basis, ψ, occupation,
@@ -250,6 +255,14 @@ Input parameters:
                                     maxiter=100, krylovdim=20, s=100,
                                     callback=verbose ? OmegaPlusKDefaultCallback() : identity,
                                     kwargs...) where {T}
+    # TODO mixing=LdosMixing(; adjust_temperature=UseScfTemperature()) would be a better
+    #      default in theory, but does not work out of the box, so not done for now
+    # TODO Debug why and enable LdosMixing by default
+    if !(mixing isa SimpleMixing || mixing isa KerkerMixing || mixing isa KerkerDosMixing)
+        @warn("solve_ΩplusK_split has only been tested with one of SimpleMixing, " *
+              "KerkerMixing or KerkerDosMixing")
+    end
+
     # Using χ04P = -Ω^-1, E extension operator (2P->4P) and R restriction operator:
     # (Ω+K)^-1 =  Ω^-1 ( 1 -   K   (1 + Ω^-1 K  )^-1    Ω^-1  )
     #          = -χ04P ( 1 -   K   (1 - χ04P K  )^-1   (-χ04P))
@@ -275,7 +288,7 @@ Input parameters:
                            bandtol=bandtol0, occupation_threshold,
                            q, kwargs...)  # = -χ04P * rhs
         callback((; stage=:noninteracting, runtime_ns=time_ns() - start_ns,
-                    Axinfo=(; basis, tol=tol*factor_initial, res0...)))
+                    Axinfos=[(; basis, tol=tol*factor_initial, res0...)]))
         δρ0 = compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
                          occupation_threshold, q)
     end
@@ -284,11 +297,10 @@ Input parameters:
     # TODO Can be smarter here, e.g. use mixing to come up with initial guess.
     ε = DielectricAdjoint(ham, ρ, ψ, occupation, εF, eigenvalues, occupation_threshold,
                           bandtolalg, maxiter_sternheimer, q)
-
-    # precon = FunctionPreconditioner() do (Pδρ, δρ)
-    #     Pδρ .= mix_density(mixing, basis, δρ; ham, basis, ρin=ρ, εF, eigenvalues, ψ)
-    # end
-    precon = I
+    precon = FunctionPreconditioner() do Pδρ, δρ
+        Pδρ .= vec(mix_density(mixing, basis, reshape(δρ, size(ρ));
+                               ham, basis, ρin=ρ, εF, eigenvalues, ψ))
+    end
     callback_inner(info) = callback(merge(info, (; runtime_ns=time_ns() - start_ns)))
     info_gmres = inexact_gmres(ε, vec(δρ0);
                                tol, precon, krylovdim, maxiter, s,
@@ -320,16 +332,21 @@ Input parameters:
                            bandtol=factor_final * tol, maxiter=maxiter_sternheimer,
                            occupation_threshold, q, kwargs...)
     callback((; stage=:final, runtime_ns=time_ns() - start_ns,
-                Axinfo=(; basis, tol=tol*factor_final, resfinal...)))
+                Axinfos=[(; basis, tol=tol*factor_final, resfinal...)]))
 
     (; resfinal.δψ, δρ, δHψ, δVind, δρ0, δeigenvalues, resfinal.δoccupation, resfinal.δεF,
      ε, info_gmres)
 end
 
 function solve_ΩplusK_split(scfres::NamedTuple, rhs; kwargs...)
+    if (scfres.mixing isa KerkerMixing || scfres.mixing isa KerkerDosMixing)
+        mixing = scfres.mixing
+    else
+        mixing = SimpleMixing()
+    end
     solve_ΩplusK_split(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation,
                        scfres.εF, scfres.eigenvalues, rhs;
-                       scfres.occupation_threshold, scfres.mixing,
+                       scfres.occupation_threshold, mixing,
                        bandtolalg=BandtolBalanced(scfres), kwargs...)
 end
 
@@ -352,7 +369,7 @@ function DielectricAdjoint(scfres; bandtolalg=BandtolBalanced(scfres), q=zero(Ve
     DielectricAdjoint(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation, scfres.εF,
                       scfres.eigenvalues, scfres.occupation_threshold, bandtolalg, maxiter, q)
 end
-function inexact_mul(ε::DielectricAdjoint, δρ; tol=0.0, kwargs...)
+@timing "DielectricAdjoint" function inexact_mul(ε::DielectricAdjoint, δρ; tol=0.0, kwargs...)
     δρ = reshape(δρ, size(ε.ρ))
     basis = ε.ham.basis
     δV = apply_kernel(basis, δρ; ε.ρ, ε.q)

@@ -36,9 +36,10 @@ Overview of parameters:
 - **callback**: Callback function
 - **precon**: Left preconditioner
 """
-function inexact_gmres!(x, A, b::AbstractVector{T};
-                        precon=I, maxiter=100, krylovdim=20, tol=1e-6, s=1.0, callback=identity,
-                        orth::Orthogonalizer=KrylovKit.ModifiedGramSchmidt2()) where {T}
+@timing function inexact_gmres!(x, A, b::AbstractVector{T};
+                                precon=I, maxiter=100, krylovdim=20, tol=1e-6, s=1.0,
+                                callback=identity,
+                                orth::Orthogonalizer=KrylovKit.ModifiedGramSchmidt2()) where {T}
     m = krylovdim
     r = zero(b)  # Storage for residual vector
     w = zero(b)  # Storage for intermediates (precon\Ax or precon\r)
@@ -57,7 +58,7 @@ function inexact_gmres!(x, A, b::AbstractVector{T};
 
     resid_history = zeros(real(T), maxiter)  # Residual norms
     restart_history = Int[]                  # Indices where restart has occurred
-    Axinfo = (; )
+    Axinfos = []
 
     converged = false
     n_iter = 0
@@ -68,14 +69,11 @@ function inexact_gmres!(x, A, b::AbstractVector{T};
             ldiv!(r, precon, b)  # Apply preconditioner
         else
             Ax, Axinfo = inexact_mul(A, x; tol=tol/3)
+            push!(Axinfos, Axinfo)
             w .= b .- Ax
             ldiv!(r, precon, w)  # Apply preconditioner
         end
         y[1] = β = norm(r)
-
-        info = (; y, V, H, R, resid_history=resid_history[1:n_iter], converged, n_iter,
-                 residual_norm=β, maxiter, tol, s, residual=r,
-                 restart_history, stage=:restart, krylovdim, k, Axinfo)
 
         while (n_iter < maxiter && k < m)  # Arnoldi loop
             n_iter += 1
@@ -87,6 +85,7 @@ function inexact_gmres!(x, A, b::AbstractVector{T};
             # Compute new Krylov vector and orthogonalise against subspace
             tolA = tol * s / (3m * abs(y[k]))  # |y[k]| is the estimated residual norm
             p, Axinfo = inexact_mul(A, V[k]; tol=tolA)
+            push!(Axinfos, Axinfo)
             ldiv!(w, precon, p)  # Apply preconditioner
             r, _ = orthogonalize!!(w, V, @view(H[1:k, k]), orth)
             H[k+1, k] = β = norm(r)
@@ -105,8 +104,9 @@ function inexact_gmres!(x, A, b::AbstractVector{T};
 
             info = (; y, V, H, R, resid_history=resid_history[1:n_iter], converged, n_iter,
                      residual_norm=resid_history[n_iter], maxiter, tol, s, residual=r,
-                     restart_history, stage=:iterate, krylovdim, k, Axinfo)
+                     restart_history, stage=:iterate, krylovdim, k, Axinfos)
             callback(info)
+            Axinfos = []
 
             if resid_history[n_iter] < tol
                 # If the guess for s happens to over-estimate the σ(H_m) than we need to
