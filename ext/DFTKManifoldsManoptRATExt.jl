@@ -132,8 +132,8 @@ function (c::StopWhenDensityChangeLess)(problem::P, state::S, k::Int) where {P<:
     current_ρ = get_parameter(Manopt.get_objective(problem), :ρ)
     if k == 0 # reset on init
         c.at_iteration = -1
-        c.last_ρ .= current_ρ
-        c.last_change = 2*c.tolerance
+        c.last_ρ .= 0
+        c.last_change = 2 * c.tolerance
         return false
     end
     c.last_change = norm(current_ρ - c.last_ρ)
@@ -202,9 +202,11 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     alphaguess=nothing, # TODO: not implemented - wht was that? How to set?
     _manifold=Manifolds.Stiefel,
     manifold_constructor=(n, k) -> _manifold(n, k, ℂ),
-    stopping_criterion = Manopt.StopAfterIteration(maxiter) | StopWhenDensityChangeLess(tol,ρ),
+    stopping_criterion = Manopt.StopAfterIteration(maxiter) | StopWhenDensityChangeLess(tol,deepcopy(ρ)),
     evaluation=Manopt.InplaceEvaluation(),
-    stepsize=Manopt.ArmijoLinesearch(),
+    retraction_method=Manifolds.ProjectionRetraction(),
+    vector_transport_method=Manifolds.ProjectionTransport(),
+    stepsize=Manopt.ArmijoLinesearch(; retraction_method=retraction_method),
     # TODO
     # find a way to maybe nicely specify cost and grad?
     kwargs...
@@ -270,9 +272,9 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
         ),
         # Set default, can still be overwritten by kwargs...
         stepsize=_stepsize,
-        retraction_method=Manifolds.ProjectionRetraction(),
-        vector_transport_method=Manifolds.ProjectionTransport(),
+        vector_transport_method=vector_transport_method,
         memory_size=10,
+        retraction_method=retraction_method,
         kwargs...
     )
     deco_state = Manopt.decorate_state!(state; kwargs...)
