@@ -41,10 +41,8 @@ from ase import Atoms
 from ase.calculators.socketio import SocketIOCalculator
 
 h2 = Atoms('H2', positions=[[0, 0, 0], [0, 0, 0.7]])
+h2.calc = SocketIOCalculator(unixsocket="dftk", log="test.log")
 
-calc = SocketIOCalculator(log="test.log")
-
-h2.calc = calc
 h2.get_forces()  # Stalls until you connect a driver
 ```
 
@@ -54,7 +52,7 @@ as well as an LDA calculator with desired numerical parameters:
 
 ```julia
 using AtomsBase
-using AtomsCalculatorsUtilities.IPI
+using IPIcalculator
 using DFTK
 using Unitful
 
@@ -74,5 +72,5 @@ calc = DFTKCalculator(;
 )
 
 # Run IPI driver
-run_driver("127.0.0.1", calc, hydrogen)
+run_driver(hydrogen, calc; unixsocket="dftk")
 ```

@@ -161,11 +161,11 @@ end
 
 struct OmegaPlusKDefaultCallback
     show_time::Bool
-    show_s::Bool
+    show_σmin::Bool
     prev_time::Ref{UInt64}
 end
-function OmegaPlusKDefaultCallback(; show_s=true, show_time=true)
-    OmegaPlusKDefaultCallback(show_time, show_s, Ref(zero(UInt64)))
+function OmegaPlusKDefaultCallback(; show_σmin=false, show_time=true)
+    OmegaPlusKDefaultCallback(show_time, show_σmin, Ref(zero(UInt64)))
 end
 function (cb::OmegaPlusKDefaultCallback)(info)
     io = stdout
@@ -179,8 +179,8 @@ function (cb::OmegaPlusKDefaultCallback)(info)
     !mpi_master() && return info  # Rest is printing => only do on master
 
     show_time  = (hasproperty(info, :runtime_ns) && cb.show_time)
-    label_time = show_time ? ("  Δtime ", "  ------", " "^8) : ("", "", "")
-    label_s    = cb.show_s ? ("  s    ",   "  -----",  " "^7) : ("", "", "")
+    label_time = show_time    ? ("  Δtime ", "  ------", " "^8) : ("", "", "")
+    label_s    = cb.show_σmin ? ("  ≈σ_min", "  ------", " "^8) : ("", "", "")
 
     tstr = ""
     if show_time
@@ -202,12 +202,12 @@ function (cb::OmegaPlusKDefaultCallback)(info)
         n_iter  = info.n_iter
         resstr  = format_log8(info.resid_history[n_iter])
         comment = ((n_iter-1) in info.restart_history) ? "Restart" : ""
-        sstr    = cb.show_s ? (@sprintf "  %5.2f" info.s) : ""
+        sstr    = cb.show_σmin ? (@sprintf "  %6.2f" info.s) : ""
         restart = length(info.restart_history)
         @printf(io, "%4i  %7i  %6i%s  %10s  %7.1f%s  %s\n",
                 n_iter, restart, info.k, sstr, resstr, avgCG, tstr, comment)
     elseif info.stage == :final
-        @printf(io, "%21s%s  %10s  %7.2f%s  %s\n",
+        @printf(io, "%21s%s  %10s  %7.1f%s  %s\n",
                 "", label_s[3], "", avgCG, tstr, "Final orbitals")
     end
     info
@@ -247,7 +247,7 @@ Input parameters:
                                                                eigenvalues; occupation_threshold),
                                     q=zero(Vec3{real(T)}),
                                     maxiter_sternheimer=100,
-                                    maxiter=100, krylovdim=20, s=krylovdim,
+                                    maxiter=100, krylovdim=20, s=100,
                                     callback=verbose ? OmegaPlusKDefaultCallback() : identity,
                                     kwargs...) where {T}
     # Using χ04P = -Ω^-1, E extension operator (2P->4P) and R restriction operator:

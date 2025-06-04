@@ -616,8 +616,10 @@ times the desired density tolerance.
 """
 struct BandtolFactor{T}
     factor::T
+    bandtol_min::T       # Minimal tolerance
 end
-BandtolFactor() = BandtolFactor(1)
+BandtolFactor(T::Type{<:Number}) = BandtolFactor(one(T), eps(T)/2)
+BandtolFactor(factor::T) where T = BandtolFactor(factor, eps(T)/2)
 function determine_band_tolerances(alg::BandtolFactor, tol_density)
-    alg.factor * tol_density
+    max(alg.factor * tol_density, alg.bandtol_min)
 end

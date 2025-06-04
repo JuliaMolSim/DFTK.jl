@@ -117,7 +117,7 @@ function get_kpoint(basis::PlaneWaveBasis{T}, kcoord, spin) where {T}
     if iszero(ΔG)
         kpt = equivalent_kpt
     else
-        kpt =  construct_from_equivalent_kpt(basis.fft_size, equivalent_kpt, kcoord, ΔG)
+        kpt = construct_from_equivalent_kpt(basis.fft_size, equivalent_kpt, kcoord, ΔG)
     end
     (; kpt, equivalent_kpt)
 end
