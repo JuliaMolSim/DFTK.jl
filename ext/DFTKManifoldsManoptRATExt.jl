@@ -1,7 +1,14 @@
-module DFTKManifoldsManoptExt
+module DFTKManifoldsManoptRATExt
+    using DFTK
     using Manopt
     using Manifolds
-    using DFTK
+    using RecursiveArrayTools
+
+function __init__()
+    # A small trick to make the stopping criterion available globally
+    setglobal!(DFTK, :StopWhenDensityChangeLess, StopWhenDensityChangeLess)
+    return nothing
+end
 
 """
     ManoptPreconditioner!{T,S}
@@ -22,9 +29,9 @@ struct ManoptPreconditioner!{T,S}
     kweights::Vector{S}
 end
 function (mp::ManoptPreconditioner!)(M::ProductManifold,
-    Y::ArrayPartition,
-    p::ArrayPartition,
-    X::ArrayPartition)
+    Y,
+    p,
+    X)
     # Update preconditioner
     for ik = 1:mp.Nk
         DFTK.precondprep!(mp.Pks[ik], p[M, ik])
@@ -47,7 +54,7 @@ mutable struct CostGradFunctor!{T,S,P,X,R,E,H}
     occupation::Vector{S}
     Nk::Int
     filled_occ::Int
-    ψ::P        # last iterate, While it is an `ArrayPartition` `p` iterate in Manopt, we store it as a vector, i.e. in the ψ format for DFTK
+    ψ::P        # last iterate, While we usually have an  iterate `ArrayPartition` `p` iterate in Manopt, we store it as a vector, i.e. in the ψ format for DFTK
     local_X::X  # last gradient
     ρ::R        # the last density
     energies::E # the last vector of energies
@@ -56,7 +63,7 @@ end
 # Function shared by both cost and gradient of cost:
 function _compute_density_energy_hamiltonian!(cgf::CostGradFunctor!,
     M::ProductManifold,
-    p::ArrayPartition)
+    p)
     # Can we improve this by copying elementwise?
     # copyto!(cgf.ψ, (copy(x) for x in p.x)) # deepcopyto!
     # Maybe like
@@ -69,7 +76,7 @@ function _compute_density_energy_hamiltonian!(cgf::CostGradFunctor!,
 end
 # The cost function:
 function (cgf::CostGradFunctor!)(M::ProductManifold,
-    p::ArrayPartition)
+    p)
     # Memoization check: Are we still at the same point?
     if all(cgf.ψ[i] == p[M, i] for i in eachindex(cgf.ψ))
         _compute_density_energy_hamiltonian!(cgf, M, p)
@@ -77,9 +84,7 @@ function (cgf::CostGradFunctor!)(M::ProductManifold,
     return cgf.energies.total
 end
 # The gradient of cost function:
-function (cgf::CostGradFunctor!)(M::ProductManifold,
-    X::ArrayPartition,
-    p::ArrayPartition)
+function (cgf::CostGradFunctor!)(M::ProductManifold, X, p)
     # Memoization check: Is this X allready been computed?
     if all(cgf.local_X[M, i] == X[M, i] for i in eachindex(cgf.ψ))
         # Are we still at the same point?
@@ -111,21 +116,21 @@ get_parameter(energy_costgrad::CostGradFunctor!, ::Val{:ρ}) = energy_costgrad.�
 
 TODO: Document
 """
-mutable struct DFTK.StopWhenDensityChangeLess{T,F<:Real} <: Manopt.StoppingCriterion
+mutable struct StopWhenDensityChangeLess{T,F<:Real} <: Manopt.StoppingCriterion
     tolerance::F
     at_iteration::Int
     #TODO: Ask and document: Is ρ just a 4D array or does it live on some manifold?
     last_ρ::T
     last_change::F
 end
-function StopWhenDensityChangeLess(tol::F, ρ::T) where {T, F<:Real}
-    return StopWhenDensityChangeLess{T,F}(tol, -1, ρ, 2*tol)
+function StopWhenDensityChangeLess(tol::F, ρ::T) where {T,F<:Real}
+    return StopWhenDensityChangeLess{T,F}(tol, -1, ρ, 2 * tol)
 end
 # Use the manifold factory trick to postpone the creation here.
-function StopWhenDensityChangeLess(tol::F)
+function StopWhenDensityChangeLess(tol)
     return Manopt.ManifoldDefaultsFactory(StopWhenDensityChangeLess, tol; requires_manifold=false)
 end
-function (c::StopWhenDensityChangeLess)(problem::P, state::S, k::Int) where {P<:Manopt.AbstractManoptProblem,S<:Manopt.AbstractManoptState}
+function (c::StopWhenDensityChangeLess)(problem::P, state::S, k::Int) where {P<:Manopt.AbstractManoptProblem,S<:Manopt.AbstractManoptSolverState}
     current_ρ = get_parameter(Manopt.get_objective(problem), :ρ)
     if k == 0 # reset on init
         c.at_iteration = -1
@@ -153,7 +158,7 @@ function Manopt.status_summary(c::StopWhenDensityChangeLess)
     return "|Δρ| = $(c.last_change) < $(c.tolerance):\t$s"
 end
 function Base.show(io::IO, c::StopWhenDensityChangeLess)
-    return print(io, "StopWhenDensityChangeLess with threshold $(c.tolerance)$.\n    $(status_summary(c))")
+    return print(io, "StopWhenDensityChangeLess with threshold $(c.tolerance).\n    $(status_summary(c))")
 end
 
 # TODO: Should we have Records / Debugs for
@@ -190,6 +195,7 @@ add for example a cache “around” the objective or add debug and/or recording
 """
 function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     ψ=nothing,
+    # ρ=guess_density(basis), # would be consistent with other scf solvers
     tol=1e-6,
     maxiter=1_000,
     # TODO Naming and format,
@@ -202,7 +208,6 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     # TODO
     # find a way to maybe nicely specify cost and grad?
     kwargs...
-
 ) where {T}
     # Part 1: Get DFTK variables
     #
@@ -210,10 +215,12 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     model = basis.model
     @assert iszero(model.temperature)  # temperature is not yet supported
     @assert isnothing(model.εF)        # neither are computations with fixed
+    filled_occ = DFTK.filled_occupation(model)
     Nk = length(basis.kpoints)
-    n_bands = div(basis.model.n_electrons, basis.model.n_spin_components * filled_occupation(model), RoundUp),
-    ψ = isnothing(ψ) ? [random_orbitals(basis, kpt, n_bands) for kpt in basis.kpoints] : ψ,
-    occupation = [DFTK.filled_occupation(basis.model) * ones(T, n_bands) for _ = 1:length(basis.kpoints)],
+    n_spin = model.n_spin_components # Int. 2 if :collinear, 1 otherwise
+    n_bands = div(model.n_electrons, n_spin * filled_occ, RoundUp) # Int
+    ψ = isnothing(ψ) ? [DFTK.random_orbitals(basis, kpt, n_bands) for kpt in basis.kpoints] : ψ
+    occupation = [filled_occ * ones(T, n_bands) for _ = 1:Nk]
     ρ = compute_density(basis, ψ, occupation),
     energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
 
@@ -229,18 +236,17 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     Preconditioner = ManoptPreconditioner!(Nk, Pks, basis.kweights)
     # Repackage the ψ into a more efficient structure
     recursive_ψ = ArrayPartition(ψ...)
-    if isnothing(cost_grad!!)
-        cost_rgrad!! = CostGradFunctor!(basis,
-            occupation,
-            Nk,
-            filled_occupation(model),
-            deepcopy(ψ),
-            zero_vector(manifold, recursive_ψ), # X is a zero vector of the same type as ψ
-            deepcopy(ρ), # TODO: deepcopy necessary?
-            deepcopy(energies),
-            deepcopy(ham)
-        )
-    end
+    #TODO Maybe move to a keyword argument?
+    cost_rgrad! = CostGradFunctor!(basis,
+        occupation,
+        Nk,
+        filled_occupation(model),
+        deepcopy(ψ),
+        zero_vector(manifold, recursive_ψ), # X is a zero vector of the same type as ψ
+        deepcopy(ρ), # TODO: deepcopy necessary?
+        deepcopy(energies),
+        deepcopy(ham),
+   )
     local_cost = (M,p) -> cost_rgrad!(M, p) # local cost function
     if evaluation == InplaceEvaluation()
         local_grad!! = (M,X,p) -> cost_rgrad!(M, X, p)
@@ -291,6 +297,6 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
         # The “pure” solver state without debug/records.
         solver_state=Manopt.get_state(deco_state,true),
     )
-    debug_info
+    return debug_info
 end
 end

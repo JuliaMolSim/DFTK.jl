@@ -8,7 +8,7 @@ Note. Requires now Manopt to work.
 """
 function direct_minimization end
 
-function StopWhenDensityChangeLess end
+global StopWhenDensityChangeLess
 
 #=
 
