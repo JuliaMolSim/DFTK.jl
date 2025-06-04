@@ -38,8 +38,8 @@ function (mp::ManoptPreconditioner!)(M::ProductManifold,
     end
     # Precondition the gradient in-place
     for ik = 1:mp.Nk
-        ldiv!(Y[M, ik], mp.Pks[ik], X[M, ik])
-        ldiv!(mp.kweights[ik], Y[M, ik]) # maybe remove local_Y
+        DFTK.ldiv!(Y[M, ik], mp.Pks[ik], X[M, ik])
+        DFTK.ldiv!(mp.kweights[ik], Y[M, ik]) # maybe remove local_Y
     end
     return Y
 end
@@ -264,7 +264,7 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
         # TODO: Add a way to specify the preconditioner depending on the solver
         # These two passed to all solvers might be misleading
         preconditioner=QuasiNewtonPreconditioner((M, Y, p, X) -> Preconditioner(M, Y, p, X); evaluation=InplaceEvaluation()),
-        direction=PreconditionedDirection(
+        direction=Manopt.PreconditionedDirectionRule(_manifold,
             (M, Y, p, X) -> Preconditioner(M, Y, p, X);
             evaluation=InplaceEvaluation()
         ),
