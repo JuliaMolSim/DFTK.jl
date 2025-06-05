@@ -415,6 +415,7 @@ such that `bandtol[ik][n]` provides the tolerance for `δψ[ik][n]`.
     if bandtol isa Number
         bandtol_occ = [bandtol * ones(length(maskk)) for maskk in mask_occ]
     else
+        @assert all(length(bandtol[ik]) == length(occk) for (ik, occk) in enumerate(occupation))
         bandtol_occ = [bandtol[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
     end
 
@@ -582,12 +583,11 @@ function construct_bandtol(Bandtol::Type, basis::PlaneWaveBasis, ψ,
     #
 
     bandtol_factors = map(1:Nk) do ik
-        Nocck = length(mask_occ[ik])
         orbital_term = adaptive_bandtol_orbital_term_(Bandtol, basis, basis.kpoints[ik],
                                                       ψ[ik], mask_occ[ik])
-        map(mask_occ[ik]) do n
-            (  (sqrt(Ω/Ng) / sqrt(Nocck) / orbital_term)
-             / (2 * occupation[ik][n] * Nk * basis.kweights[ik]))
+        map(occupation[ik]) do fnk
+            (  (sqrt(Ω/Ng) / sqrt(length(mask_occ[ik])) / orbital_term)
+             / (2 * fnk * Nk * basis.kweights[ik]))
         end
     end
 

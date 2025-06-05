@@ -26,7 +26,7 @@ using Test
 
             Anoisy = MatNoisy(A)
             precon = use_diagonal_preconditioner ? Diagonal(A) : I
-            callback = identity # DFTK.default_gmres_print
+            callback = identity  # DFTK.default_gmres_print
             res = DFTK.inexact_gmres(Anoisy, b; tol, krylovdim, s, precon, callback)
 
             # Test convergence
