@@ -332,7 +332,9 @@ function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true, save_ρ=true)
         for (key, value) in todict(scfres.energies)
             energies[key] = value
         end
-        dict["mixing"] = string(scfres.mixing)
+        if hasproperty(scfres, :mixing)
+            dict["mixing"] = string(scfres.mixing)
+        end
 
         scfres_extra_keys = String[]
         for symbol in propertynames(scfres)

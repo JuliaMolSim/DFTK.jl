@@ -78,7 +78,7 @@ end
     # where [k+q] is equivalent to the basis k+q (see find_equivalent_kpt).
     # The perturbation of the density
     #   |ψ_{n,k}|² is 2 ψ_{n,k} * δψ_{n,k+q}.
-    # Hence, we first get the δψ_{[k+q]} as δψ_plus_k[ik]
+    # Hence, we first get the δψ_{[k+q]} as δψ_{k+q}…
     δψ_plus_k = transfer_blochwave_equivalent_to_actual(basis, δψ, q)
     storages = parallel_loop_over_range(range; allocate_local_storage) do kn, storage
         (ik, n) = kn
