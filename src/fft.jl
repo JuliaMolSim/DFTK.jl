@@ -100,10 +100,6 @@ end
 G_vectors(fft_grid::FFTGrid) = fft_grid.G_vectors
 r_vectors(fft_grid::FFTGrid) = fft_grid.r_vectors
 
-# Remapping function for the K-point specific iFFT
-function ifft_remap!(f_real::AbstractArray3, Gvec_mapping::Vector{Int}, f_fourier::AbstractVector)
-    f_real[Gvec_mapping] = f_fourier
-end
 """
 In-place version of `ifft`.
 """
@@ -117,7 +113,7 @@ function ifft!(f_real::AbstractArray3, fft_grid::FFTGrid,
 
     # Pad the input data
     fill!(f_real, 0)
-    ifft_remap!(f_real, Gvec_mapping, f_fourier)
+    @inbounds f_real[Gvec_mapping] = f_fourier
 
     # Perform iFFT, equivalent to mul!(f_real, fft_grid.ipBFFT, f_real)
     f_real = fft_grid.ipBFFT * f_real
@@ -152,10 +148,6 @@ function irfft(fft_grid::FFTGrid{T}, f_fourier::AbstractArray) where {T}
     real(ifft(fft_grid, f_fourier))
 end
 
-# Remapping function for the K-point specific FFT
-function fft_remap!(f_fourier::AbstractVector, f_real::AbstractArray3, Gvec_mapping::Vector{Int})
-    f_fourier .= view(f_real, Gvec_mapping)
-end
 @doc raw"""
 In-place version of `fft!`.
 NOTE: If `Gvec_mapping` is given, not only `f_fourier` but also `f_real` is overwritten.
@@ -174,7 +166,7 @@ function fft!(f_fourier::AbstractVector, fft_grid::FFTGrid,
     f_real = fft_grid.ipFFT * f_real
 
     # Truncate
-    fft_remap!(f_fourier, f_real, Gvec_mapping)
+    @inbounds f_fourier .= view(f_real, Gvec_mapping)
     normalize && (f_fourier .*= fft_grid.fft_normalization)
     f_fourier
 end
