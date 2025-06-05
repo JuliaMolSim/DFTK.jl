@@ -99,6 +99,7 @@ from the current density of states at the Fermi level.
 @kwdef struct KerkerDosMixing <: Mixing
     adjust_temperature = IncreaseMixingTemperature()
 end
+Base.show(io::IO, ::KerkerDosMixing) = print(io, "KerkerDosMixing()")
 @timing "KerkerDosMixing" function mix_density(mixing::KerkerDosMixing, basis::PlaneWaveBasis,
                                                δF; εF, eigenvalues, kwargs...)
     if iszero(basis.model.temperature)
@@ -203,10 +204,23 @@ real space using a GMRES. Either the full kernel (`RPA=false`) or only the Hartr
 (useful for debugging).
 """
 @kwdef struct χ0Mixing <: Mixing
-    RPA::Bool = true       # Use RPA, i.e. only apply the Hartree and not the XC Kernel
     χ0terms   = χ0Model[Applyχ0Model()]  # The terms to use as the model for χ0
+    RPA::Bool = true       # Use RPA, i.e. only apply the Hartree and not the XC Kernel
     verbose::Bool = false   # Run the GMRES verbosely
     reltol::Float64 = 0.01  # Relative tolerance for GMRES
+end
+function Base.show(io::IO, mixing::χ0Mixing)
+    χ0terms = mixing.χ0terms
+    if length(χ0terms) == 1 && χ0terms[1] isa Applyχ0Model
+        print(io, "χ0Mixing([Applyχ0Model()], ")
+    elseif length(χ0terms) == 1 && χ0terms[1] isa LdosModel
+        print(io, "LdosMixing(")
+    elseif length(χ0terms) == 2 && χ0terms[2] isa LdosModel && χ0terms[1] isa DielectricModel
+        print(io, "HybridMixing(")
+    else
+        print(io, "χ0Mixing([$(length(mixing.χ0terms)) terms], ")
+    end
+    print(io, "RPA=$(mixing.RPA), reltol=$(mixing.reltol))")
 end
 
 @views @timing "χ0Mixing" function mix_density(mixing::χ0Mixing, basis, δF::AbstractArray{T};

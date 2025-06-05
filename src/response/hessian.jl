@@ -246,10 +246,9 @@ Input parameters:
                                     eigenvalues, rhs;
                                     tol=1e-8, verbose=true,
                                     mixing=SimpleMixing(),
-                                    factor_initial=1/10, factor_final=1/10,
                                     occupation_threshold,
-                                    bandtolalg=BandtolBalanced(ham.basis, ψ, occupation,
-                                                               eigenvalues; occupation_threshold),
+                                    bandtolalg=BandtolBalanced(ham.basis, ψ, occupation; occupation_threshold),
+                                    factor_initial=1/10, factor_final=1/10,
                                     q=zero(Vec3{real(T)}),
                                     maxiter_sternheimer=100,
                                     maxiter=100, krylovdim=20, s=100,
@@ -282,15 +281,14 @@ Input parameters:
 
     # compute δρ0 (ignoring interactions)
     δρ0 = let  # Make sure memory owned by res0 is freed
-        bandtol0 = determine_band_tolerances(bandtolalg, tol * factor_initial)
         res0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
-                           maxiter=maxiter_sternheimer,
-                           bandtol=bandtol0, occupation_threshold,
+                           maxiter=maxiter_sternheimer, tol=tol * factor_initial,
+                           bandtolalg, occupation_threshold,
                            q, kwargs...)  # = -χ04P * rhs
         callback((; stage=:noninteracting, runtime_ns=time_ns() - start_ns,
                     Axinfos=[(; basis, tol=tol*factor_initial, res0...)]))
-        δρ0 = compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
-                         occupation_threshold, q)
+        compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
+                   occupation_threshold, q)
     end
 
     # compute total δρ
@@ -329,13 +327,13 @@ Input parameters:
     #      a fixed Sternheimer tolerance of tol / 10. There are probably
     #      smarter things one could do here
     resfinal = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                           bandtol=factor_final * tol, maxiter=maxiter_sternheimer,
-                           occupation_threshold, q, kwargs...)
+                           maxiter=maxiter_sternheimer, tol=tol * factor_final,
+                           bandtolalg, occupation_threshold, q, kwargs...)
     callback((; stage=:final, runtime_ns=time_ns() - start_ns,
                 Axinfos=[(; basis, tol=tol*factor_final, resfinal...)]))
 
-    (; resfinal.δψ, δρ, δHψ, δVind, δρ0, δeigenvalues, resfinal.δoccupation, resfinal.δεF,
-     ε, info_gmres)
+    (; resfinal.δψ, δρ, δHψ, δVind, δρ0, δeigenvalues, resfinal.δoccupation,
+       resfinal.δεF, ε, info_gmres)
 end
 
 function solve_ΩplusK_split(scfres::NamedTuple, rhs; kwargs...)

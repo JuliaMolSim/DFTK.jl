@@ -78,7 +78,7 @@ end
     # where [k+q] is equivalent to the basis k+q (see find_equivalent_kpt).
     # The perturbation of the density
     #   |ψ_{n,k}|² is 2 ψ_{n,k} * δψ_{n,k+q}.
-    # Hence, we first get the δψ_{[k+q]} as δψ_{k+q}…
+    # Hence, we first get the δψ_{[k+q]} as δψ_plus_k[ik]
     δψ_plus_k = transfer_blochwave_equivalent_to_actual(basis, δψ, q)
     storages = parallel_loop_over_range(range; allocate_local_storage) do kn, storage
         (ik, n) = kn
@@ -89,9 +89,9 @@ end
         ifft!(storage.δψnk_real, basis, δψ_plus_k[ik].kpt, δψ_plus_k[ik].ψk[:, n])
 
         storage.δρ[:, :, :, kpt.spin] .+= real_qzero.(
-            2 .* occupation[ik][n] .* basis.kweights[ik] .* conj.(storage.ψnk_real)
-                                                         .* storage.δψnk_real
-                .+ δoccupation[ik][n] .* basis.kweights[ik] .* abs2.(storage.ψnk_real))
+            2 .* occupation[ik][n]  .* basis.kweights[ik] .* conj.(storage.ψnk_real)
+                                                          .* storage.δψnk_real
+              .+ δoccupation[ik][n] .* basis.kweights[ik] .* abs2.(storage.ψnk_real))
 
         synchronize_device(basis.architecture)
     end
