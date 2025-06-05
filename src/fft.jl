@@ -166,7 +166,7 @@ function fft!(f_fourier::AbstractVector, fft_grid::FFTGrid,
     f_real = fft_grid.ipFFT * f_real
 
     # Truncate
-    @inbounds f_fourier .= view(f_real, Gvec_mapping)
+    map!(i -> f_real[i], f_fourier, Gvec_mapping)
     normalize && (f_fourier .*= fft_grid.fft_normalization)
     f_fourier
 end
