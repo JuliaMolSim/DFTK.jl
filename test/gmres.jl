@@ -12,7 +12,8 @@ using Test
     function DFTK.inexact_mul(A::MatNoisy{T}, x; tol) where {T}
         y_exact = A.mat * x
         e = randn(T, length(y_exact))
-        y_exact + (e / norm(e) * T(tol))
+        Ax = y_exact + (e / norm(e) * T(tol))
+        (; Ax, info=(; tol))
     end
     Base.size(A::MatNoisy, args...) = size(A.mat, args...)
 
@@ -25,9 +26,8 @@ using Test
 
             Anoisy = MatNoisy(A)
             precon = use_diagonal_preconditioner ? Diagonal(A) : I
-            res = DFTK.inexact_gmres(Anoisy, b; tol, krylovdim, s, precon,
-                                     callback=DFTK.default_gmres_print
-                                    )
+            callback = identity # DFTK.default_gmres_print
+            res = DFTK.inexact_gmres(Anoisy, b; tol, krylovdim, s, precon, callback)
 
             # Test convergence
             # Note: Currently our preconditioned GMRES ensures exactly this condition

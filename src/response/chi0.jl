@@ -345,7 +345,8 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
         ψk   = ψ[ik]
         εk   = ε[ik]
         δψk  = δψ[ik]
-        tolk = bandtol[ik]
+        tolk = bandtol[ik]  # TODO For non-zero q calculations this has the wrong ordering
+        #                          and perhaps also the values are wrong here
         εk_minus_q = ε_minus_q[ik]
         sizehint!(residual_norms[ik], length(εk_minus_q))
         sizehint!(n_iter[ik], length(εk_minus_q))
@@ -509,7 +510,7 @@ end
 
 function apply_χ0(scfres, δV; kwargs...)
     apply_χ0(scfres.ham, scfres.ψ, scfres.occupation, scfres.εF, scfres.eigenvalues, δV;
-             occupation_threshold=scfres.occupation_threshold, kwargs...)
+             scfres.occupation_threshold, kwargs...)
 end
 
 
