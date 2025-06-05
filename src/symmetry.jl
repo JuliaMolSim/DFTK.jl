@@ -310,17 +310,11 @@ function lowpass_for_symmetry!(ρ::AbstractArray, basis; symmetries=basis.symmet
 
     Gs = reshape(G_vectors(basis), size(ρ))
     fft_size = basis.fft_size
-    ρtmp = similar(ρ)
 
     symm_S = to_device(basis.architecture, [symop.S for symop in symmetries])
 
-    # Perfrorms the following loop in an optimized way for CPU and GPU:
-    # for (ig, G) in enumerate(G_vectors(basis))
-    #     if index_G_vectors(basis, symop.S * G) === nothing
-    #         ρ[ig] = 0
-    #     end
-    # end
-    map!(ρtmp, ρ, Gs) do ρ_i, G
+    # Loop structure optimized for both CPU and GPU
+    map!(ρ, ρ, Gs) do ρ_i, G
         acc = ρ_i
         for S in symm_S
             idx = index_G_vectors(fft_size, S * G)
@@ -328,7 +322,6 @@ function lowpass_for_symmetry!(ρ::AbstractArray, basis; symmetries=basis.symmet
         end
         acc
     end
-    ρ .= ρtmp
     ρ
 end
 
