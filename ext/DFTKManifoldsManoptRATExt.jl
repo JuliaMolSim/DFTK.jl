@@ -55,7 +55,7 @@ mutable struct CostGradFunctor!{T,S,P,X,R,E,H}
     Nk::Int
     filled_occ::Int
     ψ::P        # last iterate, While we usually have an  iterate `ArrayPartition` `p` iterate in Manopt, we store it as a vector, i.e. in the ψ format for DFTK
-    local_X::X  # last gradient
+    X::X        # last gradient
     ρ::R        # the last density
     energies::E # the last vector of energies
     ham::H      # the last Hamiltonian
@@ -73,10 +73,10 @@ function _compute_density_energy_hamiltonian!(cgf::CostGradFunctor!,
     copyto!(cgf.ρ, compute_density(cgf.basis, cgf.ψ, cgf.occupation))
     # Below not inplace, but probably not that important.
     cgf.energies, cgf.ham = energy_hamiltonian(cgf.basis, cgf.ψ, cgf.occupation; cgf.ρ)
+    return cgf
 end
 # The cost function:
-function (cgf::CostGradFunctor!)(M::ProductManifold,
-    p)
+function (cgf::CostGradFunctor!)(M::ProductManifold,p)
     # Memoization check: Are we still at the same point?
     if all(cgf.ψ[i] == p[M, i] for i in eachindex(cgf.ψ))
         _compute_density_energy_hamiltonian!(cgf, M, p)
@@ -86,7 +86,7 @@ end
 # The gradient of cost function:
 function (cgf::CostGradFunctor!)(M::ProductManifold, X, p)
     # Memoization check: Is this X allready been computed?
-    if all(cgf.local_X[M, i] == X[M, i] for i in eachindex(cgf.ψ))
+    if all(cgf.X[M, i] == X[M, i] for i in eachindex(cgf.ψ))
         # Are we still at the same point?
         if all(cgf.ψ[i] == p[M, i] for i in eachindex(cgf.ψ))
             return X
@@ -102,7 +102,7 @@ function (cgf::CostGradFunctor!)(M::ProductManifold, X, p)
         Manifolds.get_component(M, X, ik) .*= 2 * cgf.filled_occ * cgf.basis.kweights[ik] # Using get_component(), as "X[M, ik] .*=" is not yet supported in ManifoldsBase.jl
     end
     riemannian_gradient!(M, X, p, X) # Convert to Riemannian gradient
-    copyto!(cgf.local_X, X) # Memoization
+    copyto!(cgf.X, X) # Memoization
     return X
 end
 
@@ -242,9 +242,9 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
         occupation,
         Nk,
         filled_occ,
-        deepcopy(ψ),
-        zero_vector(_manifold, recursive_ψ), # X is a zero vector of the same type as ψ
-        deepcopy(ρ), # TODO: deepcopy necessary?
+        zero.(ψ),  #init different from ψ to avoid caching errors
+        rand(_manifold; vector_at=recursive_ψ), # init different from X to avoid caching errors
+        deepcopy(ρ),
         deepcopy(energies),
         deepcopy(ham),
    )
@@ -274,7 +274,8 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
         stepsize=_stepsize,
         vector_transport_method=vector_transport_method,
         memory_size=10,
-        retraction_method=retraction_method,
+        X=cost_rgrad!(_manifold, zero_vector(_manifold, recursive_ψ), recursive_ψ), # Initial gradient
+        #retraction_method=retraction_method,
         kwargs...
     )
     deco_state = Manopt.decorate_state!(state; kwargs...)
@@ -285,6 +286,7 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     # Bundle the variables in a NamedTuple for debugging:
     # TODO: Check which we need and should return
     # TODO: Check with the PR which one we should add here
+    p = get_solver_result(deco_state)
     debug_info = (
         info="This object is summarizing variables for debugging purposes",
         product_manifold=_manifold,
@@ -295,6 +297,8 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
         ψ           	 = ψ,
         occupation  	 = occupation,
         ρ                = cost_rgrad!.ρ,
+        cost_value=get_cost(problem, p),
+        cost_grad_value=get_gradient(problem, p),
         # The “pure” solver state without debug/records.
         solver_state=Manopt.get_state(deco_state,true),
     )
