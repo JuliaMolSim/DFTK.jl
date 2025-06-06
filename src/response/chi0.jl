@@ -520,9 +520,9 @@ end
 Guaranteed (grt) algorithm for adaptively choosing the Sternheimer tolerance as discussed in
 [arxiv 2505.02319](https://arxiv.org/pdf/2505.02319). Chooses the convergence thresholds
 for the Sternheimer solver of each band adaptively such that the resulting density
-response is provably accurate a value of `tol_density`
-(passed to [`determine_band_tolerances`](@ref).
-Compared to [`BandtolBalanced`](@ref) less efficient, but most accurate approach.
+response is reliably accurate a value of `tol_density` (passed when calling
+`determine_band_tolerances` Compared to [`BandtolBalanced`](@ref) less efficient,
+but more accurate approach.
 """
 function BandtolGuaranteed(args...; kwargs...)
     construct_bandtol(BandtolGuaranteed, args...; kwargs...)
@@ -541,7 +541,7 @@ end
 Balanced (bal) algorithm for adaptively choosing the Sternheimer tolerance as discussed in
 [arxiv 2505.02319](https://arxiv.org/pdf/2505.02319). Chooses the convergence thresholds
 for the Sternheimer solver adaptively, such that the density response is roughly accurate
-to `tol_density` (passed to [`determine_band_tolerances`](@ref).
+to `tol_density` (passed when calling `determine_band_tolerances`.
 Compared to [`BandtolGuaranteed`](@ref) usually more efficient,
 but sometimes `tol_density` is not fully achieved.
 """

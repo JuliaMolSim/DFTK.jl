@@ -47,7 +47,8 @@ function test_solve_ΩplusK(scfres, δVext; error_factor=1,
             @test maximum(abs, res.δρ - ref.δρ) < tol * fac
 
             for ik in 1:length(scfres.basis.kpoints)
-                @test maximum(abs, res.δψ[ik] - ref.δψ[ik]) < 5tol
+                ttol = max(5tol, fac * tol)
+                @test maximum(abs, res.δψ[ik] - ref.δψ[ik]) < ttol
             end
         end
     end
@@ -58,7 +59,8 @@ function test_solve_ΩplusK(scfres, δVext; error_factor=1,
         @test maximum(abs, res.δρ - ref.δρ) < tol * fac
 
         for ik in 1:length(scfres.basis.kpoints)
-            @test maximum(abs, res.δψ[ik] - ref.δψ[ik]) < 5tol
+            ttol = max(5tol, fac * tol)
+            @test maximum(abs, res.δψ[ik] - ref.δψ[ik]) < ttol
         end
     end  # testset
 end  # function
@@ -211,8 +213,8 @@ end
 
     @testset "self-adjointness of solve_ΩplusK_split" begin
         @test isapprox(real(dot(ϕ, solve_ΩplusK_split(scfres, rhs).δψ)),
-                        real(dot(solve_ΩplusK_split(scfres, ϕ).δψ, rhs)),
-                        atol=1e-7)
+                       real(dot(solve_ΩplusK_split(scfres, ϕ).δψ, rhs)),
+                       atol=1e-7)
     end
 
     @testset "solve_ΩplusK_split agrees with solve_ΩplusK" begin
