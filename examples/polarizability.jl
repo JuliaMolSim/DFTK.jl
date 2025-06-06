@@ -94,7 +94,8 @@ println("Polarizability :   $polarizability")
 # Numerically, we apply ``χ`` to ``δV = -x`` by solving a linear equation
 # (the Dyson equation) iteratively.
 #
-# First we do this using the [`solve_ΩplusK_split`](@ref) function provided by DFTK,
+# First we do this using the [`DFTK.solve_ΩplusK_split`](@ref)
+# function provided by DFTK,
 # which uses an adaptive Krylov subspace algorithm [^HS2025]:
 #
 # [^HS2025]:

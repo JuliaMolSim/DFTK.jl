@@ -192,7 +192,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 
     δψkn = ψk_extra * αkn + δψknᴿ
 
-    (; δψkn, cg_res.n_iter, cg_res.residual_norm, cg_res.converged, cg_res)
+    (; δψkn, cg_res.n_iter, cg_res.residual_norm, cg_res.converged, cg_res, tol)
 end
 
 # Apply the four-point polarizability operator χ0_4P = -Ω^-1
@@ -395,7 +395,7 @@ end
 Compute the orbital and occupation changes as a result of applying the ``χ_0`` superoperator
 to the Hamiltonian change `δH` represented by the matrix-vector products `δHψ`. 
 """
-@views #=@timing=# function apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+@views @timing function apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                                     occupation_threshold, q=zero(Vec3{eltype(ham.basis)}),
                                     bandtolalg, tol=1e-9, kwargs_sternheimer...)
     basis = ham.basis
