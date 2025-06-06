@@ -13,3 +13,4 @@ const SUITE = BenchmarkGroup()
 @include_case SUITE "silicon"
 @include_case SUITE "aluminium_rattled"
 @include_case SUITE "SrVO3"
+@include_case SUITE "aluminium12"
