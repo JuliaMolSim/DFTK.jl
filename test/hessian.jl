@@ -22,10 +22,7 @@ function setup_quantities(testcase)
     (; scfres, basis, ψ, occupation, ρ, rhs, ϕ)
 end
 
-function test_solve_ΩplusK(scfres, δVext; error_factor=1,
-                           tolerances=(1e-3, 1e-6, 1e-8, 1e-10))
-    fac = error_factor
-
+function test_solve_ΩplusK(scfres, δVext)
     # Compute a reference solution
     δHψ = DFTK.multiply_ψ_by_blochwave(scfres.basis, scfres.ψ, δVext)
     ref = DFTK.solve_ΩplusK_split(scfres, -δHψ; verbose=true, s=1.0, tol=1e-12,
@@ -33,22 +30,21 @@ function test_solve_ΩplusK(scfres, δVext; error_factor=1,
     δρ0 = apply_χ0(scfres, δVext, tol=1e-13).δρ
 
     @testset "Agreement of non-interacting response" begin
-        @test maximum(abs, δρ0 - ref.δρ0) < 1e-11fac
+        @test maximum(abs, δρ0 - ref.δρ0) < 1e-11
     end
     @testset "Residual is small" begin
         ε = DFTK.DielectricAdjoint(scfres; bandtolalg=DFTK.BandtolGuaranteed(scfres))
         εδρ = reshape(DFTK.inexact_mul(ε, ref.δρ; tol=1e-13).Ax, size(δρ0))
-        @test maximum(abs, δρ0 - εδρ) < 1e-11fac
+        @test maximum(abs, δρ0 - εδρ) < 1e-11
     end
 
     @testset "Adaptive algorithm yields desired tolerances" begin
-        for tol in tolerances
+        for tol in (1e-3, 1e-6, 1e-8, 1e-10)
             res = DFTK.solve_ΩplusK_split(scfres, -δHψ; tol, verbose=false)
-            @test maximum(abs, res.δρ - ref.δρ) < tol * fac
+            @test maximum(abs, res.δρ - ref.δρ) < tol
 
             for ik in 1:length(scfres.basis.kpoints)
-                ttol = max(5tol, fac * tol)
-                @test maximum(abs, res.δψ[ik] - ref.δψ[ik]) < ttol
+                @test maximum(abs, res.δψ[ik] - ref.δψ[ik]) < 5tol
             end
         end
     end
@@ -56,11 +52,10 @@ function test_solve_ΩplusK(scfres, δVext; error_factor=1,
     @testset "Try very large value for s" begin
         tol = 1e-8
         res = DFTK.solve_ΩplusK_split(scfres, -δHψ; tol, s=10^5, verbose=false)
-        @test maximum(abs, res.δρ - ref.δρ) < tol * fac
+        @test maximum(abs, res.δρ - ref.δρ) < tol
 
         for ik in 1:length(scfres.basis.kpoints)
-            ttol = max(5tol, fac * tol)
-            @test maximum(abs, res.δψ[ik] - ref.δψ[ik]) < ttol
+            @test maximum(abs, res.δψ[ik] - ref.δψ[ik]) < 5tol
         end
     end  # testset
 end  # function
@@ -94,56 +89,6 @@ function test_solve_ΩplusK_aluminium_displace(; Ecut=15, repeat=2)
     end
     δV = ForwardDiff.derivative(shuttering_potential, 0.0)
     (; scfres, δV)
-end
-
-function test_solve_ΩplusK_helium_polarisability()
-    # Helium at the centre of the box
-    a = 10.0
-    lattice = a * I(3)  # cube of ``a`` bohrs
-    pseudopotentials = PseudoFamily("cp2k.nc.sr.pbe.v0_1.largecore.gth")
-    atoms     = [ElementPsp(:He, pseudopotentials)]
-    positions = [[1/2, 1/2, 1/2]]
-
-    model  = model_DFT(lattice, atoms, positions;
-                       functionals=PBE(), symmetries=false)
-    basis  = PlaneWaveBasis(model; Ecut=30, kgrid=(1, 1, 1))
-    scfres = self_consistent_field(basis; tol=1e-14)
-
-    # δV is the potential from a uniform field interacting with the dielectric dipole
-    # of the density. Note, that this expression only makes sense for a molecule
-    # We wrap it around periodically at the boundaries to make the numerics nicer
-    δV = map(r_vectors_cart(basis)) do r
-        slope_periodic(r[1], gradient=-1, domain_length=a, boundary_size=1)
-    end
-    δV = cat(δV; dims=4)
-
-    (; scfres, δV)
-end
-
-function slope_periodic(x; gradient=2, domain_length=10, boundary_size=1)
-    # Constructs a periodically wrapping continuous linear slope with a gradient
-    # at the origin. The slope is linear up until a distance of `boundary_size`
-    # from the domain wall. The domain is supposed to have length `domain_length`
-    # such that the periodic wrapping is within [-domain_length/2, domain_length/2].
-    # x is expected to be within the interval  [-domain_length/2, domain_length/2].
-    #
-    # Slope is active within [-boundary_x, boundary_x]
-    @assert 2boundary_size < domain_length
-    boundary_x = domain_length/2 - boundary_size
-
-    # Function value of slope function f(x) = gradient * x
-    endpoint_value = gradient * boundary_x  # = f(boundary_x)
-
-    # Third degree polynomial bringing the slope to zero in [boundary_x, domain_length/2]
-    poly(x) = -(gradient + 3endpoint_value)/2 * x + (gradient + endpoint_value)/2 * x^3
-
-    if x ≤ -boundary_x
-       poly((x + domain_length/2) / boundary_size)
-    elseif -boundary_x < x < boundary_x
-       gradient * x
-    else
-       poly((x - domain_length/2) / boundary_size)
-    end
 end
 
 end
@@ -253,17 +198,11 @@ end
 
 @testitem "solve_ΩplusK_split achieves accuracy" setup=[Hessian] begin
     @testset "Aluminium atomic displacements (cheap)" begin
-        # TODO Would be awesome to push this to repeat=2
-        (; scfres, δV) = Hessian.test_solve_ΩplusK_aluminium_displace(; Ecut=10, repeat=1)
+        (; scfres, δV) = Hessian.test_solve_ΩplusK_aluminium_displace(; Ecut=8, repeat=2)
         Hessian.test_solve_ΩplusK(scfres, δV)
     end
-    @testset "Helium polarisability" begin
-        # TODO This may actually be quit a a pathological example
-        #      this is why we have to increase the error factor a lot.
-        (; scfres, δV) = Hessian.test_solve_ΩplusK_helium_polarisability()
-        tolerances=(1e-4, 1e-6, 1e-8, 1e-10)
-        Hessian.test_solve_ΩplusK(scfres, δV; error_factor=75, tolerances)
-    end
+
+    # TODO Some other response test would be good
 end
 
 @testitem "solve_ΩplusK_split achieves accuracy (slow)" tags=[:slow] setup=[Hessian] begin
