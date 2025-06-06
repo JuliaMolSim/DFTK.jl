@@ -114,7 +114,7 @@ println("Interacting polarizability:     $(dipole(basis, res.δρ))")
 # As expected, the interacting polarizability matches the finite difference
 # result. The non-interacting polarizability is higher.
 
-### Manual solution of the Dyson equations
+# ### Manual solution of the Dyson equations
 # To see what goes on under the hood, we also show how to manually solve the
 # Dyson equation using KrylovKit:
 

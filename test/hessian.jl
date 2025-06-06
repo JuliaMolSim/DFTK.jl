@@ -47,7 +47,6 @@ function test_solve_ΩplusK(scfres, δVext; error_factor=1,
             @test maximum(abs, res.δρ - ref.δρ) < tol * fac
 
             for ik in 1:length(scfres.basis.kpoints)
-                # TODO This may be a bit flaky ... orbitals could rotate
                 @test maximum(abs, res.δψ[ik] - ref.δψ[ik]) < 5tol
             end
         end
@@ -59,7 +58,6 @@ function test_solve_ΩplusK(scfres, δVext; error_factor=1,
         @test maximum(abs, res.δρ - ref.δρ) < tol * fac
 
         for ik in 1:length(scfres.basis.kpoints)
-            # TODO This may be a bit flaky ... orbitals could rotate
             @test maximum(abs, res.δψ[ik] - ref.δψ[ik]) < 5tol
         end
     end  # testset
@@ -258,8 +256,8 @@ end
         Hessian.test_solve_ΩplusK(scfres, δV)
     end
     @testset "Helium polarisability" begin
-         # TODO This may actually be quit a a pathological example
-         #      this is why we have to increase the error factor a lot.
+        # TODO This may actually be quit a a pathological example
+        #      this is why we have to increase the error factor a lot.
         (; scfres, δV) = Hessian.test_solve_ΩplusK_helium_polarisability()
         tolerances=(1e-4, 1e-6, 1e-8, 1e-10)
         Hessian.test_solve_ΩplusK(scfres, δV; error_factor=75, tolerances)
