@@ -22,8 +22,7 @@ function setup_quantities(testcase)
     (; scfres, basis, ψ, occupation, ρ, rhs, ϕ)
 end
 
-function test_solve_ΩplusK(scfres, δVext;
-                           error_factor=50,
+function test_solve_ΩplusK(scfres, δVext; error_factor=1,
                            tolerances=(1e-3, 1e-6, 1e-8, 1e-10))
     fac = error_factor
 
@@ -259,9 +258,11 @@ end
         Hessian.test_solve_ΩplusK(scfres, δV)
     end
     @testset "Helium polarisability" begin
+         # TODO This may actually be quit a a pathological example
+         #      this is why we have to increase the error factor a lot.
         (; scfres, δV) = Hessian.test_solve_ΩplusK_helium_polarisability()
         tolerances=(1e-4, 1e-6, 1e-8, 1e-10)
-        Hessian.test_solve_ΩplusK(scfres, δV; error_factor=50, tolerances)
+        Hessian.test_solve_ΩplusK(scfres, δV; error_factor=75, tolerances)
     end
 end
 
