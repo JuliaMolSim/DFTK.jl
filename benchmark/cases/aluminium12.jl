@@ -21,9 +21,6 @@ scfres  = setup_dummy_scfres(basis)
 scfres_nosym = setup_dummy_scfres(setup_basis(; symmetries=false, kgrid=(1, 2, 2));
                                   mixing=KerkerMixing())
 perturb = setup_atomic_perturbation(scfres_nosym)
-SUITE["response"] = @benchmarkable(
-    bm_response($scfres_nosym, $perturb; tol=1e-8),
-    evals=1, samples=1
-)
+SUITE["response"] = @benchmarkable bm_response($scfres_nosym, $perturb; tol=1e-8) evals=1 samples=1
 
 end

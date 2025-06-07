@@ -27,6 +27,6 @@ add_default_benchmarks!(SUITE, basis, scfres)
 # Response benchmark
 scfres_nosym = setup_dummy_scfres(setup_basis(; symmetries=false, kgrid=(4, 4, 4)))
 perturb = setup_atomic_perturbation(scfres_nosym)
-SUITE["response"] = @benchmarkable bm_response($scfres_nosym, $perturb) evals=1 samples=1
+SUITE["response"] = @benchmarkable bm_response($scfres_nosym, $perturb; tol=1e-8) evals=1 samples=1
 
 end
