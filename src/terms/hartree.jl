@@ -28,19 +28,18 @@ struct TermHartree <: TermNonlinear
 end
 function compute_poisson_green_coeffs(basis::PlaneWaveBasis{T}, scaling_factor;
                                       q=zero(Vec3{T})) where {T}
-    model = basis.model
+    recip_lattice = basis.model.recip_lattice
 
     # Solving the Poisson equation ΔV = -4π ρ in Fourier space
     # is multiplying elementwise by 4π / |G|^2.
-    poisson_green_coeffs = 4T(π) ./ [sum(abs2, model.recip_lattice * (G + q))
-                                     for G in to_cpu(G_vectors(basis))]
+    poisson_green_coeffs = map(G -> 4T(π) / sum(abs2, recip_lattice * (G + q)),
+                               G_vectors(basis))
     if iszero(q)
         # Compensating charge background => Zero DC.
         GPUArraysCore.@allowscalar poisson_green_coeffs[1] = 0
         # Symmetrize Fourier coeffs to have real iFFT.
         enforce_real!(poisson_green_coeffs, basis)
     end
-    poisson_green_coeffs = to_device(basis.architecture, poisson_green_coeffs)
     scaling_factor .* poisson_green_coeffs
 end
 function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
