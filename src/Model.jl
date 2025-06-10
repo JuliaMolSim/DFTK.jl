@@ -218,25 +218,45 @@ end
     Model(model; [lattice, positions, atoms, kwargs...])
     Model{T}(model; [lattice, positions, atoms, kwargs...])
 
-Construct an identical model to `model` with the option to change some of the contained
-parameters. This constructor is useful for changing the data type in the model
-or for changing `lattice` or `positions` in geometry/lattice optimisations.
+Construct an identical model to `model` with the option to change some of
+the contained parameters. This constructor is useful for changing the data
+type in the model or for changing `lattice` or `positions` in
+geometry/lattice optimisations.
+
+!!! warning "Symmetries need to be updated manually."
+    Unless a `symmetries` keyword argument is given
+    this constructor copies the symmetries from `model`.
+    This means if you update the `positions`, `lattice`, `atoms`
+    or `terms` in a way that they *break* some of the original symmetries,
+    you should either also supply matching `symmetries` or specify
+    `symmetries=true`, which will re-determine the symmetries corresponding
+    to the new structure. In the case of spin do also re-supply the
+    appropriate `magnetic_moments` of the atoms.
+
+    This behaviour is slated to change in an upcoming breaking release.
 """
 function Model{T}(model::Model;
                   lattice::AbstractMatrix=model.lattice,
                   positions::Vector{<:AbstractVector}=model.positions,
                   atoms::Vector{<:Element}=model.atoms,
+                  symmetries=model.symmetries,
+                  magnetic_moments=T[],
                   kwargs...) where {T <: Real}
+    # TODO In an upcoming breaking release come up with a way to store the symmetry-equivalent
+    #      atoms in the model (including the effect magnetic moments), such that if the atoms
+    #      do not change (the usual case) the default symmetry determination routine can still
+    #      work with updated positions without the need to re-provide the magnetic_moments.
+
     Model(T.(lattice), atoms, positions;
           model.model_name,
           model.n_electrons,
-          magnetic_moments=[],  # not used because symmetries explicitly given
+          magnetic_moments,
           terms=model.term_types,
           model.temperature,
           model.smearing,
           model.εF,
           model.spin_polarization,
-          model.symmetries,
+          symmetries,
           # Can be safely disabled: this has been checked for model
           disable_electrostatics_check=true,
           kwargs...
@@ -263,8 +283,9 @@ n_electrons_from_atoms(atoms) = sum(n_elec_valence, atoms; init=0)
 """
 Default logic to determine the symmetry operations to be used in the model.
 """
-function default_symmetries(lattice, atoms, positions, magnetic_moments, spin_polarization,
-                            terms; tol_symmetry=SYMMETRY_TOLERANCE)
+function default_symmetries(lattice, atoms, positions, magnetic_moments,
+                            spin_polarization, terms;
+                            tol_symmetry=SYMMETRY_TOLERANCE)
     dimension = count(!iszero, eachcol(lattice))
     if spin_polarization == :full || dimension != 3
         return [one(SymOp)]  # Symmetry not supported in spglib

@@ -269,48 +269,58 @@ function apply_symop(symop::SymOp, basis, ρin; kwargs...)
 end
 
 # Accumulates the symmetrized versions of the density ρin into ρout (in Fourier space).
-# No normalization is performed
+# No normalization is performed. This function is optimized for CPU and GPU.
 function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, symmetries) where {T}
-    for symop in symmetries
-        # Common special case, where ρin does not need to be processed
-        if isone(symop)
-            ρaccu .+= ρin
-            continue
-        end
+    # For each G vector and symmetry S:
+    # Transform ρin -> to the partial density at S * k.
+    #
+    # Since the eigenfunctions of the Hamiltonian at k and Sk satisfy
+    #      u_{Sk}(x) = u_{k}(S^{-1} (x - τ))
+    # with Fourier transform
+    #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
+    # equivalently
+    #     ρ ̂_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
+    Gs = reshape(G_vectors(basis), size(ρaccu))
+    fft_size = basis.fft_size
 
-        # Transform ρin -> to the partial density at S * k.
-        #
-        # Since the eigenfunctions of the Hamiltonian at k and Sk satisfy
-        #      u_{Sk}(x) = u_{k}(S^{-1} (x - τ))
-        # with Fourier transform
-        #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
-        # equivalently
-        #     ρ ̂_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
-        invS = Mat3{Int}(inv(symop.S))
-        for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
-            igired = index_G_vectors(basis, invS * G)
-            isnothing(igired) && continue
+    # Need to transfer  symmetry data to the GPU as isbit data
+    symm_invS = to_device(basis.architecture, [Mat3{Int}(inv(symop.S)) for symop in symmetries])
+    symm_τ = to_device(basis.architecture, [symop.τ for symop in symmetries])
+    n_symm = length(symmetries)
 
-            if iszero(symop.τ)
-                @inbounds ρaccu[ig] += ρin[igired]
-            else
-                factor = cis2pi(-T(dot(G, symop.τ)))
-                @inbounds ρaccu[ig] += factor * ρin[igired]
-            end
+    # Looping over symmetries inside of map! on G vectors allow for a single GPU kernel launch
+    map!(ρaccu, Gs) do G
+        acc = zero(complex(T))
+        # Explicit loop over indicies because AMDGPU does not support zip() in map!
+        for i_symm in 1:n_symm
+            invS = symm_invS[i_symm]
+            τ = symm_τ[i_symm]
+            idx = index_G_vectors(fft_size, invS * G)
+            acc += isnothing(idx) ? zero(complex(T)) : cis2pi(-T(dot(G, τ))) * ρin[idx]
         end
-    end  # symop
+        acc
+    end
     ρaccu
 end
 
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
+# This function is optimized for CPU and GPU.
 function lowpass_for_symmetry!(ρ::AbstractArray, basis; symmetries=basis.symmetries)
-    for symop in symmetries
-        isone(symop) && continue
-        for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
-            if index_G_vectors(basis, symop.S * G) === nothing
-                ρ[ig] = 0
-            end
+    all(isone, symmetries) && return ρ
+
+    Gs = reshape(G_vectors(basis), size(ρ))
+    fft_size = basis.fft_size
+
+    symm_S = to_device(basis.architecture, [symop.S for symop in symmetries])
+
+    # Loop structure optimized for both CPU and GPU
+    map!(ρ, ρ, Gs) do ρ_i, G
+        acc = ρ_i
+        for S in symm_S
+            idx = index_G_vectors(fft_size, S * G)
+            acc *= isnothing(idx) ? 0 : 1
         end
+        acc
     end
     ρ
 end
@@ -320,7 +330,7 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
 """
 @views @timing function symmetrize_ρ(basis, ρ::AbstractArray{T};
                                      symmetries=basis.symmetries, do_lowpass=true) where {T}
-    ρin_fourier  = to_cpu(fft(basis, ρ))
+    ρin_fourier  = fft(basis, ρ)
     ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρ, 4)
         accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
@@ -328,7 +338,7 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
         do_lowpass && lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
     end
     inv_fft = T <: Real ? irfft : ifft
-    inv_fft(basis, to_device(basis.architecture, ρout_fourier) ./ length(symmetries))
+    inv_fft(basis, ρout_fourier ./ length(symmetries))
 end
 
 """

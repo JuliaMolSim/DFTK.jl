@@ -24,11 +24,11 @@ PreconditionerNone(::HamiltonianBlock) = I
 (Simplified version of)
 [Tetter-Payne-Allan preconditioning](https://doi.org/10.1103/physrevb.40.12255).
 """
-mutable struct PreconditionerTPA{T <: Real}
+mutable struct PreconditionerTPA{T <: Real, Tkin <: AbstractVector{T}}
     basis::PlaneWaveBasis
     kpt::Kpoint
-    kin::AbstractVector{T}  # kinetic energy of every G
-    mean_kin::Union{Nothing, Vector{T}}  # mean kinetic energy of every band
+    kin::Tkin  # kinetic energy of every G
+    mean_kin::Union{Nothing, Tkin}  # mean kinetic energy of every band
     default_shift::T  # if mean_kin is not set by `precondprep!`, this will be used for the shift
 end
 
@@ -40,7 +40,7 @@ function PreconditionerTPA(basis::PlaneWaveBasis{T}, kpt::Kpoint; default_shift=
     #      it's better to pass a HamiltonianBlock directly and read the computed values.
     kinetic_term = only(kinetic_term)
     kin = kinetic_energy(kinetic_term, basis.Ecut, Gplusk_vectors_cart(basis, kpt))
-    PreconditionerTPA{T}(basis, kpt, kin, nothing, default_shift)
+    PreconditionerTPA{T, typeof(kin)}(basis, kpt, kin, nothing, default_shift)
 end
 function PreconditionerTPA(ham::HamiltonianBlock; kwargs...)
     PreconditionerTPA(ham.basis, ham.kpoint; kwargs...)
@@ -50,7 +50,7 @@ end
     if P.mean_kin === nothing
         ldiv!(Y, Diagonal(P.kin .+ P.default_shift), R)
     else
-    parallel_loop_over_range(1:size(Y, 2)) do n
+        parallel_loop_over_range(1:size(Y, 2)) do n
             Y[:, n] .= P.mean_kin[n] ./ (P.mean_kin[n] .+ P.kin) .* R[:, n]
         end
     end
@@ -73,7 +73,7 @@ end
 (Base.:*)(P::PreconditionerTPA, R) = mul!(copy(R), P, R)
 
 function precondprep!(P::PreconditionerTPA, X::AbstractArray)
-    P.mean_kin = [real(dot(x, Diagonal(P.kin), x)) for x in eachcol(X)]
+    P.mean_kin = vec(real(columnwise_dots(X, Diagonal(P.kin), X)))
 end
 precondprep!(P::PreconditionerTPA, ::Nothing) = 1  # fallback for edge cases
 

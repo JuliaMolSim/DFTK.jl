@@ -9,7 +9,7 @@
     using UnitfulAtomic
     using LinearAlgebra
 
-    function test_term_forces(system; ε=1e-6, atol=1e-8,
+    function test_term_forces(system; ε=1e-5, atol=1e-7,
         functionals=PBE(), Ecut, kgrid, temperature=0, smearing=Smearing.Gaussian(),
         pseudopotentials=PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf"),
         magnetic_moments=[], symmetries=true, mixing=HybridMixing(), basis_kwargs...)
@@ -36,7 +36,8 @@
                     displacement = [zeros(3) for _ in 1:length(model.atoms)]
                     displacement[test_atom] = test_dir
                     modbasis = with_logger(NullLogger()) do
-                        modmodel = Model(model; positions=model.positions .+ ε.*displacement)
+                        modmodel = Model(model; positions=model.positions .+ ε.*displacement,
+                                         symmetries=true)
                         PlaneWaveBasis(modmodel; kgrid, Ecut, basis_kwargs...)
                     end
                     DFTK.ene_ops(modbasis.terms[iterm], modbasis, scfres.ψ, scfres.occupation;
@@ -105,17 +106,16 @@ end
     using PseudoPotentialData
     system = load_system("structures/tio2_stretched.extxyz")
     pseudopotentials = PseudoFamily("cp2k.nc.sr.pbe.v0_1.largecore.gth")
-    TestForces.test_term_forces(system; Ecut=15, kgrid=(2,2,3), temperature=1e-4, pseudopotentials,
-                                atol=5e-7, mixing=DielectricMixing(εr=10))
+    TestForces.test_term_forces(system; Ecut=15, kgrid=(2,2,3), temperature=1e-4,
+                                pseudopotentials, mixing=DielectricMixing(εr=10))
 end
 
 @testitem "Forces term-wise TiO2 (UPF)" setup=[TestForces] tags=[:forces] begin
     # Test HF forces on non-symmetric multi-species structure with NLCC
     using AtomsIO
-    using PseudoPotentialData
     system = load_system("structures/tio2_stretched.extxyz")
     TestForces.test_term_forces(system; Ecut=25, kgrid=(2,2,3), temperature=1e-4,
-                                atol=5e-7, mixing=DielectricMixing(εr=10))
+                                mixing=DielectricMixing(εr=10))
 end
 
 @testitem "Forces term-wise Fe (GTH)"  setup=[TestForces] tags=[:forces] begin
@@ -133,8 +133,7 @@ end
     pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
     TestForces.test_term_forces(system; pseudopotentials, functionals=LDA(),
                                 temperature=1e-3, Ecut=20, kgrid=[6, 6, 6],
-                                atol=1e-6, magnetic_moments=[5.0, 5.0],
-                                mixing=KerkerMixing())
+                                magnetic_moments=[5.0, 5.0], mixing=KerkerMixing())
 end
 
 @testitem "Forces term-wise Rutile (full)"  setup=[TestForces] tags=[:slow,:forces] begin
