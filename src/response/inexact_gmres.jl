@@ -2,9 +2,14 @@ using LinearMaps
 using KrylovKit: OrthonormalBasis, Orthogonalizer
 using LinearAlgebra: Givens
 
-# Perform an inexact matrix-vector product, ensuring that
-# maximum(norm, eachcol(Y - A*X)) < tol
-inexact_mul(A, x; tol=0.0) = (; Ax=A * x, info=(; tol))
+"""
+Matrix-vector product function used by `inexact_gmres`. The intention is that an
+approximate matrix-vector product is computed, however, ensuring that each
+matxec is accurate up to tol, i.e. `maximum(norm, eachcol(Y - A*X)) < tol`.
+Specific matrix types `A` may define a method for this function to provide
+faster approximate versions for A * x.
+"""
+mul_approximate(A, X; tol=0.0) = (; Ax=A * X, info=(; tol))
 
 function default_gmres_print(info)
     !mpi_master() && return info  # Rest is printing => only do on master
@@ -25,16 +30,35 @@ function default_gmres_print(info)
 end
 
 @doc raw"""
-Preconditioned Inexact GMRES algorithm as discussed in [arxiv 2505.02319](https://arxiv.org/pdf/2505.02319).
+Solve a linear system `Ax=b` involving operator `A` by a preconditioned inexact GMRES algorithm.
 At convergence ``\| \text{precon}^{-1} (A*x - b) \| < \text{tol}`` is ensured.
 
-Overview of parameters:
+Like standard GMRES the algorithm builds a Krylov subspace and uses the Arnoldi relationship
+`A V = V H` where `V` are the Arnoldi vectors and `H` is an upper Hessenberg matrix. Based
+on this decomposition the projection of the linear problem within the Krylov subspace can be
+efficiently solved. In contrast to standard GMRES methods, however, the inexact GMRES tolerates
+the Arnoldi relationship to hold only approximately, which means that in turn matrix-vector
+products `A*v` do not all need to be fully accurate. More precisely, since the coefficients
+of the solution vector `x`, when expanded in the basis `V` *decreases* from one Arnoldi
+vector to the next, `A*v` can be computed *less and less precise* as the GMRES is converging,
+see [^Simoncini2003] for details. The implementation employs the function `mul_approximate`
+to signal the operator how accurate a particular matvec is needed. For more details on our
+implementation see Algorithm 3.1. of [^Herbst2025].
+
+[^Simoncini2003]: [DOI 10.1137/s1064827502406415](http://dx.doi.org/10.1137/s1064827502406415)
+[^Herbst2025]: [arxiv 2505.02319](https://arxiv.org/pdf/2505.02319)
+
+Standard GMRES parameters:
+- **x**:         Initial guess vector
 - **krylovdim**: Maximal Krylov subspace dimension before restart
-- **tol**:  Convergence threshold
-- **s**: Initial guess for the smallest singular value of the upper Hessenberg matrix.
-- **orth**: `KrylovKit.Orthogonalizer`: Orthogonalisation routine
-- **callback**: Callback function
-- **precon**: Left preconditioner
+- **tol**:       Absolute convergence threshold
+- **orth**:      `KrylovKit.Orthogonalizer`: Orthogonalisation routine
+- **callback**:  Callback function
+- **precon**:    Left preconditioner
+
+Parameters specific to inexact GMRES:
+- **s**: Initial guess for the smallest singular value of the upper Hessenberg matrix;
+         will be adapted on the fly.
 """
 @timing function inexact_gmres!(x, A, b::AbstractVector{T};
                                 precon=I, maxiter=100, krylovdim=20, tol=1e-6, s=1.0,
@@ -68,7 +92,7 @@ Overview of parameters:
         if iszero(x) && n_iter == 0
             ldiv!(r, precon, b)  # Apply preconditioner
         else
-            Ax, Axinfo = inexact_mul(A, x; tol=tol/3)
+            Ax, Axinfo = mul_approximate(A, x; tol=tol/3)
             push!(Axinfos, Axinfo)
             w .= b .- Ax
             ldiv!(r, precon, w)  # Apply preconditioner
@@ -84,7 +108,7 @@ Overview of parameters:
 
             # Compute new Krylov vector and orthogonalise against subspace
             tolA = tol * s / (3m * abs(y[k]))  # |y[k]| is the estimated residual norm
-            p, Axinfo = inexact_mul(A, V[k]; tol=tolA)
+            p, Axinfo = mul_approximate(A, V[k]; tol=tolA)
             push!(Axinfos, Axinfo)
             ldiv!(w, precon, p)  # Apply preconditioner
             r, _ = orthogonalize!!(w, V, @view(H[1:k, k]), orth)

@@ -348,9 +348,6 @@ function solve_ΩplusK_split(scfres::NamedTuple, rhs; kwargs...)
                        bandtolalg=BandtolBalanced(scfres), kwargs...)
 end
 
-# TODO This feels a bit hackish, because for all other entities
-#      (like Ω+K or χ0 or K) we don't have a struct, but just an apply function
-#      so why have a struct here ?
 struct DielectricAdjoint{Tρ, Tψ, Toccupation, TεF, Teigenvalues, Tq}
     ham::Hamiltonian
     ρ::Tρ
@@ -363,11 +360,15 @@ struct DielectricAdjoint{Tρ, Tψ, Toccupation, TεF, Teigenvalues, Tq}
     maxiter::Int  # CG maximum number of iterations
     q::Tq
 end
+
+@doc raw"""
+Representation of the dielectric adjoint operator ``ε^† = (1 - χ_0 K)^{-1}``.
+"""
 function DielectricAdjoint(scfres; bandtolalg=BandtolBalanced(scfres), q=zero(Vec3{Float64}), maxiter=100)
     DielectricAdjoint(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation, scfres.εF,
                       scfres.eigenvalues, scfres.occupation_threshold, bandtolalg, maxiter, q)
 end
-@timing "DielectricAdjoint" function inexact_mul(ε::DielectricAdjoint, δρ; tol=0.0, kwargs...)
+@timing "DielectricAdjoint" function mul_approximate(ε::DielectricAdjoint, δρ; tol=0.0, kwargs...)
     δρ = reshape(δρ, size(ε.ρ))
     basis = ε.ham.basis
     δV = apply_kernel(basis, δρ; ε.ρ, ε.q)

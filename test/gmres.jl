@@ -9,7 +9,7 @@ using Test
     struct MatNoisy{T}
         mat::Matrix{T}
     end
-    function DFTK.inexact_mul(A::MatNoisy{T}, x; tol) where {T}
+    function DFTK.mul_approximate(A::MatNoisy{T}, x; tol) where {T}
         y_exact = A.mat * x
         e = randn(T, length(y_exact))
         Ax = y_exact + (e / norm(e) * T(tol))

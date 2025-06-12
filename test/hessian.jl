@@ -34,7 +34,7 @@ function test_solve_ΩplusK(scfres, δVext)
     end
     @testset "Residual is small" begin
         ε = DFTK.DielectricAdjoint(scfres; bandtolalg=DFTK.BandtolGuaranteed(scfres))
-        εδρ = reshape(DFTK.inexact_mul(ε, ref.δρ; tol=1e-13).Ax, size(δρ0))
+        εδρ = reshape(DFTK.mul_approximate(ε, ref.δρ; tol=1e-13).Ax, size(δρ0))
         @test maximum(abs, δρ0 - εδρ) < 1e-11
     end
 
