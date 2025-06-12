@@ -226,7 +226,7 @@ Overview of parameters:
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
                 ρ=ρout, τ, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
                 info.n_iter, info.n_matvec, ψ, info.diagonalization, stage=:finalize,
-                info.history_Δρ, info.history_Etot, info.timedout,
+                info.history_Δρ, info.history_Etot, info.timedout, mixing,
                 runtime_ns=time_ns() - start_ns, algorithm="SCF")
     callback(scfres)
     scfres

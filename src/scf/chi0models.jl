@@ -81,7 +81,7 @@ function (χ0::Applyχ0Model)(basis; ham, eigenvalues, ψ, occupation, εF,
                             kwargs...)
     function apply!(δρ, δV, α=1)
         χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
-                        χ0.kwargs_apply_χ0...)
+                        χ0.kwargs_apply_χ0...).δρ
         δρ .+= α .* χ0δV
     end
 end

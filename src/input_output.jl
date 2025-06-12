@@ -318,9 +318,9 @@ function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true, save_ρ=true)
     band_data_to_dict!(dict, scfres; save_ψ)
 
     # These are either already done above or will be ignored or dealt with below.
-    special = (:ham, :basis, :energies, :stage,
+    special = (:ham, :basis, :energies, :stage, :mixing,
                :τ, :ρ, :ψ, :eigenvalues, :occupation, :εF, :diagonalization,
-               :optim_res # from direct_minimization, ignore it as it can be huge
+               :optim_res, # from direct_minimization, ignore it as it can be huge
                )
     propmap = Dict(:α => :damping_value, )  # compatibility mapping
     if mpi_master()
@@ -331,6 +331,9 @@ function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true, save_ρ=true)
         energies = make_subdict!(dict, "energies")
         for (key, value) in todict(scfres.energies)
             energies[key] = value
+        end
+        if hasproperty(scfres, :mixing)
+            dict["mixing"] = string(scfres.mixing)
         end
 
         scfres_extra_keys = String[]
