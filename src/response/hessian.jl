@@ -368,16 +368,16 @@ function DielectricAdjoint(scfres; bandtolalg=BandtolBalanced(scfres), q=zero(Ve
     DielectricAdjoint(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation, scfres.εF,
                       scfres.eigenvalues, scfres.occupation_threshold, bandtolalg, maxiter, q)
 end
-@timing "DielectricAdjoint" function mul_approximate(ε::DielectricAdjoint, δρ; tol=0.0, kwargs...)
+@timing "DielectricAdjoint" function mul_approximate(ε::DielectricAdjoint, δρ; rtol=0.0, kwargs...)
     δρ = reshape(δρ, size(ε.ρ))
     basis = ε.ham.basis
     δV = apply_kernel(basis, δρ; ε.ρ, ε.q)
     res = apply_χ0(ε.ham, ε.ψ, ε.occupation, ε.εF, ε.eigenvalues, δV;
-                   miniter=1, ε.occupation_threshold, tol,
+                   miniter=1, ε.occupation_threshold, tol=rtol*norm(δρ),
                    ε.bandtolalg, ε.q, ε.maxiter, kwargs...)
     χ0δV = res.δρ
     Ax = vec(δρ - χ0δV)  # (1 - χ0 K δρ)
-    (; Ax, info=(; tol, basis, res...))
+    (; Ax, info=(; rtol, basis, res...))
 end
 function size(ε::DielectricAdjoint, i::Integer)
     if 1 ≤ i ≤ 2

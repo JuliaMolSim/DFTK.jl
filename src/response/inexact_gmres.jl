@@ -4,12 +4,12 @@ using LinearAlgebra: Givens
 
 """
 Matrix-vector product function used by `inexact_gmres`. The intention is that an
-approximate matrix-vector product is computed, however, ensuring that each
-matxec is accurate up to tol, i.e. `maximum(norm, eachcol(Y - A*X)) < tol`.
-Specific matrix types `A` may define a method for this function to provide
-faster approximate versions for A * x.
+approximate matrix-vector product `Y = A*X` is computed, however, ensuring that each
+matvec is accurate up to a relative tolerance `rtol`,
+i.e. `norm(Y[:, i] - A*X[:, i]) < rtol * norm(X[:, i])`. Specific matrix types `A` may
+define a method for this function to provide faster approximate versions for `A*X`.
 """
-mul_approximate(A, X; tol=0.0) = (; Ax=A * X, info=(; tol))
+mul_approximate(A, X; rtol=0.0) = (; Ax=A * X, info=(; rtol))
 
 function default_gmres_print(info)
     !mpi_master() && return info  # Rest is printing => only do on master
@@ -31,7 +31,7 @@ end
 
 @doc raw"""
 Solve a linear system `Ax=b` involving operator `A` by a preconditioned inexact GMRES algorithm.
-At convergence ``\| \text{precon}^{-1} (A*x - b) \| < \text{tol}`` is ensured.
+At convergence ``\| \text{precon}^{-1} (A*x - b) \| < \text{tol} * \|b\|`` is ensured.
 
 Like standard GMRES the algorithm builds a Krylov subspace and uses the Arnoldi relationship
 `A V = V H` where `V` are the Arnoldi vectors and `H` is an upper Hessenberg matrix. Based
@@ -92,7 +92,7 @@ Parameters specific to inexact GMRES:
         if iszero(x) && n_iter == 0
             ldiv!(r, precon, b)  # Apply preconditioner
         else
-            Ax, Axinfo = mul_approximate(A, x; tol=tol/3)
+            Ax, Axinfo = mul_approximate(A, x; rtol=tol/3/norm(x))
             push!(Axinfos, Axinfo)
             w .= b .- Ax
             ldiv!(r, precon, w)  # Apply preconditioner
@@ -108,7 +108,7 @@ Parameters specific to inexact GMRES:
 
             # Compute new Krylov vector and orthogonalise against subspace
             tolA = tol * s / (3m * abs(y[k]))  # |y[k]| is the estimated residual norm
-            p, Axinfo = mul_approximate(A, V[k]; tol=tolA)
+            p, Axinfo = mul_approximate(A, V[k]; rtol=tolA)  # ||V[k]|| = 1
             push!(Axinfos, Axinfo)
             ldiv!(w, precon, p)  # Apply preconditioner
             r, _ = orthogonalize!!(w, V, @view(H[1:k, k]), orth)

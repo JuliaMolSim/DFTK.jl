@@ -9,11 +9,11 @@ using Test
     struct MatNoisy{T}
         mat::Matrix{T}
     end
-    function DFTK.mul_approximate(A::MatNoisy{T}, x; tol) where {T}
+    function DFTK.mul_approximate(A::MatNoisy{T}, x; rtol) where {T}
         y_exact = A.mat * x
         e = randn(T, length(y_exact))
-        Ax = y_exact + (e / norm(e) * T(tol))
-        (; Ax, info=(; tol))
+        Ax = y_exact + (e / norm(e) * T(rtol) * norm(x))
+        (; Ax, info=(; rtol))
     end
     Base.size(A::MatNoisy, args...) = size(A.mat, args...)
 
