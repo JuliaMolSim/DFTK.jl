@@ -279,7 +279,12 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, sym
     # with Fourier transform
     #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
     # equivalently
-    #     ρ ̂_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
+    #     ρ ̂_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G) 
+    if all(isone, symmetries)
+        ρaccu .= ρin
+        return ρaccu
+    end
+
     Gs = reshape(G_vectors(basis), size(ρaccu))
     fft_size = basis.fft_size
 
@@ -296,7 +301,8 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, sym
             invS = symm_invS[i_symm]
             τ = symm_τ[i_symm]
             idx = index_G_vectors(fft_size, invS * G)
-            acc += isnothing(idx) ? zero(complex(T)) : cis2pi(-T(dot(G, τ))) * ρin[idx]
+            acc += isnothing(idx) ? zero(complex(T)) :
+                        iszero(τ) ? ρin[idx] : cis2pi(-T(dot(G, τ))) * ρin[idx]
         end
         acc
     end
