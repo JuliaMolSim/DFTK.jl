@@ -19,60 +19,45 @@ An example of this workflow is given in [Modelling a gallium arsenide surface](@
 
 ## Using DFTK as a calculator in ASE
 
-!!! warning "Experimental feature"
-    This feature is basically untested and at the moment mainly serves as a
-    pointer to the expert user how a DFTK integration into ASE could be achieved.
-    If you are interested in trying this and ironing out the rough edges,
-    please open an issue or a PR to polish this towards a state where it can
-    be helpful for others.
+!!! warning "Recent feature"
+    This is a relatively new feature and still has rough edges.
+    We appreciate any feedback, bug reports or PRs.
 
-The [AtomsCalculatorsUtilities](https://github.com/JuliaMolSim/AtomsCalculatorsUtilities.jl)
+The [IPICalculator](https://github.com/JuliaMolSim/IPICalculator.jl)
 package contains an implementation of the [i-PI protocol](https://github.com/i-pi/i-pi)
 to pass energies, forces and virials between different atomistic calculators.
 This can be used, for example, to make julia-based calculators available in ASE.
-Note that at the moment AtomsCalculatorsUtilities is not yet registered
-in general and you will need to install it from the github url.
 
-On the python-side (for ASE), this requests the computation of a force
-of a hydrogen molecule:
+The following example requests the computation of a silicon energy and force
+from DFTK.
 
 ```python
-from ase import Atoms
+import ase.build
 from ase.calculators.socketio import SocketIOCalculator
 
-h2 = Atoms('H2', positions=[[0, 0, 0], [0, 0, 0.7]])
-
-calc = SocketIOCalculator(log="test.log")
-
-h2.calc = calc
-h2.get_forces()  # Stalls until you connect a driver
+atoms = ase.build.bulk("Si")
+atoms.write("Si.cif")
+atoms.calc = SocketIOCalculator(unixsocket="dftk")
+atoms.get_forces()  # Stalls until you connect a driver
 ```
 
-To supply this request with an LDA force based on DFTK,
-we need to setup an initial system as a template
-as well as an LDA calculator with desired numerical parameters:
+To supply this force request with an PBE force, we need to setup
+an initial system as a template as well as an PBE calculator
+with desired numerical parameters:
 
 ```julia
-using AtomsBase
-using AtomsCalculatorsUtilities.IPI
+using AtomsIO
 using DFTK
-using Unitful
-
-# Setup initial system
-bounding_box = [[10.0, 0, 0],
-                [0, 10.0, 0],
-                [0, 0, 10.0]]u"Å"
-hydrogen = periodic_system([
-    :H => [0, 0, 0.]u"Å",
-    :H => [0, 0, 1.]u"Å"
-], bounding_box)
+using IPICalculator
+using PseudoPotentialData
 
 # Setup DFTK calculator
-calc = DFTKCalculator(;
-    model_kwargs = (; functionals=LDA()),
-    basis_kwargs = (; kgrid=[1, 1, 1], Ecut=10)
+calc = DFTKCalculator(
+    model_kwargs=(; pseudopotentials=PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf"),
+                    functionals=PBE(), temperature=1e-3, smearing=Smearing.Gaussian()),
+    basis_kwargs=(; Ecut=20, kgrid=(4, 4, 4)),
 )
 
 # Run IPI driver
-run_driver("127.0.0.1", calc, hydrogen)
+run_driver(load_system("Si.cif"), calc; unixsocket="dftk")
 ```
