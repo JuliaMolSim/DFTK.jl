@@ -33,7 +33,7 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
             else
                 X0 = similar(ψguess[ik], n_Gk, nev_per_kpoint)
                 X0[:, 1:nev_guess] = ψguess[ik]
-                X0[:, nev_guess+1:end] = randn(eltype(X0), n_Gk, nev_per_kpoint - nev_guess)
+                X0[:, nev_guess+1:end] = randn(Xoshiro(42), eltype(X0), n_Gk, nev_per_kpoint - nev_guess)
                 ψguessk = ortho_qr(X0)
             end
         elseif interpolate_kpoints && ik > 1
