@@ -14,8 +14,8 @@ function setup_basis()
     PlaneWaveBasis(model; Ecut=64, kgrid=(1, 1, 1))
 end
 
-basis  = setup_basis()
-scfres = setup_dummy_scfres(basis)
+basis   = setup_basis()
+scfres  = setup_dummy_scfres(basis)
 
 # Assemble benchmarks
 SUITE["setup"] = @benchmarkable setup_basis() evals=1 samples=3
