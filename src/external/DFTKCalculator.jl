@@ -150,3 +150,12 @@ end
     virial = (-Ω * compute_stresses_cart(scfres)) * u"hartree"
     (; virial, energy=scfres.energies.total * u"hartree", state=scfres)
 end
+
+function AtomsCalculators.energy_forces(system, calc::DFTKCalculator; kwargs...)
+    AtomsCalculators.calculate(AtomsCalculators.Forces(), system, calc; kwargs...)
+end
+
+function AtomsCalculators.energy_forces_virial(system, calc::DFTKCalculator; kwargs...)
+    res = AtomsCalculators.calculate(AtomsCalculators.Virial(), system, calc; kwargs...)
+    (; forces=compute_forces_cart(res.state) * u"hartree/bohr", res...)
+end
