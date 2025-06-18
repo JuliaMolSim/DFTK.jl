@@ -254,14 +254,14 @@ normest(M) = maximum(abs, diag(M)) + norm(M - Diagonal(diag(M)))
 end
 
 # Randomize the columns of X if the norm is below tol
-function drop_small!(X::AbstractArray{T}; tol=2eps(real(T))) where {T}
+function drop_small!(X::AbstractArray{T}; tol=2eps(real(T)), rng) where {T}
     dropped = findall(n -> n <= tol, columnwise_norms(X))
-    @views randn!(Xoshiro(42), X[:, dropped])
+    @views randn!(rng, X[:, dropped])
     dropped
 end
 
 # Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
-@timing "ortho! X vs Y" function ortho!(X::AbstractArray{T}, Y, BY; tol=2eps(real(T))) where {T}
+@timing "ortho! X vs Y" function ortho!(X::AbstractArray{T}, Y, BY; tol=2eps(real(T)), rng) where {T}
     # normalize to try to cheaply improve conditioning
     X ./= columnwise_norms(X)'
 
@@ -273,7 +273,7 @@ end
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho!(cP, cX)
-        dropped = drop_small!(X; tol)
+        dropped = drop_small!(X; tol, rng)
         if !isempty(dropped)
             X[:, dropped] .-= Y * (BY' * X[:, dropped])
         end
@@ -346,7 +346,8 @@ end
 # but X and the history on the device (for GPU runs)
 @timing function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100;
                         miniter=1, ortho_tol=2eps(real(eltype(X))),
-                        n_conv_check=nothing, display_progress=false)
+                        n_conv_check=nothing, display_progress=false,
+                        rng=default_rng())
     N, M = size(X)
 
     # If N is too small, we will likely get in trouble
@@ -490,7 +491,7 @@ end
             cP = cX .- e
             cP = cP[:, Xn_indices]
             # orthogonalize against all Xn (including newly locked)
-            ortho!(cP, cX, cX, tol=ortho_tol)
+            ortho!(cP, cX, cX; tol=ortho_tol, rng)
 
             # Get new P
             new_P  = Y  * cP
@@ -546,7 +547,7 @@ end
             Z  = full_X
             BZ = full_BX
         end
-        ortho!(R, Z, BZ; tol=ortho_tol)
+        ortho!(R, Z, BZ; tol=ortho_tol, rng)
         if B != I
             mul!(BR, B, R)
             B_ortho!(R, BR)

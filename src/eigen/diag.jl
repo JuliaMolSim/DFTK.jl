@@ -9,7 +9,8 @@ that really does the work, operating on a single ``k``-Block.
 function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::Int;
                                  ψguess=nothing,
                                  prec_type=PreconditionerTPA, interpolate_kpoints=true,
-                                 tol=1e-6, miniter=1, maxiter=100, n_conv_check=nothing)
+                                 tol=1e-6, miniter=1, maxiter=100, n_conv_check=nothing,
+                                 rng=default_rng())
     kpoints = ham.basis.kpoints
     results = Vector{Any}(undef, length(kpoints))
 
@@ -33,7 +34,7 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
             else
                 X0 = similar(ψguess[ik], n_Gk, nev_per_kpoint)
                 X0[:, 1:nev_guess] = ψguess[ik]
-                X0[:, nev_guess+1:end] = randn(Xoshiro(42), eltype(X0), n_Gk, nev_per_kpoint - nev_guess)
+                X0[:, nev_guess+1:end] = randn(rng, eltype(X0), n_Gk, nev_per_kpoint - nev_guess)
                 ψguessk = ortho_qr(X0)
             end
         elseif interpolate_kpoints && ik > 1
@@ -48,7 +49,7 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
         prec = nothing
         !isnothing(prec_type) && (prec = prec_type(ham[ik]))
         results[ik] = eigensolver(ham[ik], ψguessk;
-                                  prec, tol, miniter, maxiter, n_conv_check)
+                                  prec, tol, miniter, maxiter, n_conv_check, rng)
     end
 
     # Transform results into a nicer datastructure

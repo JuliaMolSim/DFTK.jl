@@ -43,6 +43,7 @@ include("common/quadrature.jl")
 include("common/hankel.jl")
 include("common/hydrogenic.jl")
 include("common/derivatives.jl")
+include("common/random.jl")
 
 export PspHgh
 export PspUpf
