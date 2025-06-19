@@ -83,7 +83,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         ε_occ = [scfres.eigenvalues[ik][1:size(ψk, 2)] for (ik, ψk) in enumerate(ψ_occ)]
 
         diff_applied_χ0_noextra = apply_χ0(scfres.ham, ψ_occ, occ_occ, scfres.εF, ε_occ, δV;
-                                           scfres.occupation_threshold)
+                                           scfres.occupation_threshold).δρ
         @test norm(diff_applied_χ0_noextra - diff_applied_χ0) < atol
 
         # just to cover it here
@@ -108,8 +108,8 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
             mpi_mean!(δV1, MPI.COMM_WORLD)
             mpi_mean!(δV2, MPI.COMM_WORLD)
 
-            χ0δV1 = apply_χ0(scfres, δV1)
-            χ0δV2 = apply_χ0(scfres, δV2)
+            χ0δV1 = apply_χ0(scfres, δV1).δρ
+            χ0δV2 = apply_χ0(scfres, δV2).δρ
             @test abs(dot(δV1, χ0δV2) - dot(δV2, χ0δV1)) < atol
         end
     end
