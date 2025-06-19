@@ -63,10 +63,10 @@ function (cb::ScfDefaultCallback)(info)
 
     # TODO We should really do this properly ... this is really messy
     if info.n_iter == 1
-        label_magn = show_magn ? ("   Magnet", "   ------") : ("", "")
-        label_damp = show_damp ? ("   α   ", "   ----") : ("", "")
-        label_diag = show_diag ? ("   Diag", "   ----") : ("", "")
-        label_time = show_time ? ("   Δtime", "   ------") : ("", "")
+        label_magn = show_magn ? ("   Magnet   |Magn|", "   ------   ------") : ("", "")
+        label_damp = show_damp ? ("   α   ",   "   ----") : ("", "")
+        label_diag = show_diag ? ("   Diag",   "   ----") : ("", "")
+        label_time = show_time ? ("   Δtime",  "   ------") : ("", "")
         @printf "n     Energy            log10(ΔE)   log10(Δρ)"
         println(label_magn[1], label_damp[1], label_diag[1], label_time[1])
         @printf "---   ---------------   ---------   ---------"
@@ -74,6 +74,7 @@ function (cb::ScfDefaultCallback)(info)
     end
     E    = isnothing(info.energies) ? Inf : info.energies.total
     magn = sum(spin_density(info.ρout)) * info.basis.dvol
+    abs_magn = sum(abs, spin_density(info.ρout)) * info.basis.dvol
 
     tstr = " "^9
     if show_time
@@ -81,7 +82,6 @@ function (cb::ScfDefaultCallback)(info)
     end
     cb.prev_time[] = info.runtime_ns
 
-    format_log8(e) = @sprintf "%8.2f" log10(abs(e))
     Estr    = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
     if info.n_iter < 2
         ΔE = " "^9
@@ -92,17 +92,20 @@ function (cb::ScfDefaultCallback)(info)
     end
     Δρstr   = " " * format_log8(last(info.history_Δρ))
     Mstr    = show_magn ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
+    absMstr = show_magn ? "   $((@sprintf "%6.3f" round(abs_magn, sigdigits=4))[1:6])" : ""
     diagstr = show_diag ? "  $(@sprintf "% 5.1f" diagiter)" : ""
 
     αstr = ""
     show_damp && (αstr = isnan(info.α) ? "       " : @sprintf "  % 4.2f" info.α)
 
     @printf "% 3d   %s   %s   %s" info.n_iter Estr ΔE Δρstr
-    println(Mstr, αstr, diagstr, tstr)
+    println(Mstr, absMstr, αstr, diagstr, tstr)
 
     flush(stdout)
     info
 end
+
+format_log8(e) = @sprintf "%8.2f" log10(abs(e))
 
 #
 # Convergence checks

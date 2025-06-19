@@ -356,7 +356,7 @@ end
     N > 3M    || error(error_message("will"))
     N >= 3M+5 || @warn error_message("might")
 
-    n_conv_check === nothing && (n_conv_check = M)
+    isnothing(n_conv_check) && (n_conv_check = M)
     resid_history = zeros(real(eltype(X)), M, maxiter+1)
 
     # B-orthogonalize X

@@ -58,8 +58,8 @@ function _phonon_modes(basis::PlaneWaveBasis{T}, dynmat_cart) where {T}
 
     (; mass_matrix=M, frequencies, vectors_cart=reshape(res.vectors, 3, n_atoms, 3, n_atoms))
 end
-# For convenience
 function phonon_modes(scfres::NamedTuple; kwargs...)
+    # TODO Pass down mixing and similar things to solve_ΩplusK_split
     phonon_modes(scfres.basis, scfres.ψ, scfres.occupation; scfres.ρ, scfres.ham,
                  scfres.occupation_threshold, scfres.εF, scfres.eigenvalues, kwargs...)
 end
