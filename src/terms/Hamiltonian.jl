@@ -195,8 +195,7 @@ Compute the energies and Hamiltonian.
 - `occupation`: The occupation numbers for each k-point and band.
 
 The keyword arguments `kwargs...` are passed to [`ene_ops`](@ref).
-These can be used to pass additional information that might be useful for the energy terms to precompute
-(e.g., the density ρ).
+These can be used to pass additional information to that function, e.g., the density ρ.
 
 # Returns
 
