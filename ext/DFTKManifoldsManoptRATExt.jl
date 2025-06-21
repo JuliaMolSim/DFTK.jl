@@ -94,8 +94,8 @@ function _compute_density_energy_hamiltonian!(cgf::HartreeFockEnergyCostGrad, M:
     # Can we improve this by copying elementwise?
     # copyto!(cgf.ψ, (copy(x) for x in p.x)) # deepcopyto!
     # Maybe like
-    for i in eachindex(cgf.ψ)
-        copyto!(cgf.ψ[i], p[M,i])
+    for ik in eachindex(cgf.ψ)
+        copyto!(cgf.ψ[ik], p[M,ik])
     end
     copyto!(cgf.ρ, compute_density(cgf.basis, cgf.ψ, cgf.occupation))
     # Below not inplace, but probably not that important.
