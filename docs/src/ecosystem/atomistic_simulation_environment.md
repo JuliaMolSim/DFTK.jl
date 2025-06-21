@@ -1,4 +1,4 @@
-# Atomistic simulation environment
+# Atomistic simulation environment (ASE)
 
 The [atomistic simulation environment](https://wiki.fysik.dtu.dk/ase/index.html),
 or ASE for short,

@@ -5,7 +5,7 @@
 # ASE is a Python package to simplify the process of setting up,
 # running and analysing results from atomistic simulations across different simulation codes.
 # For more details on the integration DFTK provides with ASE,
-# see [Atomistic simulation environment](@ref).
+# see [Atomistic simulation environment (ASE)](@ref).
 #
 # In this example we will consider modelling the (1, 1, 0) GaAs surface separated by vacuum.
 

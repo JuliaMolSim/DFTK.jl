@@ -52,7 +52,7 @@ and runs out of the box on Linux, windows and macOS, see [Installation](@ref).
 ## Third-party integrations
 - Many standard [Input and output formats](@ref).
 - [AtomsBase integration](@ref) and via this ecosystem an integration
-  with the [Atomistic simulation environment](@ref).
+  with the [Atomistic simulation environment (ASE)](@ref).
 - [Wannierization using Wannier.jl or Wannier90](@ref)
 
 ## Missing a feature ?

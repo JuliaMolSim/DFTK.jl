@@ -12,13 +12,15 @@ function GO.setup_solver(system, calc::DFTKCalculator, ::GO.Autoselect; kwargs..
 end
 
 function GO.minimize_energy!(system, calc::DFTKCalculator, solver;
+                             variablecell=false,
                              autoadjust_calculator=true,
                              tol_energy=Inf*u"eV",
                              tol_forces=1e-4u"eV/Å",
                              tol_virial=1e-6u"eV",
                              verbosity::Integer=0,
                              # Verbosity is 0 (silent) unless we are on master
-                             callback=GO.GeoOptDefaultCallback(mpi_master() * verbosity),
+                             callback=GO.GeoOptDefaultCallback(mpi_master() * verbosity;
+                                                               show_virial=variablecell),
                              kwargs...)
     if autoadjust_calculator
         has_modified_parameter = any(haskey(calc.params.scf_kwargs, key)
@@ -54,7 +56,7 @@ function GO.minimize_energy!(system, calc::DFTKCalculator, solver;
         return callback(optim_state, geoopt_state)
     end
     GO._minimize_energy!(system, calc, solver;
-                         tol_energy, tol_forces, tol_virial,
+                         variablecell, tol_energy, tol_forces, tol_virial,
                          verbosity, callback=callback_dftk, kwargs...)
 end
 
