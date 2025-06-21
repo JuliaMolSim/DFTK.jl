@@ -21,14 +21,14 @@ The current DFTK reference paper to cite is
 Additionally the following publications describe DFTK or one of its algorithms:
 
 - M. Herbst, B. Sun.
-  [*Efficient Krylov methods for linear response in plane-wave electronic structure calculations](https://arxiv.org/abs/2505.02319) (2025).
+  [*Efficient Krylov methods for linear response in plane-wave electronic structure calculations.*](https://arxiv.org/abs/2505.02319) (2025).
   ([Supplementary material and computational scripts](https://github.com/bonans/inexact_Krylov_response)).
 
 - E. Cancès, M. Hassan and L. Vidal.
   [*Modified-Operator Method for the Calculation of Band Diagrams of Crystalline Materials.*](https://doi.org/10.1090/mcom/3897)
   Math. Comp. **93**, 1203 (2024).
   [ArXiv:2210.00442](https://arxiv.org/abs/2210.00442).
-  ([Supplementary material and computational scripts](https://github.com/LaurentVidal95/ModifiedOp).
+  ([Supplementary material and computational scripts](https://github.com/LaurentVidal95/ModifiedOp)).
 
 - E. Cancès, M. F. Herbst, G. Kemlin, A. Levitt and B. Stamm.
   [*Numerical stability and efficiency of response property calculations in density functional theory*](https://arxiv.org/abs/2210.04512)
@@ -62,7 +62,7 @@ Feel free to drop us a line if you want your work to be added here.
 
 - D. Petersheim, J. Püschel, T. Stykel.
   [*Energy-adaptive Riemannian Conjugate Gradient method for density functional theory*](https://arxiv.org/abs/2503.16225) (2025).
-  ([Implementation](https://github.com/jonas-pueschel/RCG_DFTK/)
+  ([Implementation](https://github.com/jonas-pueschel/RCG_DFTK/)).
 
 - A. Bordignon, G. Dusson, E. Cancès, G. Kemlin, R. A. L. Reyes and B. Stamm.
   [*Fully guaranteed and computable error bounds on the energy for periodic Kohn-Sham equations with convex density functionals*](http://arxiv.org/abs/2409.11769v1) (2024).
