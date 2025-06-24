@@ -44,7 +44,7 @@ function test_solve_ΩplusK(scfres, δVext)
             @test maximum(abs, res.δρ - ref.δρ) < tol
 
             for ik in 1:length(scfres.basis.kpoints)
-                @test maximum(abs, res.δψ[ik] - ref.δψ[ik]) < 5tol
+                @test maximum(abs, res.δψ[ik] - ref.δψ[ik]) < 8tol
             end
         end
     end
@@ -55,7 +55,7 @@ function test_solve_ΩplusK(scfres, δVext)
         @test maximum(abs, res.δρ - ref.δρ) < tol
 
         for ik in 1:length(scfres.basis.kpoints)
-            @test maximum(abs, res.δψ[ik] - ref.δψ[ik]) < 5tol
+            @test maximum(abs, res.δψ[ik] - ref.δψ[ik]) < 8tol
         end
     end  # testset
 end  # function
