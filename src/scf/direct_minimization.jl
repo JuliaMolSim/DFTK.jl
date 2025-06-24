@@ -75,6 +75,7 @@ function direct_minimization(basis::PlaneWaveBasis{T};
                              optim_method=Optim.LBFGS,
                              alphaguess=LineSearches.InitialStatic(),
                              linesearch=LineSearches.BackTracking(),
+                             rng=default_rng(),
                              kwargs...) where {T}
     if mpi_nprocs() > 1
         # need synchronization in Optim
@@ -89,7 +90,7 @@ function direct_minimization(basis::PlaneWaveBasis{T};
     Nk = length(basis.kpoints)
 
     if isnothing(ψ)
-        ψ = [random_orbitals(basis, kpt, n_bands) for kpt in basis.kpoints]
+        ψ = [random_orbitals(basis, kpt, n_bands; rng) for kpt in basis.kpoints]
     end
     occupation = [filled_occ * ones(T, n_bands) for _ = 1:Nk]
 
