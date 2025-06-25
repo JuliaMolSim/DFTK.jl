@@ -6,7 +6,7 @@ Compute `n_bands` eigenvalues and Bloch waves at the k-Points specified by the `
 All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
 
 - `kgrid`: A custom kgrid to perform the band computation, e.g. a new
-  [`MonkhorstPack`](@ref) grid.
+  [`MonkhorstPack`](@ref) grid or a [`KgridMaximalSpacing`](@ref).
 - `tol` The default tolerance for the eigensolver is substantially lower than
   for SCF computations. Increase if higher accuracy desired.
 - `eigensolver`: The diagonalisation method to be employed.
