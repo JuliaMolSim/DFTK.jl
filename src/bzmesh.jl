@@ -223,6 +223,8 @@ Build a [`MonkhorstPack`](@ref) grid to ensure kpoints are at most this `spacing
 apart (in inverse Bohrs). A reasonable spacing is `0.13` inverse Bohrs
 (around ``2π * 0.04 \, \text{Å}^{-1}``). The `kshift` keyword argument allows
 to specify an explicit shift for all ``k``-points.
+
+Note that this function is deprecated. Use [`KgridMaximalSpacing`](@ref) instead.
 """
 function kgrid_from_maximal_spacing(system::AbstractSystem, spacing; kshift=[0, 0, 0])
     @warn("kgrid_from_maximal_spacing(system, spacing; kshift) is now deprecated. " *
@@ -246,6 +248,8 @@ Selects a [`MonkhorstPack`](@ref) grid size which ensures that at least a
 `n_kpoints` total number of ``k``-points are used. The distribution of
 ``k``-points amongst coordinate directions is as uniformly as possible, trying to
 achieve an identical minimal spacing in all directions.
+
+Note that this function is deprecated. Use [`KgridMinimalNumber`](@ref) instead.
 """
 function kgrid_from_minimal_n_kpoints(system::AbstractSystem, n_kpoints::Integer; kshift=[0, 0, 0])
     @warn("kgrid_from_minimial_n_kpoints(system, n_kpoints; kshift) is now deprecated. " *
