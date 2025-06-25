@@ -1,5 +1,20 @@
 # Direct minimization of the energy
 
+"""
+    direct_minimization
+
+TODO Docs
+Note. Requires now Manopt to work.
+"""
+function direct_minimization end
+
+global StopWhenDensityChangeLess
+
+#=
+
+TODO Remove once transcription to Manopt is complete and tests are running again
+
+
 using Optim
 using LineSearches
 
@@ -195,3 +210,4 @@ function direct_minimization(basis::PlaneWaveBasis{T};
     callback(info)
     info
 end
+=#
