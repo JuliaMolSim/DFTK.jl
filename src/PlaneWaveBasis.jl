@@ -279,12 +279,20 @@ Note, this disables certain symmetry features.
 @timing function PlaneWaveBasis(model::Model{T};
                                 Ecut::Number,
                                 supersampling=2.0,
-                                kgrid=nothing,
-                                kshift=[0, 0, 0],
+                                kgrid=KgridMaximalSpacing(2π * 0.022),
+                                kshift=nothing,
                                 variational=true, fft_size=nothing,
                                 symmetries_respect_rgrid=isnothing(fft_size),
                                 use_symmetries_for_kpoint_reduction=true,
                                 comm_kpts=MPI.COMM_WORLD, architecture=CPU()) where {T <: Real}
+    if isnothing(kshift)
+        @warn("The kshift argument of PlaneWaveBasis is deprecated. " *
+              "Use `PlaneWaveBasis(model; kgrid=MonkHorstPack(kgrid, kshift))` instead")
+        kgrid_inner = build_kgrid(model.lattice, kgrid)
+    else
+        kgrid_inner = MonkhorstPack(kgrid, kshift)
+    end
+
     if isnothing(fft_size)
         @assert variational
         # TODO Move this to compute_fft_size ?
@@ -300,17 +308,9 @@ Note, this disables certain symmetry features.
         else
             factors = (1, )
         end
-        fft_size = compute_fft_size(model, Ecut, kgrid; supersampling, factors)
+        fft_size = compute_fft_size(model, Ecut, kgrid_inner; supersampling, factors)
     else
         fft_size = Tuple{Int,Int,Int}(fft_size)
-    end
-
-    if isnothing(kgrid)
-        kgrid_inner = kgrid_from_maximal_spacing(model, 2π * 0.022; kshift)
-    elseif kgrid isa AbstractKgrid
-        kgrid_inner = kgrid
-    else
-        kgrid_inner = MonkhorstPack(kgrid, kshift)
     end
 
     PlaneWaveBasis(model, austrip(Ecut), fft_size, variational, kgrid_inner,
@@ -322,10 +322,11 @@ end
 Creates a new basis identical to `basis`, but with a new k-point grid,
 e.g. an [`MonkhorstPack`](@ref) or a [`ExplicitKpoints`](@ref) grid.
 """
-@timing function PlaneWaveBasis(basis::PlaneWaveBasis, kgrid::AbstractKgrid)
+@timing function PlaneWaveBasis(basis::PlaneWaveBasis, kgrid::Union{AbstractKgrid,AbstractKgridGenerator})
+    kgrid_inner = PlaneWaveBasis(basis.model.lattice, kgrid)
     PlaneWaveBasis(basis.model, basis.Ecut,
                    basis.fft_size, basis.variational,
-                   kgrid, basis.symmetries_respect_rgrid,
+                   kgrid_inner, basis.symmetries_respect_rgrid,
                    basis.use_symmetries_for_kpoint_reduction,
                    basis.comm_kpts, basis.architecture)
 end

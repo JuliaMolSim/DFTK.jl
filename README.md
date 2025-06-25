@@ -2,9 +2,9 @@
 
 # Density-functional toolkit
 
-| **Documentation**                                                               | **Build Status**                                |  **License**                     |
-|:------------------------------------------------------------------------------- |:----------------------------------------------- |:-------------------------------- |
-| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][chat-img]][chat-url] | [![][ci-img]][ci-url] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
+| **Documentation**                                                                                             | **Build Status**                                |  **License**                     |
+|:------------------------------------------------------------------------------------------------------------- |:----------------------------------------------- |:-------------------------------- |
+| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][chat-img]][chat-url] [![][matrix-img]][matrix-url] | [![][ci-img]][ci-url] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
 
 [ddocs-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [ddocs-url]: https://docs.dftk.org/dev
@@ -15,6 +15,9 @@
 [chat-img]: https://img.shields.io/badge/chat-on_zulip-808493.svg?logo=zulip
 [chat-url]: https://juliamolsim.zulipchat.com/#narrow/stream/332493-dftk
 
+[matrix-img]: https://img.shields.io/badge/chat-on_matrix-000000.svg?logo=matrix
+[matrix-url]: https://matrix.epfl.ch/#/#/room/#dftk:epfl.ch
+
 [ci-img]: https://github.com/JuliaMolSim/DFTK.jl/workflows/CI/badge.svg?branch=master&event=push
 [ci-url]: https://github.com/JuliaMolSim/DFTK.jl/actions
 
@@ -23,6 +26,7 @@
 
 [license-img]: https://img.shields.io/github/license/JuliaMolSim/DFTK.jl.svg?maxAge=2592000
 [license-url]: https://github.com/JuliaMolSim/DFTK.jl/blob/master/LICENSE
+
 
 
 The density-functional toolkit, **DFTK** for short, is a collection of
