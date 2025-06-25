@@ -83,4 +83,4 @@ at the list of issues tagged [good first issue](https://github.com/JuliaMolSim/D
 (relatively easy tasks suitable for newcomers) or [help wanted](https://github.com/JuliaMolSim/DFTK.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 (more sizeable but well-defined and isolated).
 Don't hesitate to ask for help, through github,
-email or the [JuliaMolSim zulip][chat-url] channel `#dftk`.
+email, [JuliaMolSim zulip][chat-url] or [Matrix chat][matrix-url].
