@@ -323,7 +323,7 @@ Creates a new basis identical to `basis`, but with a new k-point grid,
 e.g. an [`MonkhorstPack`](@ref) or a [`ExplicitKpoints`](@ref) grid.
 """
 @timing function PlaneWaveBasis(basis::PlaneWaveBasis, kgrid::Union{AbstractKgrid,AbstractKgridGenerator})
-    kgrid_inner = PlaneWaveBasis(basis.model.lattice, kgrid)
+    kgrid_inner = build_kgrid(basis.model.lattice, kgrid)
     PlaneWaveBasis(basis.model, basis.Ecut,
                    basis.fft_size, basis.variational,
                    kgrid_inner, basis.symmetries_respect_rgrid,
