@@ -72,7 +72,7 @@ julia> DFTKCalculator(; model_kwargs=(; functionals=LDA()),
 without specifying a precise kgrid
 ```julia-repl
 julia> DFTKCalculator(; model_kwargs=(; functionals=LDA()),
-                        basis_kwargs=(; Ecut=10, kgrid=KgridMaximalSpacing(0.1)),
+                        basis_kwargs=(; Ecut=10, kgrid=KgridDensity(0.1)),
                         scf_kwargs=(; tol=1e-4))
 ```
 
