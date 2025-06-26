@@ -137,9 +137,9 @@ end
 
     @testset "Magnesium system" begin
         magnesium = TestCases.magnesium
-        @test DFTK.build_kgrid(magnesium.lattice, KgridMinimimalNumber(1)).kgrid_size == [1, 1, 1]
+        @test DFTK.build_kgrid(magnesium.lattice, KgridTotalNumber(1)).kgrid_size == [1, 1, 1]
         for n_kpt in [10, 20, 100, 400, 900, 1200]
-            kgrid = DFTK.build_kgrid(magnesium.lattice, KgridMinimimalNumber(n_kpt))
+            kgrid = DFTK.build_kgrid(magnesium.lattice, KgridTotalNumber(n_kpt))
             @test length(kgrid) ≥ n_kpt
         end
     end
