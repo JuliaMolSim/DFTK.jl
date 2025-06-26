@@ -44,7 +44,8 @@ end
 
     function test_pw_cutoffs(testcase, Ecut, fft_size)
         model = Model(testcase.lattice)
-        basis = PlaneWaveBasis(model; Ecut, fft_size, kgrid=(2, 5, 5), kshift=[1, 0, 0]/2)
+        kgrid = MonkhorstPack((2, 5, 5); kshift=[1, 0, 0]/2)
+        basis = PlaneWaveBasis(model; Ecut, fft_size, kgrid)
 
         for kpt in basis.kpoints
             for G in G_vectors(basis, kpt)
@@ -103,8 +104,8 @@ end
     silicon = TestCases.silicon
 
     model = Model(silicon.lattice, silicon.atoms, silicon.positions)
-    basis = PlaneWaveBasis(model; Ecut=3, kgrid=(2, 2, 2), fft_size=[7, 9, 11],
-                           kshift=ones(3)/2)
+    kgrid = MonkhorstPack(kgrid=(2, 2, 2); kshift=ones(3)/2)
+    basis = PlaneWaveBasis(model; Ecut=3, kgrid, fft_size=[7, 9, 11])
 
     for kpt in basis.kpoints
         Gs_basis = collect(G_vectors(basis))

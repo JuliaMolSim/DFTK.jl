@@ -16,7 +16,7 @@
             model = model_DFT(Matrix{T}(silicon.lattice), atoms, pos;
                               functionals=LDA())
         end
-        basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
+        basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
 
         response     = ResponseOptions(; verbose=true)
         is_converged = DFTK.ScfConvergenceForce(tol)
@@ -136,7 +136,7 @@ end
         atoms = fill(ElementPsp(aluminium.atnum; psp=pspmod), length(aluminium.positions))
         model = model_DFT(Matrix{T}(aluminium.lattice), atoms, aluminium.positions;
                           functionals=LDA(), temperature=1e-2, smearing=Smearing.Gaussian())
-        basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
+        basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
 
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
         scfres = self_consistent_field(basis; is_converged, mixing=KerkerMixing(),
@@ -176,7 +176,7 @@ end
 
         model = model_DFT(Matrix{T}(silicon.lattice), silicon.atoms, pos;
                           functionals=[pbex, pbec])
-        basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], kshift=[0, 0, 0])
+        basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
 
         is_converged = DFTK.ScfConvergenceDensity(1e-10)
         scfres = self_consistent_field(basis; is_converged,
