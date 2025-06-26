@@ -10,7 +10,7 @@
     using DFTK: total_local_potential, is_approx_integer
     (; silicon, magnesium, aluminium) = TestCases.all_testcases
 
-    function get_bands(testcase, kgrid, symmetries, Ecut=5, tol=1e-8, n_rounds=1)
+    function get_bands(testcase, kgrid; symmetries, Ecut, tol, n_rounds=1)
         kwargs = ()
         n_bands = div(testcase.n_electrons, 2, RoundUp)
         if testcase.temperature !== nothing

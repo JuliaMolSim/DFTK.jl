@@ -107,31 +107,31 @@ end
     @test std.positions[1] - std.positions[2] ≈ 0.25ones(3)
 end
 
-@testitem "KgridDensity" setup=[TestCases] begin
+@testitem "KgridSpacing" setup=[TestCases] begin
     using DFTK
     using Unitful
 
     @testset "Simple lattice with units" begin
         # Test that units are stripped from both the lattice and the spacing
-        kgen = KgridDensity(0.5 / u"Å")
+        kgen = KgridSpacing(0.5 / u"Å")
         lattice = [[-1.0 1 1]; [1 -1  1]; [1 1 -1]]
         @test DFTK.build_kgrid(lattice * u"Å", kgen).kgrid_size == [9, 9, 9]
     end
     @testset "Magnesium system" begin
-        kgen = KgridDensity(0.5 / u"Å")
+        kgen = KgridSpacing(0.5 / u"Å")
         magnesium = TestCases.magnesium
         @test DFTK.build_kgrid(magnesium.lattice, kgen).kgrid_size == [5, 5, 3]
     end
 end
 
-@testitem "KgridMinimialNumber" setup=[TestCases] begin
+@testitem "KgridTotalNumber" setup=[TestCases] begin
     using DFTK
     using Unitful
     using LinearAlgebra
 
     @testset "Simple lattice with units" begin
         lattice = [[-1.0 1 1]; [1 -1  1]; [1 1 -1]]
-        kgen = KgridMinimalNumber(1000)
+        kgen = KgridTotalNumber(1000)
         @test DFTK.build_kgrid(lattice * u"Å", kgen).kgrid_size == [10, 10, 10]
     end
 
@@ -146,8 +146,8 @@ end
 
     @testset "Reduced dimension" begin
         lattice = diagm([4., 10, 0])
-        @test DFTK.build_kgrid(lattice, KgridMinimalNumber(1000)). kgrid_size == [50, 20, 1]
+        @test DFTK.build_kgrid(lattice, KgridTotalNumber(1000)). kgrid_size == [50, 20, 1]
         lattice = diagm([10, 0, 0])
-        @test DFTK.build_kgrid(lattice, KgridMinimalNumber(913)).kgrid_size   == [913, 1, 1]
+        @test DFTK.build_kgrid(lattice, KgridTotalNumber(913)).kgrid_size   == [913, 1, 1]
     end
 end

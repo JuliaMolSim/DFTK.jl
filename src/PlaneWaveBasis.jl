@@ -267,7 +267,7 @@ and a k-point grid.
 By default a [`MonkhorstPack`](@ref) grid is employed corresponding to a maximal k-point
 spacing of `2π * 0.022` per Bohr. This can be changed via the `kgrid` keyword argument,
 where one can pass a [`MonkhorstPack`](@ref) object, a vector of three integers or
-a [`KgridDensity`](@ref) object, which will generate the actual number of k-points
+a [`KgridSpacing`](@ref) object, which will generate the actual number of k-points
 to ensure a minimal k-point density (a certain maximal spacing between k-points).
 
 By default the size of the FFT grid is automatically chosen from the kinetic energy
@@ -279,7 +279,7 @@ Note, this disables certain symmetry features.
 @timing function PlaneWaveBasis(model::Model{T};
                                 Ecut::Number,
                                 supersampling=2.0,
-                                kgrid=KgridDensity(2π * 0.022),
+                                kgrid=KgridSpacing(2π * 0.022),
                                 kshift=nothing,
                                 variational=true, fft_size=nothing,
                                 symmetries_respect_rgrid=isnothing(fft_size),
