@@ -111,15 +111,16 @@ end
     using DFTK
     using Unitful
 
-    kgen = KgridDensity(0.5 / u"Å")
     @testset "Simple lattice with units" begin
         # Test that units are stripped from both the lattice and the spacing
+        kgen = KgridDensity(0.5 / u"Å")
         lattice = [[-1.0 1 1]; [1 -1  1]; [1 1 -1]]
-        @test build_kgrid(lattice * u"Å", kgen).kgrid_size == [9, 9, 9]
+        @test DFTK.build_kgrid(lattice * u"Å", kgen).kgrid_size == [9, 9, 9]
     end
     @testset "Magnesium system" begin
+        kgen = KgridDensity(0.5 / u"Å")
         magnesium = TestCases.magnesium
-        @test build_kgrid(magnesium.lattice, kgen).kgrid_size == [5, 5, 3]
+        @test DFTK.build_kgrid(magnesium.lattice, kgen).kgrid_size == [5, 5, 3]
     end
 end
 
@@ -131,22 +132,22 @@ end
     @testset "Simple lattice with units" begin
         lattice = [[-1.0 1 1]; [1 -1  1]; [1 1 -1]]
         kgen = KgridMinimalNumber(1000)
-        @test build_kgrid(lattice * u"Å", kgen).kgrid_size == [10, 10, 10]
+        @test DFTK.build_kgrid(lattice * u"Å", kgen).kgrid_size == [10, 10, 10]
     end
 
     @testset "Magnesium system" begin
         magnesium = TestCases.magnesium
-        @test build_kgrid(magnesium.lattice, KgridMinimimalNumber(1)).kgrid_size == [1, 1, 1]
+        @test DFTK.build_kgrid(magnesium.lattice, KgridMinimimalNumber(1)).kgrid_size == [1, 1, 1]
         for n_kpt in [10, 20, 100, 400, 900, 1200]
-            kgrid = build_kgrid(magnesium.lattice, KgridMinimimalNumber(n_kpt))
+            kgrid = DFTK.build_kgrid(magnesium.lattice, KgridMinimimalNumber(n_kpt))
             @test length(kgrid) ≥ n_kpt
         end
     end
 
     @testset "Reduced dimension" begin
         lattice = diagm([4., 10, 0])
-        @test build_kgrid(lattice, KgridMinimalNumber(1000)). kgrid_size == [50, 20, 1]
+        @test DFTK.build_kgrid(lattice, KgridMinimalNumber(1000)). kgrid_size == [50, 20, 1]
         lattice = diagm([10, 0, 0])
-        @test build_kgrid(lattice, KgridMinimalNumber(913)).kgrid_size   == [913, 1, 1]
+        @test DFTK.build_kgrid(lattice, KgridMinimalNumber(913)).kgrid_size   == [913, 1, 1]
     end
 end
