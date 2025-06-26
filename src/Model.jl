@@ -344,6 +344,28 @@ spin_components(model::Model) = spin_components(model.spin_polarization)
 import Base.Broadcast.broadcastable
 Base.Broadcast.broadcastable(model::Model) = Ref(model)
 
+"""
+    recommended_cutoff(model::Model)
+
+Return the recommended kinetic energy cutoff, supersampling and density cutoff for this model.
+Values may be `missing` if the respective data cannot be inferred. This may be because the
+`PseudoFamily` of the peudopotentials is not known (`model.pseudofamily` is `nothing`)
+or that this `PseudoFamily` does not provide such data.
+"""
+function PseudoPotentialData.recommended_cutoff(model::Model)
+    function get_maximum(property)
+        isnothing(model.pseudofamily) && return missing
+        maximum(model.atom_groups) do group
+            atom = model.atoms[first(group)]
+            getproperty(recommended_cutoff(model.pseudofamily, element_symbol(atom)), property)
+        end
+    end
+
+    (; :Ecut          => get_maximum(:Ecut),
+       :supersampling => get_maximum(:supersampling),
+       :Ecut_density  => get_maximum(:Ecut_density))
+end
+
 #=
 There are two types of quantities, depending on how they transform under change of coordinates.
 

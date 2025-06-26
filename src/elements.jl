@@ -47,7 +47,7 @@ function core_charge_density_fourier(::Element, ::T)::T where {T <: Real}
 end
 
 # Fallback print function:
-Base.show(io::IO, el::Element) = print(io, "$(typeof(el))($(species(el)))")
+Base.show(io::IO, el::Element) = print(io, "$(typeof(el))(:$(species(el)))")
 
 
 #
@@ -92,8 +92,14 @@ struct ElementPsp{P} <: Element
     mass    # Atomic mass
 end
 function Base.show(io::IO, el::ElementPsp)
-    pspid = isempty(el.psp.identifier) ? "custom" : el.psp.identifier
-    print(io, "ElementPsp($(el.species), \"$pspid\")")
+    print(io, "ElementPsp(:$(el.species), ")
+    if !isnothing(el.family)
+        print(io, el.family, ")")
+    elseif isempty(el.psp.identifier)
+        print(io, "custom psp)")
+    else
+        print(io, "\"$(el.psp.identifier)\")")
+    end
 end
 
 """
