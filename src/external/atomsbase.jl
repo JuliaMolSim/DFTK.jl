@@ -2,7 +2,12 @@ using AtomsBase
 # Key functionality to integrate DFTK and AtomsBase
 
 function parse_system(system::AbstractSystem{D},
-                      pseudopotentials::AbstractVector) where {D}
+                      pseudopotentials::AbstractVector,
+                      pseudofamily::Union{PseudoFamily,Nothing}) where {D}
+    # pseudofamily !== nothing marks a case where all pseudopotentials are from
+    # exactly the same PseudoFamily. This helps downstream to make some smart
+    # default choices about Ecut etc.
+    #
     if !all(periodicity(system))
         error("DFTK only supports calculations with periodic boundary conditions.")
     end
@@ -23,7 +28,7 @@ function parse_system(system::AbstractSystem{D},
                   "model constructors.")
         end
         # If psp === nothing, this will make an ElementCoulomb
-        ElementPsp(species(atom), psp; mass=AtomsBase.mass(atom))
+        ElementPsp(species(atom), psp, pseudofamily; mass=AtomsBase.mass(atom))
     end
 
     positions = map(system) do atom
@@ -59,7 +64,10 @@ function parse_system(system::AbstractSystem{D},
 end
 function parse_system(system::AbstractSystem,
                       family::AbstractDict{Symbol,<:AbstractString})
-    parse_system(system, load_psp(family, system))
+    parse_system(system, load_psp(family, system), nothing)
+end
+function parse_system(system::AbstractSystem, family::PseudoFamily)
+    parse_system(system, load_psp(family, system), family)
 end
 
 

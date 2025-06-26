@@ -63,3 +63,18 @@ end
     model_update = Model(model; positions=pos_broken, symmetries=true)
     @test model_update.symmetries == model_broken.symmetries
 end
+
+@testitem "Test pseudopotential family forwarding in Model" setup=[TestCases] begin
+    using DFTK
+    silicon = TestCases.silicon
+
+    Si = ElementPsp(:Si, TestCases.pd_lda_family)
+    let model = model_DFT(silicon.lattice, [Si, Si], silicon.positions;
+                          functionals=LDA())
+        @test model.pseudofamily.identifier == TestCases.pd_lda_family.identifier
+    end
+    let model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                          functionals=LDA())
+        @test isnothing(model.pseudofamily)
+    end
+end

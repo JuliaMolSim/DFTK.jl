@@ -23,9 +23,13 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
     if !isempty(model.atoms)
         println(io)
         showfieldln(io, "atoms", chemical_formula(model))
-        for (i, el) in enumerate(model.atoms)
-            header = i==1 ? "atom potentials" : ""
-            showfieldln(io, header, el)
+        if isnothing(model.pseudofamily)
+            for (i, el) in enumerate(model.atoms)
+                header = i==1 ? "atom potentials" : ""
+                showfieldln(io, header, el)
+            end
+        else
+            showfieldln(io, "pseudopot. family", model.pseudofamily)
         end
     end
 

@@ -12,6 +12,7 @@ using AbstractFFTs
 using GPUArraysCore
 using Random
 using PrecompileTools
+using PseudoPotentialData
 
 @template (FUNCTIONS, METHODS, MACROS) = 
     """

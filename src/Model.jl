@@ -48,10 +48,13 @@ struct Model{T <: Real, VT <: Real}
     # Possibly empty. It's up to the `term_types` to make use of this (or not).
     # `atom_groups` contains the groups of indices into atoms and positions, which
     # point to identical atoms. It is computed automatically on Model construction and may
-    # be used to optimise the term instantiation.
+    # be used to optimise the term instantiation. The pseudofamily contains the common family
+    # of pseudopotentials used to determine the pseudopotentials of all atoms or nothing if
+    # such a common family cannot be found.
     atoms::Vector{Element}
     positions::Vector{Vec3{T}}  # positions[i] is the location of atoms[i] in fract. coords
     atom_groups::Vector{Vector{Int}}  # atoms[i] == atoms[j] for all i, j in atom_group[α]
+    pseudofamily::Union{PseudoFamily, Nothing}
 
     # each element t must implement t(basis), which instantiates a
     # term in a given basis and gives back a term (<: Term)
@@ -131,6 +134,10 @@ function Model(lattice::AbstractMatrix{T},
     end
     isempty(terms) && error("Model without terms not supported.")
     atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
+    pseudofamily = nothing
+    if length(Set(atom.family for atom in atoms if atom isa ElementPsp)) == 1
+        pseudofamily = atoms[1].family
+    end
 
     # Special handling of 1D and 2D systems, and sanity checks
     lattice = Mat3{T}(lattice)
@@ -179,7 +186,7 @@ function Model(lattice::AbstractMatrix{T},
                            lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
                            unit_cell_volume, recip_cell_volume,
                            n_electrons, εF, spin_polarization, n_spin, temperature, smearing,
-                           atoms, positions, atom_groups, terms, symmetries)
+                           atoms, positions, atom_groups, pseudofamily, terms, symmetries)
 end
 function Model(lattice::AbstractMatrix{<:Integer}, atoms::Vector{<:Element},
                positions::Vector{<:AbstractVector}; kwargs...)
