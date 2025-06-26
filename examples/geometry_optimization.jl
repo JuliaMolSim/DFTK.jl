@@ -53,3 +53,10 @@ println("Optimal bond length: ", rmin)
 
 # Our results (1.486 Bohr) agrees with the
 # [equivalent tutorial from ABINIT](https://docs.abinit.org/tutorial/base1/).
+#
+# !!! tip "Cell optimisations"
+#     Recent versions of [GeometryOptimization](https://github.com/JuliaMolSim/GeometryOptimization.jl/)
+#     support cell shape optimisations as well by passing `variablecell=true` to `minimize_energy!`.
+#     See the
+#     [GeometryOptimization documentation](https://juliamolsim.github.io/GeometryOptimization.jl/stable/examples/variablecell/)
+#     for an example.
