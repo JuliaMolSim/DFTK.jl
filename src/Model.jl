@@ -348,9 +348,9 @@ Base.Broadcast.broadcastable(model::Model) = Ref(model)
     recommended_cutoff(model::Model)
 
 Return the recommended kinetic energy cutoff, supersampling and density cutoff for this model.
-Values may be `missing` if the respective data cannot be inferred. This may be because the
+Values may be `missing` if the respective data cannot be determined. This may be because the
 `PseudoFamily` of the peudopotentials is not known (`model.pseudofamily` is `nothing`)
-or that this `PseudoFamily` does not provide such data.
+or that there is no such tabulated data available for this `PseudoFamily`.
 """
 function PseudoPotentialData.recommended_cutoff(model::Model)
     function get_maximum(property)
