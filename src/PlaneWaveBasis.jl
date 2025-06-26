@@ -286,10 +286,10 @@ Note, this disables certain symmetry features.
                                 use_symmetries_for_kpoint_reduction=true,
                                 comm_kpts=MPI.COMM_WORLD, architecture=CPU()) where {T <: Real}
     if isnothing(kshift)
-        @warn("The kshift argument of PlaneWaveBasis is deprecated. " *
-              "Use `PlaneWaveBasis(model; kgrid=MonkHorstPack(kgrid, kshift))` instead")
         kgrid_inner = build_kgrid(model.lattice, kgrid)
     else
+        @warn("The kshift argument of PlaneWaveBasis is deprecated. " *
+              "Use `PlaneWaveBasis(model; kgrid=MonkHorstPack(kgrid, kshift))` instead")
         kgrid_inner = MonkhorstPack(kgrid, kshift)
     end
 
