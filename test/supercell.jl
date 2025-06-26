@@ -24,11 +24,10 @@ end
 
     Ecut    = 4
     kgrid   = [3, 3, 3]
-    kshift  = zeros(3)
     tol     = 1e-10
 
     model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions; functionals=LDA())
-    basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
+    basis = PlaneWaveBasis(model; Ecut, kgrid)
     basis_supercell = cell_to_supercell(basis)
 
     scfres = self_consistent_field(basis; tol)

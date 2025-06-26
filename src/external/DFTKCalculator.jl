@@ -69,6 +69,13 @@ julia> DFTKCalculator(; model_kwargs=(; functionals=LDA()),
                         basis_kwargs=(; Ecut=10, kgrid=(2, 2, 2)),
                         scf_kwargs=(; tol=1e-4))
 ```
+without specifying a precise kgrid
+```julia-repl
+julia> DFTKCalculator(; model_kwargs=(; functionals=LDA()),
+                        basis_kwargs=(; Ecut=10, kgrid=KgridSpacing(0.1)),
+                        scf_kwargs=(; tol=1e-4))
+```
+
 """
 function DFTKCalculator(; verbose=false, model_kwargs, basis_kwargs, scf_kwargs=(; ),
                           st=nothing, kwargs...)

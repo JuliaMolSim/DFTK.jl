@@ -3,8 +3,7 @@
     using LinearAlgebra
 
     function test_kernel(spin_polarization, termtype; test_compute=true, psp=TestCases.silicon.psp_gth)
-        kgrid  = [2, 2, 2]
-        kshift = ones(3) / 2
+        kgrid  = MonkhorstPack([2, 2, 2]; kshift = ones(3) / 2)
         testcase = TestCases.silicon
         Si = ElementPsp(TestCases.silicon.atnum; psp=load_psp(psp))
         atoms = [Si, Si]
@@ -23,7 +22,7 @@
             model = Model(testcase.lattice, atoms, testcase.positions;
                           terms=[termtype], magnetic_moments, spin_polarization)
             @test model.n_spin_components == n_spin
-            basis = PlaneWaveBasis(model; Ecut=2, kgrid, kshift)
+            basis = PlaneWaveBasis(model; Ecut=2, kgrid)
             term  = only(basis.terms)
 
             ρ0 = guess_density(basis, magnetic_moments)
@@ -53,20 +52,19 @@
 
     function test_kernel_collinear_vs_noncollinear(termtype)
         Ecut = 2
-        kgrid = [2, 2, 2]
-        kshift = ones(3) / 2
+        kgrid  = MonkhorstPack([2, 2, 2]; kshift = ones(3) / 2)
         testcase = TestCases.silicon
 
         xcsym = (termtype isa Xc) ? join(string.(termtype.functionals), " ") : ""
         @testset "Kernel $(typeof(termtype)) $xcsym (coll == noncoll)" begin
             model = Model(testcase.lattice, testcase.atoms, testcase.positions;
                           terms=[termtype])
-            basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
+            basis = PlaneWaveBasis(model; Ecut, kgrid)
             term  = only(basis.terms)
 
             model_col = Model(testcase.lattice, testcase.atoms, testcase.positions;
                               terms=[termtype], spin_polarization=:collinear)
-            basis_col = PlaneWaveBasis(model_col; Ecut, kgrid, kshift)
+            basis_col = PlaneWaveBasis(model_col; Ecut, kgrid)
             term_col  = only(basis_col.terms)
 
             ρ0 = guess_density(basis)
