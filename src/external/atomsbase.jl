@@ -3,7 +3,7 @@ using AtomsBase
 
 function parse_system(system::AbstractSystem{D},
                       pseudopotentials::AbstractVector,
-                      pseudofamily::Union{PseudoFamily,Nothing}) where {D}
+                      pseudofamily::Union{PseudoFamily,Nothing}=nothing) where {D}
     # pseudofamily !== nothing marks a case where all pseudopotentials are from
     # exactly the same PseudoFamily. This helps downstream to make some smart
     # default choices about Ecut etc.
