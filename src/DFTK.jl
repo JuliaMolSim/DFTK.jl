@@ -77,6 +77,7 @@ export ifft!
 export fft
 export fft!
 export kgrid_from_maximal_spacing, kgrid_from_minimal_n_kpoints
+export KgridTotalNumber, KgridSpacing
 include("Smearing.jl")
 include("Model.jl")
 include("structure.jl")
