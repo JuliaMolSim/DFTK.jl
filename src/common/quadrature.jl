@@ -58,7 +58,7 @@ simpson(y::AbstractVector, x::AbstractVector) = simpson((i, xi) -> y[i], x)
     n = length(x)
     n_intervals = n - 1
 
-    istop = isodd(n_intervals) ? n - 1 : n - 2
+    istop = isodd(n_intervals) ? n - 2 : n - 1
 
     I = 1 / 3 * dx * integrand(1, x[1])
     # Note: We used @turbo here before, but actually the allocation overhead
@@ -72,14 +72,19 @@ simpson(y::AbstractVector, x::AbstractVector) = simpson((i, xi) -> y[i], x)
     end
 
     if isodd(n_intervals)
-        I += 5 / 6 * dx * integrand(n-1, x[n-1])
-        I += 1 / 2 * dx * integrand(n, x[n])
+        # Adapted from nonuniform case below
+        I += 5 / 12 * dx * integrand(n, x[n])
+        # 1/3 to finish the second to last interval + 2/3 correction for the last interval
+        I += dx * integrand(n-1, x[n-1])
+        I -= 1 / 12 * dx * integrand(n-2, x[n-2])
     else
         I += 1 / 3 * dx * integrand(n, x[n])
     end
     return I
 end
 
+# See https://en.wikipedia.org/wiki/Simpson%27s_rule#Composite_Simpson's_rule_for_irregularly_spaced_data
+# especially for the odd number of intervals case.
 @inbounds function simpson_nonuniform(integrand, x::AbstractVector)
     n = length(x)
     n_intervals = n-1
