@@ -140,6 +140,13 @@ struct KgridSpacing <: AbstractKgridGenerator
     spacing::Float64
     kshift::Vec3{Rational{Int}}
 end
+function Base.show(io::IO, kgen::KgridSpacing)
+    print(io, "KgridSpacing($(kgen.spacing) / u\"bohr\"")
+    if !iszero(kgen.kshift)
+        print(io, ", ", Float64.(kgen.kshift))
+    end
+    print(io, ")")
+end
 
 @doc raw"""
 Request a [`MonkhorstPack`](@ref) grid to ensure kpoints are at most this `spacing`
@@ -181,6 +188,13 @@ function KgridTotalNumber(n_kpoints::Integer; kshift=[0, 0, 0])
         throw(ArgumentError("n_kpoints should be a positive number"))
     end
     KgridTotalNumber(n_kpoints, rationalize.(kshift; tol=1e-6))
+end
+function Base.show(io::IO, kgen::KgridTotalNumber)
+    print(io, "KgridTotalNumber(", kgen.n_kpoints)
+    if !iszero(kgen.kshift)
+        print(io, ", ", Float64.(kgen.kshift))
+    end
+    print(io, ")")
 end
 
 function build_kgrid(lattice::AbstractMatrix, kgen::KgridTotalNumber)

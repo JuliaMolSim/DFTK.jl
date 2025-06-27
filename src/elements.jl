@@ -47,7 +47,7 @@ function core_charge_density_fourier(::Element, ::T)::T where {T <: Real}
 end
 
 # Fallback print function:
-Base.show(io::IO, el::Element) = print(io, "$(typeof(el))($(species(el)))")
+Base.show(io::IO, el::Element) = print(io, "$(typeof(el))(:$(species(el)))")
 
 
 #
@@ -88,11 +88,18 @@ local_potential_real(el::ElementCoulomb, r::Real) = -charge_nuclear(el) / r
 struct ElementPsp{P} <: Element
     species::ChemicalSpecies
     psp::P  # Pseudopotential data structure
+    family::Union{PseudoFamily,Nothing}
     mass    # Atomic mass
 end
 function Base.show(io::IO, el::ElementPsp)
-    pspid = isempty(el.psp.identifier) ? "custom" : el.psp.identifier
-    print(io, "ElementPsp($(el.species), \"$pspid\")")
+    print(io, "ElementPsp(:$(el.species), ")
+    if !isnothing(el.family)
+        print(io, el.family, ")")
+    elseif isempty(el.psp.identifier)
+        print(io, "custom psp)")
+    else
+        print(io, "\"$(el.psp.identifier)\")")
+    end
 end
 
 """
@@ -123,12 +130,13 @@ ElementPsp(:Si, PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf"))
 function ElementPsp(species::ChemicalSpecies, family::AbstractDict;
                     mass=AtomsBase.mass(species), kwargs...)
     psp = load_psp(family, element_symbol(species); kwargs...)
-    ElementPsp(species, psp, mass)
+    pseudofamily = family isa PseudoFamily ? family : nothing
+    ElementPsp(species, psp, pseudofamily,  mass)
 end
-function ElementPsp(species::ChemicalSpecies, psp; mass=AtomsBase.mass(species))
-    ElementPsp(species, psp, mass)
+function ElementPsp(species::ChemicalSpecies, psp, family=nothing; mass=AtomsBase.mass(species))
+    ElementPsp(species, psp, family, mass)
 end
-function ElementPsp(species::ChemicalSpecies, psp::Nothing; kwargs...)
+function ElementPsp(species::ChemicalSpecies, psp::Nothing, family=nothing; kwargs...)
     ElementCoulomb(species; kwargs...)
 end
 function ElementPsp(key::Union{Integer,Symbol}, psp; kwargs...)
