@@ -57,7 +57,7 @@
         @test model.atoms[2].psp.identifier == replace(family[:C],  "\\" => "/")
         @test model.atoms[3].psp.identifier == replace(family[:H],  "\\" => "/")
         @test model.atoms[4].psp.identifier == replace(family[:C],  "\\" => "/")
-        @test model.pseudofamily.identifier == family.identifier
+        @test model.pseudofamily == family
     end
 
     @testset "system -> Model -> system" begin
@@ -195,7 +195,7 @@ end
         @test model.atoms[2].psp.identifier == replace(family[:Si], "\\" => "/")
         @test model.atoms[3].psp.identifier == replace(family[:H],  "\\" => "/")
         @test model.atoms[4].psp.identifier == replace(family[:C],  "\\" => "/")
-        @test model.pseudofamily.identifier == family.identifier
+        @test model.pseudofamily == family
     end
 end
 

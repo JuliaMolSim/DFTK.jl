@@ -71,7 +71,7 @@ end
     Si = ElementPsp(:Si, TestCases.pd_lda_family)
     let model = model_DFT(silicon.lattice, [Si, Si], silicon.positions;
                           functionals=LDA())
-        @test model.pseudofamily.identifier == TestCases.pd_lda_family.identifier
+        @test model.pseudofamily== TestCases.pd_lda_family
     end
     let model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
                           functionals=LDA())
