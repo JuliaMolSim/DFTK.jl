@@ -64,17 +64,48 @@ end
     @test model_update.symmetries == model_broken.symmetries
 end
 
-@testitem "Test pseudopotential family forwarding in Model" setup=[TestCases] begin
+@testitem "Test pseudopotential family and data of Model" setup=[TestCases] begin
     using DFTK
     silicon = TestCases.silicon
 
-    Si = ElementPsp(:Si, TestCases.pd_lda_family)
-    let model = model_DFT(silicon.lattice, [Si, Si], silicon.positions;
+    Si_hgh = ElementPsp(:Si, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
+    Si_lda = ElementPsp(:Si, TestCases.pd_lda_family)
+    Ga_lda = ElementPsp(:Ga, TestCases.pd_lda_family)
+    let model = model_DFT(silicon.lattice, [Si_lda, Si_lda], silicon.positions;
                           functionals=LDA())
-        @test model.pseudofamily== TestCases.pd_lda_family
+        @test pseudofamily(model) == TestCases.pd_lda_family
+
+        cutoffs = recommended_cutoff(model)
+        @test 16.0 == cutoffs.Ecut
+        @test  2.0 == cutoffs.supersampling
+        @test 64.0 == cutoffs.Ecut_density
     end
-    let model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+    let model = model_DFT(silicon.lattice, [Si_lda, Ga_lda], silicon.positions;
                           functionals=LDA())
-        @test isnothing(model.pseudofamily)
+        @test pseudofamily(model) == TestCases.pd_lda_family
+
+        cutoffs = recommended_cutoff(model)
+        @test  40.0 == cutoffs.Ecut
+        @test   2.0 == cutoffs.supersampling
+        @test 160.0 == cutoffs.Ecut_density
+    end
+
+    let model = model_DFT(silicon.lattice, [Si_lda, Si_hgh], silicon.positions;
+                          functionals=LDA())
+        @test isnothing(pseudofamily(model))
+
+        cutoffs = recommended_cutoff(model)
+        @test missing == cutoffs.Ecut
+        @test     2.0 == cutoffs.supersampling
+        @test missing == cutoffs.Ecut_density
+    end
+    let model = model_DFT(silicon.lattice, [Si_hgh, Si_hgh], silicon.positions;
+                          functionals=LDA())
+        @test isnothing(pseudofamily(model))
+
+        cutoffs = recommended_cutoff(model)
+        @test missing == cutoffs.Ecut
+        @test     2.0 == cutoffs.supersampling
+        @test missing == cutoffs.Ecut_density
     end
 end

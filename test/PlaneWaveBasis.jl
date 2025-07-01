@@ -149,3 +149,25 @@ end
                                                     Gplusk_vectors(basis, kpt)) atol=atol
     end
 end
+
+@testitem "Automatic Euct suggestion from pseudpotentials" setup=[TestCases] begin
+    using DFTK
+    silicon = TestCases.silicon
+
+    Si_hgh = ElementPsp(:Si, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
+    Si_lda = ElementPsp(:Si, TestCases.pd_lda_family)
+    let model = model_DFT(silicon.lattice, [Si_lda, Si_lda], silicon.positions;
+                          functionals=LDA())
+        basis = PlaneWaveBasis(model)
+        @test basis.Ecut == 16.0
+    end
+    let model = model_DFT(silicon.lattice, [Si_lda, Si_hgh], silicon.positions;
+                          functionals=LDA())
+        @test_throws "no recommended kinetic energy cutoff can be determined" begin
+            PlaneWaveBasis(model)
+        end
+
+        basis = PlaneWaveBasis(model; Ecut=10)  # This should work fine
+        @test basis.Ecut == 10.0
+    end
+end
