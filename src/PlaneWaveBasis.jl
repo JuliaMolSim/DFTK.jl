@@ -282,7 +282,7 @@ Note, this disables certain symmetry features.
 """
 @timing function PlaneWaveBasis(model::Model{T};
                                 Ecut::Union{Number,Missing}=recommended_cutoff(model).Ecut,
-                                supersampling=recommended_cutoff(model).supersampling,
+                                supersampling=recommended_cutoff(model).supersampling,  # 2.0 by default
                                 kgrid=KgridSpacing(2π * 0.022),
                                 kshift=nothing,
                                 variational=true, fft_size=nothing,
@@ -295,10 +295,6 @@ Note, this disables certain symmetry features.
         @warn("The kshift argument of PlaneWaveBasis is deprecated. " *
               "Use `PlaneWaveBasis(model; kgrid=MonkHorstPack(kgrid, kshift))` instead")
         kgrid_inner = MonkhorstPack(kgrid, kshift)
-    end
-
-    if ismissing(supersampling)
-        supersampling = 2.0
     end
     if ismissing(Ecut)
         throw(ArgumentError(

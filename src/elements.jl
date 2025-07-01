@@ -28,6 +28,9 @@ n_elec_valence(el::Element) = charge_ionic(el)
 """Return the number of core electrons"""
 n_elec_core(el::Element) = charge_nuclear(el) - charge_ionic(el)
 
+"""Return the pseudopotential family for the element if this is known, else `nothing`"""
+pseudofamily(::Element) = nothing
+
 """Check presence of model core charge density (non-linear core correction)."""
 has_core_density(::Element) = false
 # The preceding functions are fallback implementations that should be altered as needed.
@@ -88,7 +91,7 @@ local_potential_real(el::ElementCoulomb, r::Real) = -charge_nuclear(el) / r
 struct ElementPsp{P} <: Element
     species::ChemicalSpecies
     psp::P  # Pseudopotential data structure
-    family::Union{PseudoFamily,Nothing}
+    family::Union{PseudoFamily,Nothing}  # PseudoFamily if known, else Nothing
     mass    # Atomic mass
 end
 function Base.show(io::IO, el::ElementPsp)
@@ -101,6 +104,7 @@ function Base.show(io::IO, el::ElementPsp)
         print(io, "\"$(el.psp.identifier)\")")
     end
 end
+pseudofamily(el::ElementPsp) = el.family
 
 """
 Element interacting with electrons via a pseudopotential model.

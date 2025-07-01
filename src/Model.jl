@@ -48,13 +48,10 @@ struct Model{T <: Real, VT <: Real}
     # Possibly empty. It's up to the `term_types` to make use of this (or not).
     # `atom_groups` contains the groups of indices into atoms and positions, which
     # point to identical atoms. It is computed automatically on Model construction and may
-    # be used to optimise the term instantiation. The pseudofamily contains the common family
-    # of pseudopotentials used to determine the pseudopotentials of all atoms or nothing if
-    # such a common family cannot be found.
+    # be used to optimise the term instantiation.
     atoms::Vector{Element}
     positions::Vector{Vec3{T}}  # positions[i] is the location of atoms[i] in fract. coords
     atom_groups::Vector{Vector{Int}}  # atoms[i] == atoms[j] for all i, j in atom_group[α]
-    pseudofamily::Union{PseudoFamily, Nothing}
 
     # each element t must implement t(basis), which instantiates a
     # term in a given basis and gives back a term (<: Term)
@@ -134,10 +131,6 @@ function Model(lattice::AbstractMatrix{T},
     end
     isempty(terms) && error("Model without terms not supported.")
     atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
-    pseudofamily = nothing
-    if length(Set(atom.family for atom in atoms if atom isa ElementPsp)) == 1
-        pseudofamily = atoms[1].family
-    end
 
     # Special handling of 1D and 2D systems, and sanity checks
     lattice = Mat3{T}(lattice)
@@ -186,7 +179,7 @@ function Model(lattice::AbstractMatrix{T},
                            lattice, recip_lattice, n_dim, inv_lattice, inv_recip_lattice,
                            unit_cell_volume, recip_cell_volume,
                            n_electrons, εF, spin_polarization, n_spin, temperature, smearing,
-                           atoms, positions, atom_groups, pseudofamily, terms, symmetries)
+                           atoms, positions, atom_groups, terms, symmetries)
 end
 function Model(lattice::AbstractMatrix{<:Integer}, atoms::Vector{<:Element},
                positions::Vector{<:AbstractVector}; kwargs...)
@@ -344,27 +337,6 @@ spin_components(model::Model) = spin_components(model.spin_polarization)
 import Base.Broadcast.broadcastable
 Base.Broadcast.broadcastable(model::Model) = Ref(model)
 
-"""
-    recommended_cutoff(model::Model)
-
-Return the recommended kinetic energy cutoff, supersampling and density cutoff for this model.
-Values may be `missing` if the respective data cannot be determined. This may be because the
-`PseudoFamily` of the peudopotentials is not known (`model.pseudofamily` is `nothing`)
-or that there is no such tabulated data available for this `PseudoFamily`.
-"""
-function PseudoPotentialData.recommended_cutoff(model::Model)
-    function get_maximum(property)
-        isnothing(model.pseudofamily) && return missing
-        maximum(model.atom_groups) do group
-            atom = model.atoms[first(group)]
-            getproperty(recommended_cutoff(model.pseudofamily, element_symbol(atom)), property)
-        end
-    end
-
-    (; :Ecut          => get_maximum(:Ecut),
-       :supersampling => get_maximum(:supersampling),
-       :Ecut_density  => get_maximum(:Ecut_density))
-end
 
 #=
 There are two types of quantities, depending on how they transform under change of coordinates.
@@ -426,3 +398,50 @@ matrix_red_to_cart(model::Model, Ared)    = matrix_red_to_cart(model)(Ared)
 matrix_cart_to_red(model::Model, Acart)   = matrix_cart_to_red(model)(Acart)
 comatrix_red_to_cart(model::Model, Bred)  = comatrix_red_to_cart(model)(Bred)
 comatrix_cart_to_red(model::Model, Bcart) = comatrix_cart_to_red(model)(Bcart)
+
+#
+# TODO Move this elsewhere
+#
+
+"""
+    recommended_cutoff(model::Model)
+
+Return the recommended kinetic energy cutoff, supersampling and density cutoff for this model.
+Values may be `missing` if the respective data cannot be determined. This may be because the
+`PseudoFamily` of the peudopotentials is not known (`model.pseudofamily` is `nothing`)
+or that there is no such tabulated data available for this `PseudoFamily`.
+"""
+function PseudoPotentialData.recommended_cutoff(model::Model)
+    family = pseudofamily(model)
+    function get_maximum(property, default=missing)
+        isnothing(family) && return default
+        result = maximum(model.atom_groups) do group
+            atom = model.atoms[first(group)]
+            getproperty(recommended_cutoff(family, element_symbol(atom)), property)
+        end
+        ismissing(result) ? default : result
+    end
+
+    Ecut = get_maximum(:Ecut)
+    supersampling = get_maximum(:supersampling, 2.0)
+    Ecut_density  = get_maximum(:Ecut_density, supersampling^2 * Ecut)
+
+    (; Ecut, supersampling, Ecut_density)
+end
+
+"""
+    pseudofamily(model::Model)
+
+Return the common family of pseudopotentials used in the Model, if a single
+such family exists and can be determined from the `model.atoms`, else `nothing`.
+"""
+function pseudofamily(model::Model)
+    has_common_family = allequal(model.atom_groups) do group
+        pseudofamily(model.atoms[first(group)])
+    end
+    if has_common_family
+        return pseudofamily(model.atoms[1])
+    else
+        return nothing
+    end
+end
