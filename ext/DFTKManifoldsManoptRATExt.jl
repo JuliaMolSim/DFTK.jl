@@ -4,12 +4,6 @@ module DFTKManifoldsManoptRATExt
     using Manifolds
     using RecursiveArrayTools
 
-function __init__()
-    # A small trick to make the stopping criterion available globally
-    setglobal!(DFTK, :StopWhenDensityChangeLess, StopWhenDensityChangeLess)
-    return nothing
-end
-
 """
     ManoptPreconditionersWrapper!!{T,S}
 
@@ -163,13 +157,15 @@ StopWhenDensityChangeLess(tol::F, ρ::T) where {T,F<:Real}
 Create the stopping criterion with a given tolerance `tol`. The provided density `ρ`
 is only required to intialize the internal state.
 """
+DFTK.StopWhenDensityChangeLess(tol::F, ρ::T) where {T,F<:Real}
+
 mutable struct StopWhenDensityChangeLess{T,F<:Real} <: Manopt.StoppingCriterion
     tolerance::F
     at_iteration::Int
     last_ρ::T
     last_change::F
 end
-function StopWhenDensityChangeLess(tol::F, ρ::T) where {T,F<:Real}
+function DFTK.StopWhenDensityChangeLess(tol::F, ρ::T) where {T,F<:Real}
     StopWhenDensityChangeLess{T,F}(tol, -1, ρ, 2 * tol)
 end
 function (c::StopWhenDensityChangeLess)(problem::P, state::S, k::Int) where {P<:Manopt.AbstractManoptProblem,S<:Manopt.AbstractManoptSolverState}
@@ -200,7 +196,7 @@ function Manopt.status_summary(c::StopWhenDensityChangeLess)
     return "|Δρ| = $(c.last_change) < $(c.tolerance):\t$s"
 end
 function Base.show(io::IO, c::StopWhenDensityChangeLess)
-    return print(io, "StopWhenDensityChangeLess with threshold $(c.tolerance).\n    $(status_summary(c))")
+    return print(io, "StopWhenDensityChangeLess with threshold $(c.tolerance).\n    $(Manopt.status_summary(c))")
 end
 
 # TODO/DISCUSS: Should we have Records / Debugs for
@@ -234,7 +230,7 @@ the [`quasi_newton`](@ref) solver.
 
 To change this solver, use [`direct_minimizartion`](@ref direct_minimization(::PlaneWaveBasis, ::Manopt.AbstractManoptSolverState))`(basis, solver_state)`
 """
-function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
+function DFTK.direct_minimization(basis::PlaneWaveBasis;
     ψ=nothing,
     ρ=guess_density(basis), # would be consistent with other scf solvers
     tol=1e-6,
@@ -288,7 +284,7 @@ This allows to change defaults in the solver settings,
 add for example a cache “around” the objective or add debug and/or recording functionality to the solver run.
 """
 function DFTK.direct_minimization(
-    basis::PlaneWaveBasis, state::Manopt.AbstractManoptSolverState=QuasiNewtonState;
+    basis::PlaneWaveBasis, state::Manopt.AbstractManoptSolverState;
     ψ=nothing,
     ρ=guess_density(basis), # would be consistent with other scf solvers
     tol=1e-6,
