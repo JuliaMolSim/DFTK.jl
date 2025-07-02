@@ -7,15 +7,19 @@ Values may be `missing` if the respective data cannot be determined. This may be
 or that there is no such tabulated data available for this `PseudoFamily`.
 """
 function PseudoPotentialData.recommended_cutoff(model::Model)
-    function get_maximum(property)
-        maximum(model.atom_groups) do group
+    function get_maximum(property, default=missing)
+        isempty(model.atom_groups) && return default
+        value = maximum(model.atom_groups) do group
             atom = model.atoms[first(group)]
             getproperty(recommended_cutoff(atom), property)
         end
+        return ismissing(value) ? default : value
     end
-    (; Ecut          = get_maximum(:Ecut),
-       supersampling = get_maximum(:supersampling),
-       Ecut_density  = get_maximum(:Ecut_density))
+
+    Ecut          = get_maximum(:Ecut,          missing)
+    supersampling = get_maximum(:supersampling, 2.0)
+    Ecut_density  = get_maximum(:Ecut_density,  supersampling^2 * Ecut)
+    (; Ecut, supersampling, Ecut_density)
 end
 
 """
@@ -25,20 +29,11 @@ Return the recommended kinetic energy cutoff, supersampling and density cutoff f
 Values may be `missing` if the data cannot be determined.
 """
 function PseudoPotentialData.recommended_cutoff(el::Element)
-    data = (; Ecut=missing, supersampling=missing, Ecut_density=missing)
-    function getdefault(data, key, default)
-        ismissing(getproperty(data, key)) ? default : getproperty(data, key)
+    if isnothing(pseudofamily(el))
+        return (; Ecut=missing, supersampling=missing, Ecut_density=missing)
+    else
+        return recommended_cutoff(pseudofamily(el), element_symbol(el))
     end
-
-    family = pseudofamily(el)
-    if !isnothing(family)
-        data = recommended_cutoff(family, element_symbol(el))
-    end
-    Ecut          = getdefault(data, :Ecut,          missing)
-    supersampling = getdefault(data, :supersampling, 2.0)
-    Ecut_density  = getdefault(data, :Ecut_density,  supersampling^2 * Ecut)
-
-    (; Ecut, supersampling, Ecut_density)
 end
 
 """

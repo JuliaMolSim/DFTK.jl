@@ -66,6 +66,8 @@ end
 
 @testitem "Test pseudopotential family and data of Model" setup=[TestCases] begin
     using DFTK
+    using DFTK: pseudofamily
+    using PseudoPotentialData
     silicon = TestCases.silicon
 
     Si_hgh = ElementPsp(:Si, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
@@ -95,17 +97,24 @@ end
         @test isnothing(pseudofamily(model))
 
         cutoffs = recommended_cutoff(model)
-        @test missing == cutoffs.Ecut
-        @test     2.0 == cutoffs.supersampling
-        @test missing == cutoffs.Ecut_density
+        @test ismissing(cutoffs.Ecut)
+        @test 2.0 == cutoffs.supersampling
+        @test ismissing(cutoffs.Ecut_density)
     end
     let model = model_DFT(silicon.lattice, [Si_hgh, Si_hgh], silicon.positions;
                           functionals=LDA())
-        @test isnothing(pseudofamily(model))
+        @test pseudofamily(model) == PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
 
         cutoffs = recommended_cutoff(model)
-        @test missing == cutoffs.Ecut
-        @test     2.0 == cutoffs.supersampling
-        @test missing == cutoffs.Ecut_density
+        @test ismissing(cutoffs.Ecut)
+        @test 2.0 == cutoffs.supersampling
+        @test ismissing(cutoffs.Ecut_density)
+    end
+    let model = Model(silicon.lattice)
+        @test isnothing(pseudofamily(model))
+        cutoffs = recommended_cutoff(model)
+        @test ismissing(cutoffs.Ecut)
+        @test 2.0 == cutoffs.supersampling
+        @test ismissing(cutoffs.Ecut_density)
     end
 end
