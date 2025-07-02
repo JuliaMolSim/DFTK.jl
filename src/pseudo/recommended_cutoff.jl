@@ -34,7 +34,7 @@ function pseudofamily(model::Model)
     has_common_family = allequal(model.atom_groups) do group
         pseudofamily(model.atoms[first(group)])
     end
-    if has_common_family
+    if has_common_family && !isempty(model.atoms)
         return pseudofamily(model.atoms[1])
     else
         return nothing
