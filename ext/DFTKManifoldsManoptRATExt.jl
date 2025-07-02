@@ -48,7 +48,7 @@ function (mp::ManoptPreconditionersWrapper!!)(M::ProductManifold, p, X)
     return Y
 end
 """
-    HartreeFockEnergyCostGrad{T,S,P,X,R,E,H}
+    InsulatorEnergy{T,S,P,X,R,E,H}
 
 A functor to represent both the energy cost function from direct minimization and its gradient.
 To call the cost function, use `cgf(M,p)`, the gradient can be evaluated in-place of a tangent vector `X`
@@ -71,7 +71,7 @@ gradient and the interim values to spare calls to [`compute_density`](@ref) and 
 * `energies::E`: The last vector of energies, computed from the wave functions.
 * `ham::H`: The last Hamiltonian, computed from the wave functions.
 """
-mutable struct HartreeFockEnergyCostGrad{T,S,P,X,R,E,H}
+mutable struct InsulatorEnergy{T,S,P,X,R,E,H}
     basis::PlaneWaveBasis{T}
     occupation::Vector{S}
     Nk::Int
@@ -83,7 +83,7 @@ mutable struct HartreeFockEnergyCostGrad{T,S,P,X,R,E,H}
     ham::H      # the last Hamiltonian
 end
 # Function shared by both cost and gradient of cost:
-function _compute_density_energy_hamiltonian!(cgf::HartreeFockEnergyCostGrad, M::ProductManifold, p)
+function _compute_density_energy_hamiltonian!(cgf::InsulatorEnergy, M::ProductManifold, p)
     # Can we improve this by copying elementwise?
     # copyto!(cgf.ψ, (copy(x) for x in p.x)) # deepcopyto!
     # Maybe like
@@ -96,7 +96,7 @@ function _compute_density_energy_hamiltonian!(cgf::HartreeFockEnergyCostGrad, M:
     return cgf
 end
 # The cost function:
-function (cgf::HartreeFockEnergyCostGrad)(M::ProductManifold,p)
+function (cgf::InsulatorEnergy)(M::ProductManifold,p)
     # Memoization check: Are we still at the same point?
     if all(cgf.ψ[i] == p[M, i] for i in eachindex(cgf.ψ))
         _compute_density_energy_hamiltonian!(cgf, M, p)
@@ -104,7 +104,7 @@ function (cgf::HartreeFockEnergyCostGrad)(M::ProductManifold,p)
     return cgf.energies.total
 end
 # The gradient of cost function:
-function (cgf::HartreeFockEnergyCostGrad)(M::ProductManifold, X, p)
+function (cgf::InsulatorEnergy)(M::ProductManifold, X, p)
     # Memoization check: Is this X allready been computed?
     if all(cgf.X[M, i] == X[M, i] for i in eachindex(cgf.ψ))
         # Are we still at the same point?
@@ -130,8 +130,8 @@ end
 #
 # Stopping Criteria
 get_parameter(objective::Manopt.AbstractManifoldCostObjective, s) = get_parameter(Manopt.get_cost_function(objective), s)
-get_parameter(energy_costgrad::HartreeFockEnergyCostGrad, s::Symbol) = get_parameter(energy_costgrad, Val(s))
-get_parameter(energy_costgrad::HartreeFockEnergyCostGrad, ::Val{:ρ}) = energy_costgrad.ρ
+get_parameter(energy_costgrad::InsulatorEnergy, s::Symbol) = get_parameter(energy_costgrad, Val(s))
+get_parameter(energy_costgrad::InsulatorEnergy, ::Val{:ρ}) = energy_costgrad.ρ
 
 """
     StopWhenDensityChangeLess{T}
@@ -140,7 +140,7 @@ A `Manopt.jl` stopping criterion that indicates to stop then the change in the d
 is less than a given tolerance `tol`.
 
 The stopping criterion assuemes that the density is either stored the objective, like the
-`HartreeFockEnergyCostGrad` or is set as a parameter vie `get_parameter(objective, :ρ)`
+`InsulatorEnergy` or is set as a parameter vie `get_parameter(objective, :ρ)`
 
 # Fields
 * `tolerance::F`: The tolerance for the change in density.
@@ -324,7 +324,7 @@ function DFTK.direct_minimization(
     Preconditioner = ManoptPreconditionersWrapper!!(Nk, Pks, basis.kweights)
     # Repackage the ψ into a more efficient structure
     recursive_ψ = ArrayPartition(ψ...)
-    cost_rgrad! = HartreeFockEnergyCostGrad(basis,
+    cost_rgrad! = InsulatorEnergy(basis,
         occupation,
         Nk,
         filled_occ,
