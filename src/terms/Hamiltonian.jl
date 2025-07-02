@@ -185,7 +185,7 @@ end
 
 
 """
-    (; energies, hamiltonien) = energy_hamiltonian(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
+    (; energies, hamiltonian) = energy_hamiltonian(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
 
 Compute the energies and Hamiltonian.
 
@@ -203,6 +203,8 @@ The [`Energies`](@ref) object with the energy values for each term and the [`Ham
 in a dictionary with the keys `energies` and `ham`.
 
 """
+energy_hamiltonian(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
+
 @timing function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
     # it: index into terms, ik: index into kpoints
     @timing "ene_ops" ene_ops_arr = [ene_ops(term, basis, ψ, occupation; kwargs...)

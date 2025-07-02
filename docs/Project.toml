@@ -1,3 +1,10 @@
+[compat]
+AtomsBuilder = "0.2"
+AtomsCalculators = "0.2.3"
+Documenter = "~1.8"
+GeometryOptimization = "0.1"
+PseudoPotentialData = "0.2.0"
+
 [deps]
 AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
 ASEconvert = "3da9722f-58c2-4165-81be-b4d7253e8fd2"
@@ -11,6 +18,8 @@ Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 DFTK = "acf6eb54-70d9-11e9-0013-234b7a5f5337"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+DocumenterCitations = "daee34ce-89f3-4625-b898-19384cb65244"
+DocumenterInterLinks = "d12716ef-a0f6-4df4-a9f1-a5a34e75c656"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 GeometryOptimization = "673bf261-a53d-43b9-876f-d3c1fc8329c2"
 IterativeSolvers = "42fd0dbc-a981-5370-80f2-aaf504508153"
@@ -35,9 +44,8 @@ Wannier = "2b19380a-1f7e-4d7d-b1b8-8aa60b3321c9"
 WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 wannier90_jll = "c5400fa0-8d08-52c2-913f-1e3f656c1ce9"
 
-[compat]
-AtomsBuilder = "0.2"
-AtomsCalculators = "0.2.3"
-Documenter = "~1.8"
-GeometryOptimization = "0.1"
-PseudoPotentialData = "0.2.0"
+[extras]
+CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
+
+[sources.DFTK]
+path = ".."
