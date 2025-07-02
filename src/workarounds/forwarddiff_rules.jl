@@ -114,7 +114,9 @@ function construct_value(model::Model{T}) where {T <: Dual}
 end
 
 construct_value(el::Element) = el
-construct_value(el::ElementPsp) = ElementPsp(el.species, construct_value(el.psp), el.mass)
+function construct_value(el::ElementPsp)
+    ElementPsp(el.species, construct_value(el.psp), el.family, el.mass)
+end
 construct_value(psp::PspHgh) = psp
 function construct_value(psp::PspHgh{T}) where {T <: Dual}
     PspHgh(psp.Zion,
