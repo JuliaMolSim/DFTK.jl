@@ -45,7 +45,9 @@ end
 """
     pseudometa(element::Element)
 
-Return the stored metadata for a DFTK element, if available.
+Return the stored metadata for the pseudopotential definition used within
+the DFTK element, if available.
+Effectively this returns `pseudometa(pseudofamily(element), element_symbol(element))`.
 """
 function PseudoPotentialData.pseudometa(el::Element)
     family = pseudofamily(el)
