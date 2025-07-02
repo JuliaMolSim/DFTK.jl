@@ -88,6 +88,13 @@ recommended_cutoff(family_upf, :Si)
 pseudometa(family_upf, :Si)
 
 # Here, we see that multiple recommended cutoffs are made available in the metadata.
+# Note, that `recommended_cutoff` can also be directly executed on a [`Model`](@ref)
+# or an [`Element`](@ref), e.g.
+
+Si = ElementPsp(:Si, family_upf)
+recommended_cutoff(Si)
+#-
+pseudometa(Si)
 
 # Next, to see that the different pseudopotentials give reasonably similar results,
 # we'll look at the bandstructures calculated using the GTH and UPF PSPs. Even though

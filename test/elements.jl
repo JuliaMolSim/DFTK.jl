@@ -77,6 +77,10 @@ end
     @test element_explicit_rcut.psp.rcut == 15
     # Constructing a PSP from a file cannot infer the rcut
     @test element_from_family.psp.rcut != element_from_psp.psp.rcut
+
+    @test pseudofamily(element_from_family) == pd_lda_family
+    @test pseudometa(element_from_family) == pseudometa(pd_lda_family, :Si)
+    @test recommended_cutoff(element_from_family) == recommended_cutoff(pd_lda_family, :Si)
 end
 
 @testitem "Check constructing ElementCohenBergstresser" begin
