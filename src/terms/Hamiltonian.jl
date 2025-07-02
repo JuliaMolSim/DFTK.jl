@@ -229,7 +229,7 @@ in a dictionary with the keys `energies` and `ham`.
     ham = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks; scratch)
                               for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
     energies = Energies(term_names, energy_values)
-    return (; energies, ham)
+    (; energies, ham)
 end
 
 """
