@@ -325,7 +325,7 @@ function DFTK.direct_minimization(
     # Initialize the product manifold
     dimensions = size.(ψ) # Vector of touples of ψ dimensions
     manifold_array = map(dim -> manifold_constructor(dim[1], dim[2]), dimensions)
-    _manifold = ProductManifold(manifold_array...)
+    product_manifold = ProductManifold(manifold_array...)
     Pks = [preconditioner(basis, kpt) for kpt in basis.kpoints]
     Preconditioner = ManoptPreconditionersWrapper!!(Nk, Pks, basis.kweights)
     # Repackage the ψ into a more efficient structure
@@ -335,7 +335,7 @@ function DFTK.direct_minimization(
         Nk,
         filled_occ,
         zero.(ψ),  #init different from ψ to avoid caching errors
-        rand(_manifold; vector_at=recursive_ψ), # init different from X to avoid caching errors
+        rand(product_manifold; vector_at=recursive_ψ), # init different from X to avoid caching errors
         deepcopy(ρ),
         deepcopy(energies),
         deepcopy(ham),
@@ -348,15 +348,15 @@ function DFTK.direct_minimization(
     end
     # Build Objective & Problem
     objective = Manopt.ManifoldGradientObjective(local_cost, local_grad!!; evaluation=evaluation)
-    deco_obj = Manopt.decorate_objective!(_manifold, objective; kwargs...)
-    problem = Manopt.DefaultManoptProblem(_manifold, deco_obj)
-    _stepsize = Manopt._produce_type(stepsize, _manifold)
+    deco_obj = Manopt.decorate_objective!(product_manifold, objective; kwargs...)
+    problem = Manopt.DefaultManoptProblem(product_manifold, deco_obj)
+    _stepsize = Manopt._produce_type(stepsize, product_manifold)
     state = state_type(
-        _manifold;
+        product_manifold;
         p=recursive_ψ,
         stopping_criterion=stopping_criterion,
         preconditioner=QuasiNewtonPreconditioner((M, Y, p, X) -> Preconditioner(M, Y, p, X); evaluation=InplaceEvaluation()),
-        direction=Manopt.PreconditionedDirectionRule(_manifold,
+        direction=Manopt.PreconditionedDirectionRule(product_manifold,
             (M, Y, p, X) -> Preconditioner(M, Y, p, X);
             evaluation=InplaceEvaluation()
         ),
@@ -365,7 +365,7 @@ function DFTK.direct_minimization(
         vector_transport_method=vector_transport_method,
         retraction_method=retraction_method,
         memory_size=10,
-        X=cost_rgrad!(_manifold, zero_vector(_manifold, recursive_ψ), recursive_ψ), # Initial gradient
+        X=cost_rgrad!(product_manifold, zero_vector(product_manifold, recursive_ψ), recursive_ψ), # Initial gradient
         kwargs...
     )
     deco_state = Manopt.decorate_state!(state; kwargs...)
@@ -378,7 +378,7 @@ function DFTK.direct_minimization(
     # The NamedTuple that is returned, collecting all results
     (
         info="This object is summarizing variables for debugging purposes",
-        product_manifold=_manifold,
+        product_manifold=product_manifold,
         ψ_reconstructed = collect(recursive_ψ.x),
         model       	 = model,
         n_bands     	 = n_bands,
@@ -388,10 +388,22 @@ function DFTK.direct_minimization(
         ρ                = cost_rgrad!.ρ,
         cost_value=get_cost(problem, p),
         cost_grad_value=get_gradient(problem, p),
+        energies = cost_rgrad!.energies, # TODO make more general
+        ham = cost_rgrad!.ham,
         # The “pure” solver state without debug/records.
         solver_state=Manopt.get_state(deco_state,true),
     )
 end
 # TODO/Discuss
 # * What should the `debug_info` contain?
+#=
+# TODO remove once we have adapted this in the extension
+    info = (; ham, basis, energies, converged, ρ, eigenvalues, occupation, εF,
+            n_bands_converge=n_bands, n_iter=Optim.iterations(res),
+            runtime_ns=time_ns() - start_ns, history_Δρ, history_Etot,
+            ψ, stage=:finalize, algorithm="DM", optim_res=res)
+    callback(info)
+    info
+end
+=#
 end

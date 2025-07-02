@@ -1,6 +1,7 @@
 @testitem "Compare different SCF algorithms (no spin, no temperature)" #=
     =#    tags=[:core] setup=[TestCases] begin
     using DFTK
+    using Manopt, Manifolds, RecursiveArrayTools
     using DFTK: Applyχ0Model, select_occupied_orbitals
     silicon = TestCases.silicon
     tol = 1e-7
