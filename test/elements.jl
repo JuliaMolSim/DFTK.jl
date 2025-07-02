@@ -64,6 +64,7 @@ end
 
 @testitem "Check constructing ElementPsp from family" begin
     using DFTK
+    using DFTK: pseudofamily
     using PseudoPotentialData
     pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
 
