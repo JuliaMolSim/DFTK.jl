@@ -237,7 +237,7 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis;
     maxiter=1_000,
     manifold=Manifolds.Stiefel,
 )
-    direct_minimization(
+    DFTK.direct_minimization(
         basis, Manopt.QuasiNewtonState;
         ψ=ψ, ρ=ρ, tol=tol, maxiter=maxiter, manifold=manifold
     )
@@ -268,15 +268,20 @@ Similar to the simpler [`direct_minimizartion`](@ref direct_minimization(::Plane
 
 This also allows to directly set more parameters of the
 
-* `cost=nothing`
-* `gradient=nothing
+* `cost=nothing` – TODO
+* `gradient=nothing – TODO
+
+* `evaluation=InplaceEvaluation()`: The evaluation strategy for the cost and gradient.
 * `manifold_constructor=(n,k) -> manifold(n,k,ℂ)`: A function that constructs a single component of the product manifold,
   which is the domain of the energy functional (cost)
   It maps the dimensions `(n,k)` to a manifold to be used per component.
   The default is the complex Stiefel manifold
 * `preconditioner=DFTK.PreconditionerTPA`: The preconditioner to use for the optimization.
 * `stopping_criterion=Manopt.StopAfterIteration(maxiter) | StopWhenDensityChangeLess(tol)`: The stopping criterion for the optimization.
-* `evaluation=InplaceEvaluation()`: The evaluation strategy for the cost and gradient.
+* `retraction_method=`[`ProjectionRetraction`](@extref `Manifolds.ProjectionRetraction`): retraction to use to “move” on the manifold
+* `vector_transport_method=`[`ProjectionTransport`](@extref `Manifolds.ProjectionTransport`)`()` vector transport to use to move tangent vectors between tangent spaces.
+* `stepsize=`[`ArmijoLinesearch`](@ref `Manopt.ArmijoLinesearch`)`(; retraction_method=retraction_method)` step size to use.
+  The default here reuses the `retraction_method=` specified.
 
 All other keyword arguments are passed to the solver state constructor as well as to
 both a decorate for the objective and the state.
@@ -284,21 +289,23 @@ This allows to change defaults in the solver settings,
 add for example a cache “around” the objective or add debug and/or recording functionality to the solver run.
 """
 function DFTK.direct_minimization(
-    basis::PlaneWaveBasis, state::Manopt.AbstractManoptSolverState;
+    basis::PlaneWaveBasis{T}, state_type::Type{<:Manopt.AbstractManoptSolverState};
     ψ=nothing,
     ρ=guess_density(basis), # would be consistent with other scf solvers
     tol=1e-6,
     maxiter=1_000,
+    cost=nothing, # TODO
+    gradient=nothing, # TODO
     preconditioner=DFTK.PreconditionerTPA,
     manifold=Manifolds.Stiefel,
     manifold_constructor=(n, k) -> manifold(n, k, ℂ),
-    stopping_criterion = Manopt.StopAfterIteration(maxiter) | StopWhenDensityChangeLess(tol,deepcopy(ρ)),
+    stopping_criterion = Manopt.StopAfterIteration(maxiter) | DFTK.StopWhenDensityChangeLess(tol,deepcopy(ρ)),
     evaluation=Manopt.InplaceEvaluation(),
     retraction_method=Manifolds.ProjectionRetraction(),
     vector_transport_method=Manifolds.ProjectionTransport(),
     stepsize=Manopt.ArmijoLinesearch(; retraction_method=retraction_method),
     kwargs...
-)
+) where {T}
     # Part 1: Get DFTK variables
     #
     #
@@ -312,7 +319,6 @@ function DFTK.direct_minimization(
     ψ = isnothing(ψ) ? [DFTK.random_orbitals(basis, kpt, n_bands) for kpt in basis.kpoints] : ψ
     occupation = [filled_occ * ones(T, n_bands) for _ = 1:Nk]
     energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρ)
-
     # Part II: Setup solver
     #
     #
@@ -345,7 +351,7 @@ function DFTK.direct_minimization(
     deco_obj = Manopt.decorate_objective!(_manifold, objective; kwargs...)
     problem = Manopt.DefaultManoptProblem(_manifold, deco_obj)
     _stepsize = Manopt._produce_type(stepsize, _manifold)
-    state = solver(
+    state = state_type(
         _manifold;
         p=recursive_ψ,
         stopping_criterion=stopping_criterion,
