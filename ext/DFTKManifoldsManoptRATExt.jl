@@ -210,13 +210,47 @@ end
 # * ρ ? A user could then easily use `record = [:ρ] to record it
 # * a debug is maybe not so useful, since it seems to be a large array, but its norm maybe?
 
-# TODO/Discuss:
-# * Should a user be able to provide their own cost/grad?
-#   Then we would have to change a few small things in the setup.
+#
+#
+# The direct minimization interface – the simple case
+# The direct minimization interface – the simple case
+"""
+    direct_minimization(basis::DFTK.PlaneWaveBasis{T}; kwargs...)
 
-#
-#
-# The direct minimization interface
+Compute a minimizer of the density energy function energy functional using the direct minimization method.
+
+# Argument
+
+* `basis::DFTK.PlaneWaveBasis{T}`: The plane wave basis to use for the DFT calculation.
+
+# Keyword Arguments
+
+* `maxiter=1000`: The maximum number of iterations for the optimization. If you set the `stopping_criterion=` directly, this keyword has no effect.
+* `ψ=nothing`: The initial guess for the wave functions. If not provided, random orbitals will be generated.
+* `ρ=guess_density(basis), # would be consistent with other scf solvers
+* `tol=1e-6`: stop when the change in the density is less than this tolerance. If you set the `stopping_criterion=` directly, this keyword has no effect.
+* `manifold=`[`Stiefel`](@extref `Manifolds.Stiefel`): the manifold the optimisation is running on.
+  The current default cost function allows to also use ∞`Grassmann`](@extref `Manifolds.Grassmann`),
+  both in their complex form.
+
+This uses several defaults from [`Manopt.jl`](@extref), for example it always uses
+the [`quasi_newton`](@ref) solver.
+
+To change this solver, use [`direct_minimizartion`](@ref direct_minimization(::PlaneWaveBasis, ::Manopt.AbstractManoptSolverState))`(basis, solver_state)`
+"""
+function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
+    ψ=nothing,
+    ρ=guess_density(basis), # would be consistent with other scf solvers
+    tol=1e-6,
+    maxiter=1_000,
+    manifold=Manifolds.Stiefel,
+)
+    return direct_minimization(
+        basis, Manopt.QuasiNewtonState;
+        ψ=ψ, ρ=ρ, tol=tol, maxiter=maxiter, manifold=manifold
+    )
+end
+
 """
     direct_minimization(basis::DFTK.PlaneWaveBasis{T}; kwargs...)
 
@@ -228,13 +262,27 @@ Compute a minimizer of the Hartree-Fock energy functional using the direct minim
 
 # Keyword Arguments
 
-* `manifold_constructor=(n,k) -> Stiefel(n,k,ℂ)`: A function that constructs a single component of the product manifold, which is the domain of the energy functional (cost)
-  It maps the dimensions `(n,k)` to a manifold to be used per component. The default is the complex Stiefel manifold
-* `ψ=nothing`: The initial guess for the wave functions. If not provided, random orbitals will be generated.
-* `tol=1e-6`: stop when the change in the density is less than this tolerance. If you set the `stopping_criterion=` directly, this keyword has no effect.
+Similar to the simpler [`direct_minimizartion`](@ref direct_minimization(::PlaneWaveBasis))`(basis)`
+
 * `maxiter=1000`: The maximum number of iterations for the optimization. If you set the `stopping_criterion=` directly, this keyword has no effect.
+  If you set the `stopping_criterion=` directly, this keyword has no effect.
+* `ψ=nothing`: The initial guess for the wave functions. If not provided, random orbitals will be generated.
+* `ρ=guess_density(basis), # would be consistent with other scf solvers
+* `tol=1e-6`: stop when the change in the density is less than this tolerance. If you set the `stopping_criterion=` directly, this keyword has no effect.
+  If you set the `stopping_criterion=` directly, this keyword has no effect.
+* `manifold=`[`Stiefel`](@extref `Manifolds.Stiefel`): the manifold the optimisation is running on.
+  The default cost function allows to also use ∞`Grassmann`](@extref `Manifolds.Grassmann`).
+  If you set the `manifold_constructor=` directly, e.g. to switch to a real manifold, this keyword is ignored
+
+This also allows to directly set more parameters of the
+
+* `cost=nothing`
+* `gradient=nothing
+* `manifold_constructor=(n,k) -> manifold(n,k,ℂ)`: A function that constructs a single component of the product manifold,
+  which is the domain of the energy functional (cost)
+  It maps the dimensions `(n,k)` to a manifold to be used per component.
+  The default is the complex Stiefel manifold
 * `preconditioner=DFTK.PreconditionerTPA`: The preconditioner to use for the optimization.
-* `solver=QuasiNewtonState`: The solver to use for the optimization. Defaults to a quasi-Newton method.
 * `stopping_criterion=Manopt.StopAfterIteration(maxiter) | StopWhenDensityChangeLess(tol)`: The stopping criterion for the optimization.
 * `evaluation=InplaceEvaluation()`: The evaluation strategy for the cost and gradient.
 
@@ -243,23 +291,22 @@ both a decorate for the objective and the state.
 This allows to change defaults in the solver settings,
 add for example a cache “around” the objective or add debug and/or recording functionality to the solver run.
 """
-function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
+function DFTK.direct_minimization(
+    basis::PlaneWaveBasis, state::Manopt.AbstractManoptSolverState=QuasiNewtonState;
     ψ=nothing,
     ρ=guess_density(basis), # would be consistent with other scf solvers
     tol=1e-6,
     maxiter=1_000,
-    # TODO Naming and format,
     preconditioner=DFTK.PreconditionerTPA,
-    solver=QuasiNewtonState,
-    _manifold=Manifolds.Stiefel,
-    manifold_constructor=(n, k) -> _manifold(n, k, ℂ),
+    manifold=Manifolds.Stiefel,
+    manifold_constructor=(n, k) -> manifold(n, k, ℂ),
     stopping_criterion = Manopt.StopAfterIteration(maxiter) | StopWhenDensityChangeLess(tol,deepcopy(ρ)),
     evaluation=Manopt.InplaceEvaluation(),
     retraction_method=Manifolds.ProjectionRetraction(),
     vector_transport_method=Manifolds.ProjectionTransport(),
     stepsize=Manopt.ArmijoLinesearch(; retraction_method=retraction_method),
     kwargs...
-) where {T}
+)
     # Part 1: Get DFTK variables
     #
     #
