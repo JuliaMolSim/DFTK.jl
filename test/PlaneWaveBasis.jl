@@ -152,6 +152,7 @@ end
 
 @testitem "Automatic Euct suggestion from pseudpotentials" setup=[TestCases] begin
     using DFTK
+    using PseudoPotentialData
     silicon = TestCases.silicon
 
     Si_hgh = ElementPsp(:Si, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
