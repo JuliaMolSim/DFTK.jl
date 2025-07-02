@@ -34,10 +34,9 @@ struct ManoptPreconditionersWrapper!!{T,S}
     Pks::Vector{T}
     kweights::Vector{S}
 end
-function (mp::ManoptPreconditionersWrapper!!)(M::ProductManifold,
-    Y,
-    p,
-    X)
+function (mp::ManoptPreconditionersWrapper!!)(
+    M::ProductManifold,Y,p,X
+)
     # Update preconditioner
     for ik = 1:mp.Nk
         DFTK.precondprep!(mp.Pks[ik], p[M, ik])
@@ -140,8 +139,6 @@ get_parameter(objective::Manopt.AbstractManifoldCostObjective, s) = get_paramete
 get_parameter(energy_costgrad::HartreeFockEnergyCostGrad, s::Symbol) = get_parameter(energy_costgrad, Val(s))
 get_parameter(energy_costgrad::HartreeFockEnergyCostGrad, ::Val{:ρ}) = energy_costgrad.ρ
 
-# TODO/DISCUSS:
-# *  Can we also accept a manifold here and conclude the `ρ` from there?
 """
     StopWhenDensityChangeLess{T}
 
@@ -173,7 +170,7 @@ mutable struct StopWhenDensityChangeLess{T,F<:Real} <: Manopt.StoppingCriterion
     last_change::F
 end
 function StopWhenDensityChangeLess(tol::F, ρ::T) where {T,F<:Real}
-    return StopWhenDensityChangeLess{T,F}(tol, -1, ρ, 2 * tol)
+    StopWhenDensityChangeLess{T,F}(tol, -1, ρ, 2 * tol)
 end
 function (c::StopWhenDensityChangeLess)(problem::P, state::S, k::Int) where {P<:Manopt.AbstractManoptProblem,S<:Manopt.AbstractManoptSolverState}
     current_ρ = get_parameter(Manopt.get_objective(problem), :ρ)
@@ -213,7 +210,6 @@ end
 #
 #
 # The direct minimization interface – the simple case
-# The direct minimization interface – the simple case
 """
     direct_minimization(basis::DFTK.PlaneWaveBasis{T}; kwargs...)
 
@@ -245,7 +241,7 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis{T};
     maxiter=1_000,
     manifold=Manifolds.Stiefel,
 )
-    return direct_minimization(
+    direct_minimization(
         basis, Manopt.QuasiNewtonState;
         ψ=ψ, ρ=ρ, tol=tol, maxiter=maxiter, manifold=manifold
     )
@@ -377,7 +373,8 @@ function DFTK.direct_minimization(
     #
     # Bundle the variables in a NamedTuple for debugging:
     p = get_solver_result(deco_state)
-    debug_info = (
+    # The NamedTuple that is returned, collecting all results
+    (
         info="This object is summarizing variables for debugging purposes",
         product_manifold=_manifold,
         ψ_reconstructed = collect(recursive_ψ.x),
@@ -392,7 +389,6 @@ function DFTK.direct_minimization(
         # The “pure” solver state without debug/records.
         solver_state=Manopt.get_state(deco_state,true),
     )
-    return debug_info
 end
 # TODO/Discuss
 # * What should the `debug_info` contain?
