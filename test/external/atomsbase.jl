@@ -4,6 +4,7 @@
     using UnitfulAtomic
     using AtomsBase
     using PseudoPotentialData
+    using DFTK: pseudofamily
 
     family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
     Si = ElementCoulomb(:Si)
@@ -121,6 +122,7 @@ end
 
 @testitem "AbstractSystem -> DFTK Model" tags=[:atomsbase] begin
     using DFTK
+    using DFTK: pseudofamily
     using Unitful
     using UnitfulAtomic
     using AtomsBase
@@ -201,6 +203,7 @@ end
 
 @testitem "AbstractSystem (unusual symbols and masses) -> DFTK" tags=[:atomsbase] begin
     using DFTK
+    using DFTK: pseudofamily
     using Unitful
     using UnitfulAtomic
     using AtomsBase

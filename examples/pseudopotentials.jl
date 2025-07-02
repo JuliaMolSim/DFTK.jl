@@ -89,7 +89,7 @@ pseudometa(family_upf, :Si)
 
 # Here, we see that multiple recommended cutoffs are made available in the metadata.
 # Note, that `recommended_cutoff` can also be directly executed on a [`Model`](@ref)
-# or an [`Element`](@ref), e.g.
+# or an [`ElementPsp`](@ref), e.g.
 
 Si = ElementPsp(:Si, family_upf)
 recommended_cutoff(Si)
