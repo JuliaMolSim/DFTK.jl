@@ -13,7 +13,6 @@ function PseudoPotentialData.recommended_cutoff(model::Model)
             getproperty(recommended_cutoff(atom), property)
         end
     end
-
     (; Ecut          = get_maximum(:Ecut),
        supersampling = get_maximum(:supersampling),
        Ecut_density  = get_maximum(:Ecut_density))
@@ -26,7 +25,7 @@ Return the recommended kinetic energy cutoff, supersampling and density cutoff f
 Values may be `missing` if the data cannot be determined.
 """
 function PseudoPotentialData.recommended_cutoff(el::Element)
-    data = (; Ecut=missing, supersamping=missing, Ecut_density=missing)
+    data = (; Ecut=missing, supersampling=missing, Ecut_density=missing)
     function getdefault(data, key, default)
         ismissing(getproperty(data, key)) ? default : getproperty(data, key)
     end
@@ -35,9 +34,9 @@ function PseudoPotentialData.recommended_cutoff(el::Element)
     if !isnothing(family)
         data = recommended_cutoff(family, element_symbol(el))
     end
-    Ecut = getdefault(data, :Ecut, missing)
+    Ecut          = getdefault(data, :Ecut,          missing)
     supersampling = getdefault(data, :supersampling, 2.0)
-    Ecut_density = getdefault(data, :Ecut_density, supersampling^2 * Ecut)
+    Ecut_density  = getdefault(data, :Ecut_density,  supersampling^2 * Ecut)
 
     (; Ecut, supersampling, Ecut_density)
 end
