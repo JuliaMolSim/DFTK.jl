@@ -3,6 +3,7 @@ module DFTKManifoldsManoptRATExt
     using Manopt
     using Manifolds
     using RecursiveArrayTools
+    using LinearAlgebra
 
 """
     ManoptPreconditionersWrapper!!{T,S}
@@ -125,6 +126,79 @@ function (cgf::InsulatorEnergy)(M::ProductManifold, X, p)
     copyto!(cgf.X, X) # Memoization
     return X
 end
+#
+#
+# Debugs
+# Δρ
+mutable struct DebugDensityChange{F} <: DebugAction
+    io::IO
+    last_ρ::F
+    prefix::String
+end
+DFTK.DebugDensityChange(ρ::T; prefix = "Δρ:", io::IO=stdout) where {T} = DebugDensityChange{T}(io, ρ, prefix)
+function (d::DebugDensityChange)(problem::AbstractManoptProblem, ::AbstractManoptSolverState, k::Int)
+    current_ρ = get_parameter(Manopt.get_objective(problem), :ρ)
+    ch = norm(current_ρ - d.last_ρ)
+    d.last_ρ .= current_ρ
+    (k >= 0) && print(d.io, "$(d.prefix)$(ch)")
+end
+# ‖ρ‖
+mutable struct DebugDensityNorm <: DebugAction
+    io::IO
+    prefix::String
+end
+DFTK.DebugDensityNorm(; io::IO=stdout, prefix="‖ρ‖: ") = DebugDensityNorm(io, prefix)
+function (::DebugDensityNorm)(
+    problem::AbstractManoptProblem, ::AbstractManoptSolverState, k::Int
+)
+    current_ρ = get_parameter(Manopt.get_objective(problem), :ρ)
+    return (k >= 0) && print(d.io, "$(d.prefix)$(norm(current_ρ))")
+end
+Base.show(io::IO, ::DebugDensityNorm) = print(io, "DebugDensityNorm()")
+#
+#
+# Records
+# ρ
+mutable struct RecordDensity{F} <: RecordAction
+    recorded_values::Array{F,1}
+end
+DFTK.RecordDensity(ρ::F) where {F} = RecordDensity{F}(Array{F,1}())
+function (r::RecordDensity)(
+    problem::AbstractManoptProblem, ::AbstractManoptSolverState, k::Int
+)
+    current_ρ = get_parameter(Manopt.get_objective(problem), :ρ)
+    return Manopt.record_or_reset!(r, copy(current_ρ), k)
+end
+Base.show(io::IO, ::RecordDensity) = print(io, "RecordDensity()")
+# Δρ
+mutable struct RecordDensityChange{F,T} <: RecordAction
+    recorded_values::Array{F,1}
+    last_ρ::T
+end
+DFTK.RecordDensityChange(ρ::T) where {T} = RecordDensityChange{typeof(norm(ρ)),typeof(ρ)}(Array{typeof(norm(ρ)),1}(), ρ)
+function (r::RecordDensityChange)(
+    problem::AbstractManoptProblem, s::AbstractManoptSolverState, k::Int
+)
+    current_ρ = get_parameter(Manopt.get_objective(problem), :ρ)
+    last_change = norm(current_ρ - r.last_ρ)
+    r.last_ρ .= current_ρ
+    return Manopt.record_or_reset!(r, last_change, k)
+end
+Base.show(io::IO, ::RecordDensityChange) = print(io, "RecordDensityChange()")
+#
+# norm ρ
+mutable struct RecordDensityNorm{F} <: RecordAction
+    recorded_values::Array{F,1}
+end
+DFTK.RecordDensityNorm(ρ::F) where {F} = RecordDensityNorm(typeof(norm(ρ)))
+DFTK.RecordDensityNorm(T::Type=Float64) = RecordDensityNorm{T}(Array{T,1}())
+function (r::RecordDensityNorm)(
+    problem::AbstractManoptProblem, ::AbstractManoptSolverState, k::Int
+)
+    current_ρ = get_parameter(Manopt.get_objective(problem), :ρ)
+    return Manopt.record_or_reset!(r, norm(current_ρ), k)
+end
+Base.show(io::IO, ::RecordDensityNorm) = print(io, "RecordDensityNorm()")
 
 #
 #
@@ -224,6 +298,8 @@ Compute a minimizer of the density energy function energy functional using the d
 * `manifold=`[`Stiefel`](@extref `Manifolds.Stiefel`): the manifold the optimisation is running on.
   The current default cost function allows to also use ∞`Grassmann`](@extref `Manifolds.Grassmann`),
   both in their complex form.
+* `record=[Manopt.RecordCost(), DFTK.RecordDensityChange(ρ), Manopt.RecordTime(:total)]`:
+  specify what to record during the Iterations. If present, these are included in the returned named tuplpe
 
 This uses several defaults from [`Manopt.jl`](@extref), for example it always uses
 the [`quasi_newton`](@ref) solver.
@@ -236,10 +312,11 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis;
     tol=1e-6,
     maxiter=1_000,
     manifold=Manifolds.Stiefel,
+    record=[Manopt.RecordCost(), DFTK.RecordDensityChange(ρ), Manopt.RecordTime(:total)]
 )
     DFTK.direct_minimization(
         basis, Manopt.QuasiNewtonState;
-        ψ=ψ, ρ=ρ, tol=tol, maxiter=maxiter, manifold=manifold
+        ψ=ψ, ρ=ρ, tol=tol, maxiter=maxiter, manifold=manifold, record=record
     )
 end
 
@@ -268,9 +345,10 @@ Similar to the simpler [`direct_minimizartion`](@ref direct_minimization(::Plane
 
 This also allows to directly set more parameters of the
 
-* `cost=nothing` – TODO
-* `gradient=nothing – TODO
-
+* `cost=nothing` provide a cost function for the Energy to be minimised.
+* `gradient=nothing` provide a gradient function for the Energy to be minimised.
+  If you provide either of these, you also have to provide the other one. Note that these have to agree
+  with defining cost and gradient in a Manopt form.
 * `evaluation=InplaceEvaluation()`: The evaluation strategy for the cost and gradient.
 * `manifold_constructor=(n,k) -> manifold(n,k,ℂ)`: A function that constructs a single component of the product manifold,
   which is the domain of the energy functional (cost)
@@ -278,9 +356,11 @@ This also allows to directly set more parameters of the
   The default is the complex Stiefel manifold
 * `preconditioner=DFTK.PreconditionerTPA`: The preconditioner to use for the optimization.
 * `stopping_criterion=Manopt.StopAfterIteration(maxiter) | StopWhenDensityChangeLess(tol)`: The stopping criterion for the optimization.
+* `record=[Manopt.RecordCost(), DFTK.RecordDensityChange(ρ), Manopt.RecordTime(:total)]`:
+  specify what to record during the Iterations. If present, these are included in the returned named tuplpe
 * `retraction_method=`[`ProjectionRetraction`](@extref `Manifolds.ProjectionRetraction`): retraction to use to “move” on the manifold
 * `vector_transport_method=`[`ProjectionTransport`](@extref `Manifolds.ProjectionTransport`)`()` vector transport to use to move tangent vectors between tangent spaces.
-* `stepsize=`[`ArmijoLinesearch`](@ref `Manopt.ArmijoLinesearch`)`(; retraction_method=retraction_method)` step size to use.
+* `stepsize=`[`ArmijoLinesearch`](@extref `Manopt.ArmijoLinesearch`)`(; retraction_method=retraction_method)` step size to use.
   The default here reuses the `retraction_method=` specified.
 
 All other keyword arguments are passed to the solver state constructor as well as to
@@ -300,8 +380,9 @@ function DFTK.direct_minimization(
     manifold=Manifolds.Stiefel,
     manifold_constructor=(n, k) -> manifold(n, k, ℂ),
     stopping_criterion = Manopt.StopAfterIteration(maxiter) | DFTK.StopWhenDensityChangeLess(tol,deepcopy(ρ)),
-    evaluation=Manopt.InplaceEvaluation(),
-    retraction_method=Manifolds.ProjectionRetraction(),
+    evaluation = Manopt.InplaceEvaluation(),
+    record = [Manopt.RecordCost(), DFTK.RecordDensityChange(ρ), Manopt.RecordTime(:total)],
+    retraction_method = Manifolds.ProjectionRetraction(),
     vector_transport_method=Manifolds.ProjectionTransport(),
     stepsize=Manopt.ArmijoLinesearch(; retraction_method=retraction_method),
     kwargs...
@@ -330,24 +411,30 @@ function DFTK.direct_minimization(
     Preconditioner = ManoptPreconditionersWrapper!!(Nk, Pks, basis.kweights)
     # Repackage the ψ into a more efficient structure
     recursive_ψ = ArrayPartition(ψ...)
-    cost_rgrad! = InsulatorEnergy(basis,
-        occupation,
-        Nk,
-        filled_occ,
-        zero.(ψ),  #init different from ψ to avoid caching errors
-        rand(product_manifold; vector_at=recursive_ψ), # init different from X to avoid caching errors
-        deepcopy(ρ),
-        deepcopy(energies),
-        deepcopy(ham),
-   )
-    local_cost = cost_rgrad! # local cost function
-    if evaluation == InplaceEvaluation()
-        local_grad!! = (M,X,p) -> cost_rgrad!(M, X, p)
+    if isnothing(cost) && isnothing(gradient)
+        cost_rgrad! = InsulatorEnergy(basis,
+            occupation,
+            Nk,
+            filled_occ,
+            zero.(ψ),  #init different from ψ to avoid caching errors
+            rand(product_manifold; vector_at=recursive_ψ), # init different from X to avoid caching errors
+            deepcopy(ρ),
+            deepcopy(energies),
+            deepcopy(ham),
+    )
+        cost = cost_rgrad! # local cost function
+        if evaluation == InplaceEvaluation()
+            grad = (M,X,p) -> cost_rgrad!(M, X, p)
+        else
+            grad = (M,p) -> cost_rgrad!(M, zero_vector(M,p), p)
+        end
     else
-        local_grad!! = (M,p) -> cost_rgrad!(M, zero_vector(M,p), p)
+        if isnothing(cost) | isnothing(gradient)
+            error("Providing a cost or gradient function directly also requires the other one to be provided")
+        end
     end
     # Build Objective & Problem
-    objective = Manopt.ManifoldGradientObjective(local_cost, local_grad!!; evaluation=evaluation)
+    objective = Manopt.ManifoldGradientObjective(cost, grad; evaluation=evaluation)
     deco_obj = Manopt.decorate_objective!(product_manifold, objective; kwargs...)
     problem = Manopt.DefaultManoptProblem(product_manifold, deco_obj)
     _stepsize = Manopt._produce_type(stepsize, product_manifold)
@@ -368,7 +455,7 @@ function DFTK.direct_minimization(
         X=cost_rgrad!(product_manifold, zero_vector(product_manifold, recursive_ψ), recursive_ψ), # Initial gradient
         kwargs...
     )
-    deco_state = Manopt.decorate_state!(state; kwargs...)
+    deco_state = Manopt.decorate_state!(state; record=record, kwargs...)
     Manopt.solve!(problem, deco_state)
     # Parti III: Collect result in a struct and return that
     #
@@ -378,32 +465,35 @@ function DFTK.direct_minimization(
     # The NamedTuple that is returned, collecting all results
     (
         info="This object is summarizing variables for debugging purposes",
+        algorithm = "$(state)",
         product_manifold=product_manifold,
+        basis= basis,
+        converged = Manopt.indicates_convergence(deco_state),
         ψ_reconstructed = collect(recursive_ψ.x),
         model       	 = model,
-        n_bands     	 = n_bands,
+        n_bands_converge = n_bands,
         Nk          	 = Nk,
         ψ           	 = ψ,
         occupation  	 = occupation,
-        ρ                = cost_rgrad!.ρ,
         cost_value=get_cost(problem, p),
         cost_grad_value=get_gradient(problem, p),
-        energies = cost_rgrad!.energies, # TODO make more general
+        # TODO: For individual cost/grad this needs to be improved
+        ρ=cost_rgrad!.ρ,
+        energies=cost_rgrad!.energies,
         ham = cost_rgrad!.ham,
         # The “pure” solver state without debug/records.
         solver_state=Manopt.get_state(deco_state,true),
     )
 end
-# TODO/Discuss
-# * What should the `debug_info` contain?
-#=
-# TODO remove once we have adapted this in the extension
-    info = (; ham, basis, energies, converged, ρ, eigenvalues, occupation, εF,
-            n_bands_converge=n_bands, n_iter=Optim.iterations(res),
-            runtime_ns=time_ns() - start_ns, history_Δρ, history_Etot,
-            ψ, stage=:finalize, algorithm="DM", optim_res=res)
-    callback(info)
-    info
-end
+#= TODO remove once we have adapted this in the extension - the remaining ones are
+    info = (;
+            eigenvalues,
+            εF,
+            n_iter=Optim.iterations(res),
+            runtime_ns=time_ns() - start_ns,
+            history_Δρ,
+            history_Etot,
+            stage=:finalize,
+        )
 =#
 end
