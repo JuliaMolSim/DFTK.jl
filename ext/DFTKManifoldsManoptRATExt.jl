@@ -273,10 +273,6 @@ function Base.show(io::IO, c::StopWhenDensityChangeLess)
     return print(io, "StopWhenDensityChangeLess with threshold $(c.tolerance).\n    $(Manopt.status_summary(c))")
 end
 
-# TODO/DISCUSS: Should we have Records / Debugs for
-# * ρ ? A user could then easily use `record = [:ρ] to record it
-# * a debug is maybe not so useful, since it seems to be a large array, but its norm maybe?
-
 #
 #
 # The direct minimization interface – the simple case
@@ -374,8 +370,8 @@ function DFTK.direct_minimization(
     ρ=guess_density(basis), # would be consistent with other scf solvers
     tol=1e-6,
     maxiter=1_000,
-    cost=nothing, # TODO
-    gradient=nothing, # TODO
+    cost=nothing,
+    gradient=nothing,
     preconditioner=DFTK.PreconditionerTPA,
     manifold=Manifolds.Stiefel,
     manifold_constructor=(n, k) -> manifold(n, k, ℂ),
@@ -494,6 +490,8 @@ end
             history_Δρ,
             history_Etot,
             stage=:finalize,
+            n_iter (iteration count)
+            n_matvec (number of hamiltonian application ... if it's easy to obtain, else don't bother)
         )
 =#
 end
