@@ -82,6 +82,7 @@ mutable struct InsulatorEnergy{T,S,P,X,R,E,H}
     ρ::R        # the last density
     energies::E # the last vector of energies
     ham::H      # the last Hamiltonian
+    count::Int  # Count hamiltonian calls.
 end
 # Function shared by both cost and gradient of cost:
 function _compute_density_energy_hamiltonian!(cgf::InsulatorEnergy, M::ProductManifold, p)
@@ -94,6 +95,7 @@ function _compute_density_energy_hamiltonian!(cgf::InsulatorEnergy, M::ProductMa
     copyto!(cgf.ρ, compute_density(cgf.basis, cgf.ψ, cgf.occupation))
     # Below not inplace, but probably not that important.
     cgf.energies, cgf.ham = energy_hamiltonian(cgf.basis, cgf.ψ, cgf.occupation; cgf.ρ)
+    cgf.count += 1
     return cgf
 end
 # The cost function:
@@ -126,6 +128,15 @@ function (cgf::InsulatorEnergy)(M::ProductManifold, X, p)
     copyto!(cgf.X, X) # Memoization
     return X
 end
+# Access nested fields of the cost function
+Manopt.get_parameter(objective::Manopt.AbstractManifoldCostObjective, s::Symbol) = Manopt.get_parameter(Manopt.get_cost_function(objective), s)
+# TODO document that an individual cost/grad would have to provide something like this
+Manopt.get_parameter(energy_costgrad::InsulatorEnergy, s::Symbol) = Manopt.get_parameter(energy_costgrad, Val(s))
+Manopt.get_parameter(energy_costgrad::InsulatorEnergy, ::Val{:ρ}) = energy_costgrad.ρ
+Manopt.get_parameter(energy_costgrad::InsulatorEnergy, ::Val{:Hamiltonian}) = energy_costgrad.ham
+Manopt.get_parameter(energy_costgrad::InsulatorEnergy, ::Val{:Energies}) = energy_costgrad.energies
+Manopt.get_parameter(energy_costgrad::InsulatorEnergy, ::Val{:HamiltonianEvaluations}) = energy_costgrad.count
+
 #
 #
 # Debugs
@@ -137,7 +148,7 @@ mutable struct DebugDensityChange{F} <: DebugAction
 end
 DFTK.DebugDensityChange(ρ::T; prefix = "Δρ:", io::IO=stdout) where {T} = DebugDensityChange{T}(io, ρ, prefix)
 function (d::DebugDensityChange)(problem::AbstractManoptProblem, ::AbstractManoptSolverState, k::Int)
-    current_ρ = get_parameter(Manopt.get_objective(problem), :ρ)
+    current_ρ = Manopt.get_parameter(Manopt.get_objective(problem), :ρ)
     ch = norm(current_ρ - d.last_ρ)
     d.last_ρ .= current_ρ
     (k >= 0) && print(d.io, "$(d.prefix)$(ch)")
@@ -151,7 +162,7 @@ DFTK.DebugDensityNorm(; io::IO=stdout, prefix="‖ρ‖: ") = DebugDensityNorm(i
 function (::DebugDensityNorm)(
     problem::AbstractManoptProblem, ::AbstractManoptSolverState, k::Int
 )
-    current_ρ = get_parameter(Manopt.get_objective(problem), :ρ)
+    current_ρ = Manopt.get_parameter(Manopt.get_objective(problem), :ρ)
     return (k >= 0) && print(d.io, "$(d.prefix)$(norm(current_ρ))")
 end
 Base.show(io::IO, ::DebugDensityNorm) = print(io, "DebugDensityNorm()")
@@ -166,7 +177,7 @@ DFTK.RecordDensity(ρ::F) where {F} = RecordDensity{F}(Array{F,1}())
 function (r::RecordDensity)(
     problem::AbstractManoptProblem, ::AbstractManoptSolverState, k::Int
 )
-    current_ρ = get_parameter(Manopt.get_objective(problem), :ρ)
+    current_ρ = Manopt.get_parameter(Manopt.get_objective(problem), :ρ)
     return Manopt.record_or_reset!(r, copy(current_ρ), k)
 end
 Base.show(io::IO, ::RecordDensity) = print(io, "RecordDensity()")
@@ -179,7 +190,7 @@ DFTK.RecordDensityChange(ρ::T) where {T} = RecordDensityChange{typeof(norm(ρ))
 function (r::RecordDensityChange)(
     problem::AbstractManoptProblem, s::AbstractManoptSolverState, k::Int
 )
-    current_ρ = get_parameter(Manopt.get_objective(problem), :ρ)
+    current_ρ = Manopt.get_parameter(Manopt.get_objective(problem), :ρ)
     last_change = norm(current_ρ - r.last_ρ)
     r.last_ρ .= current_ρ
     return Manopt.record_or_reset!(r, last_change, k)
@@ -195,7 +206,7 @@ DFTK.RecordDensityNorm(T::Type=Float64) = RecordDensityNorm{T}(Array{T,1}())
 function (r::RecordDensityNorm)(
     problem::AbstractManoptProblem, ::AbstractManoptSolverState, k::Int
 )
-    current_ρ = get_parameter(Manopt.get_objective(problem), :ρ)
+    current_ρ = Manopt.get_parameter(Manopt.get_objective(problem), :ρ)
     return Manopt.record_or_reset!(r, norm(current_ρ), k)
 end
 Base.show(io::IO, ::RecordDensityNorm) = print(io, "RecordDensityNorm()")
@@ -203,9 +214,6 @@ Base.show(io::IO, ::RecordDensityNorm) = print(io, "RecordDensityNorm()")
 #
 #
 # Stopping Criteria
-get_parameter(objective::Manopt.AbstractManifoldCostObjective, s) = get_parameter(Manopt.get_cost_function(objective), s)
-get_parameter(energy_costgrad::InsulatorEnergy, s::Symbol) = get_parameter(energy_costgrad, Val(s))
-get_parameter(energy_costgrad::InsulatorEnergy, ::Val{:ρ}) = energy_costgrad.ρ
 
 """
     StopWhenDensityChangeLess{T}
@@ -243,7 +251,7 @@ function DFTK.StopWhenDensityChangeLess(tol::F, ρ::T) where {T,F<:Real}
     StopWhenDensityChangeLess{T,F}(tol, -1, ρ, 2 * tol)
 end
 function (c::StopWhenDensityChangeLess)(problem::P, state::S, k::Int) where {P<:Manopt.AbstractManoptProblem,S<:Manopt.AbstractManoptSolverState}
-    current_ρ = get_parameter(Manopt.get_objective(problem), :ρ)
+    current_ρ = Manopt.get_parameter(Manopt.get_objective(problem), :ρ)
     if k == 0 # reset on init
         c.at_iteration = -1
         c.last_ρ .= 0
@@ -308,7 +316,7 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis;
     tol=1e-6,
     maxiter=1_000,
     manifold=Manifolds.Stiefel,
-    record=[Manopt.RecordCost(), DFTK.RecordDensityChange(ρ), Manopt.RecordTime(:total)]
+    record=[Manopt.RecordCost(), DFTK.RecordDensityChange(ρ), Manopt.RecordTime(; mode=:total)]
 )
     DFTK.direct_minimization(
         basis, Manopt.QuasiNewtonState;
@@ -377,7 +385,7 @@ function DFTK.direct_minimization(
     manifold_constructor=(n, k) -> manifold(n, k, ℂ),
     stopping_criterion = Manopt.StopAfterIteration(maxiter) | DFTK.StopWhenDensityChangeLess(tol,deepcopy(ρ)),
     evaluation = Manopt.InplaceEvaluation(),
-    record = [Manopt.RecordCost(), DFTK.RecordDensityChange(ρ), Manopt.RecordTime(:total)],
+    record = [Manopt.RecordCost(), DFTK.RecordDensityChange(ρ), Manopt.RecordTime(; mode=:total)],
     retraction_method = Manifolds.ProjectionRetraction(),
     vector_transport_method=Manifolds.ProjectionTransport(),
     stepsize=Manopt.ArmijoLinesearch(; retraction_method=retraction_method),
@@ -417,6 +425,7 @@ function DFTK.direct_minimization(
             deepcopy(ρ),
             deepcopy(energies),
             deepcopy(ham),
+            0, # count of hamiltonian calls
     )
         cost = cost_rgrad! # local cost function
         if evaluation == InplaceEvaluation()
@@ -464,34 +473,33 @@ function DFTK.direct_minimization(
         algorithm = "$(state)",
         product_manifold=product_manifold,
         basis= basis,
-        converged = Manopt.indicates_convergence(deco_state),
-        ψ_reconstructed = collect(recursive_ψ.x),
+        ψ = collect(p.x), # reformat ArrayPartition back to a vector of matrices
         model       	 = model,
         n_bands_converge = n_bands,
+        n_count = Manopt.get_count(Manopt.get_state(deco_state, true), :Iterations),
         Nk          	 = Nk,
-        ψ           	 = ψ,
         occupation  	 = occupation,
         cost_value=get_cost(problem, p),
         cost_grad_value=get_gradient(problem, p),
-        # TODO: For individual cost/grad this needs to be improved
-        ρ=cost_rgrad!.ρ,
-        energies=cost_rgrad!.energies,
-        ham = cost_rgrad!.ham,
+        # TODO: Document that an individual cost / objective has to provide acces this way
+        ρ = Manopt.get_parameter(Manopt.get_objective(problem), :ρ),
+        energies = Manopt.get_parameter(Manopt.get_objective(problem), :Energies),
+        ham = Manopt.get_parameter(Manopt.get_objective(problem), :Hamiltonian),
+        n_matvec = Manopt.get_parameter(Manopt.get_objective(problem), :HamiltonianEvaluations),
         # The “pure” solver state without debug/records.
         solver_state=Manopt.get_state(deco_state,true),
     )
 end
-#= TODO remove once we have adapted this in the extension - the remaining ones are
+#=
+
+TODO remove once we have adapted this in the extension - the remaining ones are
     info = (;
-            eigenvalues,
-            εF,
-            n_iter=Optim.iterations(res),
-            runtime_ns=time_ns() - start_ns,
-            history_Δρ,
-            history_Etot,
-            stage=:finalize,
-            n_iter (iteration count)
-            n_matvec (number of hamiltonian application ... if it's easy to obtain, else don't bother)
+            # convergences is not so super easy to determine as one might think
+            # For now Manopt only has a static convergence criterion, which does not help here.
+            # converged=Manopt.indicates_convergence(Manopt.get_stopping_criterion(deco_state)),
+            runtime_ns=time_ns() # TODO Check whether total time is recorded then provide this
+            history_Δρ, # TODO: extract from record if RecordDensityChange present
+            history_Etot, # TODO: extract from record if RecordCost present
         )
 =#
 end

@@ -194,7 +194,7 @@ Compute the energies and Hamiltonian.
 - `ψ`: The wavefunctions, as a vector of arrays, one for each k-point.
 - `occupation`: The occupation numbers for each k-point and band.
 
-The keyword arguments `kwargs...` are passed to [`ene_ops`](@ref).
+The keyword arguments `kwargs...` are passed to the internal function `ene_ops`.
 These can be used to pass additional information to that function, e.g., the density ρ.
 
 # Returns
