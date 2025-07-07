@@ -103,7 +103,7 @@ end
     # Note: Mixture of silicon and magnesium is on purpose
     model = Model(silicon.lattice, magnesium.atoms, magnesium.positions;
                   n_electrons=magnesium.n_electrons, temperature=1e-2, terms=[Kinetic()])
-    basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 3, 4], kshift=[1, 0, 1]/2)
+    basis = PlaneWaveBasis(model; Ecut=5, kgrid=MonkhorstPack([2, 3, 4], kshift=[1, 0, 1]/2))
 
     # Emulate a metal ...
     eigenvalues = [[-0.08063210585291,  0.11227915155236, 0.13057816014162, 0.57672256037074],

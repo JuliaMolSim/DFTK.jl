@@ -32,7 +32,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         atoms = [Si, Si]
         model = Model(lattice, atoms, testcase.positions; terms=[term], spin_polarization,
                       symmetries=true)
-        basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
+        basis = PlaneWaveBasis(model; Ecut, kgrid=MonkhorstPack(kgrid; kshift))
 
         n_electrons = testcase.n_electrons
         n_bands = div(n_electrons, 2, RoundUp)

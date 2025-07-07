@@ -24,7 +24,6 @@
         end
     end
 
-    for T in (Float32, Float64)
-        test_cg(T)
-    end
+    test_cg(Float32)
+    test_cg(Float64)
 end

@@ -172,7 +172,8 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     response.verbose && println("Solving response problem")
     δresults = ntuple(ForwardDiff.npartials(T)) do α
         δHextψ = [ForwardDiff.partials.(δHextψk, α) for δHextψk in Hψ_dual]
-        solve_ΩplusK_split(scfres, -δHextψ; tol=last(scfres.history_Δρ), response.verbose)
+        solve_ΩplusK_split(scfres, -δHextψ;
+                           tol=last(scfres.history_Δρ), response.verbose)
     end
 
     # Convert and combine
@@ -248,40 +249,6 @@ function LinearAlgebra.norm(x::SVector{S,<:Dual{Tg,T,N}}) where {S,Tg,T,N}
     y = norm(x_value)
     dy = ntuple(j->real(dot(x_value, ForwardDiff.partials.(x,j))) * pinv(y), N)
     Dual{Tg}(y, dy)
-end
-
-# Fix for https://github.com/JuliaDiff/ForwardDiff.jl/issues/514
-function Base.:^(x::Complex{Dual{T,V,N}}, y::Complex{Dual{T,V,N}}) where {T,V,N}
-    xx = complex(ForwardDiff.value(real(x)), ForwardDiff.value(imag(x)))
-    yy = complex(ForwardDiff.value(real(y)), ForwardDiff.value(imag(y)))
-    dx = complex.(ForwardDiff.partials(real(x)), ForwardDiff.partials(imag(x)))
-    dy = complex.(ForwardDiff.partials(real(y)), ForwardDiff.partials(imag(y)))
-
-    expv = xx^yy
-    ∂expv∂x = yy * xx^(yy-1)
-    ∂expv∂y = log(xx) * expv
-    dxexpv = ∂expv∂x * dx
-    if iszero(xx) && ForwardDiff.isconstant(real(y)) && ForwardDiff.isconstant(imag(y)) && imag(y) === zero(imag(y)) && real(y) > 0
-        dexpv = zero(expv)
-    elseif iszero(xx)
-        throw(DomainError(x, "mantissa cannot be zero for complex exponentiation"))
-    else
-        dyexpv = ∂expv∂y * dy
-        dexpv = dxexpv + dyexpv
-    end
-    complex(Dual{T,V,N}(real(expv), ForwardDiff.Partials{N,V}(tuple(real(dexpv)...))),
-            Dual{T,V,N}(imag(expv), ForwardDiff.Partials{N,V}(tuple(imag(dexpv)...))))
-end
-
-# Fix for https://github.com/JuliaDiff/ForwardDiff.jl/issues/514
-function Base.exp(x::Complex{Dual{T,V,N}}) where {T,V,N}
-    xx = complex(ForwardDiff.value(real(x)), ForwardDiff.value(imag(x)))
-    dx = complex.(ForwardDiff.partials(real(x)), ForwardDiff.partials(imag(x)))
-
-    expv = exp(xx)
-    dexpv = expv * dx
-    complex(Dual{T,V,N}(real(expv), ForwardDiff.Partials{N,V}(tuple(real(dexpv)...))),
-            Dual{T,V,N}(imag(expv), ForwardDiff.Partials{N,V}(tuple(imag(dexpv)...))))
 end
 
 # Waiting for https://github.com/JuliaDiff/DiffRules.jl/pull/37 to be merged

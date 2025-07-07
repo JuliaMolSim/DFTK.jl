@@ -77,6 +77,7 @@ export ifft!
 export fft
 export fft!
 export kgrid_from_maximal_spacing, kgrid_from_minimal_n_kpoints
+export KgridTotalNumber, KgridSpacing
 include("Smearing.jl")
 include("Model.jl")
 include("structure.jl")
@@ -218,6 +219,7 @@ include("postprocess/dos.jl")
 export compute_χ0
 export apply_χ0
 include("response/cg.jl")
+include("response/inexact_gmres.jl")
 include("response/chi0.jl")
 include("response/hessian.jl")
 export compute_current

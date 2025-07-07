@@ -14,7 +14,7 @@ struct Kpoint{T <: Real, GT <: AbstractVector{Vec3{Int}}, MT <: AbstractVector{I
     #                             # G_vectors(basis)[kpt.mapping[i]] == G_vectors(basis, kpt)[i]
     mapping_inv::Dict{Int, Int}   # Inverse of `mapping`:
     #                             # G_vectors(basis)[i] == G_vectors(basis, kpt)[mapping_inv[i]]
-    mapping_gpu::MT               # GPU copy of `mapping` for fast FFTs
+    mapping_device::MT            # GPU copy of `mapping` for fast FFTs
 end
 
 function Kpoint(spin::Integer, coordinate::AbstractVector{<:Real},
@@ -36,8 +36,8 @@ function Kpoint(spin::Integer, coordinate::AbstractVector{<:Real},
     Gvecs_k = to_device(architecture, Gvecs_k)
 
     mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
-    mapping_gpu = to_device(architecture, mapping)
-    Kpoint(spin, k, Gvecs_k, mapping, mapping_inv, mapping_gpu)
+    mapping_device = to_device(architecture, mapping)
+    Kpoint(spin, k, Gvecs_k, mapping, mapping_inv, mapping_device)
 end
 
 # Construct the kpoint with coordinate equivalent_kpt.coordinate + ΔG.
@@ -50,9 +50,9 @@ function construct_from_equivalent_kpt(fft_size, equivalent_kpt, coordinate, ΔG
         linear[CartesianIndex(mod1.(Tuple(G + CartesianIndex(ΔG...)), fft_size))]
     end
     mapping_inv = Dict(ifull => iball for (iball, ifull) in enumerate(mapping))
-    mapping_gpu = to_device(architecture, mapping)
+    mapping_device = to_device(architecture, mapping)
     Kpoint(equivalent_kpt.spin, Vec3(coordinate), equivalent_kpt.G_vectors .+ Ref(ΔG),
-           mapping, mapping_inv, mapping_gpu)
+           mapping, mapping_inv, mapping_device)
 end
 
 @timing function build_kpoints(model::Model{T}, fft_size, kcoords, Ecut;
@@ -67,7 +67,7 @@ end
         for kpt in kpoints_spin_1
             push!(all_kpoints, Kpoint(iσ, kpt.coordinate,
                                       kpt.G_vectors, kpt.mapping,
-                                      kpt.mapping_inv, kpt.mapping_gpu))
+                                      kpt.mapping_inv, kpt.mapping_device))
         end
     end
     all_kpoints
@@ -76,14 +76,14 @@ end
 # Forward FFT calls taking a Kpoint as argument
 ifft!(f_real::AbstractArray3, fft_grid::FFTGrid, kpt::Kpoint,
       f_fourier::AbstractVector; normalize=true) =
-    ifft!(f_real, fft_grid, kpt.mapping_gpu, f_fourier; normalize=normalize)
+    ifft!(f_real, fft_grid, kpt.mapping_device, f_fourier; normalize=normalize)
 
 ifft(fft_grid::FFTGrid, kpt::Kpoint, f_fourier::AbstractVector; kwargs...) =
-    ifft(fft_grid, kpt.mapping_gpu, f_fourier; kwargs...)
+    ifft(fft_grid, kpt.mapping_device, f_fourier; kwargs...)
 
 fft!(f_fourier::AbstractVector, fft_grid::FFTGrid, kpt::Kpoint,
      f_real::AbstractArray3; normalize=true) =
-     fft!(f_fourier, fft_grid, kpt.mapping_gpu, f_real; normalize=normalize)
+     fft!(f_fourier, fft_grid, kpt.mapping_device, f_real; normalize=normalize)
 
 fft(fft_grid::FFTGrid, kpt::Kpoint, f_real::AbstractArray3; kwargs...) =
-    fft(fft_grid, kpt.mapping_gpu, f_real; kwargs...)
+    fft(fft_grid, kpt.mapping_device, f_real; kwargs...)

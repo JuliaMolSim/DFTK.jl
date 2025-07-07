@@ -6,7 +6,7 @@
     magnesium = TestCases.magnesium
 
     function test_basis_printing(; modelargs=(; temperature=1e-3),
-                                   basisargs=(; Ecut=5, kgrid=[1, 3, 2], kshift=[0, 0, 0]))
+                                   basisargs=(; Ecut=5, kgrid=[1, 3, 2]))
         model = model_DFT(magnesium.lattice, magnesium.atoms, magnesium.positions;
                           functionals=LDA(), disable_electrostatics_check=true, modelargs...)
         basis = PlaneWaveBasis(model; basisargs...)
