@@ -130,7 +130,6 @@ function (cgf::InsulatorEnergy)(M::ProductManifold, X, p)
 end
 # Access nested fields of the cost function
 Manopt.get_parameter(objective::Manopt.AbstractManifoldCostObjective, s::Symbol) = Manopt.get_parameter(Manopt.get_cost_function(objective), s)
-# TODO document that an individual cost/grad would have to provide something like this
 Manopt.get_parameter(energy_costgrad::InsulatorEnergy, s::Symbol) = Manopt.get_parameter(energy_costgrad, Val(s))
 Manopt.get_parameter(energy_costgrad::InsulatorEnergy, ::Val{:ρ}) = energy_costgrad.ρ
 Manopt.get_parameter(energy_costgrad::InsulatorEnergy, ::Val{:Hamiltonian}) = energy_costgrad.ham
@@ -316,7 +315,7 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis;
     tol=1e-6,
     maxiter=1_000,
     manifold=Manifolds.Stiefel,
-    record=[Manopt.RecordCost(), DFTK.RecordDensityChange(ρ), Manopt.RecordTime(; mode=:total)]
+    record=[Manopt.RecordCost() => :Etot, DFTK.RecordDensityChange(ρ) => :Δρ, Manopt.RecordTime(; mode=:total) => :time]
 )
     DFTK.direct_minimization(
         basis, Manopt.QuasiNewtonState;
@@ -325,52 +324,51 @@ function DFTK.direct_minimization(basis::PlaneWaveBasis;
 end
 
 """
-    direct_minimization(basis::DFTK.PlaneWaveBasis{T}; kwargs...)
+    direct_minimization(basis, state; kwargs...)
 
 Compute a minimizer of the Hartree-Fock energy functional using the direct minimization method.
 
 # Argument
 
 * `basis::DFTK.PlaneWaveBasis{T}`: The plane wave basis to use for the DFT calculation.
+* `state_type::Type{<:Manopt.AbstractManoptSolverState}`: The type of the Manopt solver to use.
+    recommended: [`QuasiNewtonState`](@extref `Manopt.QuasiNewtonState`).
 
 # Keyword Arguments
 
 Similar to the simpler [`direct_minimizartion`](@ref direct_minimization(::PlaneWaveBasis))`(basis)`
 
-* `maxiter=1000`: The maximum number of iterations for the optimization. If you set the `stopping_criterion=` directly, this keyword has no effect.
-  If you set the `stopping_criterion=` directly, this keyword has no effect.
+* `maxiter=1_000`: The maximum number of iterations for the optimization. If you set the `stopping_criterion=` directly, this keyword has no effect.
+    If you set the `stopping_criterion=` directly, this keyword has no effect.
 * `ψ=nothing`: The initial guess for the wave functions. If not provided, random orbitals will be generated.
 * `ρ=guess_density(basis), # would be consistent with other scf solvers
 * `tol=1e-6`: stop when the change in the density is less than this tolerance. If you set the `stopping_criterion=` directly, this keyword has no effect.
-  If you set the `stopping_criterion=` directly, this keyword has no effect.
+    If you set the `stopping_criterion=` directly, this keyword has no effect.
+* `cost=nothing`: provide an individual cost function. You then also have to provide `gradient=`
+* `gradient=nothing`: provide an individual gradient function. You then also have to provide `cost=`
+    If you provide both of these, for the access to `:Energies`, `:Hamiltonian`, `:HamiltonianEvaluation`, and `:ρ`
+    you also have to implement `Manopt.get_parameter` for these.
+* `evaluation`=[`InplaceEvaluation`](@extref `Manopt.InplaceEvaluation`) whether the gradient of the objective is allocating or in-place.,
 * `manifold=`[`Stiefel`](@extref `Manifolds.Stiefel`): the manifold the optimisation is running on.
-  The default cost function allows to also use ∞`Grassmann`](@extref `Manifolds.Grassmann`).
-  If you set the `manifold_constructor=` directly, e.g. to switch to a real manifold, this keyword is ignored
-
-This also allows to directly set more parameters of the
-
-* `cost=nothing` provide a cost function for the Energy to be minimised.
-* `gradient=nothing` provide a gradient function for the Energy to be minimised.
-  If you provide either of these, you also have to provide the other one. Note that these have to agree
-  with defining cost and gradient in a Manopt form.
-* `evaluation=InplaceEvaluation()`: The evaluation strategy for the cost and gradient.
-* `manifold_constructor=(n,k) -> manifold(n,k,ℂ)`: A function that constructs a single component of the product manifold,
-  which is the domain of the energy functional (cost)
-  It maps the dimensions `(n,k)` to a manifold to be used per component.
-  The default is the complex Stiefel manifold
-* `preconditioner=DFTK.PreconditionerTPA`: The preconditioner to use for the optimization.
-* `stopping_criterion=Manopt.StopAfterIteration(maxiter) | StopWhenDensityChangeLess(tol)`: The stopping criterion for the optimization.
-* `record=[Manopt.RecordCost(), DFTK.RecordDensityChange(ρ), Manopt.RecordTime(:total)]`:
-  specify what to record during the Iterations. If present, these are included in the returned named tuplpe
-* `retraction_method=`[`ProjectionRetraction`](@extref `Manifolds.ProjectionRetraction`): retraction to use to “move” on the manifold
-* `vector_transport_method=`[`ProjectionTransport`](@extref `Manifolds.ProjectionTransport`)`()` vector transport to use to move tangent vectors between tangent spaces.
-* `stepsize=`[`ArmijoLinesearch`](@extref `Manopt.ArmijoLinesearch`)`(; retraction_method=retraction_method)` step size to use.
-  The default here reuses the `retraction_method=` specified.
+  The default cost function allows to also use [`Grassmann`](@extref `Manifolds.Grassmann`).
+    If you set the `manifold_constructor=` directly, e.g. to switch to a real manifold, this keyword is ignored
+* `preconditioner=`[`PreconditionerTPA`](@ref)` a preconditioner to use for the Newton equation or the gradient.
+* `manifold_constructor=(n, k) -> manifold(n, k, ℂ)` the complete constructor for a single manifold within the
+     product manifold the optimization is defined on.
+* `stopping_criterion=[`StopAfterIteration`](@extref `Manopt.StopAfterIteration`)` `[`|`](@extref Manopt.StopWhenAny)` `[`StopWhenDensityChangeLess`](@ref)`(tol,deepcopy(ρ))`:
+    a stopping criterion for the algorithm when to stop. Uses `maxiter=` and `tol=` as defaults, requires that `ρ` a density.
+* `record=[[`RecordCost`](@extref `Manopt.RecordCost`)`() => :Etot, `[`RecordDensityChange`](@ref)`(ρ) => :Δρ`, `[`RecordTime`](@extref `Manopt.RecordTime`)`(; mode=:total) => :time]`
+    specify values to record diring the iterations, where in a `pair` the second determines how to access the values; the three default ones are included in the returned named tuple
+* `retraction_method = `[`ProjectionRetraction`](@extref `Manifolds.ProjectionRetraction`) the retration to use on the manifold to more into a certain direction.
+* `vector_transport_method=`[`ProjectionTransport`](@extref `Manifolds.ProjectionTransport`)`()` the vector transport to use to move tangent vectors between tangent spaces.
+* `stepsize = `[`ArmijoLinesearch`](@extref `Manopt.ArmijoLinesearch`)`(; retraction_method=retraction_method)`
+   specify a step size rule.
 
 All other keyword arguments are passed to the solver state constructor as well as to
 both a decorate for the objective and the state.
-This allows to change defaults in the solver settings,
-add for example a cache “around” the objective or add debug and/or recording functionality to the solver run.
+This allows both to set other setting for a solver but also to add `debug=` funtionality
+or even a `cache=` to the objective, though the default objective already caches parts
+that both a cost and a gradient at the same point would require.
 """
 function DFTK.direct_minimization(
     basis::PlaneWaveBasis{T}, state_type::Type{<:Manopt.AbstractManoptSolverState};
@@ -385,7 +383,7 @@ function DFTK.direct_minimization(
     manifold_constructor=(n, k) -> manifold(n, k, ℂ),
     stopping_criterion = Manopt.StopAfterIteration(maxiter) | DFTK.StopWhenDensityChangeLess(tol,deepcopy(ρ)),
     evaluation = Manopt.InplaceEvaluation(),
-    record = [Manopt.RecordCost(), DFTK.RecordDensityChange(ρ), Manopt.RecordTime(; mode=:total)],
+    record=[Manopt.RecordCost() => :Etot, DFTK.RecordDensityChange(ρ) => :Δρ, Manopt.RecordTime(; mode=:total) => :time],
     retraction_method = Manifolds.ProjectionRetraction(),
     vector_transport_method=Manifolds.ProjectionTransport(),
     stepsize=Manopt.ArmijoLinesearch(; retraction_method=retraction_method),
@@ -466,22 +464,27 @@ function DFTK.direct_minimization(
     #
     #
     # Bundle the variables in a NamedTuple for debugging:
-    p = get_solver_result(deco_state)
+    p = Manopt.get_solver_result(deco_state)
+    recorded_values = Manopt.get_record_action(deco_state)
+    t = recorded_values[:time]
+
     # The NamedTuple that is returned, collecting all results
     (
-        info="This object is summarizing variables for debugging purposes",
-        algorithm = "$(state)",
-        product_manifold=product_manifold,
-        basis= basis,
-        ψ = collect(p.x), # reformat ArrayPartition back to a vector of matrices
+        info             = "This object is summarizing variables for debugging purposes",
+        algorithm        = "$(state)",
+        product_manifold = product_manifold,
+        basis            = basis,
+        history_Δρ       = recorded_values[:Δρ],
+        history_Etot     = recorded_values[:Etot],
+        runtime_ns       = length(t) > 0 ? last(t) : zero(eltype(t)), # take the last recorded time if any recorded
+        ψ                = collect(p.x), # reformat ArrayPartition back to a vector of matrices
         model       	 = model,
         n_bands_converge = n_bands,
-        n_count = Manopt.get_count(Manopt.get_state(deco_state, true), :Iterations),
+        n_count          = Manopt.get_count(Manopt.get_state(deco_state, true), :Iterations),
         Nk          	 = Nk,
         occupation  	 = occupation,
         cost_value=get_cost(problem, p),
         cost_grad_value=get_gradient(problem, p),
-        # TODO: Document that an individual cost / objective has to provide acces this way
         ρ = Manopt.get_parameter(Manopt.get_objective(problem), :ρ),
         energies = Manopt.get_parameter(Manopt.get_objective(problem), :Energies),
         ham = Manopt.get_parameter(Manopt.get_objective(problem), :Hamiltonian),
@@ -491,15 +494,10 @@ function DFTK.direct_minimization(
     )
 end
 #=
-
-TODO remove once we have adapted this in the extension - the remaining ones are
-    info = (;
-            # convergences is not so super easy to determine as one might think
-            # For now Manopt only has a static convergence criterion, which does not help here.
-            # converged=Manopt.indicates_convergence(Manopt.get_stopping_criterion(deco_state)),
-            runtime_ns=time_ns() # TODO Check whether total time is recorded then provide this
-            history_Δρ, # TODO: extract from record if RecordDensityChange present
-            history_Etot, # TODO: extract from record if RecordCost present
-        )
+TODO
+convergence is not so super easy to determine as one might think
+For now Manopt only has a static convergence criterion, which does not help here.
+That code would be
+converged=Manopt.indicates_convergence(Manopt.get_stopping_criterion(deco_state)),
 =#
 end
