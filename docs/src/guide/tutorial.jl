@@ -124,9 +124,11 @@ plot_dos(scfres; temperature=1e-3, smearing=Smearing.FermiDirac())
 #       * [Self-consistent field methods](@ref)
 #     - **Running calculations:**
 #       * [Temperature and metallic systems](@ref metallic-systems)
+#       * [Pseudopotentials](@ref)
 #       * [Performing a convergence study](@ref)
 #       * [Geometry optimization](@ref)
-#     - **Tips and tricks:** 
+#       * [AtomsBase integration](@ref) and wider ecosystem: Building / reading structures etc.
+#     - **Tips and tricks:**
 #       * [Using DFTK on compute clusters](@ref),
 #       * [Using DFTK on GPUs](@ref),
 #       * [Saving SCF results on disk and SCF checkpoints](@ref)
