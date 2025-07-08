@@ -24,7 +24,7 @@ lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]];
 # which is special cased in DFTK to support 1D models.
 #
 # For the potential term `V` we pick a harmonic
-# potential. We use the function `ExternalFromReal` which uses 
+# potential. We use the function `ExternalFromReal` which uses
 # Cartesian coordinates ( see [Lattices and lattice vectors](@ref conventions-lattice)).
 pot(x) = (x - a/2)^2;
 
@@ -39,6 +39,7 @@ C = 1.0
 # … and with this build the model
 using DFTK
 using LinearAlgebra
+using Manopt, Manifolds, RecursiveArrayTools
 
 n_electrons = 1  # Increase this for fun
 terms = [Kinetic(),
