@@ -79,8 +79,9 @@ function unsafe_unpack_ψ(x, sizes_ψ)
 end
 unpack_ψ(x, sizes_ψ) = deepcopy(unsafe_unpack_ψ(x, sizes_ψ))
 
-function random_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, howmany::Integer) where {T}
+function random_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, howmany::Integer;
+                         rng=default_rng()) where {T}
     orbitals = similar(G_vectors(basis), Complex{T}, length(G_vectors(basis, kpt)), howmany)
-    randn!(TaskLocalRNG(), orbitals)  # use the RNG on the device if we're using a GPU
+    randn!(rng, orbitals)
     ortho_qr(orbitals)
 end
