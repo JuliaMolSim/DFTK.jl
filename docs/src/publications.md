@@ -20,11 +20,15 @@ The current DFTK reference paper to cite is
 
 Additionally the following publications describe DFTK or one of its algorithms:
 
+- M. Herbst, B. Sun.
+  [*Efficient Krylov methods for linear response in plane-wave electronic structure calculations.*](https://arxiv.org/abs/2505.02319) (2025).
+  ([Supplementary material and computational scripts](https://github.com/bonans/inexact_Krylov_response)).
+
 - E. Cancès, M. Hassan and L. Vidal.
   [*Modified-Operator Method for the Calculation of Band Diagrams of Crystalline Materials.*](https://doi.org/10.1090/mcom/3897)
   Math. Comp. **93**, 1203 (2024).
   [ArXiv:2210.00442](https://arxiv.org/abs/2210.00442).
-  ([Supplementary material and computational scripts](https://github.com/LaurentVidal95/ModifiedOp).
+  ([Supplementary material and computational scripts](https://github.com/LaurentVidal95/ModifiedOp)).
 
 - E. Cancès, M. F. Herbst, G. Kemlin, A. Levitt and B. Stamm.
   [*Numerical stability and efficiency of response property calculations in density functional theory*](https://arxiv.org/abs/2210.04512)
@@ -53,23 +57,21 @@ Additionally the following publications describe DFTK or one of its algorithms:
 The following publications report research employing DFTK as a core component.
 Feel free to drop us a line if you want your work to be added here.
 
-- M. Herbst, B. Sun.
-  [*Efficient Krylov methods for linear response in plane-wave electronic structure calculations](https://arxiv.org/abs/2505.02319) (2025).
-  ([Supplementary material and computational scripts](https://github.com/bonans/inexact_Krylov_response)).
-
 - A. Levitt, D. Lundholm, N. Rougerie.
   [*Magnetic Thomas-Fermi theory for 2D abelian anyons*](https://arxiv.org/abs/2504.13481) (2025).
 
 - D. Petersheim, J. Püschel, T. Stykel.
   [*Energy-adaptive Riemannian Conjugate Gradient method for density functional theory*](https://arxiv.org/abs/2503.16225) (2025).
-  ([Implementation](https://github.com/jonas-pueschel/RCG_DFTK/)
+  ([Implementation](https://github.com/jonas-pueschel/RCG_DFTK/)).
 
 - A. Bordignon, G. Dusson, E. Cancès, G. Kemlin, R. A. L. Reyes and B. Stamm.
   [*Fully guaranteed and computable error bounds on the energy for periodic Kohn-Sham equations with convex density functionals*](http://arxiv.org/abs/2409.11769v1) (2024).
   ([Supplementary material and computational scripts](https://doi.org/10.18419/darus-4469)).
 
 - M. F. Herbst, V. H. Bakkestuen, A. Laestadius.
-  [*Kohn-Sham inversion with mathematical guarantees*](https://arxiv.org/abs/2409.04372) (2024).
+  [*Kohn-Sham inversion with mathematical guarantees*](https://doi.org/10.1103/PhysRevB.111.205143)
+  Phys. Rev. B, **111**, 205143 (2025).
+  [ArXiv:2409.04372](https://arxiv.org/abs/2409.04372).
   ([Supplementary material and computational scripts](https://github.com/mfherbst/supporting-my-inversion)).
 
 - J. Cazalis.

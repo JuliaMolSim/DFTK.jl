@@ -1,8 +1,11 @@
 """Return the data directory with pseudopotential files"""
 datadir_psp() = normpath(joinpath(@__DIR__, "..", "..", "data", "psp"))
 
-# See also: DFTKPseudoPotentialDataExt
 extra_pseudometa_kwargs(::AbstractDict, ::Symbol) = NamedTuple()
+function extra_pseudometa_kwargs(family::PseudoFamily, element::Symbol)
+    meta = pseudometa(family, element)
+    haskey(meta, "rcut") ? (; rcut=meta["rcut"]) : NamedTuple()
+end
 
 """
 Load a pseudopotential file from a pseudopotential family.

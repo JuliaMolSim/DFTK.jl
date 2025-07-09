@@ -51,9 +51,6 @@ jobs:
 
       - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@v1
-      # Disable timers during CI (because they mess with coverage)
-      - run: |
-          julia --project -e 'using DFTK; DFTK.set_timer_enabled!(false)'
       - uses: julia-actions/julia-runtest@v1
         env:
           DFTK_TEST_ARGS: ${{ matrix.payload }}

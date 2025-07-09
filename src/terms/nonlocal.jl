@@ -12,7 +12,7 @@ function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
     # keep only pseudopotential atoms and positions
     psp_groups = [group for group in model.atom_groups
                   if model.atoms[first(group)] isa ElementPsp]
-    psps          = [model.atoms[first(group)].psp      for group in psp_groups]
+    psps          = [model.atoms[first(group)].psp for group in psp_groups]
     psp_positions = [model.positions[group] for group in psp_groups]
 
     isempty(psp_groups) && return TermNoop()

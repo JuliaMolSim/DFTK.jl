@@ -108,13 +108,12 @@ function ifft!(f_real::AbstractArray3, fft_grid::FFTGrid, f_fourier::AbstractArr
     f_real .*= fft_grid.ifft_normalization
 end
 function ifft!(f_real::AbstractArray3, fft_grid::FFTGrid,
-               Gvec_mapping::Vector{Int}, f_fourier::AbstractVector; normalize=true)
-    @assert length(f_fourier) == length(Gvec_mapping)
-    @assert size(f_real) == fft_grid.fft_size
+               Gvec_mapping::AbstractVector{Int}, f_fourier::AbstractVector;
+               normalize=true)
 
     # Pad the input data
     fill!(f_real, 0)
-    f_real[Gvec_mapping] = f_fourier
+    @inbounds f_real[Gvec_mapping] = f_fourier
 
     # Perform iFFT, equivalent to mul!(f_real, fft_grid.ipBFFT, f_real)
     f_real = fft_grid.ipBFFT * f_real
@@ -138,7 +137,7 @@ function ifft(fft_grid::FFTGrid, f_fourier::AbstractArray)
     end
     f_real
 end
-function ifft(fft_grid::FFTGrid, Gvec_mapping::Vector{Int}, f_fourier::AbstractVector; kwargs...)
+function ifft(fft_grid::FFTGrid, Gvec_mapping::AbstractVector{Int}, f_fourier::AbstractVector; kwargs...)
     ifft!(similar(f_fourier, fft_grid.fft_size...), fft_grid, Gvec_mapping, f_fourier; kwargs...)
 end
 """
@@ -148,7 +147,6 @@ silently drops the imaginary part.
 function irfft(fft_grid::FFTGrid{T}, f_fourier::AbstractArray) where {T}
     real(ifft(fft_grid, f_fourier))
 end
-
 
 @doc raw"""
 In-place version of `fft!`.
@@ -162,15 +160,13 @@ function fft!(f_fourier::AbstractArray3, fft_grid::FFTGrid, f_real::AbstractArra
     f_fourier .*= fft_grid.fft_normalization
 end
 function fft!(f_fourier::AbstractVector, fft_grid::FFTGrid,
-              Gvec_mapping::Vector{Int}, f_real::AbstractArray3; normalize=true)
-    @assert size(f_real) == fft_grid.fft_size
-    @assert length(f_fourier) == length(Gvec_mapping)
+              Gvec_mapping::AbstractVector{Int}, f_real::AbstractArray3; normalize=true)
 
     # Perform FFT, equivalent to mul!(f_real, fft_grid.ipFFT, f_real)
     f_real = fft_grid.ipFFT * f_real
 
     # Truncate
-    f_fourier .= view(f_real, Gvec_mapping)
+    map!(i -> f_real[i], f_fourier, Gvec_mapping)
     normalize && (f_fourier .*= fft_grid.fft_normalization)
     f_fourier
 end
@@ -193,7 +189,7 @@ end
 
 
 # TODO optimize this
-function fft(fft_grid::FFTGrid, Gvec_mapping::Vector{Int}, f_real::AbstractArray3; kwargs...)
+function fft(fft_grid::FFTGrid, Gvec_mapping::AbstractVector{Int}, f_real::AbstractArray3; kwargs...)
     fft!(similar(f_real, length(Gvec_mapping)), fft_grid, Gvec_mapping, copy(f_real); kwargs...)
 end
 

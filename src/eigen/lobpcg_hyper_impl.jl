@@ -356,7 +356,7 @@ end
     N > 3M    || error(error_message("will"))
     N >= 3M+5 || @warn error_message("might")
 
-    n_conv_check === nothing && (n_conv_check = M)
+    isnothing(n_conv_check) && (n_conv_check = M)
     resid_history = zeros(real(eltype(X)), M, maxiter+1)
 
     # B-orthogonalize X
@@ -407,7 +407,7 @@ end
 
             # Form Rayleigh-Ritz subspace
             if niter > 1
-                Y = LazyHcat(X, R, P)
+                Y  = LazyHcat(X, R, P)
                 AY = LazyHcat(AX, AR, AP)
                 BY = LazyHcat(BX, BR, BP)  # data shared with (X, R, P) in non-general case
             else
@@ -466,7 +466,7 @@ end
         end
 
         if nlocked >= n_conv_check  # Converged!
-            X .= new_X  # Update the part of X which is still active
+            X  .= new_X  # Update the part of X which is still active
             AX .= new_AX
             return final_retval(full_X, full_AX, full_BX, full_λs, resid_history, niter, n_matvec)
         end

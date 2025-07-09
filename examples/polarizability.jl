@@ -41,11 +41,11 @@ end;
 # ## Using finite differences
 # We first compute the polarizability by finite differences.
 # First compute the dipole moment at rest:
-model = model_DFT(lattice, atoms, positions;
-                  functionals=LDA(), symmetries=false)
-basis = PlaneWaveBasis(model; Ecut, kgrid)
-res   = self_consistent_field(basis; tol)
-μref  = dipole(basis, res.ρ)
+model  = model_DFT(lattice, atoms, positions;
+                   functionals=LDA(), symmetries=false)
+basis  = PlaneWaveBasis(model; Ecut, kgrid)
+scfres = self_consistent_field(basis; tol)
+μref   = dipole(basis, scfres.ρ)
 
 # Then in a small uniform field:
 ε = .01
@@ -69,12 +69,20 @@ println("Polarizability :   $polarizability")
 # quotes **1.65** with LSDA and **1.38** with CCSD(T).
 
 # ## Using linear response
+#
 # Now we use linear response (also known as density-functional perturbation theory)
 # to compute this analytically; we refer to standard
 # textbooks for the formalism. In the following, ``χ_0`` is the
 # independent-particle polarizability, and ``K`` the
 # Hartree-exchange-correlation kernel. We denote with ``δV_{\rm ext}`` an external
-# perturbing potential (like in this case the uniform electric field). Then:
+# perturbing potential (like in this case the uniform electric field).
+
+## `δVext` is the potential from a uniform field interacting with the dielectric dipole
+## of the density.
+δVext = [-(r[1] - a/2) for r in r_vectors_cart(basis)]
+δVext = cat(δVext; dims=4)
+
+# Then:
 # ```math
 # δρ = χ_0 δV = χ_0 (δV_{\rm ext} + K δρ),
 # ```
@@ -85,23 +93,43 @@ println("Polarizability :   $polarizability")
 # From this we identify the polarizability operator to be ``χ = (1-χ_0 K)^{-1} χ_0``.
 # Numerically, we apply ``χ`` to ``δV = -x`` by solving a linear equation
 # (the Dyson equation) iteratively.
+#
+# First we do this using the [`DFTK.solve_ΩplusK_split`](@ref)
+# function provided by DFTK,
+# which uses an adaptive Krylov subspace algorithm [^HS2025]:
+#
+# [^HS2025]:
+#     M. F. Herbst and B. Sun.
+#     *Efficient Krylov methods for linear response in plane-wave electronic structure calculations.*
+#     [arXiv 2505.02319](http://arxiv.org/abs/2505.02319)
+
+## Multiply δVext times the Bloch waves, then solve the Dyson equation:
+δVψ = DFTK.multiply_ψ_by_blochwave(scfres.basis, scfres.ψ, δVext)
+res = DFTK.solve_ΩplusK_split(scfres, -δVψ; verbose=true)
+
+# From the result of `solve_ΩplusK_split` we can easily compute the polarisabilities:
+
+println("Non-interacting polarizability: $(dipole(basis, res.δρ0))")
+println("Interacting polarizability:     $(dipole(basis, res.δρ))")
+
+# As expected, the interacting polarizability matches the finite difference
+# result. The non-interacting polarizability is higher.
+
+# ### Manual solution of the Dyson equations
+# To see what goes on under the hood, we also show how to manually solve the
+# Dyson equation using KrylovKit:
 
 using KrylovKit
 
 ## Apply ``(1- χ_0 K)``
 function dielectric_operator(δρ)
-    δV = apply_kernel(basis, δρ; res.ρ)
-    χ0δV = apply_χ0(res, δV)
+    δV = apply_kernel(basis, δρ; scfres.ρ)
+    χ0δV = apply_χ0(scfres, δV).δρ
     δρ - χ0δV
 end
 
-## `δVext` is the potential from a uniform field interacting with the dielectric dipole
-## of the density.
-δVext = [-(r[1] - a/2) for r in r_vectors_cart(basis)]
-δVext = cat(δVext; dims=4)
-
 ## Apply ``χ_0`` once to get non-interacting dipole
-δρ_nointeract = apply_χ0(res, δVext)
+δρ_nointeract = apply_χ0(scfres, δVext).δρ
 
 ## Solve Dyson equation to get interacting dipole
 δρ = linsolve(dielectric_operator, δρ_nointeract, verbosity=3)[1]
@@ -109,5 +137,4 @@ end
 println("Non-interacting polarizability: $(dipole(basis, δρ_nointeract))")
 println("Interacting polarizability:     $(dipole(basis, δρ))")
 
-# As expected, the interacting polarizability matches the finite difference
-# result. The non-interacting polarizability is higher.
+# We obtain the identical result to above.

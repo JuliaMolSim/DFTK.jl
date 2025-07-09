@@ -117,7 +117,8 @@ function get_kpoint(basis::PlaneWaveBasis{T}, kcoord, spin) where {T}
     if iszero(ΔG)
         kpt = equivalent_kpt
     else
-        kpt =  construct_from_equivalent_kpt(basis.fft_size, equivalent_kpt, kcoord, ΔG)
+        kpt = construct_from_equivalent_kpt(basis.fft_size, equivalent_kpt, kcoord, ΔG,
+                                            basis.architecture)
     end
     (; kpt, equivalent_kpt)
 end
@@ -263,11 +264,15 @@ end
 Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` for the Bloch waves
 and a k-point grid.
 
-By default a [`MonkhorstPack`](@ref) grid is employed, which can be specified as a
-[`MonkhorstPack`](@ref) object or by simply passing a vector of three integers as
-the `kgrid`. Optionally `kshift` allows to specify a shift (0 or 1/2 in each
-direction). If not specified a grid is generated using `kgrid_from_maximal_spacing`
-with a maximal spacing of `2π * 0.022` per Bohr.
+By default the kinetic energy cutoff `Ecut` and the `supersampling` for the density
+cutoff are determined from the pseudopotentials stored in the `model`. If this
+cannot be done automatically the `Ecut` keyword argument needs to be provided.
+
+By default a [`MonkhorstPack`](@ref) grid is employed corresponding to a maximal k-point
+spacing of `2π * 0.022` per Bohr. This can be changed via the `kgrid` keyword argument,
+where one can pass a [`MonkhorstPack`](@ref) object, a vector of three integers or
+a [`KgridSpacing`](@ref) object, which will generate the actual number of k-points
+to ensure a minimal k-point density (a certain maximal spacing between k-points).
 
 By default the size of the FFT grid is automatically chosen from the kinetic energy
 cutoff for the Bloch waves and a `supersampling` of 2.0 for the density. This is equal
@@ -276,14 +281,28 @@ A fully custom FFT grid size can also be chosen by specifying the `fft_size` par
 Note, this disables certain symmetry features.
 """
 @timing function PlaneWaveBasis(model::Model{T};
-                                Ecut::Number,
-                                supersampling=2.0,
-                                kgrid=nothing,
-                                kshift=[0, 0, 0],
+                                Ecut::Union{Number,Missing}=recommended_cutoff(model).Ecut,
+                                supersampling=recommended_cutoff(model).supersampling,  # 2.0 by default
+                                kgrid=KgridSpacing(2π * 0.022),
+                                kshift=nothing,
                                 variational=true, fft_size=nothing,
                                 symmetries_respect_rgrid=isnothing(fft_size),
                                 use_symmetries_for_kpoint_reduction=true,
                                 comm_kpts=MPI.COMM_WORLD, architecture=CPU()) where {T <: Real}
+    if isnothing(kshift)
+        kgrid_inner = build_kgrid(model.lattice, kgrid)
+    else
+        @warn("The kshift argument of PlaneWaveBasis is deprecated. " *
+              "Use `PlaneWaveBasis(model; kgrid=MonkHorstPack(kgrid, kshift))` instead")
+        kgrid_inner = MonkhorstPack(kgrid, kshift)
+    end
+    if ismissing(Ecut)
+        throw(ArgumentError(
+            "For this model no recommended kinetic energy cutoff can be determined " *
+            "based on the selected pseudopotentials. The `Ecut` keyword argument is " *
+            "therefore needs to be provided to the `PlaneWaveBasis` constructor."))
+    end
+
     if isnothing(fft_size)
         @assert variational
         # TODO Move this to compute_fft_size ?
@@ -299,17 +318,9 @@ Note, this disables certain symmetry features.
         else
             factors = (1, )
         end
-        fft_size = compute_fft_size(model, Ecut, kgrid; supersampling, factors)
+        fft_size = compute_fft_size(model, Ecut, kgrid_inner; supersampling, factors)
     else
         fft_size = Tuple{Int,Int,Int}(fft_size)
-    end
-
-    if isnothing(kgrid)
-        kgrid_inner = kgrid_from_maximal_spacing(model, 2π * 0.022; kshift)
-    elseif kgrid isa AbstractKgrid
-        kgrid_inner = kgrid
-    else
-        kgrid_inner = MonkhorstPack(kgrid, kshift)
     end
 
     PlaneWaveBasis(model, austrip(Ecut), fft_size, variational, kgrid_inner,
@@ -321,10 +332,11 @@ end
 Creates a new basis identical to `basis`, but with a new k-point grid,
 e.g. an [`MonkhorstPack`](@ref) or a [`ExplicitKpoints`](@ref) grid.
 """
-@timing function PlaneWaveBasis(basis::PlaneWaveBasis, kgrid::AbstractKgrid)
+@timing function PlaneWaveBasis(basis::PlaneWaveBasis, kgrid::Union{AbstractKgrid,AbstractKgridGenerator})
+    kgrid_inner = build_kgrid(basis.model.lattice, kgrid)
     PlaneWaveBasis(basis.model, basis.Ecut,
                    basis.fft_size, basis.variational,
-                   kgrid, basis.symmetries_respect_rgrid,
+                   kgrid_inner, basis.symmetries_respect_rgrid,
                    basis.use_symmetries_for_kpoint_reduction,
                    basis.comm_kpts, basis.architecture)
 end

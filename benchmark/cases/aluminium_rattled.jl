@@ -1,5 +1,5 @@
-# This is a large 64-atoms Al supercell with manually rattled atoms. It is a Gamma-point
-# calculation with low symmetry and a large number of electrons. Particularly useful
+# This is a large 27-atoms Al supercell with manually rattled atoms. It is a Gamma-point
+# calculation with no symmetry and a large number of electrons. Particularly useful
 # to measure force timings.
 
 module aluminium_rattled
@@ -14,8 +14,8 @@ function setup_basis()
     PlaneWaveBasis(model; Ecut=64, kgrid=(1, 1, 1))
 end
 
-basis  = setup_basis()
-scfres = setup_dummy_scfres(basis)
+basis   = setup_basis()
+scfres  = setup_dummy_scfres(basis)
 
 # Assemble benchmarks
 SUITE["setup"] = @benchmarkable setup_basis() evals=1 samples=3

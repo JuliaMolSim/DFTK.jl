@@ -63,3 +63,58 @@ end
     model_update = Model(model; positions=pos_broken, symmetries=true)
     @test model_update.symmetries == model_broken.symmetries
 end
+
+@testitem "Test pseudopotential family and data of Model" setup=[TestCases] begin
+    using DFTK
+    using DFTK: pseudofamily
+    using PseudoPotentialData
+    silicon = TestCases.silicon
+
+    Si_hgh = ElementPsp(:Si, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
+    Si_lda = ElementPsp(:Si, TestCases.pd_lda_family)
+    Ga_lda = ElementPsp(:Ga, TestCases.pd_lda_family)
+    let model = model_DFT(silicon.lattice, [Si_lda, Si_lda], silicon.positions;
+                          functionals=LDA())
+        @test pseudofamily(model) == TestCases.pd_lda_family
+
+        cutoffs = recommended_cutoff(model)
+        @test 16.0 == cutoffs.Ecut
+        @test  2.0 == cutoffs.supersampling
+        @test 64.0 == cutoffs.Ecut_density
+    end
+    let model = model_DFT(silicon.lattice, [Si_lda, Ga_lda], silicon.positions;
+                          functionals=LDA())
+        @test pseudofamily(model) == TestCases.pd_lda_family
+
+        cutoffs = recommended_cutoff(model)
+        @test  40.0 == cutoffs.Ecut
+        @test   2.0 == cutoffs.supersampling
+        @test 160.0 == cutoffs.Ecut_density
+    end
+
+    let model = model_DFT(silicon.lattice, [Si_lda, Si_hgh], silicon.positions;
+                          functionals=LDA())
+        @test isnothing(pseudofamily(model))
+
+        cutoffs = recommended_cutoff(model)
+        @test ismissing(cutoffs.Ecut)
+        @test 2.0 == cutoffs.supersampling
+        @test ismissing(cutoffs.Ecut_density)
+    end
+    let model = model_DFT(silicon.lattice, [Si_hgh, Si_hgh], silicon.positions;
+                          functionals=LDA())
+        @test pseudofamily(model) == PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
+
+        cutoffs = recommended_cutoff(model)
+        @test ismissing(cutoffs.Ecut)
+        @test 2.0 == cutoffs.supersampling
+        @test ismissing(cutoffs.Ecut_density)
+    end
+    let model = Model(silicon.lattice)
+        @test isnothing(pseudofamily(model))
+        cutoffs = recommended_cutoff(model)
+        @test ismissing(cutoffs.Ecut)
+        @test 2.0 == cutoffs.supersampling
+        @test ismissing(cutoffs.Ecut_density)
+    end
+end

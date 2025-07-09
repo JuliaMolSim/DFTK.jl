@@ -1,6 +1,12 @@
 # # Phonon computations
 #
 # This is a quick sketch how to run a simple phonon calculation using DFTK.
+
+# !!! warning "Preliminary implementation"
+#     Practical phonon computations have only seen rudimentary testing as of now.
+#     As of now we do not yet recommend relying on this feature for production
+#     calculations. We appreciate any issues, bug reports or PRs.
+#
 # First we run an SCF calculation.
 
 using AtomsBuilder

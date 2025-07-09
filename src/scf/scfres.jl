@@ -54,8 +54,8 @@ Keyword arguments:
 - `save_ψ`: Save the orbitals as well (may lead to larger files). This is the default
   for `jld2`, but `false` for all other formats, where this is considerably more
   expensive.
-- `save_ρ`: Save the density as well (may lead to larger files). This is the default
-  for all but `json`.
+- `save_ρ`: Save the density as well as the kinetic energy density as well
+  (may lead to larger files). This is the default for all but `json`.
 - `extra_data`: Additional data to place into the file. The data is just copied
   like `fp["key"] = value`, where `fp` is a `JLD2.JLDFile`, `WriteVTK.vtk_grid`
   and so on.

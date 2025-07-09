@@ -4,8 +4,9 @@
     using wannier90_jll
     silicon = TestCases.silicon
 
-    model  = model_DFT(silicon.lattice, silicon.atoms, silicon.positions; functionals=LDA())
-    basis  = PlaneWaveBasis(model; Ecut=5, kgrid=[4, 4, 4], kshift=[1, 1, 1]/2)
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions; functionals=LDA())
+    kgrid = MonkhorstPack([4, 4, 4]; kshift=[1, 1, 1]/2)
+    basis = PlaneWaveBasis(model; Ecut=5, kgrid)
     nbandsalg = AdaptiveBands(model; n_bands_converge=12)
     scfres = self_consistent_field(basis; nbandsalg, tol=1e-12)
 

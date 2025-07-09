@@ -6,12 +6,13 @@ Compute `n_bands` eigenvalues and Bloch waves at the k-Points specified by the `
 All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
 
 - `kgrid`: A custom kgrid to perform the band computation, e.g. a new
-  [`MonkhorstPack`](@ref) grid.
+  [`MonkhorstPack`](@ref) grid or a [`KgridSpacing`](@ref).
 - `tol` The default tolerance for the eigensolver is substantially lower than
   for SCF computations. Increase if higher accuracy desired.
 - `eigensolver`: The diagonalisation method to be employed.
 """
-@timing function compute_bands(basis::PlaneWaveBasis, kgrid::AbstractKgrid;
+@timing function compute_bands(basis::PlaneWaveBasis,
+                               kgrid::Union{AbstractKgrid,AbstractKgridGenerator};
                                n_bands=default_n_bands_bandstructure(basis.model),
                                n_extra=3, ρ=nothing, τ=nothing, εF=nothing,
                                eigensolver=lobpcg_hyper, tol=1e-3, kwargs...)
@@ -61,7 +62,8 @@ Compute band data starting from SCF results. `εF` and `ρ` from the `scfres` ar
 to the band computation and `n_bands` is by default selected
 as `n_bands_scf + 5sqrt(n_bands_scf)`.
 """
-function compute_bands(scfres::NamedTuple, kgrid::AbstractKgrid;
+function compute_bands(scfres::NamedTuple,
+                       kgrid::Union{AbstractKgrid,AbstractKgridGenerator};
                        n_bands=default_n_bands_bandstructure(scfres), kwargs...)
     τ = haskey(scfres, :τ) ? scfres.τ : nothing
     compute_bands(scfres.basis, kgrid; scfres.ρ, τ, scfres.εF, n_bands, kwargs...)

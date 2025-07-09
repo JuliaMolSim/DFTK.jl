@@ -28,49 +28,32 @@
     @testset "Inlining" begin
         using PseudoPotentialData
 
-        # Test that the index_G_vectors function is properly inlined by comparing timing
-        # with a locally defined function known not to be inlined. Issue initially tackled
-        # in PR https://github.com/JuliaMolSim/DFTK.jl/pull/1025
-        function index_G_vectors_slow(basis, G::AbstractVector{<:Integer})
-            start = .- cld.(basis.fft_size .- 1, 2)
-            stop  = fld.(basis.fft_size .- 1, 2)
-            lengths = stop .- start .+ 1
-
-            # FFTs store wavevectors as [0 1 2 3 -2 -1] (example for N=5)
-            function G_to_index(length, G)
-                G >= 0 && return 1 + G
-                return 1 + length + G
-            end
-            if all(start .<= G .<= stop)
-                CartesianIndex(Tuple(G_to_index.(lengths, G)))
-            else
-                nothing  # Outside range of valid indices
-            end
-        end
+        # Test that the index_G_vectors function is properly inlined.
+        # Issue initially tackled in PR https://github.com/JuliaMolSim/DFTK.jl/pull/1025
 
         # This is a bare-bone version of the accumulate_over_symmetries() function, only
         # keeping calls to the index_G_vectors() function for which we test inlining
-        function G_vectors_calls(basis, test_func)
+        function G_vectors_calls(basis)
             for symop in basis.symmetries
                 invS = Mat3{Int}(inv(symop.S))
                 for (ig, G) in enumerate(DFTK.G_vectors_generator(basis.fft_size))
-                    igired = test_func(basis, invS * G)
+                    igired = DFTK.index_G_vectors(basis, invS * G)
                 end
             end
         end
 
-        silicon = TestCases.silicon
-        Si = ElementPsp(silicon.atnum, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
-        atoms = [Si, Si]
-        model = model_DFT(silicon.lattice, atoms, silicon.positions;
-                          functionals=[:lda_x, :lda_c_vwn])
-        Ecut = 32
-        kgrid = [1, 1, 1]
-        basis = PlaneWaveBasis(model; Ecut, kgrid)
+        # If a function is inlined, its name disappers from the output of code_typed(;optimize=true)
+        # When optimize=false, the function is not inlined and we can see its name in the output.
+        function is_inlined(optimize)
+            info = code_typed(G_vectors_calls, (DFTK.PlaneWaveBasis,), optimize=optimize)
+            codeinfo = first(info).first
+            output = sprint(show, MIME"text/plain"(), codeinfo.code)
+            return !occursin("index_G_vectors", output)
+        end
 
-        actual_alloc = @allocated G_vectors_calls(basis, DFTK.index_G_vectors)
-        slow_alloc = @allocated G_vectors_calls(basis, index_G_vectors_slow)
-        @test slow_alloc > actual_alloc
+        # Test that the index_G_vectors function is inlined
+        @test is_inlined(true)
+        @test !is_inlined(false)
     end
 end
 

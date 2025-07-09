@@ -6,7 +6,8 @@
     function run_silicon(spin_polarization)
         model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
                           functionals=PBE(), spin_polarization, temperature=0.01)
-        basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[1, 1, 1] / 2)
+        kgrid = MonkhorstPack([2, 2, 2], kshift=[1, 1, 1] / 2)
+        basis = PlaneWaveBasis(model; Ecut=7, kgrid)
 
         ρtot = total_density(guess_density(basis))
         if spin_polarization == :collinear
