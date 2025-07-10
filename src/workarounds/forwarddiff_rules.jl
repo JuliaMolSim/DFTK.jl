@@ -88,17 +88,6 @@ function filter_out_dual_symmetries(lattice, atoms, positions, symmetries; tol_s
     ret
 end
 
-# TODO: temp workaround until we bump FD to 1.0.0
-function Base.inv(matrix::Matrix{ForwardDiff.Dual{T,V,N}}) where {T,V,N}
-    inv_primal = inv(ForwardDiff.value.(matrix))
-    inv_duals = map(1:N) do n
-        -inv_primal * ForwardDiff.partials.(matrix, n) * inv_primal
-    end
-    map(inv_primal, inv_duals...) do val, partials...
-        Dual{T, V, N}(val, ForwardDiff.Partials(NTuple{N,V}(partials...)))
-    end
-end
-
 # check if a symmetry that holds for primal numbers also holds for the dual part
 function check_dual_symmetry(lattice, atoms, positions, symmetry::SymOp; tol_symmetry=SYMMETRY_TOLERANCE)
     # For any lattice atom at position x, W*x + w should be in the lattice.
