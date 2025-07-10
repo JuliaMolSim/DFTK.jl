@@ -79,7 +79,7 @@ end
     kgrid = [2, 2, 2]
     model = model_DFT(aluminium.lattice, aluminium.atoms, aluminium.positions;
                       functionals=LDA(), temperature=1e-2, smearing=Smearing.Gaussian(),
-                      kinetic_blowup=BlowupCHV(), symmetries=false)
+                      kinetic_blowup=BlowupCHV())
     basis = PlaneWaveBasis(model; Ecut, kgrid)
     nbandsalg = FixedBands(; n_bands_converge=10)
 
