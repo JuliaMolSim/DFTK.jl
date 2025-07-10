@@ -77,19 +77,23 @@ function symmetry_operations(lattice::AbstractMatrix{<:Dual},
                              tol_symmetry=SYMMETRY_TOLERANCE, kwargs...)
     positions_value = [ForwardDiff.value.(pos) for pos in positions]
     symmetries = symmetry_operations(ForwardDiff.value.(lattice), atoms,
-                                     positions_value, magnetic_moments; tol_symmetry, kwargs...)
-    filter_out_dual_symmetries(lattice, atoms, positions, symmetries; tol_symmetry)
+                                     positions_value, magnetic_moments;
+                                     tol_symmetry, kwargs...)
+    remove_broken_symmetries(lattice, atoms, positions, symmetries; tol_symmetry)
 end
 
-function filter_out_dual_symmetries(lattice, atoms, positions, symmetries; tol_symmetry=SYMMETRY_TOLERANCE)
-    ret = [symmetry for symmetry in symmetries if check_dual_symmetry(lattice, atoms, positions, symmetry)]
-    println("Symmetries before: $(length(symmetries)), after: $(length(ret))")
-    @assert length(ret) > 0
-    ret
+function remove_broken_symmetries(lattice, atoms, positions,
+                                  symmetries; tol_symmetry=SYMMETRY_TOLERANCE)
+    filter(symmetries) do symmetry
+        !is_symmetry_broken(lattice, atoms, positions, symmetry; tol_symmetry)
+    end
 end
 
-# check if a symmetry that holds for primal numbers also holds for the dual part
-function check_dual_symmetry(lattice, atoms, positions, symmetry::SymOp; tol_symmetry=SYMMETRY_TOLERANCE)
+"""
+Return `true` if a symmetry that holds for the primal part is broken by
+a perturbation in the lattice or in the positions, `false` otherwise.
+"""
+function is_symmetry_broken(lattice, atoms, positions, symmetry::SymOp; tol_symmetry)
     # For any lattice atom at position x, W*x + w should be in the lattice.
     # In cartesian coordinates, with a perturbed lattice A = A₀ + εA₁,
     # this means that for any atom position xcart in the unit cell and any 3 integers m,
@@ -114,48 +118,34 @@ function check_dual_symmetry(lattice, atoms, positions, symmetry::SymOp; tol_sym
     W = inv(lattice) * lattice_primal * symmetry.W * inv(lattice_primal) * lattice
     w = inv(lattice) * lattice_primal * symmetry.w
 
-    has_nonzero_dual(x::AbstractArray) = any(x) do xi
+    is_dual_nonzero(x::AbstractArray) = any(x) do xi
         maximum(abs, ForwardDiff.partials(xi)) >= tol_symmetry
     end
     # Check 1.
-    if has_nonzero_dual(W)
-        if symmetry == one(SymOp)
-            println("Removing identity because of check 1.")
-            @show W lattice inv(lattice)
-        end
-        return false
+    if is_dual_nonzero(W)
+        return true
     end
 
     atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
     for group in atom_groups
         positions_group = positions[group]
         for position in positions_group
-            position_primal = ForwardDiff.value.(position)
-            # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
-            # (but careful that our symmetries are r -> Wr+w, not R(r+f))
-            other_at = symmetry.W \ (position_primal - symmetry.w)
-            # TODO: would it not be easier to check symmetry.W * position_primal + symmetry.w == other_at?
-
-            # Find the index of the atom to which idx is mapped to by the symmetry operation.
-            # To avoid issues due to numerical noise we compute the deviations from being
-            # an integer shift (thus equivalent by translational symmetry) for all atoms in
-            # the group and pick the smallest one.
+            # Find symmetric image; logic derived from symmetrize_forces
+            other_at = symmetry.W \ (ForwardDiff.value.(position) - symmetry.w)
             smallest_deviation, i_other_at = findmin(positions_group) do at
                 δat = ForwardDiff.value.(at) - other_at
                 maximum(abs, δat - round.(δat))
             end
-            # Note, that without a fudging factor this occasionally fails:
             @assert smallest_deviation < 10tol_symmetry
 
-            # Check 2.
-            if has_nonzero_dual(positions_group[i_other_at] - inv(W) * (position - w))
-                symmetry == one(SymOp) && println("Removing identity because of check 2")
-                return false
+            # Check 2. with x = positions_group[i_other_at] and y = position
+            if is_dual_nonzero(positions_group[i_other_at] + inv(W) * (w - position))
+                return true
             end
         end
     end
 
-    true
+    false
 end
 
 function _is_well_conditioned(A::AbstractArray{<:Dual}; kwargs...)
