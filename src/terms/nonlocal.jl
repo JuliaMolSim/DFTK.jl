@@ -163,30 +163,28 @@ This type extends AbstractMatrix, but it does not implement all
 the required methods, only those that were shown to be needed.
 In particular, random access to the matrix elements is not supported.
 """
-struct NonlocalProjectors{T <: Real,
-                          ST <: AbstractVector{Complex{T}},
+struct NonlocalProjectors{T <: Number,
                           PT <: AtomProjectors,
-                         } <: AbstractMatrix{Complex{T}}
-    # TODO: this is a real problem wrt. thread-safety, no?
-    # nbasis
-    proj_scratch::ST
+                         } <: AbstractMatrix{T}
     atoms::Vector{PT}
-end
-function NonlocalProjectors(atoms::Vector{<:AtomProjectors})
-    at = first(atoms)
-    T = promote_type(eltype(at.structure_factors), eltype(at.projectors))
-    proj_scratch = similar(at.structure_factors, T)
-    NonlocalProjectors(proj_scratch, atoms)
+
+    function NonlocalProjectors(atoms::Vector{PT}) where {PT}
+        # also serves as a check for length(atoms) > 0
+        at1 = first(atoms)
+        new{promote_type(eltype(at1.structure_factors),
+                         eltype(at1.projectors)),
+            PT}(atoms)
+    end
 end
 
 function Base.size(P::NonlocalProjectors)
-    n = length(P.proj_scratch)
+    n = length(first(P.atoms).structure_factors)
     m = sum(size(at.projectors, 2) for at in P.atoms)
     (n, m)
 end
 function Base.Matrix(P::NonlocalProjectors{T}) where {T}
     n, m = size(P)
-    out = zeros(Complex{T}, n, m)
+    out = Matrix{T}(undef, n, m)
     iproj = 1
     for at in P.atoms
         for proj in eachcol(at.projectors)
@@ -224,36 +222,40 @@ function _mul!(C::AbstractVecOrMat, A::Adjoint{<:Any, <:NonlocalProjectors},
     end
 
     iproj = 1
-    proj_scratch = A.parent.proj_scratch
     for at in A.parent.atoms
         for proj in eachcol(at.projectors)
-            proj_scratch .= at.structure_factors .* proj
-            @views mul!(C[iproj:iproj, :], proj_scratch', ψk)
+            for iband in axes(ψk, 2)
+                C[iproj, iband] = conj(dot(@view(ψk[:, iband]),
+                                           Diagonal(at.structure_factors),
+                                           proj))
+            end
             iproj += 1
         end
     end
     C
 end
 
-function _mul!(C::AbstractArray, A::NonlocalProjectors, B::AbstractArray,
-               α::Number, β::Number)
+function _mul!(C::AbstractArray, A::NonlocalProjectors{T}, B::AbstractArray,
+               α::Number, β::Number) where {T}
     if size(C, 1) != size(A, 1) || size(A, 2) != size(B, 1) || size(B, 2) != size(C, 2)
         throw(DimensionMismatch(lazy"A has size $(size(A)), B has size $(size(B)), C has size $(size(C))"))
     end
 
     C .*= β
 
+    maxproj = maximum(at -> size(at.projectors, 2), A.atoms)
+    # TODO: store in Channel to avoid repeated allocations?
+    Pbuffer = Matrix{T}(undef, size(A, 1), maxproj)
+
     iproj = 1
-    proj_scratch = A.proj_scratch
     for at in A.atoms
-        for proj in eachcol(at.projectors)
-            # TODO: does this use BLAS?
-            proj_scratch .= at.structure_factors .* proj
-            for iband in axes(B, 2)
-                @views C[:, iband] .+= proj_scratch .* (α * B[iproj, iband])
-            end
-            iproj += 1
-        end
+        nproj = size(at.projectors, 2)
+
+        Pwork = @view Pbuffer[:, 1:nproj]
+        Pwork .= at.structure_factors .* at.projectors
+        mul!(C, Pwork, @view(B[iproj:iproj+nproj-1, :]), α, 1)
+
+        iproj += nproj
     end
     C
 end
