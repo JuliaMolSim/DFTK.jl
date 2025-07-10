@@ -235,8 +235,8 @@ function _mul!(C::AbstractVecOrMat, A::Adjoint{<:Any, <:NonlocalProjectors},
     C
 end
 
-function _mul!(C::AbstractArray, A::NonlocalProjectors{T}, B::AbstractArray,
-               α::Number, β::Number) where {T}
+function _mul!(C::AbstractArray, A::NonlocalProjectors{T}, B::AbstractArray{BT},
+               α::Number, β::Number) where {T, BT}
     if size(C, 1) != size(A, 1) || size(A, 2) != size(B, 1) || size(B, 2) != size(C, 2)
         throw(DimensionMismatch(lazy"A has size $(size(A)), B has size $(size(B)), C has size $(size(C))"))
     end
@@ -253,7 +253,12 @@ function _mul!(C::AbstractArray, A::NonlocalProjectors{T}, B::AbstractArray,
 
         Pwork = @view Pbuffer[:, 1:nproj]
         Pwork .= at.structure_factors .* at.projectors
-        mul!(C, Pwork, @view(B[iproj:iproj+nproj-1, :]), α, 1)
+        Bwork = if BT <: AbstractVector
+            @view(B[iproj:iproj+nproj-1])
+        else
+            @view(B[iproj:iproj+nproj-1, :])
+        end
+        mul!(C, Pwork, Bwork, α, 1)
 
         iproj += nproj
     end
