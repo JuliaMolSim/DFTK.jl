@@ -392,8 +392,7 @@ function PDPψk(basis, positions, psp_groups, kpt, kpt_minus_q, ψk)
     D = build_projection_coefficients(basis, psp_groups)
     P = build_projection_vectors(basis, kpt, psp_groups, positions)
     P_minus_q = build_projection_vectors(basis, kpt_minus_q, psp_groups, positions)
-    # TODO: probably needs an extra parenthesis to first compute P'ψ
-    P * (D * P_minus_q' * ψk)
+    P * (D * (P_minus_q' * ψk))
 end
 
 function compute_dynmat_δH(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, occupation,
