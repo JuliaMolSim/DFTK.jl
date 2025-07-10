@@ -14,7 +14,9 @@ In this case the matrix has effectively 4 blocks, which are:
 \end{array}\right)
 ```
 """
-function compute_χ0(ham; temperature=ham.basis.model.temperature)
+function compute_χ0(ham;
+                    temperature=ham.basis.model.temperature,
+                    smearing=ham.basis.model.smearing)
     # We're after χ0(r,r') such that δρ = ∫ χ0(r,r') δV(r') dr'
     # where (up to normalizations)
     # ρ = ∑_nk f(εnk - εF) |ψnk|^2
@@ -41,7 +43,6 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature)
     # Therefore the kernel is LDOS(r) LDOS(r') / DOS + ∑_{n,m} (fn-fm)/(εn-εm) ρnm(r) ρmn(r')
     basis = ham.basis
     filled_occ = filled_occupation(basis.model)
-    smearing = basis.model.smearing
     n_spin   = basis.model.n_spin_components
     n_fft    = prod(basis.fft_size)
     fermialg = default_fermialg(smearing)
@@ -85,7 +86,7 @@ function compute_χ0(ham; temperature=ham.basis.model.temperature)
     mpi_sum!(χ0, basis.comm_kpts)
 
     # Add variation wrt εF (which is not diagonal wrt. spin)
-    if temperature > 0
+    if !is_effective_insulator(basis, Es, εF; temperature, smearing)
         dos  = compute_dos(εF, basis, Es)
         ldos = compute_ldos(εF, basis, Es, Vs)
         χ0 .+= vec(ldos) .* vec(ldos)' .* basis.dvol ./ sum(dos)
@@ -106,11 +107,15 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 # where 1-P is the projector on the orthogonal of ψk
 # /!\ It is assumed (and not checked) that ψk'Hk*ψk = Diagonal(εk) (extra states
 # included).
-function sternheimer_solver(Hk, ψk, ε, rhs;
-                            callback=identity, cg_callback=identity,
-                            ψk_extra=zeros_like(ψk, size(ψk, 1), 0), εk_extra=zeros(0),
-                            Hψk_extra=zeros_like(ψk, size(ψk, 1), 0), tol=1e-9)
-    basis = Hk.basis
+@timing function sternheimer_solver(Hk, ψk, ε, rhs;
+                                    callback=identity,
+                                    ψk_extra=zeros_like(ψk, size(ψk, 1), 0), εk_extra=zeros(0),
+                                    Hψk_extra=zeros_like(ψk, size(ψk, 1), 0), tol=1e-9,
+                                    miniter=1, maxiter=100)
+    # TODO This whole projector business allocates a lot, which is rather slow.
+    #      We should optimise this a bit to avoid allocations where possible.
+
+    basis  = Hk.basis
     kpoint = Hk.kpoint
 
     # We use a Schur decomposition of the orthogonal of the occupied states
@@ -162,7 +167,7 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     #
     b = -Q(rhs)
     bb = R(b -  Hψk_extra * (ψk_exHψk_ex \ ψk_extra'b))
-    function RAR(ϕ)
+    @timing function RAR(ϕ)
         Rϕ = R(ϕ)
         # Schur complement of (1-P) (H-ε) (1-P)
         # with the splitting Ran(1-P) = Ran(P_extra) ⊕ Ran(R)
@@ -172,23 +177,22 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     # First column of ψk as there is no natural kinetic energy.
     # We take care of the (rare) cases when ψk is empty.
     precondprep!(precon, size(ψk, 2) ≥ 1 ? ψk[:, 1] : nothing)
-    function R_ldiv!(x, y)
+    @timing function R_ldiv!(x, y)
         x .= R(precon \ R(y))
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
-    res = cg(J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
-             callback=cg_callback)
-    !res.converged && @warn("Sternheimer CG not converged", res.n_iter,
-                            res.tol, res.residual_norm)
-    δψknᴿ = res.x
-    info = (; basis, kpoint, res)
-    callback(info)
+    cg_res = cg(J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
+                callback=info -> callback(merge(info, (; basis, kpoint))),
+                miniter, maxiter)
+    δψknᴿ = cg_res.x
 
     # 2) solve for αkn now that we know δψknᴿ
     # Note that αkn is an empty array if there is no extra bands.
-    αkn = ψk_exHψk_ex \ ψk_extra' * (b - H(δψknᴿ))
+    αkn = ψk_exHψk_ex \ (ψk_extra' * (b - H(δψknᴿ)))
 
     δψkn = ψk_extra * αkn + δψknᴿ
+
+    (; δψkn, cg_res.n_iter, cg_res.residual_norm, cg_res.converged, cg_res, tol)
 end
 
 # Apply the four-point polarizability operator χ0_4P = -Ω^-1
@@ -246,6 +250,25 @@ function compute_αmn(fm, fn, ratio)
     ratio * fn / (fn^2 + fm^2)
 end
 
+function is_effective_insulator(basis::PlaneWaveBasis, eigenvalues, εF::T;
+                                atol=eps(T),
+                                smearing=basis.model.smearing,
+                                temperature=basis.model.temperature) where {T}
+    if iszero(temperature) || smearing isa Smearing.None
+        return true
+    else
+        min_enred = minimum(eigenvalues) do εk
+            minimum(εnk -> abs(εnk - εF) / temperature, εk)
+        end
+        min_enred = mpi_min(min_enred, basis.comm_kpts)
+
+        # This is the largest possible value the occupation has in the
+        # orbital just above the Fermi level
+        max_occupation = Smearing.occupation(smearing, min_enred)
+        return max_occupation < atol
+    end
+end
+
 """
 Compute the derivatives of the occupations (and of the Fermi level).
 The derivatives of the occupations are in-place stored in δocc.
@@ -257,29 +280,32 @@ function compute_δocc!(δocc, basis::PlaneWaveBasis{T}, ψ, εF, ε, δHψ) whe
     temperature = model.temperature
     smearing = model.smearing
     filled_occ = filled_occupation(model)
-    Nk = length(basis.kpoints)
 
     # δocc = fn' * (δεn - δεF)
     δεF = zero(T)
-    if temperature > 0
+    if !is_effective_insulator(basis, ε, εF; smearing, temperature)
         # First compute δocc without self-consistent Fermi δεF.
         D = zero(T)
-        for ik = 1:Nk, (n, εnk) in enumerate(ε[ik])
+        for ik = 1:length(basis.kpoints), (n, εnk) in enumerate(ε[ik])
             enred = (εnk - εF) / temperature
             δεnk = real(dot(ψ[ik][:, n], δHψ[ik][:, n]))
             fpnk = filled_occ * Smearing.occupation_derivative(smearing, enred) / temperature
             δocc[ik][n] = δεnk * fpnk
             D += fpnk * basis.kweights[ik]
         end
-        # Compute δεF…
         D = mpi_sum(D, basis.comm_kpts)  # equal to minus the total DOS
-        δocc_tot = mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)
-        δεF = !isnothing(model.εF) ? zero(δεF) : δocc_tot / D  # no δεF when Fermi level is fixed
-        # … and recompute δocc, taking into account δεF.
-        for ik = 1:Nk, (n, εnk) in enumerate(ε[ik])
-            enred = (εnk - εF) / temperature
-            fpnk = filled_occ * Smearing.occupation_derivative(smearing, enred) / temperature
-            δocc[ik][n] -= fpnk * δεF
+
+        if isnothing(model.εF)  # εF === nothing means that Fermi level is fixed by model
+            # Compute δεF…
+            δocc_tot = mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)
+            δεF = δocc_tot / D
+
+            # … and recompute δocc, taking into account δεF.
+            for ik = 1:length(basis.kpoints), (n, εnk) in enumerate(ε[ik])
+                enred = (εnk - εF) / temperature
+                fpnk = filled_occ * Smearing.occupation_derivative(smearing, enred) / temperature
+                δocc[ik][n] -= fpnk * δεF
+            end
         end
     end
 
@@ -289,12 +315,15 @@ end
 """
 Perform in-place computations of the derivatives of the wave functions by solving
 a Sternheimer equation for each `k`-points. It is assumed the passed `δψ` are initialised
-to zero.
-For phonon, `δHψ[ik]` is ``δH·ψ_{k-q}``, expressed in `basis.kpoints[ik]`.
+to zero. `bandtol_minus_q` is an array of arrays of tolerances for each band such that
+`bandtol_minus_q[ik][n]` leads to the actual tolerance value when solving for `δψ`
+(which notably is the variation of variation of `ψ[k_to_k_minus_q[ik]]`).
+Note that for phonon calculations, `δHψ[ik]` is ``δH·ψ_{k-q}``, expressed
+in `basis.kpoints[ik]` from which `δψ` is computed (but expressed in `basis.kpoints[ik] - q`).
 """
 function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε_minus_q=ε;
                      ψ_extra=[zeros_like(ψk, size(ψk,1), 0) for ψk in ψ],
-                     q=zero(Vec3{T}), kwargs_sternheimer...) where {T}
+                     q=zero(Vec3{T}), bandtol_minus_q, kwargs_sternheimer...) where {T}
     # We solve the Sternheimer equation
     #   (H_k - ε_{n,k-q}) δψ_{n,k} = - (1 - P_{k}) δHψ_{n, k-q},
     # where P_{k} is the projector on ψ_{k} and with the conventions:
@@ -302,22 +331,33 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
     #     δψ_{k-q} ∈ ℬ_{k-q} and δHψ_{k-q} ∈ ℬ_{k};
     # * δHψ[ik] = δH ψ_{k-q};
     # * ε_minus_q[ik] = ε_{·, k-q}.
-    model = basis.model
-    temperature = model.temperature
-    smearing = model.smearing
-    filled_occ = filled_occupation(model)
+    temperature = basis.model.temperature
+    smearing = basis.model.smearing
+    filled_occ = filled_occupation(basis.model)
+    @assert !haskey(kwargs_sternheimer, :tol)
+
+    # Reporting
+    residual_norms = [Vector{T}() for _ in 1:length(ψ)]
+    n_iter = [Vector{Int}() for _ in 1:length(ψ)]
+    converged = true
 
     # Compute δψnk band per band
     for ik = 1:length(ψ)
-        Hk  = H[ik]
-        ψk  = ψ[ik]
-        εk  = ε[ik]
-        δψk = δψ[ik]
-        εk_minus_q = ε_minus_q[ik]
+        Hk   = H[ik]
+        ψk   = ψ[ik]
+        εk   = ε[ik]
+        δψk  = δψ[ik]
+        tolk_minus_q = bandtol_minus_q[ik]
+        εk_minus_q   = ε_minus_q[ik]
+        @assert length(εk_minus_q) == length(tolk_minus_q)
+        sizehint!(residual_norms[ik], length(εk_minus_q))
+        sizehint!(n_iter[ik], length(εk_minus_q))
 
-        ψk_extra = ψ_extra[ik]
-        Hψk_extra = Hk * ψk_extra
-        εk_extra  = diag(real.(ψk_extra' * Hψk_extra))
+        ψk_extra  = ψ_extra[ik]
+        @timing "Prepare extra bands" begin
+            Hψk_extra = Hk * ψk_extra
+            εk_extra  = diag(real.(ψk_extra' * Hψk_extra))
+        end
         for n = 1:length(εk_minus_q)
             fnk_minus_q = filled_occ * Smearing.occupation(smearing, (εk_minus_q[n]-εF) / temperature)
 
@@ -334,15 +374,30 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
             end
 
             # Sternheimer contribution
-            δψk[:, n] .+= sternheimer_solver(Hk, ψk, εk_minus_q[n], δHψ[ik][:, n]; ψk_extra,
-                                             εk_extra, Hψk_extra, kwargs_sternheimer...)
+            res = sternheimer_solver(Hk, ψk, εk_minus_q[n], δHψ[ik][:, n]; ψk_extra,
+                                     εk_extra, Hψk_extra, tol=tolk_minus_q[n], kwargs_sternheimer...)
+
+            !res.converged && @warn("Sternheimer CG not converged", ik, n, res.n_iter,
+                                    res.tol, res.residual_norm)
+
+            δψk[:, n] .+= res.δψkn
+            push!(residual_norms[ik], res.residual_norm)
+            push!(n_iter[ik], res.n_iter)
+            converged = converged && res.converged
         end
     end
+
+    (; δψ, n_iter, residual_norms, converged)
 end
 
+
+"""
+Compute the orbital and occupation changes as a result of applying the ``χ_0`` superoperator
+to the Hamiltonian change `δH` represented by the matrix-vector products `δHψ`. 
+"""
 @views @timing function apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                                     occupation_threshold, q=zero(Vec3{eltype(ham.basis)}),
-                                    kwargs_sternheimer...)
+                                    bandtolalg, tol=1e-9, kwargs_sternheimer...)
     basis = ham.basis
     k_to_k_minus_q = k_to_kpq_permutation(basis, -q)
 
@@ -359,10 +414,18 @@ end
     ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
     ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
     ε_occ   = [eigenvalues[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-    δHψ_minus_q_occ = [δHψ[ik][:, mask_occ[k_to_k_minus_q[ik]]] for ik = 1:length(basis.kpoints)]
+    δHψ_minus_q_occ = [δHψ[ik][:, mask_occ[k_to_k_minus_q[ik]]]
+                       for ik = 1:length(basis.kpoints)]
     # Only needed for phonon calculations.
     ε_minus_q_occ  = [eigenvalues[k_to_k_minus_q[ik]][mask_occ[k_to_k_minus_q[ik]]]
                       for ik = 1:length(basis.kpoints)]
+
+    # Return band tolerances in the k-point order of basis.kpoints, ψ and occupations
+    # which we need to reorder to obtain k-q. Note that only tolerances for the
+    # occupied bands are returned.
+    bandtol_occ = determine_band_tolerances(bandtolalg, tol)
+    bandtol_minus_q_occ = [bandtol_occ[k_to_k_minus_q[ik]] for ik in 1:length(basis.kpoints)]
+    @assert bandtolalg.occupation_threshold == occupation_threshold
 
     # First we compute δoccupation. We only need to do this for the actually occupied
     # orbitals. So we make a fresh array padded with zeros, but only alter the elements
@@ -384,45 +447,166 @@ end
     # `basis.kpoints` that are equivalent to `k+q`.
     δψ = zero.(δHψ)
     δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ[k_to_k_minus_q])]
-    compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, ε_minus_q_occ;
-                ψ_extra, q, kwargs_sternheimer...)
 
-    (; δψ, δoccupation, δεF)
+    res = compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, ε_minus_q_occ;
+                      ψ_extra, q, bandtol_minus_q=bandtol_minus_q_occ, kwargs_sternheimer...)
+    (; δψ, δoccupation, δεF, res.n_iter, res.residual_norms, res.converged)
 end
 
 """
-Get the density variation δρ corresponding to a potential variation δV.
+Get the density variation `δρ` corresponding to a potential variation `δV`.
+
+Parameters:
+- `bandtolalg` and `tol`:
+  The resulting density variation is computed targeting an accuracy of `δρ` of
+  `tol`. For this the tolerances when solving the Sternheimer equations
+  are chosen by the `bandtolalg` algorithm, by default the balanced strategy of
+  [arxiv 2505.02319](https://arxiv.org/pdf/2505.02319).
+- `miniter`: Minimal number of CG iterations per k and band for Sternheimer
+- `maxiter`: Maximal number of CG iterations per k and band for Sternheimer
 """
 function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{TδV};
                   occupation_threshold=default_occupation_threshold(TδV),
-                  q=zero(Vec3{eltype(ham.basis)}), kwargs_sternheimer...) where {T, TδV}
-
+                  q=zero(Vec3{eltype(ham.basis)}),
+                  bandtolalg=BandtolBalanced(ham.basis, ψ, occupation; occupation_threshold),
+                  kwargs_sternheimer...) where {T, TδV}
     basis = ham.basis
 
     # Make δV respect the basis symmetry group, since we won't be able
     # to compute perturbations that don't anyway
     δV = symmetrize_ρ(basis, δV)
 
-    # Normalize δV to avoid numerical trouble; theoretically should
-    # not be necessary, but it simplifies the interaction with the
-    # Sternheimer linear solver (it makes the rhs be order 1 even if
-    # δV is small)
-    normδV = norm(δV)
-    normδV < eps(T) && return zero(δV)
-    δV ./= normδV
+    # Normalize δV to avoid numerical trouble; theoretically should not be necessary,
+    # but it simplifies the interaction with the Sternheimer linear solver
+    # (it makes the rhs be order 1 even if δV is small)
+    normδH = norm(δV)
+    normδH < eps(T) && return (; δρ=zero(δV), normδH)
+    δV ./= normδH
+
+    if bandtolalg isa BandtolGuaranteed
+        # This is the ||K v|| term of arxiv 2505.02319, see also the discussion
+        # of the determine_band_tolerances(::BandtolGuaranteed, ...) below.
+        bandtolalg = (1/normδH) * bandtolalg
+    end
 
     # For phonon calculations, assemble
     #   δHψ_k = δV_{q} · ψ_{k-q}.
     δHψ = multiply_ψ_by_blochwave(basis, ψ, δV, q)
-    (; δψ, δoccupation) = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                                      occupation_threshold, q, kwargs_sternheimer...)
+    res = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+                      occupation_threshold, q, bandtolalg,
+                      kwargs_sternheimer...)
 
-    δρ = compute_δρ(basis, ψ, δψ, occupation, δoccupation; occupation_threshold, q)
-
-    δρ * normδV
+    δρ = compute_δρ(basis, ψ, res.δψ, occupation, res.δoccupation; occupation_threshold, q)
+    δρ = δρ * normδH
+    (; δρ, normδH, res...)
 end
 
-function apply_χ0(scfres, δV; kwargs_sternheimer...)
+function apply_χ0(scfres, δV; kwargs...)
     apply_χ0(scfres.ham, scfres.ψ, scfres.occupation, scfres.εF, scfres.eigenvalues, δV;
-             scfres.occupation_threshold, kwargs_sternheimer...)
+             scfres.occupation_threshold, kwargs...)
+end
+
+
+struct BandtolGuaranteed{T,AT}
+    bandtol_factors::AT  # Factors by which density tol is multiplied to yield CG tolerances
+    bandtol_min::T       # Minimal tolerance
+    bandtol_max::T       # Maximal tolerance
+    occupation_threshold::T
+end
+
+"""
+    BandtolGuaranteed(basis, ψ, occupation; occupation_threshold, bandtol_min, bandtol_max)
+
+Guaranteed (grt) algorithm for adaptively choosing the Sternheimer tolerance as discussed in
+[arxiv 2505.02319](https://arxiv.org/pdf/2505.02319). Chooses the convergence thresholds
+for the Sternheimer solver of each band adaptively such that the resulting density
+response is reliably accurate a value of `tol_density` (passed when calling
+`determine_band_tolerances` Compared to [`BandtolBalanced`](@ref) less efficient,
+but more accurate approach.
+"""
+function BandtolGuaranteed(args...; kwargs...)
+    construct_bandtol(BandtolGuaranteed, args...; kwargs...)
+end
+
+struct BandtolBalanced{T,AT}
+    bandtol_factors::AT  # Factors by which density tol multiplied to yield CG tolerances
+    bandtol_min::T       # Minimal tolerance
+    bandtol_max::T       # Maximal tolerance
+    occupation_threshold::T
+end
+
+"""
+    BandtolBalanced(basis, ψ, occupation; occupation_threshold, bandtol_min, bandtol_max)
+
+Balanced (bal) algorithm for adaptively choosing the Sternheimer tolerance as discussed in
+[arxiv 2505.02319](https://arxiv.org/pdf/2505.02319). Chooses the convergence thresholds
+for the Sternheimer solver adaptively, such that the density response is roughly accurate
+to `tol_density` (passed when calling `determine_band_tolerances`.
+Compared to [`BandtolGuaranteed`](@ref) usually more efficient,
+but sometimes `tol_density` is not fully achieved.
+"""
+function BandtolBalanced(args...; kwargs...)
+    construct_bandtol(BandtolBalanced, args...; kwargs...)
+end
+
+function Base.:*(α::Number, t::Bandtol) where {Bandtol <: Union{BandtolGuaranteed,BandtolBalanced}}
+    Bandtol(map(facs -> α .* facs, t.bandtol_factors),
+            t.bandtol_min, t.bandtol_max, t.occupation_threshold)
+end
+
+function construct_bandtol(Bandtol::Type, basis::PlaneWaveBasis, ψ, occupation::AbstractVector{<:AbstractVector{T}};
+                           occupation_threshold, bandtol_min=eps(T)/2, bandtol_max=typemax(T)) where {T}
+    Ω  = basis.model.unit_cell_volume
+    Ng = prod(basis.fft_size)
+    Nk = length(basis.kpoints)
+    mask_occ = map(ok -> findall(onk -> abs(onk) ≥ occupation_threshold, ok), occupation)
+
+    # Including k-points the expression (3.11) in 2505.02319 becomes
+    #   with Φk = (ψ_{1,k} … ψ_{n,k})_k  (Concatenation of all occupied orbitals for this k)
+    #        wk = kweights[ik]
+    #        Nocck = Number of occupied orbitals for k
+    #        Yk = [f_{1k} z_{1k} … f_{nk} z_{nk}]_k  (Concatenation of all solutions)
+    # error ≤ 2 ‖K v_i‖ ∑_k wk ‖Re(F⁻¹ Φk)‖_{2,∞} ‖Re(F⁻¹ Yk)‖_{1,2} sqrt(Nocck)
+    #       ≤ 2 ‖K v_i‖ ∑_k wk ‖Re(F⁻¹ Φk)‖_{2,∞} w^{-1} max_{n} f_{nk} ‖z_{nk}‖ sqrt(Nocck)
+    # Distributing the error equally across all k-points leads to (with w = sqrt(Ω / Ng))
+    #   ‖z_{nk}‖ ≤ sqrt(Ω / Ng) / (‖K v_i‖ sqrt(Nocck) ‖Re(F⁻¹ Φk)‖_{2,∞} * 2f_{nk} Nk wk)
+    # If we bound ‖Re(F⁻¹ Φk)‖_{2,∞} from below this is sqrt(Nocc / Ω).
+    #
+    # Note that the kernel term ||K v_i|| of 2505.02319 is dropped here as it purely arises
+    # from the rescaling of the RHS performed in apply_χ0 above. Consequently the function
+    # apply_χ0 also takes care of introducing this term if `BandtolGuaranteed` is employed.
+    #
+
+    bandtol_factors = map(1:Nk) do ik
+        orbital_term = adaptive_bandtol_orbital_term_(Bandtol, basis, basis.kpoints[ik],
+                                                      ψ[ik], mask_occ[ik])
+        map(mask_occ[ik]) do n
+            (  (sqrt(Ω/Ng) / sqrt(length(mask_occ[ik])) / orbital_term)
+             / (2 * occupation[ik][n] * Nk * basis.kweights[ik]))
+        end
+    end
+
+    Bandtol(bandtol_factors, bandtol_min, bandtol_max, T(occupation_threshold))
+end
+function construct_bandtol(Bandtol::Type, scfres::NamedTuple; kwargs...)
+    construct_bandtol(Bandtol, scfres.basis, scfres.ψ, scfres.occupation;
+                      scfres.occupation_threshold, kwargs...)
+end
+
+function adaptive_bandtol_orbital_term_(::Type{BandtolGuaranteed}, basis, kpt, ψk, mask_k)
+    # Orbital term ‖Re(F⁻¹ Φk)‖_{2,∞} for thik k-point
+    row_sums_squared = sum(mask_k) do n
+        ψnk_real = @views ifft(basis, kpt, ψk[:, n])
+        abs2.(real.(ψnk_real))
+    end
+    sqrt(maximum(row_sums_squared))
+end
+function adaptive_bandtol_orbital_term_(::Type{BandtolBalanced}, basis, kpt, ψ, mask_k)
+    sqrt(length(mask_k)) / sqrt(basis.model.unit_cell_volume) # Lower bound of above
+end
+
+function determine_band_tolerances(alg, density_tol)
+    map(alg.bandtol_factors) do fac_k
+        clamp.(fac_k .* density_tol, alg.bandtol_min, alg.bandtol_max)
+    end
 end

@@ -26,7 +26,7 @@ using PseudoPotentialData
 
 pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
 model_kwargs  = (; functionals=LDA(), pseudopotentials=pd_lda_family)
-basis_kwargs  = (; kgrid=[4, 4, 4], Ecut=7)
+basis_kwargs  = (; kgrid=KgridSpacing(0.3), Ecut=7)
 scf_kwargs    = (; tol=1e-5)
 calc = DFTKCalculator(; model_kwargs, basis_kwargs, scf_kwargs)
 
@@ -34,10 +34,13 @@ calc = DFTKCalculator(; model_kwargs, basis_kwargs, scf_kwargs)
 # (then the defaults of `self_consistent_field` are used).
 #
 # !!! tip "Kpoints from kpoint density"
-#     Note that DFTK's [`kgrid_from_maximal_spacing`](@ref) function can also be used with
-#     `AbstractSystem` objects to determine an appropriate `kgrid` paramter for the `basis_kwargs`.
-#     E.g. `kgrid_from_maximal_spacing(system, 0.25u"1/Å")` gives a k-point spacing of
-#     `0.25` per Angström for the passed system.
+#     Note that as the `kgrid` parameter as part of the `basis_kwargs`
+#     (the argument passed to the construction of the [`PlaneWaveBasis`](@ref))
+#     you can also pass a [`KgridSpacing`](@ref) and a [`KgridTotalNumber`](@ref)
+#     object, which determines the actual number of k-point to use from the
+#     `AbstractSystem` on which the calculation is performed.
+#     E.g. `kgrid=KgridSpacing(0.25u"1/Å")` yields a k-point spacing of
+#     `0.25` per Angström for the system on which the calculation is performed.
 #
 # Based on this `calc` object we can perform a DFT calculation on bulk silicon
 # according to the

@@ -2,9 +2,9 @@
 
 # Density-functional toolkit
 
-| **Documentation**                                                               | **Build Status**                                |  **License**                     |
-|:------------------------------------------------------------------------------- |:----------------------------------------------- |:-------------------------------- |
-| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][chat-img]][chat-url] | [![][ci-img]][ci-url] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
+| **Documentation**                                                                                             | **Build Status**                                |  **License**                     |
+|:------------------------------------------------------------------------------------------------------------- |:----------------------------------------------- |:-------------------------------- |
+| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][chat-img]][chat-url] [![][matrix-img]][matrix-url] | [![][ci-img]][ci-url] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
 
 [ddocs-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [ddocs-url]: https://docs.dftk.org/dev
@@ -14,6 +14,9 @@
 
 [chat-img]: https://img.shields.io/badge/chat-on_zulip-808493.svg?logo=zulip
 [chat-url]: https://juliamolsim.zulipchat.com/#narrow/stream/332493-dftk
+
+[matrix-img]: https://img.shields.io/badge/chat-on_matrix-000000.svg?logo=matrix
+[matrix-url]: https://matrix.epfl.ch/#/#/room/#dftk:epfl.ch
 
 [ci-img]: https://github.com/JuliaMolSim/DFTK.jl/workflows/CI/badge.svg?branch=master&event=push
 [ci-url]: https://github.com/JuliaMolSim/DFTK.jl/actions
@@ -25,18 +28,19 @@
 [license-url]: https://github.com/JuliaMolSim/DFTK.jl/blob/master/LICENSE
 
 
+
 The density-functional toolkit, **DFTK** for short, is a collection of
-Julia routines for experimentation with plane-wave density-functional theory (DFT).
+Julia routines for plane-wave density-functional theory (DFT).
 The unique feature of this code is its emphasis on simplicity and flexibility
 with the goal of facilitating algorithmic and numerical developments as well as
 interdisciplinary collaboration in solid-state research.
 
-Having started in 2019 we already support a
-[sizeable set of features](https://docs.dftk.org/stable/features/).
-Within the system size currently accessible to our code (ca. 1000 electrons)
-our performance is of the same order of magnitude as more established packages
-such as [Abinit](https://www.abinit.org/) or
-[Quantum Espresso](http://quantum-espresso.org/).
+In only around 10k lines of code DFTK already has
+a [sizeable set of features](https://docs.dftk.org/stable/features/)
+including GPU support or parallelisation using MPI.
+Our performance is of the same order of magnitude
+as more established packages and systems up to 1000 electrons
+can be routinely treated.
 
 For getting started with DFTK, see [our documentation](https://docs.dftk.org):
 - [Installation instructions](https://docs.dftk.org/stable/guide/installation/)
@@ -79,4 +83,4 @@ at the list of issues tagged [good first issue](https://github.com/JuliaMolSim/D
 (relatively easy tasks suitable for newcomers) or [help wanted](https://github.com/JuliaMolSim/DFTK.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 (more sizeable but well-defined and isolated).
 Don't hesitate to ask for help, through github,
-email or the [JuliaMolSim zulip][chat-url] channel `#dftk`.
+email, [JuliaMolSim zulip][chat-url] or [Matrix chat][matrix-url].

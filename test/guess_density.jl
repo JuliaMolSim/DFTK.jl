@@ -5,7 +5,8 @@
     function build_basis(atoms, spin_polarization)
         model = model_DFT(silicon.lattice, atoms, silicon.positions;
                           functionals=LDA(), spin_polarization, temperature=0.01)
-        PlaneWaveBasis(model; Ecut=7, kgrid=[3, 3, 3], kshift=[1, 1, 1] / 2)
+        kgrid = MonkhorstPack([3, 3, 3]; kshift=[1, 1, 1] / 2)
+        PlaneWaveBasis(model; Ecut=7, kgrid)
     end
     total_charge(basis, ρ) = sum(ρ) * basis.model.unit_cell_volume / prod(basis.fft_size)
 

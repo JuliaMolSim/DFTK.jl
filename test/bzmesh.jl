@@ -107,44 +107,47 @@ end
     @test std.positions[1] - std.positions[2] ≈ 0.25ones(3)
 end
 
-@testitem "kgrid_from_maximal_spacing" setup=[TestCases] begin
+@testitem "KgridSpacing" setup=[TestCases] begin
     using DFTK
     using Unitful
 
     @testset "Simple lattice with units" begin
         # Test that units are stripped from both the lattice and the spacing
+        kgen = KgridSpacing(0.5 / u"Å")
         lattice = [[-1.0 1 1]; [1 -1  1]; [1 1 -1]]
-        @test kgrid_from_maximal_spacing(lattice * u"Å", 0.5 / u"Å").kgrid_size == [9, 9, 9]
+        @test DFTK.build_kgrid(lattice * u"Å", kgen).kgrid_size == [9, 9, 9]
     end
     @testset "Magnesium system" begin
+        kgen = KgridSpacing(0.5 / u"Å")
         magnesium = TestCases.magnesium
-        system = periodic_system(magnesium.lattice, magnesium.atoms, magnesium.positions)
-        @test kgrid_from_maximal_spacing(system, 0.5 / u"Å").kgrid_size == [5, 5, 3]
+        @test DFTK.build_kgrid(magnesium.lattice, kgen).kgrid_size == [5, 5, 3]
     end
 end
 
-@testitem "kgrid_from_minimal_n_kpoints" setup=[TestCases] begin
+@testitem "KgridTotalNumber" setup=[TestCases] begin
     using DFTK
     using Unitful
     using LinearAlgebra
 
     @testset "Simple lattice with units" begin
         lattice = [[-1.0 1 1]; [1 -1  1]; [1 1 -1]]
-        @test kgrid_from_minimal_n_kpoints(lattice * u"Å", 1000).kgrid_size == [10, 10, 10]
+        kgen = KgridTotalNumber(1000)
+        @test DFTK.build_kgrid(lattice * u"Å", kgen).kgrid_size == [10, 10, 10]
     end
 
     @testset "Magnesium system" begin
         magnesium = TestCases.magnesium
-        system = periodic_system(magnesium.lattice, magnesium.atoms, magnesium.positions)
-        @test kgrid_from_minimal_n_kpoints(system, 1).kgrid_size == [1, 1, 1]
+        @test DFTK.build_kgrid(magnesium.lattice, KgridTotalNumber(1)).kgrid_size == [1, 1, 1]
         for n_kpt in [10, 20, 100, 400, 900, 1200]
-            @test length(kgrid_from_minimal_n_kpoints(system, n_kpt)) ≥ n_kpt
+            kgrid = DFTK.build_kgrid(magnesium.lattice, KgridTotalNumber(n_kpt))
+            @test length(kgrid) ≥ n_kpt
         end
     end
 
     @testset "Reduced dimension" begin
         lattice = diagm([4., 10, 0])
-        @test kgrid_from_minimal_n_kpoints(lattice, 1000).kgrid_size          == [50, 20, 1]
-        @test kgrid_from_minimal_n_kpoints(diagm([10, 0, 0]), 913).kgrid_size == [913, 1, 1]
+        @test DFTK.build_kgrid(lattice, KgridTotalNumber(1000)). kgrid_size == [50, 20, 1]
+        lattice = diagm([10, 0, 0])
+        @test DFTK.build_kgrid(lattice, KgridTotalNumber(913)).kgrid_size   == [913, 1, 1]
     end
 end

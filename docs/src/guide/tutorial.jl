@@ -101,7 +101,7 @@ stack(scfres.occupation)
 # and then in the spin component.
 rvecs = collect(r_vectors(basis))[:, 1, 1]  # slice along the x axis
 x = [r[1] for r in rvecs]                   # only keep the x coordinate
-plot(x, scfres.ρ[1, :, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
+plot(x, scfres.ρ[:, 1, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
 
 # We can also perform various postprocessing steps:
 # We can get the Cartesian forces (in Hartree / Bohr):
@@ -124,9 +124,11 @@ plot_dos(scfres; temperature=1e-3, smearing=Smearing.FermiDirac())
 #       * [Self-consistent field methods](@ref)
 #     - **Running calculations:**
 #       * [Temperature and metallic systems](@ref metallic-systems)
+#       * [Pseudopotentials](@ref)
 #       * [Performing a convergence study](@ref)
 #       * [Geometry optimization](@ref)
-#     - **Tips and tricks:** 
+#       * [AtomsBase integration](@ref) and wider ecosystem: Building / reading structures etc.
+#     - **Tips and tricks:**
 #       * [Using DFTK on compute clusters](@ref),
 #       * [Using DFTK on GPUs](@ref),
 #       * [Saving SCF results on disk and SCF checkpoints](@ref)

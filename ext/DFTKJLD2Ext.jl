@@ -1,4 +1,5 @@
 module DFTKJLD2Ext
+using DftFunctionals
 using DFTK
 using JLD2
 using MPI
@@ -102,7 +103,8 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict)
 
         scfdict = Dict{Symbol, Any}(
             :εF       => get(jld, "εF", nothing),
-            :ρ        => get(jld, "ρ", nothing),
+            :ρ        => get(jld, "ρ",  nothing),
+            :τ        => get(jld, "τ",  nothing),
             :ψ        => nothing,
             :energies => DFTK.Energies(e_keys, e_values),
         )
@@ -148,9 +150,12 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict)
         end
     end
 
-    if !skip_hamiltonian && has_ψ && !isnothing(scfdict[:ρ])
+    can_build_ham = (has_ψ && !isnothing(scfdict[:ρ])
+                     && (!any(needs_τ, basis.terms) || !isnothing(scfdict[:τ])))
+    if !skip_hamiltonian && can_build_ham
         energies, ham = DFTK.energy_hamiltonian(basis, scfdict[:ψ], scfdict[:occupation];
                                                 ρ=scfdict[:ρ],
+                                                τ=scfdict[:τ],
                                                 eigenvalues=scfdict[:eigenvalues],
                                                 εF=scfdict[:εF])
         scfdict[:energies] = energies

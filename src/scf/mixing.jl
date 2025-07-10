@@ -69,9 +69,8 @@ end
     #     δρtot  = G² δFtot / (G² + kTF²)
     #     δρspin = δFspin - 4π * ΔDOS / (G² + kTF²) δFtot
 
-    δF_fourier     = fft(basis, δF)
-    δFtot_fourier  = total_density(δF_fourier)
-    δFspin_fourier = spin_density(δF_fourier)
+    δF_fourier    = fft(basis, δF)
+    δFtot_fourier = total_density(δF_fourier)
     δρtot_fourier = δFtot_fourier .* G² ./ (kTF.^2 .+ G²)
     enforce_real!(δρtot_fourier, basis)
     δρtot = irfft(basis, δρtot_fourier)
@@ -81,7 +80,10 @@ end
 
     if basis.model.n_spin_components == 1
         ρ_from_total_and_spin(δρtot, nothing)
+    elseif abs(ΔDOS_Ω) < eps(real(T))
+        ρ_from_total_and_spin(δρtot, spin_density(δF))
     else
+        δFspin_fourier = spin_density(δF_fourier)
         δρspin_fourier = @. δFspin_fourier - δFtot_fourier * (4π * ΔDOS_Ω) / (kTF^2 + G²)
         enforce_real!(δρspin_fourier, basis)
         δρspin = irfft(basis, δρspin_fourier)
@@ -97,6 +99,7 @@ from the current density of states at the Fermi level.
 @kwdef struct KerkerDosMixing <: Mixing
     adjust_temperature = IncreaseMixingTemperature()
 end
+Base.show(io::IO, ::KerkerDosMixing) = print(io, "KerkerDosMixing()")
 @timing "KerkerDosMixing" function mix_density(mixing::KerkerDosMixing, basis::PlaneWaveBasis,
                                                δF; εF, eigenvalues, kwargs...)
     if iszero(basis.model.temperature)
@@ -107,7 +110,7 @@ end
         temperature = mixing.adjust_temperature(basis.model.temperature; kwargs...)
         dos_per_vol  = compute_dos(εF, basis, eigenvalues; temperature) ./ Ω
         kTF  = sqrt(4π * sum(dos_per_vol))
-        ΔDOS_Ω = n_spin == 2 ? dos_per_vol[1] - dos_per_vol[2] : 0.0
+        ΔDOS_Ω = n_spin == 2 ? dos_per_vol[1] - dos_per_vol[2] : zero(kTF)
         mix_density(KerkerMixing(; kTF, ΔDOS_Ω), basis, δF)
     end
 end
@@ -201,10 +204,23 @@ real space using a GMRES. Either the full kernel (`RPA=false`) or only the Hartr
 (useful for debugging).
 """
 @kwdef struct χ0Mixing <: Mixing
-    RPA::Bool = true       # Use RPA, i.e. only apply the Hartree and not the XC Kernel
     χ0terms   = χ0Model[Applyχ0Model()]  # The terms to use as the model for χ0
+    RPA::Bool = true       # Use RPA, i.e. only apply the Hartree and not the XC Kernel
     verbose::Bool = false   # Run the GMRES verbosely
     reltol::Float64 = 0.01  # Relative tolerance for GMRES
+end
+function Base.show(io::IO, mixing::χ0Mixing)
+    χ0terms = mixing.χ0terms
+    if length(χ0terms) == 1 && χ0terms[1] isa Applyχ0Model
+        print(io, "χ0Mixing([Applyχ0Model()], ")
+    elseif length(χ0terms) == 1 && χ0terms[1] isa LdosModel
+        print(io, "LdosMixing(")
+    elseif length(χ0terms) == 2 && χ0terms[2] isa LdosModel && χ0terms[1] isa DielectricModel
+        print(io, "HybridMixing(")
+    else
+        print(io, "χ0Mixing([$(length(mixing.χ0terms)) terms], ")
+    end
+    print(io, "RPA=$(mixing.RPA), reltol=$(mixing.reltol))")
 end
 
 @views @timing "χ0Mixing" function mix_density(mixing::χ0Mixing, basis, δF::AbstractArray{T};
@@ -250,12 +266,12 @@ within the model as the SCF converges. Once the density change is below `above_�
 mixing temperature is equal to the model temperature.
 """
 function IncreaseMixingTemperature(; factor=25, above_ρdiff=1e-2, temperature_max=0.5)
-    function callback(temperature; n_iter, ρin=nothing, ρout=nothing, info...)
+    function callback(temperature; n_iter=nothing, ρin=nothing, ρout=nothing, info...)
         if iszero(temperature) || temperature > temperature_max
             return temperature
         elseif isnothing(ρin) || isnothing(ρout)
             return temperature
-        elseif n_iter ≤ 1
+        elseif !isnothing(n_iter) && n_iter ≤ 1
             return factor * temperature
         end
 
@@ -269,4 +285,7 @@ function IncreaseMixingTemperature(; factor=25, above_ρdiff=1e-2, temperature_m
         temperature_max = temperature
         return temperature
     end
+end
+function UseScfTemperature()
+    callback(temperature; info...) = temperature
 end

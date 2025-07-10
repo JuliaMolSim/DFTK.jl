@@ -33,15 +33,14 @@
 # other eigenvectors (which is not the case in many - all ? - other
 # implementations)
 
+# - Some functions are reimplemented in a GPU optimized way as part of
+# the DFTK CUDA Extension (ext/DFTKCUDAExt/lobpcg.jl).
+
 
 ## TODO micro-optimization of buffer reuse
 ## TODO write a version that doesn't assume that B is well-conditioned, and doesn't reuse B applications at all
 ## TODO it seems there is a lack of orthogonalization immediately after locking, maybe investigate this to save on some Choleskys
 ## TODO debug orthogonalizations when A=I
-
-# TODO Use @debug for this
-# vprintln(args...) = println(args...)  # Uncomment for output
-vprintln(args...) = nothing
 
 using LinearAlgebra
 import LinearAlgebra: BlasFloat
@@ -142,18 +141,23 @@ end
     vectors[:, 1:N], values[1:N]
 end
 @views function rayleigh_ritz(XAX::Hermitian{<:BlasFloat, <:Array}, N)
-    # LAPACK sysevr (the Julia default dense eigensolver) can actually return eigenvectors
-    # that are significantly non-orthogonal (1e-4 in Float32 in some tests) here,
-    # presumably because it tries hard to make them eigenvectors in the presence
-    # of small gaps. Since we care more about them being orthogonal
-    # than about them being eigenvectors, re-orthogonalize.
-    # TODO To avoid orthogonalization: Use syevd,
-    # which does a much better job, see https://github.com/JuliaLang/julia/pull/49262
-    # and https://github.com/JuliaLang/julia/pull/49355
-    values, vectors = eigen(XAX)
-    v = vectors[:, 1:N]
-    ortho!(v)
-    v, values[1:N]
+    # LAPACK sysevr (the Julia default eigensolver up to 1.11 ) can actually return
+    # eigenvectors that are significantly non-orthogonal (1e-4 in Float32 in some tests)
+    # here, presumably because it tries hard to make them eigenvectors in the presence
+    # of small gaps. syevd (or DivideAndConquer()) does a much better job, see
+    # https://github.com/JuliaLang/julia/pull/49262 and
+    # https://github.com/JuliaLang/julia/pull/49355. It will be the default in 1.12.
+    # For versions < 1.12, since we mainly care about eigenvectors being orthogonal
+    # we re-orthogonalise explicitly.
+    @static if VERSION >= v"1.12"
+        values, vectors = eigen(XAX; alg=DivideAndConquer())
+        return vectors[:, 1:N], values[1:N]
+    else
+        values, vectors = eigen(XAX)
+        v = vectors[:, 1:N]
+        ortho!(v)
+        return v, values[1:N]
+    end
 end
 
 # B-orthogonalize X (in place) using only one B apply.
@@ -169,18 +173,12 @@ function B_ortho!(X, BX)
     rdiv!(BX, U)
 end
 
-normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
+normest(M) = maximum(abs, diag(M)) + norm(M - Diagonal(diag(M)))
 # Orthogonalizes X to tol
 # Returns the new X, the number of Cholesky factorizations algorithm, and the
-# growth factor by which small perturbations of X can have been
-# magnified
+# growth factor by which small perturbations of X can have been magnified
 @timing function ortho!(X::AbstractArray{T}; tol=2eps(real(T))) where {T}
     local R
-
-    # # Uncomment for "gold standard"
-    # U,S,V = svd(X)
-    # return U*V', 1, 1
-
     growth_factor = one(real(T))
 
     success = false
@@ -193,7 +191,7 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
             success = true
         catch err
             @assert isa(err, PosDefException)
-            vprintln("fail")
+            @debug "Cholesky failed in ortho(X)"
             # see https://arxiv.org/pdf/1809.11085.pdf for a nice analysis
             # We are not being very clever here; but this should very rarely happen
             # so it should be OK
@@ -211,7 +209,9 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
                 end
                 nbad += 1
                 if nbad > 10
-                    error("Cholesky shifting is failing badly, this should never happen")
+                    @error "Cholesky shifting is failing badly, falling back to SVD"
+                    U, _, V = svd(X)
+                    return (; X=U*V', nchol=1000, growth_factor=1)
                 end
             end
             success = false
@@ -233,13 +233,19 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
         # condR = 1/LAPACK.trcon!('I', 'U', 'N', Array(R))
         condR = normest(R)*norminvR  # in practice this seems to be an OK estimate
 
-        vprintln("Ortho(X) success? $success ", eps(real(T))*condR^2, " < $tol")
+        @debug "Ortho(X) success? $success : $(eps(real(T))*condR^2) < $tol"
 
         # a good a posteriori error is that X'X - I is eps()*κ(R)^2;
         # in practice this seems to be sometimes very overconservative
-        success && eps(real(T))*condR^2 < tol && break
+        estimated_error = eps(real(T))*condR^2
+        success && estimated_error < tol && break
 
-        nchol > 10 && error("Ortho(X) is failing badly, this should never happen")
+        if nchol > 10
+            @error("Ortho(X) is failing badly, falling back to SVD",
+                   estimated_error=round(estimated_error; sigdigits=2), tol=tol)
+            U, _, V = svd(X)
+            return (; X=U*V', nchol=100, growth_factor=1)
+        end
     end
 
     # @assert norm(X'X - I) < tol
@@ -248,36 +254,27 @@ normest(M) = maximum(abs.(diag(M))) + norm(M - Diagonal(diag(M)))
 end
 
 # Randomize the columns of X if the norm is below tol
-function drop!(X::AbstractArray{T}, tol=2eps(real(T))) where {T}
-    dropped = Int[]
-    for i=1:size(X,2)
-        n = norm(@views X[:,i])
-        if n <= tol
-            X[:,i] = randn(T, size(X,1))
-            push!(dropped, i)
-        end
-    end
+function drop_small!(X::AbstractArray{T}; tol=2eps(real(T))) where {T}
+    dropped = findall(n -> n <= tol, columnwise_norms(X))
+    @views randn!(TaskLocalRNG(), X[:, dropped])
     dropped
 end
 
 # Find X that is orthogonal, and B-orthogonal to Y, up to a tolerance tol.
 @timing "ortho! X vs Y" function ortho!(X::AbstractArray{T}, Y, BY; tol=2eps(real(T))) where {T}
     # normalize to try to cheaply improve conditioning
-    parallel_loop_over_range(1:size(X, 2)) do i
-        n = norm(@views X[:,i])
-        @views X[:,i] ./= n
-    end
+    X ./= columnwise_norms(X)'
 
     niter = 1
-    ninners = zeros(Int,0)
+    ninners = zeros(Int, 0)
     while true
         BYX = BY' * X
         mul!(X, Y, BYX, -1, 1)  # X -= Y*BY'X
         # If the orthogonalization has produced results below 2eps, we drop them
         # This is to be able to orthogonalize eg [1;0] against [e^iθ;0],
         # as can happen in extreme cases in the ortho!(cP, cX)
-        dropped = drop!(X)
-        if dropped != []
+        dropped = drop_small!(X; tol)
+        if !isempty(dropped)
             X[:, dropped] .-= Y * (BY' * X[:, dropped])
         end
 
@@ -295,14 +292,22 @@ end
         # Y-orthogonalization, BY'X is O(eps), so BY'X will be bounded
         # by O(eps * growth_factor).
 
-        # If we're at a fixed point, growth_factor is 1 and if tol >
-        # eps(), the loop will terminate, even if BY'Y != 0
-        growth_factor * eps(real(T)) < tol && break
+        # If we're at a fixed point, growth_factor is 1 and if tol > eps(),
+        # the loop will terminate, even if BY'Y != 0
+        estimated_error = growth_factor * eps(real(T))
+        estimated_error < tol && break
 
-        niter > 10 && error("Ortho(X,Y) is failing badly, this should never happen")
+        if niter > 10
+            U, _, V = svd(X)  # Fall back to gold standard
+            X = U*V'
+            @error("Ortho(X, Y) is failing badly, falling back to SVD",
+                   ninners=ninners, error=round(norm(BY'X); sigdigits=2), tol=tol,
+                   estimated_error=round(estimated_error; sigdigits=2))
+            return X
+        end
         niter += 1
     end
-    vprintln("ortho choleskys: ", ninners)  # get how many Choleskys are performed
+    @debug "Required $ninners choleskys in ortho!(X, Y)"
 
     # @assert (norm(BY'X)) < tol
     # @assert (norm(X'X-I)) < tol
@@ -311,7 +316,7 @@ end
 end
 
 function final_retval(X, AX, BX, λ, resid_history, niter, n_matvec)
-    λ_host = oftype(ones(eltype(λ), 1), λ)  # Copy to CPU for element-wise access
+    λ_host = to_cpu(λ)  # Copy to CPU for element-wise access
     if !issorted(λ_host)
         p = sortperm(λ_host)
         λ_host = λ_host[p]
@@ -323,6 +328,12 @@ function final_retval(X, AX, BX, λ, resid_history, niter, n_matvec)
     (; λ=λ_host, X, AX, BX,
      residual_norms=resid_history[:, niter+1],
      residual_history=resid_history[:, 1:niter+1], n_matvec)
+end
+
+# Computes λ = real((X' * AX) / (X' *BX)), for each column of X
+function compute_λ(X, AX, BX)
+    λs = @views [real((X[:, n]'*AX[:, n]) / (X[:, n]'BX[:, n])) for n=1:size(X, 2)]
+    oftype(real(X[:, 1]), λs)  # Offload to GPU if needed
 end
 
 ### The algorithm is Xn+1 = rayleigh_ritz(hcat(Xn, A*Xn, Xn-Xn-1))
@@ -345,7 +356,7 @@ end
     N > 3M    || error(error_message("will"))
     N >= 3M+5 || @warn error_message("might")
 
-    n_conv_check === nothing && (n_conv_check = M)
+    isnothing(n_conv_check) && (n_conv_check = M)
     resid_history = zeros(real(eltype(X)), M, maxiter+1)
 
     # B-orthogonalize X
@@ -378,8 +389,7 @@ end
     end
     nlocked = 0
     niter = 0  # the first iteration is fake
-    λs = @views [real((X[:, n]'*AX[:, n]) / (X[:, n]'BX[:, n])) for n=1:M]
-    λs = oftype(real(X[:, 1]), λs)  # Offload to GPU if needed
+    λs = compute_λ(X, AX, BX)
     new_X  = X
     new_AX = AX
     new_BX = BX
@@ -397,7 +407,7 @@ end
 
             # Form Rayleigh-Ritz subspace
             if niter > 1
-                Y = LazyHcat(X, R, P)
+                Y  = LazyHcat(X, R, P)
                 AY = LazyHcat(AX, AR, AP)
                 BY = LazyHcat(BX, BR, BP)  # data shared with (X, R, P) in non-general case
             else
@@ -420,11 +430,10 @@ end
         ### Compute new residuals
         @timing "Update residuals" begin
             new_R = new_AX .- new_BX .* λs'
-            @views for i = 1:size(X, 2)
-                resid_history[i + nlocked, niter+1] = norm(new_R[:, i])
-            end
+            norms = to_cpu(columnwise_norms(new_R))
+            @views resid_history[1 + nlocked: size(new_R, 2) + nlocked, niter+1] .= norms[:]
         end
-        vprintln(niter, "   ", resid_history[:, niter+1])
+        @debug niter resid_history[:, niter+1]
 
         # it is actually a good question of knowing when to
         # precondition. Here seems sensible, but it could plausibly be
@@ -442,7 +451,7 @@ end
             for i=nlocked+1:M
                 if resid_history[i, niter+1] < tol
                     nlocked += 1
-                    vprintln("locked $nlocked")
+                    @debug "Locked eigenvector $nlocked"
                 else
                     # We lock in order, assuming that the lowest
                     # eigenvectors converge first; might be tricky otherwise
@@ -457,7 +466,7 @@ end
         end
 
         if nlocked >= n_conv_check  # Converged!
-            X .= new_X  # Update the part of X which is still active
+            X  .= new_X  # Update the part of X which is still active
             AX .= new_AX
             return final_retval(full_X, full_AX, full_BX, full_λs, resid_history, niter, n_matvec)
         end
@@ -484,7 +493,7 @@ end
             ortho!(cP, cX, cX, tol=ortho_tol)
 
             # Get new P
-            new_P  = Y * cP
+            new_P  = Y  * cP
             new_AP = AY * cP
             if B != I
                 new_BP = BY * cP
@@ -501,10 +510,9 @@ end
         end
 
         # Quick sanity check
-        for i = 1:size(X, 2)
-            @views if abs(BX[:, i]'X[:, i] - 1) >= sqrt(eps(real(eltype(X))))
-                error("LOBPCG is badly failing to keep the vectors normalized; this should never happen")
-            end
+        diffs = abs.(columnwise_dots(BX, X) .-1)
+        if any(diffs .>= sqrt(eps(real(eltype(X)))))
+           error("LOBPCG is badly failing to keep the vectors normalized; this should never happen")
         end
 
         # Restrict all views to active

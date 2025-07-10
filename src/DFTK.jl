@@ -12,6 +12,7 @@ using AbstractFFTs
 using GPUArraysCore
 using Random
 using PrecompileTools
+using PseudoPotentialData
 
 @template (FUNCTIONS, METHODS, MACROS) = 
     """
@@ -77,6 +78,7 @@ export ifft!
 export fft
 export fft!
 export kgrid_from_maximal_spacing, kgrid_from_minimal_n_kpoints
+export KgridTotalNumber, KgridSpacing
 include("Smearing.jl")
 include("Model.jl")
 include("structure.jl")
@@ -138,6 +140,7 @@ export PreconditionerNone
 export lobpcg_hyper
 export diag_full
 export diagonalize_all_kblocks
+include("eigen/linalg.jl")
 include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
 
@@ -187,6 +190,7 @@ export load_psp
 export list_psp
 include("pseudo/load_psp.jl")
 include("pseudo/list_psp.jl")
+include("pseudo/pseudopotential_data.jl")
 
 export atomic_system, periodic_system  # Reexport from AtomsBase
 export run_wannier90
@@ -217,6 +221,7 @@ include("postprocess/dos.jl")
 export compute_χ0
 export apply_χ0
 include("response/cg.jl")
+include("response/inexact_gmres.jl")
 include("response/chi0.jl")
 include("response/hessian.jl")
 export compute_current
@@ -231,7 +236,10 @@ include("postprocess/refine.jl")
 # Workarounds
 include("workarounds/dummy_inplace_fft.jl")
 include("workarounds/forwarddiff_rules.jl")
-include("workarounds/gpu_arrays.jl")
+
+# Optimized generic GPU functions and GPU workarounds
+include("gpu/linalg.jl")
+include("gpu/gpu_arrays.jl")
 
 # Precompilation block with a basic workflow
 

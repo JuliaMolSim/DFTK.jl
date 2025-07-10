@@ -23,9 +23,14 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
     if !isempty(model.atoms)
         println(io)
         showfieldln(io, "atoms", chemical_formula(model))
-        for (i, el) in enumerate(model.atoms)
-            header = i==1 ? "atom potentials" : ""
-            showfieldln(io, header, el)
+        family = pseudofamily(model)
+        if isnothing(family)
+            for (i, el) in enumerate(model.atoms)
+                header = i==1 ? "atom potentials" : ""
+                showfieldln(io, header, el)
+            end
+        else
+            showfieldln(io, "pseudopot. family", family)
         end
     end
 
@@ -84,6 +89,13 @@ function todict!(dict, model::Model)
     dict["atomic_positions_cart"] = vector_red_to_cart.(model, model.positions)
     !isnothing(model.εF)          && (dict["εF"]          = model.εF)
     !isnothing(model.n_electrons) && (dict["n_electrons"] = model.n_electrons)
+
+    family = pseudofamily(model)
+    if isnothing(family)
+        dict["pseudofamily"] = "unknown"
+    else
+        dict["pseudofamily"] = family.identifier
+    end
 
     dict["symmetries_rotations"]    = [symop.W for symop in model.symmetries]
     dict["symmetries_translations"] = [symop.w for symop in model.symmetries]
@@ -318,18 +330,22 @@ function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true, save_ρ=true)
     band_data_to_dict!(dict, scfres; save_ψ)
 
     # These are either already done above or will be ignored or dealt with below.
-    special = (:ham, :basis, :energies, :stage,
-               :ρ, :ψ, :eigenvalues, :occupation, :εF, :diagonalization,
-               :optim_res # from direct_minimization, ignore it as it can be huge
+    special = (:ham, :basis, :energies, :stage, :mixing,
+               :τ, :ρ, :ψ, :eigenvalues, :occupation, :εF, :diagonalization,
+               :optim_res, # from direct_minimization, ignore it as it can be huge
                )
     propmap = Dict(:α => :damping_value, )  # compatibility mapping
     if mpi_master()
         if save_ρ
             dict["ρ"] = scfres.ρ
+            dict["τ"] = get(scfres, :τ, nothing)
         end
         energies = make_subdict!(dict, "energies")
         for (key, value) in todict(scfres.energies)
             energies[key] = value
+        end
+        if hasproperty(scfres, :mixing)
+            dict["mixing"] = string(scfres.mixing)
         end
 
         scfres_extra_keys = String[]

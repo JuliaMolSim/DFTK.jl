@@ -69,6 +69,13 @@ julia> DFTKCalculator(; model_kwargs=(; functionals=LDA()),
                         basis_kwargs=(; Ecut=10, kgrid=(2, 2, 2)),
                         scf_kwargs=(; tol=1e-4))
 ```
+without specifying a precise kgrid
+```julia-repl
+julia> DFTKCalculator(; model_kwargs=(; functionals=LDA()),
+                        basis_kwargs=(; Ecut=10, kgrid=KgridSpacing(0.1)),
+                        scf_kwargs=(; tol=1e-4))
+```
+
 """
 function DFTKCalculator(; verbose=false, model_kwargs, basis_kwargs, scf_kwargs=(; ),
                           st=nothing, kwargs...)
@@ -149,4 +156,13 @@ end
     Ω = scfres.basis.model.unit_cell_volume
     virial = (-Ω * compute_stresses_cart(scfres)) * u"hartree"
     (; virial, energy=scfres.energies.total * u"hartree", state=scfres)
+end
+
+function AtomsCalculators.energy_forces(system, calc::DFTKCalculator; kwargs...)
+    AtomsCalculators.calculate(AtomsCalculators.Forces(), system, calc; kwargs...)
+end
+
+function AtomsCalculators.energy_forces_virial(system, calc::DFTKCalculator; kwargs...)
+    res = AtomsCalculators.calculate(AtomsCalculators.Virial(), system, calc; kwargs...)
+    (; forces=compute_forces_cart(res.state) * u"hartree/bohr", res...)
 end

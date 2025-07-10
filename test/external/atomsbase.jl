@@ -4,6 +4,7 @@
     using UnitfulAtomic
     using AtomsBase
     using PseudoPotentialData
+    using DFTK: pseudofamily
 
     family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
     Si = ElementCoulomb(:Si)
@@ -57,6 +58,7 @@
         @test model.atoms[2].psp.identifier == replace(family[:C],  "\\" => "/")
         @test model.atoms[3].psp.identifier == replace(family[:H],  "\\" => "/")
         @test model.atoms[4].psp.identifier == replace(family[:C],  "\\" => "/")
+        @test pseudofamily(model) == family
     end
 
     @testset "system -> Model -> system" begin
@@ -120,6 +122,7 @@ end
 
 @testitem "AbstractSystem -> DFTK Model" tags=[:atomsbase] begin
     using DFTK
+    using DFTK: pseudofamily
     using Unitful
     using UnitfulAtomic
     using AtomsBase
@@ -142,6 +145,7 @@ end
         @test model.atoms[2] == ElementCoulomb(:Si)
         @test model.atoms[3] == ElementCoulomb(:H)
         @test model.atoms[4] == ElementCoulomb(:C)
+        @test isnothing(pseudofamily(model))
     end
 
     pbegth = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
@@ -157,6 +161,7 @@ end
         @test model.atoms[2].psp.identifier == replace(pspmap[:Si], "\\" => "/")
         @test model.atoms[3].psp.identifier == replace(pspmap[:H],  "\\" => "/")
         @test model.atoms[4].psp.identifier == replace(pspmap[:C],  "\\" => "/")
+        @test isnothing(pseudofamily(model))
     end
 
     let
@@ -175,6 +180,7 @@ end
         @test model.atoms[2] == ElementPsp(:Si, psp_Si)
         @test model.atoms[3] == ElementPsp(:H,  psp_H)
         @test model.atoms[4] == ElementPsp(:C,  psp_C)
+        @test isnothing(pseudofamily(model))
     end
 
     let family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
@@ -191,11 +197,13 @@ end
         @test model.atoms[2].psp.identifier == replace(family[:Si], "\\" => "/")
         @test model.atoms[3].psp.identifier == replace(family[:H],  "\\" => "/")
         @test model.atoms[4].psp.identifier == replace(family[:C],  "\\" => "/")
+        @test pseudofamily(model) == family
     end
 end
 
 @testitem "AbstractSystem (unusual symbols and masses) -> DFTK" tags=[:atomsbase] begin
     using DFTK
+    using DFTK: pseudofamily
     using Unitful
     using UnitfulAtomic
     using AtomsBase
@@ -220,5 +228,6 @@ end
         @test mass.(model.atoms) == [-1u"u", -2u"u"]
         @test model.atoms[1].psp.identifier == replace(gth[:C], "\\" => "/")
         @test model.atoms[2].psp.identifier == replace(gth[:C], "\\" => "/")
+        @test isnothing(pseudofamily(model))
     end
 end

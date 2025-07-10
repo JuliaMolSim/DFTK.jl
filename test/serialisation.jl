@@ -32,6 +32,11 @@ function test_scfres_agreement(tested, ref; test_ψ=true)
     @test tested.occupation     == ref.occupation
     @test tested.ρ              ≈  ref.ρ rtol=1e-14
 
+    if isnothing(tested.τ)
+        @test isnothing(ref.τ)
+    else
+        @test tested.τ ≈  ref.τ rtol=1e-14
+    end
     if test_ψ
         @test tested.ψ == ref.ψ
     end
