@@ -244,7 +244,7 @@ function _mul!(C::AbstractArray, A::NonlocalProjectors{T}, B::AbstractArray,
     C .*= β
 
     maxproj = maximum(at -> size(at.projectors, 2), A.atoms)
-    # TODO: store in Channel to avoid repeated allocations?
+    # TODO: could store in a threadsafe cache to avoid repeated allocations
     Pbuffer = Matrix{T}(undef, size(A, 1), maxproj)
 
     iproj = 1
