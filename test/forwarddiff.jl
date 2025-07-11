@@ -97,7 +97,9 @@ end
     end
 
     strain_isotropic(ε) = (1 + ε) * model.lattice
-    strain_anisotropic(ε) = DFTK.voigt_strain_to_full([0., 0., 0., ε, 0., 0.]) * model.lattice
+    function strain_anisotropic(ε)
+        DFTK.voigt_strain_to_full([ε, 0., 0., 0., 0., 0.]) * model.lattice
+    end
 
     @testset "$strain_fn" for strain_fn in (strain_isotropic, strain_anisotropic)
         f(ε) = compute_properties(strain_fn(ε))
