@@ -8,7 +8,7 @@ end
     [dot(A[:, i], B[:, i]) for i = 1:size(A, 2)]
 end
 
-# Returns a vector of real(dot(A[:, i], M, B[:, i])), for all columns of
+# Returns a vector of dot(A[:, i], M, B[:, i]), for all columns of
 # A, B, and matrix M
 @views function columnwise_dots(A::AbstractArray{T}, M, B::AbstractArray{T}) where {T}
     [dot(A[:, i], M, B[:, i]) for i = 1:size(A, 2)]
