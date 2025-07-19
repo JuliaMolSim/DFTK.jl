@@ -72,7 +72,7 @@ DFTKWannierExt = "Wannier"
 DFTKWriteVTKExt = "WriteVTK"
 
 [compat]
-AMDGPU = "1.2.3"
+AMDGPU = "1.2.3, 2"
 ASEconvert = "0.1"
 AbstractFFTs = "1"
 Aqua = "0.8.5"
