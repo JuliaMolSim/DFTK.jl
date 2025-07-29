@@ -48,6 +48,37 @@ function HamiltonianBlock(basis, kpoint, operators; scratch=nothing)
         scratch = @something scratch _ham_allocate_scratch(basis)
         nonlocal_op = isempty(nonlocal_ops) ? nothing : only(nonlocal_ops)
         divAgrad_op = isempty(divAgrad_ops) ? nothing : only(divAgrad_ops)
+
+        # TODO: hacky update of nonlocal D for ultrasoft
+        # TODO: doing this inside of each term is very wasteful,
+        #       the real potentials are the same across kpoints... (except for spin)
+        if !isnothing(nonlocal_op)
+            real_op = only(real_ops)
+            Dextra = zeros(36, 36)
+
+            for iatom in 1:length(basis.model.positions)
+                box = basis.augmentation_regions[iatom]
+                for (xyz, Q) in zip(box.grid_indices, eachslice(box.augmentations; dims=1))
+                    # TODO: only loop over iproj:18?
+                    for iproj=1:18, jproj=iproj:18
+                        # TODO: assumes 1 spin channel?
+                        Dextra[(iatom-1) * 18 + iproj, (iatom-1) * 18 + jproj] +=
+                            (real_op.potential[xyz...] * Q[iproj, jproj])
+                    end
+                end
+                for iproj=1:18, jproj=iproj+1:18
+                    Dextra[(iatom-1) * 18 + jproj, (iatom-1) * 18 + iproj] =
+                        Dextra[(iatom-1) * 18 + iproj, (iatom-1) * 18 + jproj]
+                end
+            end
+
+            nonlocal_op = NonlocalOperator(
+                basis,
+                kpoint,
+                nonlocal_op.P,
+                nonlocal_op.D + Dextra * basis.dvol)# * 2) # TODO: I don't understand why the 2 here
+        end
+
         DftHamiltonianBlock(basis, kpoint, operators,
                             only(fourier_ops), only(real_ops),
                             nonlocal_op, divAgrad_op, scratch)

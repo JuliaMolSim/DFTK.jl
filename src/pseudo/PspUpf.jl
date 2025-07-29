@@ -1,9 +1,13 @@
 using LinearAlgebra
 using Interpolations: linear_interpolation
-using PseudoPotentialIO: load_upf
+using PseudoPotentialIO: load_upf, get_attr
 
+# TODO: I don't like the storage by AM channel, it doesn't match the structure of the file
 struct PspUpf{T,I} <: NormConservingPsp
+    # TODO remove, for now convenient just in case
+    upf
     ## From file
+    type::String       # Either NC or US. UPF: `pseudo_type`
     Zion::Int          # Pseudo-atomic (valence) charge. UPF: `z_valence`
     lmax::Int          # Maximal angular momentum in the non-local part. UPF: `l_max`
     rgrid::Vector{T}   # Radial grid, can be linear or logarithmic. UPF: `PP_MESH/PP_R`
@@ -15,6 +19,14 @@ struct PspUpf{T,I} <: NormConservingPsp
     # Kleinman-Bylander energies. Stored per AM channel `h[l+1][i,j]`.
     # UPF: `PP_DIJ`
     h::Vector{Matrix{T}}
+    # Ultrasoft overlap energies. Stored per AM channel `h[l+1][i,j]`.
+    # TODO: should probably be zeros for NC pseudos to easily support mixing NC and US
+    # UPF: `PP_Q`
+    Q::Vector{Matrix{T}}
+    # Ultrasoft charge augmentation function interpolations.
+    # TODO: storage format is TBD
+    # UPF: `PP_QIJL`
+    Qijl
     # (UNUSED) Pseudo-wavefunctions on the radial grid. Can be used for wavefunction
     # initialization and as projectors for PDOS and DFT+U(+V).
     # r^2 * χ where χ are pseudo-atomic wavefunctions on the radial grid.
@@ -66,20 +78,21 @@ Does not support:
 - Fully-realtivistic / spin-orbit pseudos
 - Bare Coulomb / all-electron potentials
 - Semilocal potentials
-- Ultrasoft potentials
 - Projector-augmented wave potentials
 - GIPAW reconstruction data
 """
 function PspUpf(path; identifier=path, rcut=nothing)
     pseudo = load_upf(path)
 
+    type = pseudo["header"]["pseudo_type"]
+    if type == "USPP"
+        type = "US" # I think both exist?
+    end
+
     unsupported = []
-    pseudo["header"]["has_so"]               && push!(unsupported, "spin-orbit coupling")
-    pseudo["header"]["pseudo_type"] == "SL"  && push!(unsupported, "semilocal potential")
-    pseudo["header"]["pseudo_type"] == "US"  && push!(unsupported, "ultrasoft")
-    pseudo["header"]["pseudo_type"] == "PAW" && push!(unsupported, "projector-augmented wave")
-    pseudo["header"]["has_gipaw"]            && push!(unsupported, "gipaw data")
-    pseudo["header"]["pseudo_type"] == "1/r" && push!(unsupported, "Coulomb")
+    pseudo["header"]["has_so"]    && push!(unsupported, "spin-orbit coupling")
+    type != "NC" && type != "US"  && push!(unsupported, "$type potential type")
+    pseudo["header"]["has_gipaw"] && push!(unsupported, "gipaw data")
     length(unsupported) > 0 && error("Pseudopotential contains the following unsupported" *
                                      " features/quantities: $(join(unsupported, ","))")
 
@@ -118,6 +131,30 @@ function PspUpf(path; identifier=path, rcut=nothing)
         push!(h, Dij_l)
         count += nproj_l
     end
+    Q = Matrix[]
+    Qijl = missing
+    if type == "US"
+        augmentation = read_augmentation(path, pseudo)
+        Qijl = map(augmentation.Qijl) do Qjl
+            map(Qjl) do Ql
+                map(Ql) do Qfun
+                    isnothing(Qfun) && return nothing
+                    # Q is actually given as r²Q(r) in the UPF file
+                    # Also convert from 1/Ry to 1/Ha (TODO: not really these units but whatever?)
+                    linear_interpolation((rgrid,), Qfun ./ rgrid.^2 .* 2 .* 2) # TODO: why *2 again?
+                end
+            end
+        end
+        isnothing(augmentation) && error("Ultrasoft pseudopotential $identifier does not contain augmentation data")
+        count = 1
+        for l = 0:lmax
+            nproj_l = length(r2_projs[l+1])
+            # 1/Ry -> 1/Ha
+            Qij_l = augmentation.Q[count:count+nproj_l-1, count:count+nproj_l-1] .* 2 .* 2 # TODO: why *2 again?
+            push!(Q, Qij_l)
+            count += nproj_l
+        end
+    end
 
     r2_pswfcs = [Vector{Float64}[] for _ = 0:lmax]
     pswfc_occs = [Float64[] for _ = 0:lmax]
@@ -145,12 +182,89 @@ function PspUpf(path; identifier=path, rcut=nothing)
     r2_ρcore_interp = linear_interpolation((rgrid,), r2_ρcore)
 
     PspUpf{eltype(rgrid),typeof(vloc_interp)}(
-        Zion, lmax, rgrid, drgrid,
-        vloc, r2_projs, h, r2_pswfcs, pswfc_occs, pswfc_energies, pswfc_labels,
+        pseudo,
+        type, Zion, lmax, rgrid, drgrid,
+        vloc, r2_projs, h, Q, Qijl, r2_pswfcs, pswfc_occs, pswfc_energies, pswfc_labels,
         r2_ρion, r2_ρcore,
         vloc_interp, r2_projs_interp, r2_ρion_interp, r2_ρcore_interp,
         rcut, ircut, identifier, description
     )
+end
+
+import EzXML
+function read_augmentation(path, upf)
+    # TODO: assumes UPF v2
+    text = read(path, String)
+    # Remove end-of-file junk (input data, etc.)
+    text = string(split(text, "</UPF>")[1], "</UPF>")
+    # Clean any errant `&` characters
+    text = replace(text, "&" => "")
+    doc_root = EzXML.root(EzXML.parsexml(text))
+
+    augmentation = EzXML.findfirst("PP_NONLOCAL/PP_AUGMENTATION", doc_root)
+    ismissing(augmentation) && return nothing
+    get_attr(Bool, augmentation, "q_with_l") || error("q_with_l not set in PP_AUGMENTATION")
+
+    # Read Q
+    qnode = EzXML.findfirst("PP_Q", augmentation)
+    ismissing(qnode) && error("PP_Q not found in PP_AUGMENTATION")
+    Q = parse.(Float64, split(strip(qnode.content)))
+    Q = reshape(Q, upf["header"]["number_of_proj"], upf["header"]["number_of_proj"])
+
+    # Read QIJL
+    nproj = upf["header"]["number_of_proj"]
+    Qijl = [[[] for _=1:nproj] for _=1:nproj]
+    for i=1:nproj
+        il = upf["beta_projectors"][i]["angular_momentum"]
+        for j=i:nproj
+            jl = upf["beta_projectors"][j]["angular_momentum"]
+            # TODO: I don't understand why we can go in steps of 2
+            for L=abs(il-jl):2:il+jl
+                qijlnode = EzXML.findfirst("PP_QIJL.$i.$j.$L", augmentation)
+                if isnothing(qijlnode)
+                    push!(Qijl[i][j], nothing)
+                else
+                    # TODO: truncate based on cutoff_radius_index
+                    data = parse.(Float64, split(strip(qijlnode.content)))
+                    push!(Qijl[i][j], data)
+                end
+            end
+        end
+    end
+
+    # Same units as D_ion I suppose
+    (; Q, Qijl)
+end
+
+import WignerSymbols: clebschgordan
+function eval_augmentation(psp::PspUpf{T}, gaunt_coefficients, n, n_mag, m, m_mag, r) where {T<:Real}
+    if n > m
+        n, n_mag, m, m_mag = m, m_mag, n, n_mag  # Ensure n <= m
+    end
+
+    out = zero(T)
+    nl = psp.upf["beta_projectors"][n]["angular_momentum"]
+    @assert abs(n_mag) <= nl "n_mag must be in [-l, l] for l=$nl, n_mag=$n_mag"
+    ml = psp.upf["beta_projectors"][m]["angular_momentum"]
+    @assert abs(m_mag) <= ml "m_mag must be in [-l, l] for l=$ml, m_mag=$m_mag"
+    for (iL, L) in enumerate(abs(nl-ml):2:nl+ml)
+        isnothing(psp.Qijl[n][m][iL]) && continue
+
+        for M in -L:L
+            # TODO remove
+            # L == 0 && M == 0 || continue
+            # TODO it's not clear if we need to normalize the result by √4π?
+            # TODO in the easy case where n=n_mag=m=m_mag=0, it seems we need to, to ensure that ∫Q(r)r² gives the right Q coef
+            # @show nl n_mag ml m_mag L M
+            coef = gaunt_coefficients[pack_lm(L, M), pack_lm(nl, n_mag), pack_lm(ml, m_mag)]
+            if abs(coef) > 1e-8 # TODO: arbitrary threshold?
+                out += (coef
+                        * ylm_real(L, M, r)
+                        * psp.Qijl[n][m][iL](max(1e-4, norm(r)))) # TODO: need to include 0 in the interp grid?
+            end
+        end
+    end
+    out
 end
 
 charge_ionic(psp::PspUpf) = psp.Zion
