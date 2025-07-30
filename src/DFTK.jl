@@ -44,6 +44,7 @@ include("common/quadrature.jl")
 include("common/hankel.jl")
 include("common/hydrogenic.jl")
 include("common/derivatives.jl")
+include("common/linalg.jl")
 
 export PspHgh
 export PspUpf
@@ -140,7 +141,6 @@ export PreconditionerNone
 export lobpcg_hyper
 export diag_full
 export diagonalize_all_kblocks
-include("eigen/linalg.jl")
 include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
 
