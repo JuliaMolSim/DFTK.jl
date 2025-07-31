@@ -69,44 +69,45 @@ function compute_ldos(scfres::NamedTuple; ε=scfres.εF, kwargs...)
 end
 
 """
-Projected density of states at energy ε for an atom with given i and l.
+Compute the projected density of states (PDOS) for all atoms and orbitals
+ Input: 
+ - εs: vector of energies at which to compute the PDOS
+ - bands: Bands object containing the eigenvalues, wavefunction, basis and positions
+ Output:
+ - pdos: 3D array of PDOS, pdos[iε_idx, iproj, σ] = PDOS at energy εs[iε_idx] for projector iproj and spin σ
+ - projector_labels: vector of tuples (iatom, n, l, m) for each projector, that maps the iproj index to the 
+                    corresponding atomic orbital (atom index, principal quantum number, angular momentum, magnetic quantum number)
+.
 """
 
-function compute_all_pdos(εs, bands;
+function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues,
+                      psps::AbstractVector{<: NormConservingPsp}, 
+                      positions;
                       smearing=bands.basis.model.smearing, 
                       temperature=bands.basis.model.temperature)
-# Compute the projected density of states (PDOS) for all atoms and orbitals
-# Input: 
-# - εs: vector of energies at which to compute the PDOS
-# - bands: Bands object containing the eigenvalues, wavefunction, basis and positions
-# Output:
-# - pdos: 3D array of PDOS, pdos[iε_idx, iproj, σ] = PDOS at energy εs[iε_idx] for projector iproj and spin σ
-# - projector_labels: vector of tuples (iatom, n, l, m) for each projector, that maps the iproj index to the 
-#                    corresponding atomic orbital (atom index, principal quantum number, angular momentum, magnetic quantum number)
-
     if (temperature == 0) || smearing isa Smearing.None
         error("compute_pdos only supports finite temperature")
     end
           
-    ψ = bands.ψ
-    eigenvalues = bands.eigenvalues
-    basis = bands.basis
-    model = basis.model
-    positions = model.positions
+    #ψ = bands.ψ
+    #eigenvalues = bands.eigenvalues
+    #basis = bands.basis
+    #model = basis.model
+    #positions = model.positions
     natoms = length(positions)
-    psps = Vector{NormConservingPsp}([model.atoms[i].psp for i in 1:natoms])  # PSP for all atoms
+    #psps = Vector{NormConservingPsp}([model.atoms[i].psp for i in 1:natoms])  # PSP for all atoms
     
-    max_l = Vector{Any}(undef, natoms)                
-    max_l = [psps[iatom].lmax for iatom in 1:natoms]  # lmax for all atoms
-    max_n = Vector{Vector{Int}}(undef, natoms)        # Principal quantum number for all atoms
-    for iatom in 1:natoms
-        max_n[iatom] = [DFTK.count_n_pswfc_radial(psps[iatom], l) for l in 0:max_l[iatom]]
-    end
+    #max_l = Vector{Any}(undef, natoms)                
+    #max_l = [psps[iatom].lmax for iatom in 1:natoms]  # lmax for all atoms
+    #max_n = Vector{Vector{Int}}(undef, natoms)        # Principal quantum number for all atoms
+    #for iatom in 1:natoms
+    #    max_n[iatom] = [DFTK.count_n_pswfc_radial(psps[iatom], l) for l in 0:max_l[iatom]]
+    #end
     
     projector_labels = Vector{NTuple{4, Int64}}(undef, 0)
     for iatom in 1:natoms
-        for l in 0:max_l[iatom]
-            for n in 1:max_n[iatom][l+1]
+        for l in 0:psps[iatom].lmax
+            for n in 1:DFTK.count_n_pswfc_radial(psps[iatom], l)
                 for m in -l:l
                     push!(projector_labels, (iatom, n, l, m))
                 end 
@@ -140,25 +141,34 @@ function compute_all_pdos(εs, bands;
     return (; pdos, projector_labels)
 end
 
+function compute_pdos(εs, bands; kwargs...)
+    psps = Vector{NormConservingPsp}([bands.basis.model.atoms[i].psp for i in 1:length(bands.basis.model.atoms)])  # PSP for all atoms
+    compute_pdos(εs, bands.basis, bands.ψ, bands.eigenvalues, psps, bands.basis.model.positions; kwargs...)
+end
+
 # TODO: function compute_single_pdos, or add optional arguments to the previous function to make it print only one pdos
 
+"""
+Build the projection matrix projsk for a given k-point kpt.
+    projsk[iband, iproj] = |<ψnk, ϕilm>|^2
+ where ψnk is the wavefunction for band iband at k-point kpt,
+ and ϕilm is the atomic orbital for atom i, quantum numbers (n,l,m)
+
+ Input:
+ - basis: PlaneWaveBasis
+ - kpt: Kpoint for which to compute the projections
+ - ψ: wavefunctions of the basis 
+ - psps: vector of pseudopotentials for each atom
+ - positions: positions of the atoms in the unit cell
+ - labels: vector of tuples (iatom, n, l, m) for each projector
+ Output:
+ - projsk: matrix of projections, where projsk[iband, iproj]
+           = |<ψnk, ϕilm>|^2 for the given kpoint kpt
+"""
+
 function build_projsk(basis::PlaneWaveBasis{T}, kpt::Kpoint, ψk,
-                    psps::AbstractVector{<: NormConservingPsp}, positions, labels::Vector{Tuple{Int,Int,Int,Int}}) where {T}
-# Build the projection matrix projsk for a given k-point kpt.
-# projsk[iband, iproj] = |<ψnk, ϕilm>|^2
-# where ψnk is the wavefunction for band iband at k-point kpt,
-# and ϕilm is the atomic orbital for atom i, quantum numbers (n,l,m)
-#
-# Input:
-# - basis: PlaneWaveBasis
-# - kpt: Kpoint for which to compute the projections
-# - ψ: wavefunctions of the basis 
-# - psps: vector of pseudopotentials for each atom
-# - positions: positions of the atoms in the unit cell
-# - labels: vector of tuples (iatom, n, l, m) for each projector
-# Output:
-# - projsk: matrix of projections, where projsk[iband, iproj]
-#           = |<ψnk, ϕilm>|^2 for the given kpoint kpt
+                    psps::AbstractVector{<: NormConservingPsp}, 
+                    positions, labels::Vector{Tuple{Int,Int,Int,Int}}) where {T}
 
     nprojs = length(labels)
     projsk = zeros(T, length(ψk), nprojs)  # Initialize the projection matrix
@@ -199,7 +209,7 @@ function build_projsk(basis::PlaneWaveBasis{T}, kpt::Kpoint, ψk,
 
     proj_vectors = hcat(proj_vectors...)  # Create a matrix of projections for this k-point
     @assert size(proj_vectors, 2) == nprojs "Projection matrix size mismatch: $(size(proj_vectors)) != $nprojs"
-    proj_vectors = ortho_lwd(proj_vectors)  # Lowdin-orthogonalization
+    proj_vectors = ortho_lowdin(proj_vectors)  # Lowdin-orthogonalization
     
     projsk = abs2.(ψk' * proj_vectors)  # Contract on ψk to get the projections
     @assert size(projsk) == (size(ψk,2), nprojs) "Projection matrix size mismatch: $(size(projsk)) != $(length(ψk)), $nprojs"
@@ -207,27 +217,29 @@ function build_projsk(basis::PlaneWaveBasis{T}, kpt::Kpoint, ψk,
     return projsk
 end
 
+"""
+Build the projection matrices projsk for all k-points at the same time.
+   projs[ik][iband, iproj] = projsk[iband, iproj] = |<ψnk, ϕilm>|^2
+ where ψnk is the wavefunction for band iband at k-point kpt,
+ and ϕilm is the atomic orbital for atom i, quantum numbers (n,l,m)
+
+ Input:
+ - basis: PlaneWaveBasis
+ - ψ: wavefunctions of the basis 
+ - psps: vector of pseudopotentials for each atom
+ - positions: positions of the atoms in the unit cell
+ - labels: vector of tuples (iatom, n, l, m) for each projector
+ Output:
+ - projs: vector of matrices of projections, where 
+           projs[ik][iband, iproj] = |<ψnk, ϕilm>|^2 for each kpoint kpt
+"""
+
 function build_projections(basis::PlaneWaveBasis{T}, ψ,
                     psps::AbstractVector{<: NormConservingPsp}, 
                     positions, 
                     labels::Vector{Tuple{Int,Int,Int,Int}}) where {T}
-# Build the projection matrices projsk for all k-points at the same time.
-# projs[ik][iband, iproj] = projsk[iband, iproj] = |<ψnk, ϕilm>|^2
-# where ψnk is the wavefunction for band iband at k-point kpt,
-# and ϕilm is the atomic orbital for atom i, quantum numbers (n,l,m)
-#
-# Input:
-# - basis: PlaneWaveBasis
-# - ψ: wavefunctions of the basis 
-# - psps: vector of pseudopotentials for each atom
-# - positions: positions of the atoms in the unit cell
-# - labels: vector of tuples (iatom, n, l, m) for each projector
-# Output:
-# - projs: vector of matrices of projections, where 
-#           projs[ik][iband, iproj] = |<ψnk, ϕilm>|^2 for each kpoint kpt
 
     nprojs = length(labels)
-    projs = Vector{Matrix}(undef, length(basis.kpoints))  # Initialize the projection matrix
 
     G_plus_k_all = [Gplusk_vectors(basis, basis.kpoints[ik])
                     for ik = 1:length(basis.kpoints)]
@@ -265,17 +277,18 @@ function build_projections(basis::PlaneWaveBasis{T}, ψ,
 
     projs = Vector{Matrix}(undef, length(basis.kpoints))
     for (ik, ψk) in enumerate(ψ) # The loop now iterates over k-points regardless of the spin component
-        proj_vectors = Vector{Vector{Any}}(undef, 0)
+        proj_vectors = Matrix{Any}(undef, lenght(G_plus_k_all[ik]), nprojs)  # Collect all projection vectors for this k-point
         for (iproj, (iatom, n, l, m)) in enumerate(labels)
             structure_factor = [cis2pi(-dot(positions[iatom], p)) for p in G_plus_k_all[ik]]
             @assert length(structure_factor) == length(G_plus_k_all[ik]) "Structure factor length mismatch: $(length(structure_factor)) != $(length(G_plus_k))"
-            proj_vector = structure_factor .* form_factors[ik][:, iproj] ./ sqrt(basis.model.unit_cell_volume)
-            push!(proj_vectors, proj_vector)    # Collect all projection vectors for this k-point    
+            proj_vector[:,iproj] = structure_factor .* form_factors[ik][:, iproj] ./ sqrt(basis.model.unit_cell_volume)    
         end
 
-        proj_vectors = hcat(proj_vectors...)    # Create a matrix of projections for this k-point
         @assert size(proj_vectors, 2) == nprojs "Projection matrix size mismatch: $(size(proj_vectors)) != $nprojs"
-        proj_vectors = ortho_lwd(proj_vectors)  # Lowdin-orthogonal
+        # At this point proj_vectors is a matrix containing all orbital projectors from all atoms. 
+        #   What we want is to have them all orthogonal, to avoid double counting in the Hubbard U term contribution.
+        #   We use Lowdin orthogonalization to minimize the "identity loss" of individual orbital projectors after the orthogonalization
+        proj_vectors = ortho_lowdin(proj_vectors)  # Lowdin-orthogonal
         
         projs[ik] = abs2.(ψk' * proj_vectors)   # Contract on ψk to get the projections
         @assert size(projs[ik]) == (size(ψk,2), nprojs) "Projection matrix size mismatch: $(size(projsk)) != $(length(ψk)), $nprojs"

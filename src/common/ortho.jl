@@ -8,7 +8,7 @@
     end
 end
 
-@timing function ortho_lwd(φk::ArrayType) where {ArrayType <: AbstractArray}
+@timing function ortho_lowdin(φk::ArrayType) where {ArrayType <: AbstractArray}
     S = φk' * φk
     evals, evecs = eigen(S)
     # Check for linear dependence: eigenvalues close to zero
