@@ -1,5 +1,4 @@
-function build_projectors(basis::PlaneWaveBasis{T},
-                    psps::AbstractVector{<: NormConservingPsp}, positions, labels::Vector{Tuple{Int,Int,Int,Int}}) where {T}
+function build_projectors(basis::PlaneWaveBasis{T}) where {T}
     """
         Build the projection matrices projsk for all k-points at the same time.
          projectors[ik][iband, iproj] = projsk[iband, iproj] = |<ψnk, ϕinlm>|^2
@@ -16,8 +15,20 @@ function build_projectors(basis::PlaneWaveBasis{T},
          - projectors: vector of matrices of projectors, where 
                    projectors[ik][iband, iproj] = |ϕinlm>(iband,kpt) for each kpoint kpt
     """
+    psps = Vector{NormConservingPsp}(undef, length(basis.model.atoms))
+    labels = Vector{NTuple{3, Any}}(undef, 0)
+    for (iatom, atom) in enumerate(basis.model.atoms)
+        psps[iatom] = atom.psp
+        for l in 0:psps[iatom].lmax
+            for n in 1:DFTK.count_n_pswfc_radial(psps[iatom], l)
+                for m in -l:l
+                    push!(labels, (atom.species, psps[iatom].pswfc_labels[n+l], m))
+                end
+            end
+        end
+    end
     nprojs = length(labels)
-    projectors = Vector{Matrix}(undef, length(basis.kpoints))  # Initialize the projection matrix
+    #n_offset = get_nl(labels[1][2]).n
 
     G_plus_k_all = [Gplusk_vectors(basis, basis.kpoints[ik])
                     for ik = 1:length(basis.kpoints)]
@@ -27,7 +38,7 @@ function build_projectors(basis::PlaneWaveBasis{T},
     # Build form factors of pseudo-wavefunctions centered at 0.
      
     form_factors = [Matrix{Complex{T}}(undef, length(G_plus_k), nprojs)  for G_plus_k in G_plus_k_all_cart]  # Initialize form factors for all k-points
-    for (iproj, (iatom, n, l, m)) in enumerate(labels)
+    for (iproj, (atom, orbital, m)) in enumerate(labels)
         psp = psps[iatom]
         fun(p) = eval_psp_pswfc_fourier(psp, n, l, p)
         # Build form factors for the current projector
@@ -72,6 +83,28 @@ function build_projectors(basis::PlaneWaveBasis{T},
 
     return projectors
 end
+
+function get_nl(orbital::String)
+    """
+    Get the principal quantum number n and angular momentum l from the orbital string.
+    """
+    if string(orbital[2]) == "s"
+        l = 0
+    elseif string(orbital[2]) == "p"
+        l = 1
+    elseif string(orbital[2]) == "d"
+        l = 2
+    elseif string(orbital[2]) == "f"
+        l = 3
+    else
+        error("Unknown orbital type: $orbital")
+    end
+
+    n = parse(Int, orbital[1])
+    return (; n, l)
+end
+
+"""
 
 function build_projectors(bands)
 
@@ -289,10 +322,42 @@ end
 #    return (; proj_matrix, projector_labels)
 #end
 
-@timing "ene_ops: hubbard" function ene_ops(term::TermHartree, basis::PlaneWaveBasis{T},
-                                            ψ=nothing, occupation; kwargs...) where {T}
+struct TermHubbard <: Term
+    manifold::NTuple{3,Int64}  # (iatom, n, l)
+    U::Float64  # Hubbard interaction strength
+    hubbard_matrix::Matrix{Complex{T}}  # Hubbard matrix
+end
+#"""
+#        Create a Hubbard term for the given manifold and interaction strength.
+#        
+#        Input:
+#        - manifold: (iatom, n, l) tuple defining the manifold
+#        - U: Hubbard interaction strength
+#        - hubbard_matrix: Matrix containing the Hubbard interaction terms
+#        
+#        Output:
+#        - TermHubbard instance
+#    """
+function TermHubbard(manifold::NTuple{3,Int64}, U::Float64, basis::PlaneWaveBasis{T}, ψ,
+                    psps::AbstractVector{<: NormConservingPsp}, positions, labels::Vector{Tuple{Int,Int,Int,Int}}) where {T}
+    hubbard_matrix = compute_hubbard_matrix(manifold, basis, ψ, psps, positions, labels).hubbard_matrix
+    return TermHubbard(manifold, U, hubbard_matrix)
+end
+
+@timing "ene_ops: hubbard" function ene_ops(term::TermHubbard, basis::PlaneWaveBasis{T},
+                                            ψ=nothing, occupation=nothing; kwargs...) where {T}
     
+    using LinearAlgebra: trace
     
+    if isnothing(ψ) || isnothing(occupation)
+        return (; E=zero(T), ops=NoopOperator())
+    end
+
+    E = zero(T)  # Initialize the energy contribution
+    E = term.U * real(trace(term.hubbard_matrix * (I - term-hubbard_matrix)))  # Compute the energy contribution from the Hubbard term
+
+    ops = build_projectors(basis, psps=[basis.model.atoms[i].psp for i in 1:length(basis.model.positions)],
+                           positions=basis.model.positions, labels=term.manifold)  # Build the projectors for the Hubbard term
 
     (; E, ops)
 end
