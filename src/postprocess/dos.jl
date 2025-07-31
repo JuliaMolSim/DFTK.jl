@@ -69,44 +69,32 @@ function compute_ldos(scfres::NamedTuple; ε=scfres.εF, kwargs...)
 end
 
 """
-Projected density of states at energy ε for an atom with given i and l.
+Compute the projected density of states (PDOS) for all atoms and orbitals
+ Input: 
+ - εs: vector of energies at which to compute the PDOS
+ - bands: Bands object containing the eigenvalues, wavefunction, basis and positions
+ Output:
+ - pdos: 3D array of PDOS, pdos[iε_idx, iproj, σ] = PDOS at energy εs[iε_idx] for projector iproj and spin σ
+ - projector_labels: vector of tuples (iatom, n, l, m) for each projector, that maps the iproj index to the 
+                    corresponding atomic orbital (atom index, principal quantum number, angular momentum, magnetic quantum number)
+.
 """
 
-function compute_all_pdos(εs, bands;
-                      smearing=bands.basis.model.smearing, 
-                      temperature=bands.basis.model.temperature)
-# Compute the projected density of states (PDOS) for all atoms and orbitals
-# Input: 
-# - εs: vector of energies at which to compute the PDOS
-# - bands: Bands object containing the eigenvalues, wavefunction, basis and positions
-# Output:
-# - pdos: 3D array of PDOS, pdos[iε_idx, iproj, σ] = PDOS at energy εs[iε_idx] for projector iproj and spin σ
-# - projector_labels: vector of tuples (iatom, n, l, m) for each projector, that maps the iproj index to the 
-#                    corresponding atomic orbital (atom index, principal quantum number, angular momentum, magnetic quantum number)
-
+function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues,
+                      psps::AbstractVector{<: NormConservingPsp}, 
+                      positions;
+                      smearing=basis.model.smearing, 
+                      temperature=basis.model.temperature) where {T}
     if (temperature == 0) || smearing isa Smearing.None
         error("compute_pdos only supports finite temperature")
     end
+    filled_occ = filled_occupation(basis.model)
           
-    ψ = bands.ψ
-    eigenvalues = bands.eigenvalues
-    basis = bands.basis
-    model = basis.model
-    positions = model.positions
     natoms = length(positions)
-    psps = Vector{NormConservingPsp}([model.atoms[i].psp for i in 1:natoms])  # PSP for all atoms
-    
-    max_l = Vector{Any}(undef, natoms)                
-    max_l = [psps[iatom].lmax for iatom in 1:natoms]  # lmax for all atoms
-    max_n = Vector{Vector{Int}}(undef, natoms)        # Principal quantum number for all atoms
-    for iatom in 1:natoms
-        max_n[iatom] = [DFTK.count_n_pswfc_radial(psps[iatom], l) for l in 0:max_l[iatom]]
-    end
-    
     projector_labels = Vector{NTuple{4, Int64}}(undef, 0)
     for iatom in 1:natoms
-        for l in 0:max_l[iatom]
-            for n in 1:max_n[iatom][l+1]
+        for l in 0:psps[iatom].lmax
+            for n in 1:DFTK.count_n_pswfc_radial(psps[iatom], l)
                 for m in -l:l
                     push!(projector_labels, (iatom, n, l, m))
                 end 
@@ -115,20 +103,18 @@ function compute_all_pdos(εs, bands;
     end
     nprojs = length(projector_labels) 
 
-    println("---Building projectors for $(nprojs) projectors...")
     projectors = build_projections(basis, ψ, psps, positions, projector_labels)
 
-    println("---Computing PDOS for $(length(εs)) energies and $(nprojs) projectors...")
-    D = zeros(typeof(εs[1]), length(εs), nprojs, model.n_spin_components)  
-    for (iε_idx, iε) in enumerate(εs)
-        for σ in 1:model.n_spin_components, ik = krange_spin(basis, σ)
+    D = zeros(typeof(εs[1]), length(εs), nprojs, basis.model.n_spin_components)  
+    for (iε, ε) in enumerate(εs)
+        for σ in 1:basis.model.n_spin_components, ik = krange_spin(basis, σ)
             projsk = projectors[ik]  
             @views for (iband, εnk) in enumerate(eigenvalues[ik])
-                enred = (εnk - iε) / temperature
+                enred = (εnk - ε) / temperature
                 # Loop over all projectors
                 for iproj in 1:size(projsk, 2)
                     projk = projsk[:, iproj]
-                    D[iε_idx, iproj,σ] -= (basis.kweights[ik] * projk[iband]
+                    D[iε, iproj,σ] -= (filled_occ * basis.kweights[ik] * projk[iband]
                                              ./ temperature
                                              .* Smearing.occupation_derivative(smearing, enred))
                 end
@@ -140,30 +126,36 @@ function compute_all_pdos(εs, bands;
     return (; pdos, projector_labels)
 end
 
+function compute_pdos(εs, bands; kwargs...)
+    psps = Vector{NormConservingPsp}([bands.basis.model.atoms[i].psp for i in 1:length(bands.basis.model.atoms)])  # PSP for all atoms
+    
+    compute_pdos(εs, bands.basis, bands.ψ, bands.eigenvalues, psps, bands.basis.model.positions; kwargs...)
+end
+
 # TODO: function compute_single_pdos, or add optional arguments to the previous function to make it print only one pdos
 
+"""
+Build the projection matrices projsk for all k-points at the same time.
+   projs[ik][iband, iproj] = projsk[iband, iproj] = |<ψnk, ϕilm>|^2
+ where ψnk is the wavefunction for band iband at k-point kpt,
+ and ϕilm is the atomic orbital for atom i, quantum numbers (n,l,m)
+
+ Input:
+ - basis: PlaneWaveBasis
+ - ψ: wavefunctions of the basis 
+ - psps: vector of pseudopotentials for each atom
+ - positions: positions of the atoms in the unit cell
+ - labels: vector of tuples (iatom, n, l, m) for each projector
+ Output:
+ - projs: vector of matrices of projections, where 
+           projs[ik][iband, iproj] = |<ψnk, ϕilm>|^2 for each kpoint kpt
+"""
 
 function build_projections(basis::PlaneWaveBasis{T}, ψ,
                     psps::AbstractVector{<: NormConservingPsp}, 
                     positions, 
                     labels::Vector{Tuple{Int,Int,Int,Int}}) where {T}
-# Build the projection matrices projsk for all k-points at the same time.
-# projs[ik][iband, iproj] = projsk[iband, iproj] = |<ψnk, ϕilm>|^2
-# where ψnk is the wavefunction for band iband at k-point kpt,
-# and ϕilm is the atomic orbital for atom i, quantum numbers (n,l,m)
-#
-# Input:
-# - basis: PlaneWaveBasis
-# - ψ: wavefunctions of the basis 
-# - psps: vector of pseudopotentials for each atom
-# - positions: positions of the atoms in the unit cell
-# - labels: vector of tuples (iatom, n, l, m) for each projector
-# Output:
-# - projs: vector of matrices of projections, where 
-#           projs[ik][iband, iproj] = |<ψnk, ϕilm>|^2 for each kpoint kpt
-
     nprojs = length(labels)
-    projs = Vector{Matrix}(undef, length(basis.kpoints))  # Initialize the projection matrix
 
     G_plus_k_all = [Gplusk_vectors(basis, basis.kpoints[ik])
                     for ik = 1:length(basis.kpoints)]
@@ -173,54 +165,61 @@ function build_projections(basis::PlaneWaveBasis{T}, ψ,
     # Build form factors of pseudo-wavefunctions centered at 0.
      
     form_factors = [Matrix{Complex{T}}(undef, length(G_plus_k), nprojs)  for G_plus_k in G_plus_k_all_cart]  # Initialize form factors for all k-points
+    offset = 0
     for (iproj, (iatom, n, l, m)) in enumerate(labels)
-        psp = psps[iatom]
-        fun(p) = eval_psp_pswfc_fourier(psp, n, l, p)
-        # Build form factors for the current projector
-        
-        radials = IdDict{T,T}()  # IdDict for Dual compatibility
-        for G_plus_k in G_plus_k_all_cart
-            for p in G_plus_k
-                p_norm = norm(p)
-                if !haskey(radials, p_norm)
-                    radials_p = fun(p_norm)
-                    radials[p_norm] = radials_p
-                end
-            end
-        end
-
-        for (ik, G_plus_k) in enumerate(G_plus_k_all_cart)
-            for (ip, p) in enumerate(G_plus_k)
-                radials_p = radials[norm(p)]
-                # see "Fourier transforms of centered functions" in the docs for the formula
-                angular = (-im)^l * ylm_real(l, m, p)
-                form_factors[ik][ip, iproj] = radials_p * angular
+        offset += 1
+        if m == -l
+            psp = psps[iatom]
+            fun(p) = eval_psp_pswfc_fourier(psp, n, l, p)
+            # Build form factors for the current projector
+            
+            #radials = IdDict{T,T}()  # IdDict for Dual compatibility
+            #for G_plus_k in G_plus_k_all_cart
+            #    for p in G_plus_k
+            #        p_norm = norm(p)
+            #        if !haskey(radials, p_norm)
+            #            radials_p = fun(p_norm)
+            #            radials[p_norm] = radials_p
+            #        end
+            #    end
+            #end
+    #
+            #for (ik, G_plus_k) in enumerate(G_plus_k_all_cart)
+            #    for (ip, p) in enumerate(G_plus_k)
+            #        radials_p = radials[norm(p)]
+            #        # see "Fourier transforms of centered functions" in the docs for the formula
+            #        angular = (-im)^l * ylm_real(l, m, p)
+            #        form_factors[ik][ip, iproj] = radials_p * angular
+            #    end
+            #end
+            form_factors_l = build_form_factors(fun, l, G_plus_k_all_cart)
+            for ik in 1:length(G_plus_k_all_cart)
+               form_factors[ik][:,offset:offset+2*l] = form_factors_l[ik]
             end
         end
     end
 
     projs = Vector{Matrix}(undef, length(basis.kpoints))
     for (ik, ψk) in enumerate(ψ) # The loop now iterates over k-points regardless of the spin component
-        proj_vectors = Vector{Vector{Any}}(undef, 0)
+        proj_vectors = Matrix{Complex{T}}(undef, length(G_plus_k_all[ik]), nprojs)  # Collect all projection vectors for this k-point
         for (iproj, (iatom, n, l, m)) in enumerate(labels)
             structure_factor = [cis2pi(-dot(positions[iatom], p)) for p in G_plus_k_all[ik]]
             @assert length(structure_factor) == length(G_plus_k_all[ik]) "Structure factor length mismatch: $(length(structure_factor)) != $(length(G_plus_k))"
-            proj_vector = structure_factor .* form_factors[ik][:, iproj] ./ sqrt(basis.model.unit_cell_volume)
-            push!(proj_vectors, proj_vector)    # Collect all projection vectors for this k-point    
+            proj_vectors[:,iproj] = structure_factor .* form_factors[ik][:, iproj] ./ sqrt(basis.model.unit_cell_volume)    
         end
 
-        proj_vectors = hcat(proj_vectors...)    # Create a matrix of projections for this k-point
         @assert size(proj_vectors, 2) == nprojs "Projection matrix size mismatch: $(size(proj_vectors)) != $nprojs"
-        proj_vectors = ortho_lwd(proj_vectors)  # Lowdin-orthogonal
+        # At this point proj_vectors is a matrix containing all orbital projectors from all atoms. 
+        #   What we want is to have them all orthogonal, to avoid double counting in the Hubbard U term contribution.
+        #   We use Lowdin orthogonalization to minimize the "identity loss" of individual orbital projectors after the orthogonalization
+        proj_vectors = ortho_lowdin(proj_vectors)  # Lowdin-orthogonal
         
         projs[ik] = abs2.(ψk' * proj_vectors)   # Contract on ψk to get the projections
         @assert size(projs[ik]) == (size(ψk,2), nprojs) "Projection matrix size mismatch: $(size(projsk)) != $(length(ψk)), $nprojs"
     end
 
-    return projs
+    projs
 end
-
-
 
 """
 Plot the density of states over a reasonable range. Requires to load `Plots.jl` beforehand.
