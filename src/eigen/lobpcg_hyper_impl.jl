@@ -33,8 +33,9 @@
 # other eigenvectors (which is not the case in many - all ? - other
 # implementations)
 
-# - Some functions are reimplemented in a GPU optimized way as part of
-# the DFTK CUDA Extension (ext/DFTKCUDAExt/lobpcg.jl).
+# - Some generic linear algebra functions are used in this implementation. They can be
+#   found in src/common/linalg.jl. GPU optimized versions of these functions are located
+#   in src/gpu/linalg.jl.
 
 
 ## TODO micro-optimization of buffer reuse
