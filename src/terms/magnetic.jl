@@ -52,11 +52,7 @@ function ene_ops(term::TermMagnetic, basis::PlaneWaveBasis{T}, ψ, occupation;
 
     E = zero(T)
     for (ik, k) in enumerate(basis.kpoints)
-        for iband = 1:size(ψ[1], 2)
-            ψnk = @views ψ[ik][:, iband]
-            # TODO optimize this
-            E += basis.kweights[ik] * occupation[ik][iband] * real(dot(ψnk, ops[ik] * ψnk))
-        end
+        E += basis.kweights[ik] * sum(occupation[ik] .* vec(real(columnwise_dots(ψ[ik], ops[ik] * ψ[ik]))))
     end
     E = mpi_sum(E, basis.comm_kpts)
 
