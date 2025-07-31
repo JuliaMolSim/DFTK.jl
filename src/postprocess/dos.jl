@@ -83,27 +83,14 @@ Compute the projected density of states (PDOS) for all atoms and orbitals
 function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues,
                       psps::AbstractVector{<: NormConservingPsp}, 
                       positions;
-                      smearing=bands.basis.model.smearing, 
-                      temperature=bands.basis.model.temperature)
+                      smearing=basis.model.smearing, 
+                      temperature=basis.model.temperature) where {T}
     if (temperature == 0) || smearing isa Smearing.None
         error("compute_pdos only supports finite temperature")
     end
+    filled_occ = filled_occupation(basis.model)
           
-    #ψ = bands.ψ
-    #eigenvalues = bands.eigenvalues
-    #basis = bands.basis
-    #model = basis.model
-    #positions = model.positions
     natoms = length(positions)
-    #psps = Vector{NormConservingPsp}([model.atoms[i].psp for i in 1:natoms])  # PSP for all atoms
-    
-    #max_l = Vector{Any}(undef, natoms)                
-    #max_l = [psps[iatom].lmax for iatom in 1:natoms]  # lmax for all atoms
-    #max_n = Vector{Vector{Int}}(undef, natoms)        # Principal quantum number for all atoms
-    #for iatom in 1:natoms
-    #    max_n[iatom] = [DFTK.count_n_pswfc_radial(psps[iatom], l) for l in 0:max_l[iatom]]
-    #end
-    
     projector_labels = Vector{NTuple{4, Int64}}(undef, 0)
     for iatom in 1:natoms
         for l in 0:psps[iatom].lmax
@@ -116,20 +103,18 @@ function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues,
     end
     nprojs = length(projector_labels) 
 
-    println("---Building projectors for $(nprojs) projectors...")
     projectors = build_projections(basis, ψ, psps, positions, projector_labels)
 
-    println("---Computing PDOS for $(length(εs)) energies and $(nprojs) projectors...")
-    D = zeros(typeof(εs[1]), length(εs), nprojs, model.n_spin_components)  
-    for (iε_idx, iε) in enumerate(εs)
-        for σ in 1:model.n_spin_components, ik = krange_spin(basis, σ)
+    D = zeros(typeof(εs[1]), length(εs), nprojs, basis.model.n_spin_components)  
+    for (iε, ε) in enumerate(εs)
+        for σ in 1:basis.model.n_spin_components, ik = krange_spin(basis, σ)
             projsk = projectors[ik]  
             @views for (iband, εnk) in enumerate(eigenvalues[ik])
-                enred = (εnk - iε) / temperature
+                enred = (εnk - ε) / temperature
                 # Loop over all projectors
                 for iproj in 1:size(projsk, 2)
                     projk = projsk[:, iproj]
-                    D[iε_idx, iproj,σ] -= (basis.kweights[ik] * projk[iband]
+                    D[iε, iproj,σ] -= (filled_occ * basis.kweights[ik] * projk[iband]
                                              ./ temperature
                                              .* Smearing.occupation_derivative(smearing, enred))
                 end
