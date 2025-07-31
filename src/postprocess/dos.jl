@@ -69,7 +69,7 @@ function compute_ldos(scfres::NamedTuple; ε=scfres.εF, kwargs...)
 end
 
 """
-Compute the projected density of states (PDOS) for all atoms and orbitals
+Compute the projected density of states (PDOS) for all atoms and orbitals.
  Input: 
  - εs: vector of energies at which to compute the PDOS
  - bands: Bands object containing the eigenvalues, wavefunction, basis and positions
@@ -77,7 +77,11 @@ Compute the projected density of states (PDOS) for all atoms and orbitals
  - pdos: 3D array of PDOS, pdos[iε_idx, iproj, σ] = PDOS at energy εs[iε_idx] for projector iproj and spin σ
  - projector_labels: vector of tuples (iatom, n, l, m) for each projector, that maps the iproj index to the 
                     corresponding atomic orbital (atom index, principal quantum number, angular momentum, magnetic quantum number)
-.
+Note: 
+ - The pdos matrix has different projectors for each atom, even if they are of the same atom type. 
+   As such, the sum of all iproj columns for each σ yields the total DOS at each energy εs[iε_idx].
+   This is different from Quantum ESPRESSO, where the pdos for atoms of the same type are summed together 
+     even though they are printed separately (i.e. summing over all QE pdos from all output files does not yield the DOS).
 """
 
 function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues,
