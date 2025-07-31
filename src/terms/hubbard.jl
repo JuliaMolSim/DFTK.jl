@@ -288,3 +288,11 @@ end
 #
 #    return (; proj_matrix, projector_labels)
 #end
+
+@timing "ene_ops: hubbard" function ene_ops(term::TermHartree, basis::PlaneWaveBasis{T},
+                                            ψ=nothing, occupation; kwargs...) where {T}
+    
+    
+
+    (; E, ops)
+end
