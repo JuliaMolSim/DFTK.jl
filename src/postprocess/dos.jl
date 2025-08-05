@@ -85,37 +85,25 @@ Note:
 """
 
 function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues,
-                      psps::AbstractVector{<: NormConservingPsp}, 
-                      positions;
+                      psps::AbstractVector{<: NormConservingPsp}, # Is it needed? It's already in basis.model.atoms
+                      positions;                                  # Is it needed? It's already in basis.model.positions
                       smearing=basis.model.smearing, 
                       temperature=basis.model.temperature) where {T}
     if (temperature == 0) || smearing isa Smearing.None
         error("compute_pdos only supports finite temperature")
     end
     filled_occ = filled_occupation(basis.model)
-          
-    natoms = length(positions)
-    projector_labels = Vector{NTuple{4, Int64}}(undef, 0)
-    for iatom in 1:natoms
-        for l in 0:psps[iatom].lmax
-            for n in 1:DFTK.count_n_pswfc_radial(psps[iatom], l)
-                for m in -l:l
-                    push!(projector_labels, (iatom, n, l, m))
-                end 
-            end
-        end
-    end
-    nprojs = length(projector_labels) 
 
-    projectors = build_projections(basis, ψ, psps, positions, projector_labels)
+    projections, labels = build_projections(basis, ψ)
+    nprojs = length(labels)
 
     D = zeros(typeof(εs[1]), length(εs), nprojs, basis.model.n_spin_components)  
     for (iε, ε) in enumerate(εs)
         for σ in 1:basis.model.n_spin_components, ik = krange_spin(basis, σ)
-            projsk = projectors[ik]  
+            projsk = projections[ik]  
             @views for (iband, εnk) in enumerate(eigenvalues[ik])
                 enred = (εnk - ε) / temperature
-                # Loop over all projectors
+                # Loop over all projections
                 for iproj in 1:size(projsk, 2)
                     projk = projsk[:, iproj]
                     D[iε, iproj,σ] -= (filled_occ * basis.kweights[ik] * projk[iband]
@@ -127,7 +115,7 @@ function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues,
     end
     pdos = mpi_sum(D, basis.comm_kpts)  # Sum over all k-points
 
-    return (; pdos, projector_labels)
+    return (; pdos, projector_labels=labels)
 end
 
 function compute_pdos(εs, bands; kwargs...)
@@ -155,59 +143,43 @@ Build the projection matrices projsk for all k-points at the same time.
            projs[ik][iband, iproj] = |<ψnk, ϕilm>|^2 for each kpoint kpt
 """
 
-function build_projections(basis::PlaneWaveBasis{T}, ψ,
-                    psps::AbstractVector{<: NormConservingPsp}, 
-                    positions, 
-                    labels::Vector{Tuple{Int,Int,Int,Int}}) where {T}
-    nprojs = length(labels)
+function build_projections(basis::PlaneWaveBasis{T}, ψ;
+                            positions = basis.model.positions           
+                          ) where {T}
 
     G_plus_k_all = [Gplusk_vectors(basis, basis.kpoints[ik])
                     for ik = 1:length(basis.kpoints)]
     G_plus_k_all_cart = [map(recip_vector_red_to_cart(basis.model), gpk) 
                          for gpk in G_plus_k_all]
-    
-    # Build form factors of pseudo-wavefunctions centered at 0.
-     
-    form_factors = [Matrix{Complex{T}}(undef, length(G_plus_k), nprojs)  for G_plus_k in G_plus_k_all_cart]  # Initialize form factors for all k-points
-    offset = 0
-    for (iproj, (iatom, n, l, m)) in enumerate(labels)
-        offset += 1
-        if m == -l
-            psp = psps[iatom]
-            fun(p) = eval_psp_pswfc_fourier(psp, n, l, p)
-            # Build form factors for the current projector
-            
-            #radials = IdDict{T,T}()  # IdDict for Dual compatibility
-            #for G_plus_k in G_plus_k_all_cart
-            #    for p in G_plus_k
-            #        p_norm = norm(p)
-            #        if !haskey(radials, p_norm)
-            #            radials_p = fun(p_norm)
-            #            radials[p_norm] = radials_p
-            #        end
-            #    end
-            #end
-    #
-            #for (ik, G_plus_k) in enumerate(G_plus_k_all_cart)
-            #    for (ip, p) in enumerate(G_plus_k)
-            #        radials_p = radials[norm(p)]
-            #        # see "Fourier transforms of centered functions" in the docs for the formula
-            #        angular = (-im)^l * ylm_real(l, m, p)
-            #        form_factors[ik][ip, iproj] = radials_p * angular
-            #    end
-            #end
-            form_factors_l = build_form_factors(fun, l, G_plus_k_all_cart)
-            for ik in 1:length(G_plus_k_all_cart)
-               form_factors[ik][:,offset:offset+2*l] = form_factors_l[ik]
+
+    psps = Vector{NormConservingPsp}(undef, length(basis.model.atoms))
+    labels = []
+    #form_factors = [Matrix{Complex{T}}(undef, length(G_plus_k), nprojs)  for G_plus_k in G_plus_k_all_cart]  # Initialize form factors for all k-points
+    form_factors = [Matrix{Complex{T}}(undef, length(G_plus_k), 0)  for G_plus_k in G_plus_k_all_cart]
+    for (iatom, atom) in enumerate(basis.model.atoms)
+        psps[iatom] = atom.psp
+        for l in 0:psps[iatom].lmax
+            for n in 1:DFTK.count_n_pswfc_radial(psps[iatom], l)
+                fun(p) = eval_psp_pswfc_fourier(psps[iatom], n, l, p)
+                form_factors_l = build_form_factors(fun, l, G_plus_k_all_cart)
+                for ik in 1:length(G_plus_k_all_cart)
+                   #form_factors[ik][:,offset:offset+2*l] = form_factors_l[ik] #Can't work here because I don't know nproj a priori
+                   form_factors[ik] = hcat(form_factors[ik], form_factors_l[ik])  # Concatenate the form factors for this l
+                end
+                for m in -l:l
+                    label = psps[iatom].pswfc_labels[n+l]
+                    push!(labels, (; iatom, atom.species, n, l, m, label))
+                end
             end
         end
     end
+    nprojs = length(labels)
 
     projs = Vector{Matrix}(undef, length(basis.kpoints))
     for (ik, ψk) in enumerate(ψ) # The loop now iterates over k-points regardless of the spin component
         proj_vectors = Matrix{Complex{T}}(undef, length(G_plus_k_all[ik]), nprojs)  # Collect all projection vectors for this k-point
-        for (iproj, (iatom, n, l, m)) in enumerate(labels)
-            structure_factor = [cis2pi(-dot(positions[iatom], p)) for p in G_plus_k_all[ik]]
+        for (iproj, proj) in enumerate(labels)
+            structure_factor = [cis2pi(-dot(positions[proj.iatom], p)) for p in G_plus_k_all[ik]]
             @assert length(structure_factor) == length(G_plus_k_all[ik]) "Structure factor length mismatch: $(length(structure_factor)) != $(length(G_plus_k))"
             proj_vectors[:,iproj] = structure_factor .* form_factors[ik][:, iproj] ./ sqrt(basis.model.unit_cell_volume)    
         end
@@ -222,7 +194,61 @@ function build_projections(basis::PlaneWaveBasis{T}, ψ,
         @assert size(projs[ik]) == (size(ψk,2), nprojs) "Projection matrix size mismatch: $(size(projsk)) != $(length(ψk)), $nprojs"
     end
 
-    projs
+    (;projs, labels)
+end
+
+function get_pdos(res, atom::Integer, n, l, spin)
+    idx = findall(orb -> (orb.iatom==atom && orb.n==n && orb.l==l), res.projector_labels)
+    pdos_values = zeros(Float64, length(εs))
+    for i in idx
+        pdos_values += res.pdos[:, i, spin]
+    end
+    return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
+end
+
+function get_pdos(res, atom::Integer, l, spin)
+    idx = findall(orb -> (orb.iatom==atom && orb.l==l), res.projector_labels)
+    pdos_values = zeros(Float64, length(εs))
+    for i in idx
+        pdos_values += res.pdos[:, i, spin]
+    end
+    return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
+end
+
+function get_pdos_spinless(res, atom::Integer, l)
+    idx = findall(orb -> (orb.iatom==atom && orb.l==l), res.projector_labels)
+    pdos_values = zeros(Float64, length(εs))
+    for i in idx
+        pdos_values += res.pdos[:, i, 1]
+    end
+    return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
+end
+
+function get_pdos(res, atom::Symbol, n, l, spin)
+    idx = findall(orb -> (orb.species==atom && orb.n==n && orb.l==l), res.projector_labels)
+    pdos_values = zeros(Float64, length(εs))
+    for i in idx
+        pdos_values += res.pdos[:, i, spin]
+    end
+    return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
+end
+
+function get_pdos_spinless(res, atom::Symbol, n, l)
+    idx = findall(orb -> (orb.species==atom && orb.n==n && orb.l==l), res.projector_labels)
+    pdos_values = zeros(Float64, length(εs))
+    for i in idx
+        pdos_values += res.pdos[:, i, 1]
+    end
+    return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
+end
+
+function get_pdos_spinless(res, atom::Symbol, l)
+    idx = findall(orb -> (orb.species==atom && orb.l==l), res.projector_labels)
+    pdos_values = zeros(Float64, length(εs))
+    for i in idx
+        pdos_values += res.pdos[:, i, 1]
+    end
+    return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
 end
 
 """
