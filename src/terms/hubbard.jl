@@ -16,137 +16,66 @@
      - projectors: vector of matrices of projectors, where 
                projectors[ik][iband, iproj] = |ϕinlm>(iband,kpt) for each kpoint kpt
 """
-function build_projectors(basis::PlaneWaveBasis{T}) where {T}
+function build_projectors(basis::PlaneWaveBasis{T};
+                          positions = basis.model.positions
+                          ) where {T}
     
+    G_plus_k_all = [Gplusk_vectors(basis, basis.kpoints[ik])
+                    for ik = 1:length(basis.kpoints)]
+    G_plus_k_all_cart = [map(recip_vector_red_to_cart(basis.model), gpk) 
+                         for gpk in G_plus_k_all]
+
     psps = Vector{NormConservingPsp}(undef, length(basis.model.atoms))
-    labels = Vector{NTuple{3, Any}}(undef, 0)
+    labels = []
+    #form_factors = [Matrix{Complex{T}}(undef, length(G_plus_k), nprojs)  for G_plus_k in G_plus_k_all_cart]  # Initialize form factors for all k-points
+    form_factors = [Matrix{Complex{T}}(undef, length(G_plus_k), 0)  for G_plus_k in G_plus_k_all_cart]
     for (iatom, atom) in enumerate(basis.model.atoms)
         psps[iatom] = atom.psp
         for l in 0:psps[iatom].lmax
             for n in 1:DFTK.count_n_pswfc_radial(psps[iatom], l)
+                fun(p) = eval_psp_pswfc_fourier(psps[iatom], n, l, p)
+                form_factors_l = build_form_factors(fun, l, G_plus_k_all_cart)
+                for ik in 1:length(G_plus_k_all_cart)
+                   #form_factors[ik][:,offset:offset+2*l] = form_factors_l[ik] #Can't work here because I don't know nproj a priori
+                   form_factors[ik] = hcat(form_factors[ik], form_factors_l[ik])  # Concatenate the form factors for this l
+                end
                 for m in -l:l
-                    push!(labels, (atom.species, psps[iatom].pswfc_labels[n+l], m))
+                    label = psps[iatom].pswfc_labels[n+l][1]
+                    push!(labels, (; iatom, atom.species, n, l, m, label))
                 end
             end
         end
     end
     nprojs = length(labels)
-    #n_offset = get_nl(labels[1][2]).n
-
-    G_plus_k_all = [Gplusk_vectors(basis, basis.kpoints[ik])
-                    for ik = 1:length(basis.kpoints)]
-    G_plus_k_all_cart = [map(recip_vector_red_to_cart(basis.model), gpk) 
-                         for gpk in G_plus_k_all]
-    
-    # Build form factors of pseudo-wavefunctions centered at 0.
-     
-    form_factors = [Matrix{Complex{T}}(undef, length(G_plus_k), nprojs)  for G_plus_k in G_plus_k_all_cart]  # Initialize form factors for all k-points
-    for (iproj, (atom, orbital, m)) in enumerate(labels)
-        psp = psps[iatom]
-        fun(p) = eval_psp_pswfc_fourier(psp, n, l, p)
-        # Build form factors for the current projector
-        
-        radials = IdDict{T,T}()  # IdDict for Dual compatibility
-        for G_plus_k in G_plus_k_all_cart
-            for p in G_plus_k
-                p_norm = norm(p)
-                if !haskey(radials, p_norm)
-                    radials_p = fun(p_norm)
-                    radials[p_norm] = radials_p
-                end
-            end
-        end
-
-        for (ik, G_plus_k) in enumerate(G_plus_k_all_cart)
-            for (ip, p) in enumerate(G_plus_k)
-                radials_p = radials[norm(p)]
-                # see "Fourier transforms of centered functions" in the docs for the formula
-                angular = (-im)^l * ylm_real(l, m, p)
-                form_factors[ik][ip, iproj] = radials_p * angular
-            end
-        end
-    end
 
     projectors = Vector{Matrix}(undef, length(basis.kpoints))
-    for (ik, G_plus_k) in enumerate(G_plus_k_all)  # The loop now iterates over k-points regardless of the spin component
-        proj_vectors = Vector{Vector{Any}}(undef, 0)
-        for (iproj, (iatom, n, l, m)) in enumerate(labels)
-            structure_factor = [cis2pi(-dot(positions[iatom], p)) for p in G_plus_k]
-            @assert length(structure_factor) == length(G_plus_k) "Structure factor length mismatch: $(length(structure_factor)) != $(length(G_plus_k))"
-            proj_vector = structure_factor .* form_factors[ik][:, iproj] ./ sqrt(basis.model.unit_cell_volume)
-            push!(proj_vectors, proj_vector)  # Collect all projection vectors for this k-point    
+    for (ik, ψk) in enumerate(ψ) # The loop now iterates over k-points regardless of the spin component
+        proj_vectors = Matrix{Complex{T}}(undef, length(G_plus_k_all[ik]), nprojs)  # Collect all projection vectors for this k-point
+        for (iproj, proj) in enumerate(labels)
+            structure_factor = [cis2pi(-dot(positions[proj.iatom], p)) for p in G_plus_k_all[ik]]
+            @assert length(structure_factor) == length(G_plus_k_all[ik]) "Structure factor length mismatch: $(length(structure_factor)) != $(length(G_plus_k))"
+            proj_vectors[:,iproj] = structure_factor .* form_factors[ik][:, iproj] ./ sqrt(basis.model.unit_cell_volume)    
         end
 
-        proj_vectors = hcat(proj_vectors...)  # Create a matrix of projections for this k-point
         @assert size(proj_vectors, 2) == nprojs "Projection matrix size mismatch: $(size(proj_vectors)) != $nprojs"
-        proj_vectors = ortho_lwd(proj_vectors)  # Lowdin-orthogonal
+        # At this point proj_vectors is a matrix containing all orbital projectors from all atoms. 
+        #   What we want is to have them all orthogonal, to avoid double counting in the Hubbard U term contribution.
+        #   We use Lowdin orthogonalization to minimize the "identity loss" of individual orbital projectors after the orthogonalization
+        proj_vectors = ortho_lowdin(proj_vectors)  # Lowdin-orthogonal
         
         projectors[ik] = proj_vectors  # Contract on ψk to get the projections
     end
 
-    return projectors
+    return (;projectors, labels)
 end
 
-"""
-    Get the principal quantum number n and angular momentum l from the orbital string.
-"""
-function get_nl(orbital::String)
-
-    if string(orbital[2]) == "s"
-        l = 0
-    elseif string(orbital[2]) == "p"
-        l = 1
-    elseif string(orbital[2]) == "d"
-        l = 2
-    elseif string(orbital[2]) == "f"
-        l = 3
-    else
-        error("Unknown orbital type: $orbital")
-    end
-
-    n = parse(Int, orbital[1])
-    return (; n, l)
-end
-
-"""
-"""
-
-function build_projectors(bands)
-
-    basis = bands.basis
-    model = basis.model
-    positions = model.positions
-    natoms = length(positions)
-    psps = Vector{NormConservingPsp}([model.atoms[i].psp for i in 1:natoms])  # PSP for all atoms
+function compute_overlap_matrix(basis::PlaneWaveBasis{T};
+                                positions = basis.mode.positions
+                                ) where {T}
     
-    max_l = Vector{Any}(undef, natoms)  # lmax for all atoms
-    max_l = [psps[iatom].lmax for iatom in 1:natoms]  # lmax for all atoms
-    max_n = Vector{Vector{Int}}(undef, natoms)  # Principal quantum number for all atoms
-    for iatom in 1:natoms
-        max_n[iatom] = [DFTK.count_n_pswfc_radial(psps[iatom], l) for l in 0:max_l[iatom]]
-    end
-    
-    projector_labels = Vector{NTuple{4, Int64}}(undef, 0)
-    for iatom in 1:natoms
-        for l in 0:max_l[iatom]
-            for n in 1:max_n[iatom][l+1]
-                for m in -l:l
-                    push!(projector_labels, (iatom, n, l, m))
-                end 
-            end
-        end
-    end
-    nprojs = length(projector_labels) 
-
-    projectors = build_projectors(basis, psps, positions, projector_labels)
-
-    return (; projectors, projector_labels)
-end
-
-function compute_overlap_matrix(basis::PlaneWaveBasis{T},
-                    psps::AbstractVector{<: NormConservingPsp}, positions, labels::Vector{Tuple{Int,Int,Int,Int}}) where {T}
-    
-    projectors = build_projectors(basis, psps, positions, labels)
+    proj = build_projectors(basis; positions) # Get the projectors for all k-points
+    projectors = proj.projectors
+    labels = proj.labels
     overlap_matrix = Vector{Matrix{T}}(undef, length(basis.kpoints))  # Initialize the density matrix
 
     for (ik, projk) in enumerate(projectors)
@@ -155,45 +84,28 @@ function compute_overlap_matrix(basis::PlaneWaveBasis{T},
         overlap_matrix[ik] = abs2.(projk' * projk)  # Compute the density matrix for this k-point
     end
 
-    return overlap_matrix
+    return (;overlap_matrix, projectors, labels)
 end
 
-function compute_overlap_matrix(bands)
+"""
+   This function computes the Hubbard matrix for a given manifold and basis.
 
-    basis = bands.basis
-    model = basis.model
-    positions = model.positions
-    natoms = length(positions)
-    psps = Vector{NormConservingPsp}([model.atoms[i].psp for i in 1:natoms])  # PSP for all atoms
+   Input:
+    - manifold: a tuple (species, orbital) defining the manifold. At the moment it only support one species and one orbital.
+    - basis: PlaneWaveBasis containing the wavefunctions and k-points
+    - ψ: wavefunctions from the scf calculation
+    - (optional) positions: positions of the atoms in the unit cell
+   Output:
+    - hubbard_matrix: a matrix containing the Hubbard interaction terms for the specified manifold
+    - manifold_labels: labels for the projectors in the Hubbard matrix, which is made like the labels in `build_projectors`
+
+"""
+
+function compute_hubbard_matrix(manifold::Tuple{Symbol, String}, basis::PlaneWaveBasis{T}, ψ;
+                                positions = basis.model.positions
+                                ) where {T}
     
-    max_l = Vector{Any}(undef, natoms)  # lmax for all atoms
-    max_l = [psps[iatom].lmax for iatom in 1:natoms]  # lmax for all atoms
-    max_n = Vector{Vector{Int}}(undef, natoms)  # Principal quantum number for all atoms
-    for iatom in 1:natoms
-        max_n[iatom] = [DFTK.count_n_pswfc_radial(psps[iatom], l) for l in 0:max_l[iatom]]
-    end
-    
-    projector_labels = Vector{NTuple{4, Int64}}(undef, 0)
-    for iatom in 1:natoms
-        for l in 0:max_l[iatom]
-            for n in 1:max_n[iatom][l+1]
-                for m in -l:l
-                    push!(projector_labels, (iatom, n, l, m))
-                end 
-            end
-        end
-    end
-    nprojs = length(projector_labels) 
-
-    S_mat = compute_overlap_matrix(basis, psps, positions, projector_labels)
-
-    return (; S_mat, projector_labels)
-end
-
-function compute_hubbard_matrix(manifold::NTuple{3,Int64}, basis::PlaneWaveBasis{T}, ψ,
-                    psps::AbstractVector{<: NormConservingPsp}, positions, labels::Vector{Tuple{Int,Int,Int,Int}}) where {T}
-    
-    projectors = build_projectors(basis, psps, positions, labels)
+    projectors, labels = build_projectors(basis; positions).projectors, build_projectors(basis; positions).labels
     nprojs = length(labels)
     density_matrix = zeros(Complex{T}, nprojs, nprojs)  # Initialize the density matrix
 
@@ -210,7 +122,7 @@ function compute_hubbard_matrix(manifold::NTuple{3,Int64}, basis::PlaneWaveBasis
     dim_manifold = 0
     manifold_labels = Vector{NTuple{4, Int64}}(undef, 0)
     for orbital in labels
-        if manifold[1] == orbital[1] && manifold[2] == orbital[2] && manifold[3] == orbital[3]
+        if manifold[1] == orbital.species && lowercase(manifold[2]) == lowercase(orbital.label)
             dim_manifold += 1
             push!(manifold_labels, orbital)  # Collect labels for the manifold
         end
@@ -219,9 +131,9 @@ function compute_hubbard_matrix(manifold::NTuple{3,Int64}, basis::PlaneWaveBasis
     ih = 1
     for (i, orbital_i) in enumerate(labels)
         jh = 1
-        if manifold[1] == orbital_i[1] && manifold[2] == orbital_i[2] && manifold[3] == orbital_i[3]
+        if manifold[1] == orbital_i.species && lowercase(manifold[2]) == lowercase(orbital_i.label) 
             for (j, orbital_j) in enumerate(labels)
-                if manifold[1] == orbital_j[1] && manifold[2] == orbital_j[2] && manifold[3] == orbital_j[3]
+                if manifold[1] == orbital_j.species && lowercase(manifold[2]) == lowercase(orbital_j.label) 
                     hubbard_matrix[ih, jh] = density_matrix[i, j]
                     jh += 1  # Increment the index for the manifold
                 end
@@ -230,38 +142,16 @@ function compute_hubbard_matrix(manifold::NTuple{3,Int64}, basis::PlaneWaveBasis
         end
     end
 
-    return hubbard_matrix, manifold_labels
+    return (;hubbard_matrix, manifold_labels)
 end
 
-function compute_hubbard_matrix(manifold, bands)
+function compute_hubbard_matrix(manifold, bands; positions = bands.basis.model.positions)
 
     ψ = bands.ψ
     basis = bands.basis
-    model = basis.model
-    positions = model.positions
-    natoms = length(positions)
-    psps = Vector{NormConservingPsp}([model.atoms[i].psp for i in 1:natoms])  # PSP for all atoms
     
-    max_l = Vector{Any}(undef, natoms)  # lmax for all atoms
-    max_l = [psps[iatom].lmax for iatom in 1:natoms]  # lmax for all atoms
-    max_n = Vector{Vector{Int}}(undef, natoms)  # Principal quantum number for all atoms
-    for iatom in 1:natoms
-        max_n[iatom] = [DFTK.count_n_pswfc_radial(psps[iatom], l) for l in 0:max_l[iatom]]
-    end
-    
-    projector_labels = Vector{NTuple{4, Int64}}(undef, 0)
-    for iatom in 1:natoms
-        for l in 0:max_l[iatom]
-            for n in 1:max_n[iatom][l+1]
-                for m in -l:l
-                    push!(projector_labels, (iatom, n, l, m))
-                end 
-            end
-        end
-    end
-    nprojs = length(projector_labels) 
-
-    hubbard_matrix, manifold_labels = compute_hubbard_matrix(manifold, basis, ψ, psps, positions, projector_labels)
+    hubbard_matrix = compute_hubbard_matrix(manifold, basis, ψ; positions).hubbard_matrix
+    manifold_labels = compute_hubbard_matrix(manifold, basis, ψ; positions).manifold_labels
 
     return (; hubbard_matrix, manifold_labels)
 end
@@ -327,25 +217,29 @@ end
 #end
 
 struct TermHubbard <: Term
-    manifold::NTuple{3,Int64}  # (iatom, n, l)
-    U::Float64  # Hubbard interaction strength
+    manifold::Tuple{Symbol, String}     # (Atomic species, Orbital name)
+    U::Float64                          # Hubbard interaction strength
     hubbard_matrix::Matrix{Complex{T}}  # Hubbard matrix
 end
-#"""
-#        Create a Hubbard term for the given manifold and interaction strength.
-#        
-#        Input:
-#        - manifold: (iatom, n, l) tuple defining the manifold
-#        - U: Hubbard interaction strength
-#        - hubbard_matrix: Matrix containing the Hubbard interaction terms
-#        
-#        Output:
-#        - TermHubbard instance
-#    """
-function TermHubbard(manifold::NTuple{3,Int64}, U::Float64, basis::PlaneWaveBasis{T}, ψ,
-                    psps::AbstractVector{<: NormConservingPsp}, positions, labels::Vector{Tuple{Int,Int,Int,Int}}) where {T}
-    hubbard_matrix = compute_hubbard_matrix(manifold, basis, ψ, psps, positions, labels).hubbard_matrix
-    return TermHubbard(manifold, U, hubbard_matrix)
+
+"""
+        Create a Hubbard term for the given manifold and interaction strength.
+        
+        Input:
+        - manifold: (iatom, n, l) tuple defining the manifold
+        - U: Hubbard interaction strength
+        - hubbard_matrix: Matrix containing the Hubbard interaction terms
+        
+        Output:
+        - TermHubbard instance
+"""
+function TermHubbard(manifold::Tuple{Symbol, String}, U::T, 
+                     basis::PlaneWaveBasis{T}, 
+                     ψ::Vector{<:AbstractArray{Complex{T}}};
+                     positions = basis.model.positions,
+                     ) where {T}
+    hubbard_matrix = compute_hubbard_matrix(manifold, basis, ψ; positions).hubbard_matrix
+    return TermHubbard(manifold, T(U), hubbard_matrix)
 end
 
 @timing "ene_ops: hubbard" function ene_ops(term::TermHubbard, basis::PlaneWaveBasis{T},
@@ -360,8 +254,7 @@ end
     E = zero(T)  # Initialize the energy contribution
     E = term.U * real(trace(term.hubbard_matrix * (I - term-hubbard_matrix)))  # Compute the energy contribution from the Hubbard term
 
-    ops = build_projectors(basis, psps=[basis.model.atoms[i].psp for i in 1:length(basis.model.positions)],
-                           positions=basis.model.positions, labels=term.manifold)  # Build the projectors for the Hubbard term
+    ops = build_projectors(basis; positions=basis.model.positions)  # Build the projectors for the Hubbard term
 
     (; E, ops)
 end
