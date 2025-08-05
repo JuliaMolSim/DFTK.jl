@@ -1,3 +1,5 @@
+using LinearAlgebra
+
 """
     Build the projection matrices projsk for all k-points at the same time.
      projection[ik][iband, iproj] = projsk[iband, iproj] = |<ψnk, ϕinlm>|^2
@@ -49,7 +51,7 @@ function build_projectors(basis::PlaneWaveBasis{T};
     nprojs = length(labels)
 
     projectors = Vector{Matrix}(undef, length(basis.kpoints))
-    for (ik, ψk) in enumerate(ψ) # The loop now iterates over k-points regardless of the spin component
+    for ik in 1:length(basis.kpoints) # The loop now iterates over k-points regardless of the spin component
         proj_vectors = Matrix{Complex{T}}(undef, length(G_plus_k_all[ik]), nprojs)  # Collect all projection vectors for this k-point
         for (iproj, proj) in enumerate(labels)
             structure_factor = [cis2pi(-dot(positions[proj.iatom], p)) for p in G_plus_k_all[ik]]
@@ -70,7 +72,7 @@ function build_projectors(basis::PlaneWaveBasis{T};
 end
 
 function compute_overlap_matrix(basis::PlaneWaveBasis{T};
-                                positions = basis.mode.positions
+                                positions = basis.model.positions
                                 ) where {T}
     
     proj = build_projectors(basis; positions) # Get the projectors for all k-points
@@ -100,7 +102,6 @@ end
     - manifold_labels: labels for the projectors in the Hubbard matrix, which is made like the labels in `build_projectors`
 
 """
-
 function compute_hubbard_matrix(manifold::Tuple{Symbol, String}, basis::PlaneWaveBasis{T}, ψ;
                                 positions = basis.model.positions
                                 ) where {T}
@@ -217,9 +218,9 @@ end
 #end
 
 struct TermHubbard <: Term
-    manifold::Tuple{Symbol, String}     # (Atomic species, Orbital name)
-    U::Float64                          # Hubbard interaction strength
-    hubbard_matrix::Matrix{Complex{T}}  # Hubbard matrix
+    manifold::Tuple{Symbol, String}               # (Atomic species, Orbital name)
+    U::Real                                        # Hubbard interaction strength
+    hubbard_matrix::Matrix{Complex{Real}}            # Hubbard matrix
 end
 
 """
@@ -233,26 +234,24 @@ end
         Output:
         - TermHubbard instance
 """
-function TermHubbard(manifold::Tuple{Symbol, String}, U::T, 
+function TermHubbard(manifold::Tuple{Symbol, String}, U::Real, 
                      basis::PlaneWaveBasis{T}, 
                      ψ::Vector{<:AbstractArray{Complex{T}}};
                      positions = basis.model.positions,
                      ) where {T}
     hubbard_matrix = compute_hubbard_matrix(manifold, basis, ψ; positions).hubbard_matrix
-    return TermHubbard(manifold, T(U), hubbard_matrix)
+    return TermHubbard(manifold, Real(U), hubbard_matrix)
 end
 
 @timing "ene_ops: hubbard" function ene_ops(term::TermHubbard, basis::PlaneWaveBasis{T},
                                             ψ=nothing, occupation=nothing; kwargs...) where {T}
-    
-    using LinearAlgebra: trace
     
     if isnothing(ψ) || isnothing(occupation)
         return (; E=zero(T), ops=NoopOperator())
     end
 
     E = zero(T)  # Initialize the energy contribution
-    E = term.U * real(trace(term.hubbard_matrix * (I - term-hubbard_matrix)))  # Compute the energy contribution from the Hubbard term
+    E = term.U * real(trace(term.hubbard_matrix * (I - term.hubbard_matrix)))  # Compute the energy contribution from the Hubbard term
 
     ops = build_projectors(basis; positions=basis.model.positions)  # Build the projectors for the Hubbard term
 
