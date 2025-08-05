@@ -1,20 +1,23 @@
+"""
+    Build the projection matrices projsk for all k-points at the same time.
+     projection[ik][iband, iproj] = projsk[iband, iproj] = |<ψnk, ϕinlm>|^2
+     where ψnk is the wavefunction for band iband at k-point kpt,
+     and ϕinlm is the atomic orbital for atom i, quantum numbers (n,l,m)
+    
+     Input:
+     - basis: PlaneWaveBasis
+     - ψ: wavefunctions of the basis 
+     - psps: vector of pseudopotentials for each atom
+     - positions: positions of the atoms in the unit cell
+     - labels: structure containing iatom, species, n, l, m and orbital name for each projector
+     Note: 'n' is not exactly the principal quantum number, but rather the index of the radial function in the pseudopotential.
+           As an example, if the pseudopotential contains the 3S and 4S orbitals, then those are indexed as n=1, l=0 and n=2, l=0 respectively.
+     Output:
+     - projectors: vector of matrices of projectors, where 
+               projectors[ik][iband, iproj] = |ϕinlm>(iband,kpt) for each kpoint kpt
+"""
 function build_projectors(basis::PlaneWaveBasis{T}) where {T}
-    """
-        Build the projection matrices projsk for all k-points at the same time.
-         projectors[ik][iband, iproj] = projsk[iband, iproj] = |<ψnk, ϕinlm>|^2
-         where ψnk is the wavefunction for band iband at k-point kpt,
-         and ϕinlm is the atomic orbital for atom i, quantum numbers (n,l,m)
-        
-         Input:
-         - basis: PlaneWaveBasis
-         - ψ: wavefunctions of the basis 
-         - psps: vector of pseudopotentials for each atom
-         - positions: positions of the atoms in the unit cell
-         - labels: vector of tuples (iatom, n, l, m) for each projector
-         Output:
-         - projectors: vector of matrices of projectors, where 
-                   projectors[ik][iband, iproj] = |ϕinlm>(iband,kpt) for each kpoint kpt
-    """
+    
     psps = Vector{NormConservingPsp}(undef, length(basis.model.atoms))
     labels = Vector{NTuple{3, Any}}(undef, 0)
     for (iatom, atom) in enumerate(basis.model.atoms)
@@ -84,10 +87,11 @@ function build_projectors(basis::PlaneWaveBasis{T}) where {T}
     return projectors
 end
 
-function get_nl(orbital::String)
-    """
+"""
     Get the principal quantum number n and angular momentum l from the orbital string.
-    """
+"""
+function get_nl(orbital::String)
+
     if string(orbital[2]) == "s"
         l = 0
     elseif string(orbital[2]) == "p"
@@ -104,6 +108,7 @@ function get_nl(orbital::String)
     return (; n, l)
 end
 
+"""
 """
 
 function build_projectors(bands)
@@ -262,10 +267,9 @@ function compute_hubbard_matrix(manifold, bands)
 end
 
 
-# Questo operatore non serve ad una mazza, almeno per ora. 
-# Anzi scritto così è pericoloso perché probabilmen riempie la RAM
+# This part of the code is currently useless and even dangerour since it fills the RAM.
 
-# !!!!!!NON USARE!!!!!!!!!!!
+# !!!!!!DO NOT USE!!!!!!!!!!!
 
 #function projection_operator(basis::PlaneWaveBasis{T},
 #                    psps::AbstractVector{<: NormConservingPsp}, 
