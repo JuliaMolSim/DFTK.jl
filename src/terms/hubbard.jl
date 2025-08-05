@@ -121,9 +121,9 @@ function compute_hubbard_matrix(manifold::Tuple{Symbol, String}, basis::PlaneWav
     end
 
     dim_manifold = 0
-    manifold_labels = Vector{NTuple{4, Int64}}(undef, 0)
+    manifold_labels = Vector{NamedTuple}(undef, 0)
     for orbital in labels
-        if manifold[1] == orbital.species && lowercase(manifold[2]) == lowercase(orbital.label)
+        if manifold[1] == Symbol(orbital.species) && lowercase(manifold[2]) == lowercase(orbital.label)
             dim_manifold += 1
             push!(manifold_labels, orbital)  # Collect labels for the manifold
         end
@@ -132,9 +132,9 @@ function compute_hubbard_matrix(manifold::Tuple{Symbol, String}, basis::PlaneWav
     ih = 1
     for (i, orbital_i) in enumerate(labels)
         jh = 1
-        if manifold[1] == orbital_i.species && lowercase(manifold[2]) == lowercase(orbital_i.label) 
+        if manifold[1] == Symbol(orbital_i.species) && lowercase(manifold[2]) == lowercase(orbital_i.label) 
             for (j, orbital_j) in enumerate(labels)
-                if manifold[1] == orbital_j.species && lowercase(manifold[2]) == lowercase(orbital_j.label) 
+                if manifold[1] == Symbol(orbital_j.species) && lowercase(manifold[2]) == lowercase(orbital_j.label) 
                     hubbard_matrix[ih, jh] = density_matrix[i, j]
                     jh += 1  # Increment the index for the manifold
                 end
@@ -143,7 +143,7 @@ function compute_hubbard_matrix(manifold::Tuple{Symbol, String}, basis::PlaneWav
         end
     end
 
-    return (;hubbard_matrix, manifold_labels)
+    return (;hubbard_matrix, manifold_labels, projectors, labels, density_matrix)
 end
 
 function compute_hubbard_matrix(manifold, bands; positions = bands.basis.model.positions)
@@ -216,44 +216,29 @@ end
 #
 #    return (; proj_matrix, projector_labels)
 #end
+struct Hubbard
+    manifold::Tuple{Symbol, String}
+    U::Float64
+end
 
 struct TermHubbard <: Term
-    manifold::Tuple{Symbol, String}               # (Atomic species, Orbital name)
-    U::Real                                        # Hubbard interaction strength
-    hubbard_matrix::Matrix{Complex{Real}}            # Hubbard matrix
+    manifold::Tuple{Symbol, String}
+    U::Float64
 end
 
-"""
-        Create a Hubbard term for the given manifold and interaction strength.
-        
-        Input:
-        - manifold: (iatom, n, l) tuple defining the manifold
-        - U: Hubbard interaction strength
-        - hubbard_matrix: Matrix containing the Hubbard interaction terms
-        
-        Output:
-        - TermHubbard instance
-"""
-function TermHubbard(manifold::Tuple{Symbol, String}, U::Real, 
-                     basis::PlaneWaveBasis{T}, 
-                     ψ::Vector{<:AbstractArray{Complex{T}}};
-                     positions = basis.model.positions,
-                     ) where {T}
-    hubbard_matrix = compute_hubbard_matrix(manifold, basis, ψ; positions).hubbard_matrix
-    return TermHubbard(manifold, Real(U), hubbard_matrix)
-end
+(hubbard::Hubbard)(::AbstractBasis) = TermHubbard(hubbard.manifold, hubbard.U)
 
-@timing "ene_ops: hubbard" function ene_ops(term::TermHubbard, basis::PlaneWaveBasis{T},
-                                            ψ=nothing, occupation=nothing; kwargs...) where {T}
-    
-    if isnothing(ψ) || isnothing(occupation)
-        return (; E=zero(T), ops=NoopOperator())
+function ene_ops(term::TermHubbard, basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where {T}
+    if isnothing(ψ)
+        return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
     end
-
-    E = zero(T)  # Initialize the energy contribution
-    E = term.U * real(trace(term.hubbard_matrix * (I - term.hubbard_matrix)))  # Compute the energy contribution from the Hubbard term
-
-    ops = build_projectors(basis; positions=basis.model.positions)  # Build the projectors for the Hubbard term
-
+    
+    # Compute Hubbard matrix HERE, not in constructor
+    hubbard_matrix = compute_hubbard_matrix(term.manifold, basis, ψ).hubbard_matrix
+    E = term.U * real(tr(hubbard_matrix * (I - hubbard_matrix)))
+    
+    # Return proper operators
+    ops = [NoopOperator(basis, kpt) for kpt in basis.kpoints]  # or proper Hubbard operators
+    
     (; E, ops)
 end
