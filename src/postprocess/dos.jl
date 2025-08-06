@@ -84,35 +84,25 @@ Note:
      even though they are printed separately (i.e. summing over all QE pdos from all output files does not yield the DOS).
 """
 
-function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues,
-                      psps::AbstractVector{<: NormConservingPsp}, 
-                      positions;
+function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues; 
+                      positions=basis.model.positions,
                       smearing=basis.model.smearing, 
                       temperature=basis.model.temperature) where {T}
     if (temperature == 0) || smearing isa Smearing.None
         error("compute_pdos only supports finite temperature")
     end
     filled_occ = filled_occupation(basis.model)
-          
-    natoms = length(positions)
-    projector_labels = Vector{NTuple{4, Int64}}(undef, 0)
-    for iatom in 1:natoms
-        for l in 0:psps[iatom].lmax
-            for n in 1:DFTK.count_n_pswfc_radial(psps[iatom], l)
-                for m in -l:l
-                    push!(projector_labels, (iatom, n, l, m))
-                end 
-            end
-        end
-    end
-    nprojs = length(projector_labels) 
+    
+    res = build_projections(basis, ψ; positions=positions)
+    projections = res.projs
+    projector_labels = res.labels
 
-    projectors = build_projections(basis, ψ)
+    nprojs = length(projector_labels) 
 
     D = zeros(typeof(εs[1]), length(εs), nprojs, basis.model.n_spin_components)  
     for (iε, ε) in enumerate(εs)
         for σ in 1:basis.model.n_spin_components, ik = krange_spin(basis, σ)
-            projsk = projectors[ik]  
+            projsk = projections[ik]  
             @views for (iband, εnk) in enumerate(eigenvalues[ik])
                 enred = (εnk - ε) / temperature
                 # Loop over all projectors
@@ -131,8 +121,7 @@ function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues,
 end
 
 function compute_pdos(εs, bands; kwargs...)
-    psps = Vector{NormConservingPsp}([bands.basis.model.atoms[i].psp for i in 1:length(bands.basis.model.atoms)])  # PSP for all atoms
-    compute_pdos(εs, bands.basis, bands.ψ, bands.eigenvalues, psps, bands.basis.model.positions; kwargs...)
+    compute_pdos(εs, bands.basis, bands.ψ, bands.eigenvalues; kwargs...)
 end
 
 # TODO: function compute_single_pdos, or add optional arguments to the previous function to make it print only one pdos
