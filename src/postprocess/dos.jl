@@ -84,18 +84,18 @@ Note:
      even though they are printed separately (i.e. summing over all QE pdos from all output files does not yield the DOS).
 """
 
-function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues,
-                      psps::AbstractVector{<: NormConservingPsp}, # Is it needed? It's already in basis.model.atoms
-                      positions;                                  # Is it needed? It's already in basis.model.positions
+function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues; 
+                      positions=basis.model.positions,
                       smearing=basis.model.smearing, 
                       temperature=basis.model.temperature) where {T}
     if (temperature == 0) || smearing isa Smearing.None
         error("compute_pdos only supports finite temperature")
     end
     filled_occ = filled_occupation(basis.model)
+    
+    projections, projector_labels = build_projections(basis, ψ; positions=positions)
 
-    projections, labels = build_projections(basis, ψ)
-    nprojs = length(labels)
+    nprojs = length(projector_labels) 
 
     D = zeros(typeof(εs[1]), length(εs), nprojs, basis.model.n_spin_components)  
     for (iε, ε) in enumerate(εs)
@@ -103,7 +103,7 @@ function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues,
             projsk = projections[ik]  
             @views for (iband, εnk) in enumerate(eigenvalues[ik])
                 enred = (εnk - ε) / temperature
-                # Loop over all projections
+                # Loop over all projectors
                 for iproj in 1:size(projsk, 2)
                     projk = projsk[:, iproj]
                     D[iε, iproj,σ] -= (filled_occ * basis.kweights[ik] * projk[iband]
@@ -115,13 +115,11 @@ function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues,
     end
     pdos = mpi_sum(D, basis.comm_kpts)  # Sum over all k-points
 
-    return (; pdos, projector_labels=labels)
+    return (; pdos, projector_labels)
 end
 
 function compute_pdos(εs, bands; kwargs...)
-    psps = Vector{NormConservingPsp}([bands.basis.model.atoms[i].psp for i in 1:length(bands.basis.model.atoms)])  # PSP for all atoms
-    
-    compute_pdos(εs, bands.basis, bands.ψ, bands.eigenvalues, psps, bands.basis.model.positions; kwargs...)
+    compute_pdos(εs, bands.basis, bands.ψ, bands.eigenvalues; kwargs...)
 end
 
 # TODO: function compute_single_pdos, or add optional arguments to the previous function to make it print only one pdos
@@ -137,7 +135,9 @@ Build the projection matrices projsk for all k-points at the same time.
  - ψ: wavefunctions of the basis 
  - psps: vector of pseudopotentials for each atom
  - positions: positions of the atoms in the unit cell
- - labels: vector of tuples (iatom, n, l, m) for each projector
+ - labels: NamedTuple with labels for the projectors, e.g. (species, iatom, n, l, m, orbital name)
+ Note: 'n' is not the principal quantum number, but the index of the radial wavefunction in the pseudopotential.
+       So for Si, the 3s orbital would have n=1, l=0, m=0, and the 3p orbital would have n=1, l=1, m=-1,0,1.
  Output:
  - projs: vector of matrices of projections, where 
            projs[ik][iband, iproj] = |<ψnk, ϕilm>|^2 for each kpoint kpt
@@ -154,7 +154,6 @@ function build_projections(basis::PlaneWaveBasis{T}, ψ;
 
     psps = Vector{NormConservingPsp}(undef, length(basis.model.atoms))
     labels = []
-    #form_factors = [Matrix{Complex{T}}(undef, length(G_plus_k), nprojs)  for G_plus_k in G_plus_k_all_cart]  # Initialize form factors for all k-points
     form_factors = [Matrix{Complex{T}}(undef, length(G_plus_k), 0)  for G_plus_k in G_plus_k_all_cart]
     for (iatom, atom) in enumerate(basis.model.atoms)
         psps[iatom] = atom.psp
@@ -163,7 +162,6 @@ function build_projections(basis::PlaneWaveBasis{T}, ψ;
                 fun(p) = eval_psp_pswfc_fourier(psps[iatom], n, l, p)
                 form_factors_l = build_form_factors(fun, l, G_plus_k_all_cart)
                 for ik in 1:length(G_plus_k_all_cart)
-                   #form_factors[ik][:,offset:offset+2*l] = form_factors_l[ik] #Can't work here because I don't know nproj a priori
                    form_factors[ik] = hcat(form_factors[ik], form_factors_l[ik])  # Concatenate the form factors for this l
                 end
                 for m in -l:l
