@@ -232,13 +232,12 @@ function ene_ops(term::TermHubbard, basis::PlaneWaveBasis{T}, ψ, occupation; kw
     if isnothing(ψ)
         return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
     end
-    
-    # Compute Hubbard matrix HERE, not in constructor
+    # Compute Hubbard matrix 
     hubbard_matrix = compute_hubbard_matrix(term.manifold, basis, ψ).hubbard_matrix
     E = term.U * real(tr(hubbard_matrix * (I - hubbard_matrix)))
     
     # Return proper operators
     ops = [NoopOperator(basis, kpt) for kpt in basis.kpoints]  # or proper Hubbard operators
-    
+
     (; E, ops)
 end

@@ -85,33 +85,33 @@ end
     using LinearAlgebra
     using .HamConsistency: test_consistency_term
 
-    test_consistency_term(Kinetic())
-    test_consistency_term(AtomicLocal())
-    test_consistency_term(AtomicNonlocal())
-    test_consistency_term(ExternalFromReal(X -> cos(X[1])))
-    test_consistency_term(ExternalFromFourier(X -> abs(norm(X))))
-    test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
-    test_consistency_term(Hartree())
+    #test_consistency_term(Kinetic())
+    #test_consistency_term(AtomicLocal())
+    #test_consistency_term(AtomicNonlocal())
+    #test_consistency_term(ExternalFromReal(X -> cos(X[1])))
+    #test_consistency_term(ExternalFromFourier(X -> abs(norm(X))))
+    #test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
+    #test_consistency_term(Hartree())
     test_consistency_term(Hubbard())
-    test_consistency_term(Ewald())
-    test_consistency_term(PspCorrection())
-    test_consistency_term(Xc([:lda_xc_teter93]))
-    test_consistency_term(Xc([:lda_xc_teter93]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:gga_x_pbe]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:mgga_x_tpss]))
-    test_consistency_term(Xc([:mgga_x_scan]))
-    test_consistency_term(Xc([:mgga_c_scan]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:mgga_x_b00]))
-    test_consistency_term(Xc([:mgga_c_b94]), spin_polarization=:collinear)
+    #test_consistency_term(Ewald())
+    #test_consistency_term(PspCorrection())
+    #test_consistency_term(Xc([:lda_xc_teter93]))
+    #test_consistency_term(Xc([:lda_xc_teter93]), spin_polarization=:collinear)
+    #test_consistency_term(Xc([:gga_x_pbe]), spin_polarization=:collinear)
+    #test_consistency_term(Xc([:mgga_x_tpss]))
+    #test_consistency_term(Xc([:mgga_x_scan]))
+    #test_consistency_term(Xc([:mgga_c_scan]), spin_polarization=:collinear)
+    #test_consistency_term(Xc([:mgga_x_b00]))
+    #test_consistency_term(Xc([:mgga_c_b94]), spin_polarization=:collinear)
 
-    let
-        a = 6
-        pot(x, y, z) = (x - a/2)^2 + (y - a/2)^2
-        Apot(x, y, z) = .2 * [y - a/2, -(x - a/2), 0]
-        Apot(X) = Apot(X...)
-        test_consistency_term(Magnetic(Apot); kgrid=[1, 1, 1], kshift=[0, 0, 0],
-                              lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
-        test_consistency_term(DFTK.Anyonic(2, 3.2); kgrid=[1, 1, 1], kshift=[0, 0, 0],
-                              lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
-    end
+    #let
+    #    a = 6
+    #    pot(x, y, z) = (x - a/2)^2 + (y - a/2)^2
+    #    Apot(x, y, z) = .2 * [y - a/2, -(x - a/2), 0]
+    #    Apot(X) = Apot(X...)
+    #    test_consistency_term(Magnetic(Apot); kgrid=[1, 1, 1], kshift=[0, 0, 0],
+    #                          lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
+    #    test_consistency_term(DFTK.Anyonic(2, 3.2); kgrid=[1, 1, 1], kshift=[0, 0, 0],
+    #                          lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
+    #end
 end

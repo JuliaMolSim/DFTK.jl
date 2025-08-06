@@ -107,7 +107,7 @@ function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues,
     end
     nprojs = length(projector_labels) 
 
-    projectors = build_projections(basis, ψ, psps, positions, projector_labels)
+    projectors = build_projections(basis, ψ)
 
     D = zeros(typeof(εs[1]), length(εs), nprojs, basis.model.n_spin_components)  
     for (iε, ε) in enumerate(εs)
