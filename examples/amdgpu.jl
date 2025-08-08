@@ -12,5 +12,4 @@ architecture = has_rocm_gpu() ? DFTK.GPU(AMDGPU.ROCArray) : DFTK.CPU()
 
 basis  = PlaneWaveBasis(model; Ecut=20, kgrid=(1, 1, 1), architecture)
 
-# Anderson does not yet work ...
-scfres = self_consistent_field(basis; tol=1e-2, solver=scf_damping_solver())
+scfres = self_consistent_field(basis; tol=1e-2)
