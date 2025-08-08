@@ -110,9 +110,9 @@ and returns ``xₙ₊₁``.
         error_max, idrop = findmax(anderson.errors[1:end-1])
         @debug "Anderson cond(M) = $(cond(Mfac.R)): Dropping $idrop, error=$error_max"
         deleteat!(anderson, idrop)
-        col_filter = collect(1:size(M, 2))
-        deleteat!(col_filter, idrop)
-        M = @view M[:, col_filter]
+        kept_cols = collect(1:size(M, 2))
+        deleteat!(kept_cols, idrop)
+        M = @view M[:, kept_cols]
         Mfac = qr(M)
     end
 
