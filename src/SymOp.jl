@@ -74,8 +74,8 @@ function check_group(symops::Vector; kwargs...)
             error("check_group: symop $s with inverse $(inv(s)) is not in the group")
         end
         for s2 in symops
-            if !is_approx_in_symops(s*s2) || !is_approx_in_symops(s2*s)
-                error("check_group: product is not stable")
+            if !is_approx_in_symops(s*s2)
+                error("check_group: product is not stable: $(s*s2) is not in the group")
             end
         end
     end
