@@ -19,6 +19,7 @@ using LinearAlgebra
                projectors[ik][iband, iproj] = |ϕinlm>(iband,kpt) for each kpoint kpt
 """
 function build_projectors(basis::PlaneWaveBasis{T};
+                          manifold = nothing,
                           positions = basis.model.positions
                           ) where {T}
     
@@ -29,20 +30,26 @@ function build_projectors(basis::PlaneWaveBasis{T};
 
     psps = Vector{NormConservingPsp}(undef, length(basis.model.atoms))
     labels = []
-    #form_factors = [Matrix{Complex{T}}(undef, length(G_plus_k), nprojs)  for G_plus_k in G_plus_k_all_cart]  # Initialize form factors for all k-points
     form_factors = [Matrix{Complex{T}}(undef, length(G_plus_k), 0)  for G_plus_k in G_plus_k_all_cart]
     for (iatom, atom) in enumerate(basis.model.atoms)
+        if !isnothing(manifold)
+            if manifold[1] != Symbol(atom.species) && manifold[1] != iatom
+               continue # Skip atoms that do not match the manifold species, if any is provided
+            end
+        end
         psps[iatom] = atom.psp
         for l in 0:psps[iatom].lmax
             for n in 1:DFTK.count_n_pswfc_radial(psps[iatom], l)
+                label = psps[iatom].pswfc_labels[n+l][1]
+                if !isnothing(manifold) && lowercase(manifold[2]) != lowercase(label)
+                    continue # Skip atoms that do not match the manifold species, if any is provided
+                end
                 fun(p) = eval_psp_pswfc_fourier(psps[iatom], n, l, p)
                 form_factors_l = build_form_factors(fun, l, G_plus_k_all_cart)
                 for ik in 1:length(G_plus_k_all_cart)
-                   #form_factors[ik][:,offset:offset+2*l] = form_factors_l[ik] #Can't work here because I don't know nproj a priori
                    form_factors[ik] = hcat(form_factors[ik], form_factors_l[ik])  # Concatenate the form factors for this l
                 end
                 for m in -l:l
-                    label = psps[iatom].pswfc_labels[n+l][1]
                     push!(labels, (; iatom, atom.species, n, l, m, label))
                 end
             end
@@ -51,8 +58,8 @@ function build_projectors(basis::PlaneWaveBasis{T};
     nprojs = length(labels)
 
     projectors = Vector{Matrix}(undef, length(basis.kpoints))
-    for ik in 1:length(basis.kpoints) # The loop now iterates over k-points regardless of the spin component
-        proj_vectors = Matrix{Complex{T}}(undef, length(G_plus_k_all[ik]), nprojs)  # Collect all projection vectors for this k-point
+    for ik in 1:length(basis.kpoints) # The projectors don't depend on the spin
+        proj_vectors = zeros(Complex{T}, length(G_plus_k_all[ik]), nprojs)  # Collect all projection vectors for this k-point
         for (iproj, proj) in enumerate(labels)
             structure_factor = [cis2pi(-dot(positions[proj.iatom], p)) for p in G_plus_k_all[ik]]
             @assert length(structure_factor) == length(G_plus_k_all[ik]) "Structure factor length mismatch: $(length(structure_factor)) != $(length(G_plus_k))"
@@ -71,18 +78,64 @@ function build_projectors(basis::PlaneWaveBasis{T};
     return (;projectors, labels)
 end
 
+function build_manifold(basis::PlaneWaveBasis{T}, projectors, labels, manifold::Tuple{Symbol, String}) where {T}
+    manifold_labels = []
+    manifold_projectors = Vector{Matrix{Complex{T}}}(undef, length(basis.kpoints))
+    #for (iatom, atom) in enumerate(basis.model.atoms)
+    #    if manifold[1] == Symbol(atom.species)
+    #        psps[iatom] = atom.psp
+    #        for l in 0:psps[iatom].lmax
+    #            for n in 1:DFTK.count_n_pswfc_radial(psps[iatom], l)
+    #                label = psps[iatom].pswfc_labels[n+l][1]
+    #                if lowercase(manifold[2]) == lowercase(label)
+    #                    # If the label matches the manifold, we add it to the labels
+    #                    # This is useful for extracting specific orbitals from the basis
+    #                    # e.g., (:Si, "3S") will match all 3S orbitals of Si atoms
+    #                    for m in -l:l
+    #                        push!(manifold_labels, (; iatom, atom.species, n, l, m, label))
+    #                    end
+    #                end
+    #            end
+    #        end
+    #    end
+    #end
+    for (iproj, orb) in enumerate(labels)
+        if manifold[1] == Symbol(orb.species) && lowercase(manifold[2]) == lowercase(orb.label)
+            # If the label matches the manifold, we add it to the labels
+            # This is useful for extracting specific orbitals from the basis
+            # e.g., (:Si, "3S") will match all 3S orbitals of Si atoms
+            for m in -orb.l:orb.l
+                push!(manifold_labels, (; orb.iatom, orb.species, orb.n, orb.l, m, orb.label))
+            end
+        end
+    end
+    for (ik, projk) in enumerate(projectors)
+        manifold_projectors[ik] = zeros(Complex{T}, size(projectors[ik], 1), length(manifold_labels))
+        for (iproj, orb) in enumerate(manifold_labels)
+            # Find the index of the projector that matches the manifold label
+            proj_index = findfirst(p -> p.iatom == orb.iatom && p.species == orb.species &&
+                                       p.n == orb.n && p.l == orb.l && p.m == orb.m, labels)
+            if proj_index !== nothing
+                manifold_projectors[ik][:, iproj] = projk[:, proj_index]
+            else
+                @warn "Projector for $(orb.species) with n=$(orb.n), l=$(orb.l), m=$(orb.m) not found in projectors."
+            end
+        end
+    end
+    return (; manifold_labels, manifold_projectors)
+end
+
 function compute_overlap_matrix(basis::PlaneWaveBasis{T};
+                                manifold::Tuple{Symbol, String} = nothing,
                                 positions = basis.model.positions
                                 ) where {T}
     
-    proj = build_projectors(basis; positions) # Get the projectors for all k-points
+    proj = build_projectors(basis; manifold, positions) # Get the projectors for all k-points
     projectors = proj.projectors
     labels = proj.labels
     overlap_matrix = Vector{Matrix{T}}(undef, length(basis.kpoints))  # Initialize the density matrix
 
     for (ik, projk) in enumerate(projectors)
-        #@show "Processing k-point $(ik) with projk size $(size(projk))"
-        #density_matrix[ik] = projk' * projk  # Compute the density matrix for this k-point
         overlap_matrix[ik] = abs2.(projk' * projk)  # Compute the density matrix for this k-point
     end
 
@@ -102,142 +155,184 @@ end
     - manifold_labels: labels for the projectors in the Hubbard matrix, which is made like the labels in `build_projectors`
 
 """
-function compute_hubbard_matrix(manifold::Tuple{Symbol, String}, basis::PlaneWaveBasis{T}, ψ;
-                                positions = basis.model.positions
-                                ) where {T}
-    
-    projectors, labels = build_projectors(basis; positions).projectors, build_projectors(basis; positions).labels
-    nprojs = length(labels)
-    density_matrix = zeros(Complex{T}, nprojs, nprojs)  # Initialize the density matrix
 
-    for (ik, projk) in enumerate(projectors)
-        ψk = ψ[ik]
-        n_mat_k = zeros(Complex{T}, size(projk, 2), size(projk, 2))  # Initialize the density matrix for this k-point
-        for iband in 1:size(ψk, 2)
-            ψnk = ψk[:, iband]  # Get the wavefunction for this band
-            n_mat_k += projk' * ψnk * ψnk' * projk  # Compute the density matrix for this band
-        end
-        density_matrix += n_mat_k * basis.kweights[ik] # Store the summed density matrix for this k-point
-    end
-
-    dim_manifold = 0
-    manifold_labels = Vector{NamedTuple}(undef, 0)
-    for orbital in labels
-        if manifold[1] == Symbol(orbital.species) && lowercase(manifold[2]) == lowercase(orbital.label)
-            dim_manifold += 1
-            push!(manifold_labels, orbital)  # Collect labels for the manifold
-        end
-    end
-    hubbard_matrix = zeros(Complex{T}, dim_manifold, dim_manifold)  # Initialize the Hubbard matrix
-    ih = 1
-    for (i, orbital_i) in enumerate(labels)
-        jh = 1
-        if manifold[1] == Symbol(orbital_i.species) && lowercase(manifold[2]) == lowercase(orbital_i.label) 
-            for (j, orbital_j) in enumerate(labels)
-                if manifold[1] == Symbol(orbital_j.species) && lowercase(manifold[2]) == lowercase(orbital_j.label) 
-                    hubbard_matrix[ih, jh] = density_matrix[i, j]
-                    jh += 1  # Increment the index for the manifold
-                end
-            end
-            ih += 1  # Increment the index for the manifold
-        end
-    end
-
-    return (;hubbard_matrix, manifold_labels, projectors, labels, density_matrix)
-end
-
-function compute_hubbard_matrix(manifold, bands; positions = bands.basis.model.positions)
+function compute_hubbard_matrix(manifold, bands; positions = bands.basis.model.positions, kwargs...)
 
     ψ = bands.ψ
     basis = bands.basis
     
-    hubbard_matrix = compute_hubbard_matrix(manifold, basis, ψ; positions).hubbard_matrix
-    manifold_labels = compute_hubbard_matrix(manifold, basis, ψ; positions).manifold_labels
+    res = compute_hubbard_matrix(manifold, basis, ψ, bands.eigenvalues; positions, kwargs...)
+    hubbard_matrix = res.hubbard_matrix
+    manifold_labels = res.manifold_labels
 
     return (; hubbard_matrix, manifold_labels)
 end
 
-
-# This part of the code is currently useless and even dangerour since it fills the RAM.
-
-# !!!!!!DO NOT USE!!!!!!!!!!!
-
-#function projection_operator(basis::PlaneWaveBasis{T},
-#                    psps::AbstractVector{<: NormConservingPsp}, 
-#                    positions, 
-#                    labels::Vector{Tuple{Int,Int,Int,Int}}) where {T}
-#    
-#    projectors = build_projectors(basis, psps, positions, labels)
-#    nproj = length(labels)
-#    P_mat = Matrix{Vector{Matrix{Complex{T}}}}(undef, nproj, nproj)  # Initialize the projection matrix
-#
-#    for i = 1:nproj
-#        for j in 1:nproj
-#            P_ij = Vector{Matrix{Complex{T}}}(undef, length(basis.kpoints))  # Initialize the outer product matrix for this pair of projectors
-#            for ik in 1:length(basis.kpoints)
-#                projk = projectors[ik]
-#                P_ij[ik] = projk * projk'   # Compute the outer product
-#            end
-#            P_mat[i, j] = P_ij  # Store the outer product in the matrix
-#        end
-#    end
-#    
-#    return P_mat
-#end
-#
-#function projection_operator(bands)
-#
-#    basis = bands.basis
-#    model = basis.model
-#    positions = model.positions
-#    natoms = length(positions)
-#    psps = Vector{NormConservingPsp}([model.atoms[i].psp for i in 1:natoms])  # PSP for all atoms
-#    
-#    max_l = Vector{Any}(undef, natoms)  # lmax for all atoms
-#    max_l = [psps[iatom].lmax for iatom in 1:natoms]  # lmax for all atoms
-#    max_n = Vector{Vector{Int}}(undef, natoms)  # Principal quantum number for all atoms
-#    for iatom in 1:natoms
-#        max_n[iatom] = [DFTK.count_n_pswfc_radial(psps[iatom], l) for l in 0:max_l[iatom]]
-#    end
-#    
-#    projector_labels = Vector{NTuple{4, Int64}}(undef, 0)
-#    for iatom in 1:natoms
-#        for l in 0:max_l[iatom]
-#            for n in 1:max_n[iatom][l+1]
-#                for m in -l:l
-#                    push!(projector_labels, (iatom, n, l, m))
-#                end 
-#            end
-#        end
-#    end
-#    nprojs = length(projector_labels) 
-#
-#    proj_matrix = projection_operator(basis, psps, positions, projector_labels)
-#
-#    return (; proj_matrix, projector_labels)
-#end
+# TODO: U should become a vector, with one value for each atom.
 struct Hubbard
-    manifold::Tuple{Symbol, String}
+    manifold::Tuple{Any, String}
     U::Float64
 end
-
-struct TermHubbard <: Term
-    manifold::Tuple{Symbol, String}
-    U::Float64
-end
-
 (hubbard::Hubbard)(::AbstractBasis) = TermHubbard(hubbard.manifold, hubbard.U)
 
-function ene_ops(term::TermHubbard, basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where {T}
-    if isnothing(ψ)
+struct TermHubbard <: Term
+    manifold::Tuple{Any, String}
+    U::Float64
+end
+
+# TODO: Implement this function, using Wigner matrices for all l/=0 cases.
+function symmetrize(n_IJ, symmetry, l)
+    #For now we do nothing, but we should sum over all symmetric atoms and divide by the number of symmetries.
+    # Also we should take in the manifold l number and apply wigner matrices accordingly.
+    # Look at QE/src/PW/new_ns.f90, lines 196-211
+    if l == 0
+        # For s-orbitals we only average over symmetric atoms 
+    elseif l == 1
+        @show "Not implemented yet: symmetrize for l=1 Wigner matrix"
+        # apply d1 Wigner matrix
+    elseif l == 2
+        @show "Not implemented yet: symmetrize for l=2 Wigner matrix"
+        # apply d2 Wigner matrix
+    elseif l == 3
+        @show "Not implemented yet: symmetrize for l=3 Wigner matrix"
+        # apply d3 Wigner matrix
+    end
+
+    return n_IJ
+end
+
+function compute_hubbard_matrix(manifold::Tuple{Any, String},
+                                basis::PlaneWaveBasis{T},
+                                ψ, occupation;
+                                positions = basis.model.positions) where {T}
+    proj = build_projectors(basis; manifold, positions)
+    projs = proj.projectors
+    labs = proj.labels
+    labels, projectors = build_manifold(basis, projs, labs, manifold)
+    nprojs = length(labels)
+    density_matrix = zeros(Complex{T}, nprojs, nprojs)
+
+    for (ik, projk) in enumerate(projectors)
+        ψk = ψ[ik]
+        nk = occupation[ik]  # vector of occupations per band at k
+        c = projk' * ψk      # <ϕ|ψ>
+        # The matrix product is done over the bands. In QE, basis.kweights[ik]*nk[ibnd] would be wg(ik,ibnd)
+        # TODO: Do I have to worry about the computational efficiency? In Fortran I would split this product
+        density_matrix .+= basis.kweights[ik] * c * diagm(nk) * c' 
+    end
+    
+
+    return (; hubbard_matrix=density_matrix, manifold_labels=labels, projectors=projectors)
+end
+
+function compute_hubbard_nIJ(manifold::Tuple{Symbol, String},
+                                basis::PlaneWaveBasis{T},
+                                ψ, occupation;
+                                positions = basis.model.positions) where {T}
+    proj = build_projectors(basis; positions)
+    projs = proj.projectors
+    labs = proj.labels
+    labels, projectors = build_manifold(basis, projs, labs, manifold)
+    nprojs = length(labels)
+    nspins = length(basis.model.n_spin_components)
+    n_matrix = [zeros(Complex{T}, nprojs, nprojs) for σ in 1:nspins]
+
+    # The QE code deals with the spatial symmetry of the orbitals to compute ns,
+    #   but for the s case this is just a division by 2 (number of symmetry operations, in this case identity and exchange of silicons)
+    # Hence we should divide the occupations by 2 for the s case or compare our n with nr instead (without looking at the energy)
+    # The factor of 2 alone gets us close, but still not there. The matrices are still remarkably different.
+    for σ in 1:nspins, ik = krange_spin(basis, σ)  # Iterate over k-points for each spin component
+        ψk, projk, nk = @views ψ[ik], projectors[ik], occupation[ik]
+        c = projk' * ψk      # <ϕ|ψ>
+        # The matrix product is done over the bands. In QE, basis.kweights[ik]*nk[ibnd] would be wg(ik,ibnd)
+        # TODO: Do I have to worry about the computational efficiency? In Fortran I would split this product
+        n_matrix[σ] .+= basis.kweights[ik] * c * diagm(nk) * c' 
+    end
+    #n_matrix = mpi_sum(n_matrix, basis.comm_kpts)  # Should we sum over k-points "again"?
+    
+    # Still not quite sure about that, the QE code does divide by 2
+    if basis.model.spin_polarization == :none
+        n_matrix *= 0.5  # Divide by 2 for the spin-unpolarized case, as in QE
+    end
+
+    # Now I want to reshape it to match the notation used in the papers.
+    natoms = length(basis.model.atoms)
+    n_IJ = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)
+    p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for i in 1:length(basis.kpoints)]
+    # Very low-level, but works
+    for σ in 1:nspins
+        i = 1
+        while i <= nprojs
+            il = labels[i].l
+            iatom = labels[i].iatom
+            j = 1
+            while j <= nprojs
+                jl = labels[j].l
+                jatom = labels[j].iatom
+                n_IJ[σ, iatom, jatom] = copy(n_matrix[σ][i:i+2*il, j:j+2*jl])
+                j += 2*jl + 1
+            end
+            for (ik, projk) in enumerate(projectors)
+                p_I[ik][iatom] = Matrix{Complex{T}}(undef, size(projk,1), 2*il + 1)  # Initialize the projectors for this k-point
+                p_I[ik][iatom] = copy(projk[:, i:i+2*il])  # Store the projector for this atom
+            end
+            i += 2*il + 1
+        end
+    end
+
+    # For now this does nothing
+    symmetry = :nothing
+    p = findfirst(orb -> orb.label == manifold[2], labels)  # Find the index of the manifold label in the labels
+    l = labels[p].l  
+    n_IJ = symmetrize(n_IJ, symmetry, l)
+
+    # n_IJ is a matrix of size (natoms, natoms), where each entry n_IJ[iatom, jatom] contains the submatrix of the occupation matrix
+    # corresponding to the projectors of atom iatom and atom jatom, with dimensions determined by the number of projectors for each atom.
+    return (; n_IJ=n_IJ, manifold_labels=labels, p_I=p_I)
+end
+
+@timing "ene_ops: hubbard" function ene_ops(term::TermHubbard, 
+                                            basis::PlaneWaveBasis{T}, 
+                                            ψ, occupation; 
+                                            n=nothing, kwargs...) where {T}
+    if ψ === nothing
         return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
     end
-    # Compute Hubbard matrix 
-    hubbard_matrix = compute_hubbard_matrix(term.manifold, basis, ψ).hubbard_matrix
-    E = term.U * real(tr(hubbard_matrix * (I - hubbard_matrix)))
-    
-    # Return proper operators
-    ops = [NoopOperator(basis, kpt) for kpt in basis.kpoints]  # or proper Hubbard operators
 
-    (; E, ops)
+    natoms = length(basis.model.atoms)
+    nspins = length(basis.model.n_spin_components)
+    if isnothing(n)
+        Hubbard = compute_hubbard_nIJ(term.manifold, basis, ψ, occupation)
+        n = Hubbard.n_IJ
+        proj = Hubbard.p_I
+    else
+        n_IJ = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)  
+        for σ in 1:nspins, iatom in 1:natoms, jatom in 1:natoms
+            if jatom == iatom
+                n_IJ[σ, iatom, jatom] = n  
+            else
+                n_IJ[σ, iatom, jatom] = zeros(typeof(n[1,1][1,1]), size(n,1), size(n,2))  # Off-diagonal terms are irrelevant
+            end
+        end
+        n = n_IJ 
+        Hubbard = compute_hubbard_nIJ(term.manifold, basis, ψ, occupation)
+        proj = Hubbard.p_I
+    end
+
+    # To compare the results with Quantum ESPRESSO, we need to convert the U value from eV.
+    #   In QE the U value is given in eV in the input but DFTK works in Hartrees.
+    to_unit = ustrip(auconvert(u"eV", 1.0))  # Ha to eV conversion factor
+    U = term.U / to_unit  # Convert U to Ha
+    E = zero(T)
+    # The reference paper here puts a 1/2 factor in front of the Hubbard term,
+    #   but using the QE n matrix, we do not need to divide by 2, so I guess it shouldn't be there.
+    for σ in 1:nspins, iatom in 1:natoms
+        #@show iatom
+        E += U * real(tr(n[σ, iatom,iatom] * (I - n[σ, iatom,iatom])))
+    end
+
+    ops = [HubbardUOperator(basis, kpt, U, n, proj[ik]) for (ik,kpt) in enumerate(basis.kpoints)]
+    (; E, ops, n)
 end
+
+# TODO: Once this is done, adding the V term as well should be trivial.

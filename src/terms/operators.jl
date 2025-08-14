@@ -154,6 +154,36 @@ function apply!(Hψ, op::DivAgradOperator, ψ;
     end
 end
 # TODO Implement  Matrix(op::DivAgrad)
+@doc raw"""
+"Hubbard U" operator ``Hψ = sum_{i} sum_{m1,m2} U* (1- 2n_IJ[i,i][m1,m2]) * P_i,m1 * P_i,m2' * ψ``
+where ``P_i,m1`` is the projector for atom i and orbital m1. 
+(m1 is usually just the magnetic quantum number, since l is usually fixed)
+"""
+struct HubbardUOperator{T <: Real} <: RealFourierOperator
+    basis  :: PlaneWaveBasis{T} 
+    kpoint :: Kpoint{T} 
+    U      :: Real  # Hubbard U parameter
+    n_IJ   :: Array{Matrix{Complex{T}}}  
+    proj_I :: Vector{Matrix{Complex{T}}} #It is the projector for the given kpoint only
+end
+function apply!(Hψ, op::HubbardUOperator, ψ)
+    nspins  = size(op.n_IJ, 1)
+    natoms  = size(op.n_IJ, 2)
+    for σ in 1:nspins, iatom in 1:natoms
+        n_ii = op.n_IJ[σ, iatom, iatom]
+        iszero(n_ii) && continue
+        for m1 = 1:size(n_ii, 1)
+            P_i_m1 = op.proj_I[iatom][:,m1]
+            for m2 = 1:size(n_ii, 2)
+                P_i_m2 = op.proj_I[iatom][:,m2]
+                δm = (m1 == m2) ? one(eltype(n_ii)) : zero(eltype(n_ii))
+                coefficient = 0.5 * op.U * (δm - 2*n_ii[m1, m2])
+                projection = P_i_m2' * ψ.fourier 
+                Hψ.fourier .+= coefficient * projection * P_i_m1
+            end
+        end
+    end
+end
 
 
 # Optimize RFOs by combining terms that can be combined
