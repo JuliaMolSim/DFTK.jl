@@ -152,7 +152,6 @@ end
             ifft!(ψ_real, H.basis, H.kpoint, ψ[:, iband]; normalize=false)
             ψ_real .*= potential
             fft!(Hψ[:, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
-            Hψ[:, iband] .+= H.fourier_op.multiplier .* ψ[:, iband]
         end
 
         if have_divAgrad
@@ -167,8 +166,10 @@ end
         if Threads.threadid() == 1
             merge!(DFTK.timer, to; tree_point=[t.name for t in DFTK.timer.timer_stack])
         end
+    end
 
-        synchronize_device(H.basis.architecture)
+    @timing "local+kinetic" begin
+        Hψ .+= H.fourier_op.multiplier .* ψ
     end
 
     # Apply the nonlocal operator.
