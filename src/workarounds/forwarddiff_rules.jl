@@ -205,11 +205,13 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
 
     # This has to be changed whenever the scfres structure changes
     (; ham, basis=basis_dual, energies, ρ, eigenvalues, occupation, εF, ψ,
-       # non-differentiable metadata:
-       response=getfield.(δresults, :info_gmres),
-       scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter,
-       scfres.n_bands_converge, scfres.diagonalization, scfres.stage,
-       scfres.algorithm, scfres.runtime_ns)
+        # non-differentiable metadata:
+        response=getfield.(δresults, :info_gmres),
+        scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter,
+        scfres.n_bands_converge, scfres.n_matvec, scfres.diagonalization, scfres.stage,
+        scfres.history_Δρ, scfres.history_Etot, scfres.timedout, scfres.mixing,
+        scfres.algorithm, scfres.runtime_ns)
+
 end
 
 function hankel(r::AbstractVector, r2_f::AbstractVector, l::Integer, p::TT) where {TT <: ForwardDiff.Dual}
