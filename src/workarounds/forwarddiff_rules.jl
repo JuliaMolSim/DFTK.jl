@@ -206,7 +206,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     # This has to be changed whenever the scfres structure changes
     (; ham, basis=basis_dual, energies, ρ, eigenvalues, occupation, εF, ψ,
         # non-differentiable metadata:
-        response=getfield.(δresults, :info_gmres),
+        response=getfield.(δresults, :info_gmres), scfres.τ,
         scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter,
         scfres.n_bands_converge, scfres.n_matvec, scfres.diagonalization, scfres.stage,
         scfres.history_Δρ, scfres.history_Etot, scfres.timedout, scfres.mixing,
