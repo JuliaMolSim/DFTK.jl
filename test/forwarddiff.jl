@@ -262,7 +262,7 @@ end
 end
 
 @testitem "Test scfres dual has the same params as scfres primal" #=
-    =#    tags=[:dont_test_mpi, :my_test] setup=[TestCases] begin
+    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
