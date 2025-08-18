@@ -296,7 +296,7 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, sym
     # Looping over symmetries inside of map! on G vectors allow for a single GPU kernel launch
     map!(ρaccu, Gs) do G
         acc = zero(complex(T))
-        # Explicit loop over indicies because AMDGPU does not support zip() in map!
+        # Explicit loop over indices because AMDGPU does not support zip() in map!
         for i_symm in 1:n_symm
             invS = symm_invS[i_symm]
             τ = symm_τ[i_symm]

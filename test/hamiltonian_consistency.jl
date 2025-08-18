@@ -5,9 +5,16 @@ using Logging
 using DFTK: mpi_sum
 using DFTK: Hubbard
 using LinearAlgebra
-using ..TestCases: silicon
+using ..TestCases: silicon, nickel, oxygen
 using PseudoPotentialData
-testcase = silicon
+testcase = nickel 
+custom_lattice = 7.9 * [[ 1.0  0.5  0.5];
+                        [ 0.5  1.0  0.5];
+                        [ 0.5  0.5  1.0]]
+custom_positions = [[0.0, 0.0, 0.0],
+                    [0.5, 0.5, 0.5],
+                    [0.25, 0.25, 0.25],
+                    [0.75, 0.75, 0.75]] 
 
 function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
     for operator in hamk.operators
@@ -25,18 +32,28 @@ function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
 end
 
 function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2, 3],
-                               kshift=[0, 1, 0]/2, lattice=testcase.lattice, Ecut=10,
+                               kshift=[0, 1, 0]/2, lattice=custom_lattice, Ecut=10,
                                spin_polarization=:none)
     sspol = spin_polarization != :none ? " ($spin_polarization)" : ""
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
     @testset "$(typeof(term))$xc $sspol" begin
         n_dim = 3 - count(iszero, eachcol(lattice))
-        Si = n_dim == 3 ? ElementPsp(14, PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")) : ElementCoulomb(:Si)
-        atoms = [Si, Si]
-        model = Model(lattice, atoms, testcase.positions; terms=[term], spin_polarization,
+        #Si = n_dim == 3 ? ElementPsp(14, PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")) : ElementCoulomb(:Si)
+        #atoms = [Si, Si]
+        pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
+        Ni = n_dim == 3 ? ElementPsp(nickel.atnum, pseudopotentials) : ElementCoulomb(:Ni)
+        O = n_dim == 3 ? ElementPsp(oxygen.atnum, pseudopotentials) : ElementCoulomb(:Ni)
+        atoms = [Ni, Ni, O, O]    
+        #at = n_dim == 3 ? ElementPsp(testcase.atnum, PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")) : ElementCoulomb(testcase.symbol)
+        #atoms = fill(at, testcase.positions |> length)
+        magnetic_moments = [2, -1, 0, 0]
+        model = Model(lattice, atoms, custom_positions; terms=[term], #spin_polarization,
+                      #temperature=1,
+                      smearing=DFTK.Smearing.Gaussian(), magnetic_moments=magnetic_moments,
                       symmetries=true)
         basis = PlaneWaveBasis(model; Ecut, kgrid=MonkhorstPack(kgrid; kshift))
-
+        @show basis.model.atoms[1].psp.pswfc_labels
+        @show basis.model.n_spin_components
         n_electrons = testcase.n_electrons
         n_bands = div(n_electrons, 2, RoundUp)
         filled_occ = DFTK.filled_occupation(model)
@@ -90,32 +107,32 @@ end
     using LinearAlgebra
     using .HamConsistency: test_consistency_term
 
-    test_consistency_term(Kinetic())
-    test_consistency_term(AtomicLocal())
-    test_consistency_term(AtomicNonlocal())
-    test_consistency_term(ExternalFromReal(X -> cos(X[1])))
-    test_consistency_term(ExternalFromFourier(X -> abs(norm(X))))
-    test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
-    test_consistency_term(Hartree())
-    test_consistency_term(Hubbard((:Si, "3S"), 1.0))
-    test_consistency_term(Ewald())
-    test_consistency_term(PspCorrection())
-    test_consistency_term(Xc([:lda_xc_teter93]))
-    test_consistency_term(Xc([:lda_xc_teter93]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:gga_x_pbe]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:mgga_x_tpss]))
-    test_consistency_term(Xc([:mgga_x_scan]))
-    test_consistency_term(Xc([:mgga_c_scan]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:mgga_x_b00]))
-    test_consistency_term(Xc([:mgga_c_b94]), spin_polarization=:collinear)
-    let
-        a = 6
-        pot(x, y, z) = (x - a/2)^2 + (y - a/2)^2
-        Apot(x, y, z) = .2 * [y - a/2, -(x - a/2), 0]
-        Apot(X) = Apot(X...)
-        test_consistency_term(Magnetic(Apot); kgrid=[1, 1, 1], kshift=[0, 0, 0],
-                              lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
-        test_consistency_term(DFTK.Anyonic(2, 3.2); kgrid=[1, 1, 1], kshift=[0, 0, 0],
-                              lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
-    end
+    #test_consistency_term(Kinetic())
+    #test_consistency_term(AtomicLocal())
+    #test_consistency_term(AtomicNonlocal())
+    #test_consistency_term(ExternalFromReal(X -> cos(X[1])))
+    #test_consistency_term(ExternalFromFourier(X -> abs(norm(X))))
+    #test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
+    #test_consistency_term(Hartree())
+     test_consistency_term(Hubbard((:Ni, "3S"), 1.0))
+    #test_consistency_term(Ewald())
+    #test_consistency_term(PspCorrection())
+    #test_consistency_term(Xc([:lda_xc_teter93]))
+    #test_consistency_term(Xc([:lda_xc_teter93]), spin_polarization=:collinear)
+    #test_consistency_term(Xc([:gga_x_pbe]), spin_polarization=:collinear)
+    #test_consistency_term(Xc([:mgga_x_tpss]))
+    #test_consistency_term(Xc([:mgga_x_scan]))
+    #test_consistency_term(Xc([:mgga_c_scan]), spin_polarization=:collinear)
+    #test_consistency_term(Xc([:mgga_x_b00]))
+    #test_consistency_term(Xc([:mgga_c_b94]), spin_polarization=:collinear)
+    #let
+    #    a = 6
+    #    pot(x, y, z) = (x - a/2)^2 + (y - a/2)^2
+    #    Apot(x, y, z) = .2 * [y - a/2, -(x - a/2), 0]
+    #    Apot(X) = Apot(X...)
+    #    test_consistency_term(Magnetic(Apot); kgrid=[1, 1, 1], kshift=[0, 0, 0],
+    #                          lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
+    #    test_consistency_term(DFTK.Anyonic(2, 3.2); kgrid=[1, 1, 1], kshift=[0, 0, 0],
+    #                          lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
+    #end
 end

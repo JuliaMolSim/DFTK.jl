@@ -40,7 +40,7 @@ function build_projectors(basis::PlaneWaveBasis{T};
         psps[iatom] = atom.psp
         for l in 0:psps[iatom].lmax
             for n in 1:DFTK.count_n_pswfc_radial(psps[iatom], l)
-                label = psps[iatom].pswfc_labels[n+l][1]
+                label = psps[iatom].pswfc_labels[l+1][n]
                 if !isnothing(manifold) && lowercase(manifold[2]) != lowercase(label)
                     continue # Skip atoms that do not match the manifold species, if any is provided
                 end
@@ -181,24 +181,91 @@ struct TermHubbard <: Term
 end
 
 # TODO: Implement this function, using Wigner matrices for all l/=0 cases.
-function symmetrize(n_IJ, symmetry, l)
+function symmetrize(n_IJ::Array{Matrix{Complex{T}}}, symmetry, l, positions) where {T}
+    # For now we apply symmetries only on nII terms, not on cross-atom terms (nIJ)
+    # WARNING: To implement +V this will need to be changed!
+
     #For now we do nothing, but we should sum over all symmetric atoms and divide by the number of symmetries.
     # Also we should take in the manifold l number and apply wigner matrices accordingly.
     # Look at QE/src/PW/new_ns.f90, lines 196-211
-    if l == 0
-        # For s-orbitals we only average over symmetric atoms 
-    elseif l == 1
-        @show "Not implemented yet: symmetrize for l=1 Wigner matrix"
-        # apply d1 Wigner matrix
-    elseif l == 2
-        @show "Not implemented yet: symmetrize for l=2 Wigner matrix"
-        # apply d2 Wigner matrix
-    elseif l == 3
-        @show "Not implemented yet: symmetrize for l=3 Wigner matrix"
-        # apply d3 Wigner matrix
+    nspins = size(n_IJ, 1)
+    natoms = size(n_IJ, 2)
+    nsym = length(symmetry)
+    # TODO: Take the Wigner matrices from someplace I don't know yet. 
+    #       There are already some julia packages which however require the Euler angles.
+    d1, d2, d3 = Wigner_sym(1, symmetry), Wigner_sym(2, symmetry), Wigner_sym(3, symmetry)
+    ns = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)  # Initialize the n_IJ matrix
+    for σ in 1:nspins, iatom in 1:natoms, jatom in 1:natoms
+        ns[σ, iatom, jatom] = zeros(Complex{T}, size(n_IJ[σ, iatom, jatom],1), size(n_IJ[σ, iatom, jatom],2))
+    end
+    # TODO: Write better the symmetrization loop
+    for σ in 1:nspins, iatom in 1:natoms
+        for m1 in 1:size(ns[σ, iatom, iatom], 1), m2 in 1:size(ns[σ, iatom, iatom], 2)  # Iterate over the rows of the n_IJ matrix
+            for isym in 1:nsym
+                sym_atom = find_symmetric(iatom, symmetry, isym, positions)
+                # TODO: Here QE flips spin for time-reversal in collinear systems, should we?
+                for m0 in 1:size(n_IJ[σ, iatom, iatom], 1), m00 in 1:size(n_IJ[σ, iatom, iatom], 2)
+                    if l == 0
+                        # For s-orbitals we only average over symmetric atoms 
+                        ns[σ, iatom, iatom][m1, m2] += n_IJ[σ, sym_atom, sym_atom][m0, m00] / nsym
+                    elseif l == 1
+                        # apply d1 Wigner matrix
+                        ns[σ, iatom, iatom][m1, m2] += d1[m0, m1, isym] * 
+                                                       n_IJ[σ, sym_atom, sym_atom][m0, m00] * 
+                                                       d1[m00, m2, isym] / nsym
+                        @show "Not implemented yet: symmetrize for l=1 Wigner matrix"
+                    elseif l == 2
+                        # apply d2 Wigner matrix
+                        ns[σ, iatom, iatom][m1, m2] += d2[m0, m1, isym] * 
+                                                       n_IJ[σ, sym_atom, sym_atom][m0, m00] * 
+                                                       d2[m00, m2, isym] / nsym
+                        @show "Not implemented yet: symmetrize for l=2 Wigner matrix"
+                    elseif l == 3
+                        # apply d3 Wigner matrix
+                        ns[σ, iatom, iatom][m1, m2] += d3[m0, m1, isym] * 
+                                                       n_IJ[σ, sym_atom, sym_atom][m0, m00] * 
+                                                       d3[m00, m2, isym] / nsym
+                        @show "Not implemented yet: symmetrize for l=3 Wigner matrix"
+                    else
+                        @warn "Symmetrization for l > 3 not implemented yet, skipping symmetrization for l=$(l)"
+                        # For now we skip symmetrization for l > 3
+                    end
+                end
+            end
+        end
     end
 
     return n_IJ
+end
+"""
+Find the symmetric atom index for a given atom and symmetry operation
+"""
+function find_symmetric(iatom::Int64, symmetry::Vector{SymOp{T}}, 
+                        isym::Int64, positions
+                        ) where {T}
+    # TODO: Implement this function to find the symmetric atom index based on the symmetry operation
+    sym_atom = iatom
+    W, w = symmetry[isym].W, symmetry[isym].w
+    p = positions[iatom]
+    p2 = W * p + w  
+    for (jatom, pos) in enumerate(positions)
+        if isapprox(pos, p2, atol=1e-8)  # Use a tolerance to compare positions
+            sym_atom = jatom
+            break
+        end
+    end
+    return sym_atom
+end
+
+
+function Wigner_sym(l::Int64, symmetry::Vector{SymOp{T}}) where {T}
+    # This function returns the Wigner matrix for a given l and symmetry operation
+    # We will need to implement a way to go from the symmetry operation to the associated 
+    #   Euler angles, with which we can take the Wigner matrix from an external module.
+
+    D = ones(Complex{T}, 2l + 1, 2l + 1, length(symmetry))  # Initialize the Wigner matrix
+
+    return D
 end
 
 function compute_hubbard_matrix(manifold::Tuple{Any, String},
@@ -234,7 +301,7 @@ function compute_hubbard_nIJ(manifold::Tuple{Symbol, String},
     labs = proj.labels
     labels, projectors = build_manifold(basis, projs, labs, manifold)
     nprojs = length(labels)
-    nspins = length(basis.model.n_spin_components)
+    nspins = basis.model.n_spin_components
     n_matrix = [zeros(Complex{T}, nprojs, nprojs) for σ in 1:nspins]
 
     # The QE code deals with the spatial symmetry of the orbitals to compute ns,
@@ -256,7 +323,9 @@ function compute_hubbard_nIJ(manifold::Tuple{Symbol, String},
     end
 
     # Now I want to reshape it to match the notation used in the papers.
-    natoms = length(basis.model.atoms)
+    totatoms = length(basis.model.atoms)
+    types = findall(at -> at.species == Symbol(manifold[1]), basis.model.atoms)
+    natoms = length(types)  # Number of atoms of the species in the manifold
     n_IJ = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)
     p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for i in 1:length(basis.kpoints)]
     # Very low-level, but works
@@ -281,10 +350,10 @@ function compute_hubbard_nIJ(manifold::Tuple{Symbol, String},
     end
 
     # For now this does nothing
-    symmetry = :nothing
+    symmetry = basis.symmetries
     p = findfirst(orb -> orb.label == manifold[2], labels)  # Find the index of the manifold label in the labels
     l = labels[p].l  
-    n_IJ = symmetrize(n_IJ, symmetry, l)
+    n_IJ = symmetrize(n_IJ, symmetry, l, basis.model.positions)
 
     # n_IJ is a matrix of size (natoms, natoms), where each entry n_IJ[iatom, jatom] contains the submatrix of the occupation matrix
     # corresponding to the projectors of atom iatom and atom jatom, with dimensions determined by the number of projectors for each atom.
@@ -299,22 +368,24 @@ end
         return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
     end
 
-    natoms = length(basis.model.atoms)
-    nspins = length(basis.model.n_spin_components)
+    totatoms = length(basis.model.atoms)
+    types = findall(at -> at.species == Symbol(term.manifold[1]), basis.model.atoms)
+    natoms = length(types)  # Number of atoms of the species in the manifold
+    nspins = basis.model.n_spin_components
     if isnothing(n)
         Hubbard = compute_hubbard_nIJ(term.manifold, basis, ψ, occupation)
         n = Hubbard.n_IJ
         proj = Hubbard.p_I
     else
-        n_IJ = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)  
-        for σ in 1:nspins, iatom in 1:natoms, jatom in 1:natoms
-            if jatom == iatom
-                n_IJ[σ, iatom, jatom] = n  
-            else
-                n_IJ[σ, iatom, jatom] = zeros(typeof(n[1,1][1,1]), size(n,1), size(n,2))  # Off-diagonal terms are irrelevant
-            end
-        end
-        n = n_IJ 
+        #n_IJ = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)  
+        #for σ in 1:nspins, iatom in 1:natoms, jatom in 1:natoms
+        #    if jatom == iatom
+        #        n_IJ[σ, iatom, jatom] = n  
+        #    else
+        #        n_IJ[σ, iatom, jatom] = zeros(typeof(n[1,1][1,1]), size(n,1), size(n,2))  # Off-diagonal terms are irrelevant
+        #    end
+        #end
+        #n = n_IJ 
         Hubbard = compute_hubbard_nIJ(term.manifold, basis, ψ, occupation)
         proj = Hubbard.p_I
     end
@@ -326,8 +397,8 @@ end
     E = zero(T)
     # The reference paper here puts a 1/2 factor in front of the Hubbard term,
     #   but using the QE n matrix, we do not need to divide by 2, so I guess it shouldn't be there.
+    # TODO: Understand why here we should not put a 1/2 factor, while we do in the potential.
     for σ in 1:nspins, iatom in 1:natoms
-        #@show iatom
         E += U * real(tr(n[σ, iatom,iatom] * (I - n[σ, iatom,iatom])))
     end
 
@@ -336,3 +407,4 @@ end
 end
 
 # TODO: Once this is done, adding the V term as well should be trivial.
+#       But remember to change the symmetrization as well!
