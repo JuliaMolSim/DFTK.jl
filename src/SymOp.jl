@@ -81,3 +81,34 @@ function check_group(symops::Vector; kwargs...)
     end
     symops
 end
+
+is_approx_in(group, symop; kwargs...) = any(s -> isapprox(s, symop; kwargs...), group)
+
+function complete_symop_group(symops; maxiter=10, kwargs...)
+    completed_group = Vector(symops)
+
+    for it = 1:maxiter
+        if it == maxiter
+            error("Could not complete group in $maxiter iterations")
+        end
+        to_add = []
+        function check(s1)
+            if !is_approx_in(completed_group, s1; kwargs...) && !is_approx_in(to_add, s1; kwargs...)
+                push!(to_add, s1)
+            end
+        end
+        # Identity always needs to be there!
+        check(SymOp(diagm([1, 1, 1]), [0., 0., 0.]))
+        for s in completed_group
+            check(inv(s))
+            for t in completed_group
+                check(s*t)
+            end
+        end
+        if isempty(to_add)
+            return completed_group
+        end
+        append!(completed_group, to_add)
+    end
+    DFTK.check_group(completed_group) # returns the completed group
+end

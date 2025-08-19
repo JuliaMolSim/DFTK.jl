@@ -79,13 +79,13 @@ function symmetry_operations(lattice::AbstractMatrix{<:Dual},
     symmetries = symmetry_operations(ForwardDiff.value.(lattice), atoms,
                                      positions_value, magnetic_moments;
                                      tol_symmetry, kwargs...)
-    remove_broken_symmetries(lattice, atoms, positions, symmetries; tol_symmetry)
+    remove_dual_broken_symmetries(lattice, atoms, positions, symmetries; tol_symmetry)
 end
 
-function remove_broken_symmetries(lattice, atoms, positions,
-                                  symmetries; tol_symmetry=SYMMETRY_TOLERANCE)
+function remove_dual_broken_symmetries(lattice, atoms, positions,
+                                       symmetries; tol_symmetry=SYMMETRY_TOLERANCE)
     filter(symmetries) do symmetry
-        !is_symmetry_broken(lattice, atoms, positions, symmetry; tol_symmetry)
+        !is_symmetry_broken_by_dual(lattice, atoms, positions, symmetry; tol_symmetry)
     end
 end
 
@@ -93,30 +93,30 @@ end
 Return `true` if a symmetry that holds for the primal part is broken by
 a perturbation in the lattice or in the positions, `false` otherwise.
 """
-function is_symmetry_broken(lattice, atoms, positions, symmetry::SymOp; tol_symmetry)
+function is_symmetry_broken_by_dual(lattice, atoms, positions, symmetry::SymOp; tol_symmetry)
     # For any lattice atom at position x, W*x + w should be in the lattice.
     # In cartesian coordinates, with a perturbed lattice A = A₀ + εA₁,
-    # this means that for any atom position xcart in the unit cell and any 3 integers m,
-    # there should be an atom at position ycart and 3 integers n such that:
-    # Wcart * (xcart + A*m) + wcart = ycart + A*n
+    # this means that for any atom position xcart in the unit cell and any 3 integers u,
+    # there should be an atom at position ycart and 3 integers v such that:
+    # Wcart * (xcart + A*u) + wcart = ycart + A*v
     # where
-    # - Wcart = A₀ * W * A₀⁻¹; note that W is an integer matrix
-    # - wcart = A₀ * w.
+    #     Wcart = A₀ * W * A₀⁻¹; note that W is an integer matrix
+    #     wcart = A₀ * w.
     #
     # In relative coordinates this gives:
-    # A⁻¹ * Wcart * (A*x + A*m) + A⁻¹ * wcart = y + n   (*)
+    # A⁻¹ * Wcart * (A*x + A*u) + A⁻¹ * wcart = y + v   (*)
     #
     # The strategy is then to check that:
     # 1. A⁻¹ * Wcart * A is still an integer matrix (i.e. no dual part),
-    #    such that any change in m is easily compensated for in n.
+    #    such that any change in u is easily compensated for in v.
     # 2. The primal component of (*), i.e. with ε=0, is already known to hold.
-    #    Since n does not have a dual component, it is enough to check that
+    #    Since v does not have a dual component, it is enough to check that
     #    the dual part of the following is 0:
     #      A⁻¹ * Wcart * A*x + A⁻¹ * wcart - y 
 
     lattice_primal = ForwardDiff.value.(lattice)
-    W = inv(lattice) * lattice_primal * symmetry.W * inv(lattice_primal) * lattice
-    w = inv(lattice) * lattice_primal * symmetry.w
+    W = compute_inverse_lattice(lattice) * lattice_primal * symmetry.W * compute_inverse_lattice(lattice_primal) * lattice
+    w = compute_inverse_lattice(lattice) * lattice_primal * symmetry.w
 
     is_dual_nonzero(x::AbstractArray) = any(x) do xi
         maximum(abs, ForwardDiff.partials(xi)) >= tol_symmetry
@@ -130,13 +130,7 @@ function is_symmetry_broken(lattice, atoms, positions, symmetry::SymOp; tol_symm
     for group in atom_groups
         positions_group = positions[group]
         for position in positions_group
-            # Find symmetric image; logic derived from symmetrize_forces
-            other_at = symmetry.W \ (ForwardDiff.value.(position) - symmetry.w)
-            smallest_deviation, i_other_at = findmin(positions_group) do at
-                δat = ForwardDiff.value.(at) - other_at
-                maximum(abs, δat - round.(δat))
-            end
-            @assert smallest_deviation < 10tol_symmetry
+            i_other_at = find_symmetry_preimage(positions_group, position, symmetry; tol_symmetry)
 
             # Check 2. with x = positions_group[i_other_at] and y = position
             if is_dual_nonzero(positions_group[i_other_at] + inv(W) * (w - position))
