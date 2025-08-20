@@ -3,7 +3,7 @@
 # [AtomsCalculators.jl](https://github.com/JuliaMolSim/AtomsCalculators.jl) is an interface
 # for doing standard computations (energies, forces, stresses, hessians) on atomistic
 # structures. It is very much inspired by the calculator objects in the
-# [atomistic simulation environment](https://wiki.fysik.dtu.dk/ase/index.html).
+# [atomistic simulation environment](https://ase-lib.org/).
 #
 # DFTK by default ships a datastructure called a [`DFTKCalculator`](@ref),
 # which implements the AtomsCalculators interface. A `DFTKCalculator`
