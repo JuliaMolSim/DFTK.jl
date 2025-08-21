@@ -1,5 +1,4 @@
 using LinearAlgebra
-#using WignerD
 
 """
     Build the projectors matrices projsk for all k-points at the same time.

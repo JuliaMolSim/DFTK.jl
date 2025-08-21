@@ -13,7 +13,6 @@ using GPUArraysCore
 using Random
 using PrecompileTools
 using PseudoPotentialData
-#using WignerD
 
 @template (FUNCTIONS, METHODS, MACROS) = 
     """

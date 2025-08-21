@@ -247,7 +247,7 @@ function get_pdos(res, εs, eshift::Float64, atom::Symbol, label::String; iatom=
     @assert 0 < length(idx) "Orbital $(label) for atom type $(atom) not found."
     if !isnothing(iatom)
         id = findall(orb -> (orb.iatom == iatom), res.projector_labels[idx])
-        idx = id
+        idx = idx[id]
         @assert length(idx) != 0 "Atom $(iatom) is not of type $(atom)." 
     end
     pdos_values = zeros(Float64, length(εs))
@@ -263,7 +263,7 @@ function get_pdos(res, εs, eshift::Float64, atom::Symbol, l::Int64; iatom=nothi
     @assert 0 < length(idx) "No orbital found for type $(atom), n = $(n), l = $(l)"
     if !isnothing(iatom)
         id = findall(orb -> (orb.iatom == iatom), res.projector_labels[idx])
-        idx = id
+        idx = idx[id]
         @assert length(idx) >= 0 "Atom $(iatom) is not of type $(atom)." 
     end
     pdos_values = zeros(Float64, length(εs))
