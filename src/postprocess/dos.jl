@@ -195,56 +195,50 @@ function build_projections(basis::PlaneWaveBasis{T}, ψ;
     (;projs, labels)
 end
 
-function get_pdos(res, atom::Integer, n, l, spin)
-    idx = findall(orb -> (orb.iatom==atom && orb.n==n && orb.l==l), res.projector_labels)
+@doc raw"""
+This function extracts the required pdos from the output of the compute_pdos function. 
+
+    Input:
+     -> res         : Whole output from compute_pdos
+     -> εs          : Range of the computed pdos
+     -> eshift      : Zero for the plot (usually is the Fermi energy)
+     -> atom        : Symbol of the required atom type
+     -> l or label  : Int64 or String for the angular part or the whole orbital label. If 'label' is used, n should not be provided.
+     -> iatom (opt) : Atom number in the model.atoms vector
+     -> n     (opt) : Index of the orbital radial part in the pseudopotential
+     -> σ     (opt) : Spin component 
+    Output:
+     -> pdos        : (2xlength(εs))-Matrix containing the energy values ε in the first column and the pdos(ε) in the second
+"""
+
+function get_pdos(res, εs, eshift::Float64, atom::Symbol, label::String; iatom=nothing, σ=1 )
+    to_unit = ustrip(auconvert(u"eV", 1.0))
+    idx = findall(orb -> (orb.species==atom && orb.label==label), res.projector_labels)
+    @assert 0 < length(idx) "Orbital $(label) for atom type $(atom) not found."
+    if !isnothing(iatom)
+        id = findall(orb -> (orb.iatom == iatom), res.projector_labels[idx])
+        idx = idx[id]
+        @assert length(idx) != 0 "Atom $(iatom) is not of type $(atom)." 
+    end
     pdos_values = zeros(Float64, length(εs))
     for i in idx
-        pdos_values += res.pdos[:, i, spin]
+        pdos_values += res.pdos[:, i, σ]
     end
     return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
 end
 
-function get_pdos(res, atom::Integer, l, spin)
-    idx = findall(orb -> (orb.iatom==atom && orb.l==l), res.projector_labels)
-    pdos_values = zeros(Float64, length(εs))
-    for i in idx
-        pdos_values += res.pdos[:, i, spin]
-    end
-    return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
-end
-
-function get_pdos_spinless(res, atom::Integer, l)
-    idx = findall(orb -> (orb.iatom==atom && orb.l==l), res.projector_labels)
-    pdos_values = zeros(Float64, length(εs))
-    for i in idx
-        pdos_values += res.pdos[:, i, 1]
-    end
-    return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
-end
-
-function get_pdos(res, atom::Symbol, n, l, spin)
+function get_pdos(res, εs, eshift::Float64, atom::Symbol, l::Int64; iatom=nothing, n=1, σ=1 )
+    to_unit = ustrip(auconvert(u"eV", 1.0))
     idx = findall(orb -> (orb.species==atom && orb.n==n && orb.l==l), res.projector_labels)
-    pdos_values = zeros(Float64, length(εs))
-    for i in idx
-        pdos_values += res.pdos[:, i, spin]
+    @assert 0 < length(idx) "No orbital found for type $(atom), n = $(n), l = $(l)"
+    if !isnothing(iatom)
+        id = findall(orb -> (orb.iatom == iatom), res.projector_labels[idx])
+        idx = idx[id]
+        @assert length(idx) >= 0 "Atom $(iatom) is not of type $(atom)." 
     end
-    return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
-end
-
-function get_pdos_spinless(res, atom::Symbol, n, l)
-    idx = findall(orb -> (orb.species==atom && orb.n==n && orb.l==l), res.projector_labels)
     pdos_values = zeros(Float64, length(εs))
     for i in idx
-        pdos_values += res.pdos[:, i, 1]
-    end
-    return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
-end
-
-function get_pdos_spinless(res, atom::Symbol, l)
-    idx = findall(orb -> (orb.species==atom && orb.l==l), res.projector_labels)
-    pdos_values = zeros(Float64, length(εs))
-    for i in idx
-        pdos_values += res.pdos[:, i, 1]
+        pdos_values += res.pdos[:, i, σ]
     end
     return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
 end
