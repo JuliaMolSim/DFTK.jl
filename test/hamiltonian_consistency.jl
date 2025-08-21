@@ -5,7 +5,7 @@ using Logging
 using DFTK: mpi_sum
 using DFTK: Hubbard
 using LinearAlgebra
-using ..TestCases: silicon, nickel, oxygen
+using ..TestCases: silicon, nickel, oxygen, magnesium
 using PseudoPotentialData
 testcase = nickel 
 custom_lattice = 7.9 * [[ 1.0  0.5  0.5];
@@ -47,16 +47,18 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         #at = n_dim == 3 ? ElementPsp(testcase.atnum, PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")) : ElementCoulomb(testcase.symbol)
         #atoms = fill(at, testcase.positions |> length)
         magnetic_moments = [2, -1, 0, 0]
-        model = Model(lattice, atoms, custom_positions; terms=[term], #spin_polarization,
+        model = Model(lattice, atoms, custom_positions; terms=[term],# spin_polarization=:collinear,
                       #temperature=1,
                       smearing=DFTK.Smearing.Gaussian(), magnetic_moments=magnetic_moments,
                       symmetries=true)
         basis = PlaneWaveBasis(model; Ecut, kgrid=MonkhorstPack(kgrid; kshift))
         @show basis.model.atoms[1].psp.pswfc_labels
         @show basis.model.n_spin_components
+
         n_electrons = testcase.n_electrons
         n_bands = div(n_electrons, 2, RoundUp)
         filled_occ = DFTK.filled_occupation(model)
+        @show filled_occ
 
         ψ = [Matrix(qr(randn(ComplexF64, length(G_vectors(basis, kpt)), n_bands)).Q)
              for kpt in basis.kpoints]
@@ -68,6 +70,9 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         end
         τ = compute_kinetic_energy_density(basis, ψ, occupation)
         E0, ham = energy_hamiltonian(basis, ψ, occupation; ρ, τ)
+
+        @show ham.blocks[1].operators[1].n_IJ
+        @show size(ham.blocks[1].operators[1].n_IJ)
 
         @assert length(basis.terms) == 1
 
@@ -114,7 +119,7 @@ end
     #test_consistency_term(ExternalFromFourier(X -> abs(norm(X))))
     #test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
     #test_consistency_term(Hartree())
-     test_consistency_term(Hubbard((:Ni, "3S"), 1.0))
+    test_consistency_term(Hubbard((:Ni, "3S"), 1.0))
     #test_consistency_term(Ewald())
     #test_consistency_term(PspCorrection())
     #test_consistency_term(Xc([:lda_xc_teter93]))

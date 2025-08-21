@@ -1,22 +1,23 @@
 using LinearAlgebra
+#using WignerD
 
 """
-    Build the projection matrices projsk for all k-points at the same time.
-     projection[ik][iband, iproj] = projsk[iband, iproj] = |<ψnk, ϕinlm>|^2
-     where ψnk is the wavefunction for band iband at k-point kpt,
-     and ϕinlm is the atomic orbital for atom i, quantum numbers (n,l,m)
-    
-     Input:
-     - basis: PlaneWaveBasis
-     - ψ: wavefunctions of the basis 
-     - psps: vector of pseudopotentials for each atom
-     - positions: positions of the atoms in the unit cell
-     - labels: structure containing iatom, species, n, l, m and orbital name for each projector
+    Build the projectors matrices projsk for all k-points at the same time.
+
+             projector[ik][:, iproj] = |ϕinlm>(kpt)
+
+     where ϕinlm is the atomic orbital for atom i, quantum numbers (n,l,m)
+       and iproj is the corresponding column index. The mapping is recorded in 'labels'.
      Note: 'n' is not exactly the principal quantum number, but rather the index of the radial function in the pseudopotential.
            As an example, if the pseudopotential contains the 3S and 4S orbitals, then those are indexed as n=1, l=0 and n=2, l=0 respectively.
+    
+     Input: 
+     - basis           : PlaneWaveBasis
+     - manifold  (opt) : tuple of (Atom, Orbital) to select only a subset of orbitals for the computation. 'Atom' must be either a Symbol or an Int64, 'Orbital' must be a String with the orbital name in uppercase.
+     - positions (opt) : positions of the atoms in the unit cell
      Output:
-     - projectors: vector of matrices of projectors, where 
-               projectors[ik][iband, iproj] = |ϕinlm>(iband,kpt) for each kpoint kpt
+     - projectors      : vector of matrices of projectors
+     - labels          : structure containing iatom, species, n, l, m and orbital name for each projector
 """
 function build_projectors(basis::PlaneWaveBasis{T};
                           manifold = nothing,
@@ -143,61 +144,23 @@ function compute_overlap_matrix(basis::PlaneWaveBasis{T};
 end
 
 """
-   This function computes the Hubbard matrix for a given manifold and basis.
-
-   Input:
-    - manifold: a tuple (species, orbital) defining the manifold. At the moment it only support one species and one orbital.
-    - basis: PlaneWaveBasis containing the wavefunctions and k-points
-    - ψ: wavefunctions from the scf calculation
-    - (optional) positions: positions of the atoms in the unit cell
-   Output:
-    - hubbard_matrix: a matrix containing the Hubbard interaction terms for the specified manifold
-    - manifold_labels: labels for the projectors in the Hubbard matrix, which is made like the labels in `build_projectors`
-
+Symmetrize the Hubbard occupation matrix according to the l quantum number of the manifold.
 """
-
-function compute_hubbard_matrix(manifold, bands; positions = bands.basis.model.positions, kwargs...)
-
-    ψ = bands.ψ
-    basis = bands.basis
-    
-    res = compute_hubbard_matrix(manifold, basis, ψ, bands.eigenvalues; positions, kwargs...)
-    hubbard_matrix = res.hubbard_matrix
-    manifold_labels = res.manifold_labels
-
-    return (; hubbard_matrix, manifold_labels)
-end
-
-# TODO: U should become a vector, with one value for each atom.
-struct Hubbard
-    manifold::Tuple{Any, String}
-    U::Float64
-end
-(hubbard::Hubbard)(::AbstractBasis) = TermHubbard(hubbard.manifold, hubbard.U)
-
-struct TermHubbard <: Term
-    manifold::Tuple{Any, String}
-    U::Float64
-end
-
-# TODO: Implement this function, using Wigner matrices for all l/=0 cases.
-function symmetrize(n_IJ::Array{Matrix{Complex{T}}}, symmetry, l, positions) where {T}
+function symmetrize(n_IJ::Array{Matrix{Complex{T}}}, lattice, symmetry, l, positions) where {T}
     # For now we apply symmetries only on nII terms, not on cross-atom terms (nIJ)
     # WARNING: To implement +V this will need to be changed!
 
-    #For now we do nothing, but we should sum over all symmetric atoms and divide by the number of symmetries.
-    # Also we should take in the manifold l number and apply wigner matrices accordingly.
-    # Look at QE/src/PW/new_ns.f90, lines 196-211
     nspins = size(n_IJ, 1)
     natoms = size(n_IJ, 2)
     nsym = length(symmetry)
-    # TODO: Take the Wigner matrices from someplace I don't know yet. 
-    #       There are already some julia packages which however require the Euler angles.
-    d1, d2, d3 = Wigner_sym(1, symmetry), Wigner_sym(2, symmetry), Wigner_sym(3, symmetry)
-    ns = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)  # Initialize the n_IJ matrix
+    d1, d2, d3 = Wigner_sym(1, lattice, symmetry), Wigner_sym(2, lattice, symmetry), Wigner_sym(3, lattice, symmetry)
+
+     # Initialize the n_IJ matrix
+    ns = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms) 
     for σ in 1:nspins, iatom in 1:natoms, jatom in 1:natoms
         ns[σ, iatom, jatom] = zeros(Complex{T}, size(n_IJ[σ, iatom, jatom],1), size(n_IJ[σ, iatom, jatom],2))
     end
+
     # TODO: Write better the symmetrization loop
     for σ in 1:nspins, iatom in 1:natoms
         for m1 in 1:size(ns[σ, iatom, iatom], 1), m2 in 1:size(ns[σ, iatom, iatom], 2)  # Iterate over the rows of the n_IJ matrix
@@ -213,19 +176,16 @@ function symmetrize(n_IJ::Array{Matrix{Complex{T}}}, symmetry, l, positions) whe
                         ns[σ, iatom, iatom][m1, m2] += d1[m0, m1, isym] * 
                                                        n_IJ[σ, sym_atom, sym_atom][m0, m00] * 
                                                        d1[m00, m2, isym] / nsym
-                        @show "Not implemented yet: symmetrize for l=1 Wigner matrix"
                     elseif l == 2
                         # apply d2 Wigner matrix
                         ns[σ, iatom, iatom][m1, m2] += d2[m0, m1, isym] * 
                                                        n_IJ[σ, sym_atom, sym_atom][m0, m00] * 
                                                        d2[m00, m2, isym] / nsym
-                        @show "Not implemented yet: symmetrize for l=2 Wigner matrix"
                     elseif l == 3
                         # apply d3 Wigner matrix
                         ns[σ, iatom, iatom][m1, m2] += d3[m0, m1, isym] * 
                                                        n_IJ[σ, sym_atom, sym_atom][m0, m00] * 
                                                        d3[m00, m2, isym] / nsym
-                        @show "Not implemented yet: symmetrize for l=3 Wigner matrix"
                     else
                         @warn "Symmetrization for l > 3 not implemented yet, skipping symmetrization for l=$(l)"
                         # For now we skip symmetrization for l > 3
@@ -235,7 +195,7 @@ function symmetrize(n_IJ::Array{Matrix{Complex{T}}}, symmetry, l, positions) whe
         end
     end
 
-    return n_IJ
+    return ns
 end
 """
 Find the symmetric atom index for a given atom and symmetry operation
@@ -243,13 +203,12 @@ Find the symmetric atom index for a given atom and symmetry operation
 function find_symmetric(iatom::Int64, symmetry::Vector{SymOp{T}}, 
                         isym::Int64, positions
                         ) where {T}
-    # TODO: Implement this function to find the symmetric atom index based on the symmetry operation
     sym_atom = iatom
     W, w = symmetry[isym].W, symmetry[isym].w
     p = positions[iatom]
     p2 = W * p + w  
     for (jatom, pos) in enumerate(positions)
-        if isapprox(pos, p2, atol=1e-8)  # Use a tolerance to compare positions
+        if isapprox(pos, p2, atol=1e-8)  
             sym_atom = jatom
             break
         end
@@ -257,73 +216,76 @@ function find_symmetric(iatom::Int64, symmetry::Vector{SymOp{T}},
     return sym_atom
 end
 
-
-function Wigner_sym(l::Int64, symmetry::Vector{SymOp{T}}) where {T}
-    # This function returns the Wigner matrix for a given l and symmetry operation
-    # We will need to implement a way to go from the symmetry operation to the associated 
-    #   Euler angles, with which we can take the Wigner matrix from an external module.
-
-    D = ones(Complex{T}, 2l + 1, 2l + 1, length(symmetry))  # Initialize the Wigner matrix
+"""
+ This function returns the Wigner matrix for a given l and symmetry operation solving a randomized linear system.
+    The lattice L is needed to convert reduced symmetries to Cartesian space.
+"""
+function Wigner_sym(l::Int64, L, symmetries::Vector{SymOp{T}}) where {T}
+    
+    nsym = length(symmetries)
+    D = Array{Float64}(undef, 2*l+1, 2*l+1, nsym)
+    for (isym,symmetry) in enumerate(symmetries)
+        W = symmetry.W
+        for m1 in -l:l
+            b = Vector{Float64}(undef, 2*l+1)
+            A = Matrix{Float64}(undef, 2*l+1, 2*l+1)
+            for n in 1:2*l+1
+                r = rand(Float64, 3)
+                r0 = L * W * inv(L) * r
+                b[n] = DFTK.ylm_real(l, m1, r0)
+                for m2 in -l:l
+                    A[n,m2+l+1] = DFTK.ylm_real(l, m2, r)
+                end
+            end
+            D[m1+l+1,:,isym] = A\b
+        end
+    end
 
     return D
 end
 
-function compute_hubbard_matrix(manifold::Tuple{Any, String},
-                                basis::PlaneWaveBasis{T},
-                                ψ, occupation;
-                                positions = basis.model.positions) where {T}
-    proj = build_projectors(basis; manifold, positions)
-    projs = proj.projectors
-    labs = proj.labels
-    labels, projectors = build_manifold(basis, projs, labs, manifold)
-    nprojs = length(labels)
-    density_matrix = zeros(Complex{T}, nprojs, nprojs)
+"""
+Computes a matrix n_IJ of size (nspins, natoms, natoms), where each entry n_IJ[iatom, jatom] contains the submatrix of the occupation matrix
+    corresponding to the projectors of atom iatom and atom jatom, with dimensions determined by the number of projectors for each atom.
+    The atoms and orbitals are defined by the manifold tuple.
 
-    for (ik, projk) in enumerate(projectors)
-        ψk = ψ[ik]
-        nk = occupation[ik]  # vector of occupations per band at k
-        c = projk' * ψk      # <ϕ|ψ>
-        # The matrix product is done over the bands. In QE, basis.kweights[ik]*nk[ibnd] would be wg(ik,ibnd)
-        # TODO: Do I have to worry about the computational efficiency? In Fortran I would split this product
-        density_matrix .+= basis.kweights[ik] * c * diagm(nk) * c' 
-    end
-    
-
-    return (; hubbard_matrix=density_matrix, manifold_labels=labels, projectors=projectors)
-end
-
+    Input:
+      -> manifold         : Tuple{Symbol, String} with the atomic orbital type to define the Hubbard manifold
+      -> basis            : PlaneWaveBasis containing the wavefunctions and k-points
+      -> ψ                : wavefunctions from the scf calculation
+      -> occupation       : Occupation matrix for the bands
+      -> positions (opt)  : positions of the atoms in the unit cell
+    Output:
+      ->  n_IJ            : 3-tensor of matrices. 
+                            Outer indices select spin, iatom and jatom, inner indices select m1 and m2 in the manifold.
+      ->  manifold_labels : Labels for all manifold orbitals, corresponding to different columns of p_I.
+      ->  p_I             : Projectors for the manifold. 
+                            Those are orthonormalized against all orbitals, also outside of the manifold.
+"""
 function compute_hubbard_nIJ(manifold::Tuple{Symbol, String},
                                 basis::PlaneWaveBasis{T},
                                 ψ, occupation;
                                 positions = basis.model.positions) where {T}
+    filled_occ = filled_occupation(basis.model)
     proj = build_projectors(basis; positions)
     projs = proj.projectors
     labs = proj.labels
     labels, projectors = build_manifold(basis, projs, labs, manifold)
     nprojs = length(labels)
     nspins = basis.model.n_spin_components
-    n_matrix = [zeros(Complex{T}, nprojs, nprojs) for σ in 1:nspins]
+    n_matrix = zeros(Complex{T}, nspins, nprojs, nprojs) 
 
-    # The QE code deals with the spatial symmetry of the orbitals to compute ns,
-    #   but for the s case this is just a division by 2 (number of symmetry operations, in this case identity and exchange of silicons)
-    # Hence we should divide the occupations by 2 for the s case or compare our n with nr instead (without looking at the energy)
-    # The factor of 2 alone gets us close, but still not there. The matrices are still remarkably different.
-    for σ in 1:nspins, ik = krange_spin(basis, σ)  # Iterate over k-points for each spin component
-        ψk, projk, nk = @views ψ[ik], projectors[ik], occupation[ik]
+    for σ in 1:nspins, ik = krange_spin(basis, σ)  
+        # We divide by filled_occ to deal with the physical two spin channels separately.
+        ψk, projk, nk = @views ψ[ik], projectors[ik], occupation[ik]/filled_occ  
         c = projk' * ψk      # <ϕ|ψ>
         # The matrix product is done over the bands. In QE, basis.kweights[ik]*nk[ibnd] would be wg(ik,ibnd)
         # TODO: Do I have to worry about the computational efficiency? In Fortran I would split this product
-        n_matrix[σ] .+= basis.kweights[ik] * c * diagm(nk) * c' 
+        n_matrix[σ, :, :] .+= basis.kweights[ik] * c * diagm(nk) * c' 
     end
-    #n_matrix = mpi_sum(n_matrix, basis.comm_kpts)  # Should we sum over k-points "again"?
-    
-    # Still not quite sure about that, the QE code does divide by 2
-    if basis.model.spin_polarization == :none
-        n_matrix *= 0.5  # Divide by 2 for the spin-unpolarized case, as in QE
-    end
+    n_matrix = mpi_sum(n_matrix, basis.comm_kpts)
 
     # Now I want to reshape it to match the notation used in the papers.
-    totatoms = length(basis.model.atoms)
     types = findall(at -> at.species == Symbol(manifold[1]), basis.model.atoms)
     natoms = length(types)  # Number of atoms of the species in the manifold
     n_IJ = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)
@@ -338,36 +300,46 @@ function compute_hubbard_nIJ(manifold::Tuple{Symbol, String},
             while j <= nprojs
                 jl = labels[j].l
                 jatom = labels[j].iatom
-                n_IJ[σ, iatom, jatom] = copy(n_matrix[σ][i:i+2*il, j:j+2*jl])
+                n_IJ[σ, iatom, jatom] = copy(n_matrix[σ, i:i+2*il, j:j+2*jl])
                 j += 2*jl + 1
             end
             for (ik, projk) in enumerate(projectors)
-                p_I[ik][iatom] = Matrix{Complex{T}}(undef, size(projk,1), 2*il + 1)  # Initialize the projectors for this k-point
+                p_I[ik][iatom] = Matrix{Complex{T}}(undef, size(projk,1), 2*il + 1)  
                 p_I[ik][iatom] = copy(projk[:, i:i+2*il])  # Store the projector for this atom
             end
             i += 2*il + 1
         end
     end
 
-    # For now this does nothing
-    symmetry = basis.symmetries
-    p = findfirst(orb -> orb.label == manifold[2], labels)  # Find the index of the manifold label in the labels
-    l = labels[p].l  
-    n_IJ = symmetrize(n_IJ, symmetry, l, basis.model.positions)
+    # Still to be fully implemented. 
+    # TODO: should we use basis.symmetries or basis.model.symmetries?
+    l = labels[findfirst(orb -> orb.label == manifold[2], labels)].l  
+    n_IJ = symmetrize(n_IJ, basis.model.lattice, basis.symmetries, l, basis.model.positions)
 
-    # n_IJ is a matrix of size (natoms, natoms), where each entry n_IJ[iatom, jatom] contains the submatrix of the occupation matrix
-    # corresponding to the projectors of atom iatom and atom jatom, with dimensions determined by the number of projectors for each atom.
     return (; n_IJ=n_IJ, manifold_labels=labels, p_I=p_I)
+end
+
+# TODO: U should become a vector, with one value for each atom.
+struct Hubbard
+    manifold::Tuple{Any, String}
+    U::Float64
+end
+(hubbard::Hubbard)(::AbstractBasis) = TermHubbard(hubbard.manifold, hubbard.U)
+
+struct TermHubbard <: Term
+    manifold::Tuple{Any, String}
+    U::Float64
 end
 
 @timing "ene_ops: hubbard" function ene_ops(term::TermHubbard, 
                                             basis::PlaneWaveBasis{T}, 
                                             ψ, occupation; 
-                                            n=nothing, kwargs...) where {T}
+                                            n=nothing, qe=false, kwargs...) where {T}
     if ψ === nothing
         return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
     end
 
+    filled_occ = filled_occupation(basis.model)
     totatoms = length(basis.model.atoms)
     types = findall(at -> at.species == Symbol(term.manifold[1]), basis.model.atoms)
     natoms = length(types)  # Number of atoms of the species in the manifold
@@ -377,15 +349,17 @@ end
         n = Hubbard.n_IJ
         proj = Hubbard.p_I
     else
-        #n_IJ = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)  
-        #for σ in 1:nspins, iatom in 1:natoms, jatom in 1:natoms
-        #    if jatom == iatom
-        #        n_IJ[σ, iatom, jatom] = n  
-        #    else
-        #        n_IJ[σ, iatom, jatom] = zeros(typeof(n[1,1][1,1]), size(n,1), size(n,2))  # Off-diagonal terms are irrelevant
-        #    end
-        #end
-        #n = n_IJ 
+        if qe   # This part is for debugging using the qe matrix as input, converting it to DFTK format
+            n_IJ = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)  
+            for σ in 1:nspins, iatom in 1:natoms, jatom in 1:natoms
+                if jatom == iatom
+                    n_IJ[σ, iatom, jatom] = n  
+                else
+                    n_IJ[σ, iatom, jatom] = zeros(typeof(n[1,1][1,1]), size(n,1), size(n,2))  # Off-diagonal terms are irrelevant
+                end
+            end
+            n = n_IJ 
+        end
         Hubbard = compute_hubbard_nIJ(term.manifold, basis, ψ, occupation)
         proj = Hubbard.p_I
     end
@@ -395,11 +369,8 @@ end
     to_unit = ustrip(auconvert(u"eV", 1.0))  # Ha to eV conversion factor
     U = term.U / to_unit  # Convert U to Ha
     E = zero(T)
-    # The reference paper here puts a 1/2 factor in front of the Hubbard term,
-    #   but using the QE n matrix, we do not need to divide by 2, so I guess it shouldn't be there.
-    # TODO: Understand why here we should not put a 1/2 factor, while we do in the potential.
     for σ in 1:nspins, iatom in 1:natoms
-        E += U * real(tr(n[σ, iatom,iatom] * (I - n[σ, iatom,iatom])))
+        E += filled_occ * 0.5 * U * real(tr(n[σ, iatom,iatom] * (I - n[σ, iatom,iatom])))
     end
 
     ops = [HubbardUOperator(basis, kpt, U, n, proj[ik]) for (ik,kpt) in enumerate(basis.kpoints)]

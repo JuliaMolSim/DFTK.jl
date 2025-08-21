@@ -69,19 +69,19 @@ function compute_ldos(scfres::NamedTuple; ε=scfres.εF, kwargs...)
 end
 
 """
-Compute the projected density of states (PDOS) for all atoms and orbitals
+Compute the projected density of states (PDOS) for all atoms and orbitals.
+
  Input: 
- - εs: vector of energies at which to compute the PDOS
- - bands: Bands object containing the eigenvalues, wavefunction, basis and positions
+ - εs               : vector of energies at which to compute the PDOS
+ - bands            : Bands object containing the eigenvalues, wavefunction, basis and positions
  Output:
- - pdos: 3D array of PDOS, pdos[iε_idx, iproj, σ] = PDOS at energy εs[iε_idx] for projector iproj and spin σ
- - projector_labels: vector of tuples (iatom, n, l, m) for each projector, that maps the iproj index to the 
+ - pdos             : 3D array of PDOS, pdos[iε_idx, iproj, σ] = PDOS at energy εs[iε_idx] for projector iproj and spin σ
+ - projector_labels : vector of tuples (iatom, n, l, m) for each projector, that maps the iproj index to the 
                     corresponding atomic orbital (atom index, principal quantum number, angular momentum, magnetic quantum number)
-Note: 
+Notes: 
  - The pdos matrix has different projectors for each atom, even if they are of the same atom type. 
    As such, the sum of all iproj columns for each σ yields the total DOS at each energy εs[iε_idx].
-   This is different from Quantum ESPRESSO, where the pdos for atoms of the same type are summed together 
-     even though they are printed separately (i.e. summing over all QE pdos from all output files does not yield the DOS).
+   This is different from Quantum ESPRESSO, since summing over all QE pdos from all output files does not yield the DOS.
 """
 
 function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues; 
@@ -121,100 +121,29 @@ function compute_pdos(εs, bands; kwargs...)
     compute_pdos(εs, bands.basis, bands.ψ, bands.eigenvalues; kwargs...)
 end
 
-# TODO: function compute_single_pdos, or add optional arguments to the previous function to make it print only one pdos
+@doc raw"""
+   Build the projectors matrices projsk for all k-points at the same time.
 
-"""
-Build the projection matrix projsk for a given k-point kpt.
-    projsk[iband, iproj] = |<ψnk, ϕilm>|^2
- where ψnk is the wavefunction for band iband at k-point kpt,
- and ϕilm is the atomic orbital for atom i, quantum numbers (n,l,m)
+             projector[ik][:, iproj] = |ϕinlm>(kpt)
 
- Input:
- - basis: PlaneWaveBasis
- - kpt: Kpoint for which to compute the projections
- - ψ: wavefunctions of the basis 
- - psps: vector of pseudopotentials for each atom
- - positions: positions of the atoms in the unit cell
- - labels: vector of tuples (iatom, n, l, m) for each projector
- Output:
- - projsk: matrix of projections, where projsk[iband, iproj]
-           = |<ψnk, ϕilm>|^2 for the given kpoint kpt
-"""
-
-function build_projsk(basis::PlaneWaveBasis{T}, kpt::Kpoint, ψk,
-                    psps::AbstractVector{<: NormConservingPsp}, 
-                    positions, labels::Vector{Tuple{Int,Int,Int,Int}}) where {T}
-
-    nprojs = length(labels)
-    projsk = zeros(T, length(ψk), nprojs)  # Initialize the projection matrix
-
-    G_plus_k = Gplusk_vectors(basis, kpt)
-    G_plus_k_cart = map(recip_vector_red_to_cart(basis.model), G_plus_k)
-
-    # Build form factors of pseudo-wavefunctions centered at 0.
-    form_factors = Matrix{Complex{T}}(undef, length(G_plus_k_cart), nprojs)
-    for (iproj, (iatom, n, l, m)) in enumerate(labels)
-        psp = psps[iatom]
-        fun(p) = eval_psp_pswfc_fourier(psp, n, l, p)
-        # Build form factors for the current projector
-        radials = IdDict{T,T}()  # IdDict for Dual compatibility
+     where ϕinlm is the atomic orbital for atom i, quantum numbers (n,l,m)
+       and iproj is the corresponding column index. The mapping is recorded in 'labels'.
+     Note: 'n' is not exactly the principal quantum number, but rather the index of the radial function in the pseudopotential.
+           As an example, if the pseudopotential contains the 3S and 4S orbitals, then those are indexed as n=1, l=0 and n=2, l=0 respectively.
     
-        for p in G_plus_k_cart
-            p_norm = norm(p)
-            if !haskey(radials, p_norm)
-                radials_p = fun(p_norm)
-                radials[p_norm] = radials_p
-            end
-        end
-
-        for (ip, p) in enumerate(G_plus_k_cart)
-            radials_p = radials[norm(p)]
-            # see "Fourier transforms of centered functions" in the docs for the formula
-            angular = (-im)^l * ylm_real(l, m, p)
-            form_factors[ip, iproj] = radials_p * angular
-        end
-    end
-
-    proj_vectors = Vector{Vector{Any}}(undef, 0)  # Collect all projection vectors for this k-point
-    for (iproj, (iatom, n, l, m)) in enumerate(labels)
-        structure_factor = [cis2pi(-dot(positions[iatom], p)) for p in G_plus_k_cart]
-        proj_vector = structure_factor .* form_factors[:, iproj] ./ sqrt(basis.model.unit_cell_volume)
-        push!(proj_vectors, proj_vector)  # Collect all projection vectors for this k-point    
-    end
-
-    proj_vectors = hcat(proj_vectors...)  # Create a matrix of projections for this k-point
-    @assert size(proj_vectors, 2) == nprojs "Projection matrix size mismatch: $(size(proj_vectors)) != $nprojs"
-    proj_vectors = ortho_lowdin(proj_vectors)  # Lowdin-orthogonalization
-    
-    projsk = abs2.(ψk' * proj_vectors)  # Contract on ψk to get the projections
-    @assert size(projsk) == (size(ψk,2), nprojs) "Projection matrix size mismatch: $(size(projsk)) != $(length(ψk)), $nprojs"
-
-    return projsk
-end
+     Input: 
+     - basis           : PlaneWaveBasis
+     - manifold  (opt) : tuple of (Atom, Orbital) to select only a subset of orbitals for the computation. 'Atom' must be either a Symbol or an Int64, 'Orbital' must be a String with the orbital name in uppercase.
+     - positions (opt) : positions of the atoms in the unit cell
+     Output:
+     - projectors      : vector of matrices of projectors for each k-point
+     - labels          : structure containing iatom, species, n, l, m and orbital name for each projector
 
 """
-Build the projection matrices projsk for all k-points at the same time.
-   projs[ik][iband, iproj] = projsk[iband, iproj] = |<ψnk, ϕilm>|^2
- where ψnk is the wavefunction for band iband at k-point kpt,
- and ϕilm is the atomic orbital for atom i, quantum numbers (n,l,m)
-
- Input:
- - basis: PlaneWaveBasis
- - ψ: wavefunctions of the basis 
- - psps: vector of pseudopotentials for each atom
- - positions: positions of the atoms in the unit cell
- - labels: structure containing iatom, species, n, l, m and orbital name for each projector
- Note: 'n' is not exactly the principal quantum number, but rather the index of the radial function in the pseudopotential.
-       As an example, if the pseudopotential contains the 3S and 4S orbitals, then those are indexed as n=1, l=0 and n=2, l=0 respectively.
- Output:
- - projs: vector of matrices of projections, where 
-           projs[ik][iband, iproj] = |<ψnk, ϕilm>|^2 for each kpoint kpt
-"""
-
-function build_projections(basis::PlaneWaveBasis{T}, ψ;
-                            positions = basis.model.positions           
+function build_projectors(basis::PlaneWaveBasis{T};
+                          positions = basis.model.positions
                           ) where {T}
-
+    
     G_plus_k_all = [Gplusk_vectors(basis, basis.kpoints[ik])
                     for ik = 1:length(basis.kpoints)]
     G_plus_k_all_cart = [map(recip_vector_red_to_cart(basis.model), gpk) 
@@ -227,13 +156,13 @@ function build_projections(basis::PlaneWaveBasis{T}, ψ;
         psps[iatom] = atom.psp
         for l in 0:psps[iatom].lmax
             for n in 1:DFTK.count_n_pswfc_radial(psps[iatom], l)
+                label = psps[iatom].pswfc_labels[l+1][n]
                 fun(p) = eval_psp_pswfc_fourier(psps[iatom], n, l, p)
                 form_factors_l = build_form_factors(fun, l, G_plus_k_all_cart)
                 for ik in 1:length(G_plus_k_all_cart)
                    form_factors[ik] = hcat(form_factors[ik], form_factors_l[ik])  # Concatenate the form factors for this l
                 end
                 for m in -l:l
-                    label = psps[iatom].pswfc_labels[n+l]
                     push!(labels, (; iatom, atom.species, n, l, m, label))
                 end
             end
@@ -241,9 +170,9 @@ function build_projections(basis::PlaneWaveBasis{T}, ψ;
     end
     nprojs = length(labels)
 
-    projs = Vector{Matrix}(undef, length(basis.kpoints))
-    for (ik, ψk) in enumerate(ψ) # The loop now iterates over k-points regardless of the spin component
-        proj_vectors = Matrix{Complex{T}}(undef, length(G_plus_k_all[ik]), nprojs)  # Collect all projection vectors for this k-point
+    projectors = Vector{Matrix}(undef, length(basis.kpoints))
+    for ik in 1:length(basis.kpoints) # The projectors don't depend on the spin
+        proj_vectors = zeros(Complex{T}, length(G_plus_k_all[ik]), nprojs)  # Collect all projection vectors for this k-point
         for (iproj, proj) in enumerate(labels)
             structure_factor = [cis2pi(-dot(positions[proj.iatom], p)) for p in G_plus_k_all[ik]]
             @assert length(structure_factor) == length(G_plus_k_all[ik]) "Structure factor length mismatch: $(length(structure_factor)) != $(length(G_plus_k))"
@@ -256,13 +185,93 @@ function build_projections(basis::PlaneWaveBasis{T}, ψ;
         #   We use Lowdin orthogonalization to minimize the "identity loss" of individual orbital projectors after the orthogonalization
         proj_vectors = ortho_lowdin(proj_vectors)  # Lowdin-orthogonal
         
-        projs[ik] = abs2.(ψk' * proj_vectors)   # Contract on ψk to get the projections
-        @assert size(projs[ik]) == (size(ψk,2), nprojs) "Projection matrix size mismatch: $(size(projsk)) != $(length(ψk)), $nprojs"
+        projectors[ik] = proj_vectors  # Contract on ψk to get the projections
     end
 
-    (;projs, labels)
+    return (;projectors, labels)
 end
 
+"""
+    Build the projectors matrices projsk for all k-points at the same time.
+
+       projection[ik][iband, iproj] = projsk[iband, iproj] = |<ψnk, ϕinlm>|^2
+
+     where ψnk is the wavefunction for band iband at k-point kpt,
+       and ϕinlm is the atomic orbital for atom i, quantum numbers (n,l,m), with
+       iproj being the corresponding column index. The mapping is recorded in 'labels'.
+     Note: 'n' is not exactly the principal quantum number, but rather the index of the radial function in the pseudopotential.
+           As an example, if the pseudopotential contains the 3S and 4S orbitals, then those are indexed as n=1, l=0 and n=2, l=0 respectively.
+    
+     Input: 
+     - basis           : PlaneWaveBasis
+     - ψ               : wavefunction of the system
+     - manifold  (opt) : tuple of (Atom, Orbital) to select only a subset of orbitals for the computation. 'Atom' must be either a Symbol or an Int64, 'Orbital' must be a String with the orbital name in uppercase.
+     - positions (opt) : positions of the atoms in the unit cell
+     Output:
+     - projections     : vector of matrices of projections for each k-point
+     - labels          : structure containing iatom, species, n, l, m and orbital name for each projector
+
+"""
+function build_projections(basis::PlaneWaveBasis{T}, ψ; 
+                           positions = basis.model.positions
+                           ) where {T}
+    projectors, labels = build_projectors(basis; positions=positions)
+
+    projs = Vector{Matrix}(undef, length(basis.kpoints))
+    for (ik, ψk) in enumerate(ψ)
+        projs[ik] = abs2.(ψk' * projectors[ik])
+    end
+
+    return (; projections=projs, labels)
+end
+
+@doc raw"""
+This function extracts the required pdos from the output of the compute_pdos function. 
+
+    Input:
+     -> res         : Whole output from compute_pdos
+     -> εs          : Range of the computed pdos
+     -> eshift      : Zero for the plot (usually is the Fermi energy)
+     -> atom        : Symbol of the required atom type
+     -> l or label  : Int64 or String for the angular part or the whole orbital label. If 'label' is used, n should not be provided.
+     -> iatom (opt) : Atom number in the model.atoms vector
+     -> n     (opt) : Index of the orbital radial part in the pseudopotential
+     -> σ     (opt) : Spin component 
+    Output:
+     -> pdos        : (2xlength(εs))-Matrix containing the energy values ε in the first column and the pdos(ε) in the second
+"""
+
+function get_pdos(res, εs, eshift::Float64, atom::Symbol, label::String; iatom=nothing, σ=1 )
+    to_unit = ustrip(auconvert(u"eV", 1.0))
+    idx = findall(orb -> (orb.species==atom && orb.label==label), res.projector_labels)
+    @assert 0 < length(idx) "Orbital $(label) for atom type $(atom) not found."
+    if !isnothing(iatom)
+        id = findall(orb -> (orb.iatom == iatom), res.projector_labels[idx])
+        idx = id
+        @assert length(idx) != 0 "Atom $(iatom) is not of type $(atom)." 
+    end
+    pdos_values = zeros(Float64, length(εs))
+    for i in idx
+        pdos_values += res.pdos[:, i, σ]
+    end
+    return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
+end
+
+function get_pdos(res, εs, eshift::Float64, atom::Symbol, l::Int64; iatom=nothing, n=1, σ=1 )
+    to_unit = ustrip(auconvert(u"eV", 1.0))
+    idx = findall(orb -> (orb.species==atom && orb.n==n && orb.l==l), res.projector_labels)
+    @assert 0 < length(idx) "No orbital found for type $(atom), n = $(n), l = $(l)"
+    if !isnothing(iatom)
+        id = findall(orb -> (orb.iatom == iatom), res.projector_labels[idx])
+        idx = id
+        @assert length(idx) >= 0 "Atom $(iatom) is not of type $(atom)." 
+    end
+    pdos_values = zeros(Float64, length(εs))
+    for i in idx
+        pdos_values += res.pdos[:, i, σ]
+    end
+    return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
+end
 
 """
 Plot the density of states over a reasonable range. Requires to load `Plots.jl` beforehand.

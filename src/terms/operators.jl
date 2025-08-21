@@ -167,9 +167,10 @@ struct HubbardUOperator{T <: Real} <: RealFourierOperator
     proj_I :: Vector{Matrix{Complex{T}}} #It is the projector for the given kpoint only
 end
 function apply!(Hψ, op::HubbardUOperator, ψ)
-    nspins  = size(op.n_IJ, 1)
+    filled_occ = filled_occupation(op.basis.model)
+    σ = op.kpoint.spin
     natoms  = size(op.n_IJ, 2)
-    for σ in 1:nspins, iatom in 1:natoms
+    for iatom in 1:natoms
         n_ii = op.n_IJ[σ, iatom, iatom]
         iszero(n_ii) && continue
         for m1 = 1:size(n_ii, 1)
