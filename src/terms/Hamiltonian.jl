@@ -168,9 +168,8 @@ end
         end
     end
 
-    @timing "local" begin
-        Hψ .+= H.fourier_op.multiplier .* ψ
-    end
+    # Kinetic term
+    Hψ .+= H.fourier_op.multiplier .* ψ
 
     # Apply the nonlocal operator.
     if !isnothing(H.nonlocal_op)
