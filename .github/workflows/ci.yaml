@@ -33,7 +33,7 @@ jobs:
       DFTK_TEST_NPROCS: 2  # For MPI parallelised tests
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Julia stable
         uses: julia-actions/setup-julia@v2
