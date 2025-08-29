@@ -11,7 +11,7 @@ The current DFTK reference paper to cite is
   author = {Michael F. Herbst and Antoine Levitt and Eric Cancès},
   doi = {10.21105/jcon.00069},
   journal = {Proc. JuliaCon Conf.},
-  title = {DFTK: A Julian approach for simulating electrons in solids},
+  title = {{DFTK}: A {Julian} approach for simulating electrons in solids},
   volume = {3},
   pages = {69},
   year = {2021},
