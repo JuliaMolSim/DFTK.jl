@@ -81,24 +81,6 @@ end
 function build_manifold(basis::PlaneWaveBasis{T}, projectors, labels, manifold::Tuple{Symbol, String}) where {T}
     manifold_labels = []
     manifold_projectors = Vector{Matrix{Complex{T}}}(undef, length(basis.kpoints))
-    #for (iatom, atom) in enumerate(basis.model.atoms)
-    #    if manifold[1] == Symbol(atom.species)
-    #        psps[iatom] = atom.psp
-    #        for l in 0:psps[iatom].lmax
-    #            for n in 1:DFTK.count_n_pswfc_radial(psps[iatom], l)
-    #                label = psps[iatom].pswfc_labels[n+l][1]
-    #                if lowercase(manifold[2]) == lowercase(label)
-    #                    # If the label matches the manifold, we add it to the labels
-    #                    # This is useful for extracting specific orbitals from the basis
-    #                    # e.g., (:Si, "3S") will match all 3S orbitals of Si atoms
-    #                    for m in -l:l
-    #                        push!(manifold_labels, (; iatom, atom.species, n, l, m, label))
-    #                    end
-    #                end
-    #            end
-    #        end
-    #    end
-    #end
     for (iproj, orb) in enumerate(labels)
         if manifold[1] == Symbol(orb.species) && lowercase(manifold[2]) == lowercase(orb.label)
             # If the label matches the manifold, we add it to the labels
@@ -310,12 +292,41 @@ function compute_hubbard_nIJ(manifold::Tuple{Symbol, String},
         end
     end
 
-    # Still to be fully implemented. 
-    # TODO: should we use basis.symmetries or basis.model.symmetries?
     l = labels[findfirst(orb -> orb.label == manifold[2], labels)].l  
     n_IJ = symmetrize(n_IJ, basis.model.lattice, basis.symmetries, l, basis.model.positions)
 
     return (; n_IJ=n_IJ, manifold_labels=labels, p_I=p_I)
+end
+
+function compute_hubbard_proj(manifold::Tuple{Symbol, String},
+                                basis::PlaneWaveBasis{T};
+                                positions = basis.model.positions) where {T}
+    proj = build_projectors(basis; positions)
+    projs = proj.projectors
+    labs = proj.labels
+    labels, projectors = build_manifold(basis, projs, labs, manifold)
+    nprojs = length(labels)
+    nspins = basis.model.n_spin_components
+
+    # Now I want to reshape it to match the notation used in the papers.
+    types = findall(at -> at.species == Symbol(manifold[1]), basis.model.atoms)
+    natoms = length(types)  # Number of atoms of the species in the manifold
+    p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for i in 1:length(basis.kpoints)]
+    # Very low-level, but works
+    for σ in 1:nspins
+        i = 1
+        while i <= nprojs
+            il = labels[i].l
+            iatom = labels[i].iatom
+            for (ik, projk) in enumerate(projectors)
+                p_I[ik][iatom] = Matrix{Complex{T}}(undef, size(projk,1), 2*il + 1)  
+                p_I[ik][iatom] = copy(projk[:, i:i+2*il])  # Store the projector for this atom
+            end
+            i += 2*il + 1
+        end
+    end
+
+    return p_I
 end
 
 # TODO: U should become a vector, with one value for each atom.
@@ -332,47 +343,37 @@ end
 
 @timing "ene_ops: hubbard" function ene_ops(term::TermHubbard, 
                                             basis::PlaneWaveBasis{T}, 
-                                            ψ, occupation; 
-                                            n=nothing, qe=false, kwargs...) where {T}
-    if ψ === nothing
-        return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
-    end
-
-    filled_occ = filled_occupation(basis.model)
-    totatoms = length(basis.model.atoms)
-    types = findall(at -> at.species == Symbol(term.manifold[1]), basis.model.atoms)
-    natoms = length(types)  # Number of atoms of the species in the manifold
-    nspins = basis.model.n_spin_components
-    if isnothing(n)
+                                            ψ, occupation; n_hub=nothing, ψ_hub=nothing,
+                                            kwargs...) where {T}
+    to_unit = ustrip(auconvert(u"eV", 1.0))  
+    U = term.U / to_unit         
+    if isnothing(ψ)
+        if isnothing(n_hub)
+           return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
+        end
+        n = n_hub
+        ψ = ψ_hub
+        proj = compute_hubbard_proj(term.manifold, basis)
+    else
         Hubbard = compute_hubbard_nIJ(term.manifold, basis, ψ, occupation)
         n = Hubbard.n_IJ
         proj = Hubbard.p_I
-    else
-        if qe   # This part is for debugging using the qe matrix as input, converting it to DFTK format
-            n_IJ = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)  
-            for σ in 1:nspins, iatom in 1:natoms, jatom in 1:natoms
-                if jatom == iatom
-                    n_IJ[σ, iatom, jatom] = n  
-                else
-                    n_IJ[σ, iatom, jatom] = zeros(typeof(n[1,1][1,1]), size(n,1), size(n,2))  # Off-diagonal terms are irrelevant
-                end
-            end
-            n = n_IJ 
-        end
-        Hubbard = compute_hubbard_nIJ(term.manifold, basis, ψ, occupation)
-        proj = Hubbard.p_I
     end
+
+     
+    ops = [HubbardUOperator(basis, kpt, U, n, proj[ik]) for (ik,kpt) in enumerate(basis.kpoints)]
+
+    filled_occ = filled_occupation(basis.model)
+    types = findall(at -> at.species == Symbol(term.manifold[1]), basis.model.atoms)
+    natoms = length(types)  # Number of atoms of the selected species in the manifold
+    nspins = basis.model.n_spin_components
 
     # To compare the results with Quantum ESPRESSO, we need to convert the U value from eV.
     #   In QE the U value is given in eV in the input but DFTK works in Hartrees.
-    to_unit = ustrip(auconvert(u"eV", 1.0))  # Ha to eV conversion factor
-    U = term.U / to_unit  # Convert U to Ha
     E = zero(T)
     for σ in 1:nspins, iatom in 1:natoms
         E += filled_occ * 0.5 * U * real(tr(n[σ, iatom,iatom] * (I - n[σ, iatom,iatom])))
     end
-
-    ops = [HubbardUOperator(basis, kpt, U, n, proj[ik]) for (ik,kpt) in enumerate(basis.kpoints)]
     (; E, ops, n)
 end
 
