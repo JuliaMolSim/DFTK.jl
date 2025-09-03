@@ -144,7 +144,7 @@ Notes:
 - Use 'manifold' kwarg with caution, since the resulting projectors would be orthonormalized only against the manifold basis. Most applications require the whole projectors basis to be orthonormal instead.
 """
 function build_projectors(basis::PlaneWaveBasis{T};
-                          manifold = nothing,
+                          manifold = nothing,  #Should we allow to take and orthogonalize only the manifold?
                           positions = basis.model.positions
                           ) where {T}
     
@@ -263,6 +263,7 @@ function get_pdos(res, εs, eshift::Float64, atom::Symbol, label::String; iatom=
     end
     return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
 end
+
 function get_pdos(res, εs, eshift::Float64, atom::Symbol, l::Int64; iatom=nothing, n=1, σ=1 )
     to_unit = ustrip(auconvert(u"eV", 1.0))
     idx = findall(orb -> (orb.species==atom && orb.n==n && orb.l==l), res.projector_labels)
@@ -277,6 +278,31 @@ function get_pdos(res, εs, eshift::Float64, atom::Symbol, l::Int64; iatom=nothi
         pdos_values += res.pdos[:, i, σ]
     end
     return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
+end
+
+function get_pdos(res, εs, eshift::Float64, iatom::Integer, label::String; σ=1 )
+    to_unit = ustrip(auconvert(u"eV", 1.0))
+    idx = findall(orb -> (orb.iatom==iatom && orb.label==label), res.projector_labels)
+    @assert 0 < length(idx) "Orbital $(label) for atom $(iatom) not found."
+    pdos_values = zeros(Float64, length(εs))
+    for i in idx
+        pdos_values += res.pdos[:, i, σ]
+    end
+    return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
+end
+
+function get_pdos(res, εs::StepRangeLen, eshift::Float64, projs=[(;iatom=nothing, label=nothing)]::AbstractVector; σ=1)
+    to_unit = ustrip(auconvert(u"eV", 1.0))
+    pdos = []
+    for (i, proj) in enumerate(projs)
+        idx = findall(orb -> (orb.iatom == proj.iatom && orb.label == proj.label), res.projector_labels)
+        pdos_values = zeros(Float64, length(εs))
+        for j in idx
+            pdos_values += res.pdos[:, j, σ]
+        end
+        push!(pdos, [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)])
+    end
+    return pdos
 end
 
 """
