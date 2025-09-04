@@ -9,7 +9,15 @@ Base.@kwdef struct Kinetic{F}
     blowup::F = BlowupIdentity()  # Blow-up to smooth energy bands.
 end
 
-(kin::Kinetic)(basis) = TermKinetic(basis, kin.scaling_factor, kin.blowup)
+function (kin::Kinetic)(basis)
+    ops = map(basis.kpoints) do kpt
+        kinetic_energies = kinetic_energy(kin.blowup, kin.scaling_factor, basis.Ecut,
+                                          Gplusk_vectors_cart(basis, kpt))
+        FourierMultiplication(basis, kpt, kinetic_energies)
+    end
+    OrbitalsTerm(ops)
+end
+
 function Base.show(io::IO, kin::Kinetic)
     bup = kin.blowup isa BlowupIdentity ? "" : ", blowup=$(kin.blowup)"
     fac = isone(kin.scaling_factor) ? "" : ", scaling_factor=$(kin.scaling_factor)"

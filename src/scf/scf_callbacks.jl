@@ -198,7 +198,7 @@ end
 # as opposed to any of these more sophisticated criteria.
 
 function default_diagtolalg(basis; tol, kwargs...)
-    if any(t -> t isa TermNonlinear, basis.terms)
+    if any(t -> t isa NonlinearDensitiesTerm, basis.terms)
         AdaptiveDiagtol()
     else
         AdaptiveDiagtol(; diagtol_first=tol/5)

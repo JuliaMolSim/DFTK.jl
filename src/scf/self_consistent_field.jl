@@ -162,7 +162,7 @@ Overview of parameters:
 
         # Note that ρin is not the density of ψ, and the eigenvalues
         # are not the self-consistent ones, which makes this energy non-variational
-        energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρin, τ, eigenvalues, εF)
+        energies, ham = energy_hamiltonian(basis, ψ, occupation, Densities(; ρ=ρin, τ); eigenvalues, εF)
 
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
@@ -175,9 +175,10 @@ Overview of parameters:
         #      on the same footing. In the future such principles will also apply
         #      to other quantities. See discussion in
         #      https://github.com/JuliaMolSim/DFTK.jl/issues/1065
-        if any(needs_τ, basis.terms)
-            τ = compute_kinetic_energy_density(basis, ψ, occupation)
-        end
+        # TODO: remove τ
+        # if any(needs_τ, basis.terms)
+        #     τ = compute_kinetic_energy_density(basis, ψ, occupation)
+        # end
 
         # Update info with results gathered so far
         info_next = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
@@ -187,7 +188,7 @@ Overview of parameters:
 
         # Compute the energy of the new state
         if compute_consistent_energies
-            (; energies) = energy(basis, ψ, occupation; ρ=ρout, τ, eigenvalues, εF)
+            (; energies) = energy(basis, ψ, occupation, Densities(; ρ=ρout, τ); eigenvalues, εF)
         end
         history_Etot = vcat(info.history_Etot, energies.total)
         history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
@@ -220,7 +221,7 @@ Overview of parameters:
     # ψ is consistent with ρout, so we return that. We also perform a last energy computation
     # to return a correct variational energy
     (; ρin, ρout, τ, ψ, occupation, eigenvalues, εF, converged) = info
-    energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρout, τ, eigenvalues, εF)
+    energies, ham = energy_hamiltonian(basis, ψ, occupation, Densities(; ρ=ρout, τ); eigenvalues, εF)
 
     # Callback is run one last time with final state to allow callback to clean up
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,

@@ -2,6 +2,24 @@ using DftFunctionals
 
 include("operators.jl")
 
+@kwdef struct Densities{Tρ, Tτ}
+    ρ::Tρ
+    τ::Tτ = nothing
+end
+
+# For an orbital term the ops are constant
+# and the energy is quadratic in the orbitals and computed from the ops
+struct OrbitalsTerm
+    ops::Vector{RealFourierOperator}
+end
+
+# A term that depends on the densities but not on the orbitals
+abstract type DensitiesTerm end
+
+# Terms that are non-linear in the density (i.e. which give rise to a Hamiltonian
+# contribution that is density-dependent as well)
+abstract type NonlinearDensitiesTerm <: DensitiesTerm end
+
 ### Terms
 # - A Term is something that, given a state, returns a named tuple (; E, hams) with an energy
 #   and a list of RealFourierOperator (for each kpoint).

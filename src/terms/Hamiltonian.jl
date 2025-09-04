@@ -183,37 +183,53 @@ end
     Hψ
 end
 
-
 """
 Get energies and Hamiltonian
 kwargs is additional info that might be useful for the energy terms to precompute
 (eg the density ρ)
 """
-@timing function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
-    # it: index into terms, ik: index into kpoints
-    @timing "ene_ops" ene_ops_arr = [ene_ops(term, basis, ψ, occupation; kwargs...)
-                                     for term in basis.terms]
+@timing function energy_hamiltonian(basis::PlaneWaveBasis{T}, ψ, occupation, densities;
+                                    eigenvalues=nothing, εF=nothing) where {T}
     term_names = [string(nameof(typeof(term))) for term in basis.model.term_types]
-    energy_values  = [eh.E for eh in ene_ops_arr]
-    operators = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
+    energy_values  = [zero(T) for _ in basis.model.term_types]
 
-    # flatten the inner arrays in case a term returns more than one operator
-    function flatten(arr)
-        ret = []
-        for a in arr
-            if a isa RealFourierOperator
-                push!(ret, a)
+    operators = [[] for _ in basis.kpoints]
+
+    for (iterm, term) in enumerate(basis.terms)
+        if isa(term, OrbitalsTerm)
+            E = zero(T)
+            if isnothing(ψ)
+                E = T(Inf)
             else
-                push!(ret, a...)
+                for (ik, ψk) in enumerate(ψ)
+                    op_applied_storage = zeros_like(ψk)
+                    apply!((; fourier=op_applied_storage), term.ops[ik], (; fourier=ψk))
+                    E += basis.kweights[ik] *
+                        sum(occupation[ik] .*
+                            real(vec(sum(conj(ψk) .* op_applied_storage; dims=1))))
+                end
+                E = mpi_sum(E, basis.comm_kpts)
+                energy_values[iterm] = E
+            end
+            for (ik, op) in enumerate(term.ops)
+                push!(operators[ik], op)
+            end
+        else
+            (; E, potentials) = energy_potentials(term, basis, densities)
+            energy_values[iterm] = E
+            for (ik, kpt) in enumerate(basis.kpoints)
+                push!(operators[ik], RealSpaceMultiplication(basis, kpt, potentials.ρ[:, :, :, kpt.spin]))
             end
         end
-        ret
     end
+
     scratch = _ham_allocate_scratch(basis)
-    hks_per_k = [flatten([blocks[ik] for blocks in operators])
-                 for ik = 1:length(basis.kpoints)]      # hks_per_k[ik][it]
+    # TODO: Flattening should be restored
     ham = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks; scratch)
-                              for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
+                              for (hks, kpt) in zip(operators, basis.kpoints)])
+
+    # TODO: add Entropy contribution
+
     energies = Energies(term_names, energy_values)
     (; energies, ham)
 end
@@ -221,7 +237,10 @@ end
 """
 Faster version than energy_hamiltonian for cases where only the energy is needed.
 """
-@timing function energy(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
+@timing function energy(basis::PlaneWaveBasis, ψ, occupation, densities; kwargs...)
+    # TODO: reimplement
+    return (; energies=energy_hamiltonian(basis, ψ, occupation, densities; kwargs...).energies)
+
     energy_values = [energy(term, basis, ψ, occupation; kwargs...) for term in basis.terms]
     term_names = [string(nameof(typeof(term))) for term in basis.model.term_types]
     (; energies=Energies(term_names, energy_values))
