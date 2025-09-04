@@ -37,6 +37,7 @@ struct TermNoop <: Term end
 function ene_ops(term::TermNoop, basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where {T}
     (; E=zero(eltype(T)), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
 end
+apply_kernel(term::TermNoop, basis::AbstractBasis, δρ; kwargs...) = nothing
 
 include("Hamiltonian.jl")
 
