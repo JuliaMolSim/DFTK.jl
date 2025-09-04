@@ -127,14 +127,14 @@ end
 """
 Symmetrize the Hubbard occupation matrix according to the l quantum number of the manifold.
 """
-function symmetrize(n_IJ::Array{Matrix{Complex{T}}}, lattice, symmetry, l, positions) where {T}
+function symmetrize_nhub(n_IJ::Array{Matrix{Complex{T}}}, lattice, symmetry, l, positions) where {T}
     # For now we apply symmetries only on nII terms, not on cross-atom terms (nIJ)
     # WARNING: To implement +V this will need to be changed!
 
     nspins = size(n_IJ, 1)
     natoms = size(n_IJ, 2)
     nsym = length(symmetry)
-    d1, d2, d3 = Wigner_sym(1, lattice, symmetry), Wigner_sym(2, lattice, symmetry), Wigner_sym(3, lattice, symmetry)
+    WigD = Wigner_sym(l, lattice, symmetry)
 
      # Initialize the n_IJ matrix
     ns = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms) 
@@ -149,32 +149,14 @@ function symmetrize(n_IJ::Array{Matrix{Complex{T}}}, lattice, symmetry, l, posit
                 sym_atom = find_symmetric(iatom, symmetry, isym, positions)
                 # TODO: Here QE flips spin for time-reversal in collinear systems, should we?
                 for m0 in 1:size(n_IJ[σ, iatom, iatom], 1), m00 in 1:size(n_IJ[σ, iatom, iatom], 2)
-                    if l == 0
-                        # For s-orbitals we only average over symmetric atoms 
-                        ns[σ, iatom, iatom][m1, m2] += n_IJ[σ, sym_atom, sym_atom][m0, m00] / nsym
-                    elseif l == 1
-                        # apply d1 Wigner matrix
-                        ns[σ, iatom, iatom][m1, m2] += d1[m0, m1, isym] * 
-                                                       n_IJ[σ, sym_atom, sym_atom][m0, m00] * 
-                                                       d1[m00, m2, isym] / nsym
-                    elseif l == 2
-                        # apply d2 Wigner matrix
-                        ns[σ, iatom, iatom][m1, m2] += d2[m0, m1, isym] * 
-                                                       n_IJ[σ, sym_atom, sym_atom][m0, m00] * 
-                                                       d2[m00, m2, isym] / nsym
-                    elseif l == 3
-                        # apply d3 Wigner matrix
-                        ns[σ, iatom, iatom][m1, m2] += d3[m0, m1, isym] * 
-                                                       n_IJ[σ, sym_atom, sym_atom][m0, m00] * 
-                                                       d3[m00, m2, isym] / nsym
-                    else
-                        @warn "Symmetrization for l > 3 not implemented yet, skipping symmetrization for l=$(l)"
-                        # For now we skip symmetrization for l > 3
-                    end
+                    ns[σ, iatom, iatom][m1, m2] += WigD[m0, m1, isym] * 
+                                                   n_IJ[σ, sym_atom, sym_atom][m0, m00] * 
+                                                   WigD[m00, m2, isym]
                 end
             end
         end
     end
+    ns .= ns / nsym
 
     return ns
 end
@@ -205,6 +187,9 @@ function Wigner_sym(l::Int64, L, symmetries::Vector{SymOp{T}}) where {T}
     
     nsym = length(symmetries)
     D = Array{Float64}(undef, 2*l+1, 2*l+1, nsym)
+    if l == 0
+        return D .= 1
+    end
     for (isym,symmetry) in enumerate(symmetries)
         W = symmetry.W
         for m1 in -l:l
@@ -267,8 +252,9 @@ function compute_hubbard_nIJ(manifold::Tuple{Symbol, String},
     n_matrix = mpi_sum(n_matrix, basis.comm_kpts)
 
     # Now I want to reshape it to match the notation used in the papers.
+    # Reshape into n[I, J, σ][m1, m2] where I, J indicate the atom in the Hubbard manifold, σ is the spin, m1 and m2 are magnetic quantum numbers (n, l are fixed)
     types = findall(at -> at.species == Symbol(manifold[1]), basis.model.atoms)
-    natoms = length(types)  # Number of atoms of the species in the manifold
+    natoms = length(types)  
     n_IJ = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)
     p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for i in 1:length(basis.kpoints)]
     # Very low-level, but works
@@ -281,19 +267,18 @@ function compute_hubbard_nIJ(manifold::Tuple{Symbol, String},
             while j <= nprojs
                 jl = labels[j].l
                 jatom = labels[j].iatom
-                n_IJ[σ, iatom, jatom] = copy(n_matrix[σ, i:i+2*il, j:j+2*jl])
+                n_IJ[σ, iatom, jatom] = n_matrix[σ, i:i+2*il, j:j+2*jl]
                 j += 2*jl + 1
             end
             for (ik, projk) in enumerate(projectors)
-                p_I[ik][iatom] = Matrix{Complex{T}}(undef, size(projk,1), 2*il + 1)  
-                p_I[ik][iatom] = copy(projk[:, i:i+2*il])  # Store the projector for this atom
+                p_I[ik][iatom] = projk[:, i:i+2*il]  
             end
             i += 2*il + 1
         end
     end
 
     l = labels[findfirst(orb -> orb.label == manifold[2], labels)].l  
-    n_IJ = symmetrize(n_IJ, basis.model.lattice, basis.symmetries, l, basis.model.positions)
+    n_IJ = symmetrize_nhub(n_IJ, basis.model.lattice, basis.symmetries, l, basis.model.positions)
 
     return (; n_IJ=n_IJ, manifold_labels=labels, p_I=p_I)
 end

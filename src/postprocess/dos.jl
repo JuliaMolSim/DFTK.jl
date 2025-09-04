@@ -273,6 +273,17 @@ function get_pdos(res, εs, eshift::Float64, atom::Symbol, l::Int64; iatom=nothi
     return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
 end
 
+function atomic_projectors_labels(psp::NormConservingPsp)
+    labels = String[]
+    for l in 0:psp.lmax
+        for n in 1:DFTK.count_n_pswfc_radial(psp, l)
+            label = psp.pswfc_labels[l+1][n]
+            push!(labels, label)
+        end
+    end
+    return labels
+end
+
 """
 Plot the density of states over a reasonable range. Requires to load `Plots.jl` beforehand.
 """
