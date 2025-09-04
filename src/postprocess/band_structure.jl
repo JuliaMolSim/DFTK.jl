@@ -35,7 +35,7 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
     # Create new basis with new kpoints
     bs_basis = PlaneWaveBasis(basis, kgrid)
 
-    ham = Hamiltonian(bs_basis; ρ, τ, kwargs...)
+    ham = Hamiltonian(bs_basis; ρ, τ, n_hub, occupation, kwargs...)
     eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + n_extra;
                                      n_conv_check=n_bands, tol, kwargs...)
     if !eigres.converged
