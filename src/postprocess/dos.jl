@@ -249,8 +249,8 @@ function get_pdos(pdos_res, projs::AbstractVector)
         pdos_values = zeros(Float64, length(pdos_res.εs))
         for (i, proj) in enumerate(projs)
             for (j, orb) in enumerate(pdos_res.projector_labels)
-                atom_match = !(haskey(proj, :iatom) && (proj.iatom != orb.iatom))
-                label_match = !(haskey(proj, :label) && (proj.label != orb.label)) 
+                atom_match  = !(haskey(proj, :iatom) && !isnothing(proj.iatom) && (proj.iatom != orb.iatom))
+                label_match = !(haskey(proj, :label) && !isnothing(proj.label) && (proj.label != orb.label)) 
                 if atom_match && label_match
                     pdos_values += pdos_res.pdos[:, j, σ]
                 end
@@ -261,8 +261,7 @@ function get_pdos(pdos_res, projs::AbstractVector)
     return pdos
 end
 
-#TODO: fare in modo che questa accetti anche solo uno dei due o nessuno dei kwargs
-function get_pdos(pdos_res; iatom::Int64, label::String)
+function get_pdos(pdos_res; iatom=nothing, label=nothing)
     get_pdos(pdos_res, [(;iatom, label)])
 end
 
