@@ -152,3 +152,6 @@ function compute_dynmat(term::TermPairwisePotential, basis::PlaneWaveBasis{T}, �
     end
     dynmat
 end
+
+compute_kernel(term::TermPairwisePotential, basis; kwargs...) = nothing
+apply_kernel(term::TermPairwisePotential, basis, δρ; kwargs...) = nothing

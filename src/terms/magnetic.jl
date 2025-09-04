@@ -58,3 +58,6 @@ function ene_ops(term::TermMagnetic, basis::PlaneWaveBasis{T}, ψ, occupation;
 
     (; E, ops)
 end
+
+compute_kernel(term::TermMagnetic, basis; kwargs...) = nothing
+apply_kernel(term::TermMagnetic, basis, δρ; kwargs...) = nothing

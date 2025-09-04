@@ -250,3 +250,6 @@ function compute_dynmat(ewald::TermEwald, basis::PlaneWaveBasis{T}, ψ, occupati
     end
     dynmat
 end
+
+compute_kernel(term::TermEwald, basis; kwargs...) = nothing
+apply_kernel(term::TermEwald, basis, δρ; kwargs...) = nothing

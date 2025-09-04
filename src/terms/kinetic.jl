@@ -109,3 +109,6 @@ function (blowup::BlowupAbinit)(y::T, Ecut) where {T}
         1/(x^2 * (3 + x - 6x^2 + 3x^2))
     end
 end
+
+compute_kernel(term::TermKinetic, basis; kwargs...) = nothing
+apply_kernel(term::TermKinetic, basis, δρ; kwargs...) = nothing

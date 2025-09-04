@@ -222,3 +222,6 @@ function compute_δHψ_αs(::TermAtomicLocal, basis::PlaneWaveBasis, ψ, α, s, 
     end
     multiply_ψ_by_blochwave(basis, ψ, δV_αs, q)
 end
+
+compute_kernel(term::TermAtomicLocal, basis; kwargs...) = nothing
+apply_kernel(term::TermAtomicLocal, basis, δρ; kwargs...) = nothing
