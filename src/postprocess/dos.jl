@@ -237,71 +237,33 @@ end
 This function extracts the required pdos from the output of the `compute_pdos` function. 
 
     Input:
-     -> res         : Whole output from compute_pdos
-     -> εs          : Range of the computed pdos
-     -> eshift      : Zero-energy for the plot (usually is the Fermi energy)
-     -> atom        : Symbol of the required atom type
-     -> l or label  : Int64 or String for the angular part or the whole orbital label. If 'label' is used, n should not be provided.
+     -> res         : Whole output from compute_pdos.
+     -> label (opt) : String for the whole orbital label. 
      -> iatom (opt) : Atom number in the model.atoms vector. It becomes important for magnetically or spatially non-equivalent atoms. 
-     -> n     (opt) : Index of the orbital radial part in the pseudopotential. Not exactly the principal quantum number.
-     -> σ     (opt) : Spin component 
     Output:
-     -> pdos        : (2 x length(εs))-Matrix containing the energy values ε in the first column and the pdos(ε) in the second
+     -> pdos        : Vector containing the pdos(ε).
 """
-function get_pdos(res, εs, eshift::Float64, atom::Symbol, label::String; iatom=nothing, σ=1 )
-    to_unit = ustrip(auconvert(u"eV", 1.0))
-    idx = findall(orb -> (orb.species==atom && orb.label==label), res.projector_labels)
-    @assert 0 < length(idx) "Orbital $(label) for atom type $(atom) not found."
-    if !isnothing(iatom)
-        id = findall(orb -> (orb.iatom == iatom), res.projector_labels[idx])
-        idx = idx[id]
-        @assert length(idx) != 0 "Atom $(iatom) is not of type $(atom)." 
-    end
-    pdos_values = zeros(Float64, length(εs))
-    for i in idx
-        pdos_values += res.pdos[:, i, σ]
-    end
-    return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
-end
-
-function get_pdos(res, εs, eshift::Float64, atom::Symbol, l::Int64; iatom=nothing, n=1, σ=1 )
-    to_unit = ustrip(auconvert(u"eV", 1.0))
-    idx = findall(orb -> (orb.species==atom && orb.n==n && orb.l==l), res.projector_labels)
-    @assert 0 < length(idx) "No orbital found for type $(atom), n = $(n), l = $(l)"
-    if !isnothing(iatom)
-        id = findall(orb -> (orb.iatom == iatom), res.projector_labels[idx])
-        idx = idx[id]
-        @assert length(idx) >= 0 "Atom $(iatom) is not of type $(atom)." 
-    end
-    pdos_values = zeros(Float64, length(εs))
-    for i in idx
-        pdos_values += res.pdos[:, i, σ]
-    end
-    return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
-end
-
-function get_pdos(res, εs::StepRangeLen, eshift::Float64, projs::AbstractVector; σ=1)
-    to_unit = ustrip(auconvert(u"eV", 1.0))
+function get_pdos(pdos_res, projs::AbstractVector)
     pdos = []
-    for (i, proj) in enumerate(projs)
-        idx = Int[]
-        findall(orb -> (orb.iatom == proj.iatom && orb.label == proj.label), res.projector_labels)
-        
-        
-        
-        
-        
-        pdos_values = zeros(Float64, length(εs))
-        for j in idx
-            pdos_values += res.pdos[:, j, σ]
+    for σ in 1:size(pdos_res.pdos, 3)
+        pdos_values = zeros(Float64, length(pdos_res.εs))
+        for (i, proj) in enumerate(projs)
+            for (j, orb) in enumerate(pdos_res.projector_labels)
+                atom_match = !(haskey(proj, :iatom) && (proj.iatom != orb.iatom))
+                label_match = !(haskey(proj, :label) && (proj.label != orb.label)) 
+                if atom_match && label_match
+                    pdos_values += pdos_res.pdos[:, j, σ]
+                end
+            end
         end
-        push!(pdos, [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)])
+        push!(pdos, pdos_values)
     end
     return pdos
 end
 
-function get_pdos(res, εs, eshift::Float64; iatom::Integer, label::String, σ=1 )
-    get_pdos(res, εs, eshift, (;iatom, label); σ)
+#TODO: fare in modo che questa accetti anche solo uno dei due o nessuno dei kwargs
+function get_pdos(pdos_res; iatom::Int64, label::String)
+    get_pdos(pdos_res, [(;iatom, label)])
 end
 
 """
