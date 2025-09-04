@@ -110,5 +110,5 @@ function (blowup::BlowupAbinit)(y::T, Ecut) where {T}
     end
 end
 
-compute_kernel(term::TermKinetic, basis; kwargs...) = nothing
-apply_kernel(term::TermKinetic, basis, δρ; kwargs...) = nothing
+compute_kernel(term::TermKinetic, basis::AbstractBasis; kwargs...) = nothing
+apply_kernel(term::TermKinetic, basis::AbstractBasis, δρ; kwargs...) = nothing

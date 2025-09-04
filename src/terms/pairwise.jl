@@ -153,5 +153,5 @@ function compute_dynmat(term::TermPairwisePotential, basis::PlaneWaveBasis{T}, �
     dynmat
 end
 
-compute_kernel(term::TermPairwisePotential, basis; kwargs...) = nothing
-apply_kernel(term::TermPairwisePotential, basis, δρ; kwargs...) = nothing
+compute_kernel(term::TermPairwisePotential, basis::AbstractBasis; kwargs...) = nothing
+apply_kernel(term::TermPairwisePotential, basis::AbstractBasis, δρ; kwargs...) = nothing

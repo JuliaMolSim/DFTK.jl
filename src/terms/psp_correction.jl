@@ -39,5 +39,5 @@ function energy_psp_correction(model::Model)
     energy_psp_correction(model.lattice, model.atoms, model.atom_groups)
 end
 
-compute_kernel(term::TermPspCorrection, basis; kwargs...) = nothing
-apply_kernel(term::TermPspCorrection, basis, δρ; kwargs...) = nothing
+compute_kernel(term::TermPspCorrection, basis::AbstractBasis; kwargs...) = nothing
+apply_kernel(term::TermPspCorrection, basis::AbstractBasis, δρ; kwargs...) = nothing

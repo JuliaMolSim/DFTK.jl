@@ -376,5 +376,5 @@ function compute_δHψ_αs(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, �
     end
 end
 
-compute_kernel(term::TermAtomicNonlocal, basis; kwargs...) = nothing
-apply_kernel(term::TermAtomicNonlocal, basis, δρ; kwargs...) = nothing
+compute_kernel(term::TermAtomicNonlocal, basis::AbstractBasis; kwargs...) = nothing
+apply_kernel(term::TermAtomicNonlocal, basis::AbstractBasis, δρ; kwargs...) = nothing

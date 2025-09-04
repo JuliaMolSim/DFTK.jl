@@ -37,5 +37,5 @@ function ene_ops(term::TermEntropy, basis::PlaneWaveBasis{T}, ψ, occupation;
 
     (; E, ops)
 end
-compute_kernel(term::TermEntropy, basis; kwargs...) = nothing
-apply_kernel(term::TermEntropy, basis, δρ; kwargs...) = nothing
+compute_kernel(term::TermEntropy, basis::AbstractBasis; kwargs...) = nothing
+apply_kernel(term::TermEntropy, basis::AbstractBasis, δρ; kwargs...) = nothing
