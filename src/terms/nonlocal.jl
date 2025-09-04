@@ -24,8 +24,12 @@ function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
     TermAtomicNonlocal(ops)
 end
 
-struct TermAtomicNonlocal <: TermLinear
+struct TermAtomicNonlocal <: OrbitalsTerm
     ops::Vector{NonlocalOperator}
+end
+
+function ops(term::TermAtomicNonlocal, basis::PlaneWaveBasis{T}) where {T}
+    term.ops
 end
 
 @timing "ene_ops: nonlocal" function ene_ops(term::TermAtomicNonlocal,

@@ -2,7 +2,23 @@ using DftFunctionals
 
 include("operators.jl")
 
+# TODO: probably needs Union{..., Nothing} for each field for type stability
+@kwdef struct Densities{Tρ, Tτ, Tn}
+    ρ::Tρ = nothing
+    τ::Tτ = nothing
+    hubbard_n::Tn = nothing
+end
+
+function sum_densities(a::Densities, b::Densities)
+    sum_density(a, b) = isnothing(a) ? b : isnothing(b) ? a : a .+ b
+
+    Densities(sum_density(a.ρ, b.ρ),
+              sum_density(a.τ, b.τ),
+              sum_density(a.hubbard_n, b.hubbard_n))
+end
+
 ### Terms
+# TODO update docstring
 # - A Term is something that, given a state, returns a named tuple (; E, hams) with an energy
 #   and a list of RealFourierOperator (for each kpoint).
 # - Each term must overload
@@ -16,14 +32,30 @@ include("operators.jl")
 # In particular, dE/dψn = 2 fn |Hψn> (plus weighting for k-point sampling)
 abstract type Term end
 
-# Terms that are linear in the density matrix, i.e. have zero second derivative
-abstract type TermLinear <: Term end
-compute_kernel(term::TermLinear, basis::AbstractBasis; kwargs...) = nothing
-apply_kernel(term::TermLinear, basis::AbstractBasis, δρ; kwargs...) = nothing
+# For an orbital term the ops are constant
+# and the energy is quadratic in the orbitals and computed from the ops
+# It must overload:
+# - `ops(term, basis)` returning `Vector{RealFourierOperator}` (for each kpoint)
+abstract type OrbitalsTerm <: Term end
+
+# A term that depends on the densities but not on the orbitals
+# It must overload:
+# - `needed_densities(term)` returning an iterable of symbols
+# - `energy_potentials(term, basis, densities::Densities)` returning `(; E, potentials::Densities)`
+abstract type DensitiesTerm <: Term end
+
+# TODO: could rename back to TermLinear and TermNonlinear
+
+# Terms that are linear in the density (i.e. they give rise to a Hamiltonian
+# which does not dependent on the density, thus they have no kernel)
+abstract type LinearDensitiesTerm <: DensitiesTerm end
 
 # Terms that are non-linear in the density (i.e. which give rise to a Hamiltonian
-# contribution that is density-dependent or orbital-dependent as well)
-abstract type TermNonlinear <: Term end
+# contribution that is density-dependent as well)
+abstract type NonlinearDensitiesTerm <: DensitiesTerm end
+
+compute_kernel(term::LinearDensitiesTerm, basis::AbstractBasis; kwargs...) = nothing
+apply_kernel(term::LinearDensitiesTerm, basis::AbstractBasis, δρ; kwargs...) = nothing
 
 ### Builders are objects X that store the term parameters, and produce a
 # XTerm <: Term when instantiated with a `basis`
@@ -38,7 +70,12 @@ DftFunctionals.needs_τ(t::Term) = false
 """
 A term with a constant zero energy.
 """
-struct TermNoop <: TermLinear end
+struct TermNoop <: LinearDensitiesTerm end
+function energy_potentials(term::TermNoop, basis::PlaneWaveBasis{T},
+                           densities::Densities) where {T}
+    (; E=zero(T), potentials=Densities())
+end
+needed_densities(::TermNoop) = ()
 function ene_ops(term::TermNoop, basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where {T}
     (; E=zero(eltype(T)), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
 end

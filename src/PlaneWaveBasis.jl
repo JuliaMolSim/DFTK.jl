@@ -92,7 +92,7 @@ struct PlaneWaveBasis{T,
     # not yet implement symmetry. See `unfold_bz` as a convenient way to use this.
     use_symmetries_for_kpoint_reduction::Bool
 
-    ## Instantiated terms (<: Term). See Hamiltonian for high-level usage
+    ## Instantiated terms (<: Union{OrbitalsTerm, DensitiesTerm}). See Hamiltonian for high-level usage
     terms::Vector{Any}
 end
 

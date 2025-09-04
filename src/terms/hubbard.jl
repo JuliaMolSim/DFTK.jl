@@ -95,11 +95,51 @@ function (hubbard::Hubbard)(basis::AbstractBasis)
     TermHubbard(hubbard.manifold, hubbard.U, projectors_matrix, labels)
 end
 
-struct TermHubbard{T, PT, L} <: Term
+struct TermHubbard{T, PT, L} <: NonlinearDensitiesTerm
     manifold::OrbitalManifold
     U::T   # U value
     P::PT  # projectors
     labels::L
+end
+
+function energy_potentials(term::TermHubbard, basis::PlaneWaveBasis{T}, densities::Densities) where {T}
+    hubbard_n = densities.hubbard_n
+    isnothing(hubbard_n) && error("hubbard_n must be provided")
+
+    filled_occ = filled_occupation(basis.model)
+    natoms = length(term.manifold.iatoms)
+    n_spin = basis.model.n_spin_components
+    E = zero(T)
+    for σ in 1:n_spin, iatom in 1:natoms
+        E += filled_occ * 1/T(2) * term.U *
+             real(tr(hubbard_n[σ, iatom, iatom] * (I - hubbard_n[σ, iatom, iatom])))
+    end
+    potential = map(hubbard_n) do n
+        1/T(2) * term.U * (I - 2n)
+    end
+    return (; E, potentials=Densities(; hubbard_n=potential))
+end
+needed_densities(::TermHubbard) = (:hubbard_n,)
+
+"""
+Pulls the Hubbard potential (∂E/∂n) back to the corresponding operators.
+Conceptually this is the gradient of [`compute_hubbard_n`](@ref).
+"""
+function hubbard_ops(term::TermHubbard, basis::PlaneWaveBasis{T}, potential) where {T}
+    proj = term.P
+    natoms = length(term.manifold.iatoms)
+    n_spin = basis.model.n_spin_components
+    nproj_atom = 2*term.manifold.l+1
+    # We have to reshape the potential to match the NonlocalOperator structure,
+    # using a block diagonal form
+    D = [zeros(Complex{T}, nproj_atom*natoms, nproj_atom*natoms) for _ in 1:n_spin]
+    for σ in 1:n_spin, iatom in 1:natoms
+        proj_range = (1+nproj_atom*(iatom-1)):(nproj_atom*iatom)
+        D[σ][proj_range, proj_range] = potential[σ, iatom, iatom]
+    end
+
+    [NonlocalOperator(basis, kpt, proj[ik], D[kpt.spin])
+     for (ik,kpt) in enumerate(basis.kpoints)]
 end
 
 @timing "ene_ops: hubbard" function ene_ops(term::TermHubbard,

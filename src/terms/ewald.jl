@@ -11,7 +11,7 @@ Base.@kwdef struct Ewald
 end
 (ewald::Ewald)(basis) = TermEwald(basis; η=something(ewald.η, default_η(basis.model.lattice)))
 
-struct TermEwald{T} <: TermLinear
+struct TermEwald{T} <: LinearDensitiesTerm
     energy::T                # precomputed energy
     forces::Vector{Vec3{T}}  # and forces
     η::T                     # Parameter used for the splitting
@@ -24,6 +24,11 @@ end
     (; energy, forces) = energy_forces_ewald(model.lattice, charges, model.positions; η)
     TermEwald(energy, forces, η)
 end
+
+function energy_potentials(term::TermEwald, basis::PlaneWaveBasis, densities::Densities)
+    (; E=term.energy, potentials=Densities())
+end
+needed_densities(::TermEwald) = ()
 
 function ene_ops(term::TermEwald, basis::PlaneWaveBasis, ψ, occupation; kwargs...)
     (; E=term.energy, ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])

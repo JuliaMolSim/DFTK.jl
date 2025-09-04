@@ -16,7 +16,7 @@ function Base.show(io::IO, kin::Kinetic)
     print(io, "Kinetic($bup$fac)")
 end
 
-struct TermKinetic <: TermLinear
+struct TermKinetic <: OrbitalsTerm
     scaling_factor::Real  # scaling factor, absorbed into kinetic_energies
     # kinetic energies 1/2(k+G)^2 *blowup(|k+G|, Ecut) for each k-point.
     kinetic_energies::Vector{<:AbstractVector}
@@ -35,6 +35,11 @@ function kinetic_energy(blowup, scaling_factor, Ecut, p::AbstractArray{Vec3{T}})
 end
 function kinetic_energy(kin::Kinetic, Ecut, p)
     kinetic_energy(kin.blowup, kin.scaling_factor, Ecut, p)
+end
+
+function ops(term::TermKinetic, basis::PlaneWaveBasis{T}) where {T}
+    [FourierMultiplication(basis, kpoint, term.kinetic_energies[ik])
+     for (ik, kpoint) in enumerate(basis.kpoints)]
 end
 
 @timing "ene_ops: kinetic" function ene_ops(term::TermKinetic, basis::PlaneWaveBasis{T},

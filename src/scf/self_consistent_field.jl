@@ -48,35 +48,36 @@ end
 end
 
 """
-Obtain new density ρ by diagonalizing `ham`. Follows the policy imposed by the `bands`
+Obtain new [`Densities`](@ref) by diagonalizing `ham`. Follows the policy imposed by the `bands`
 data structure to determine and adjust the number of bands to be computed.
 """
-function next_density(ham::Hamiltonian,
-                      nbandsalg::NbandsAlgorithm=AdaptiveBands(ham.basis.model),
-                      fermialg::AbstractFermiAlgorithm=default_fermialg(ham.basis.model);
-                      eigensolver=lobpcg_hyper, ψ=nothing, eigenvalues=nothing,
-                      occupation=nothing, kwargs...)
+function next_densities(ham::Hamiltonian,
+                        nbandsalg::NbandsAlgorithm=AdaptiveBands(ham.basis.model),
+                        fermialg::AbstractFermiAlgorithm=default_fermialg(ham.basis.model);
+                        eigensolver=lobpcg_hyper, ψ=nothing, eigenvalues=nothing,
+                        occupation=nothing, kwargs...)
+    basis = ham.basis
     n_bands_converge, n_bands_compute = determine_n_bands(nbandsalg, occupation,
                                                           eigenvalues, ψ)
 
     if isnothing(ψ)
         increased_n_bands = true
     else
-        @assert length(ψ) == length(ham.basis.kpoints)
+        @assert length(ψ) == length(basis.kpoints)
         n_bands_compute = max(n_bands_compute, maximum(ψk -> size(ψk, 2), ψ))
         increased_n_bands = n_bands_compute > size(ψ[1], 2)
     end
 
     # TODO Synchronize since right now it is assumed that the same number of bands are
     #      computed for each k-Point
-    n_bands_compute = mpi_max(n_bands_compute, ham.basis.comm_kpts)
+    n_bands_compute = mpi_max(n_bands_compute, basis.comm_kpts)
 
     eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands_compute;
                                      ψguess=ψ, n_conv_check=n_bands_converge, kwargs...)
     eigres.converged || (@warn "Eigensolver not converged" n_iter=eigres.n_iter)
 
     # Check maximal occupation of the unconverged bands is sensible.
-    occupation, εF = compute_occupation(ham.basis, eigres.λ, fermialg;
+    occupation, εF = compute_occupation(basis, eigres.λ, fermialg;
                                         tol_n_elec=nbandsalg.occupation_threshold)
     minocc = maximum(minimum, occupation)
 
@@ -90,10 +91,23 @@ function next_density(ham::Hamiltonian,
               "`nbandsalg=AdaptiveBands(model; n_bands_converge=$(n_bands_converge + 3)`)")
     end
 
-    ρout = compute_density(ham.basis, eigres.X, occupation; nbandsalg.occupation_threshold)
-    (; ψ=eigres.X, eigenvalues=eigres.λ, occupation, εF, ρout, diagonalization=eigres,
-     n_bands_converge, nbandsalg.occupation_threshold,
-     n_matvec=mpi_sum(eigres.n_matvec, ham.basis.comm_kpts))
+    ρ = compute_density(basis, eigres.X, occupation; nbandsalg.occupation_threshold)
+    τ = nothing
+    # TODO: needs_τ was better
+    if any(t -> t isa DensitiesTerm && :τ ∈ needed_densities(t), basis.terms)
+        τ = compute_kinetic_energy_density(basis, eigres.X, occupation)
+    end
+    hubbard_n = nothing
+    ihubbard = findfirst(t -> t isa TermHubbard, basis.terms)
+    if !isnothing(ihubbard)
+        hubbard_n = compute_hubbard_n(basis.terms[ihubbard], basis, eigres.X, occupation)
+    end
+
+    densities_out = Densities(; ρ, τ, hubbard_n)
+
+    (; ψ=eigres.X, eigenvalues=eigres.λ, occupation, εF, densities_out,
+     diagonalization=eigres, n_bands_converge, nbandsalg.occupation_threshold,
+     n_matvec=mpi_sum(eigres.n_matvec, basis.comm_kpts))
 end
 
 
@@ -129,9 +143,7 @@ Overview of parameters:
 """
 @timing function self_consistent_field(
     basis::PlaneWaveBasis{T};
-    ρ=guess_density(basis),
-    τ=any(needs_τ, basis.terms) ? zero(ρ) : nothing,
-    hubbard_n=nothing,
+    densities=Densities(),
     ψ=nothing,
     tol=1e-6,
     is_converged=ScfConvergenceDensity(tol),
@@ -150,6 +162,7 @@ Overview of parameters:
     seed=nothing,
     response=ResponseOptions(),  # Dummy here, only for AD
 ) where {T}
+    densities = guess_missing_densities(basis, densities)
     if !isnothing(ψ)
         @assert length(ψ) == length(basis.kpoints)
     end
@@ -160,41 +173,35 @@ Overview of parameters:
     # We do density mixing in the real representation
     # TODO support other mixing types
     function fixpoint_map(ρin, info)
-        (; ψ, occupation, eigenvalues, εF, n_iter, converged, timedout, τ, hubbard_n) = info
+        (; ψ, occupation, eigenvalues, εF, n_iter, converged, timedout) = info
+        # TODO: the other densities (τ, hubbard_n) should also be in the fixed-point state
+        if haskey(info, :densities_out)
+            densities_in = Densities(; ρ=ρin, info.densities_out.τ, info.densities_out.hubbard_n)
+        else
+            densities_in = Densities(; ρ=ρin, info.densities_in.τ, info.densities_in.hubbard_n)
+        end
         n_iter += 1
 
         # Note that ρin is not the density of ψ, and the eigenvalues
         # are not the self-consistent ones, which makes this energy non-variational
-        energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρin, τ, hubbard_n, eigenvalues, εF)
+        energies, ham = energy_hamiltonian(basis, ψ, occupation, densities_in; eigenvalues, εF)
 
         # Diagonalize `ham` to get the new state
-        nextstate = next_density(ham, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
-                                 occupation, miniter=1,
-                                 tol=determine_diagtol(diagtolalg, info))
-        (; ψ, eigenvalues, occupation, εF, ρout) = nextstate
-        Δρ = ρout - ρin
-
-        # TODO Dirty hack. This should be solved more generally and τ and ρ should be put
-        #      on the same footing. In the future such principles will also apply
-        #      to other quantities. See discussion in
-        #      https://github.com/JuliaMolSim/DFTK.jl/issues/1065
-        if any(needs_τ, basis.terms)
-            τ = compute_kinetic_energy_density(basis, ψ, occupation)
-        end
-        ihubbard = findfirst(t -> t isa TermHubbard, basis.terms)
-        if !isnothing(ihubbard)
-            hubbard_n = compute_hubbard_n(basis.terms[ihubbard], basis, ψ, occupation)
-        end
+        nextstate = next_densities(ham, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
+                                   occupation, miniter=1,
+                                   tol=determine_diagtol(diagtolalg, info))
+        (; ψ, eigenvalues, occupation, εF, densities_out) = nextstate
+        Δρ = densities_out.ρ - densities_in.ρ
 
         # Update info with results gathered so far
         info_next = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
-                       ρin, τ, hubbard_n, α=damping, n_iter, nbandsalg.occupation_threshold,
+                       densities_in, α=damping, n_iter, nbandsalg.occupation_threshold,
                        seed, runtime_ns=time_ns() - start_ns, nextstate...,
                        diagonalization=[nextstate.diagonalization])
 
         # Compute the energy of the new state
         if compute_consistent_energies
-            (; energies) = energy(basis, ψ, occupation; ρ=ρout, τ, hubbard_n, eigenvalues, εF)
+            (; energies) = energy(basis, ψ, occupation, densities_out; eigenvalues, εF)
         end
         history_Etot = vcat(info.history_Etot, energies.total)
         history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
@@ -203,6 +210,7 @@ Overview of parameters:
 
         # Apply mixing and pass it the full info as kwargs
         ρnext = ρin .+ T(damping) .* mix_density(mixing, basis, Δρ; info_next...)
+        # TODO: mix the other densities as well
 
         converged = n_iter ≥ miniter && is_converged(info_next)
         converged = MPI.bcast(converged, 0, MPI.COMM_WORLD)
@@ -216,22 +224,23 @@ Overview of parameters:
         ρnext, info_next
     end
 
-    info_init = (; ρin=ρ, τ, hubbard_n, ψ, occupation=nothing, eigenvalues=nothing, εF=nothing,
+    info_init = (; densities_in=densities, ψ, occupation=nothing, eigenvalues=nothing, εF=nothing,
                    n_iter=0, n_matvec=0, timedout=false, converged=false,
                    history_Etot=T[], history_Δρ=T[])
 
     # Convergence is flagged by is_converged inside the fixpoint_map.
-    _, info = solver(fixpoint_map, ρ, info_init; maxiter)
+    _, info = solver(fixpoint_map, densities.ρ, info_init; maxiter)
 
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρout, so we return that. We also perform a last energy computation
     # to return a correct variational energy
-    (; ρin, ρout, τ, hubbard_n, ψ, occupation, eigenvalues, εF, converged) = info
-    energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρout, τ, hubbard_n, eigenvalues, εF)
+    (; densities_out, ψ, occupation, eigenvalues, εF, converged) = info
+    energies, ham = energy_hamiltonian(basis, ψ, occupation, densities_out; eigenvalues, εF)
 
     # Callback is run one last time with final state to allow callback to clean up
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
-                ρ=ρout, τ, hubbard_n, α=damping, eigenvalues, occupation, εF,
+                # TODO: which density do we want to pass? and do we want to pass ρ?
+                densities=densities_out, α=damping, eigenvalues, occupation, εF,
                 info.n_bands_converge, info.n_iter, info.n_matvec, ψ, info.diagonalization, 
                 stage=:finalize, info.history_Δρ, info.history_Etot, info.timedout, mixing, 
                 seed, runtime_ns=time_ns() - start_ns, algorithm="SCF")

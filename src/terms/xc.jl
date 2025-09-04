@@ -52,7 +52,7 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
            T(xc.potential_threshold), ρcore)
 end
 
-struct TermXc{T,CT} <: TermNonlinear where {T,CT}
+struct TermXc{T,CT} <: NonlinearDensitiesTerm where {T,CT}
     functionals::Vector{Functional}
     scaling_factor::T
     potential_threshold::T
@@ -60,7 +60,7 @@ struct TermXc{T,CT} <: TermNonlinear where {T,CT}
 end
 DftFunctionals.needs_τ(term::TermXc) = any(needs_τ, term.functionals)
 
-function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupation;
+function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T};
                            ρ, τ=nothing) where {T}
     @assert !isempty(term.functionals)
 
@@ -154,6 +154,19 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     potential .*= term.scaling_factor
 
     (; E, potential, Vτ)
+end
+
+function energy_potentials(term::TermXc, basis::PlaneWaveBasis{T},
+                           densities::Densities) where {T}
+    E, Vxc, Vτ = xc_potential_real(term, basis; densities.ρ, densities.τ)
+    (; E, potentials=Densities(; ρ=Vxc, τ=Vτ))
+end
+function needed_densities(term::TermXc)
+    if any(needs_τ, term.functionals)
+        (:ρ, :τ)
+    else
+        (:ρ,)
+    end
 end
 
 @views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},

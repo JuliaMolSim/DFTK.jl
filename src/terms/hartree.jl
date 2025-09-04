@@ -21,7 +21,7 @@ function Base.show(io::IO, hartree::Hartree)
     print(io, "Hartree($fac)")
 end
 
-struct TermHartree <: TermNonlinear
+struct TermHartree <: NonlinearDensitiesTerm
     scaling_factor::Real  # scaling factor, absorbed into poisson_green_coeffs
     # Fourier coefficients of the Green's function of the periodic Poisson equation
     poisson_green_coeffs::AbstractArray
@@ -46,6 +46,17 @@ function TermHartree(basis::PlaneWaveBasis{T}, scaling_factor) where {T}
     poisson_green_coeffs = compute_poisson_green_coeffs(basis, scaling_factor)
     TermHartree(T(scaling_factor), poisson_green_coeffs)
 end
+
+function energy_potentials(term::TermHartree, basis::PlaneWaveBasis{T},
+                           densities::Densities) where {T}
+    ρtot_fourier = fft(basis, total_density(densities.ρ))
+    pot_fourier = term.poisson_green_coeffs .* ρtot_fourier
+    pot_real = irfft(basis, pot_fourier)
+    E = real(dot(pot_fourier, ρtot_fourier) / 2)
+
+    (; E, potentials=Densities(ρ=pot_real))
+end
+needed_densities(::TermHartree) = (:ρ,)
 
 @timing "ene_ops: hartree" function ene_ops(term::TermHartree, basis::PlaneWaveBasis{T},
                                             ψ, occupation; ρ, kwargs...) where {T}

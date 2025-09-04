@@ -4,10 +4,19 @@ Local nonlinearity, with energy ∫f(ρ) where ρ is the density
 struct LocalNonlinearity
     f
 end
-struct TermLocalNonlinearity{TF} <: TermNonlinear
+struct TermLocalNonlinearity{TF} <: NonlinearDensitiesTerm
     f::TF
 end
 (L::LocalNonlinearity)(::AbstractBasis) = TermLocalNonlinearity(L.f)
+
+function energy_potentials(term::TermLocalNonlinearity, basis::PlaneWaveBasis{T}, densities::Densities) where {T}
+    fp(ρ) = ForwardDiff.derivative(term.f, ρ)
+    E = sum(fρ -> convert_dual(T, fρ), term.f.(densities.ρ)) * basis.dvol
+    potential = convert_dual.(T, fp.(densities.ρ))
+
+    (; E, potentials=Densities(; ρ=potential))
+end
+needed_densities(::TermLocalNonlinearity) = (:ρ,)
 
 function ene_ops(term::TermLocalNonlinearity, basis::PlaneWaveBasis{T}, ψ, occupation;
                  ρ, kwargs...) where {T}

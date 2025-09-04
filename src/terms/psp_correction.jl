@@ -4,7 +4,7 @@ Pseudopotential correction energy. TODO discuss the need for this.
 struct PspCorrection end
 (::PspCorrection)(basis) = TermPspCorrection(basis)
 
-struct TermPspCorrection{T} <: TermLinear
+struct TermPspCorrection{T} <: LinearDensitiesTerm
     energy::T  # precomputed energy
 end
 function TermPspCorrection(basis::PlaneWaveBasis)
@@ -14,6 +14,12 @@ function TermPspCorrection(basis::PlaneWaveBasis)
     end
     TermPspCorrection(energy_psp_correction(model))
 end
+
+function energy_potentials(term::TermPspCorrection, basis::PlaneWaveBasis,
+                           densities::Densities)
+    (; E=term.energy, potentials=Densities())
+end
+needed_densities(::TermPspCorrection) = ()
 
 function ene_ops(term::TermPspCorrection, basis::PlaneWaveBasis, ψ, occupation; kwargs...)
     (; E=term.energy, ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])

@@ -98,6 +98,7 @@ include("supercell.jl")
 export Energies
 include("Energies.jl")
 
+export Densities
 export Hamiltonian
 export HamiltonianBlock
 export energy_hamiltonian
@@ -255,7 +256,7 @@ function precompilation_workflow(lattice, atoms, positions, magnetic_moments;
                       temperature=0.1, spin_polarization=:collinear)
     basis = PlaneWaveBasis(model; Ecut, kgrid, basis_kwargs...)
     ρ0 = guess_density(basis, magnetic_moments)
-    scfres = self_consistent_field(basis; ρ=ρ0, tol=1e-2, maxiter=3, callback=identity)
+    scfres = self_consistent_field(basis; densities=Densities(; ρ=ρ0), tol=1e-2, maxiter=3, callback=identity)
     compute_forces_cart(scfres)
 
     nothing

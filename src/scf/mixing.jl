@@ -226,7 +226,8 @@ function Base.show(io::IO, mixing::χ0Mixing)
 end
 
 @views @timing "χ0Mixing" function mix_density(mixing::χ0Mixing, basis, δF::AbstractArray{T};
-                                               ρin, kwargs...) where {T}
+                                               densities_in, kwargs...) where {T}
+    ρin = densities_in.ρ
     # Initialise χ0terms and remove nothings (terms that don't yield a contribution)
     χ0applies = filter(!isnothing, [χ₀(basis; ρin, kwargs...) for χ₀ in mixing.χ0terms])
     # If no applies left, do not bother running GMRES and directly do simple mixing

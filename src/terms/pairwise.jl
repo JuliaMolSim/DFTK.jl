@@ -25,13 +25,19 @@ end
     TermPairwisePotential(P.V, P.params, T(P.max_radius), energy, forces)
 end
 
-struct TermPairwisePotential{TV, Tparams, T} <: TermLinear
+struct TermPairwisePotential{TV, Tparams, T} <: LinearDensitiesTerm
     V::TV
     params::Tparams
     max_radius::T
     energy::T
     forces::Vector{Vec3{T}}
 end
+
+function energy_potentials(term::TermPairwisePotential, basis::PlaneWaveBasis,
+                           densities::Densities)
+    (; E=term.energy, potentials=Densities())
+end
+needed_densities(::TermPairwisePotential) = ()
 
 function ene_ops(term::TermPairwisePotential, basis::PlaneWaveBasis, ψ, occupation; kwargs...)
     (; E=term.energy, ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
