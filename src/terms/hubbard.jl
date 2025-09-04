@@ -18,8 +18,8 @@ using LinearAlgebra
      - projectors      : vector of matrices of projectors
      - labels          : structure containing iatom, species, n, l, m and orbital name for each projector
 """
-function build_projectors(basis::PlaneWaveBasis{T};
-                          manifold = nothing,
+function build_projectors(basis::PlaneWaveBasis{T},
+                          manifold = nothing;
                           positions = basis.model.positions
                           ) where {T}
     
@@ -357,6 +357,7 @@ end
     else
         Hubbard = compute_hubbard_nIJ(term.manifold, basis, ψ, occupation)
         n = Hubbard.n_IJ
+        n_hub = n
         proj = Hubbard.p_I
     end
 
