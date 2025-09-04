@@ -115,7 +115,7 @@ function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues;
     end
     pdos = mpi_sum(D, basis.comm_kpts)  
 
-    return (; pdos, projector_labels)
+    return (; pdos, projector_labels, εs)
 end
 
 function compute_pdos(εs, bands; kwargs...)
@@ -280,22 +280,17 @@ function get_pdos(res, εs, eshift::Float64, atom::Symbol, l::Int64; iatom=nothi
     return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
 end
 
-function get_pdos(res, εs, eshift::Float64, iatom::Integer, label::String; σ=1 )
-    to_unit = ustrip(auconvert(u"eV", 1.0))
-    idx = findall(orb -> (orb.iatom==iatom && orb.label==label), res.projector_labels)
-    @assert 0 < length(idx) "Orbital $(label) for atom $(iatom) not found."
-    pdos_values = zeros(Float64, length(εs))
-    for i in idx
-        pdos_values += res.pdos[:, i, σ]
-    end
-    return [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)]
-end
-
-function get_pdos(res, εs::StepRangeLen, eshift::Float64, projs=[(;iatom=nothing, label=nothing)]::AbstractVector; σ=1)
+function get_pdos(res, εs::StepRangeLen, eshift::Float64, projs::AbstractVector; σ=1)
     to_unit = ustrip(auconvert(u"eV", 1.0))
     pdos = []
     for (i, proj) in enumerate(projs)
-        idx = findall(orb -> (orb.iatom == proj.iatom && orb.label == proj.label), res.projector_labels)
+        idx = Int[]
+        findall(orb -> (orb.iatom == proj.iatom && orb.label == proj.label), res.projector_labels)
+        
+        
+        
+        
+        
         pdos_values = zeros(Float64, length(εs))
         for j in idx
             pdos_values += res.pdos[:, j, σ]
@@ -303,6 +298,10 @@ function get_pdos(res, εs::StepRangeLen, eshift::Float64, projs=[(;iatom=nothin
         push!(pdos, [((ε .- eshift) .* to_unit, p) for (ε, p) in zip(εs, pdos_values)])
     end
     return pdos
+end
+
+function get_pdos(res, εs, eshift::Float64; iatom::Integer, label::String, σ=1 )
+    get_pdos(res, εs, eshift, (;iatom, label); σ)
 end
 
 """
