@@ -37,7 +37,8 @@ function run_silicon_nlcc(T; Ecut=5, grid_size=15, spin_polarization=:none, kwar
 end
 end
 
-@testitem "Silicon NLCC (small, Float64)" setup=[RunSCF, TestCases, SiliconNLCC] begin
+@testitem "Silicon NLCC (small, Float64)" #=
+    =#    tags=[:minmal] setup=[RunSCF, TestCases, SiliconNLCC] begin
     SiliconNLCC.run_silicon_nlcc(Float64; Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17)
 end
 
@@ -47,7 +48,8 @@ end
                                  scf_ene_tol=1e-11)
 end
 
-@testitem "Silicon NLCC (small, collinear spin)" setup=[RunSCF, TestCases, SiliconNLCC] begin
+@testitem "Silicon NLCC (small, collinear spin)" #=
+=#    tags=[:minimal] setup=[RunSCF, TestCases, SiliconNLCC] begin
     SiliconNLCC.run_silicon_nlcc(Float64; Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17,
                                  spin_polarization=:collinear)
 end

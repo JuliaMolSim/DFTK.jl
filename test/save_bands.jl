@@ -1,4 +1,4 @@
-@testitem "Save_bands" setup=[TestCases, DictAgreement] tags=[:serialisation] begin
+@testitem "Save_bands" setup=[TestCases, DictAgreement] tags=[:serialisation, :minimal] begin
 using Test
 using DFTK
 using MPI
