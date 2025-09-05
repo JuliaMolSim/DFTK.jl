@@ -71,12 +71,76 @@ end
 
 next_working_fft_size(::Type{<:Dual}, size::Int) = size
 
-# determine symmetry operations only from primal lattice values
+# determine symmetry operations only from primal values, then filter out symmetries broken by dual part
 function symmetry_operations(lattice::AbstractMatrix{<:Dual},
-                             atoms, positions, magnetic_moments=[]; kwargs...)
+                             atoms, positions, magnetic_moments=[];
+                             tol_symmetry=SYMMETRY_TOLERANCE, kwargs...)
     positions_value = [ForwardDiff.value.(pos) for pos in positions]
-    symmetry_operations(ForwardDiff.value.(lattice), atoms, positions_value,
-                        magnetic_moments; kwargs...)
+    symmetries = symmetry_operations(ForwardDiff.value.(lattice), atoms,
+                                     positions_value, magnetic_moments;
+                                     tol_symmetry, kwargs...)
+    remove_dual_broken_symmetries(lattice, atoms, positions, symmetries; tol_symmetry)
+end
+
+function remove_dual_broken_symmetries(lattice, atoms, positions,
+                                       symmetries; tol_symmetry=SYMMETRY_TOLERANCE)
+    filter(symmetries) do symmetry
+        !is_symmetry_broken_by_dual(lattice, atoms, positions, symmetry; tol_symmetry)
+    end
+end
+
+"""
+Return `true` if a symmetry that holds for the primal part is broken by
+a perturbation in the lattice or in the positions, `false` otherwise.
+"""
+function is_symmetry_broken_by_dual(lattice, atoms, positions, symmetry::SymOp; tol_symmetry)
+    # For any lattice atom at position x, W*x + w should be in the lattice.
+    # In cartesian coordinates, with a perturbed lattice A = A₀ + εA₁,
+    # this means that for any atom position xcart in the unit cell and any 3 integers u,
+    # there should be an atom at position ycart and 3 integers v such that:
+    # Wcart * (xcart + A*u) + wcart = ycart + A*v
+    # where
+    #     Wcart = A₀ * W * A₀⁻¹; note that W is an integer matrix
+    #     wcart = A₀ * w.
+    #
+    # In relative coordinates this gives:
+    # A⁻¹ * Wcart * (A*x + A*u) + A⁻¹ * wcart = y + v   (*)
+    #
+    # The strategy is then to check that:
+    # 1. A⁻¹ * Wcart * A is still an integer matrix (i.e. no dual part),
+    #    such that any change in u is easily compensated for in v.
+    # 2. The primal component of (*), i.e. with ε=0, is already known to hold.
+    #    Since v does not have a dual component, it is enough to check that
+    #    the dual part of the following is 0:
+    #      A⁻¹ * Wcart * A*x + A⁻¹ * wcart - y 
+
+    lattice_primal = ForwardDiff.value.(lattice)
+    W = (compute_inverse_lattice(lattice) * lattice_primal
+        * symmetry.W * compute_inverse_lattice(lattice_primal) * lattice)
+    w = compute_inverse_lattice(lattice) * lattice_primal * symmetry.w
+
+    is_dual_nonzero(x::AbstractArray) = any(x) do xi
+        maximum(abs, ForwardDiff.partials(xi)) >= tol_symmetry
+    end
+    # Check 1.
+    if is_dual_nonzero(W)
+        return true
+    end
+
+    atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
+    for group in atom_groups
+        positions_group = positions[group]
+        for position in positions_group
+            i_other_at = find_symmetry_preimage(positions_group, position, symmetry; tol_symmetry)
+
+            # Check 2. with x = positions_group[i_other_at] and y = position
+            if is_dual_nonzero(positions_group[i_other_at] + inv(W) * (w - position))
+                return true
+            end
+        end
+    end
+
+    false
 end
 
 function _is_well_conditioned(A::AbstractArray{<:Dual}; kwargs...)
