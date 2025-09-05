@@ -1,83 +1,5 @@
 using LinearAlgebra
 
-"""
-    Build the projectors matrices projsk for all k-points at the same time.
-
-             projector[ik][:, iproj] = |ϕinlm>(kpt)
-
-     where ϕinlm is the atomic orbital for atom i, quantum numbers (n,l,m)
-       and iproj is the corresponding column index. The mapping is recorded in 'labels'.
-     Note: 'n' is not exactly the principal quantum number, but rather the index of the radial function in the pseudopotential.
-           As an example, if the pseudopotential contains the 3S and 4S orbitals, then those are indexed as n=1, l=0 and n=2, l=0 respectively.
-    
-     Input: 
-     - basis           : PlaneWaveBasis
-     - manifold  (opt) : tuple of (Atom, Orbital) to select only a subset of orbitals for the computation. 'Atom' must be either a Symbol or an Int64, 'Orbital' must be a String with the orbital name in uppercase.
-     - positions (opt) : positions of the atoms in the unit cell
-     Output:
-     - projectors      : vector of matrices of projectors
-     - labels          : structure containing iatom, species, n, l, m and orbital name for each projector
-"""
-function build_projectors(basis::PlaneWaveBasis{T},
-                          manifold = nothing;
-                          positions = basis.model.positions
-                          ) where {T}
-    
-    G_plus_k_all = [Gplusk_vectors(basis, basis.kpoints[ik])
-                    for ik = 1:length(basis.kpoints)]
-    G_plus_k_all_cart = [map(recip_vector_red_to_cart(basis.model), gpk) 
-                         for gpk in G_plus_k_all]
-
-    psps = Vector{NormConservingPsp}(undef, length(basis.model.atoms))
-    labels = []
-    form_factors = [Matrix{Complex{T}}(undef, length(G_plus_k), 0)  for G_plus_k in G_plus_k_all_cart]
-    for (iatom, atom) in enumerate(basis.model.atoms)
-        if !isnothing(manifold)
-            if manifold[1] != Symbol(atom.species) && manifold[1] != iatom
-               continue # Skip atoms that do not match the manifold species, if any is provided
-            end
-        end
-        psps[iatom] = atom.psp
-        for l in 0:psps[iatom].lmax
-            for n in 1:DFTK.count_n_pswfc_radial(psps[iatom], l)
-                label = psps[iatom].pswfc_labels[l+1][n]
-                if !isnothing(manifold) && lowercase(manifold[2]) != lowercase(label)
-                    continue # Skip atoms that do not match the manifold species, if any is provided
-                end
-                fun(p) = eval_psp_pswfc_fourier(psps[iatom], n, l, p)
-                form_factors_l = build_form_factors(fun, l, G_plus_k_all_cart)
-                for ik in 1:length(G_plus_k_all_cart)
-                   form_factors[ik] = hcat(form_factors[ik], form_factors_l[ik])  # Concatenate the form factors for this l
-                end
-                for m in -l:l
-                    push!(labels, (; iatom, atom.species, n, l, m, label))
-                end
-            end
-        end
-    end
-    nprojs = length(labels)
-
-    projectors = Vector{Matrix}(undef, length(basis.kpoints))
-    for ik in 1:length(basis.kpoints) # The projectors don't depend on the spin
-        proj_vectors = zeros(Complex{T}, length(G_plus_k_all[ik]), nprojs)  # Collect all projection vectors for this k-point
-        for (iproj, proj) in enumerate(labels)
-            structure_factor = [cis2pi(-dot(positions[proj.iatom], p)) for p in G_plus_k_all[ik]]
-            @assert length(structure_factor) == length(G_plus_k_all[ik]) "Structure factor length mismatch: $(length(structure_factor)) != $(length(G_plus_k))"
-            proj_vectors[:,iproj] = structure_factor .* form_factors[ik][:, iproj] ./ sqrt(basis.model.unit_cell_volume)    
-        end
-
-        @assert size(proj_vectors, 2) == nprojs "Projection matrix size mismatch: $(size(proj_vectors)) != $nprojs"
-        # At this point proj_vectors is a matrix containing all orbital projectors from all atoms. 
-        #   What we want is to have them all orthogonal, to avoid double counting in the Hubbard U term contribution.
-        #   We use Lowdin orthogonalization to minimize the "identity loss" of individual orbital projectors after the orthogonalization
-        proj_vectors = ortho_lowdin(proj_vectors)  # Lowdin-orthogonal
-        
-        projectors[ik] = proj_vectors  # Contract on ψk to get the projections
-    end
-
-    return (;projectors, labels)
-end
-
 function build_manifold(basis::PlaneWaveBasis{T}, projectors, labels, manifold::Tuple{Symbol, String}) where {T}
     manifold_labels = []
     manifold_projectors = Vector{Matrix{Complex{T}}}(undef, length(basis.kpoints))
@@ -232,6 +154,12 @@ function compute_hubbard_nIJ(manifold::Tuple{Symbol, String},
                                 basis::PlaneWaveBasis{T},
                                 ψ, occupation;
                                 positions = basis.model.positions) where {T}
+    for (iatom, atom) in enumerate(basis.model.atoms)
+        for (iwfc, r2_pswfc) in enumerate(atom.psp.r2_pswfcs)
+            @assert !iszero(size(r2_pswfc, 1)) "FATAL ERROR: Atomic projector not found within the provided PseudoPotential."
+        end
+    end
+
     filled_occ = filled_occupation(basis.model)
     proj = build_projectors(basis; positions)
     projs = proj.projectors
