@@ -16,7 +16,7 @@ function Base.show(io::IO, kin::Kinetic)
     print(io, "Kinetic($bup$fac)")
 end
 
-struct TermKinetic <: Term
+struct TermKinetic <: TermLinear
     scaling_factor::Real  # scaling factor, absorbed into kinetic_energies
     # kinetic energies 1/2(k+G)^2 *blowup(|k+G|, Ecut) for each k-point.
     kinetic_energies::Vector{<:AbstractVector}

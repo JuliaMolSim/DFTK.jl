@@ -22,7 +22,7 @@ function (M::MagneticFromValues)(Apotential)
     TermMagnetic(basis, Apotential)
 end
 
-struct TermMagnetic <: Term
+struct TermMagnetic <: TermLinear
     # Apotential[α] is an array of size fft_size for α=1:3
     Apotential::Vector{<:AbstractArray}
 end
