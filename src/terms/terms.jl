@@ -38,12 +38,10 @@ DftFunctionals.needs_τ(t::Term) = false
 """
 A term with a constant zero energy.
 """
-struct TermNoop <: Term end
+struct TermNoop <: TermLinear end
 function ene_ops(term::TermNoop, basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where {T}
     (; E=zero(eltype(T)), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
 end
-compute_kernel(term::TermNoop, basis::AbstractBasis; kwargs...) = nothing
-apply_kernel(term::TermNoop, basis::AbstractBasis, δρ; kwargs...) = nothing
 
 include("Hamiltonian.jl")
 
