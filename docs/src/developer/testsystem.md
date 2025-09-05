@@ -27,8 +27,8 @@ will test forces and run the examples. It is also possible to disable certain te
 using Pkg
 Pkg.test("DFTK"; test_args = ["noslow"])
 ```
-will ignore any test tagged as `:slow`. Finally, parallel tests can be run by passing `"mpi"` or
-`"gpu"` to the `test_args` keyword argument.
+will ignore any test tagged as `:slow`. Finally, parallel tests can be run by passing `"mpi"` to
+the `test_args` keyword argument. GPU tests are triggered with the `"gpu"` tag.
 
 ### Selecting by file name
 This works by directly instantiating the test environment and triggering
