@@ -292,10 +292,10 @@ end
 
         @test length(filtered_symmetries) == length(expected_symmetries)
         for s in expected_symmetries
-            @test DFTK.is_approx_in(filtered_symmetries, s)
+            @test DFTK.is_approx_in(s, filtered_symmetries)
         end
         for s in filtered_symmetries
-            @test DFTK.is_approx_in(expected_symmetries, s)
+            @test DFTK.is_approx_in(s, expected_symmetries)
         end
     end
 

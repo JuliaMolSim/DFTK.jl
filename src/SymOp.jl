@@ -66,8 +66,9 @@ function Base.:*(op1::SymOp, op2::SymOp)
 end
 Base.inv(op::SymOp) = SymOp(inv(op.W), -op.W\op.w)
 
+is_approx_in(symop, group; kwargs...) = any(s -> isapprox(s, symop; kwargs...), group)
 function check_group(symops::Vector; kwargs...)
-    is_approx_in_symops(s1) = any(s -> isapprox(s, s1; kwargs...), symops)
+    is_approx_in_symops(s1) = is_approx_in(s1, symops; kwargs...)
     is_approx_in_symops(one(SymOp)) || error("check_group: no identity element")
     for s in symops
         if !is_approx_in_symops(inv(s))
@@ -82,27 +83,26 @@ function check_group(symops::Vector; kwargs...)
     symops
 end
 
-is_approx_in(group, symop; kwargs...) = any(s -> isapprox(s, symop; kwargs...), group)
-
 function complete_symop_group(symops; maxiter=10, kwargs...)
     completed_group = Vector(symops)
+
+    function add_to_group(to_add, s1)
+        if !is_approx_in(s1, completed_group; kwargs...) && !is_approx_in(s1, to_add; kwargs...)
+            push!(to_add, s1)
+        end
+    end
 
     for it = 1:maxiter
         if it == maxiter
             error("Could not complete group in $maxiter iterations")
         end
         to_add = []
-        function check(s1)
-            if !is_approx_in(completed_group, s1; kwargs...) && !is_approx_in(to_add, s1; kwargs...)
-                push!(to_add, s1)
-            end
-        end
         # Identity always needs to be there!
-        check(SymOp(diagm([1, 1, 1]), [0., 0., 0.]))
+        add_to_group(to_add, one(SymOp))
         for s in completed_group
-            check(inv(s))
+            add_to_group(to_add, inv(s))
             for t in completed_group
-                check(s*t)
+                add_to_group(to_add, s*t)
             end
         end
         if isempty(to_add)

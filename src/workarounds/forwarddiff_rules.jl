@@ -115,7 +115,8 @@ function is_symmetry_broken_by_dual(lattice, atoms, positions, symmetry::SymOp; 
     #      A⁻¹ * Wcart * A*x + A⁻¹ * wcart - y 
 
     lattice_primal = ForwardDiff.value.(lattice)
-    W = compute_inverse_lattice(lattice) * lattice_primal * symmetry.W * compute_inverse_lattice(lattice_primal) * lattice
+    W = (compute_inverse_lattice(lattice) * lattice_primal
+        * symmetry.W * compute_inverse_lattice(lattice_primal) * lattice)
     w = compute_inverse_lattice(lattice) * lattice_primal * symmetry.w
 
     is_dual_nonzero(x::AbstractArray) = any(x) do xi
