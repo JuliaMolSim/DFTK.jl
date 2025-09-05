@@ -1,4 +1,4 @@
-@testitem "Helium all electron" tags=[:minimal, :dont_test_mpi, :coveragae] begin
+@testitem "Helium all electron" tags=[:minimal, :dont_test_mpi] begin
     using DFTK
     using LinearAlgebra
 
