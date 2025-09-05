@@ -102,9 +102,6 @@ In this case the matrix has effectively 4 blocks
     end
     kernel
 end
-compute_kernel(term::Term, ::AbstractBasis{T}; kwargs...) where {T} = error(
-    "compute_kernel not implemented for term of type $(typeof(term))"
-)
 
 
 """
@@ -131,6 +128,3 @@ as a 4D `(i,j,k,σ)` array.
     end
     δV
 end
-apply_kernel(term::Term, ::AbstractBasis{T}, δρ; kwargs...) where {T} = error(
-    "apply_kernel not implemented for term of type $(typeof(term))"
-)
