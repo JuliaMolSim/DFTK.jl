@@ -16,6 +16,7 @@ function energy_potentials(term::TermLocalNonlinearity, basis::PlaneWaveBasis{T}
 
     (; E, potentials=Densities(; ρ=potential))
 end
+needed_densities(::TermLocalNonlinearity) = (:ρ,)
 
 function ene_ops(term::TermLocalNonlinearity, basis::PlaneWaveBasis{T}, ψ, occupation;
                  ρ, kwargs...) where {T}

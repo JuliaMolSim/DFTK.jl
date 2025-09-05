@@ -3,18 +3,30 @@ using DftFunctionals
 include("operators.jl")
 
 @kwdef struct Densities{Tρ, Tτ}
-    ρ::Tρ
+    ρ::Tρ = nothing
     τ::Tτ = nothing
+end
+
+function sum_densities(a::Densities, b::Densities)
+    sum_density(a, b) = isnothing(a) ? b : isnothing(b) ? a : a .+ b
+
+    Densities(sum_density(a.ρ, b.ρ),
+              sum_density(a.τ, b.τ))
 end
 
 # For an orbital term the ops are constant
 # and the energy is quadratic in the orbitals and computed from the ops
-struct OrbitalsTerm
-    ops::Vector{RealFourierOperator}
-end
+# It must overload:
+# - `ops(term, basis)` returning `Vector{RealFourierOperator}` (for each kpoint)
+abstract type OrbitalsTerm end
 
 # A term that depends on the densities but not on the orbitals
+# It must overload:
+# - `needed_densities(term)` returning an iterable of symbols
+# - `energy_potentials(term, basis, densities::Densities)` returning `(; E, potentials::Densities)`
 abstract type DensitiesTerm end
+
+# TODO: linear subtype?
 
 # Terms that are non-linear in the density (i.e. which give rise to a Hamiltonian
 # contribution that is density-dependent as well)

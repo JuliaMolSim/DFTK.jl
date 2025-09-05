@@ -12,6 +12,7 @@ function energy_potentials(term::TermLocalPotential, basis::PlaneWaveBasis{T}, d
         term.potential_values
     (; E, potentials=Densities(; ρ=pot))
 end
+needed_densities(::TermLocalPotential) = (:ρ,)
 
 @timing "ene_ops: local" function ene_ops(term::TermLocalPotential,
                                           basis::PlaneWaveBasis{T}, ψ, occupation;

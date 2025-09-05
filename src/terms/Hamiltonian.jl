@@ -183,6 +183,21 @@ end
     Hψ
 end
 
+function orbitals_term_energy(basis::PlaneWaveBasis{T}, ψ, occupation, ops) where {T}
+    E = zero(T)
+    for (ik, ψk) in enumerate(ψ)
+        # TODO: is this allocation a problem?
+        op_applied_storage = zeros_like(ψk)
+        # TODO: what about non-fourier terms?
+        apply!((; fourier=op_applied_storage), ops[ik], (; fourier=ψk))
+        # TODO: use columnwise_dots function here I think
+        E += basis.kweights[ik] *
+            sum(occupation[ik] .*
+                real(vec(sum(conj(ψk) .* op_applied_storage; dims=1))))
+    end
+    mpi_sum(E, basis.comm_kpts)
+end
+
 """
 Get energies and Hamiltonian
 kwargs is additional info that might be useful for the energy terms to precompute
@@ -194,32 +209,31 @@ kwargs is additional info that might be useful for the energy terms to precomput
     energy_values  = [zero(T) for _ in basis.model.term_types]
 
     operators = [[] for _ in basis.kpoints]
+    total_potentials = Densities()
 
     for (iterm, term) in enumerate(basis.terms)
         if isa(term, OrbitalsTerm)
-            E = zero(T)
-            if isnothing(ψ)
-                E = T(Inf)
-            else
-                for (ik, ψk) in enumerate(ψ)
-                    op_applied_storage = zeros_like(ψk)
-                    apply!((; fourier=op_applied_storage), term.ops[ik], (; fourier=ψk))
-                    E += basis.kweights[ik] *
-                        sum(occupation[ik] .*
-                            real(vec(sum(conj(ψk) .* op_applied_storage; dims=1))))
-                end
-                E = mpi_sum(E, basis.comm_kpts)
-                energy_values[iterm] = E
-            end
-            for (ik, op) in enumerate(term.ops)
+            # TODO: is ops ambiguous without DFTK. prefix here?
+            ops = DFTK.ops(term, basis)
+            energy_values[iterm] = isnothing(ψ) ? T(Inf) : orbitals_term_energy(basis, ψ, occupation, ops)
+            for (ik, op) in enumerate(ops)
                 push!(operators[ik], op)
             end
         else
             (; E, potentials) = energy_potentials(term, basis, densities)
             energy_values[iterm] = E
-            for (ik, kpt) in enumerate(basis.kpoints)
-                push!(operators[ik], RealSpaceMultiplication(basis, kpt, potentials.ρ[:, :, :, kpt.spin]))
-            end
+            total_potentials = sum_densities(total_potentials, potentials)
+        end
+    end
+
+    if !isnothing(total_potentials.ρ)
+        for (ik, kpt) in enumerate(basis.kpoints)
+            push!(operators[ik], RealSpaceMultiplication(basis, kpt, total_potentials.ρ[:, :, :, kpt.spin]))
+        end
+    end
+    if !isnothing(total_potentials.τ)
+        for (ik, kpt) in enumerate(basis.kpoints)
+            push!(operators[ik], DivAgradOperator(basis, kpt, total_potentials.τ[:, :, :, kpt.spin]))
         end
     end
 

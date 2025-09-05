@@ -129,8 +129,7 @@ Overview of parameters:
 """
 @timing function self_consistent_field(
     basis::PlaneWaveBasis{T};
-    ρ=guess_density(basis),
-    τ=any(needs_τ, basis.terms) ? zero(ρ) : nothing,
+    densities=Densities(),
     ψ=nothing,
     tol=1e-6,
     is_converged=ScfConvergenceDensity(tol),
@@ -148,6 +147,7 @@ Overview of parameters:
     compute_consistent_energies=true,
     response=ResponseOptions(),  # Dummy here, only for AD
 ) where {T}
+    densities = guess_missing_densities(basis, densities)
     if !isnothing(ψ)
         @assert length(ψ) == length(basis.kpoints)
     end
@@ -210,12 +210,12 @@ Overview of parameters:
         ρnext, info_next
     end
 
-    info_init = (; ρin=ρ, τ, ψ, occupation=nothing, eigenvalues=nothing, εF=nothing,
+    info_init = (; ρin=densities.ρ, densities.τ, ψ, occupation=nothing, eigenvalues=nothing, εF=nothing,
                    n_iter=0, n_matvec=0, timedout=false, converged=false,
                    history_Etot=T[], history_Δρ=T[])
 
     # Convergence is flagged by is_converged inside the fixpoint_map.
-    _, info = solver(fixpoint_map, ρ, info_init; maxiter)
+    _, info = solver(fixpoint_map, densities.ρ, info_init; maxiter)
 
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρout, so we return that. We also perform a last energy computation

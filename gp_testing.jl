@@ -17,8 +17,7 @@ model = Model(lattice; n_electrons, terms, spin_polarization=:spinless);  # spin
 # We discretize using a moderate Ecut (For 1D values up to `5000` are completely fine)
 # and run a direct minimization algorithm:
 basis = PlaneWaveBasis(model, Ecut=500, kgrid=(1, 1, 1))
-# TODO remove τ
-scfres = self_consistent_field(basis; tol=1e-8, mixing=SimpleMixing(), τ=nothing) # This is a constrained preconditioned LBFGS
+scfres = self_consistent_field(basis; tol=1e-8, mixing=SimpleMixing()) # This is a constrained preconditioned LBFGS
 scfres.energies
 
 # ## Internals
