@@ -115,7 +115,7 @@ end
     @test kinter[8] == [0.5]
 end
 
-@testitem "Compute bands for silicon" tags=[:dont_test_mpi] setup=[TestCases] begin
+@testitem "Compute bands for silicon" tags=[:dont_test_mpi, :minimal] setup=[TestCases] begin
     using DFTK
     using Brillouin: interpolate
     testcase = TestCases.silicon
@@ -217,7 +217,7 @@ end
     end
 end
 
-@testitem "compute_bands for meta-GGA" tags=[:dont_test_mpi] setup=[TestCases] begin
+@testitem "compute_bands for meta-GGA" tags=[:dont_test_mpi, :minimal] setup=[TestCases] begin
     # This triggers a bug reported previously, see
     # https://github.com/JuliaMolSim/DFTK.jl/issues/1065
     using DFTK

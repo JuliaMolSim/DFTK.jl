@@ -1,5 +1,5 @@
 @testitem "External potential from Fourier coefficients" #=
-    =#    tags=[:core, :dont_test_mpi] begin
+    =#    tags=[:dont_test_mpi] begin
     using DFTK
 
     lattice = [[10 0 0.]; [0 0 0]; [0 0 0]]
