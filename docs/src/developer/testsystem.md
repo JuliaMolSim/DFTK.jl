@@ -10,18 +10,25 @@ the tests.
 
 ## Running selective tests
 ### Selecting by tags
-To only run core functionality tests (those which are tagged `:core`) one can simply run
+To only run a minimal set of tests designed to ensure DFTK functionality (tests tagged with `:minimal`),
+on can simply run
 ```julia
 using Pkg
-Pkg.test("DFTK"; test_args = ["noall", "core"])
+Pkg.test("DFTK"; test_args = ["minimal"])
 ```
-where `"noall"` disables the standard test suite and `"core"` exactly selects the core tests.
-Similarly
+By default, all tests are run. Specifying any subset implicitly turns off all tests not
+tagged accordingly. Multiple tags can be specified at once. For example,
 ```julia
 using Pkg
-Pkg.test("DFTK"; test_args = ["noall", "core", "atomsbase"])
+Pkg.test("DFTK"; test_args = ["forces", "example"])
 ```
-runs both `:core` and `:atomsbase` tests.
+will test forces and run the examples. It is also possible to disable certain tests:
+```julia
+using Pkg
+Pkg.test("DFTK"; test_args = ["noslow"])
+```
+will ignore any test tagged as `:slow`. Finally, parallel tests can be run by passing `"mpi"` or
+`"gpu"` to the `test_args` keyword argument.
 
 ### Selecting by file name
 This works by directly instantiating the test environment and triggering

@@ -21,7 +21,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {mode: stable,  os: ubuntu-latest,  payload: noslow-example }
+          - {mode: stable,  os: ubuntu-latest,  payload: noslow }
+          - {mode: stable,  os: ubuntu-latest,  payload: example }
           - {mode: stable,  os: macOS-latest,   payload: noslow         }
           - {mode: stable,  os: windows-latest, payload: noslow         }
           - {mode: stable,  os: ubuntu-latest,  payload: noslow-mpi     }
