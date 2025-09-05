@@ -271,10 +271,11 @@ end
 
     # Make silicon primal model
     model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
-                        functionals=LDA(), temperature=1e-3, smearing=Smearing.Gaussian())
+                      functionals=LDA(), temperature=1e-3, smearing=Smearing.Gaussian())
     
     # Make silicon dual model
-    x_dual = ForwardDiff.Dual{ForwardDiff.Tag{UnionAll, Int64}}(1.0, 1.0)
+    T = typeof(ForwardDiff.Tag(:mytag, Float64))
+    x_dual = ForwardDiff.Dual{T}(1.0, 1.0)
     model_dual = Model(model; lattice=x_dual * model.lattice)
 
     # Construct the primal and dual basis
@@ -282,8 +283,8 @@ end
     basis_dual = PlaneWaveBasis(model_dual; Ecut=5, kgrid=(1,1,1))
 
     # Compute scfres with primal and dual basis
-    scfres_dual = self_consistent_field(basis_dual; tol=1e-5)
     scfres = self_consistent_field(basis; tol=1e-5)
+    scfres_dual = self_consistent_field(basis_dual; tol=1e-5)
     
     # Check that scfres_dual has the same parameters as scfres
     @test isempty(setdiff(keys(scfres), keys(scfres_dual)))
