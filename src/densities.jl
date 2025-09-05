@@ -38,7 +38,6 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
                                           .* (basis.fft_grid.ifft_normalization)^2
                                           .* abs2.(storage.ψnk_real))
 
-        synchronize_device(basis.architecture)
     end
     ρ = sum(getfield.(storages, :ρ))
 
@@ -93,7 +92,6 @@ end
                                                           .* storage.δψnk_real
               .+ δoccupation[ik][n] .* basis.kweights[ik] .* abs2.(storage.ψnk_real))
 
-        synchronize_device(basis.architecture)
     end
     δρ = sum(getfield.(storages, :δρ))
 
