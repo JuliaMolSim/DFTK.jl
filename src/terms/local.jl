@@ -21,6 +21,10 @@ abstract type TermLocalPotential <: Term end
     (; E, ops)
 end
 
+compute_kernel(term::TermLocalPotential, basis::AbstractBasis; kwargs...) = nothing
+apply_kernel(term::TermLocalPotential, basis::AbstractBasis, δρ; kwargs...) = nothing
+
+
 ## External potentials
 
 struct TermExternal <: TermLocalPotential
@@ -222,6 +226,3 @@ function compute_δHψ_αs(::TermAtomicLocal, basis::PlaneWaveBasis, ψ, α, s, 
     end
     multiply_ψ_by_blochwave(basis, ψ, δV_αs, q)
 end
-
-compute_kernel(term::TermAtomicLocal, basis::AbstractBasis; kwargs...) = nothing
-apply_kernel(term::TermAtomicLocal, basis::AbstractBasis, δρ; kwargs...) = nothing
