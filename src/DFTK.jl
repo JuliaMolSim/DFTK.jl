@@ -97,6 +97,7 @@ include("supercell.jl")
 export Energies
 include("Energies.jl")
 
+export Densities
 export Hamiltonian
 export HamiltonianBlock
 export energy_hamiltonian

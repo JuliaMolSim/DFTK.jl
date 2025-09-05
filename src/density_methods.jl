@@ -29,6 +29,15 @@ function random_density(basis::PlaneWaveBasis{T}, n_electrons::Integer) where {T
     ρ_from_total_and_spin(ρtot, ρspin)
 end
 
+function guess_missing_densities(basis::PlaneWaveBasis, densities::Densities)
+    ρ = @something densities.ρ guess_density(basis)
+    τ = densities.τ
+    if isnothing(τ) && any(t -> t isa DensitiesTerm && :τ ∈ needed_densities(t), basis.terms)
+        τ = zero(ρ)
+    end
+    Densities(ρ, τ)
+end
+
 # Atomic density methods
 function guess_density(basis::PlaneWaveBasis, magnetic_moments=[],
                        n_electrons=basis.model.n_electrons)

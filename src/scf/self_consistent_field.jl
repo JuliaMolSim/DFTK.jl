@@ -129,8 +129,7 @@ Overview of parameters:
 """
 @timing function self_consistent_field(
     basis::PlaneWaveBasis{T};
-    ρ=guess_density(basis),
-    τ=any(needs_τ, basis.terms) ? zero(ρ) : nothing,
+    densities=Densities(),
     ψ=nothing,
     tol=1e-6,
     is_converged=ScfConvergenceDensity(tol),
@@ -148,6 +147,7 @@ Overview of parameters:
     compute_consistent_energies=true,
     response=ResponseOptions(),  # Dummy here, only for AD
 ) where {T}
+    densities = guess_missing_densities(basis, densities)
     if !isnothing(ψ)
         @assert length(ψ) == length(basis.kpoints)
     end
@@ -162,7 +162,7 @@ Overview of parameters:
 
         # Note that ρin is not the density of ψ, and the eigenvalues
         # are not the self-consistent ones, which makes this energy non-variational
-        energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρin, τ, eigenvalues, εF)
+        energies, ham = energy_hamiltonian(basis, ψ, occupation, Densities(; ρ=ρin, τ); eigenvalues, εF)
 
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
@@ -175,9 +175,10 @@ Overview of parameters:
         #      on the same footing. In the future such principles will also apply
         #      to other quantities. See discussion in
         #      https://github.com/JuliaMolSim/DFTK.jl/issues/1065
-        if any(needs_τ, basis.terms)
-            τ = compute_kinetic_energy_density(basis, ψ, occupation)
-        end
+        # TODO: remove τ
+        # if any(needs_τ, basis.terms)
+        #     τ = compute_kinetic_energy_density(basis, ψ, occupation)
+        # end
 
         # Update info with results gathered so far
         info_next = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
@@ -187,7 +188,7 @@ Overview of parameters:
 
         # Compute the energy of the new state
         if compute_consistent_energies
-            (; energies) = energy(basis, ψ, occupation; ρ=ρout, τ, eigenvalues, εF)
+            (; energies) = energy(basis, ψ, occupation, Densities(; ρ=ρout, τ); eigenvalues, εF)
         end
         history_Etot = vcat(info.history_Etot, energies.total)
         history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
@@ -209,18 +210,18 @@ Overview of parameters:
         ρnext, info_next
     end
 
-    info_init = (; ρin=ρ, τ, ψ, occupation=nothing, eigenvalues=nothing, εF=nothing,
+    info_init = (; ρin=densities.ρ, densities.τ, ψ, occupation=nothing, eigenvalues=nothing, εF=nothing,
                    n_iter=0, n_matvec=0, timedout=false, converged=false,
                    history_Etot=T[], history_Δρ=T[])
 
     # Convergence is flagged by is_converged inside the fixpoint_map.
-    _, info = solver(fixpoint_map, ρ, info_init; maxiter)
+    _, info = solver(fixpoint_map, densities.ρ, info_init; maxiter)
 
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρout, so we return that. We also perform a last energy computation
     # to return a correct variational energy
     (; ρin, ρout, τ, ψ, occupation, eigenvalues, εF, converged) = info
-    energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρout, τ, eigenvalues, εF)
+    energies, ham = energy_hamiltonian(basis, ψ, occupation, Densities(; ρ=ρout, τ); eigenvalues, εF)
 
     # Callback is run one last time with final state to allow callback to clean up
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
