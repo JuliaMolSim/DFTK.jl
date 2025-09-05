@@ -24,7 +24,7 @@ function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
     TermAtomicNonlocal(ops)
 end
 
-struct TermAtomicNonlocal <: Term
+struct TermAtomicNonlocal <: TermLinear
     ops::Vector{NonlocalOperator}
 end
 
@@ -375,6 +375,3 @@ function compute_δHψ_αs(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, �
         end
     end
 end
-
-compute_kernel(term::TermAtomicNonlocal, basis::AbstractBasis; kwargs...) = nothing
-apply_kernel(term::TermAtomicNonlocal, basis::AbstractBasis, δρ; kwargs...) = nothing

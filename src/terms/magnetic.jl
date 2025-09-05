@@ -22,7 +22,7 @@ function (M::MagneticFromValues)(Apotential)
     TermMagnetic(basis, Apotential)
 end
 
-struct TermMagnetic <: Term
+struct TermMagnetic <: TermLinear
     # Apotential[α] is an array of size fft_size for α=1:3
     Apotential::Vector{<:AbstractArray}
 end
@@ -58,6 +58,3 @@ function ene_ops(term::TermMagnetic, basis::PlaneWaveBasis{T}, ψ, occupation;
 
     (; E, ops)
 end
-
-compute_kernel(term::TermMagnetic, basis::AbstractBasis; kwargs...) = nothing
-apply_kernel(term::TermMagnetic, basis::AbstractBasis, δρ; kwargs...) = nothing

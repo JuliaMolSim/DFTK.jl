@@ -16,6 +16,11 @@ include("operators.jl")
 # In particular, dE/dψn = 2 fn |Hψn> (plus weighting for k-point sampling)
 abstract type Term end
 
+# Terms that are linear in the density matrix, i.e. have zero second derivative
+abstract type TermLinear <: Term end
+compute_kernel(term::TermLinear, basis::AbstractBasis; kwargs...) = nothing
+apply_kernel(term::TermLinear, basis::AbstractBasis, δρ; kwargs...) = nothing
+
 # Terms that are non-linear in the density (i.e. which give rise to a Hamiltonian
 # contribution that is density-dependent or orbital-dependent as well)
 abstract type TermNonlinear <: Term end

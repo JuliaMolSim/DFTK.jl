@@ -4,7 +4,7 @@
 # potential in real space on the grid. If the potential is different in the α and β
 # components then it should be a 4d-array with the last axis running over the
 # two spin components.
-abstract type TermLocalPotential <: Term end
+abstract type TermLocalPotential <: TermLinear end
 
 @timing "ene_ops: local" function ene_ops(term::TermLocalPotential,
                                           basis::PlaneWaveBasis{T}, ψ, occupation;
@@ -20,10 +20,6 @@ abstract type TermLocalPotential <: Term end
 
     (; E, ops)
 end
-
-compute_kernel(term::TermLocalPotential, basis::AbstractBasis; kwargs...) = nothing
-apply_kernel(term::TermLocalPotential, basis::AbstractBasis, δρ; kwargs...) = nothing
-
 
 ## External potentials
 

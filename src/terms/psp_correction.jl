@@ -4,7 +4,7 @@ Pseudopotential correction energy. TODO discuss the need for this.
 struct PspCorrection end
 (::PspCorrection)(basis) = TermPspCorrection(basis)
 
-struct TermPspCorrection{T} <: Term
+struct TermPspCorrection{T} <: TermLinear
     energy::T  # precomputed energy
 end
 function TermPspCorrection(basis::PlaneWaveBasis)
@@ -38,6 +38,3 @@ end
 function energy_psp_correction(model::Model)
     energy_psp_correction(model.lattice, model.atoms, model.atom_groups)
 end
-
-compute_kernel(term::TermPspCorrection, basis::AbstractBasis; kwargs...) = nothing
-apply_kernel(term::TermPspCorrection, basis::AbstractBasis, δρ; kwargs...) = nothing
