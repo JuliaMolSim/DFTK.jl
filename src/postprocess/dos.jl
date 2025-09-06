@@ -16,7 +16,7 @@
 Total density of states at energy ε
 """
 function compute_dos(ε, basis, eigenvalues; smearing=basis.model.smearing,
-                     temperature=basis.model.temperature)
+                     temperature=basis.model.temperature)  
     if (temperature == 0) || smearing isa Smearing.None
         error("compute_dos only supports finite temperature")
     end
@@ -32,6 +32,7 @@ function compute_dos(ε, basis, eigenvalues; smearing=basis.model.smearing,
     end
     D = mpi_sum(D, basis.comm_kpts)
 end
+
 function compute_dos(scfres::NamedTuple; ε=scfres.εF, kwargs...)
     compute_dos(ε, scfres.basis, scfres.eigenvalues; kwargs...)
 end
@@ -68,65 +69,200 @@ function compute_ldos(scfres::NamedTuple; ε=scfres.εF, kwargs...)
 end
 
 """
-Projected density of states at energy ε for an atom with given i and l.
+Compute the projected density of states (PDOS) for all atoms and orbitals.
+
+    Input: 
+     -> εs               : Vector of energies at which the PDOS will be computed
+     -> basis            : PlaneWaveBasis object from bands computation
+     -> ψ                : Wavefunction from the bands
+     -> eigenvalues      : Eigenvalues from the bands
+    Output:
+     -> pdos             : 3D array of PDOS, pdos[iε_idx, iproj, σ] = PDOS at energy εs[iε_idx] for projector iproj and spin σ
+     -> projector_labels : Vector of tuples (iatom, n, l, m) for each projector, that maps the iproj index to the corresponding atomic orbital (atom index, principal quantum number, angular momentum, magnetic quantum number)
+Notes: 
+ - The pdos matrix has different projectors for each atom, even if they are of the same atom type. 
+   As such, the sum of all iproj columns for each σ yields the total DOS at each energy εs[iε_idx].
+   This is different from Quantum ESPRESSO, where the pdos for atoms of the same type are summed together 
+     even though they are printed separately (i.e. summing over all QE pdos from all output files does not yield the DOS).
 """
-function compute_pdos(ε, basis, eigenvalues, ψ, i, l, psp, position;
-                      smearing=basis.model.smearing,
-                      temperature=basis.model.temperature)
+function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues; 
+                      positions=basis.model.positions,
+                      smearing=basis.model.smearing, 
+                      temperature=basis.model.temperature) where {T}
     if (temperature == 0) || smearing isa Smearing.None
         error("compute_pdos only supports finite temperature")
     end
     filled_occ = filled_occupation(basis.model)
+    
+    projections, projector_labels = build_projections(basis, ψ; positions=positions)
 
-    projs = compute_pdos_projs(basis, eigenvalues, ψ, i, l, psp, position)
+    nprojs = length(projector_labels) 
 
-    D = zeros(typeof(ε[1]), length(ε), 2l+1)
-    for (i, iε) in enumerate(ε)
-        for (ik, projk) in enumerate(projs)
+    D = zeros(typeof(εs[1]), length(εs), nprojs, basis.model.n_spin_components)  
+    for (iε, ε) in enumerate(εs)
+        for σ in 1:basis.model.n_spin_components, ik = krange_spin(basis, σ)
+            projsk = projections[ik]  
             @views for (iband, εnk) in enumerate(eigenvalues[ik])
-                enred = (εnk - iε) / temperature
-                D[i, :] .-= (filled_occ .* basis.kweights[ik] .* projk[iband, :]
-                             ./ temperature
-                             .* Smearing.occupation_derivative(smearing, enred))       
+                enred = (εnk - ε) / temperature
+                for iproj in 1:size(projsk, 2)
+                    projk = projsk[:, iproj]
+                    D[iε, iproj,σ] -= (filled_occ * basis.kweights[ik] * projk[iband]
+                                             ./ temperature
+                                             .* Smearing.occupation_derivative(smearing, enred))
+                end
             end
         end
     end
-    D = mpi_sum(D, basis.comm_kpts)
+    pdos = mpi_sum(D, basis.comm_kpts)  
+
+    return (; pdos, projector_labels, εs)
 end
 
-function compute_pdos(scfres::NamedTuple, iatom, i, l; ε=scfres.εF, kwargs...)
-    psp = scfres.basis.model.atoms[iatom].psp
-    position = scfres.basis.model.positions[iatom]
-    # TODO do the symmetrization instead of unfolding    
-    scfres = unfold_bz(scfres)
-    compute_pdos(ε, scfres.basis, scfres.eigenvalues, scfres.ψ, i, l, psp, position; kwargs...)
+function compute_pdos(εs, bands; kwargs...)
+    compute_pdos(εs, bands.basis, bands.ψ, bands.eigenvalues; kwargs...)
 end
 
-# Build atomic orbitals projections projs[ik][iband,m] = |<ψnk, ϕ>|^2 for a single atom.
-# TODO optimization ? accept a range of positions, in case we want to compute the PDOS
-# for all atoms of the same type (and reuse the computation of the atomic orbitals)
-function compute_pdos_projs(basis, eigenvalues, ψ, i, l, psp::NormConservingPsp, position)
-    # Precompute the form factors on all kpoints at once so we can better use the cache (memory-compute tradeoff).
-    # Revisit this (pass the cache around explicitly) if RAM becomes an issue.
+"""
+Build the projectors matrices projsk for all k-points at the same time.
+         
+    projector[ik][:, iproj] = |ϕinlm>(kpt)
+
+ where ϕinlm is the atomic orbital for atom i, quantum numbers (n,l,m)
+   and iproj is the corresponding column index. The mapping is recorded in 'labels'.
+  
+    Input: 
+     - basis           : PlaneWaveBasis
+     - manifold  (opt) : (see notes below) tuple of (Atom, Orbital) to select only a subset of orbitals for the computation. 'Atom' must be either a Symbol or an Int64, 'Orbital' must be a String with the orbital name in uppercase.
+     - positions (opt) : positions of the atoms in the unit cell
+    Output:
+     - projectors      : vector of matrices of projectors
+     - labels          : structure containing iatom, species, n, l, m and orbital name for each projector
+
+Notes: 
+
+- 'n' is not exactly the principal quantum number, but rather the index of the radial function in the pseudopotential. As an example, if the pseudopotential contains the 3S and 4S orbitals, then those are indexed as n=1, l=0 and n=2, l=0 respectively.
+- Use 'manifold' kwarg with caution, since the resulting projectors would be orthonormalized only against the manifold basis. Most applications require the whole projectors basis to be orthonormal instead.
+"""
+function build_projectors(basis::PlaneWaveBasis{T};
+                          manifold = nothing,  #Should we allow to take and orthogonalize only the manifold?
+                          positions = basis.model.positions
+                          ) where {T}
+    
     G_plus_k_all = [Gplusk_vectors(basis, basis.kpoints[ik])
                     for ik = 1:length(basis.kpoints)]
     G_plus_k_all_cart = [map(recip_vector_red_to_cart(basis.model), gpk) 
                          for gpk in G_plus_k_all]
 
-    # Build form factors of pseudo-wavefunctions centered at 0.
-    fun(p) = eval_psp_pswfc_fourier(psp, i, l, p)
-    # form_factors_all[ik][p,m]
-    form_factors_all = build_form_factors(fun, l, G_plus_k_all_cart)
+    psps = Vector{NormConservingPsp}(undef, length(basis.model.atoms))
+    labels = []
+    form_factors = [Matrix{Complex{T}}(undef, length(G_plus_k), 0)  for G_plus_k in G_plus_k_all_cart]
+    for (iatom, atom) in enumerate(basis.model.atoms)
+        if !isnothing(manifold)
+            if manifold[1] != Symbol(atom.species) && manifold[1] != iatom
+               continue # Skip atoms that do not match the manifold species, if any is provided
+            end
+        end
+        psps[iatom] = atom.psp
+        for l in 0:psps[iatom].lmax
+            for n in 1:DFTK.count_n_pswfc_radial(psps[iatom], l)
+                label = psps[iatom].pswfc_labels[l+1][n]
+                if !isnothing(manifold) && lowercase(manifold[2]) != lowercase(label)
+                    continue # Skip atoms that do not match the manifold species, if any is provided
+                end
+                fun(p) = eval_psp_pswfc_fourier(psps[iatom], n, l, p)
+                form_factors_l = build_form_factors(fun, l, G_plus_k_all_cart)
+                for ik in 1:length(G_plus_k_all_cart)
+                   form_factors[ik] = hcat(form_factors[ik], form_factors_l[ik])  # Concatenate the form factors for this l
+                end
+                for m in -l:l
+                    push!(labels, (; iatom, atom.species, n, l, m, label))
+                end
+            end
+        end
+    end
+    nprojs = length(labels)
 
-    projs = Vector{Matrix}(undef, length(basis.kpoints))
-    for (ik, ψk) in enumerate(ψ)
-        structure_factor = [cis2pi(-dot(position, p)) for p in G_plus_k_all[ik]]
-        # TODO orthogonalize pseudo-atomic wave functions?
-        proj_vectors = structure_factor .* form_factors_all[ik] ./ sqrt(basis.model.unit_cell_volume)
-        projs[ik] = abs2.(ψk' * proj_vectors) # contract on p -> projs[ik][iband,m]
+    projectors = Vector{Matrix}(undef, length(basis.kpoints))
+    for ik in 1:length(basis.kpoints) # The projectors don't depend on the spin
+        proj_vectors = zeros(Complex{T}, length(G_plus_k_all[ik]), nprojs)  
+        for (iproj, proj) in enumerate(labels)
+            structure_factor = [cis2pi(-dot(positions[proj.iatom], p)) for p in G_plus_k_all[ik]]
+            @assert length(structure_factor) == length(G_plus_k_all[ik]) "Structure factor length mismatch: $(length(structure_factor)) != $(length(G_plus_k))"
+            proj_vectors[:,iproj] = structure_factor .* form_factors[ik][:, iproj] ./ sqrt(basis.model.unit_cell_volume)    
+        end
+
+        @assert size(proj_vectors, 2) == nprojs "Projection matrix size mismatch: $(size(proj_vectors)) != $nprojs"
+        # At this point proj_vectors is a matrix containing all orbital projectors from all atoms. 
+        #   What we want is to have them all orthogonal, to avoid double counting in the Hubbard U term contribution.
+        #   We use Lowdin orthogonalization to minimize the "identity loss" of individual orbital projectors after the orthogonalization
+        proj_vectors = ortho_lowdin(proj_vectors)  
+        
+        projectors[ik] = proj_vectors  
     end
 
-    projs
+    return (;projectors, labels)
+end
+
+"""
+Build the projection matrices projsk for all k-points at the same time.
+
+    projs[ik][iband, iproj] = projsk[iband, iproj] = |<ψnk, ϕilm>|^2
+
+ where ψnk is the wavefunction for band iband at k-point kpt,
+  and ϕilm is the atomic orbital for atom i, quantum numbers (n,l,m)
+
+    Input:
+     -> basis  : PlaneWaveBasis
+     -> ψ      : Wavefunction
+    Output:
+     -> projs  : Vector of matrices of projections
+     -> labels : NamedTuple containing iatom, species, n, l, m and orbital name for each projector
+Note: 'n' is not the principal quantum number, but the index of the radial wavefunction in the pseudopotential.
+          So for Si, the 3s orbital would have n=1, l=0, m=0, and the 3p orbital would have n=1, l=1, m=-1,0,1.
+"""
+function build_projections(basis::PlaneWaveBasis{T}, ψ;
+                            manifold  = nothing,
+                            positions = basis.model.positions           
+                          ) where {T}
+    projectors, labels = build_projectors(basis; manifold=manifold, positions=positions)
+    projs = Vector{Matrix}(undef, length(basis.kpoints))
+    for (ik, ψk) in enumerate(ψ)
+       projs[ik] = abs2.(ψk' * projectors[ik])
+    end
+
+    return (;projs, labels)
+end
+
+"""
+This function extracts the required pdos from the output of the `compute_pdos` function. 
+
+    Input:
+     -> res         : Whole output from compute_pdos.
+     -> label (opt) : String for the whole orbital label. 
+     -> iatom (opt) : Atom number in the model.atoms vector. It becomes important for magnetically or spatially non-equivalent atoms. 
+    Output:
+     -> pdos        : Vector containing the pdos(ε).
+"""
+function get_pdos(pdos_res, projs::AbstractVector)
+    pdos = []
+    for σ in 1:size(pdos_res.pdos, 3)
+        pdos_values = zeros(Float64, length(pdos_res.εs))
+        for (i, proj) in enumerate(projs)
+            for (j, orb) in enumerate(pdos_res.projector_labels)
+                atom_match  = !(haskey(proj, :iatom) && !isnothing(proj.iatom) && (proj.iatom != orb.iatom))
+                label_match = !(haskey(proj, :label) && !isnothing(proj.label) && (proj.label != orb.label)) 
+                if atom_match && label_match
+                    pdos_values += pdos_res.pdos[:, j, σ]
+                end
+            end
+        end
+        push!(pdos, pdos_values)
+    end
+    return pdos
+end
+
+function get_pdos(pdos_res; iatom=nothing, label=nothing)
+    get_pdos(pdos_res, [(;iatom, label)])
 end
 
 """
