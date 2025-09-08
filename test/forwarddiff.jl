@@ -374,3 +374,32 @@ end
         @test norm(δρ - δρ_finitediff, 1) < rtol * norm(δρ, 1)
     end
 end
+
+@testitem "Test scfres dual has the same params as scfres primal" #=
+    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using ForwardDiff
+    using LinearAlgebra
+    using PseudoPotentialData
+    silicon = TestCases.silicon
+
+    # Make silicon primal model
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                      functionals=LDA(), temperature=1e-3, smearing=Smearing.Gaussian())
+    
+    # Make silicon dual model
+    T = typeof(ForwardDiff.Tag(:mytag, Float64))
+    x_dual = ForwardDiff.Dual{T}(1.0, 1.0)
+    model_dual = Model(model; lattice=x_dual * model.lattice)
+
+    # Construct the primal and dual basis
+    basis = PlaneWaveBasis(model; Ecut=5, kgrid=(1,1,1))
+    basis_dual = PlaneWaveBasis(model_dual; Ecut=5, kgrid=(1,1,1))
+
+    # Compute scfres with primal and dual basis
+    scfres = self_consistent_field(basis; tol=1e-5)
+    scfres_dual = self_consistent_field(basis_dual; tol=1e-5)
+    
+    # Check that scfres_dual has the same parameters as scfres
+    @test isempty(setdiff(keys(scfres), keys(scfres_dual)))
+end
