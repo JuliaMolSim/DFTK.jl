@@ -92,7 +92,7 @@ on each of the atoms. The symmetries are determined using spglib.
         elseif spin_polarization == :collinear
             rotations, translations, spin_flips = Spglib.get_symmetry_with_site_tensors(
                 cell, tol_symmetry)
-            # Keep only the symmetries that don't flip the spins
+            # Keep only the symmetries that don't flip the spins (see PR #1144).
             rotations[spin_flips.==1], translations[spin_flips.==1]
         end
     catch e
