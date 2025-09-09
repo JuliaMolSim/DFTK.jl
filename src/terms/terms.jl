@@ -16,6 +16,11 @@ include("operators.jl")
 # In particular, dE/dψn = 2 fn |Hψn> (plus weighting for k-point sampling)
 abstract type Term end
 
+# Terms that are linear in the density matrix, i.e. have zero second derivative
+abstract type TermLinear <: Term end
+compute_kernel(term::TermLinear, basis::AbstractBasis; kwargs...) = nothing
+apply_kernel(term::TermLinear, basis::AbstractBasis, δρ; kwargs...) = nothing
+
 # Terms that are non-linear in the density (i.e. which give rise to a Hamiltonian
 # contribution that is density-dependent or orbital-dependent as well)
 abstract type TermNonlinear <: Term end
@@ -33,7 +38,7 @@ DftFunctionals.needs_τ(t::Term) = false
 """
 A term with a constant zero energy.
 """
-struct TermNoop <: Term end
+struct TermNoop <: TermLinear end
 function ene_ops(term::TermNoop, basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where {T}
     (; E=zero(eltype(T)), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
 end
@@ -101,7 +106,6 @@ In this case the matrix has effectively 4 blocks
     end
     kernel
 end
-compute_kernel(::Term, ::AbstractBasis{T}; kwargs...) where {T} = nothing  # By default no kernel
 
 
 """
@@ -128,4 +132,3 @@ as a 4D `(i,j,k,σ)` array.
     end
     δV
 end
-apply_kernel(::Term, ::AbstractBasis{T}, δρ; kwargs...) where {T} = nothing  # by default, no kernel
