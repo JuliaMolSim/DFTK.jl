@@ -21,13 +21,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {mode: stable,  os: ubuntu-latest,  payload: minimal          }
-          - {mode: stable,  os: ubuntu-latest,  payload: nominimal-noslow }
-          - {mode: stable,  os: ubuntu-latest,  payload: example          }
-          - {mode: stable,  os: macOS-latest,   payload: minimal          }
-          - {mode: stable,  os: windows-latest, payload: minimal          }
-          - {mode: stable,  os: ubuntu-latest,  payload: noslow-mpi       }
-          - {mode: latest,  os: ubuntu-latest,  payload: minimal          }
+          - {mode: stable,  arch: x64,     os: ubuntu-latest,  payload: minimal          }
+          - {mode: stable,  arch: x64,     os: ubuntu-latest,  payload: nominimal-noslow }
+          - {mode: stable,  arch: x64,     os: ubuntu-latest,  payload: example          }
+          - {mode: stable,  arch: aarch64, os: macOS-latest,   payload: minimal          }
+          - {mode: stable,  arch: x64,     os: windows-latest, payload: minimal          }
+          - {mode: stable,  arch: x64,     os: ubuntu-latest,  payload: noslow-mpi       }
+          - {mode: latest,  arch: x64,     os: ubuntu-latest,  payload: minimal          }
     env:
       GKS_ENCODING: utf8
       GKSwstype: 100       # Needed for Plots-related tests
@@ -41,7 +41,7 @@ jobs:
         uses: julia-actions/setup-julia@v2
         with:
           version: '1.10'
-          arch: x64
+          arch: ${{ matrix.arch }}
         if: ${{ matrix.mode == 'stable' }}
       - name: Setup Julia latest (pre-releases included)
         uses: julia-actions/setup-julia@v2
