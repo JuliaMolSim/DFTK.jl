@@ -244,13 +244,13 @@ end
 
 # TODO: U should become a vector, with one value for each atom.
 struct Hubbard
-    manifold::Tuple{Any, String}
+    manifold::Tuple{Symbol, String}
     U::Float64
 end
 (hubbard::Hubbard)(::AbstractBasis) = TermHubbard(hubbard.manifold, hubbard.U)
 
 struct TermHubbard <: Term
-    manifold::Tuple{Any, String}
+    manifold::Tuple{Symol, String}
     U::Float64
 end
 

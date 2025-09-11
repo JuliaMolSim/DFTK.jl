@@ -142,12 +142,12 @@ end
 plot_ldos(scfres; kwargs...) = plot_ldos(scfres.basis, scfres.eigenvalues, scfres.ψ; scfres.εF, kwargs...)
 
 function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatom, label=nothing,
-                      positions=basis.model.positions,
-                      smearing=basis.model.smearing, 
-                      temperature=basis.model.temperature,
-                      εF=nothing, unit=u"hartree",
-                      εrange=default_band_εrange(eigenvalues; εF),
-                      n_points=1000, p=nothing, kwargs...) where {T}
+                   positions=basis.model.positions,
+                   εF=nothing, unit=u"hartree",
+                   temperature=basis.model.temperature,
+                   smearing=basis.model.smearing,
+                   εrange=default_band_εrange(eigenvalues; εF),
+                   n_points=1000, p=nothing, kwargs...) where {T}
     eshift = something(εF, 0.0)
     εs = range(austrip.(εrange)..., length=n_points)
     n_spin = basis.model.n_spin_components
@@ -160,7 +160,8 @@ function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatom, label=nothi
     spinlabels = spin_components(basis.model)
     colors = [:blue, :red]
     pdos = DFTK.get_pdos(compute_pdos(εs, basis, ψ, eigenvalues;
-                    positions, temperature, smearing); iatom, label)
+                                      positions, temperature, smearing); 
+                         iatom, label)
     for σ = 1:n_spin
         plot_label = n_spin > 1 ? "$(species) $(label) $(spinlabels[σ]) spin" : "$(species) $(label)"
         Plots.plot!(p, (εs .- eshift) .* to_unit, pdos[σ]; label=plot_label, color=colors[σ])
@@ -172,7 +173,7 @@ function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatom, label=nothi
     if isnothing(εF)
         Plots.xlabel!(p, "eigenvalues  ($(string(unit)))")
     else
-        Plots.xlabel!(p, "eigenvalues -ε_F  ($(string(unit)))")
+        Plots.xlabel!(p, "eigenvalues - ε_F  ($(string(unit)))")
     end
     p
 end
