@@ -159,9 +159,9 @@ function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatom, label=nothi
     p = Plots.plot(; kwargs...)
     spinlabels = spin_components(basis.model)
     colors = [:blue, :red]
-    pdos = DFTK.get_pdos(compute_pdos(εs, basis, ψ, eigenvalues;
-                                      positions, temperature, smearing); 
-                         iatom, label)
+    pdos = DFTK.sum_pdos(compute_pdos(εs, basis, ψ, eigenvalues;
+                                      positions, temperature, smearing), 
+                         [DFTK.OrbitalManifold(;iatom=iatom, label=label)])
     for σ = 1:n_spin
         plot_label = n_spin > 1 ? "$(species) $(label) $(spinlabels[σ]) spin" : "$(species) $(label)"
         Plots.plot!(p, (εs .- eshift) .* to_unit, pdos[σ]; label=plot_label, color=colors[σ])
