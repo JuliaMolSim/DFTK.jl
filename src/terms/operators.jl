@@ -162,7 +162,7 @@ where ``P_i,m1`` is the projector for atom i and orbital m1.
 struct HubbardUOperator{T <: Real} <: RealFourierOperator
     basis  :: PlaneWaveBasis{T} 
     kpoint :: Kpoint{T} 
-    U      :: Real                       # Hubbard U parameter
+    U      :: Vector{T}                       # Hubbard U parameter
     n_IJ   :: Array{Matrix{Complex{T}}}  
     proj_I :: Vector{Matrix{Complex{T}}} #It is the projector for the given kpoint only
 end

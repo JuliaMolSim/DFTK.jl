@@ -244,14 +244,14 @@ end
 
 # TODO: U should become a vector, with one value for each atom.
 struct Hubbard
-    manifold::Tuple{Symbol, String}
-    U::Float64
+    manifolds::Vector{NamedTuple}
+    U::Vector{Float64}
 end
 (hubbard::Hubbard)(::AbstractBasis) = TermHubbard(hubbard.manifold, hubbard.U)
 
 struct TermHubbard <: Term
-    manifold::Tuple{Symbol, String}
-    U::Float64
+    manifolds::Vector{NamedTuple}
+    U::Vector{Float64}
 end
 
 @timing "ene_ops: hubbard" function ene_ops(term::TermHubbard, 
@@ -259,7 +259,7 @@ end
                                             ψ, occupation; n_hub=nothing, ψ_hub=nothing,
                                             kwargs...) where {T}
     to_unit = ustrip(auconvert(u"eV", 1.0))  
-    U = term.U / to_unit         
+    U = term.U ./ to_unit         
     if isnothing(ψ)
         if isnothing(n_hub)
            return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
@@ -268,27 +268,31 @@ end
         ψ = ψ_hub
         proj = compute_hubbard_proj(term.manifold, basis)
     else
-        Hubbard = compute_hubbard_nIJ(term.manifold, basis, ψ, occupation)
-        n = Hubbard.n_IJ
-        n_hub = n
-        proj = Hubbard.p_I
+        for (iman, manifold) in enumerate(term.manifolds)
+           Hubbard = compute_hubbard_nIJ(manifold, basis, ψ, occupation)
+           ns[iman,:,:,:] = Hubbard.n_IJ
+           n_hub[iman,:,:,:] = ns[iman,:,:,:]
+           projs[iman] = Hubbard.p_I
+        end
     end
 
-     
     ops = [HubbardUOperator(basis, kpt, U, n, proj[ik]) for (ik,kpt) in enumerate(basis.kpoints)]
 
     filled_occ = filled_occupation(basis.model)
-    types = findall(at -> at.species == Symbol(term.manifold[1]), basis.model.atoms)
-    natoms = length(types)  # Number of atoms of the selected species in the manifold
     nspins = basis.model.n_spin_components
 
     # To compare the results with Quantum ESPRESSO, we need to convert the U value from eV.
     #   In QE the U value is given in eV in the input but DFTK works in Hartrees.
     E = zero(T)
-    for σ in 1:nspins, iatom in 1:natoms
-        E += filled_occ * 0.5 * U * real(tr(n[σ, iatom,iatom] * (I - n[σ, iatom,iatom])))
+    for (iman, manifold) in enumerate(term.manifolds)
+        n = ns[iman]
+        types = findall(at -> at.species == Symbol(manifold.species), basis.model.atoms)
+        natoms = length(types)  # Number of atoms of the selected species in the manifold
+        for σ in 1:nspins, iatom in 1:natoms
+            E += filled_occ * 0.5 * U[iman] * real(tr(n[σ, iatom,iatom] * (I - n[σ, iatom,iatom])))
+        end
     end
-    (; E, ops, n)
+    (; E, ops, ns)
 end
 
 # TODO: Once this is done, adding the V term as well should be trivial.
