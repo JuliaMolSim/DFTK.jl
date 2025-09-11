@@ -218,3 +218,5 @@ count_n_pswfc(psp::NormConservingPsp, l) = count_n_pswfc_radial(psp, l) * (2l + 
 function count_n_pswfc(psp::NormConservingPsp)
     sum(l -> count_n_pswfc(psp, l), 0:psp.lmax; init=0)::Int
 end
+
+get_pswfc_label(psp::NormConservingPsp, i, l) = psp.pswfc_labels[l+1][i]
