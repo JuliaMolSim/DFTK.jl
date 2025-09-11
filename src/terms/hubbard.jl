@@ -250,7 +250,7 @@ end
 (hubbard::Hubbard)(::AbstractBasis) = TermHubbard(hubbard.manifold, hubbard.U)
 
 struct TermHubbard <: Term
-    manifold::Tuple{Symol, String}
+    manifold::Tuple{Symbol, String}
     U::Float64
 end
 
