@@ -79,10 +79,13 @@ Compute the projected density of states (PDOS) for all atoms and orbitals.
      -> pdos             : 3D array of PDOS, pdos[iε_idx, iproj, σ] = PDOS at energy εs[iε_idx] for projector iproj and spin σ
      -> projector_labels : Vector of tuples (iatom, n, l, m) for each projector, that maps the iproj index to the corresponding atomic orbital (atom index, principal quantum number, angular momentum, magnetic quantum number)
 Notes: 
+ - All the information about projectors is taken from the PseudoPotential files used to build the atoms. 
+    There may be cases where the relevant data are missing for the desired projectors, despite being apparently declared.
+    As an example, it may happen that the PseudoPotential file does not have all projectors up to the l_max declared in the psp.
  - The pdos matrix has different projectors for each atom, even if they are of the same atom type. 
-   As such, the sum of all iproj columns for each σ yields the total DOS at each energy εs[iε_idx].
-   This is different from Quantum ESPRESSO, where the pdos for atoms of the same type are summed together 
-     even though they are printed separately (i.e. summing over all QE pdos from all output files does not yield the DOS).
+    As such, the sum of all iproj columns for each σ yields the total DOS at each energy εs[iε_idx].
+    This is different from Quantum ESPRESSO, where the pdos for atoms of the same type are summed together 
+      even though they are printed separately (i.e. summing over all QE pdos from all output files does not yield the DOS).
 """
 function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues; 
                       positions=basis.model.positions,
@@ -121,6 +124,14 @@ function compute_pdos(εs, bands; kwargs...)
     compute_pdos(εs, bands.basis, bands.ψ, bands.eigenvalues; kwargs...)
 end
 
+"""
+Structure for manifold choice and projectors estraction. Fields:
+    -> iatom   : Int64 corresponding to the atom position in the atoms array.
+    -> species : Symbol for the Chemical Element as in ElementPsp.
+    -> label   : String with the orbital name, i.e.: "3S".
+Implemented function for OrbitalManifold can be applied to an orbital NamedTuple and returns a boolean
+    stating whether the orbital belongs to the manifold.
+"""
 @kwdef struct OrbitalManifold
     iatom   = nothing
     species = nothing
@@ -218,24 +229,18 @@ end
 This function extracts the required pdos from the output of the `compute_pdos` function. 
 
     Input:
-     -> res         : Whole output from compute_pdos.
-     -> label (opt) : String for the whole orbital label. 
-     -> iatom (opt) : Atom number in the model.atoms vector. It becomes important for magnetically or spatially non-equivalent atoms. 
+     -> pdos_res  : Whole output from compute_pdos.
+     -> manifolds : Vector of OrbitalManifolds to select the desired projectors pdos to sum.
     Output:
-     -> pdos        : Vector containing the pdos(ε).
+     -> pdos      : Vector containing the pdos(ε).
 """
-
-
 function sum_pdos(pdos_res, manifolds::AbstractVector)
     pdos = []
     for σ in 1:size(pdos_res.pdos, 3)
         pdos_values = zeros(Float64, length(pdos_res.εs))
         for ismanifold in manifolds
-            @show ismanifold
             for (j, orb) in enumerate(pdos_res.projector_labels)
-                @show typeof(orb)
                 if ismanifold(orb)
-                    @show "-->  selected"
                     pdos_values += pdos_res.pdos[:, j, σ]
                 end
             end
