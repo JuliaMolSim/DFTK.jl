@@ -34,7 +34,7 @@ function compute_overlap_matrix(basis::PlaneWaveBasis{T};
                                 positions = basis.model.positions
                                 ) where {T}
     
-    proj = build_projectors(basis; manifold, positions) # Get the projectors for all k-points
+    proj = atomic_orbital_projectors(basis; manifold, positions) # Get the projectors for all k-points
     projectors = proj.projectors
     labels = proj.labels
     overlap_matrix = Vector{Matrix{T}}(undef, length(basis.kpoints))  # Initialize the density matrix
@@ -161,7 +161,7 @@ function compute_hubbard_nIJ(manifold::Tuple{Symbol, String},
     #end
 
     filled_occ = filled_occupation(basis.model)
-    proj = build_projectors(basis; positions)
+    proj = atomic_orbital_projectors(basis; positions)
     projs = proj.projectors
     labs = proj.labels
     labels, projectors = build_manifold(basis, projs, labs, manifold)
@@ -214,7 +214,7 @@ end
 function compute_hubbard_proj(manifold::Tuple{Symbol, String},
                                 basis::PlaneWaveBasis{T};
                                 positions = basis.model.positions) where {T}
-    proj = build_projectors(basis; positions)
+    proj = atomic_orbital_projectors(basis; positions)
     projs = proj.projectors
     labs = proj.labels
     labels, projectors = build_manifold(basis, projs, labs, manifold)
@@ -244,13 +244,13 @@ end
 
 # TODO: U should become a vector, with one value for each atom.
 struct Hubbard
-    manifold::Tuple{Any, String}
+    manifold::Tuple{Symbol, String}
     U::Float64
 end
 (hubbard::Hubbard)(::AbstractBasis) = TermHubbard(hubbard.manifold, hubbard.U)
 
 struct TermHubbard <: Term
-    manifold::Tuple{Any, String}
+    manifold::Tuple{Symbol, String}
     U::Float64
 end
 

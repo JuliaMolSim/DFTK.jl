@@ -173,7 +173,7 @@ function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatom, label=nothi
     if isnothing(εF)
         Plots.xlabel!(p, "eigenvalues  ($(string(unit)))")
     else
-        Plots.xlabel!(p, "eigenvalues -ε_F  ($(string(unit)))")
+        Plots.xlabel!(p, "eigenvalues - ε_F  ($(string(unit)))")
     end
     p
 end
