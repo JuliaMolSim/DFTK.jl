@@ -154,11 +154,11 @@ function compute_hubbard_nIJ(manifold::Tuple{Symbol, String},
                                 basis::PlaneWaveBasis{T},
                                 ψ, occupation;
                                 positions = basis.model.positions) where {T}
-    for (iatom, atom) in enumerate(basis.model.atoms)
-        for (iwfc, r2_pswfc) in enumerate(atom.psp.r2_pswfcs)
-            @assert !iszero(size(r2_pswfc, 1)) "FATAL ERROR: Atomic projector not found within the provided PseudoPotential."
-        end
-    end
+    #for (iatom, atom) in enumerate(basis.model.atoms)
+    #    for (iwfc, r2_pswfc) in enumerate(atom.psp.r2_pswfcs)
+    #        @assert !iszero(size(r2_pswfc, 1)) "FATAL ERROR: Atomic projector not found within the provided PseudoPotential."
+    #    end
+    #end
 
     filled_occ = filled_occupation(basis.model)
     proj = build_projectors(basis; positions)

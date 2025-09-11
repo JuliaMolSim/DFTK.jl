@@ -152,31 +152,30 @@ function build_projectors(basis::PlaneWaveBasis{T};
     G_plus_k_all_cart = [map(recip_vector_red_to_cart(basis.model), gpk) 
                          for gpk in G_plus_k_all]
 
-    projectors = [Matrix{Complex{T}}(undef, length(G_plus_k), nprojs) for G_plus_k in G_plus_k_all]
-    psps = Vector{NormConservingPsp}(undef, length(basis.model.atoms))
-    labels = []
+    #projectors = [Matrix{Complex{T}}(undef, length(G_plus_k), 0) for G_plus_k in G_plus_k_all]
     form_factors = [Matrix{Complex{T}}(undef, length(G_plus_k), 0)  for G_plus_k in G_plus_k_all_cart]
+    labels = []
     for (iatom, atom) in enumerate(basis.model.atoms)
-        if !isnothing(manifold)
-            if manifold[1] != Symbol(atom.species) && manifold[1] != iatom
-               continue # Skip atoms that do not match the manifold species, if any is provided
-            end
-        end
-        psps[iatom] = atom.psp
-        for l in 0:psps[iatom].lmax
-            for n in 1:DFTK.count_n_pswfc_radial(psps[iatom], l)
-                label = psps[iatom].pswfc_labels[l+1][n]
-                if !isnothing(manifold) && lowercase(manifold[2]) != lowercase(label)
-                    continue # Skip atoms that do not match the manifold species, if any is provided
-                end
-                fun(p) = eval_psp_pswfc_fourier(psps[iatom], n, l, p)
+        #if !isnothing(manifold)
+        #    if manifold[1] != Symbol(atom.species) && manifold[1] != iatom
+        #       continue # Skip atoms that do not match the manifold species, if any is provided
+        #    end
+        #end
+        psp = atom.psp
+        for l in 0:psp.lmax
+            for n in 1:DFTK.count_n_pswfc_radial(psp, l)
+                label = DFTK.get_pswfc_label(psp, n, l)
+                #if !isnothing(manifold) && lowercase(manifold[2]) != lowercase(label)
+                #    continue # Skip atoms that do not match the manifold species, if any is provided
+                #end
+                fun(p) = eval_psp_pswfc_fourier(psp, n, l, p)
                 form_factors_l = build_form_factors(fun, l, G_plus_k_all_cart)
                 iproj = length(labels) + 1
                 for ik in 1:length(G_plus_k_all_cart)
                    form_factors[ik] = hcat(form_factors[ik], form_factors_l[ik])  # Concatenate the form factors for this l
-                   structure_factor = [cis2pi(-dot(positions[iatom], p)) for p in G_plus_k_all[ik]]
-                   @assert length(structure_factor) == length(G_plus_k_all[ik]) "Structure factor length mismatch: $(length(structure_factor)) != $(length(G_plus_k))"
-                   projectors[ik][:,iproj:iproj+2*l] .= form_factors[ik][:,iproj:iproj+2*l] .* structure_factor ./ sqrt(basis.model.unit_cell_volume)
+                   #structure_factor = [cis2pi(-dot(positions[iatom], p)) for p in G_plus_k_all[ik]]
+                   #@assert length(structure_factor) == length(G_plus_k_all[ik]) "Structure factor length mismatch: $(length(structure_factor)) != $(length(G_plus_k))"
+                   #projectors[ik] = hcat(projectors[ik], structure_factor .* form_factors[ik][:,iproj:iproj+2*l] ./ sqrt(basis.model.unit_cell_volume))
                 end
                 for m in -l:l
                     push!(labels, (; iatom, atom.species, n, l, m, label))
@@ -186,20 +185,21 @@ function build_projectors(basis::PlaneWaveBasis{T};
     end
     nprojs = length(labels)
 
-    projectors = [ortho_lowdin(proj_vectors_k) for proj_vectors_k in projectors]
+    #projectors = ortho_lowdin.(projectors)
 
-    #for (ik, proj_vectors_k)  in enumerate(projectors)  # The projectors don't depend on the spin
-    #    #for (iproj, proj) in enumerate(labels)
-    #    #    structure_factor = [cis2pi(-dot(positions[proj.iatom], p)) for p in G_plus_k_all[ik]]
-    #    #    proj_vectors_k[:,iproj] = structure_factor .* form_factors[ik][:, iproj] ./ sqrt(basis.model.unit_cell_volume)    
-    #    #end
-#
-    #    @assert size(proj_vectors_k, 2) == nprojs "Projection matrix size mismatch: $(size(proj_vectors)) != $nprojs"
-    #    # At this point proj_vectors is a matrix containing all orbital projectors from all atoms. 
-    #    #   What we want is to have them all orthogonal, to avoid double counting in the Hubbard U term contribution.
-    #    #   We use Lowdin orthogonalization to minimize the "identity loss" of individual orbital projectors after the orthogonalization
-    #    proj_vectors_k = ortho_lowdin(proj_vectors_k)  
-    #end
+    projectors = [Matrix{Complex{T}}(undef, length(G_plus_k), nprojs) for G_plus_k in G_plus_k_all]
+    for (ik, proj_vectors_k)  in enumerate(projectors)  # The projectors don't depend on the spin
+        for (iproj, proj) in enumerate(labels)
+            structure_factor = [cis2pi(-dot(positions[proj.iatom], p)) for p in G_plus_k_all[ik]]
+            proj_vectors_k[:,iproj] = structure_factor .* form_factors[ik][:, iproj] ./ sqrt(basis.model.unit_cell_volume)    
+        end
+
+        @assert size(proj_vectors_k, 2) == nprojs "Projection matrix size mismatch: $(size(proj_vectors)) != $nprojs"
+        # At this point proj_vectors is a matrix containing all orbital projectors from all atoms. 
+        #   What we want is to have them all orthogonal, to avoid double counting in the Hubbard U term contribution.
+        #   We use Lowdin orthogonalization to minimize the "identity loss" of individual orbital projectors after the orthogonalization
+        proj_vectors_k = ortho_lowdin(proj_vectors_k)  
+    end
 
     return (; projectors, labels)
 end
