@@ -121,18 +121,6 @@ function compute_pdos(εs, bands; kwargs...)
     compute_pdos(εs, bands.basis, bands.ψ, bands.eigenvalues; kwargs...)
 end
 
-@kwdef struct OrbitalManifold
-    iatom   = nothing
-    species = nothing
-    label   = nothing
-end
-function (s::OrbitalManifold)(orb)
-    iatom_match    = isnothing(s.iatom)   || (s.iatom == orb.iatom)
-    species_match  = isnothing(s.species) || (s.species == orb.species)
-    label_match    = isnothing(s.label)   || (s.label == orb.label)
-
-    iatom_match && species_match && label_match
-end
 """
 Build the projectors matrices projsk for all k-points at the same time.
          
@@ -231,11 +219,8 @@ function sum_pdos(pdos_res, manifolds::AbstractVector)
     for σ in 1:size(pdos_res.pdos, 3)
         pdos_values = zeros(Float64, length(pdos_res.εs))
         for ismanifold in manifolds
-            @show ismanifold
             for (j, orb) in enumerate(pdos_res.projector_labels)
-                @show typeof(orb)
                 if ismanifold(orb)
-                    @show "-->  selected"
                     pdos_values += pdos_res.pdos[:, j, σ]
                 end
             end

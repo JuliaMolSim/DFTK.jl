@@ -1,5 +1,13 @@
 using LinearAlgebra
 
+"""
+Structure for manifold choice and projectors estraction. Fields:
+    -> iatom   : Int64 corresponding to the atom position in the atoms array.
+    -> species : Symbol for the Chemical Element as in ElementPsp.
+    -> label   : String with the orbital name, i.e.: "3S".
+Implemented function for OrbitalManifold can be applied to an orbital NamedTuple and returns a boolean
+    stating whether the orbital belongs to the manifold.
+"""
 @kwdef struct OrbitalManifold
     iatom   = nothing
     species = nothing
