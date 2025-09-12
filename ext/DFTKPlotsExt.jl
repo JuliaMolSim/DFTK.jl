@@ -146,6 +146,7 @@ function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatom, label=nothi
                    εF=nothing, unit=u"hartree",
                    temperature=basis.model.temperature,
                    smearing=basis.model.smearing,
+                   colors = [:blue, :red],
                    εrange=default_band_εrange(eigenvalues; εF),
                    n_points=1000, p=nothing, kwargs...) where {T}
     eshift = something(εF, 0.0)
@@ -156,15 +157,14 @@ function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatom, label=nothi
     to_unit = ustrip(auconvert(unit, 1.0))
 
     # Plot pdos
-    p = Plots.plot(; kwargs...)
+    p = Plots.plot(p; kwargs...)
     spinlabels = spin_components(basis.model)
-    colors = [:blue, :red]
     pdos = DFTK.sum_pdos(compute_pdos(εs, basis, ψ, eigenvalues;
                                       positions, temperature, smearing), 
                          [DFTK.OrbitalManifold(;iatom=iatom, label=label)])
     for σ = 1:n_spin
         plot_label = n_spin > 1 ? "$(species) $(label) $(spinlabels[σ]) spin" : "$(species) $(label)"
-        Plots.plot!(p, (εs .- eshift) .* to_unit, pdos[σ]; label=plot_label, color=colors[σ])
+        Plots.plot!(p, (εs .- eshift) .* to_unit, pdos[σ]*2/n_spin; label=plot_label, color=colors[σ])
     end
     if !isnothing(εF)
         Plots.vline!(p, [0.0], label="εF", color=:green, lw=1.5)

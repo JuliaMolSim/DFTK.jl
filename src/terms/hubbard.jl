@@ -55,13 +55,13 @@ function compute_overlap_matrix(basis::PlaneWaveBasis{T};
                                 positions = basis.model.positions
                                 ) where {T}
     
-    proj = atomic_orbital_projectors(basis; manifold, positions) # Get the projectors for all k-points
+    proj = atomic_orbital_projectors(basis; manifold, positions) 
     projectors = proj.projectors
     labels = proj.labels
-    overlap_matrix = Vector{Matrix{T}}(undef, length(basis.kpoints))  # Initialize the density matrix
+    overlap_matrix = Vector{Matrix{T}}(undef, length(basis.kpoints))  
 
     for (ik, projk) in enumerate(projectors)
-        overlap_matrix[ik] = abs2.(projk' * projk)  # Compute the density matrix for this k-point
+        overlap_matrix[ik] = abs2.(projk' * projk)  
     end
 
     return (;overlap_matrix, projectors, labels)
@@ -85,7 +85,6 @@ function symmetrize_nhub(n_IJ::Array{Matrix{Complex{T}}}, lattice, symmetry, l, 
         ns[σ, iatom, jatom] = zeros(Complex{T}, size(n_IJ[σ, iatom, jatom],1), size(n_IJ[σ, iatom, jatom],2))
     end
 
-    # TODO: Write better the symmetrization loop
     for σ in 1:nspins, iatom in 1:natoms
         for m1 in 1:size(ns[σ, iatom, iatom], 1), m2 in 1:size(ns[σ, iatom, iatom], 2)  # Iterate over the rows of the n_IJ matrix
             for isym in 1:nsym
@@ -175,11 +174,9 @@ function compute_hubbard_nIJ(manifold::OrbitalManifold,
                                 basis::PlaneWaveBasis{T},
                                 ψ, occupation;
                                 positions = basis.model.positions) where {T}
-    #for (iatom, atom) in enumerate(basis.model.atoms)
-    #    for (iwfc, r2_pswfc) in enumerate(atom.psp.r2_pswfcs)
-    #        @assert !iszero(size(r2_pswfc, 1)) "FATAL ERROR: Atomic projector not found within the provided PseudoPotential."
-    #    end
-    #end
+    for (iatom, atom) in enumerate(basis.model.atoms)
+        @assert !iszero(size(atom.psp.r2_pswfcs[1], 1)) "FATAL ERROR: No Atomic projector found within the provided PseudoPotential."
+    end
 
     filled_occ = filled_occupation(basis.model)
     proj = atomic_orbital_projectors(basis; positions)
