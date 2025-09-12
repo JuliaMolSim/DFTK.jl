@@ -81,11 +81,8 @@ Compute the projected density of states (PDOS) for all atoms and orbitals.
 Notes: 
  - All the information about projectors is taken from the PseudoPotential files used to build the atoms. 
     There may be cases where the relevant data are missing for the desired projectors, despite being apparently declared.
-    As an example, it may happen that the PseudoPotential file does not have all projectors up to the l_max declared in the psp.
- - The pdos matrix has different projectors for each atom, even if they are of the same atom type. 
-    As such, the sum of all iproj columns for each σ yields the total DOS at each energy εs[iε_idx].
-    This is different from Quantum ESPRESSO, where the pdos for atoms of the same type are summed together 
-      even though they are printed separately (i.e. summing over all QE pdos from all output files does not yield the DOS).
+    As an example, it may happen that the PseudoPotential file does not have all atomic projectors up to the l_max declared in the psp, 
+    since such l_max refers instead to the beta projectors.
 """
 function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues; 
                       positions=basis.model.positions,
@@ -96,7 +93,7 @@ function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues;
     end
     filled_occ = filled_occupation(basis.model)
     
-    projections, projector_labels = atomic_orbital_projections(basis, ψ; positions=positions)
+    projections, projector_labels = atomic_orbital_projections(basis, ψ; positions)
 
     nprojs = length(projector_labels) 
 
@@ -167,8 +164,7 @@ Notes:
 """
 function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
                                    ismanifold = nothing,  #Should we allow to take and orthogonalize only the manifold?
-                                   positions = basis.model.positions
-                                   ) where {T}
+                                   positions = basis.model.positions) where {T}
     
     G_plus_k_all = [Gplusk_vectors(basis, basis.kpoints[ik])
                     for ik = 1:length(basis.kpoints)]
@@ -176,24 +172,20 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
                          for gpk in G_plus_k_all]
 
     projectors = [Matrix{Complex{T}}(undef, length(G_plus_k), 0) for G_plus_k in G_plus_k_all]
-    form_factors = [Matrix{Complex{T}}(undef, length(G_plus_k), 0)  for G_plus_k in G_plus_k_all_cart]
     labels = []
     for (iatom, atom) in enumerate(basis.model.atoms)
         psp = atom.psp
         for l in 0:psp.lmax
             for n in 1:DFTK.count_n_pswfc_radial(psp, l)
                 label = DFTK.get_pswfc_label(psp, n, l)
-                if !isnothing(ismanifold) && !ismanifold((;iatom=iatom, species=Symbol(atom.species), label=label))
+                if !isnothing(ismanifold) && !ismanifold((;iatom, species=Symbol(atom.species), label))
                     continue
                 end
                 fun(p) = eval_psp_pswfc_fourier(psp, n, l, p)
                 form_factors_l = build_form_factors(fun, l, G_plus_k_all_cart)
-                iproj = length(labels) + 1
                 for ik in 1:length(G_plus_k_all_cart)
-                   form_factors[ik] = hcat(form_factors[ik], form_factors_l[ik])  # Concatenate the form factors for this l
                    structure_factor = [cis2pi(-dot(positions[iatom], p)) for p in G_plus_k_all[ik]]
-                   @assert length(structure_factor) == length(G_plus_k_all[ik]) "Structure factor length mismatch: $(length(structure_factor)) != $(length(G_plus_k))"
-                   projectors[ik] = hcat(projectors[ik], form_factors[ik][:,iproj:iproj+2*l] .* structure_factor ./ sqrt(basis.model.unit_cell_volume))
+                   projectors[ik] = hcat(projectors[ik], form_factors_l[ik] .* structure_factor ./ sqrt(basis.model.unit_cell_volume))
                 end
                 for m in -l:l
                     push!(labels, (; iatom, atom.species, n, l, m, label))
@@ -204,20 +196,22 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
 
     projectors = ortho_lowdin.(projectors)
 
-    return (;projectors, labels)
+    return (; projectors, labels)
 end
 
 """
 Build the projection matrices projsk for all k-points at the same time.
-  and ϕilm is the atomic orbital for atom i, quantum numbers (n,l,m)
 
-See documentation for 'atomic_orbital_projectors'
+    projection[ik][iband, iproj] = <ψnk|*projector[ik][iband, iproj] =  <ψnk|ϕinlm>(kpt)
+
+ where ψnk is the atomic wavefunction component for band iband and kpoint kpt.
+
+For more details, see documentation for 'atomic_orbital_projectors'.
 """
 function atomic_orbital_projections(basis::PlaneWaveBasis{T}, ψ;
                                     ismanifold=nothing,
-                                    positions = basis.model.positions           
-                                   ) where {T}
-    projectors, labels = atomic_orbital_projectors(basis; ismanifold=ismanifold, positions=positions)
+                                    positions = basis.model.positions) where {T}
+    projectors, labels = atomic_orbital_projectors(basis; ismanifold, positions)
     projections = map(zip(ψ, projectors)) do (ψk, projectorsk)
         abs2.(ψk' * projectorsk)
     end
