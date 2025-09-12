@@ -81,11 +81,8 @@ Compute the projected density of states (PDOS) for all atoms and orbitals.
 Notes: 
  - All the information about projectors is taken from the PseudoPotential files used to build the atoms. 
     There may be cases where the relevant data are missing for the desired projectors, despite being apparently declared.
-    As an example, it may happen that the PseudoPotential file does not have all projectors up to the l_max declared in the psp.
- - The pdos matrix has different projectors for each atom, even if they are of the same atom type. 
-    As such, the sum of all iproj columns for each σ yields the total DOS at each energy εs[iε_idx].
-    This is different from Quantum ESPRESSO, where the pdos for atoms of the same type are summed together 
-      even though they are printed separately (i.e. summing over all QE pdos from all output files does not yield the DOS).
+    As an example, it may happen that the PseudoPotential file does not have all atomic projectors up to the l_max declared in the psp, 
+    since such l_max refers instead to the beta projectors.
 """
 function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues; 
                       positions=basis.model.positions,
