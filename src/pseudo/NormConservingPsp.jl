@@ -219,4 +219,10 @@ function count_n_pswfc(psp::NormConservingPsp)
     sum(l -> count_n_pswfc(psp, l), 0:psp.lmax; init=0)::Int
 end
 
+"""
+    get_pswfc_label(psp, i, l)
+
+Gives the orbital label (i.e.: "3S") taken from the PseudoPotential file, given the
+angular momentum `l` and radial function index `i` (not the principal quantum number) are provided.
+"""
 get_pswfc_label(psp::NormConservingPsp, i, l) = psp.pswfc_labels[l+1][i]
