@@ -93,7 +93,7 @@ function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues;
     end
     filled_occ = filled_occupation(basis.model)
     
-    projections, projector_labels = atomic_orbital_projections(basis, ψ; positions=positions)
+    projections, projector_labels = atomic_orbital_projections(basis, ψ; positions)
 
     nprojs = length(projector_labels) 
 
@@ -178,7 +178,7 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
         for l in 0:psp.lmax
             for n in 1:DFTK.count_n_pswfc_radial(psp, l)
                 label = DFTK.get_pswfc_label(psp, n, l)
-                if !isnothing(ismanifold) && !ismanifold((;iatom=iatom, species=Symbol(atom.species), label=label))
+                if !isnothing(ismanifold) && !ismanifold((;iatom, species=Symbol(atom.species), label))
                     continue
                 end
                 fun(p) = eval_psp_pswfc_fourier(psp, n, l, p)
@@ -196,7 +196,7 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
 
     projectors = ortho_lowdin.(projectors)
 
-    return (;projectors, labels)
+    return (; projectors, labels)
 end
 
 """
