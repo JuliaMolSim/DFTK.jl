@@ -143,9 +143,9 @@ Notes:
 - Use 'manifold' kwarg with caution, since the resulting projectors would be orthonormalized only against the manifold basis. Most applications require the whole projectors basis to be orthonormal instead.
 """
 function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
-                          manifold = nothing,  #Should we allow to take and orthogonalize only the manifold?
-                          positions = basis.model.positions
-                          ) where {T}
+                                   ismanifold = nothing,  #Should we allow to take and orthogonalize only the manifold?
+                                   positions = basis.model.positions
+                                   ) where {T}
     
     G_plus_k_all = [Gplusk_vectors(basis, basis.kpoints[ik])
                     for ik = 1:length(basis.kpoints)]
@@ -156,15 +156,12 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
     form_factors = [Matrix{Complex{T}}(undef, length(G_plus_k), 0)  for G_plus_k in G_plus_k_all_cart]
     labels = []
     for (iatom, atom) in enumerate(basis.model.atoms)
-        if !isnothing(manifold) && (manifold[1] != Symbol(atom.species))
-            continue # Skip atoms that do not match the manifold species, if any is provided
-        end
         psp = atom.psp
         for l in 0:psp.lmax
             for n in 1:DFTK.count_n_pswfc_radial(psp, l)
                 label = DFTK.get_pswfc_label(psp, n, l)
-                if !isnothing(manifold) && lowercase(manifold[2]) != lowercase(label)
-                    continue # Skip atoms that do not match the manifold label, if any is provided
+                if !isnothing(ismanifold) && !ismanifold((;iatom=iatom, species=Symbol(atom.species), label=label))
+                    continue
                 end
                 fun(p) = eval_psp_pswfc_fourier(psp, n, l, p)
                 form_factors_l = build_form_factors(fun, l, G_plus_k_all_cart)
@@ -181,7 +178,6 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
             end
         end
     end
-    nprojs = length(labels)
 
     projectors = ortho_lowdin.(projectors)
 
@@ -195,10 +191,10 @@ Build the projection matrices projsk for all k-points at the same time.
 See documentation for 'atomic_orbital_projectors'
 """
 function atomic_orbital_projections(basis::PlaneWaveBasis{T}, ψ;
-                           manifold=nothing,
-                           positions = basis.model.positions           
-                          ) where {T}
-    projectors, labels = atomic_orbital_projectors(basis; manifold=manifold, positions=positions)
+                                    ismanifold=nothing,
+                                    positions = basis.model.positions           
+                                   ) where {T}
+    projectors, labels = atomic_orbital_projectors(basis; ismanifold=ismanifold, positions=positions)
     projections = map(zip(ψ, projectors)) do (ψk, projectorsk)
         abs2.(ψk' * projectorsk)
     end
@@ -216,15 +212,15 @@ This function extracts the required pdos from the output of the `compute_pdos` f
     Output:
      -> pdos        : Vector containing the pdos(ε).
 """
-function get_pdos(pdos_res, projs::AbstractVector)
+
+
+function sum_pdos(pdos_res, manifolds::AbstractVector)
     pdos = []
     for σ in 1:size(pdos_res.pdos, 3)
         pdos_values = zeros(Float64, length(pdos_res.εs))
-        for (i, proj) in enumerate(projs)
+        for ismanifold in manifolds
             for (j, orb) in enumerate(pdos_res.projector_labels)
-                atom_match  = !(haskey(proj, :iatom) && !isnothing(proj.iatom) && (proj.iatom != orb.iatom))
-                label_match = !(haskey(proj, :label) && !isnothing(proj.label) && (proj.label != orb.label)) 
-                if atom_match && label_match
+                if ismanifold(orb)
                     pdos_values += pdos_res.pdos[:, j, σ]
                 end
             end
@@ -232,10 +228,6 @@ function get_pdos(pdos_res, projs::AbstractVector)
         push!(pdos, pdos_values)
     end
     return pdos
-end
-
-function get_pdos(pdos_res; iatom=nothing, label=nothing)
-    get_pdos(pdos_res, [(;iatom, label)])
 end
 
 """

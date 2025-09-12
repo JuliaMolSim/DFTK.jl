@@ -1,10 +1,31 @@
 using LinearAlgebra
 
-function build_manifold(basis::PlaneWaveBasis{T}, projectors, labels, manifold::Tuple{Symbol, String}) where {T}
+"""
+Structure for manifold choice and projectors estraction. Fields:
+    -> iatom   : Int64 corresponding to the atom position in the atoms array.
+    -> species : Symbol for the Chemical Element as in ElementPsp.
+    -> label   : String with the orbital name, i.e.: "3S".
+Implemented function for OrbitalManifold can be applied to an orbital NamedTuple and returns a boolean
+    stating whether the orbital belongs to the manifold.
+"""
+@kwdef struct OrbitalManifold
+    iatom   = nothing
+    species = nothing
+    label   = nothing
+end
+function (s::OrbitalManifold)(orb)
+    iatom_match    = isnothing(s.iatom)   || (s.iatom == orb.iatom)
+    species_match  = isnothing(s.species) || (s.species == orb.species)
+    label_match    = isnothing(s.label)   || (s.label == orb.label)
+
+    iatom_match && species_match && label_match
+end
+
+function build_manifold(basis::PlaneWaveBasis{T}, projectors, labels, manifold::OrbitalManifold) where {T}
     manifold_labels = []
     manifold_projectors = Vector{Matrix{Complex{T}}}(undef, length(basis.kpoints))
     for (iproj, orb) in enumerate(labels)
-        if manifold[1] == Symbol(orb.species) && lowercase(manifold[2]) == lowercase(orb.label)
+        if Symbol(manifold.species) == Symbol(orb.species) && lowercase(manifold.label) == lowercase(orb.label)
             # If the label matches the manifold, we add it to the labels
             # This is useful for extracting specific orbitals from the basis
             # e.g., (:Si, "3S") will match all 3S orbitals of Si atoms
@@ -30,7 +51,7 @@ function build_manifold(basis::PlaneWaveBasis{T}, projectors, labels, manifold::
 end
 
 function compute_overlap_matrix(basis::PlaneWaveBasis{T};
-                                manifold::Tuple{Symbol, String} = nothing,
+                                manifold  = nothing,
                                 positions = basis.model.positions
                                 ) where {T}
     
@@ -150,7 +171,7 @@ Computes a matrix n_IJ of size (nspins, natoms, natoms), where each entry n_IJ[i
       ->  p_I             : Projectors for the manifold. 
                             Those are orthonormalized against all orbitals, also outside of the manifold.
 """
-function compute_hubbard_nIJ(manifold::Tuple{Symbol, String},
+function compute_hubbard_nIJ(manifold::OrbitalManifold,
                                 basis::PlaneWaveBasis{T},
                                 ψ, occupation;
                                 positions = basis.model.positions) where {T}
@@ -181,7 +202,7 @@ function compute_hubbard_nIJ(manifold::Tuple{Symbol, String},
 
     # Now I want to reshape it to match the notation used in the papers.
     # Reshape into n[I, J, σ][m1, m2] where I, J indicate the atom in the Hubbard manifold, σ is the spin, m1 and m2 are magnetic quantum numbers (n, l are fixed)
-    types = findall(at -> at.species == Symbol(manifold[1]), basis.model.atoms)
+    types = findall(at -> at.species == Symbol(manifold.species), basis.model.atoms)
     natoms = length(types)  
     n_IJ = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)
     p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for i in 1:length(basis.kpoints)]
@@ -205,15 +226,15 @@ function compute_hubbard_nIJ(manifold::Tuple{Symbol, String},
         end
     end
 
-    l = labels[findfirst(orb -> orb.label == manifold[2], labels)].l  
+    l = labels[findfirst(orb -> orb.label == manifold.label, labels)].l  
     n_IJ = symmetrize_nhub(n_IJ, basis.model.lattice, basis.symmetries, l, basis.model.positions)
 
     return (; n_IJ=n_IJ, manifold_labels=labels, p_I=p_I)
 end
 
-function compute_hubbard_proj(manifold::Tuple{Symbol, String},
-                                basis::PlaneWaveBasis{T};
-                                positions = basis.model.positions) where {T}
+function compute_hubbard_proj(manifold::OrbitalManifold,
+                              basis::PlaneWaveBasis{T};
+                              positions = basis.model.positions) where {T}
     proj = atomic_orbital_projectors(basis; positions)
     projs = proj.projectors
     labs = proj.labels
@@ -222,7 +243,7 @@ function compute_hubbard_proj(manifold::Tuple{Symbol, String},
     nspins = basis.model.n_spin_components
 
     # Now I want to reshape it to match the notation used in the papers.
-    types = findall(at -> at.species == Symbol(manifold[1]), basis.model.atoms)
+    types = findall(at -> at.species == Symbol(manifold.species), basis.model.atoms)
     natoms = length(types)  # Number of atoms of the species in the manifold
     p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for i in 1:length(basis.kpoints)]
     # Very low-level, but works
@@ -279,6 +300,8 @@ end
     ops = [HubbardUOperator(basis, kpt, U, n, proj[ik]) for (ik,kpt) in enumerate(basis.kpoints)]
 
     filled_occ = filled_occupation(basis.model)
+    types = findall(at -> at.species == Symbol(term.manifold.species), basis.model.atoms)
+    natoms = length(types)  # Number of atoms of the selected species in the manifold
     nspins = basis.model.n_spin_components
 
     # To compare the results with Quantum ESPRESSO, we need to convert the U value from eV.
