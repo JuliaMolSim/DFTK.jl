@@ -90,7 +90,16 @@ on each of the atoms. The symmetries are determined using spglib.
         if spin_polarization == :none
             Spglib.get_symmetry(cell, tol_symmetry)
         elseif spin_polarization == :collinear
-            Spglib.get_symmetry_with_collinear_spin(cell, tol_symmetry)
+            rotations, translations, spin_flips = Spglib.get_symmetry_with_site_tensors(
+                cell, tol_symmetry)
+            # Keep only the symmetries that don't flip the spins
+            rotations[spin_flips.==1], translations[spin_flips.==1]
+            # Taking into account the symmetries that flip spins here would mean detecting 
+            # antiferromagnetic order (where the down orbitals are the up orbitals 
+            # translated by half a cell) and optimizing by computing only the up channel of 
+            # the orbitals and building the density by symmetry. So, the density has two 
+            # components, but the orbitals have only one spin channel.
+            # This would cut runtime by a factor 2.
         end
     catch e
         if e isa Spglib.SpglibError
