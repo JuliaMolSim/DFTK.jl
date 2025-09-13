@@ -365,7 +365,7 @@ end
 
         δρ = ForwardDiff.derivative(ε -> run_scf(ε).ρ, 0.)
 
-        h = 1e-6
+        h = 1e-5
         scfres1 = run_scf(-h)
         scfres2 = run_scf(+h)
         δρ_finitediff = (scfres2.ρ - scfres1.ρ) / 2h
