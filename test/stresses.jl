@@ -1,7 +1,7 @@
 # Hellmann-Feynman stress
 # via ForwardDiff & custom FFTW overloads on ForwardDiff.Dual
 
-@testitem "ForwardDiff stresses on silicon" setup=[TestCases] begin
+@testitem "ForwardDiff stresses on silicon" tags=[:minimal] setup=[TestCases] begin
     using DFTK
     using ForwardDiff
     import FiniteDiff

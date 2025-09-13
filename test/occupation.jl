@@ -95,7 +95,7 @@ end
 end
 
 @testitem "Smearing for a simple metal" #=
-    =#    tags=[:dont_test_mpi] setup=[Occupation, TestCases] begin
+    =#    tags=[:dont_test_mpi, :minimal] setup=[Occupation, TestCases] begin
     using DFTK
     using Logging
     (; silicon, magnesium) = TestCases.all_testcases
@@ -139,7 +139,7 @@ end
 end
 
 @testitem "Fermi level finding for smearing multiple εF" #=
-    =#    tags=[:dont_test_mpi] setup=[Occupation, TestCases] begin
+    =#    tags=[:dont_test_mpi, :minimal] setup=[Occupation, TestCases] begin
     using DFTK
     using Logging
     iron_bcc = TestCases.iron_bcc

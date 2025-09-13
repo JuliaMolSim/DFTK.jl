@@ -1,5 +1,5 @@
 @testitem "Force derivatives using ForwardDiff" #=
-    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -68,7 +68,7 @@
 end
 
 @testitem "Anisotropic strain sensitivity using ForwardDiff" #=
-    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -118,7 +118,7 @@ end
 end
 
 @testitem "scfres PSP sensitivity using ForwardDiff" #=
-    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -160,7 +160,7 @@ end
 end
 
 @testitem "Functional force sensitivity using ForwardDiff" #=
-    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -191,7 +191,7 @@ end
     @test norm(derivative_ε - derivative_fd) < 1e-4
 end
 
-@testitem "Derivative of complex function" tags=[:dont_test_mpi] begin
+@testitem "Derivative of complex function" tags=[:dont_test_mpi, :minimal] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -207,7 +207,7 @@ end
     @test norm(fd1 - fd2) < 1e-8
 end
 
-@testitem "Higher derivatives of Fermi-Dirac occupation" tags=[:dont_test_mpi] begin
+@testitem "Higher derivatives of Fermi-Dirac occupation" tags=[:dont_test_mpi, :minimal] begin
     using DFTK
     using ForwardDiff
 
@@ -232,7 +232,7 @@ end
     end
 end
 
-@testitem "LocalNonlinearity sensitivity using ForwardDiff" tags=[:dont_test_mpi] begin
+@testitem "LocalNonlinearity sensitivity using ForwardDiff" tags=[:dont_test_mpi, :minimal] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra

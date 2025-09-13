@@ -100,7 +100,7 @@
     end
 end
 
-@testitem "Forces term-wise TiO2 (GTH)" setup=[TestForces] tags=[:forces] begin
+@testitem "Forces term-wise TiO2 (GTH)" setup=[TestForces] tags=[:forces, :minimal] begin
     # Test HF forces on non-symmetric multi-species structure using analytical pseudos
     using AtomsIO
     using PseudoPotentialData
@@ -110,7 +110,7 @@ end
                                 pseudopotentials, mixing=DielectricMixing(εr=10))
 end
 
-@testitem "Forces term-wise TiO2 (UPF)" setup=[TestForces] tags=[:forces] begin
+@testitem "Forces term-wise TiO2 (UPF)" setup=[TestForces] tags=[:forces, :minimal] begin
     # Test HF forces on non-symmetric multi-species structure with NLCC
     using AtomsIO
     system = load_system("structures/tio2_stretched.extxyz")
