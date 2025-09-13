@@ -38,10 +38,10 @@ nothing  # hide
 #
 # **Nvidia GPUs.**
 # Supported via [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl).
-# Right now `Libxc` only supports CUDA 11,
-# so we need to explicitly request the 11.8 CUDA runtime:
+# If you install the CUDA package, all required Nvidia cuda libraries
+# will be automatically downloaded. So literally, the only thing
+# you have to do is:
 using CUDA
-CUDA.set_runtime_version!(v"11.8")  # Note: This requires a restart of Julia
 architecture = DFTK.GPU(CuArray)
 
 # **AMD GPUs.** Supported via [AMDGPU.jl](https://github.com/JuliaGPU/AMDGPU.jl).
@@ -71,8 +71,8 @@ scfres = self_consistent_field(basis; tol=1e-6)
 compute_forces(scfres)
 
 # !!! warning "GPU performance"
-#     Our current (February 2025) benchmarks show DFTK to have reasonable performance
-#     on Nvidia / CUDA GPUs with a 50-fold to 100-fold speed-up over single-threaded
+#     Our current (May 2025) benchmarks show DFTK to have reasonable performance
+#     on Nvidia / CUDA GPUs with up to a 100-fold speed-up over single-threaded
 #     CPU execution. However, support on AMD GPUs has been less benchmarked and
-#     there are likely rough edges. Overall this feature is relatively new
-#     and we appreciate any experience reports or bug reports.
+#     there are likely rough edges. Since GPU support in DFTK is relatively new
+#     we appreciate any experience reports or bug reports.

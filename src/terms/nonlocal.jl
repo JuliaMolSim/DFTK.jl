@@ -24,7 +24,7 @@ function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
     TermAtomicNonlocal(ops)
 end
 
-struct TermAtomicNonlocal <: Term
+struct TermAtomicNonlocal <: TermLinear
     ops::Vector{NonlocalOperator}
 end
 
@@ -70,7 +70,6 @@ end
             # We compute the forces from the irreductible BZ; they are symmetrized later.
             G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
             G_plus_k = Gplusk_vectors(basis, kpt)
-            occupationk = to_cpu(occupation[ik])
             form_factors = to_device(basis.architecture,
                                      build_projector_form_factors(element.psp, G_plus_k_cart))
 
@@ -91,9 +90,7 @@ end
                     map!(p -> -2π*im*p[α], twoπp, G_plus_k)
                     dPdR .= twoπp .* P
                     mul!(δHψk, P, C * (dPdR' * ψ[ik]))
-                    @views -sum(occupationk[iband] * basis.kweights[ik] *
-                                2real(dot(ψ[ik][:, iband], δHψk[:, iband]))
-                            for iband=1:size(ψ[ik], 2))
+                    -basis.kweights[ik]*sum(occupation[ik] .* 2vec(real(columnwise_dots(ψ[ik], δHψk))))
                 end  # α
             end  # r
         end  # kpt
@@ -311,11 +308,8 @@ function compute_dynmat_δH(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, 
                     δHψk_plus_q = derivative_wrt_αs(model.positions, α, idx) do positions_αs
                         PDPψk(basis, positions_αs, psp_groups, kpt, kpt, ψ[ik])
                     end
-                    -sum(  2occupation[ik][iband] * basis.kweights[ik]
-                               * dot(δψk_plus_q[:, iband], δHψk[:, iband])
-                         + δoccupation[ik][iband]  * basis.kweights[ik]
-                               * 2real(dot(ψk[:, iband], δHψk_plus_q[:, iband]))
-                         for iband=1:size(ψk, 2))
+                    -basis.kweights[ik] * sum(2occupation[ik] .* vec(columnwise_dots(δψk_plus_q, δHψk)) +
+                                              δoccupation[ik] .* 2vec(real(columnwise_dots(ψk, δHψk_plus_q))))
                 end
             end
         end

@@ -66,18 +66,49 @@ function Base.:*(op1::SymOp, op2::SymOp)
 end
 Base.inv(op::SymOp) = SymOp(inv(op.W), -op.W\op.w)
 
+is_approx_in(symop, group; kwargs...) = any(s -> isapprox(s, symop; kwargs...), group)
 function check_group(symops::Vector; kwargs...)
-    is_approx_in_symops(s1) = any(s -> isapprox(s, s1; kwargs...), symops)
+    is_approx_in_symops(s1) = is_approx_in(s1, symops; kwargs...)
     is_approx_in_symops(one(SymOp)) || error("check_group: no identity element")
     for s in symops
         if !is_approx_in_symops(inv(s))
             error("check_group: symop $s with inverse $(inv(s)) is not in the group")
         end
         for s2 in symops
-            if !is_approx_in_symops(s*s2) || !is_approx_in_symops(s2*s)
-                error("check_group: product is not stable")
+            if !is_approx_in_symops(s*s2)
+                error("check_group: product is not stable: $(s*s2) is not in the group")
             end
         end
     end
     symops
+end
+
+function complete_symop_group(symops; maxiter=10, kwargs...)
+    completed_group = Vector(symops)
+
+    function add_to_group(to_add, s1)
+        if !is_approx_in(s1, completed_group; kwargs...) && !is_approx_in(s1, to_add; kwargs...)
+            push!(to_add, s1)
+        end
+    end
+
+    for it = 1:maxiter
+        if it == maxiter
+            error("Could not complete group in $maxiter iterations")
+        end
+        to_add = []
+        # Identity always needs to be there!
+        add_to_group(to_add, one(SymOp))
+        for s in completed_group
+            add_to_group(to_add, inv(s))
+            for t in completed_group
+                add_to_group(to_add, s*t)
+            end
+        end
+        if isempty(to_add)
+            return completed_group
+        end
+        append!(completed_group, to_add)
+    end
+    DFTK.check_group(completed_group) # returns the completed group
 end
