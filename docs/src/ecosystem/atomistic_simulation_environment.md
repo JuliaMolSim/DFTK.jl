@@ -1,6 +1,6 @@
 # Atomistic simulation environment (ASE)
 
-The [atomistic simulation environment](https://wiki.fysik.dtu.dk/ase/index.html),
+The [atomistic simulation environment](https://ase-lib.org/).
 or ASE for short,
 is a popular Python package to simplify the process of setting up,
 running and analysing results from atomistic simulations across different simulation codes.

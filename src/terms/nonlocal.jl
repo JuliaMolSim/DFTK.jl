@@ -24,7 +24,7 @@ function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
     TermAtomicNonlocal(ops)
 end
 
-struct TermAtomicNonlocal <: Term
+struct TermAtomicNonlocal <: TermLinear
     ops::Vector{NonlocalOperator}
 end
 

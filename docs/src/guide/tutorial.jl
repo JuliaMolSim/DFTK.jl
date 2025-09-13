@@ -62,9 +62,13 @@ positions = [ones(3)/8, -ones(3)/8]
 
 ## 2. Select model and basis
 model = model_DFT(lattice, atoms, positions; functionals=LDA())
-kgrid = [4, 4, 4]     # k-point grid (Regular Monkhorst-Pack grid)
+
+kgrid = KgridSpacing(0.3 / u"bohr")  # Regular k-point grid (Monkhorst-Pack grid)
+##                                      with spacing 0.3/bohr between k-points
+## kgrid = [4, 4, 4]                    Alternative: Number of k-points per dimension
 Ecut = 7              # kinetic energy cutoff
 ## Ecut = 190.5u"eV"  # Could also use eV or other energy-compatible units
+
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 ## Note the implicit passing of keyword arguments here:
 ## this is equivalent to PlaneWaveBasis(model; Ecut=Ecut, kgrid=kgrid)
@@ -107,15 +111,19 @@ plot(x, scfres.ρ[:, 1, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
 # We can get the Cartesian forces (in Hartree / Bohr):
 compute_forces_cart(scfres)
 # As expected, they are numerically zero in this highly symmetric configuration.
-# We could also compute a band structure,
-plot_bandstructure(scfres; kline_density=10)
-# or plot a density of states, for which we increase the kgrid a bit
-# to get smoother plots:
-bands = compute_bands(scfres, MonkhorstPack(6, 6, 6))
-plot_dos(bands; temperature=1e-3, smearing=Smearing.FermiDirac())
-# Note that directly employing the `scfres` also works, but the results
-# are much cruder:
+# We could also compute a band structure: we compute the bands along
+# a k-point line (determined automatically) and plot the result:
+bands1 = compute_bands(scfres; kline_density=10)
+plot_bandstructure(bands1)
+# Next we want to plot a density of states.
+# We can use the `scfres` directly, but the resulting DOS is quite sharp:
 plot_dos(scfres; temperature=1e-3, smearing=Smearing.FermiDirac())
+# To get a better result we first increase the kgrid to get a better
+# discretisation of the Brillouin zone, then re-do the plot:
+bands2 = compute_bands(scfres, MonkhorstPack(6, 6, 6))
+plot_dos(bands2; temperature=1e-3, smearing=Smearing.FermiDirac())
+# Note, that some other codes would refer to the functionality
+# we provide with compute_bands` as "performing a NSCF calculation".
 
 # !!! info "Where to go from here"
 #     - **Background on DFT:**
