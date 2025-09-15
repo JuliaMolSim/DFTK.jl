@@ -122,19 +122,32 @@ function (cgf::InsulatorEnergy)(M::ProductManifold, X, p)
     # Compute the Euclidean gradient in-place
     for ik = 1:cgf.Nk
         DFTK.mul!(X[M, ik], cgf.ham.blocks[ik], p[M, ik]) # mul! overload in DFTK
-        Manifolds.get_component(M, X, ik) .*= 2 * cgf.filled_occ * cgf.basis.kweights[ik] # Using get_component(), as "X[M, ik] .*=" is not yet supported in ManifoldsBase.jl
+         # Using get_component(), as "X[M, ik] .*=" is not yet supported in ManifoldsBase.jl
+        Manifolds.get_component(M, X, ik) .*= 2 * cgf.filled_occ * cgf.basis.kweights[ik]
     end
     riemannian_gradient!(M, X, p, X) # Convert to Riemannian gradient
     copyto!(cgf.X, X) # Memoization
     return X
 end
 # Access nested fields of the cost function
-Manopt.get_parameter(objective::Manopt.AbstractManifoldCostObjective, s::Symbol) = Manopt.get_parameter(Manopt.get_cost_function(objective), s)
-Manopt.get_parameter(energy_costgrad::InsulatorEnergy, s::Symbol) = Manopt.get_parameter(energy_costgrad, Val(s))
+function Manopt.get_parameter(objective::Manopt.AbstractManifoldCostObjective, s::Symbol)
+    return Manopt.get_parameter(Manopt.get_cost_function(objective), s)
+end
+function Manopt.get_parameter(energy_costgrad::InsulatorEnergy, s::Symbol)
+    return Manopt.get_parameter(energy_costgrad, Val(s))
+end
 Manopt.get_parameter(energy_costgrad::InsulatorEnergy, ::Val{:ρ}) = energy_costgrad.ρ
-Manopt.get_parameter(energy_costgrad::InsulatorEnergy, ::Val{:Hamiltonian}) = energy_costgrad.ham
-Manopt.get_parameter(energy_costgrad::InsulatorEnergy, ::Val{:Energies}) = energy_costgrad.energies
-Manopt.get_parameter(energy_costgrad::InsulatorEnergy, ::Val{:HamiltonianEvaluations}) = energy_costgrad.count
+function Manopt.get_parameter(energy_costgrad::InsulatorEnergy, ::Val{:Hamiltonian})
+    return energy_costgrad.ham
+end
+function Manopt.get_parameter(energy_costgrad::InsulatorEnergy, ::Val{:Energies})
+    return energy_costgrad.energies
+end
+function Manopt.get_parameter(
+        energy_costgrad::InsulatorEnergy, ::Val{:HamiltonianEvaluations}
+    )
+    return energy_costgrad.count
+end
 
 #
 #
@@ -145,8 +158,12 @@ mutable struct DebugDensityChange{F} <: DebugAction
     last_ρ::F
     prefix::String
 end
-DFTK.DebugDensityChange(ρ::T; prefix = "Δρ:", io::IO=stdout) where {T} = DebugDensityChange{T}(io, ρ, prefix)
-function (d::DebugDensityChange)(problem::AbstractManoptProblem, ::AbstractManoptSolverState, k::Int)
+function DFTK.DebugDensityChange(ρ::T; prefix = "Δρ:", io::IO=stdout) where {T}
+    return DebugDensityChange{T}(io, ρ, prefix)
+end
+function (d::DebugDensityChange)(
+    problem::AbstractManoptProblem, ::AbstractManoptSolverState, k::Int
+)
     current_ρ = Manopt.get_parameter(Manopt.get_objective(problem), :ρ)
     ch = norm(current_ρ - d.last_ρ)
     d.last_ρ .= current_ρ
@@ -185,7 +202,9 @@ mutable struct RecordDensityChange{F,T} <: RecordAction
     recorded_values::Array{F,1}
     last_ρ::T
 end
-DFTK.RecordDensityChange(ρ::T) where {T} = RecordDensityChange{typeof(norm(ρ)),typeof(ρ)}(Array{typeof(norm(ρ)),1}(), ρ)
+function DFTK.RecordDensityChange(ρ::T) where {T}
+    return RecordDensityChange{typeof(norm(ρ)),typeof(ρ)}(Array{typeof(norm(ρ)),1}(), ρ)
+end
 function (r::RecordDensityChange)(
     problem::AbstractManoptProblem, s::AbstractManoptSolverState, k::Int
 )
@@ -249,7 +268,9 @@ end
 function DFTK.StopWhenDensityChangeLess(tol::F, ρ::T) where {T,F<:Real}
     StopWhenDensityChangeLess{T,F}(tol, -1, ρ, 2 * tol)
 end
-function (c::StopWhenDensityChangeLess)(problem::P, state::S, k::Int) where {P<:Manopt.AbstractManoptProblem,S<:Manopt.AbstractManoptSolverState}
+function (c::StopWhenDensityChangeLess)(
+        problem::P, state::S, k::Int
+    ) where {P<:Manopt.AbstractManoptProblem,S<:Manopt.AbstractManoptSolverState}
     current_ρ = Manopt.get_parameter(Manopt.get_objective(problem), :ρ)
     if k == 0 # reset on init
         c.at_iteration = -1
@@ -449,7 +470,9 @@ function DFTK.direct_minimization(
         product_manifold;
         p=recursive_ψ,
         stopping_criterion=stopping_criterion,
-        preconditioner=QuasiNewtonPreconditioner((M, Y, p, X) -> Preconditioner(M, Y, p, X); evaluation=InplaceEvaluation()),
+        preconditioner=QuasiNewtonPreconditioner(
+            (M, Y, p, X) -> Preconditioner(M, Y, p, X); evaluation=InplaceEvaluation()
+        ),
         direction=Manopt.PreconditionedDirectionRule(product_manifold,
             (M, Y, p, X) -> Preconditioner(M, Y, p, X);
             evaluation=InplaceEvaluation()
@@ -459,7 +482,11 @@ function DFTK.direct_minimization(
         vector_transport_method=vector_transport_method,
         retraction_method=retraction_method,
         memory_size=10,
-        X=cost_rgrad!(product_manifold, zero_vector(product_manifold, recursive_ψ), recursive_ψ), # Initial gradient
+        X=cost_rgrad!( # Initial gradient
+            product_manifold,
+            zero_vector(product_manifold, recursive_ψ),
+            recursive_ψ
+        ),
         kwargs...
     )
     deco_state = Manopt.decorate_state!(state; record=record, kwargs...)
@@ -492,16 +519,16 @@ function DFTK.direct_minimization(
         ρ = Manopt.get_parameter(Manopt.get_objective(problem), :ρ),
         energies = Manopt.get_parameter(Manopt.get_objective(problem), :Energies),
         ham = Manopt.get_parameter(Manopt.get_objective(problem), :Hamiltonian),
-        n_matvec = Manopt.get_parameter(Manopt.get_objective(problem), :HamiltonianEvaluations),
+        n_matvec = Manopt.get_parameter(
+            Manopt.get_objective(problem),
+            :HamiltonianEvaluations
+        ),
         # The “pure” solver state without debug/records.
         solver_state=Manopt.get_state(deco_state,true),
     )
 end
 #=
 TODO
-convergence is not so super easy to determine as one might think
-For now Manopt only has a static convergence criterion, which does not help here.
-That code would be
-converged=Manopt.indicates_convergence(Manopt.get_stopping_criterion(deco_state)),
+we could adapt to has_converged to report on convergence as well
 =#
 end
