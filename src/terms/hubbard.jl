@@ -55,13 +55,13 @@ function compute_overlap_matrix(basis::PlaneWaveBasis{T};
                                 positions = basis.model.positions
                                 ) where {T}
     
-    proj = atomic_orbital_projectors(basis; manifold, positions) # Get the projectors for all k-points
+    proj = atomic_orbital_projectors(basis; manifold, positions) 
     projectors = proj.projectors
     labels = proj.labels
-    overlap_matrix = Vector{Matrix{T}}(undef, length(basis.kpoints))  # Initialize the density matrix
+    overlap_matrix = Vector{Matrix{T}}(undef, length(basis.kpoints))  
 
     for (ik, projk) in enumerate(projectors)
-        overlap_matrix[ik] = abs2.(projk' * projk)  # Compute the density matrix for this k-point
+        overlap_matrix[ik] = abs2.(projk' * projk)  
     end
 
     return (;overlap_matrix, projectors, labels)
@@ -85,7 +85,6 @@ function symmetrize_nhub(n_IJ::Array{Matrix{Complex{T}}}, lattice, symmetry, l, 
         ns[σ, iatom, jatom] = zeros(Complex{T}, size(n_IJ[σ, iatom, jatom],1), size(n_IJ[σ, iatom, jatom],2))
     end
 
-    # TODO: Write better the symmetrization loop
     for σ in 1:nspins, iatom in 1:natoms
         for m1 in 1:size(ns[σ, iatom, iatom], 1), m2 in 1:size(ns[σ, iatom, iatom], 2)  # Iterate over the rows of the n_IJ matrix
             for isym in 1:nsym
@@ -295,14 +294,8 @@ end
         end
         n = n_hub
         ψ = ψ_hub
-        for (iman, manifold) in enumerate(term.manifold)
-            res = compute_hubbard_proj(manifold, basis)
-            for ik in 1:length(basis.kpoints)
-                push!(proj_Is[ik], res[ik])
-            end
-        end
+        proj_I = compute_hubbard_proj(manifold, basis)
     else
-        for (iman, manifold) in enumerate(term.manifold)
             @show manifold
             Hubbard = compute_hubbard_nIJ(manifold, basis, ψ, occupation; p_I = p_I[iman], labels=labels[iman])
             push!(n_hub, Hubbard.n_IJ)
@@ -310,7 +303,6 @@ end
             for ik in 1:length(basis.kpoints)
                 push!(proj_Is[ik], Hubbard.p_I[ik])
             end
-        end
     end
 
     ops = [HubbardUOperator(basis, kpt, U, n, proj_Is[ik]) for (ik,kpt) in enumerate(basis.kpoints)]

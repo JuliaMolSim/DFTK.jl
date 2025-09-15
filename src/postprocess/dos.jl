@@ -79,10 +79,10 @@ Compute the projected density of states (PDOS) for all atoms and orbitals.
      -> pdos             : 3D array of PDOS, pdos[iε_idx, iproj, σ] = PDOS at energy εs[iε_idx] for projector iproj and spin σ
      -> projector_labels : Vector of tuples (iatom, n, l, m) for each projector, that maps the iproj index to the corresponding atomic orbital (atom index, principal quantum number, angular momentum, magnetic quantum number)
 Notes: 
- - The pdos matrix has different projectors for each atom, even if they are of the same atom type. 
-   As such, the sum of all iproj columns for each σ yields the total DOS at each energy εs[iε_idx].
-   This is different from Quantum ESPRESSO, where the pdos for atoms of the same type are summed together 
-     even though they are printed separately (i.e. summing over all QE pdos from all output files does not yield the DOS).
+ - All the information about projectors is taken from the PseudoPotential files used to build the atoms. 
+    There may be cases where the relevant data are missing for the desired projectors, despite being apparently declared.
+    As an example, it may happen that the PseudoPotential file does not have all atomic projectors up to the l_max declared in the psp, 
+    since such l_max refers instead to the beta projectors.
 """
 function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues; 
                       positions=basis.model.positions,
@@ -186,15 +186,18 @@ end
 
 """
 Build the projection matrices projsk for all k-points at the same time.
-  and ϕilm is the atomic orbital for atom i, quantum numbers (n,l,m)
 
-See documentation for 'atomic_orbital_projectors'
+    projection[ik][iband, iproj] = <ψnk|*projector[ik][iband, iproj] =  <ψnk|ϕinlm>(kpt)
+
+ where ψnk is the atomic wavefunction component for band iband and kpoint kpt.
+
+For more details, see documentation for 'atomic_orbital_projectors'.
 """
 function atomic_orbital_projections(basis::PlaneWaveBasis{T}, ψ;
                                     ismanifold=nothing,
                                     positions = basis.model.positions           
                                    ) where {T}
-    projectors, labels = atomic_orbital_projectors(basis; ismanifold=ismanifold, positions=positions)
+    projectors, labels = atomic_orbital_projectors(basis; ismanifold, positions)
     projections = map(zip(ψ, projectors)) do (ψk, projectorsk)
         abs2.(ψk' * projectorsk)
     end
@@ -206,14 +209,11 @@ end
 This function extracts the required pdos from the output of the `compute_pdos` function. 
 
     Input:
-     -> res         : Whole output from compute_pdos.
-     -> label (opt) : String for the whole orbital label. 
-     -> iatom (opt) : Atom number in the model.atoms vector. It becomes important for magnetically or spatially non-equivalent atoms. 
+     -> pdos_res  : Whole output from compute_pdos.
+     -> manifolds : Vector of OrbitalManifolds to select the desired projectors pdos to sum.
     Output:
-     -> pdos        : Vector containing the pdos(ε).
+     -> pdos      : Vector containing the pdos(ε).
 """
-
-
 function sum_pdos(pdos_res, manifolds::AbstractVector)
     pdos = []
     for σ in 1:size(pdos_res.pdos, 3)
