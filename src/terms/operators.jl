@@ -162,16 +162,16 @@ where ``P_i,m1`` is the projector for atom i and orbital m1.
 struct HubbardUOperator{T <: Real} <: RealFourierOperator
     basis   :: PlaneWaveBasis{T} 
     kpoint  :: Kpoint{T} 
-    Us      :: Vector{T}                       # Hubbard U parameter
-    n_IJs   :: Vector{Array{Matrix{Complex{T}}}} 
-    proj_Is :: Vector{Vector{Matrix{Complex{T}}}} #It is the projector for the given kpoint only
+    Us      :: Real                      # Hubbard U parameter
+    n_IJs   :: Array{Matrix{Complex{T}}}
+    proj_Is :: Vector{Matrix{Complex{T}}} #It is the projector for the given kpoint only
 end
 function apply!(Hψ, op::HubbardUOperator, ψ)
     σ = op.kpoint.spin
-    for (iman, U) in enumerate(op.Us)
-        n_IJ   = op.n_IJs[iman]
-        proj_I = op.proj_Is[iman]
-        natoms  = size(op.n_IJ, 2)
+    #for (iman, U) in enumerate(op.Us)
+        n_IJ   = op.n_IJs
+        proj_I = op.proj_Is
+        natoms  = size(op.n_IJs, 2)
         for iatom in 1:natoms
             n_ii = n_IJ[σ, iatom, iatom]
             iszero(n_ii) && continue
@@ -180,13 +180,13 @@ function apply!(Hψ, op::HubbardUOperator, ψ)
                 for m2 = 1:size(n_ii, 2)
                     P_i_m2 = proj_I[iatom][:,m2]
                     δm = (m1 == m2) ? one(eltype(n_ii)) : zero(eltype(n_ii))
-                    coefficient = 0.5 * U * (δm - 2*n_ii[m1, m2])
+                    coefficient = 0.5 * op.Us * (δm - 2*n_ii[m1, m2])
                     projection = P_i_m2' * ψ.fourier 
                     Hψ.fourier .+= coefficient * projection * P_i_m1
                 end
             end
         end
-    end
+    #end
 end
 
 
