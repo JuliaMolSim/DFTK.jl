@@ -21,7 +21,7 @@ function (s::OrbitalManifold)(orb)
     iatom_match && species_match && label_match
 end
 
-function extract_manifold(basis::PlaneWaveBasis{T}, projectors, labels, manifold::OrbitalManifold) where {T}
+function build_manifold(basis::PlaneWaveBasis{T}, projectors, labels, manifold::OrbitalManifold) where {T}
     manifold_labels = []
     manifold_projectors = Vector{Matrix{Complex{T}}}(undef, length(basis.kpoints))
     for (iproj, orb) in enumerate(labels)
@@ -174,20 +174,18 @@ Computes a matrix n_IJ of size (nspins, natoms, natoms), where each entry n_IJ[i
 function compute_hubbard_nIJ(manifold::OrbitalManifold,
                                 basis::PlaneWaveBasis{T},
                                 ψ, occupation;
-                                p_I = nothing, labels = nothing,
                                 positions = basis.model.positions) where {T}
     for (iatom, atom) in enumerate(basis.model.atoms)
-        @assert !iszero(size(atom.psp.r2_pswfcs[1], 1)) "FATAL ERROR: No Atomic projector found within the provided PseudoPotential."
+        for (iwfc, r2_pswfc) in enumerate(atom.psp.r2_pswfcs)
+            @assert !iszero(size(r2_pswfc, 1)) "FATAL ERROR: Atomic projector not found within the provided PseudoPotential."
+        end
     end
 
     filled_occ = filled_occupation(basis.model)
-    need_p_I = isnothing(p_I)
-    if isnothing(p_I) || isnothing(labels)
-        proj = atomic_orbital_projectors(basis; positions)
-        projs = proj.projectors
-        labs = proj.labels
-        labels, projectors = extract_manifold(basis, projs, labs, manifold)
-    end
+    proj = atomic_orbital_projectors(basis; positions)
+    projs = proj.projectors
+    labs = proj.labels
+    labels, projectors = build_manifold(basis, projs, labs, manifold)
     nprojs = length(labels)
     nspins = basis.model.n_spin_components
     n_matrix = zeros(Complex{T}, nspins, nprojs, nprojs) 
@@ -207,7 +205,7 @@ function compute_hubbard_nIJ(manifold::OrbitalManifold,
     types = findall(at -> at.species == Symbol(manifold.species), basis.model.atoms)
     natoms = length(types)  
     n_IJ = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)
-    need_p_I && p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for i in 1:length(basis.kpoints)]
+    p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for i in 1:length(basis.kpoints)]
     # Very low-level, but works
     for σ in 1:nspins
         i = 1
@@ -221,10 +219,8 @@ function compute_hubbard_nIJ(manifold::OrbitalManifold,
                 n_IJ[σ, iatom, jatom] = n_matrix[σ, i:i+2*il, j:j+2*jl]
                 j += 2*jl + 1
             end
-            if need_p_I
-                for (ik, projk) in enumerate(projectors)
-                    p_I[ik][iatom] = projk[:, i:i+2*il]  
-                end
+            for (ik, projk) in enumerate(projectors)
+                p_I[ik][iatom] = projk[:, i:i+2*il]  
             end
             i += 2*il + 1
         end
@@ -242,7 +238,7 @@ function compute_hubbard_proj(manifold::OrbitalManifold,
     proj = atomic_orbital_projectors(basis; positions)
     projs = proj.projectors
     labs = proj.labels
-    labels, projectors = extract_manifold(basis, projs, labs, manifold)
+    labels, projectors = build_manifold(basis, projs, labs, manifold)
     nprojs = length(labels)
     nspins = basis.model.n_spin_components
 
@@ -267,71 +263,53 @@ function compute_hubbard_proj(manifold::OrbitalManifold,
     return p_I
 end
 
-# TODO: Probably this implementation is not suitable for V as well, 
-#       since we can't make orbitals from different atom types interact directly through n_IJ
+# TODO: U should become a vector, with one value for each atom.
 struct Hubbard
-    manifold::Vector{OrbitalManifold}
-    U::Vector{Float64}
+    manifold::OrbitalManifold
+    U::Float64
 end
 (hubbard::Hubbard)(::AbstractBasis) = TermHubbard(hubbard.manifold, hubbard.U)
 
 struct TermHubbard <: Term
-    manifold::Vector{OrbitalManifold}
-    U::Vector{Float64}
+    manifold::OrbitalManifold
+    U::Float64
 end
 
 @timing "ene_ops: hubbard" function ene_ops(term::TermHubbard, 
                                             basis::PlaneWaveBasis{T}, 
-                                            ψ, occupation; n_hub=nothing, ψ_hub=nothing, 
-                                            p_I=nothing, labels=nothing,
+                                            ψ, occupation; n_hub=nothing, ψ_hub=nothing,
                                             kwargs...) where {T}
     to_unit = ustrip(auconvert(u"eV", 1.0))  
-    U = term.U ./ to_unit         
+    U = term.U / to_unit         
     if isnothing(ψ)
         if isnothing(n_hub)
-           n_hub = Vector{Array{Matrix{Complex{T}}}}(undef, 0)
-           proj_Is = Vector{Vector{Matrix{Complex{T}}}}(undef, length(basis.kpoints))
            return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
         end
         n = n_hub
         ψ = ψ_hub
-        for (iman, manifold) in enumerate(term.manifold)
-            res = compute_hubbard_proj(manifold, basis)
-            for ik in 1:length(basis.kpoints)
-                push!(proj_Is[ik], res[ik])
-            end
-        end
+        proj = compute_hubbard_proj(term.manifold, basis)
     else
-        for (iman, manifold) in enumerate(term.manifold)
-            @show manifold
-            Hubbard = compute_hubbard_nIJ(manifold, basis, ψ, occupation; p_I = p_I[iman], labels=labels[iman])
-            push!(n_hub, Hubbard.n_IJ)
-            #n_hub[iman] = ns[iman]
-            for ik in 1:length(basis.kpoints)
-                push!(proj_Is[ik], Hubbard.p_I[ik])
-            end
-        end
+        Hubbard = compute_hubbard_nIJ(term.manifold, basis, ψ, occupation)
+        n = Hubbard.n_IJ
+        n_hub = n
+        proj = Hubbard.p_I
     end
 
-    ops = [HubbardUOperator(basis, kpt, U, n, proj_Is[ik]) for (ik,kpt) in enumerate(basis.kpoints)]
+     
+    ops = [HubbardUOperator(basis, kpt, U, n, proj[ik]) for (ik,kpt) in enumerate(basis.kpoints)]
 
     filled_occ = filled_occupation(basis.model)
+    types = findall(at -> at.species == Symbol(term.manifold.species), basis.model.atoms)
+    natoms = length(types)  # Number of atoms of the selected species in the manifold
     nspins = basis.model.n_spin_components
 
     # To compare the results with Quantum ESPRESSO, we need to convert the U value from eV.
     #   In QE the U value is given in eV in the input but DFTK works in Hartrees.
     E = zero(T)
-    for (iman, manifold) in enumerate(term.manifold)
-        types = findall(at -> at.species == Symbol(term.manifold.species), basis.model.atoms)
-        natoms = length(types)  # Number of atoms of the selected species in the manifold
-        n = n_hub[iman]
-        types = findall(at -> at.species == Symbol(manifold.species), basis.model.atoms)
-        natoms = length(types)  # Number of atoms of the selected species in the manifold
-        for σ in 1:nspins, iatom in 1:natoms
-            E += filled_occ * 0.5 * U[iman] * real(tr(n[σ, iatom,iatom] * (I - n[σ, iatom,iatom])))
-        end
+    for σ in 1:nspins, iatom in 1:natoms
+        E += filled_occ * 0.5 * U * real(tr(n[σ, iatom,iatom] * (I - n[σ, iatom,iatom])))
     end
-    (; E, ops, ns)
+    (; E, ops, n)
 end
 
 # TODO: Once this is done, adding the V term as well should be trivial.
