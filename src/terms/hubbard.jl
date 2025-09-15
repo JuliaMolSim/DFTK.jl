@@ -281,8 +281,8 @@ function (hubbard::Hubbard)(basis::AbstractBasis)
     isempty(hubbard.U) && return TermNoop()
     projs, labs = atomic_orbital_projectors(basis)
     labels = Vector{Vector{NamedTuple}}(undef, length(hubbard.manifolds))
-    manifold_labels, manifold_projectors = extract_manifold(basis, projs, labs, hubbard.manifolds[1])
-    projectors = [similar(manifold_projectors) for iman in 1:length(hubbard.manifolds)]
+    MatT = typeof(projs[1])                  # e.g., Matrix{Complex{Float64}}
+    projectors = Vector{Vector{MatT}}(undef, length(hubbard.manifolds))
     for (iman, manifold) in enumerate(hubbard.manifolds)
         labels[iman], projectors[iman] = extract_manifold(basis, projs, labs, manifold)
     end
@@ -304,9 +304,9 @@ end
     to_unit = ustrip(auconvert(u"eV", 1.0))  
     U = term.U ./ to_unit   
     nspins = basis.model.n_spin_components
-    natoms = [max([labels[iman][i].iatom for i in 1:length(labels)]...) for iman in 1:length(term.manifolds)]
+    natoms = [maximum(l.iatom for l in labels[iman]) for iman in eachindex(term.manifolds)]
     if isnothing(ψ)
-        @show isnothing(ψ)
+        #@show isnothing(ψ)
         if isnothing(n_hub)
            return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
         end
@@ -317,18 +317,21 @@ end
            proj[iman] = reshape_hubbard_proj(P_mat, term.labels[iman])
         end
     else
-        @show isnothing(ψ)
-        proj = [[Vector{Matrix{Complex{T}}}(undef, natoms[iman]) for i in 1:length(term.P[iman])] for iman in 1:length(term.manifolds)]
-        n_hub = [Array{Matrix{Complex{T}}}(undef, nspins, natoms[iman], natoms[iman]) for iman in 1:length(term.manifolds)]
+        #@show isnothing(ψ)
+        proj = [[Vector{Matrix{Complex{T}}}(undef, natoms[iman]) for i in 1:length(term.P[iman])] 
+                for iman in 1:length(term.manifolds)]
+        n_hub = [Array{Matrix{Complex{T}}}(undef, nspins, natoms[iman], natoms[iman]) 
+                for iman in 1:length(term.manifolds)]
         for (iman, manifold) in enumerate(term.manifolds)
             @show iman, manifold
-            Hubbard = compute_hubbard_nIJ(manifold, basis, ψ, occupation; projectors=term.P[iman], labels)
+            Hubbard = compute_hubbard_nIJ(manifold, basis, ψ, occupation; projectors=term.P[iman], labels=term.labels[iman])
             n_hub[iman] = Hubbard.n_IJ
             proj[iman] = Hubbard.p_I
         end
     end
 
-    ops = [HubbardUOperator(basis, kpt, U, n, proj[:][ik]) for (ik,kpt) in enumerate(basis.kpoints)]
+    ops = [HubbardUOperator(basis, kpt, U, n_hub, [proj[iman][ik] for iman in eachindex(term.manifolds)])
+           for (ik,kpt) in enumerate(basis.kpoints)]
 
     filled_occ = filled_occupation(basis.model)
 
@@ -336,7 +339,7 @@ end
     #   In QE the U value is given in eV in the input but DFTK works in Hartrees.
     E = zero(T)
     for (iman, n) in enumerate(n_hub)
-        for σ in 1:nspins, iatom in 1:natoms
+        for σ in 1:nspins, iatom in 1:natoms[iman]
             E += filled_occ * 0.5 * U[iman] * real(tr(n[σ, iatom,iatom] * (I - n[σ, iatom,iatom])))
         end
     end

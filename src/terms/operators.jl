@@ -166,6 +166,12 @@ struct HubbardUOperator{T <: Real} <: RealFourierOperator
     n_IJs   :: Vector{Array{Matrix{Complex{T}}}}
     proj_Is :: Vector{Vector{Matrix{Complex{T}}}}   #It is the projector for the given kpoint only
 end
+function HubbardUOperator(basis::PlaneWaveBasis{T}, kpt::Kpoint{T}, Us::Vector{T},
+                          n_IJs_raw::Vector, proj_Is_raw::Vector) where {T<:Real}
+    n_IJs   = convert(Vector{Array{Matrix{Complex{T}}}}, n_IJs_raw)
+    proj_Is = convert(Vector{Vector{Matrix{Complex{T}}}}, proj_Is_raw)
+    HubbardUOperator{T}(basis, kpt, Us, n_IJs, proj_Is)
+end
 function apply!(Hψ, op::HubbardUOperator, ψ)
     σ = op.kpoint.spin
     for (iman, U) in enumerate(op.Us)
