@@ -302,7 +302,7 @@ Compute a minimizer of the density energy function energy functional using the d
   The current default cost function allows to also use ∞`Grassmann`](@extref `Manifolds.Grassmann`),
   both in their complex form.
 * `record=[Manopt.RecordCost(), DFTK.RecordDensityChange(ρ), Manopt.RecordTime(:total)]`:
-  specify what to record during the Iterations. If present, these are included in the returned named tuplpe
+  specify what to record during the Iterations. If present, these are included in the returned named tuple
 
 This uses several defaults from [`Manopt.jl`](@extref), for example it always uses
 the [`quasi_newton`](@ref) solver.
@@ -369,6 +369,10 @@ both a decorate for the objective and the state.
 This allows both to set other setting for a solver but also to add `debug=` funtionality
 or even a `cache=` to the objective, though the default objective already caches parts
 that both a cost and a gradient at the same point would require.
+
+!!! note "Technical Note"
+    This interface is still work in progress and might change in the furute even with changes
+    that break compatibility.
 """
 function DFTK.direct_minimization(
     basis::PlaneWaveBasis{T}, state_type::Type{<:Manopt.AbstractManoptSolverState};
