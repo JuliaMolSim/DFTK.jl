@@ -158,6 +158,7 @@ function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatom, label=nothi
     to_unit = ustrip(auconvert(unit, 1.0))
 
     # Plot pdos
+    isnothing(p) && (p = Plots.plot(; kwargs...))
     p = Plots.plot(p; kwargs...)
     spinlabels = spin_components(basis.model)
     pdos = DFTK.sum_pdos(compute_pdos(εs, basis, ψ, eigenvalues;
