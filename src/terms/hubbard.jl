@@ -274,21 +274,26 @@ end
 # TODO: Probably this implementation is not suitable for V as well, 
 #       since we can't make orbitals from different atom types interact directly through n_IJ
 struct Hubbard
-    manifold::OrbitalManifold
-    U::Float64
+    manifolds::Vector{OrbitalManifold}
+    U::Vector{Float64}
 end
-function (hubbard::Hubbard)(basis::AbstractBasis) 
+function (hubbard::Hubbard)(basis::AbstractBasis)
     isempty(hubbard.U) && return TermNoop()
     projs, labs = atomic_orbital_projectors(basis)
-    labels, projectors = extract_manifold(basis, projs, labs, hubbard.manifold)
-    TermHubbard(hubbard.manifold, hubbard.U, projectors, labels)
+    labels = Vector{Vector{NamedTuple}}(undef, length(hubbard.manifolds))
+    manifold_labels, manifold_projectors = extract_manifold(basis, projs, labs, hubbard.manifolds[1])
+    projectors = [similar(manifold_projectors) for iman in 1:length(hubbard.manifolds)]
+    for (iman, manifold) in enumerate(hubbard.manifolds)
+        labels[iman], projectors[iman] = extract_manifold(basis, projs, labs, manifold)
+    end
+    TermHubbard(hubbard.manifolds, hubbard.U, projectors, labels)
 end
 
 struct TermHubbard{PT, L} <: Term
-    manifold::OrbitalManifold
-    U::Float64
-    P::PT
-    labels::L
+    manifolds::Vector{OrbitalManifold}
+    U::Vector{Float64}
+    P::Vector{PT}
+    labels::Vector{L}
 end
 
 @timing "ene_ops: hubbard" function ene_ops(term::TermHubbard, 
@@ -297,37 +302,45 @@ end
                                             labels=term.labels,
                                             kwargs...) where {T}
     to_unit = ustrip(auconvert(u"eV", 1.0))  
-    U = term.U / to_unit         
+    U = term.U ./ to_unit   
+    nspins = basis.model.n_spin_components
+    natoms = [max([labels[iman][i].iatom for i in 1:length(labels)]...) for iman in 1:length(term.manifolds)]
     if isnothing(ψ)
+        @show isnothing(ψ)
         if isnothing(n_hub)
            return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
         end
         n = n_hub
         ψ = ψ_hub
-        proj = reshape_hubbard_proj(term.P, term.labels)
+        proj = [[Vector{Matrix{Complex{T}}}(undef, natoms[iman]) for i in 1:length(term.P[iman])] for iman in 1:length(term.manifolds)]
+        for (iman, P_mat) in enumerate(term.P)
+           proj[iman] = reshape_hubbard_proj(P_mat, term.labels[iman])
+        end
     else
-        Hubbard = compute_hubbard_nIJ(term.manifold, basis, ψ, occupation; projectors=term.P, 
-        labels)
-        n = Hubbard.n_IJ
-        n_hub = n
-        proj = Hubbard.p_I
+        @show isnothing(ψ)
+        proj = [[Vector{Matrix{Complex{T}}}(undef, natoms[iman]) for i in 1:length(term.P[iman])] for iman in 1:length(term.manifolds)]
+        n_hub = [Array{Matrix{Complex{T}}}(undef, nspins, natoms[iman], natoms[iman]) for iman in 1:length(term.manifolds)]
+        for (iman, manifold) in enumerate(term.manifolds)
+            @show iman, manifold
+            Hubbard = compute_hubbard_nIJ(manifold, basis, ψ, occupation; projectors=term.P[iman], labels)
+            n_hub[iman] = Hubbard.n_IJ
+            proj[iman] = Hubbard.p_I
+        end
     end
 
-     
-    ops = [HubbardUOperator(basis, kpt, U, n, proj[ik]) for (ik,kpt) in enumerate(basis.kpoints)]
+    ops = [HubbardUOperator(basis, kpt, U, n, proj[:][ik]) for (ik,kpt) in enumerate(basis.kpoints)]
 
     filled_occ = filled_occupation(basis.model)
-    types = findall(at -> at.species == Symbol(term.manifold.species), basis.model.atoms)
-    natoms = length(types)  # Number of atoms of the selected species in the manifold
-    nspins = basis.model.n_spin_components
 
     # To compare the results with Quantum ESPRESSO, we need to convert the U value from eV.
     #   In QE the U value is given in eV in the input but DFTK works in Hartrees.
     E = zero(T)
-    for σ in 1:nspins, iatom in 1:natoms
-        E += filled_occ * 0.5 * U * real(tr(n[σ, iatom,iatom] * (I - n[σ, iatom,iatom])))
+    for (iman, n) in enumerate(n_hub)
+        for σ in 1:nspins, iatom in 1:natoms
+            E += filled_occ * 0.5 * U[iman] * real(tr(n[σ, iatom,iatom] * (I - n[σ, iatom,iatom])))
+        end
     end
-    (; E, ops, n)
+    (; E, ops, n_hub)
 end
 
 # TODO: Once this is done, adding the V term as well should be trivial.
