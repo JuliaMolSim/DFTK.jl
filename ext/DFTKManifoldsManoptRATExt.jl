@@ -503,6 +503,7 @@ function DFTK.direct_minimization(
     (
         info             = "This object is summarizing variables for debugging purposes",
         algorithm        = "$(state)",
+        converged        = Manopt.has_converged(Manopt.get_state(deco_state, true)),
         product_manifold = product_manifold,
         basis            = basis,
         history_Δρ       = recorded_values[:Δρ],
