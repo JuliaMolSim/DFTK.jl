@@ -75,8 +75,6 @@ function symmetrize_nhub(n_IJ::Array{Matrix{Complex{T}}}, lattice, symmetry, pos
     nspins = size(n_IJ, 1)
     natoms = size(n_IJ, 2)
     nsym = length(symmetry)
-    l = Int64((size(n_IJ[1, 1, 1], 1)-1)/2)
-    WigD = Wigner_sym(l, lattice, symmetry)
 
      # Initialize the n_IJ matrix
     ns = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms) 
@@ -85,6 +83,8 @@ function symmetrize_nhub(n_IJ::Array{Matrix{Complex{T}}}, lattice, symmetry, pos
     end
 
     for σ in 1:nspins, iatom in 1:natoms
+        l = Int64((size(n_IJ[σ, iatom, iatom], 1)-1)/2)
+        WigD = Wigner_sym(l, lattice, symmetry)
         for m1 in 1:size(ns[σ, iatom, iatom], 1), m2 in 1:size(ns[σ, iatom, iatom], 2)  # Iterate over the rows of the n_IJ matrix
             for isym in 1:nsym
                 sym_atom = find_symmetric(iatom, symmetry, isym, positions)
@@ -323,7 +323,7 @@ end
         n_hub = [Array{Matrix{Complex{T}}}(undef, nspins, natoms[iman], natoms[iman]) 
                 for iman in 1:length(term.manifolds)]
         for (iman, manifold) in enumerate(term.manifolds)
-            @show iman, manifold
+            #@show iman, manifold
             Hubbard = compute_hubbard_nIJ(manifold, basis, ψ, occupation; projectors=term.P[iman], labels=term.labels[iman])
             n_hub[iman] = Hubbard.n_IJ
             proj[iman] = Hubbard.p_I
