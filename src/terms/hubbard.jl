@@ -194,19 +194,20 @@ function compute_hubbard_nIJ(manifold::OrbitalManifold,
 
     # Now I want to reshape it to match the notation used in the papers.
     # Reshape into n[I, J, σ][m1, m2] where I, J indicate the atom in the Hubbard manifold, σ is the spin, m1 and m2 are magnetic quantum numbers (n, l are fixed)
-    natoms = max([labels[i].iatom for i in 1:length(labels)]...)
+    natoms = length(findall(at -> at.species == Symbol(manifold.species), basis.model.atoms))  # Number of atoms of the species in the manifold
     n_IJ = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)
     p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for ik in 1:length(basis.kpoints)]
     # Very low-level, but works
     for σ in 1:nspins
         i = 1
+        atom_offset = labels[1].iatom - 1
         while i <= nprojs
             il = labels[i].l
-            iatom = labels[i].iatom
+            iatom = labels[i].iatom - atom_offset # TODO: Problem: if my manifold is on atoms 1 and 3, this doesn't work.
             j = 1
             while j <= nprojs
                 jl = labels[j].l
-                jatom = labels[j].iatom
+                jatom = labels[j].iatom - atom_offset
                 n_IJ[σ, iatom, jatom] = n_matrix[σ, i:i+2*il, j:j+2*jl]
                 j += 2*jl + 1
             end
@@ -234,8 +235,7 @@ function compute_hubbard_proj(manifold::OrbitalManifold,
     nspins = basis.model.n_spin_components
 
     # Now I want to reshape it to match the notation used in the papers.
-    types = findall(at -> at.species == Symbol(manifold.species), basis.model.atoms)
-    natoms = length(types)  # Number of atoms of the species in the manifold
+    natoms = length(findall(at -> at.species == Symbol(manifold.species), basis.model.atoms))  # Number of atoms of the species in the manifold
     p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for i in 1:length(basis.kpoints)]
     # Very low-level, but works
     for σ in 1:nspins
@@ -285,7 +285,9 @@ function (hubbard::Hubbard)(basis::AbstractBasis)
     projectors = Vector{Vector{MatT}}(undef, length(hubbard.manifolds))
     for (iman, manifold) in enumerate(hubbard.manifolds)
         labels[iman], projectors[iman] = extract_manifold(basis, projs, labs, manifold)
+        @assert !isempty(labels[iman]) "No orbital found for the selected manifold $(manifold)"
     end
+    #@show size(projectors, 1), size(projectors, 2)
     TermHubbard(hubbard.manifolds, hubbard.U, projectors, labels)
 end
 
@@ -304,7 +306,8 @@ end
     to_unit = ustrip(auconvert(u"eV", 1.0))  
     U = term.U ./ to_unit   
     nspins = basis.model.n_spin_components
-    natoms = [maximum(l.iatom for l in labels[iman]) for iman in eachindex(term.manifolds)]
+    natoms = [length(findall(at -> at.species == Symbol(manifold.species), basis.model.atoms)) 
+              for (iman, manifold) in enumerate(term.manifolds)]
     if isnothing(ψ)
         #@show isnothing(ψ)
         if isnothing(n_hub)
@@ -323,8 +326,9 @@ end
         n_hub = [Array{Matrix{Complex{T}}}(undef, nspins, natoms[iman], natoms[iman]) 
                 for iman in 1:length(term.manifolds)]
         for (iman, manifold) in enumerate(term.manifolds)
-            #@show iman, manifold
+            #@show iman, manifold, natoms[iman]
             Hubbard = compute_hubbard_nIJ(manifold, basis, ψ, occupation; projectors=term.P[iman], labels=term.labels[iman])
+            #@show "Hubbard computed"
             n_hub[iman] = Hubbard.n_IJ
             proj[iman] = Hubbard.p_I
         end
