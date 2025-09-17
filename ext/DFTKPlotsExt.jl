@@ -152,7 +152,7 @@ function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatom, label=nothi
     eshift = something(εF, 0.0)
     εs = range(austrip.(εrange)..., length=n_points)
     n_spin = basis.model.n_spin_components
-    isnothing(iatom) ? species="all atoms" : species = basis.model.atoms[iatom].species
+    isnothing(iatom) ? species = "all atoms" : species = basis.model.atoms[iatom].species
     isnothing(label) ? orb_name = "all orbitals" : orb_name = label
 
     to_unit = ustrip(auconvert(unit, 1.0))
@@ -175,7 +175,7 @@ function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatom, label=nothi
     if isnothing(εF)
         Plots.xlabel!(p, "eigenvalues  ($(string(unit)))")
     else
-        Plots.xlabel!(p, "eigenvalues -ε_F  ($(string(unit)))")
+        Plots.xlabel!(p, "eigenvalues - ε_F  ($(string(unit)))")
     end
     p
 end
