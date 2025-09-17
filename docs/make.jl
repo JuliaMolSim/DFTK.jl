@@ -93,6 +93,7 @@ PAGES = [
         "developer/symmetries.md",
         "developer/gpu_computations.md",
     ],
+    "Extensions" => "extensions/index.md",
     "api.md",
     "publications.md",
 ]
@@ -134,7 +135,8 @@ using DFTK
 using Documenter
 using DocumenterCitations, DocumenterInterLinks
 using Literate
-
+# For documentation in extensions:
+using Manifolds, Manopt, RecursiveArrayTools
 #
 # Generate the docs
 #
@@ -224,7 +226,10 @@ links = InterLinks(
 )
 bib = CitationBibliography(joinpath(@__DIR__, "src", "references.bib"); style=:alpha)
 makedocs(;
-    modules=[DFTK],
+    modules=[
+        DFTK,
+        Base.get_extension(DFTK, :DFTKManifoldsManoptRATExt),
+    ],
     format=Documenter.HTML(;
         # Use clean URLs, unless built as a "local" build
         prettyurls=CONTINUOUS_INTEGRATION,
