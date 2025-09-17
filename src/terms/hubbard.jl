@@ -194,22 +194,28 @@ function compute_hubbard_nIJ(manifold::OrbitalManifold,
 
     # Now I want to reshape it to match the notation used in the papers.
     # Reshape into n[I, J, σ][m1, m2] where I, J indicate the atom in the Hubbard manifold, σ is the spin, m1 and m2 are magnetic quantum numbers (n, l are fixed)
-    natoms = length(findall(at -> at.species == Symbol(manifold.species), basis.model.atoms))  # Number of atoms of the species in the manifold
+    manifold_atoms = findall(at -> at.species == Symbol(manifold.species), basis.model.atoms)
+    natoms = length(manifold_atoms)  # Number of atoms of the species in the manifold
     n_IJ = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)
     p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for ik in 1:length(basis.kpoints)]
     # Very low-level, but works
-    for σ in 1:nspins
+    for σ in 1:nspins, iatom in eachindex(manifold_atoms)
         i = 1
-        atom_offset = labels[1].iatom - 1
+        #atom_offset = labels[1].iatom - 1
         while i <= nprojs
             il = labels[i].l
-            iatom = labels[i].iatom - atom_offset # TODO: Problem: if my manifold is on atoms 1 and 3, this doesn't work.
-            j = 1
-            while j <= nprojs
-                jl = labels[j].l
-                jatom = labels[j].iatom - atom_offset
-                n_IJ[σ, iatom, jatom] = n_matrix[σ, i:i+2*il, j:j+2*jl]
-                j += 2*jl + 1
+            if !(manifold_atoms[iatom] == labels[i].iatom)
+                i += 2*il + 1
+                continue
+            end
+            for jatom in eachindex(manifold_atoms)
+                j = 1
+                while j <= nprojs
+                    #@show jatom, j
+                    jl = labels[j].l
+                    (manifold_atoms[jatom] == labels[j].iatom) && (n_IJ[σ, iatom, jatom] = n_matrix[σ, i:i+2*il, j:j+2*jl])
+                    j += 2*jl + 1
+                end
             end
             for (ik, projk) in enumerate(projectors)
                 p_I[ik][iatom] = projk[:, i:i+2*il]  
