@@ -362,7 +362,8 @@ struct DielectricAdjoint{Tρ, Tψ, Toccupation, TεF, Teigenvalues, Tq}
 end
 
 @doc raw"""
-Representation of the dielectric adjoint operator ``ε^† = (1 - χ_0 K)^{-1}``.
+Representation of the dielectric adjoint operator ``ε^† = (1 - χ_0 K)``.
+This is the adjoint of the dielectric operator ``(1 - K χ_0)``.
 """
 function DielectricAdjoint(scfres; bandtolalg=BandtolBalanced(scfres), q=zero(Vec3{Float64}), maxiter=100)
     DielectricAdjoint(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation, scfres.εF,
@@ -376,7 +377,7 @@ end
                    miniter=1, ε.occupation_threshold, tol=rtol*norm(δρ),
                    ε.bandtolalg, ε.q, ε.maxiter, kwargs...)
     χ0δV = res.δρ
-    Ax = vec(δρ - χ0δV)  # (1 - χ0 K δρ)
+    Ax = vec(δρ - χ0δV)  # (1 - χ0 K) δρ
     (; Ax, info=(; rtol, basis, res...))
 end
 function size(ε::DielectricAdjoint, i::Integer)
