@@ -33,9 +33,9 @@ function test_solve_ΩplusK(scfres, δVext)
         @test maximum(abs, δρ0 - ref.δρ0) < 1e-11
     end
     @testset "Residual is small" begin
-        ε = DFTK.DielectricAdjoint(scfres; bandtolalg=DFTK.BandtolGuaranteed(scfres))
-        εδρ = reshape(DFTK.mul_approximate(ε, ref.δρ; tol=1e-13).Ax, size(δρ0))
-        @test maximum(abs, δρ0 - εδρ) < 1e-11
+        ε_adj = DFTK.DielectricAdjoint(scfres; bandtolalg=DFTK.BandtolGuaranteed(scfres))
+        ε_adj_δρ = reshape(DFTK.mul_approximate(ε_adj, ref.δρ; tol=1e-13).Ax, size(δρ0))
+        @test maximum(abs, δρ0 - ε_adj_δρ) < 1e-11
     end
 
     @testset "Adaptive algorithm yields desired tolerances" begin
