@@ -293,14 +293,14 @@ Input parameters:
 
     # compute total δρ
     # TODO Can be smarter here, e.g. use mixing to come up with initial guess.
-    ε = DielectricAdjoint(ham, ρ, ψ, occupation, εF, eigenvalues, occupation_threshold,
-                          bandtolalg, maxiter_sternheimer, q)
+    ε_adj = DielectricAdjoint(ham, ρ, ψ, occupation, εF, eigenvalues, occupation_threshold,
+                              bandtolalg, maxiter_sternheimer, q)
     precon = FunctionPreconditioner() do Pδρ, δρ
         Pδρ .= vec(mix_density(mixing, basis, reshape(δρ, size(ρ));
                                ham, basis, ρin=ρ, εF, eigenvalues, ψ))
     end
     callback_inner(info) = callback(merge(info, (; runtime_ns=time_ns() - start_ns)))
-    info_gmres = inexact_gmres(ε, vec(δρ0);
+    info_gmres = inexact_gmres(ε_adj, vec(δρ0);
                                tol, precon, krylovdim, maxiter, s,
                                callback=callback_inner, kwargs...)
     δρ = reshape(info_gmres.x, size(ρ))
@@ -333,7 +333,7 @@ Input parameters:
                 Axinfos=[(; basis, tol=tol*factor_final, resfinal...)]))
 
     (; resfinal.δψ, δρ, δHψ, δVind, δρ0, δeigenvalues, resfinal.δoccupation,
-       resfinal.δεF, ε, info_gmres)
+       resfinal.δεF, ε_adj, info_gmres)
 end
 
 function solve_ΩplusK_split(scfres::NamedTuple, rhs; kwargs...)
@@ -362,26 +362,27 @@ struct DielectricAdjoint{Tρ, Tψ, Toccupation, TεF, Teigenvalues, Tq}
 end
 
 @doc raw"""
-Representation of the dielectric adjoint operator ``ε^† = (1 - χ_0 K)^{-1}``.
+Representation of the dielectric adjoint operator ``ε^† = (1 - χ_0 K)``.
+This is the adjoint of the dielectric operator ``ε = (1 - K χ_0)``.
 """
 function DielectricAdjoint(scfres; bandtolalg=BandtolBalanced(scfres), q=zero(Vec3{Float64}), maxiter=100)
     DielectricAdjoint(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation, scfres.εF,
                       scfres.eigenvalues, scfres.occupation_threshold, bandtolalg, maxiter, q)
 end
-@timing "DielectricAdjoint" function mul_approximate(ε::DielectricAdjoint, δρ; rtol=0.0, kwargs...)
-    δρ = reshape(δρ, size(ε.ρ))
-    basis = ε.ham.basis
-    δV = apply_kernel(basis, δρ; ε.ρ, ε.q)
-    res = apply_χ0(ε.ham, ε.ψ, ε.occupation, ε.εF, ε.eigenvalues, δV;
-                   miniter=1, ε.occupation_threshold, tol=rtol*norm(δρ),
-                   ε.bandtolalg, ε.q, ε.maxiter, kwargs...)
+@timing "DielectricAdjoint" function mul_approximate(ε_adj::DielectricAdjoint, δρ; rtol=0.0, kwargs...)
+    δρ = reshape(δρ, size(ε_adj.ρ))
+    basis = ε_adj.ham.basis
+    δV = apply_kernel(basis, δρ; ε_adj.ρ, ε_adj.q)
+    res = apply_χ0(ε_adj.ham, ε_adj.ψ, ε_adj.occupation, ε_adj.εF, ε_adj.eigenvalues, δV;
+                   miniter=1, ε_adj.occupation_threshold, tol=rtol*norm(δρ),
+                   ε_adj.bandtolalg, ε_adj.q, ε_adj.maxiter, kwargs...)
     χ0δV = res.δρ
-    Ax = vec(δρ - χ0δV)  # (1 - χ0 K δρ)
+    Ax = vec(δρ - χ0δV)  # (1 - χ0 K) δρ
     (; Ax, info=(; rtol, basis, res...))
 end
-function size(ε::DielectricAdjoint, i::Integer)
+function size(ε_adj::DielectricAdjoint, i::Integer)
     if 1 ≤ i ≤ 2
-        return prod(size(ε.ρ))
+        return prod(size(ε_adj.ρ))
     else
         return one(i)
     end
