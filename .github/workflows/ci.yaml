@@ -39,15 +39,14 @@ jobs:
         run: |
           python3 -c 'import sys, yaml, json; json.dump(yaml.safe_load(sys.stdin), sys.stdout)' < matrix.yaml > matrix.json
       - id: set-matrix
-        run: cat matrix.json >> $GITHUB_OUTPUT
+        run: echo "matrix={\"include\":$(cat matrix.json)}" >> $GITHUB_OUTPUT
   test:
     name: Julia ${{ matrix.mode }} - ${{ matrix.os }} - ${{ matrix.payload }}
     needs: build_matrix
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix:
-        include: ${{ fromJson(needs.build_matrix.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.build_matrix.outputs.matrix) }}
     env:
       GKS_ENCODING: utf8
       GKSwstype: 100       # Needed for Plots-related tests
