@@ -30,7 +30,7 @@ jobs:
           - {mode: latest,  arch: x64,     os: ubuntu-latest,  payload: minimal          }
           EOM
       # For non-PR builds, also run tests on Windows
-      - if: ${{ github.event_name !== 'pull_request' || true }} # True for testing
+      - if: ${{ github.event_name != 'pull_request' || true }} # True for testing
         run: |
           cat >> matrix.yaml <<- EOM
           - {mode: latest,  arch: x64,     os: windows-latest, payload: minimal          }
