@@ -104,10 +104,9 @@ function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues;
             @views for (iband, εnk) in enumerate(eigenvalues[ik])
                 enred = (εnk - ε) / temperature
                 for iproj in 1:size(projsk, 2)
-                    projk = projsk[:, iproj]
-                    D[iε, iproj,σ] -= (filled_occ * basis.kweights[ik] * projk[iband]
-                                             ./ temperature
-                                             .* Smearing.occupation_derivative(smearing, enred))
+                    D[iε, iproj, σ] -= (filled_occ * basis.kweights[ik] * projsk[iband, iproj]
+                                        ./ temperature
+                                        .* Smearing.occupation_derivative(smearing, enred))
                 end
             end
         end
@@ -122,17 +121,18 @@ function compute_pdos(εs, bands; kwargs...)
 end
 
 """
-Structure for manifold choice and projectors estraction. Fields:
-    -> iatom   : Int64 corresponding to the atom position in the atoms array.
-    -> species : Symbol for the Chemical Element as in ElementPsp.
-    -> label   : String with the orbital name, i.e.: "3S".
+Structure for manifold choice and projectors extraction. Fields:
+    -> iatom   : Atom position in the atoms array.
+    -> species : Chemical Element as in ElementPsp.
+    -> label   : Orbital name, e.g.: "3S".
+All fields are optional, only the given ones will be used for selection.
 Implemented function for OrbitalManifold can be applied to an orbital NamedTuple and returns a boolean
     stating whether the orbital belongs to the manifold.
 """
 @kwdef struct OrbitalManifold
-    iatom   = nothing
-    species = nothing
-    label   = nothing
+    iatom   ::Union{Int64,  Nothing} = nothing
+    species ::Union{Symbol, Nothing} = nothing
+    label   ::Union{String, Nothing} = nothing
 end
 function (s::OrbitalManifold)(orb)
     iatom_match    = isnothing(s.iatom)   || (s.iatom == orb.iatom)
@@ -150,20 +150,20 @@ Build the projectors matrices projsk for all k-points at the same time.
    and iproj is the corresponding column index. The mapping is recorded in 'labels'.
   
     Input: 
-     - basis           : PlaneWaveBasis
-     - manifold  (opt) : (see notes below) tuple of (Atom, Orbital) to select only a subset of orbitals for the computation. 'Atom' must be either a Symbol or an Int64, 'Orbital' must be a String with the orbital name in uppercase.
-     - positions (opt) : positions of the atoms in the unit cell
+     - basis            : PlaneWaveBasis
+     - ismanifold (opt) : (see notes below) OrbitalManifold struct to select only a subset of orbitals for the computation.
+     - positions        : Positions of the atoms in the unit cell. Default is model.positions.
     Output:
-     - projectors      : vector of matrices of projectors
-     - labels          : structure containing iatom, species, n, l, m and orbital name for each projector
+     - projectors       : Vector of matrices of projectors
+     - labels           : Vector of NamedTuples containing iatom, species, n, l, m and orbital name for each projector
 
 Notes: 
 
-- 'n' is not exactly the principal quantum number, but rather the index of the radial function in the pseudopotential. As an example, if the pseudopotential contains the 3S and 4S orbitals, then those are indexed as n=1, l=0 and n=2, l=0 respectively.
-- Use 'manifold' kwarg with caution, since the resulting projectors would be orthonormalized only against the manifold basis. Most applications require the whole projectors basis to be orthonormal instead.
+- 'n' in labels is not exactly the principal quantum number, but rather the index of the radial function in the pseudopotential. As an example, if the only S orbitals in the pseudopotential are 3S and 4S, then those are indexed as n=1, l=0 and n=2, l=0 respectively.
+- Use 'ismanifold' kwarg with caution, since the resulting projectors would be orthonormalized only against the manifold basis. Most applications require the whole projectors basis to be orthonormal instead.
 """
 function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
-                                   ismanifold = nothing,  #Should we allow to take and orthogonalize only the manifold?
+                                   ismanifold = l -> true,  #Should we allow to take and orthogonalize only the manifold?
                                    positions = basis.model.positions) where {T}
     
     G_plus_k_all = [Gplusk_vectors(basis, basis.kpoints[ik])
@@ -178,7 +178,7 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
         for l in 0:psp.lmax
             for n in 1:DFTK.count_n_pswfc_radial(psp, l)
                 label = DFTK.get_pswfc_label(psp, n, l)
-                if !isnothing(ismanifold) && !ismanifold((;iatom, species=Symbol(atom.species), label))
+                if !ismanifold((;iatom, species=Symbol(atom.species), label))
                     continue
                 end
                 fun(p) = eval_psp_pswfc_fourier(psp, n, l, p)
