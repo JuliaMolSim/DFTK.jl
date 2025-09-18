@@ -178,7 +178,7 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
         for l in 0:psp.lmax
             for n in 1:DFTK.count_n_pswfc_radial(psp, l)
                 label = DFTK.get_pswfc_label(psp, n, l)
-                if !ismanifold((;iatom, species=Symbol(atom.species), label))
+                if !isnothing(ismanifold) && !ismanifold((;iatom, species=Symbol(atom.species), label))
                     continue
                 end
                 fun(p) = eval_psp_pswfc_fourier(psp, n, l, p)
