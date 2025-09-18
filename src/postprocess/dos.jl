@@ -178,7 +178,7 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
         for l in 0:psp.lmax
             for n in 1:DFTK.count_n_pswfc_radial(psp, l)
                 label = DFTK.get_pswfc_label(psp, n, l)
-                if !isnothing(ismanifold) && !ismanifold((;iatom, species=Symbol(atom.species), label))
+                if !ismanifold((;iatom, species=Symbol(atom.species), label))
                     continue
                 end
                 fun(p) = eval_psp_pswfc_fourier(psp, n, l, p)
@@ -209,7 +209,7 @@ Build the projection matrices projsk for all k-points at the same time.
 For more details, see documentation for 'atomic_orbital_projectors'.
 """
 function atomic_orbital_projections(basis::PlaneWaveBasis{T}, ψ;
-                                    ismanifold=nothing,
+                                    ismanifold = l -> true,
                                     positions = basis.model.positions) where {T}
     projectors, labels = atomic_orbital_projectors(basis; ismanifold, positions)
     projections = map(zip(ψ, projectors)) do (ψk, projectorsk)
