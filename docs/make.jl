@@ -35,6 +35,7 @@ PAGES = [
         # Some basic show cases; may feature integration of DFTK with other packages.
         "examples/metallic_systems.jl",
         "examples/collinear_magnetism.jl",
+        "examples/dos.jl",
         "examples/convergence_study.jl",
         "examples/pseudopotentials.jl",
         "examples/supercells.jl",
