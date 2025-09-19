@@ -214,7 +214,7 @@ function atomic_orbital_projections(basis::PlaneWaveBasis{T}, ψ;
 end
 
 """
-This function extracts and sums up all the PDOSes from the output of the `compute_pdos` function. 
+This function extracts and sums up all the PDOSes, directly from the output of the `compute_pdos` function, that match any of the manifolds.
 
     Input:
      -> pdos_res  : Whole output from compute_pdos.
