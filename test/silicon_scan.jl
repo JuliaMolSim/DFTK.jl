@@ -1,4 +1,4 @@
-@testitem "Silicon SCAN (small)" tags=[:core] setup=[TestCases, RunSCF] begin
+@testitem "Silicon SCAN (small)" tags=[:minimal] setup=[TestCases, RunSCF] begin
     using DFTK
     using PseudoPotentialData
     run_scf_and_compare = RunSCF.run_scf_and_compare
@@ -26,7 +26,7 @@
 end
 
 
-@testitem "Silicon SCAN (large)" tags=[:slow, :core] setup=[TestCases, RunSCF] begin
+@testitem "Silicon SCAN (large)" tags=[:slow] setup=[TestCases, RunSCF] begin
     using DFTK
     using PseudoPotentialData
     run_scf_and_compare = RunSCF.run_scf_and_compare
