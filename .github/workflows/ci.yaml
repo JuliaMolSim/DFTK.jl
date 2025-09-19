@@ -33,7 +33,7 @@ jobs:
       - if: ${{ github.event_name != 'pull_request' }}
         run: |
           cat >> matrix.yaml <<- EOM
-          - {mode: latest,  arch: x64,     os: windows-latest, payload: minimal          }
+          - {mode: stable,  arch: x64,     os: windows-latest, payload: minimal          }
           EOM
       - name: Convert to JSON
         run: |
