@@ -173,6 +173,8 @@ end
 
 count_n_pswfc_radial(psp::PspUpf, l) = length(psp.r2_pswfcs[l+1])
 
+get_pswfc_label(psp::PspUpf, i, l) = psp.pswfc_labels[l+1][i]
+
 function eval_psp_pswfc_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
     psp.r2_pswfcs_interp[l+1][i](r) / r^2  # TODO if r is below a threshold, return zero
 end

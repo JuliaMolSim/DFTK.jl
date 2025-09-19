@@ -72,17 +72,12 @@ Compute the projected density of states (PDOS) for all atoms and orbitals.
 
     Input: 
      -> εs               : Vector of energies at which the PDOS will be computed
-     -> basis            : PlaneWaveBasis object from bands computation
-     -> ψ                : Wavefunction from the bands
-     -> eigenvalues      : Eigenvalues from the bands
     Output:
      -> pdos             : 3D array of PDOS, pdos[iε_idx, iproj, σ] = PDOS at energy εs[iε_idx] for projector iproj and spin σ
-     -> projector_labels : Vector of tuples (iatom, n, l, m) for each projector, that maps the iproj index to the corresponding atomic orbital (atom index, principal quantum number, angular momentum, magnetic quantum number)
+     -> projector_labels : Vector of tuples (iatom, species, label, n, l, m) for each projector, that maps the iproj index to the corresponding atomic orbital. For details see the documentation for `atomic_orbital_projectors`.
 Notes: 
- - All the information about projectors is taken from the PseudoPotential files used to build the atoms. 
-    There may be cases where the relevant data are missing for the desired projectors, despite being apparently declared.
-    As an example, it may happen that the PseudoPotential file does not have all atomic projectors up to the l_max declared in the psp, 
-    since such l_max refers instead to the beta projectors.
+ - The atomic orbital projectors are taken from the pseudopotential files used to build the atoms. 
+    In doubt, consult the pseudopotential file for the list of available atomic orbitals.
 """
 function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues; 
                       positions=basis.model.positions,
@@ -105,8 +100,8 @@ function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues;
                 enred = (εnk - ε) / temperature
                 for iproj in 1:size(projsk, 2)
                     D[iε, iproj, σ] -= (filled_occ * basis.kweights[ik] * projsk[iband, iproj]
-                                        ./ temperature
-                                        .* Smearing.occupation_derivative(smearing, enred))
+                                        / temperature
+                                        * Smearing.occupation_derivative(smearing, enred))
                 end
             end
         end
@@ -126,8 +121,8 @@ Structure for manifold choice and projectors extraction. Fields:
     -> species : Chemical Element as in ElementPsp.
     -> label   : Orbital name, e.g.: "3S".
 All fields are optional, only the given ones will be used for selection.
-Implemented function for OrbitalManifold can be applied to an orbital NamedTuple and returns a boolean
-    stating whether the orbital belongs to the manifold.
+Can be called with an orbital NamedTuple and returns a boolean
+  stating whether the orbital belongs to the manifold.
 """
 @kwdef struct OrbitalManifold
     iatom   ::Union{Int64,  Nothing} = nothing
@@ -150,7 +145,6 @@ Build the projectors matrices projsk for all k-points at the same time.
    and iproj is the corresponding column index. The mapping is recorded in 'labels'.
   
     Input: 
-     - basis            : PlaneWaveBasis
      - ismanifold (opt) : (see notes below) OrbitalManifold struct to select only a subset of orbitals for the computation.
      - positions        : Positions of the atoms in the unit cell. Default is model.positions.
     Output:
@@ -158,12 +152,12 @@ Build the projectors matrices projsk for all k-points at the same time.
      - labels           : Vector of NamedTuples containing iatom, species, n, l, m and orbital name for each projector
 
 Notes: 
-
+- The orbitals used for the projectors are all orthogonalized against each other. This corresponds to ortho-atomic projectors in Quantum Espresso.
 - 'n' in labels is not exactly the principal quantum number, but rather the index of the radial function in the pseudopotential. As an example, if the only S orbitals in the pseudopotential are 3S and 4S, then those are indexed as n=1, l=0 and n=2, l=0 respectively.
 - Use 'ismanifold' kwarg with caution, since the resulting projectors would be orthonormalized only against the manifold basis. Most applications require the whole projectors basis to be orthonormal instead.
 """
 function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
-                                   ismanifold = l -> true,  #Should we allow to take and orthogonalize only the manifold?
+                                   ismanifold = l -> true,
                                    positions = basis.model.positions) where {T}
     
     G_plus_k_all = [Gplusk_vectors(basis, basis.kpoints[ik])
@@ -188,7 +182,7 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
                    projectors[ik] = hcat(projectors[ik], form_factors_l[ik] .* structure_factor ./ sqrt(basis.model.unit_cell_volume))
                 end
                 for m in -l:l
-                    push!(labels, (; iatom, atom.species, n, l, m, label))
+                    push!(labels, (; iatom, species = Symbol(atom.species), n, l, m, label))
                 end
             end
         end
@@ -220,7 +214,7 @@ function atomic_orbital_projections(basis::PlaneWaveBasis{T}, ψ;
 end
 
 """
-This function extracts the required pdos from the output of the `compute_pdos` function. 
+This function extracts and sums up all the PDOSes from the output of the `compute_pdos` function. 
 
     Input:
      -> pdos_res  : Whole output from compute_pdos.
@@ -229,17 +223,13 @@ This function extracts the required pdos from the output of the `compute_pdos` f
      -> pdos      : Vector containing the pdos(ε).
 """
 function sum_pdos(pdos_res, manifolds::AbstractVector)
-    pdos = []
+    pdos = zeros(Float64, length(pdos_res.εs), size(pdos_res.pdos, 3))
     for σ in 1:size(pdos_res.pdos, 3)
-        pdos_values = zeros(Float64, length(pdos_res.εs))
-        for ismanifold in manifolds
-            for (j, orb) in enumerate(pdos_res.projector_labels)
-                if ismanifold(orb)
-                    pdos_values += pdos_res.pdos[:, j, σ]
-                end
+       for (j, orb) in enumerate(pdos_res.projector_labels)
+            if any(manifold(orb) for manifold in manifolds)
+                pdos[:, σ] += pdos_res.pdos[:, j, σ]
             end
         end
-        push!(pdos, pdos_values)
     end
     return pdos
 end
