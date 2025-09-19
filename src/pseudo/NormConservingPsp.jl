@@ -29,7 +29,7 @@ abstract type NormConservingPsp end
 # eval_psp_pswfc_fourier(psp, i::Int, l::Int, p::Real)
 # count_n_pswfc(psp, l::Integer)
 # count_n_pswfc_radial(psp, l::Integer)
-# get_pswfc_label(psp, i::Integer, l::Integer)
+# pswfc_label(psp, i::Integer, l::Integer)
 
 """
     eval_psp_projector_real(psp, i, l, r)

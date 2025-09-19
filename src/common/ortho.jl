@@ -8,16 +8,12 @@
     end
 end
 
-@timing function ortho_lowdin(φk::ArrayType) where {ArrayType <: AbstractArray}
+@timing function ortho_lowdin(φk::AbstractArray)
     S = φk' * φk
     evals, evecs = eigen(S)
     # Check for linear dependence: eigenvalues close to zero
     tol = eps(real(eltype(φk))) * maximum(abs, evals)
-    if any(abs.(evals) .< tol)
-        small_evals = filter(eval -> eval < tol, evals)
-        error("Input vectors are linearly dependent or nearly so 
-               (small eigenvalues detected: $(small_evals) < $(tol) tolerance).")
-    end
+    @assert all(abs.(evals) .> tol) "Input vectors are linearly dependent or nearly so (small eigenvalues detected: $(evals) < $(tol) tolerance)."
     ihS = evecs * Diagonal(evals .^ (-0.5)) * evecs'
     x = φk * ihS
     return x

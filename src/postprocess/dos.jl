@@ -68,15 +68,20 @@ function compute_ldos(scfres::NamedTuple; ε=scfres.εF, kwargs...)
 end
 
 """
+    compute_pdos(εs, basis, ψ, eigenvalues; [positions, smearing, temperature])
+
 Compute the projected density of states (PDOS) for all atoms and orbitals.
 
-    Input: 
-     -> εs               : Vector of energies at which the PDOS will be computed
-    Output:
-     -> pdos             : 3D array of PDOS, pdos[iε_idx, iproj, σ] = PDOS at energy εs[iε_idx] for projector iproj and spin σ
-     -> projector_labels : Vector of tuples (iatom, species, label, n, l, m) for each projector, that maps the iproj index to the corresponding atomic orbital. For details see the documentation for `atomic_orbital_projectors`.
+Overview of inputs: 
+- `εs`: Vector of energies at which the PDOS will be computed
+
+Overview of outputs:
+- `pdos`: 3D array of PDOS, pdos[iε_idx, iproj, σ] = PDOS at energy εs[iε_idx] for projector iproj and spin σ
+- `projector_labels` : Vector of tuples (iatom, species, label, n, l, m) for each projector, that maps the iproj index to the corresponding atomic orbital. 
+   For details see the documentation for `atomic_orbital_projectors`.
+
 Notes: 
- - The atomic orbital projectors are taken from the pseudopotential files used to build the atoms. 
+- The atomic orbital projectors are taken from the pseudopotential files used to build the atoms. 
     In doubt, consult the pseudopotential file for the list of available atomic orbitals.
 """
 function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues; 
@@ -116,17 +121,20 @@ function compute_pdos(εs, bands; kwargs...)
 end
 
 """
-Structure for manifold choice and projectors extraction. Fields:
-    -> iatom   : Atom position in the atoms array.
-    -> species : Chemical Element as in ElementPsp.
-    -> label   : Orbital name, e.g.: "3S".
+Structure for manifold choice and projectors extraction. 
+    
+Overview of fields:
+- `iatom`: Atom position in the atoms array.
+- `species`: Chemical Element as in ElementPsp.
+- `label`: Orbital name, e.g.: "3S".
+
 All fields are optional, only the given ones will be used for selection.
 Can be called with an orbital NamedTuple and returns a boolean
   stating whether the orbital belongs to the manifold.
 """
 @kwdef struct OrbitalManifold
     iatom   ::Union{Int64,  Nothing} = nothing
-    species ::Union{Symbol, Nothing} = nothing
+    species ::Union{Symbol, ChemicalSpecies, Nothing} = nothing
     label   ::Union{String, Nothing} = nothing
 end
 function (s::OrbitalManifold)(orb)
@@ -136,7 +144,10 @@ function (s::OrbitalManifold)(orb)
 
     iatom_match && species_match && label_match
 end
+
 """
+    atomic_orbital_projectors(basis; [ismanifold, positions])   
+
 Build the projectors matrices projsk for all k-points at the same time.
          
     projector[ik][:, iproj] = |ϕinlm>(kpt)
@@ -144,12 +155,13 @@ Build the projectors matrices projsk for all k-points at the same time.
  where ϕinlm is the atomic orbital for atom i, quantum numbers (n,l,m)
    and iproj is the corresponding column index. The mapping is recorded in 'labels'.
   
-    Input: 
-     - ismanifold (opt) : (see notes below) OrbitalManifold struct to select only a subset of orbitals for the computation.
-     - positions        : Positions of the atoms in the unit cell. Default is model.positions.
-    Output:
-     - projectors       : Vector of matrices of projectors
-     - labels           : Vector of NamedTuples containing iatom, species, n, l, m and orbital name for each projector
+Overview of inputs: 
+- `positions` : Positions of the atoms in the unit cell. Default is model.positions.
+- `ismanifold` (opt) : (see notes below) OrbitalManifold struct to select only a subset of orbitals for the computation.
+
+Overview of outputs:
+- `projectors`: Vector of matrices of projectors
+- `labels`: Vector of NamedTuples containing iatom, species, n, l, m and orbital name for each projector
 
 Notes: 
 - The orbitals used for the projectors are all orthogonalized against each other. This corresponds to ortho-atomic projectors in Quantum Espresso.
@@ -171,8 +183,8 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
         psp = atom.psp
         for l in 0:psp.lmax
             for n in 1:DFTK.count_n_pswfc_radial(psp, l)
-                label = DFTK.get_pswfc_label(psp, n, l)
-                if !ismanifold((;iatom, species=Symbol(atom.species), label))
+                label = DFTK.pswfc_label(psp, n, l)
+                if !ismanifold((;iatom, atom.species, label))
                     continue
                 end
                 fun(p) = eval_psp_pswfc_fourier(psp, n, l, p)
@@ -194,6 +206,8 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
 end
 
 """
+    atomic_orbital_projections(basis, ψ; [ismanifold, positions])
+
 Build the projection matrices projsk for all k-points at the same time.
 
     projection[ik][iband, iproj] = <ψnk|*projector[ik][iband, iproj] =  <ψnk|ϕinlm>(kpt)
@@ -214,13 +228,16 @@ function atomic_orbital_projections(basis::PlaneWaveBasis{T}, ψ;
 end
 
 """
+    sum_pdos(pdos_res, manifolds)
+
 This function extracts and sums up all the PDOSes, directly from the output of the `compute_pdos` function, that match any of the manifolds.
 
-    Input:
-     -> pdos_res  : Whole output from compute_pdos.
-     -> manifolds : Vector of OrbitalManifolds to select the desired projectors pdos.
-    Output:
-     -> pdos      : Vector containing the pdos(ε).
+Overview of inputs:
+- `pdos_res`: Whole output from compute_pdos.
+- `manifolds`: Vector of OrbitalManifolds to select the desired projectors pdos.
+
+Overview of outputs:
+- `pdos`: Vector containing the pdos(ε).
 """
 function sum_pdos(pdos_res, manifolds::AbstractVector)
     pdos = zeros(Float64, length(pdos_res.εs), size(pdos_res.pdos, 3))
