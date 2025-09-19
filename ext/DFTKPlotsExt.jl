@@ -166,7 +166,7 @@ function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatom, label=nothi
                          [DFTK.OrbitalManifold(;iatom, label)])
     for σ = 1:n_spin
         plot_label = n_spin > 1 ? "$(species) $(orb_name) $(spinlabels[σ]) spin" : "$(species) $(orb_name)"
-        Plots.plot!(p, (εs .- eshift) .* to_unit, pdos[:, σ]*2/n_spin; label=plot_label, color=colors[σ])
+        Plots.plot!(p, (εs .- eshift) .* to_unit, pdos[:, σ]; label=plot_label, color=colors[σ])
     end
     if !isnothing(εF)
         Plots.vline!(p, [0.0], label="εF", color=:green, lw=1.5)
