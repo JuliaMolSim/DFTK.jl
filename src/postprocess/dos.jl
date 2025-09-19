@@ -134,12 +134,12 @@ Can be called with an orbital NamedTuple and returns a boolean
 """
 @kwdef struct OrbitalManifold
     iatom   ::Union{Int64,  Nothing} = nothing
-    species ::Union{Symbol, ChemicalSpecies, Nothing} = nothing
+    species ::Union{Symbol, AtomsBase.ChemicalSpecies, Nothing} = nothing
     label   ::Union{String, Nothing} = nothing
 end
 function (s::OrbitalManifold)(orb)
     iatom_match    = isnothing(s.iatom)   || (s.iatom == orb.iatom)
-    species_match  = isnothing(s.species) || (s.species == orb.species)
+    species_match  = isnothing(s.species) || (s.species == orb.species) || (orb.species == s.species) #TODO: https://github.com/JuliaMolSim/AtomsBase.jl/issues/139
     label_match    = isnothing(s.label)   || (s.label == orb.label)
 
     iatom_match && species_match && label_match
@@ -194,7 +194,7 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
                    projectors[ik] = hcat(projectors[ik], form_factors_l[ik] .* structure_factor ./ sqrt(basis.model.unit_cell_volume))
                 end
                 for m in -l:l
-                    push!(labels, (; iatom, species = Symbol(atom.species), n, l, m, label))
+                    push!(labels, (; iatom, atom.species, n, l, m, label))
                 end
             end
         end
