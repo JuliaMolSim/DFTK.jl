@@ -1,12 +1,15 @@
 #
 # This test suite supports test arguments. For example:
-#     Pkg.test("DFTK"; test_args = ["core"])
+#     Pkg.test("DFTK"; test_args = ["minimal"])
 # only runs the "fast" tests (i.e. not the expensive ones)
 #     Pkg.test("DFTK"; test_args = ["gpu"])
 # runs only the tests tagged as "gpu" and
-#     Pkg.test("DFTK"; test_args = ["example", "all"])
-# runs all tests plus the "example" tests.
-#
+#     Pkg.test("DFTK"; test_args = ["mpi"])
+# runs only MPI parallel tests (all except those with :dont_test_mpi tag)
+#     Pkg.test("DFTK"; test_args = ["mpi", "minimal"])
+# runs only MPI parallel tests from the :minimal subset
+#     Pkg.test("DFTK"; test_args = ["noslow"])
+# runs all tests except those tagges as :slow
 
 using MPI
 include("runtests_parser.jl")
