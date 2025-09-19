@@ -21,7 +21,7 @@ bulk(:Fe)
 
 Ecut  = 15         # kinetic energy cutoff in Hartree
 kgrid = [3, 3, 3]  # k-point grid (Regular Monkhorst-Pack grid)
-pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
+pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
 
 model_nospin  = model_DFT(bulk(:Fe); pseudopotentials, functionals=LDA(), temperature=0.01)
 basis_nospin  = PlaneWaveBasis(model_nospin; kgrid, Ecut)
@@ -107,6 +107,9 @@ bands_666 = compute_bands(scfres, MonkhorstPack(6, 6, 6))  # Increase kgrid to g
 plot_dos(bands_666)
 # Note that if same k-grid as SCF should be employed, a simple `plot_dos(scfres)`
 # is sufficient.
+# We can clearly see that the origin of this spin-polarization traces back to the 
+# 3D orbital contribution if we look at the corresponding projected density of states (PDOS).
+plot_pdos(bands_666; iatom=1, label="3D")
 
 # Similarly the band structure shows clear differences between both spin components.
 using Unitful
