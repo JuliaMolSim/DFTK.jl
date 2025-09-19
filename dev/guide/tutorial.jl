@@ -1,6 +1,4 @@
 # # Tutorial
-#md # [![](https://mybinder.org/badge_logo.svg)](@__BINDER_ROOT_URL__/guide/@__NAME__.ipynb)
-#md # [![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)](@__NBVIEWER_ROOT_URL__/guide/@__NAME__.ipynb)
 
 #nb # DFTK is a Julia package for playing with plane-wave
 #nb # density-functional theory algorithms. In its basic formulation it
@@ -23,15 +21,15 @@
 #     Therefore results are far from converged.
 #     Tighter thresholds and larger grids should be used for more realistic results.
 #
-# For our discussion we will use the classic example of
-# computing the LDA ground state of the
-# [silicon crystal](https://www.materialsproject.org/materials/mp-149).
+# For our discussion we will use the classic example of computing the LDA ground state
+# of the [silicon crystal](https://www.materialsproject.org/materials/mp-149).
 # Performing such a calculation roughly proceeds in three steps.
 
 using DFTK
 using Plots
 using Unitful
 using UnitfulAtomic
+using PseudoPotentialData
 
 ## 1. Define lattice and atomic positions
 a = 5.431u"angstrom"          # Silicon lattice constant
@@ -47,18 +45,30 @@ lattice = a / 2 * [[0 1 1.];  # Silicon lattice vectors
 # documentation](https://painterqubits.github.io/Unitful.jl/stable/) and the
 # [UnitfulAtomic.jl package](https://github.com/sostock/UnitfulAtomic.jl).
 
-## Load HGH pseudopotential for Silicon
-Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
+# We use a pseudodojo pseudopotential
+# (see [PseudoPotentialData](https://github.com/JuliaMolSim/PseudoPotentialData.jl)
+#  for more details on `PseudoFamily`):
+
+pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
+Si = ElementPsp(:Si, pd_lda_family)
 
 ## Specify type and positions of atoms
 atoms     = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
 
+# Note that DFTK supports a few other ways to supply atomistic structures,
+# see for example the sections on [AtomsBase integration](@ref)
+# and [Input and output formats](@ref) for details.
+
 ## 2. Select model and basis
-model = model_LDA(lattice, atoms, positions)
-kgrid = [4, 4, 4]     # k-point grid (Regular Monkhorst-Pack grid)
+model = model_DFT(lattice, atoms, positions; functionals=LDA())
+
+kgrid = KgridSpacing(0.3 / u"bohr")  # Regular k-point grid (Monkhorst-Pack grid)
+##                                      with spacing 0.3/bohr between k-points
+## kgrid = [4, 4, 4]                    Alternative: Number of k-points per dimension
 Ecut = 7              # kinetic energy cutoff
 ## Ecut = 190.5u"eV"  # Could also use eV or other energy-compatible units
+
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 ## Note the implicit passing of keyword arguments here:
 ## this is equivalent to PlaneWaveBasis(model; Ecut=Ecut, kgrid=kgrid)
@@ -71,11 +81,9 @@ scfres = self_consistent_field(basis, tol=1e-5);
 scfres.energies
 
 # Eigenvalues:
-hcat(scfres.eigenvalues...)
+stack(scfres.eigenvalues)
 # `eigenvalues` is an array (indexed by k-points) of arrays (indexed by
-# eigenvalue number). The "splatting" operation `...` calls `hcat`
-# with all the inner arrays as arguments, which collects them into a
-# matrix.
+# eigenvalue number).
 #
 # The resulting matrix is 7 (number of computed eigenvalues) by 8
 # (number of irreducible k-points). There are 7 eigenvalues per
@@ -91,24 +99,44 @@ hcat(scfres.eigenvalues...)
 # for details).
 #
 # We can check the occupations ...
-hcat(scfres.occupation...)
+stack(scfres.occupation)
 # ... and density, where we use that the density objects in DFTK are
-# indexed as ρ[iσ, ix, iy, iz], i.e. first in the spin component and then
-# in the 3-dimensional real-space grid.
+# indexed as ρ[ix, iy, iz, iσ], i.e. first in the 3-dimensional real-space grid
+# and then in the spin component.
 rvecs = collect(r_vectors(basis))[:, 1, 1]  # slice along the x axis
 x = [r[1] for r in rvecs]                   # only keep the x coordinate
-plot(x, scfres.ρ[1, :, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
+plot(x, scfres.ρ[:, 1, 1, 1], label="", xlabel="x", ylabel="ρ", marker=2)
 
 # We can also perform various postprocessing steps:
 # We can get the Cartesian forces (in Hartree / Bohr):
 compute_forces_cart(scfres)
 # As expected, they are numerically zero in this highly symmetric configuration.
-# We could also compute a band structure,
-plot_bandstructure(scfres; kline_density=10)
-# or plot a density of states, for which we increase the kgrid a bit
-# to get smoother plots:
-bands = compute_bands(scfres, MonkhorstPack(6, 6, 6))
-plot_dos(bands; temperature=1e-3, smearing=Smearing.FermiDirac())
-# Note that directly employing the `scfres` also works, but the results
-# are much cruder:
+# We could also compute a band structure: we compute the bands along
+# a k-point line (determined automatically) and plot the result:
+bands1 = compute_bands(scfres; kline_density=10)
+plot_bandstructure(bands1)
+# Next we want to plot a density of states.
+# We can use the `scfres` directly, but the resulting DOS is quite sharp:
 plot_dos(scfres; temperature=1e-3, smearing=Smearing.FermiDirac())
+# To get a better result we first increase the kgrid to get a better
+# discretisation of the Brillouin zone, then re-do the plot:
+bands2 = compute_bands(scfres, MonkhorstPack(6, 6, 6))
+plot_dos(bands2; temperature=1e-3, smearing=Smearing.FermiDirac())
+# Note, that some other codes would refer to the functionality
+# we provide with compute_bands` as "performing a NSCF calculation".
+
+# !!! info "Where to go from here"
+#     - **Background on DFT:**
+#       * [Periodic problems](@ref periodic-problems),
+#       * [Introduction to density-functional theory](@ref),
+#       * [Self-consistent field methods](@ref)
+#     - **Running calculations:**
+#       * [Temperature and metallic systems](@ref metallic-systems)
+#       * [Pseudopotentials](@ref)
+#       * [Performing a convergence study](@ref)
+#       * [Geometry optimization](@ref)
+#       * [AtomsBase integration](@ref) and wider ecosystem: Building / reading structures etc.
+#     - **Tips and tricks:**
+#       * [Using DFTK on compute clusters](@ref),
+#       * [Using DFTK on GPUs](@ref),
+#       * [Saving SCF results on disk and SCF checkpoints](@ref)
