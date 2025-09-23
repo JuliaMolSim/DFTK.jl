@@ -94,7 +94,7 @@ symmetries completely.
 """
 function Model(lattice::AbstractMatrix{T},
                atoms::Vector{<:Element}=Element[],
-               positions::Vector{<:AbstractVector}=Vec3{T}[];
+               positions::Vector{<:AbstractVector}=Vec3{Tstatic}[];
                model_name="custom",
                εF=nothing,
                n_electrons::Union{Int,Nothing}=isnothing(εF) ?
@@ -102,9 +102,9 @@ function Model(lattice::AbstractMatrix{T},
                # Force electrostatics with non-neutral cells; results not guaranteed.
                # Set to `true` by default for charged systems.
                disable_electrostatics_check=all(iszero, charge_ionic.(atoms)),
-               magnetic_moments=T[],
+               magnetic_moments=Tstatic[],
                terms=[Kinetic()],
-               temperature=zero(T),
+               temperature=zero(Tstatic),
                smearing=temperature > 0 ? Smearing.FermiDirac() : Smearing.None(),
                spin_polarization=determine_spin_polarization(magnetic_moments),
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
