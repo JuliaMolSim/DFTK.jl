@@ -110,7 +110,7 @@ function Model(lattice::AbstractMatrix{T},
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
                                              spin_polarization, terms),
                ) where {Tstatic <: Real}
-     # a bit convoluted because kwargs can't determine type parameters
+    # a bit convoluted because kwargs can't determine type parameters
     T = promote_type(Tstatic, typeof(temperature), eltype(magnetic_moments))
 
     # Validate εF and n_electrons
