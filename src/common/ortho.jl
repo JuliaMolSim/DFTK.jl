@@ -8,14 +8,11 @@
     end
 end
 
-@timing function ortho_lowdin(φk::AbstractArray)
-    S = φk' * φk
-    evals, evecs = eigen(S)
+@timing function ortho_lowdin(φk::AbstractArray{T}) where {T}
+    evals, evecs = eigen(Hermitian(φk' * φk))
     # Check for linear dependence: eigenvalues close to zero
-    tol = eps(real(eltype(φk))) * maximum(abs, evals)
-    @assert all(abs.(evals) .> tol) "Input vectors are linearly dependent or nearly so (small eigenvalues detected: $(evals) < $(tol) tolerance)."
+    @assert minimum(abs, evals) > eps(real(T)) * maximum(abs, evals) 
     ihS = evecs * Diagonal(evals .^ (-0.5)) * evecs'
-    x = φk * ihS
-    return x
+    φk * ihS
 end
 

@@ -92,9 +92,7 @@ function compute_pdos(εs, basis::PlaneWaveBasis{T}, ψ, eigenvalues;
         error("compute_pdos only supports finite temperature")
     end
     filled_occ = filled_occupation(basis.model)
-    
     projections, projector_labels = atomic_orbital_projections(basis, ψ; positions)
-
     nprojs = length(projector_labels) 
 
     D = zeros(typeof(εs[1]), length(εs), nprojs, basis.model.n_spin_components)  
@@ -146,18 +144,22 @@ function (s::OrbitalManifold)(orb)
 end
 
 """
-    atomic_orbital_projectors(basis; [ismanifold, positions])   
+    atomic_orbital_projectors(basis; [isonmanifold, positions])   
 
-Build the projectors matrices projsk for all k-points at the same time.
+Build the matrices of projectors onto the pseudoatomic orbitals.
          
-    projector[ik][:, iproj] = |ϕinlm>(kpt)
+    projector[ik][iG, iproj] = 1/√Ω FT{ ϕperₙₗₘ(. - Rᵢ) }(k+G) + orthogonalization
 
- where ϕinlm is the atomic orbital for atom i, quantum numbers (n,l,m)
-   and iproj is the corresponding column index. The mapping is recorded in 'labels'.
+ where Ω is the unit cell volume, ϕperₙₗₘ(. - Rᵢ) is the periodized pseudoatomic orbital (n, l, m) centered at Rᵢ
+  and iproj is the index corresponding to atom i and the quantum numbers (n, l, m). This correspondance is recorded in `labels`.
+
+The projectors are computed by decomposition into a form factor multiplied by a structure factor:
+  FT{ ϕperₙₗₘ(. - Rᵢ) }(k+G) = Fourier transform of periodized atomic orbital ϕₙₗₘ (form factor)
+                           * structure factor for atom center exp(-i<Rᵢ,k+G>)
   
 Overview of inputs: 
 - `positions` : Positions of the atoms in the unit cell. Default is model.positions.
-- `ismanifold` (opt) : (see notes below) OrbitalManifold struct to select only a subset of orbitals for the computation.
+- `isonmanifold` (opt) : (see notes below) OrbitalManifold struct to select only a subset of orbitals for the computation.
 
 Overview of outputs:
 - `projectors`: Vector of matrices of projectors
@@ -166,10 +168,10 @@ Overview of outputs:
 Notes: 
 - The orbitals used for the projectors are all orthogonalized against each other. This corresponds to ortho-atomic projectors in Quantum Espresso.
 - 'n' in labels is not exactly the principal quantum number, but rather the index of the radial function in the pseudopotential. As an example, if the only S orbitals in the pseudopotential are 3S and 4S, then those are indexed as n=1, l=0 and n=2, l=0 respectively.
-- Use 'ismanifold' kwarg with caution, since the resulting projectors would be orthonormalized only against the manifold basis. Most applications require the whole projectors basis to be orthonormal instead.
+- Use 'isonmanifold' kwarg with caution, since the resulting projectors would be orthonormalized only against the manifold basis. Most applications require the whole projectors basis to be orthonormal instead.
 """
 function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
-                                   ismanifold = l -> true,
+                                   isonmanifold = l -> true,
                                    positions = basis.model.positions) where {T}
     
     G_plus_k_all = [Gplusk_vectors(basis, basis.kpoints[ik])
@@ -181,21 +183,19 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
     labels = []
     for (iatom, atom) in enumerate(basis.model.atoms)
         psp = atom.psp
-        for l in 0:psp.lmax
-            for n in 1:DFTK.count_n_pswfc_radial(psp, l)
-                label = DFTK.pswfc_label(psp, n, l)
-                if !ismanifold((;iatom, atom.species, label))
-                    continue
-                end
-                fun(p) = eval_psp_pswfc_fourier(psp, n, l, p)
-                form_factors_l = build_form_factors(fun, l, G_plus_k_all_cart)
-                for ik in 1:length(G_plus_k_all_cart)
-                   structure_factor = [cis2pi(-dot(positions[iatom], p)) for p in G_plus_k_all[ik]]
-                   projectors[ik] = hcat(projectors[ik], form_factors_l[ik] .* structure_factor ./ sqrt(basis.model.unit_cell_volume))
-                end
-                for m in -l:l
-                    push!(labels, (; iatom, atom.species, n, l, m, label))
-                end
+        for l in 0:psp.lmax, n in 1:DFTK.count_n_pswfc_radial(psp, l)
+            label = DFTK.pswfc_label(psp, n, l)
+            if !isonmanifold((; iatom, atom.species, label))
+                continue
+            end
+            fun(p) = eval_psp_pswfc_fourier(psp, n, l, p)
+            form_factors_l = build_form_factors(fun, l, G_plus_k_all_cart)
+            for ik in 1:length(G_plus_k_all_cart)
+               structure_factor = [cis2pi(-dot(positions[iatom], p)) for p in G_plus_k_all[ik]]
+               projectors[ik] = hcat(projectors[ik], form_factors_l[ik] .* structure_factor ./ sqrt(basis.model.unit_cell_volume))
+            end
+            for m in -l:l
+                push!(labels, (; iatom, atom.species, n, l, m, label))
             end
         end
     end
@@ -206,21 +206,19 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
 end
 
 """
-    atomic_orbital_projections(basis, ψ; [ismanifold, positions])
+    atomic_orbital_projections(basis, ψ; [isonmanifold, positions])
 
-Build the projection matrices projsk for all k-points at the same time.
+Build the projection matrices of ψ onto each pseudo-atomic orbital.
 
-    projection[ik][iband, iproj] = <ψnk|*projector[ik][iband, iproj] =  <ψnk|ϕinlm>(kpt)
+    projection[ik][iband, iproj] = ‖ ψ'[ik][:, iband] * projector[ik][:, iproj] ‖²
 
- where ψnk is the atomic wavefunction component for band iband and kpoint kpt.
-
-For more details, see documentation for 'atomic_orbital_projectors'.
+For more details, see documentation for [`atomic_orbital_projectors`](@ref).
 """
 function atomic_orbital_projections(basis::PlaneWaveBasis{T}, ψ;
-                                    ismanifold = l -> true,
+                                    isonmanifold = l -> true,
                                     positions = basis.model.positions) where {T}
-    projectors, labels = atomic_orbital_projectors(basis; ismanifold, positions)
-    projections = map(zip(ψ, projectors)) do (ψk, projectorsk)
+    projectors, labels = atomic_orbital_projectors(basis; isonmanifold, positions)
+    projections = map(ψ, projectors) do ψk, projectorsk
         abs2.(ψk' * projectorsk)
     end
 
