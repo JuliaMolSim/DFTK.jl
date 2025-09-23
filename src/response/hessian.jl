@@ -244,6 +244,7 @@ Input parameters:
 """
 @timing function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
                                     eigenvalues, rhs;
+                                    δtemperature=zero(real(T)),
                                     tol=1e-8, verbose=true,
                                     mixing=SimpleMixing(),
                                     occupation_threshold,
@@ -282,6 +283,7 @@ Input parameters:
     # compute δρ0 (ignoring interactions)
     δρ0 = let  # Make sure memory owned by res0 is freed
         res0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
+                           δtemperature,
                            maxiter=maxiter_sternheimer, tol=tol * factor_initial,
                            bandtolalg, occupation_threshold,
                            q, kwargs...)  # = -χ04P * rhs
@@ -327,6 +329,7 @@ Input parameters:
     #      a fixed Sternheimer tolerance of tol / 10. There are probably
     #      smarter things one could do here
     resfinal = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+                           δtemperature,
                            maxiter=maxiter_sternheimer, tol=tol * factor_final,
                            bandtolalg, occupation_threshold, q, kwargs...)
     callback((; stage=:final, runtime_ns=time_ns() - start_ns,

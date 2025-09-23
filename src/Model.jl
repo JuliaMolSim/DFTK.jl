@@ -109,7 +109,9 @@ function Model(lattice::AbstractMatrix{T},
                spin_polarization=determine_spin_polarization(magnetic_moments),
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
                                              spin_polarization, terms),
-               ) where {T <: Real}
+               ) where {Tstatic <: Real}
+    T = promote_type(Tstatic, typeof(temperature), eltype(magnetic_moments))
+
     # Validate εF and n_electrons
     if !isnothing(εF)  # fixed Fermi level
         if !isnothing(n_electrons)
