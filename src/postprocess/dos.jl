@@ -77,8 +77,9 @@ Overview of inputs:
 
 Overview of outputs:
 - `pdos`: 3D array of PDOS, pdos[iε_idx, iproj, σ] = PDOS at energy εs[iε_idx] for projector iproj and spin σ
-- `projector_labels` : Vector of tuples (iatom, species, label, n, l, m) for each projector, that maps the iproj index to the corresponding atomic orbital. 
-   For details see the documentation for `atomic_orbital_projectors`.
+- `projector_labels` : Vector of tuples (iatom, species, label, n, l, m) for each projector, 
+     that maps the iproj index to the corresponding atomic orbital. 
+     For details see the documentation for `atomic_orbital_projectors`.
 
 Notes: 
 - The atomic orbital projectors are taken from the pseudopotential files used to build the atoms. 
@@ -137,9 +138,9 @@ Can be called with an orbital NamedTuple and returns a boolean
 end
 function (s::OrbitalManifold)(orb)
     iatom_match    = isnothing(s.iatom)   || (s.iatom == orb.iatom)
-    species_match  = isnothing(s.species) || (s.species == orb.species) || (orb.species == s.species) #TODO: https://github.com/JuliaMolSim/AtomsBase.jl/issues/139
+    # See JuliaMolSim/AtomsBase.jl#139 why both species equalities are needed
+    species_match  = isnothing(s.species) || (s.species == orb.species) || (orb.species == s.species)
     label_match    = isnothing(s.label)   || (s.label == orb.label)
-
     iatom_match && species_match && label_match
 end
 
@@ -151,7 +152,8 @@ Build the matrices of projectors onto the pseudoatomic orbitals.
     projector[ik][iG, iproj] = 1/√Ω FT{ ϕperₙₗₘ(. - Rᵢ) }(k+G) + orthogonalization
 
  where Ω is the unit cell volume, ϕperₙₗₘ(. - Rᵢ) is the periodized pseudoatomic orbital (n, l, m) centered at Rᵢ
-  and iproj is the index corresponding to atom i and the quantum numbers (n, l, m). This correspondance is recorded in `labels`.
+  and iproj is the index corresponding to atom i and the quantum numbers (n, l, m). 
+  This correspondance is recorded in `labels`.
 
 The projectors are computed by decomposition into a form factor multiplied by a structure factor:
   FT{ ϕperₙₗₘ(. - Rᵢ) }(k+G) = Fourier transform of periodized atomic orbital ϕₙₗₘ (form factor)
@@ -159,16 +161,22 @@ The projectors are computed by decomposition into a form factor multiplied by a 
   
 Overview of inputs: 
 - `positions` : Positions of the atoms in the unit cell. Default is model.positions.
-- `isonmanifold` (opt) : (see notes below) OrbitalManifold struct to select only a subset of orbitals for the computation.
+- `isonmanifold` (opt) : (see notes below) OrbitalManifold struct to select only a subset of orbitals 
+     for the computation.
 
 Overview of outputs:
 - `projectors`: Vector of matrices of projectors
 - `labels`: Vector of NamedTuples containing iatom, species, n, l, m and orbital name for each projector
 
 Notes: 
-- The orbitals used for the projectors are all orthogonalized against each other. This corresponds to ortho-atomic projectors in Quantum Espresso.
-- 'n' in labels is not exactly the principal quantum number, but rather the index of the radial function in the pseudopotential. As an example, if the only S orbitals in the pseudopotential are 3S and 4S, then those are indexed as n=1, l=0 and n=2, l=0 respectively.
-- Use 'isonmanifold' kwarg with caution, since the resulting projectors would be orthonormalized only against the manifold basis. Most applications require the whole projectors basis to be orthonormal instead.
+- The orbitals used for the projectors are all orthogonalized against each other. 
+    This corresponds to ortho-atomic projectors in Quantum Espresso.
+- 'n' in labels is not exactly the principal quantum number, but rather the index of the radial function 
+    in the pseudopotential. As an example, if the only S orbitals in the pseudopotential are 3S and 4S, 
+    then those are indexed as n=1, l=0 and n=2, l=0 respectively.
+- Use 'isonmanifold' kwarg with caution, since the resulting projectors would be 
+    orthonormalized only against the manifold basis. 
+    Most applications require the whole projectors basis to be orthonormal instead.
 """
 function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
                                    isonmanifold = l -> true,
@@ -192,7 +200,9 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
             form_factors_l = build_form_factors(fun, l, G_plus_k_all_cart)
             for ik in 1:length(G_plus_k_all_cart)
                structure_factor = [cis2pi(-dot(positions[iatom], p)) for p in G_plus_k_all[ik]]
-               projectors[ik] = hcat(projectors[ik], form_factors_l[ik] .* structure_factor ./ sqrt(basis.model.unit_cell_volume))
+               projectors[ik] = hcat(projectors[ik], 
+                                     form_factors_l[ik] .* structure_factor 
+                                      ./ sqrt(basis.model.unit_cell_volume))
             end
             for m in -l:l
                 push!(labels, (; iatom, atom.species, n, l, m, label))
@@ -228,7 +238,8 @@ end
 """
     sum_pdos(pdos_res, manifolds)
 
-This function extracts and sums up all the PDOSes, directly from the output of the `compute_pdos` function, that match any of the manifolds.
+This function extracts and sums up all the PDOSes, directly from the output of the `compute_pdos` function, 
+  that match any of the manifolds.
 
 Overview of inputs:
 - `pdos_res`: Whole output from compute_pdos.
