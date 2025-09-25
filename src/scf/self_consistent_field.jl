@@ -131,6 +131,7 @@ Overview of parameters:
     basis::PlaneWaveBasis{T};
     ρ=guess_density(basis),
     τ=any(needs_τ, basis.terms) ? zero(ρ) : nothing,
+    n_hub=nothing,
     ψ=nothing,
     tol=1e-6,
     is_converged=ScfConvergenceDensity(tol),
@@ -157,12 +158,12 @@ Overview of parameters:
     # We do density mixing in the real representation
     # TODO support other mixing types
     function fixpoint_map(ρin, info)
-        (; ψ, occupation, eigenvalues, εF, n_iter, converged, timedout, τ) = info
+        (; ψ, occupation, eigenvalues, εF, n_iter, converged, timedout, τ, n_hub) = info
         n_iter += 1
 
         # Note that ρin is not the density of ψ, and the eigenvalues
         # are not the self-consistent ones, which makes this energy non-variational
-        energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρin, τ, eigenvalues, εF)
+        energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρin, τ, n_hub, eigenvalues, εF)
 
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
@@ -178,16 +179,24 @@ Overview of parameters:
         if any(needs_τ, basis.terms)
             τ = compute_kinetic_energy_density(basis, ψ, occupation)
         end
+        for (iterm, term) in enumerate(basis.terms)
+            if typeof(term)==TermHubbard
+                n_hub = Vector{Array{Matrix{ComplexF64}}}(undef, 0)
+                for (iman, manifold) in enumerate(term.manifold)
+                    push!(n_hub, compute_hubbard_nIJ(manifold, basis, ψ, occupation).n_IJ)
+                end
+            end
+        end
 
         # Update info with results gathered so far
         info_next = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
-                       ρin, τ, α=damping, n_iter, nbandsalg.occupation_threshold,
+                       ρin, τ, n_hub, α=damping, n_iter, nbandsalg.occupation_threshold,
                        runtime_ns=time_ns() - start_ns, nextstate...,
                        diagonalization=[nextstate.diagonalization])
 
         # Compute the energy of the new state
         if compute_consistent_energies
-            (; energies) = energy(basis, ψ, occupation; ρ=ρout, τ, eigenvalues, εF)
+            (; energies) = energy(basis, ψ, occupation; ρ=ρout, τ, n_hub, eigenvalues, εF)
         end
         history_Etot = vcat(info.history_Etot, energies.total)
         history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
@@ -209,7 +218,7 @@ Overview of parameters:
         ρnext, info_next
     end
 
-    info_init = (; ρin=ρ, τ, ψ, occupation=nothing, eigenvalues=nothing, εF=nothing,
+    info_init = (; ρin=ρ, τ, n_hub, ψ, occupation=nothing, eigenvalues=nothing, εF=nothing,
                    n_iter=0, n_matvec=0, timedout=false, converged=false,
                    history_Etot=T[], history_Δρ=T[])
 
@@ -219,13 +228,13 @@ Overview of parameters:
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρout, so we return that. We also perform a last energy computation
     # to return a correct variational energy
-    (; ρin, ρout, τ, ψ, occupation, eigenvalues, εF, converged) = info
-    energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρout, τ, eigenvalues, εF)
+    (; ρin, ρout, τ, n_hub, ψ, occupation, eigenvalues, εF, converged) = info
+    energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρout, τ, n_hub, eigenvalues, εF)
 
     # Callback is run one last time with final state to allow callback to clean up
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
                 ρ=ρout, τ, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
-                info.n_iter, info.n_matvec, ψ, info.diagonalization, stage=:finalize,
+                info.n_iter, info.n_matvec, ψ, n_hub, info.diagonalization, stage=:finalize,
                 info.history_Δρ, info.history_Etot, info.timedout, mixing,
                 runtime_ns=time_ns() - start_ns, algorithm="SCF")
     callback(scfres)

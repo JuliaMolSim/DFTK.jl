@@ -120,31 +120,6 @@ function compute_pdos(εs, bands; kwargs...)
 end
 
 """
-Structure for manifold choice and projectors extraction. 
-    
-Overview of fields:
-- `iatom`: Atom position in the atoms array.
-- `species`: Chemical Element as in ElementPsp.
-- `label`: Orbital name, e.g.: "3S".
-
-All fields are optional, only the given ones will be used for selection.
-Can be called with an orbital NamedTuple and returns a boolean
-  stating whether the orbital belongs to the manifold.
-"""
-@kwdef struct OrbitalManifold
-    iatom   ::Union{Int64,  Nothing} = nothing
-    species ::Union{Symbol, AtomsBase.ChemicalSpecies, Nothing} = nothing
-    label   ::Union{String, Nothing} = nothing
-end
-function (s::OrbitalManifold)(orb)
-    iatom_match    = isnothing(s.iatom)   || (s.iatom == orb.iatom)
-    # See JuliaMolSim/AtomsBase.jl#139 why both species equalities are needed
-    species_match  = isnothing(s.species) || (s.species == orb.species) || (orb.species == s.species)
-    label_match    = isnothing(s.label)   || (s.label == orb.label)
-    iatom_match && species_match && label_match
-end
-
-"""
     atomic_orbital_projectors(basis; [isonmanifold, positions])   
 
 Build the matrices of projectors onto the pseudoatomic orbitals.
