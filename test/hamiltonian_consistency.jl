@@ -5,6 +5,7 @@ using Logging
 using DFTK: mpi_sum
 using LinearAlgebra
 using ..TestCases: silicon
+using PseudoPotentialData
 testcase = silicon
 
 function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
@@ -14,7 +15,8 @@ function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
             @test norm(operator_matrix*ψk - operator*ψk) < atol
         catch e
             allowed_missing_operators = Union{DFTK.DivAgradOperator,
-                                              DFTK.MagneticFieldOperator}
+                                              DFTK.MagneticFieldOperator,
+                                              DFTK.HubbardUOperator}
             @assert operator isa allowed_missing_operators
             @info "Matrix of operator $(nameof(typeof(operator))) not yet supported" maxlog=1
         end
@@ -28,7 +30,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
     @testset "$(typeof(term))$xc $sspol" begin
         n_dim = 3 - count(iszero, eachcol(lattice))
-        Si = n_dim == 3 ? ElementPsp(14, load_psp(testcase.psp_gth)) : ElementCoulomb(:Si)
+        Si = n_dim == 3 ? ElementPsp(14, PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")) : ElementCoulomb(:Si)
         atoms = [Si, Si]
         model = Model(lattice, atoms, testcase.positions; terms=[term], spin_polarization,
                       symmetries=true)
@@ -92,6 +94,7 @@ end
     test_consistency_term(ExternalFromFourier(X -> abs(norm(X))))
     test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
     test_consistency_term(Hartree())
+    test_consistency_term(Hubbard(DFTK.OrbitalManifold(;species=:Si, label="3S"), 1.0))
     test_consistency_term(Ewald())
     test_consistency_term(PspCorrection())
     test_consistency_term(Xc([:lda_xc_teter93]))
