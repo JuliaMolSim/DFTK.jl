@@ -3,6 +3,7 @@ using Test
 using DFTK
 using Logging
 using DFTK: mpi_sum
+using DFTK: Hubbard
 using LinearAlgebra
 using ..TestCases: silicon
 using PseudoPotentialData
@@ -84,6 +85,7 @@ end
 
 @testitem "Hamiltonian consistency" setup=[TestCases, HamConsistency] tags=[:dont_test_mpi] begin
     using DFTK
+    using DFTK: Hubbard
     using LinearAlgebra
     using .HamConsistency: test_consistency_term
 
