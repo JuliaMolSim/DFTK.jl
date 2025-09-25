@@ -30,7 +30,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
     @testset "$(typeof(term))$xc $sspol" begin
         n_dim = 3 - count(iszero, eachcol(lattice))
-        Si = n_dim == 3 ? ElementPsp(14, PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")) : ElementCoulomb(:Si)
+        Si = n_dim == 3 ? ElementPsp(14, load_psp(testcase.psp_upf)) : ElementCoulomb(:Si)
         atoms = [Si, Si]
         model = Model(lattice, atoms, testcase.positions; terms=[term], spin_polarization,
                       symmetries=true)

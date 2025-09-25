@@ -159,12 +159,7 @@ oxygen = (;
     psp_upf = pd_lda_family[:O],
     temperature = 0.02, 
     is_metal = true,
-)
-nio2 = merge(nio2,
-             (; atoms=vcat(fill(ElementPsp(nickel.atnum,
-                                      load_psp(nickel.psp_gth)), 2),
-                           fill(ElementPsp(oxygen.atnum,
-                                      load_psp(oxygen.psp_gth)), 2))))                                 
+)                          
 
 all_testcases = (; silicon, magnesium, aluminium, aluminium_primitive, platinum_hcp,
                  iron_bcc, o2molecule)
