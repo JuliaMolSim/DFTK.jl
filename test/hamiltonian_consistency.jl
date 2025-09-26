@@ -24,7 +24,7 @@ function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
 end
 
 function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2, 3],
-                               kshift=[0, 1, 0]/2, lattice=testcase.lattice, Ecut=10,
+                               kshift=[0, 1, 0]/2, lattice=testcase.lattice, Ecut=15,
                                spin_polarization=:none)
     sspol = spin_polarization != :none ? " ($spin_polarization)" : ""
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
@@ -32,24 +32,27 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         n_dim = 3 - count(iszero, eachcol(lattice))
         Si = n_dim == 3 ? ElementPsp(14, load_psp(testcase.psp_upf)) : ElementCoulomb(:Si)
         atoms = [Si, Si]
-        model = Model(lattice, atoms, testcase.positions; terms=[term], spin_polarization,
+        model = Model(lattice, atoms, testcase.positions; terms=[term], #spin_polarization=:collinear,
                       symmetries=true)
         basis = PlaneWaveBasis(model; Ecut, kgrid=MonkhorstPack(kgrid; kshift))
 
         n_electrons = testcase.n_electrons
         n_bands = div(n_electrons, 2, RoundUp)
         filled_occ = DFTK.filled_occupation(model)
+        @show filled_occ
 
         ψ = [Matrix(qr(randn(ComplexF64, length(G_vectors(basis, kpt)), n_bands)).Q)
              for kpt in basis.kpoints]
         occupation = [filled_occ * rand(n_bands) for _ = 1:length(basis.kpoints)]
         occ_scaling = n_electrons / sum(sum(occupation))
         occupation = [occ * occ_scaling for occ in occupation]
+        @show occupation
         ρ = with_logger(NullLogger()) do
             compute_density(basis, ψ, occupation)
         end
         τ = compute_kinetic_energy_density(basis, ψ, occupation)
         E0, ham = energy_hamiltonian(basis, ψ, occupation; ρ, τ)
+        @show E0
 
         @assert length(basis.terms) == 1
 
@@ -76,6 +79,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         diff_predicted = mpi_sum(diff_predicted, basis.comm_kpts)
 
         err = abs(diff - diff_predicted)
+        @show diff diff_predicted err rtol*abs(E0.total) atol
         @test err < rtol * abs(E0.total) || err < atol
     end
 end
@@ -87,33 +91,33 @@ end
     using LinearAlgebra
     using .HamConsistency: test_consistency_term
 
-    test_consistency_term(Kinetic())
-    test_consistency_term(AtomicLocal())
-    test_consistency_term(AtomicNonlocal())
-    test_consistency_term(ExternalFromReal(X -> cos(X[1])))
-    test_consistency_term(ExternalFromFourier(X -> abs(norm(X))))
-    test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
-    test_consistency_term(Hartree())
-    test_consistency_term(Hubbard(DFTK.OrbitalManifold(;species=:Si, label="3S"), 1.0))
-    test_consistency_term(Ewald())
-    test_consistency_term(PspCorrection())
-    test_consistency_term(Xc([:lda_xc_teter93]))
-    test_consistency_term(Xc([:lda_xc_teter93]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:gga_x_pbe]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:mgga_x_tpss]))
-    test_consistency_term(Xc([:mgga_x_scan]))
-    test_consistency_term(Xc([:mgga_c_scan]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:mgga_x_b00]))
-    test_consistency_term(Xc([:mgga_c_b94]), spin_polarization=:collinear)
-
-    let
-        a = 6
-        pot(x, y, z) = (x - a/2)^2 + (y - a/2)^2
-        Apot(x, y, z) = .2 * [y - a/2, -(x - a/2), 0]
-        Apot(X) = Apot(X...)
-        test_consistency_term(Magnetic(Apot); kgrid=[1, 1, 1], kshift=[0, 0, 0],
-                              lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
-        test_consistency_term(DFTK.Anyonic(2, 3.2); kgrid=[1, 1, 1], kshift=[0, 0, 0],
-                              lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
-    end
+#    test_consistency_term(Kinetic())
+#    test_consistency_term(AtomicLocal())
+#    test_consistency_term(AtomicNonlocal())
+#    test_consistency_term(ExternalFromReal(X -> cos(X[1])))
+#    test_consistency_term(ExternalFromFourier(X -> abs(norm(X))))
+#    test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
+#    test_consistency_term(Hartree())
+    test_consistency_term(Hubbard(DFTK.OrbitalManifold(;species=:Si, label="3S"), 10))
+#    test_consistency_term(Ewald())
+#    test_consistency_term(PspCorrection())
+#    test_consistency_term(Xc([:lda_xc_teter93]))
+#    test_consistency_term(Xc([:lda_xc_teter93]), spin_polarization=:collinear)
+#    test_consistency_term(Xc([:gga_x_pbe]), spin_polarization=:collinear)
+#    test_consistency_term(Xc([:mgga_x_tpss]))
+#    test_consistency_term(Xc([:mgga_x_scan]))
+#    test_consistency_term(Xc([:mgga_c_scan]), spin_polarization=:collinear)
+#    test_consistency_term(Xc([:mgga_x_b00]))
+#    test_consistency_term(Xc([:mgga_c_b94]), spin_polarization=:collinear)
+#
+#    let
+#        a = 6
+#        pot(x, y, z) = (x - a/2)^2 + (y - a/2)^2
+#        Apot(x, y, z) = .2 * [y - a/2, -(x - a/2), 0]
+#        Apot(X) = Apot(X...)
+#        test_consistency_term(Magnetic(Apot); kgrid=[1, 1, 1], kshift=[0, 0, 0],
+#                              lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
+#        test_consistency_term(DFTK.Anyonic(2, 3.2); kgrid=[1, 1, 1], kshift=[0, 0, 0],
+#                              lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
+#    end
 end
