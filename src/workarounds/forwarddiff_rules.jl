@@ -166,7 +166,7 @@ function construct_value(model::Model{T}) where {T <: Dual}
           newpositions;
           model.model_name,
           model.n_electrons,
-          magnetic_moments=[],  # Symmetries given explicitly
+          magnetic_moments=value_type(T)[],  # Symmetries given explicitly
           terms=model.term_types,
           temperature=ForwardDiff.value(model.temperature),
           model.smearing,
@@ -233,12 +233,12 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
                                       scfres.εF).ham
         ham_dual * scfres.ψ
     end
-
     # Implicit differentiation
     response.verbose && println("Solving response problem")
     δresults = ntuple(ForwardDiff.npartials(T)) do α
         δHextψ = [ForwardDiff.partials.(δHextψk, α) for δHextψk in Hψ_dual]
-        solve_ΩplusK_split(scfres, -δHextψ;
+        δtemperature = ForwardDiff.partials(basis_dual.model.temperature, α)
+        solve_ΩplusK_split(scfres, -δHextψ; δtemperature,
                            tol=last(scfres.history_Δρ), response.verbose)
     end
 
