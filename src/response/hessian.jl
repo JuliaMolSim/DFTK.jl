@@ -310,32 +310,35 @@ Input parameters:
         @warn "Solve_ΩplusK_split solver not converged"
     end
 
-    # Compute total change in Hamiltonian applied to ψ
+    # Now we got δρ, but we're not done yet, because we want the full output of the four-point apply_χ0_4P,
+    # so we redo an apply_χ0_4P
+
+    # Induced potential variation
     δVind = apply_kernel(basis, δρ; ρ, q)  # Change in potential induced by δρ
 
+    # Total variation δHtot ψ
     # For phonon calculations, assemble
     #   δHψ_k = δV_{q} · ψ_{k-q}.
-    δHψ = multiply_ψ_by_blochwave(basis, ψ, δVind, q) .- rhs
-
-    # Compute total change in eigenvalues
-    δeigenvalues = map(ψ, δHψ) do ψk, δHψk
-        map(eachcol(ψk), eachcol(δHψk)) do ψnk, δHψnk
-            real(dot(ψnk, δHψnk))  # δε_{nk} = <ψnk | δH | ψnk>
-        end
-    end
+    δHtotψ = multiply_ψ_by_blochwave(basis, ψ, δVind, q) .- rhs # recall rhs = -δHextψ
 
     # Compute final orbital response
     # TODO Here we just use what DFTK did before the inexact Krylov business, namely
     #      a fixed Sternheimer tolerance of tol / 10. There are probably
     #      smarter things one could do here
-    resfinal = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+    resfinal = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHtotψ;
                            δtemperature,
                            maxiter=maxiter_sternheimer, tol=tol * factor_final,
                            bandtolalg, occupation_threshold, q, kwargs...)
     callback((; stage=:final, runtime_ns=time_ns() - start_ns,
                 Axinfos=[(; basis, tol=tol*factor_final, resfinal...)]))
+    # Compute total change in eigenvalues
+    δeigenvalues = map(ψ, δHtotψ) do ψk, δHtotψk
+        map(eachcol(ψk), eachcol(δHtotψk)) do ψnk, δHtotψnk
+            real(dot(ψnk, δHtotψnk))  # δε_{nk} = <ψnk | δHtot | ψnk>
+        end
+    end
 
-    (; resfinal.δψ, δρ, δHψ, δVind, δρ0, δeigenvalues, resfinal.δoccupation,
+    (; resfinal.δψ, δρ, δHtotψ, δVind, δρ0, δeigenvalues, resfinal.δoccupation,
        resfinal.δεF, ε_adj, info_gmres)
 end
 
