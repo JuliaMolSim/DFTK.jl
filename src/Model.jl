@@ -92,7 +92,7 @@ If you want to pass custom symmetry operations (e.g. a reduced or extended set) 
 external potential breaks some of the passed symmetries. Use `false` to turn off
 symmetries completely.
 """
-function Model(lattice::AbstractMatrix{T},
+function Model(lattice::AbstractMatrix{Tstatic},
                atoms::Vector{<:Element}=Element[],
                positions::Vector{<:AbstractVector}=Vec3{Tstatic}[];
                model_name="custom",
