@@ -166,6 +166,7 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
     labels = []
     for (iatom, atom) in enumerate(basis.model.atoms)
         psp = atom.psp
+        @assert !iszero(size(psp.r2_pswfcs[1], 1)) "FATAL ERROR: No Atomic projector found within the provided PseudoPotential."
         for l in 0:psp.lmax, n in 1:DFTK.count_n_pswfc_radial(psp, l)
             label = DFTK.pswfc_label(psp, n, l)
             if !isonmanifold((; iatom, atom.species, label))

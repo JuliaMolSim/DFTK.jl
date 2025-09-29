@@ -1,4 +1,4 @@
-@testitem "Nickel Oxide" setup=[TestCases] begin
+@testitem "Test Hubbard U term in Nickel Oxide" setup=[TestCases] begin
    using DFTK
    using PseudoPotentialData
    using Unitful

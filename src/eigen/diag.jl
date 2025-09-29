@@ -9,7 +9,7 @@ that really does the work, operating on a single ``k``-Block.
 function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::Int;
                                  ψguess=nothing,
                                  prec_type=PreconditionerTPA, interpolate_kpoints=true,
-                                 tol=1e-6, miniter=1, maxiter=100, n_conv_check=nothing, kwargs...)
+                                 tol=1e-6, miniter=1, maxiter=100, n_conv_check=nothing)
     kpoints = ham.basis.kpoints
     results = Vector{Any}(undef, length(kpoints))
 
