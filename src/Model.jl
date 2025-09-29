@@ -110,9 +110,8 @@ function Model(lattice::AbstractMatrix{Tstatic},
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
                                              spin_polarization, terms),
                ) where {Tstatic <: Real}
-    # a bit convoluted because kwargs can't determine type parameters
-    isempty(magnetic_moments) && (magnetic_moments = Tstatic[]) # ensure proper typing of empty arrays
-    T = promote_type(Tstatic, typeof(temperature), eltype(magnetic_moments))
+    # # a bit convoluted because kwargs can't determine type parameters
+    T = promote_type(Tstatic, typeof(temperature))
 
     # Validate εF and n_electrons
     if !isnothing(εF)  # fixed Fermi level
