@@ -254,9 +254,9 @@ function Model{T}(model::Model;
     Model(T.(lattice), atoms, positions;
           model.model_name,
           model.n_electrons,
-          magnetic_moments,
+          magnetic_moments=T.(magnetic_moments),
           terms=model.term_types,
-          model.temperature,
+          temperature=T(model.temperature),
           model.smearing,
           model.εF,
           model.spin_polarization,
