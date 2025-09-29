@@ -32,7 +32,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         n_dim = 3 - count(iszero, eachcol(lattice))
         Si = n_dim == 3 ? ElementPsp(14, load_psp(testcase.psp_upf)) : ElementCoulomb(:Si)
         atoms = [Si, Si]
-        model = Model(lattice, atoms, testcase.positions; terms=[term], #spin_polarization=:collinear,
+        model = Model(lattice, atoms, testcase.positions; terms=[term], spin_polarization,
                       symmetries=true)
         basis = PlaneWaveBasis(model; Ecut, kgrid=MonkhorstPack(kgrid; kshift))
 

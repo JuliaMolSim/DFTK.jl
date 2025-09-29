@@ -156,7 +156,7 @@ end
 # TODO Implement  Matrix(op::DivAgrad)
 
 @doc raw"""
-"Hubbard U" operator ``Hψ = Σᵢ Σₘ₁ₘ₂ U/2 * (1 - 2n[i,i][m1,m2]) * Pᵢₘ₁ * Pᵢₘ₂' * ψ``
+"Hubbard U" operator ``V_σ ψ = Σᵢ Σₘ₁ₘ₂ U/2 * (1 - 2nhubbard[σ, i,i][m1,m2]) * Pᵢₘ₁ * Pᵢₘ₂' * ψ``
 where ``Pᵢₘ₁`` is the projector for atom i and orbital m₁.
 (m₁ is usually just the magnetic quantum number, since l is usually fixed)
 """
@@ -182,7 +182,7 @@ function apply!(Hψ, op::HubbardUOperator, ψ)
                 δm = (m1 == m2) ? one(eltype(n_ii)) : zero(eltype(n_ii))
                 coefficient = 1/2 * op.Us * (δm - 2*n_ii[m1, m2])
                 projection = P_i_m2' * ψ.fourier
-                Hψ.fourier .+= coefficient * projection * P_i_m1
+                Hψ.fourier .+= P_i_m1 * coefficient * projection
             end
         end
     end
