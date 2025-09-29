@@ -238,7 +238,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
     δresults = ntuple(ForwardDiff.npartials(T)) do α
         δHextψ = [ForwardDiff.partials.(δHextψk, α) for δHextψk in Hψ_dual]
         δtemperature = ForwardDiff.partials(basis_dual.model.temperature, α)
-        solve_ΩplusK_split(scfres, -δHextψ; δtemperature,
+        solve_ΩplusK_split(scfres, δHextψ; δtemperature,
                            tol=last(scfres.history_Δρ), response.verbose)
     end
 
