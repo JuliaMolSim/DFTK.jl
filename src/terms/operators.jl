@@ -156,14 +156,14 @@ end
 # TODO Implement  Matrix(op::DivAgrad)
 
 @doc raw"""
-"Hubbard U" operator ``Hψ = Σᵢ Σₘ₁ₘ₂ U * (1 - 2n[i,i][m1,m2]) * Pᵢₘ₁ * Pᵢₘ₂' * ψ``
+"Hubbard U" operator ``Hψ = Σᵢ Σₘ₁ₘ₂ U/2 * (1 - 2n[i,i][m1,m2]) * Pᵢₘ₁ * Pᵢₘ₂' * ψ``
 where ``Pᵢₘ₁`` is the projector for atom i and orbital m₁.
 (m₁ is usually just the magnetic quantum number, since l is usually fixed)
 """
 struct HubbardUOperator{T <: Real} <: RealFourierOperator
     basis   :: PlaneWaveBasis{T}
     kpoint  :: Kpoint{T}
-    Us      :: Real                       # Hubbard U parameter
+    Us                                    # Hubbard U parameter
     n_IJs   :: Array{Matrix{Complex{T}}}
     proj_Is :: Vector{Matrix{Complex{T}}} # It is the projector for the given kpoint only
 end
@@ -180,7 +180,7 @@ function apply!(Hψ, op::HubbardUOperator, ψ)
             for m2 = 1:size(n_ii, 2)
                 P_i_m2 = proj_I[iatom][:,m2]
                 δm = (m1 == m2) ? one(eltype(n_ii)) : zero(eltype(n_ii))
-                coefficient = 0.5 * op.Us * (δm - 2*n_ii[m1, m2])
+                coefficient = 1/2 * op.Us * (δm - 2*n_ii[m1, m2])
                 projection = P_i_m2' * ψ.fourier
                 Hψ.fourier .+= coefficient * projection * P_i_m1
             end

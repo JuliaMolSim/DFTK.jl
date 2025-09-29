@@ -180,11 +180,8 @@ Overview of parameters:
             τ = compute_kinetic_energy_density(basis, ψ, occupation)
         end
         for (iterm, term) in enumerate(basis.terms)
-            if typeof(term)==TermHubbard
-                n_hub = Vector{Array{Matrix{ComplexF64}}}(undef, 0)
-                for (iman, manifold) in enumerate(term.manifold)
-                    push!(n_hub, compute_hubbard_nIJ(manifold, basis, ψ, occupation).n_IJ)
-                end
+            if typeof(term)==DFTK.TermHubbard{Vector{Matrix{ComplexF64}}, Vector{Any}}
+                n_hub = compute_hubbard_nIJ(term.manifold, basis, ψ, occupation; projectors=term.P, labels=term.labels).n_IJ
             end
         end
 

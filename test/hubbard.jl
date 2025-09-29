@@ -1,4 +1,4 @@
-@testitem "Nickel Oxide" setup=[TestCases] begin
+@testitem "Test Hubbard U term in Nickel Oxide" setup=[TestCases] begin
    using DFTK
    using PseudoPotentialData
    using Unitful
@@ -42,4 +42,11 @@
           @test abs(e_hub - ref) < 1e-8
        end
    end  
+   
+   # Test symmetry consistency
+   n_hub = scfres.n_hub
+   basis_nosym = unfold_bz(basis)
+   ρ0 = guess_density(basis_nosym, magnetic_moments)
+   scfres = self_consistent_field(basis_nosym; tol=1e-10, ρ=ρ0)
+   @test norm(n_hub .- scfres.n_hub) < 1e-8
 end

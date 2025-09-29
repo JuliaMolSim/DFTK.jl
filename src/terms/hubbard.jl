@@ -54,21 +54,6 @@ function extract_manifold(basis::PlaneWaveBasis{T}, projectors, labels,
     return (; manifold_labels, manifold_projectors)
 end
 
-function compute_overlap_matrix(basis::PlaneWaveBasis{T};
-                                manifold  = nothing,
-                                positions = basis.model.positions) where {T}
-    proj = atomic_orbital_projectors(basis; manifold, positions)
-    projectors = proj.projectors
-    labels = proj.labels
-    overlap_matrix = Vector{Matrix{T}}(undef, length(basis.kpoints))
-
-    for (ik, projk) in enumerate(projectors)
-        overlap_matrix[ik] = abs2.(projk' * projk)
-    end
-
-    return (; overlap_matrix, projectors, labels)
-end
-
 """
 Symmetrize the Hubbard occupation matrix according to the l quantum number of the manifold.
 """
@@ -92,7 +77,7 @@ function symmetrize_nhub(n_IJ::Array{Matrix{Complex{T}}}, lattice, symmetry, pos
 
     for σ in 1:nspins, iatom in 1:natoms, isym in 1:nsym
         for m1 in 1:size(ns[σ, iatom, iatom], 1), m2 in 1:size(ns[σ, iatom, iatom], 2)
-            sym_atom = find_symmetric(iatom, symmetry, isym, positions)
+            sym_atom = find_symmetry_preimage(positions, positions[iatom], symmetry[isym])
             # TODO: Here QE flips spin for time-reversal in collinear systems, should we?
             for m0 in 1:size(n_IJ[σ, iatom, iatom], 1), m00 in 1:size(n_IJ[σ, iatom, iatom], 2)
                 ns[σ, iatom, iatom][m1, m2] += WigD[m0, m1, isym] *
@@ -102,26 +87,6 @@ function symmetrize_nhub(n_IJ::Array{Matrix{Complex{T}}}, lattice, symmetry, pos
         end
     end
     ns .= ns / nsym
-
-    return ns
-end
-
-"""
-Find the symmetric atom index for a given atom and symmetry operation
-"""
-function find_symmetric(iatom::Int64, symmetry::Vector{SymOp{T}},
-                        isym::Int64, positions) where {T}
-    sym_atom = iatom
-    W, w = symmetry[isym].W, symmetry[isym].w
-    p = positions[iatom]
-    p2 = W * p + w
-    for (jatom, pos) in enumerate(positions)
-        if isapprox(pos, p2, atol=1e-8)
-            sym_atom = jatom
-            break
-        end
-    end
-    return sym_atom
 end
 
 """
@@ -142,6 +107,7 @@ function Wigner_sym(l::Int64, L, symmetries::Vector{SymOp{T}}) where {T}
             A = Matrix{Float64}(undef, 2*l+1, 2*l+1)
             for n in 1:2*l+1
                 r = rand(Float64, 3)
+                r = r / norm(r)
                 r0 = L * W * inv(L) * r
                 b[n] = DFTK.ylm_real(l, m1, r0)
                 for m2 in -l:l
@@ -178,12 +144,8 @@ Overviw of outputs:
 function compute_hubbard_nIJ(manifold::OrbitalManifold,
                              basis::PlaneWaveBasis{T},
                              ψ, occupation;
-                             projectors = nothing, labels = nothing,
+                             projectors, labels,
                              positions = basis.model.positions) where {T}
-    for (iatom, atom) in enumerate(basis.model.atoms)
-        @assert !iszero(size(atom.psp.r2_pswfcs[1], 1)) "FATAL ERROR: No Atomic projector found within the provided PseudoPotential."
-    end
-
     filled_occ = filled_occupation(basis.model)
     nprojs = length(labels)
     nspins = basis.model.n_spin_components
@@ -228,23 +190,29 @@ function compute_hubbard_nIJ(manifold::OrbitalManifold,
         end
     end
 
-    n_IJ = symmetrize_nhub(n_IJ, basis.model.lattice, basis.symmetries, basis.model.positions)
+    n_IJ = symmetrize_nhub(n_IJ, basis.model.lattice, basis.symmetries, basis.model.positions[manifold_atoms])
 
     return (; n_IJ=n_IJ, manifold_labels=labels, p_I=p_I)
 end
 
-function reshape_hubbard_proj(projectors::Vector{Matrix{Complex{T}}}, labels) where {T}
-    natoms = max([labels[i].iatom for i in 1:length(labels)]...)
+function reshape_hubbard_proj(basis, projectors::Vector{Matrix{Complex{T}}}, labels, manifold) where {T}
+    manifold_atoms = findall(at -> at.species == Symbol(manifold.species), basis.model.atoms)
+    natoms = length(manifold_atoms)
+    nprojs = length(labels)
     p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for i in 1:length(projectors)]
-    i = 1
-    while i <= size(projectors, 2)
-        il = labels[i].l
-        iatom = labels[i].iatom
-        for (ik, projk) in enumerate(projectors)
-            p_I[ik][iatom] = Matrix{Complex{T}}(undef, size(projk,1), 2*il + 1)
-            p_I[ik][iatom] = copy(projk[:, i:i+2*il])
+    for iatom in eachindex(manifold_atoms)
+        i = 1
+        while i <= nprojs
+            il = labels[i].l
+            if !(manifold_atoms[iatom] == labels[i].iatom)
+                i += 2*il + 1
+                continue
+            end
+            for (ik, projk) in enumerate(projectors)
+                p_I[ik][iatom] = projk[:, i:i+2*il]  
+            end
+            i += 2*il + 1
         end
-        i += 2*il + 1
     end
 
     return p_I
@@ -252,18 +220,19 @@ end
 
 struct Hubbard
     manifold :: OrbitalManifold
-    U        :: Float64
+    U        
 end
 function (hubbard::Hubbard)(basis::AbstractBasis)
     isempty(hubbard.U) && return TermNoop()
     projs, labs = atomic_orbital_projectors(basis)
     labels, projectors = extract_manifold(basis, projs, labs, hubbard.manifold)
-    TermHubbard(hubbard.manifold, hubbard.U, projectors, labels)
+    U = austrip(hubbard.U)
+    TermHubbard(hubbard.manifold, U, projectors, labels)
 end
 
 struct TermHubbard{PT, L} <: Term
     manifold :: OrbitalManifold
-    U        :: Float64
+    U        
     P        :: PT
     labels   :: L
 end
@@ -277,20 +246,17 @@ end
         if isnothing(n_hub)
            return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
         end
-        n = n_hub
         ψ = ψ_hub
-        proj = reshape_hubbard_proj(term.P, term.labels)
+        proj = reshape_hubbard_proj(basis, term.P, term.labels, term.manifold)
     else
         Hubbard = compute_hubbard_nIJ(term.manifold, basis, ψ, occupation; projectors=term.P, 
         labels)
-        n = Hubbard.n_IJ
-        n_hub = n
+        n_hub = Hubbard.n_IJ
         proj = Hubbard.p_I
     end
-    to_unit = ustrip(auconvert(u"eV", 1.0))
-    U = term.U / to_unit  # U is usally expressed in eV in the literature, but we work in au
 
-    ops = [HubbardUOperator(basis, kpt, U, n, proj[ik]) for (ik,kpt) in enumerate(basis.kpoints)]
+    #@show proj[1][1]
+    ops = [HubbardUOperator(basis, kpt, term.U, n_hub, proj[ik]) for (ik,kpt) in enumerate(basis.kpoints)]
 
     filled_occ = filled_occupation(basis.model)
     types = findall(at -> at.species == Symbol(term.manifold.species), basis.model.atoms)
@@ -299,7 +265,7 @@ end
 
     E = zero(T)
     for σ in 1:nspins, iatom in 1:natoms
-        E += filled_occ * 0.5 * U * real(tr(n[σ, iatom,iatom] * (I - n[σ, iatom,iatom])))
+        E += filled_occ * 1/2 * term.U * real(tr(n_hub[σ, iatom,iatom] * (I - n_hub[σ, iatom,iatom])))
     end
-    return (; E, ops, n)
+    return (; E, ops, n_hub)
 end
