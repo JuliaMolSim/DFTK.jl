@@ -181,7 +181,8 @@ Overview of parameters:
         end
         for term in basis.terms
             if isa(term, DFTK.TermHubbard)
-                nhubbard = compute_nhubbard(term.manifold, basis, ψ, occupation; projectors=term.P, labels=term.labels).nhubbard
+                nhubbard = compute_nhubbard(term.manifold, basis, ψ, occupation;
+                                            projectors=term.P, labels=term.labels).nhubbard
             end
         end
 

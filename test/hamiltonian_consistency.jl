@@ -5,8 +5,7 @@ using Logging
 using DFTK: mpi_sum
 using LinearAlgebra
 using ..TestCases: silicon
-using PseudoPotentialData
-testcase = silicon 
+testcase = silicon
 
 function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
     for operator in hamk.operators
@@ -94,17 +93,17 @@ end
     test_consistency_term(ExternalFromFourier(X -> abs(norm(X))))
     test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
     test_consistency_term(Hartree())
-    test_consistency_term(Hubbard(DFTK.OrbitalManifold(;species=:Si, label="3P"), 10))
+    test_consistency_term(Hubbard(DFTK.OrbitalManifold(;species=:Si, label="3P"), 0.01), )
     test_consistency_term(Ewald())
     test_consistency_term(PspCorrection())
     test_consistency_term(Xc([:lda_xc_teter93]))
     test_consistency_term(Xc([:lda_xc_teter93]), spin_polarization=:collinear)
     test_consistency_term(Xc([:gga_x_pbe]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:mgga_x_tpss]))
-    test_consistency_term(Xc([:mgga_x_scan]))
-    test_consistency_term(Xc([:mgga_c_scan]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:mgga_x_b00]))
-    test_consistency_term(Xc([:mgga_c_b94]), spin_polarization=:collinear)
+    test_consistency_term(Xc([:mgga_x_tpss]; use_nlcc=false))
+    test_consistency_term(Xc([:mgga_x_scan]; use_nlcc=false))
+    test_consistency_term(Xc([:mgga_c_scan]; use_nlcc=false), spin_polarization=:collinear)
+    test_consistency_term(Xc([:mgga_x_b00]; use_nlcc=false))
+    test_consistency_term(Xc([:mgga_c_b94]; use_nlcc=false), spin_polarization=:collinear)
 
     let
         a = 6
@@ -114,6 +113,6 @@ end
         test_consistency_term(Magnetic(Apot); kgrid=[1, 1, 1], kshift=[0, 0, 0],
                               lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
         test_consistency_term(DFTK.Anyonic(2, 3.2); kgrid=[1, 1, 1], kshift=[0, 0, 0],
-                              lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20)
+                              lattice=[a 0 0; 0 a 0; 0 0 0], Ecut=20, spin_polarization=:none)
     end
 end

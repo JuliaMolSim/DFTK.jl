@@ -59,7 +59,8 @@ end
 """
 Symmetrize the Hubbard occupation matrix according to the l quantum number of the manifold.
 """
-function symmetrize_nhub(nhubbard::Array{Matrix{Complex{T}}}, lattice, symmetries, positions) where {T}
+function symmetrize_nhub(nhubbard::Array{Matrix{Complex{T}}}, 
+                         lattice, symmetries, positions) where {T}
     # For now we apply symmetries only on nII terms, not on cross-atom terms (nIJ)
     # WARNING: To implement +V this will need to be changed!
 
@@ -83,7 +84,7 @@ function symmetrize_nhub(nhubbard::Array{Matrix{Complex{T}}}, lattice, symmetrie
             sym_atom = find_symmetry_preimage(positions, positions[iatom], symmetry)
             for m1 in 1:size(ns[σ, iatom, iatom], 1), m2 in 1:size(ns[σ, iatom, iatom], 2)
                 # TODO: Here QE flips spin for time-reversal in collinear systems, should we?
-                for m0 in 1:size(nhubbard[σ, iatom, iatom], 1), m00 in 1:size(nhubbard[σ, iatom, iatom], 2)
+                for m0 in 1:size(nhubbard[σ,iatom,iatom],1), m00 in 1:size(nhubbard[σ,iatom,iatom],2)
                     ns[σ, iatom, iatom][m1, m2] += WigD[m0, m1] *
                                                    nhubbard[σ, sym_atom, sym_atom][m0, m00] *
                                                    WigD[m00, m2]
@@ -135,14 +136,15 @@ function compute_nhubbard(manifold::OrbitalManifold,
         # We divide by filled_occ to deal with the physical two spin channels separately.
         ψk, projk, nk = @views ψ[ik], projectors[ik], occupation[ik]/filled_occ  
         c = projk' * ψk      # <ϕ|ψ>
-        # The matrix product is done over the bands. In QE, basis.kweights[ik]*nk[ibnd] would be wg(ik,ibnd)
+        # The matrix product is done over the bands. 
+        # In QE, basis.kweights[ik]*nk[ibnd] would be wg(ik,ibnd)
         n_matrix[σ, :, :] .+= basis.kweights[ik] * c * diagm(nk) * c' 
     end
     n_matrix = mpi_sum(n_matrix, basis.comm_kpts)
 
     # Now I want to reshape it to match the notation used in the papers.
-    # Reshape into n[I, J, σ][m1, m2] where I, J indicate the atom in the Hubbard manifold, σ is the spin, 
-    # m1 and m2 are magnetic quantum numbers (n, l are fixed)
+    # Reshape into n[I, J, σ][m1, m2] where I, J indicate the atom in the Hubbard manifold, 
+    # σ is the spin, m1 and m2 are magnetic quantum numbers (n, l are fixed)
     manifold_atoms = findall(at -> at.species == Symbol(manifold.species), basis.model.atoms)
     natoms = length(manifold_atoms)  # Number of atoms of the species in the manifold
     nhubbard = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)
@@ -178,7 +180,8 @@ function compute_nhubbard(manifold::OrbitalManifold,
     return (; nhubbard, manifold_labels=labels, p_I)
 end
 
-function reshape_hubbard_proj(basis, projectors::Vector{Matrix{Complex{T}}}, labels, manifold) where {T}
+function reshape_hubbard_proj(basis, projectors::Vector{Matrix{Complex{T}}}, 
+                              labels, manifold) where {T}
     manifold_atoms = findall(at -> at.species == Symbol(manifold.species), basis.model.atoms)
     natoms = length(manifold_atoms)
     nprojs = length(labels)

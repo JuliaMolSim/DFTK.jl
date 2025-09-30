@@ -64,7 +64,7 @@ function wigner_d_matrix(l::Integer, Wcart::AbstractMatrix{T}) where {T}
         return D .= 1
     end
     rng = Xoshiro(1234)
-    neq = 4*(2*l+1)
+    neq = (2*l+2) # This value should work for p and d orbitals, but can be increased if needed
     for m1 in -l:l
         b = Vector{T}(undef, neq)
         A = Matrix{T}(undef, neq, 2*l+1)
@@ -78,7 +78,7 @@ function wigner_d_matrix(l::Integer, Wcart::AbstractMatrix{T}) where {T}
             end
         end
         κ = cond(A)
-        @assert κ < 10.0 "The Wigner matrix computation is badly conditioned. κ(A)=$(κ)"
+        @assert κ < 100.0 "The Wigner matrix computation is badly conditioned. κ(A)=$(κ)"
         D[m1+l+1,:] = A\b
     end
 

@@ -1,4 +1,4 @@
-@testitem "Test Wigner matrices on Silicon symmetries" setup=[TestCases] begin
+@testitem "Test Wigner matrices" setup=[TestCases] begin
    using DFTK
    using PseudoPotentialData
    using LinearAlgebra
