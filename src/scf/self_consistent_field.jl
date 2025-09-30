@@ -190,6 +190,7 @@ Overview of parameters:
                        ρin, τ, nhubbard, α=damping, n_iter, nbandsalg.occupation_threshold,
                        runtime_ns=time_ns() - start_ns, nextstate...,
                        diagonalization=[nextstate.diagonalization])
+                       @show nhubbard
 
         # Compute the energy of the new state
         if compute_consistent_energies
