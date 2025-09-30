@@ -47,3 +47,40 @@ function ylm_real(l::Integer, m::Integer, rvec::AbstractVector{T}) where {T}
 
     error("The case l = $l and m = $m is not implemented")
 end
+
+"""
+ This function returns the Wigner D matrix for real spherical harmonics, 
+    for a given l and symmetry operation, solving a randomized linear system.
+    Such matrix gives the decomposition of a spherical harmonic after application
+    of a symmetry operation back into the basis of spherical harmonics.
+    
+                       Yₗₘ₁(R̂r) = Σₘ₂ D(l,R̂)ₘ₁ₘ₂ * Yₗₘ₂(r)
+
+ The lattice is needed to convert reduced symmetries to Cartesian space.
+"""
+function wigner_d_matrix(l::Integer, Wcart::AbstractMatrix{T}) where {T}
+    D = Matrix{T}(undef, 2*l+1, 2*l+1)
+    if l == 0
+        return D .= 1
+    end
+    rng = Xoshiro(1234)
+    neq = 4*(2*l+1)
+    for m1 in -l:l
+        b = Vector{T}(undef, neq)
+        A = Matrix{T}(undef, neq, 2*l+1)
+        for n in 1:neq
+            r = rand(rng, T, 3)
+            r = r / norm(r)
+            r0 =  Wcart * r
+            b[n] = DFTK.ylm_real(l, m1, r0)
+            for m2 in -l:l
+                A[n,m2+l+1] = DFTK.ylm_real(l, m2, r)
+            end
+        end
+        κ = cond(A)
+        @assert κ < 10.0 "The Wigner matrix computation is badly conditioned. κ(A)=$(κ)"
+        D[m1+l+1,:] = A\b
+    end
+
+    return D
+end

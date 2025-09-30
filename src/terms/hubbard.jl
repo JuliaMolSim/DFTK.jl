@@ -59,15 +59,14 @@ end
 """
 Symmetrize the Hubbard occupation matrix according to the l quantum number of the manifold.
 """
-function symmetrize_nhub(nhubbard::Array{Matrix{Complex{T}}}, lattice, symmetry, positions) where {T}
+function symmetrize_nhub(nhubbard::Array{Matrix{Complex{T}}}, lattice, symmetries, positions) where {T}
     # For now we apply symmetries only on nII terms, not on cross-atom terms (nIJ)
     # WARNING: To implement +V this will need to be changed!
 
     nspins = size(nhubbard, 1)
     natoms = size(nhubbard, 2)
-    nsym = length(symmetry)
+    nsym = length(symmetries)
     l = Int64((size(nhubbard[1, 1, 1], 1)-1)/2)
-    WigD = Wigner_sym(l, lattice, symmetry)
 
      # Initialize the nhubbard matrix
     ns = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)
@@ -77,52 +76,22 @@ function symmetrize_nhub(nhubbard::Array{Matrix{Complex{T}}}, lattice, symmetry,
                                     size(nhubbard[σ, iatom, jatom], 2))
     end
 
-    for σ in 1:nspins, iatom in 1:natoms, isym in 1:nsym
-        for m1 in 1:size(ns[σ, iatom, iatom], 1), m2 in 1:size(ns[σ, iatom, iatom], 2)
-            sym_atom = find_symmetry_preimage(positions, positions[iatom], symmetry[isym])
-            # TODO: Here QE flips spin for time-reversal in collinear systems, should we?
-            for m0 in 1:size(nhubbard[σ, iatom, iatom], 1), m00 in 1:size(nhubbard[σ, iatom, iatom], 2)
-                ns[σ, iatom, iatom][m1, m2] += WigD[m0, m1, isym] *
-                                               nhubbard[σ, sym_atom, sym_atom][m0, m00] *
-                                               WigD[m00, m2, isym]
+    for symmetry in symmetries
+        Wcart = lattice * symmetry.W * inv(lattice)
+        WigD = wigner_d_matrix(l, Wcart)
+        for σ in 1:nspins, iatom in 1:natoms
+            sym_atom = find_symmetry_preimage(positions, positions[iatom], symmetry)
+            for m1 in 1:size(ns[σ, iatom, iatom], 1), m2 in 1:size(ns[σ, iatom, iatom], 2)
+                # TODO: Here QE flips spin for time-reversal in collinear systems, should we?
+                for m0 in 1:size(nhubbard[σ, iatom, iatom], 1), m00 in 1:size(nhubbard[σ, iatom, iatom], 2)
+                    ns[σ, iatom, iatom][m1, m2] += WigD[m0, m1] *
+                                                   nhubbard[σ, sym_atom, sym_atom][m0, m00] *
+                                                   WigD[m00, m2]
+                end
             end
         end
     end
     ns .= ns / nsym
-end
-
-"""
- This function returns the Wigner matrix for a given l and symmetry operation
-    solving a randomized linear system.
- The lattice L is needed to convert reduced symmetries to Cartesian space.
-"""
-function Wigner_sym(l::Int64, L, symmetries::Vector{SymOp{T}}) where {T}
-    nsym = length(symmetries)
-    D = Array{Float64}(undef, 2*l+1, 2*l+1, nsym)
-    if l == 0
-        return D .= 1
-    end
-    Random.seed!(1234)
-    for (isym, symmetry) in enumerate(symmetries)
-        W = symmetry.W
-        for m1 in -l:l
-            b = Vector{Float64}(undef, 2*l+1)
-            A = Matrix{Float64}(undef, 2*l+1, 2*l+1)
-            for n in 1:2*l+1
-                r = rand(Float64, 3)
-                r = r / norm(r)
-                r0 = L * W * inv(L) * r
-                b[n] = DFTK.ylm_real(l, m1, r0)
-                for m2 in -l:l
-                    A[n,m2+l+1] = DFTK.ylm_real(l, m2, r)
-                end
-            end
-            @assert cond(A) > 1/2 "The Wigner matrix computaton is badly conditioned."
-            D[m1+l+1,:,isym] = A\b
-        end
-    end
-
-    return D
 end
 
 """
@@ -243,7 +212,7 @@ struct Hubbard
     U        
 end
 function (hubbard::Hubbard)(basis::AbstractBasis)
-    isempty(hubbard.U) && return TermNoop()
+    iszero(hubbard.U) && return TermNoop()
     projs, labs = atomic_orbital_projectors(basis)
     labels, projectors = extract_manifold(basis, projs, labs, hubbard.manifold)
     U = austrip(hubbard.U)

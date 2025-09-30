@@ -1,3 +1,38 @@
+@testitem "Test Wigner matrices on Silicon symmetries" setup=[TestCases] begin
+   using DFTK
+   using PseudoPotentialData
+   using LinearAlgebra
+   
+   # Identity
+   Id = Float64[1 0 0; 0 1 0; 0 0 1]
+   D = DFTK.wigner_d_matrix(1, Id)
+   @test norm(D - I) < 1e-8
+   D = DFTK.wigner_d_matrix(2, Id)
+   @test norm(D - I) < 1e-8
+   # This reverts all p orbitals, sends all d orbitals in themselves
+   Inv = -Id
+   D = DFTK.wigner_d_matrix(1, Inv)
+   @test norm(D + I) < 1e-8
+   D = DFTK.wigner_d_matrix(2, Inv)
+   @test norm(D - I) < 1e-8
+   # This keeps pz, dz2, dx2-y2 and dxy unchanged, changes sign to all others
+   A3  = Float64[1 0 0; 0 -1 0; 0 0 -1] 
+   D3p = Float64[-1 0 0; 0 -1 0; 0 0 1]
+   D3d = Float64[-1 0 0 0 0; 0 1 0 0 0; 0 0 1 0 0; 0 0 0 -1 0; 0 0 0 0 1]
+   D = DFTK.wigner_d_matrix(1, A3)
+   @test norm(D - D3p) < 1e-8
+   D = DFTK.wigner_d_matrix(2, A3)
+   @test norm(D - D3d) < 1e-8
+   # This sends: px <-> py, dxz <-> dyz, dx2-y2 -> -(dx2-y2) and keeps the other fixed
+   A3  = Float64[0 1 0; 1 0 0; 0 0 1] 
+   D3p = Float64[0 0 1; 0 1 0; 1 0 0]
+   D3d = Float64[1 0 0 0 0; 0 0 0 1 0; 0 0 1 0 0; 0 1 0 0 0; 0 0 0 0 -1]
+   D = DFTK.wigner_d_matrix(1, A3)
+   @test norm(D - D3p) < 1e-8
+   D = DFTK.wigner_d_matrix(2, A3)
+   @test norm(D - D3d) < 1e-8
+end 
+
 @testitem "Test Hubbard U term in Nickel Oxide" setup=[TestCases] begin
    using DFTK
    using PseudoPotentialData
@@ -50,25 +85,3 @@
    @test norm(n_hub .- scfres_nosym.nhubbard) < 1e-8
 
 end
-
-@testitem "Test Wigner matrices on Silicon symmetries" setup=[TestCases] begin
-   using DFTK
-   using PseudoPotentialData
-   using LinearAlgebra
-
-   lattice =  [[0 1 1.];
-               [1 0 1.];
-               [1 1 0.]]
-   positions = [ones(3)/8, -ones(3)/8]
-   pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
-   Si = ElementPsp(:Si, pseudopotentials)
-   atoms = [Si, Si]
-   model = model_DFT(lattice, atoms, positions; functionals=PBE())
-   basis = PlaneWaveBasis(model; Ecut=32, kgrid=[2, 2, 2])
-
-   D = DFTK.Wigner_sym(1, lattice, basis.symmetries)
-   D5 = [-1 0 0; 0 -1 0; 0 0 1]
-   @test norm(D[:,:,1] - I) < 1e-8
-   @test norm(D[:,:,25] + I) < 1e-8
-   @test norm(D[:,:,5] - D5) < 1e-8
-end 

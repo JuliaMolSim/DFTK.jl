@@ -179,8 +179,8 @@ Overview of parameters:
         if any(needs_τ, basis.terms)
             τ = compute_kinetic_energy_density(basis, ψ, occupation)
         end
-        for (iterm, term) in enumerate(basis.terms)
-            if typeof(term)==DFTK.TermHubbard{Vector{Matrix{ComplexF64}}, Vector{Any}}
+        for term in basis.terms
+            if isa(term, DFTK.TermHubbard)
                 nhubbard = compute_nhubbard(term.manifold, basis, ψ, occupation; projectors=term.P, labels=term.labels).nhubbard
             end
         end
@@ -190,7 +190,6 @@ Overview of parameters:
                        ρin, τ, nhubbard, α=damping, n_iter, nbandsalg.occupation_threshold,
                        runtime_ns=time_ns() - start_ns, nextstate...,
                        diagonalization=[nextstate.diagonalization])
-                       @show nhubbard
 
         # Compute the energy of the new state
         if compute_consistent_energies
