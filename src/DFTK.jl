@@ -246,6 +246,7 @@ include("workarounds/forwarddiff_rules.jl")
 # Optimized generic GPU functions and GPU workarounds
 include("gpu/linalg.jl")
 include("gpu/gpu_arrays.jl")
+include("gpu/local.jl")
 
 # Precompilation block with a basic workflow
 
