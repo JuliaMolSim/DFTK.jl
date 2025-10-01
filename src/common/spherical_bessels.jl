@@ -18,5 +18,5 @@ with `SpecialFunctions.sphericalbesselj`. Specialized for integer ``0 ≤ l ≤ 
     l == 3 && return (sin(x) * (15 - 6x^2) + cos(x) * (x^3 - 15x)) / x^4
     l == 4 && return (sin(x) * (105 - 45x^2 + x^4) + cos(x) * (10x^3 - 105x)) / x^5
     l == 5 && return (sin(x) * (945 - 420x^2 + 15x^4) + cos(x) * (-945x + 105x^3 - x^5)) / x^6
-    error("The case l = $l is not implemented")
+    throw(BoundsError()) # specific l not implemented
 end
