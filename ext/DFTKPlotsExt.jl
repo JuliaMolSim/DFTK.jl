@@ -75,7 +75,8 @@ end
 
 function plot_dos(basis, eigenvalues; εF=nothing, unit=u"hartree",
                   temperature=basis.model.temperature,
-                  smearing=basis.model.smearing,
+                  smearing=basis.model.smearing, 
+                  colors = [:blue, :red], p=nothing,
                   εrange=default_band_εrange(eigenvalues; εF), n_points=1000, kwargs...)
     # TODO Should also split this up into one stage doing the DOS computation
     #      and one stage doing the DOS plotting (like now for the bands.)
@@ -87,9 +88,9 @@ function plot_dos(basis, eigenvalues; εF=nothing, unit=u"hartree",
     # Constant to convert from AU to the desired unit
     to_unit = ustrip(auconvert(unit, 1.0))
 
-    p = Plots.plot(; kwargs...)
+    isnothing(p) && (p = Plots.plot(; kwargs...))
+    p = Plots.plot(p; kwargs...)
     spinlabels = spin_components(basis.model)
-    colors = [:blue, :red]
     Dεs = compute_dos.(εs, Ref(basis), Ref(eigenvalues); smearing, temperature)
     for σ = 1:n_spin
         D = [Dσ[σ] for Dσ in Dεs]
