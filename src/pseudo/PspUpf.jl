@@ -1,6 +1,6 @@
 using LinearAlgebra
 using Interpolations: linear_interpolation
-using PseudoPotentialIO: load_upf
+import PseudoPotentialIO: load_psp_file
 
 struct PspUpf{T,I} <: NormConservingPsp
     ## From file
@@ -71,24 +71,25 @@ Does not support:
 - GIPAW reconstruction data
 """
 function PspUpf(path; identifier=path, rcut=nothing)
-    pseudo = load_upf(path)
+    pseudo = load_psp_file(path)
 
     unsupported = []
-    pseudo["header"]["has_so"]               && push!(unsupported, "spin-orbit coupling")
-    pseudo["header"]["pseudo_type"] == "SL"  && push!(unsupported, "semilocal potential")
-    pseudo["header"]["pseudo_type"] == "US"  && push!(unsupported, "ultrasoft")
-    pseudo["header"]["pseudo_type"] == "PAW" && push!(unsupported, "projector-augmented wave")
-    pseudo["header"]["has_gipaw"]            && push!(unsupported, "gipaw data")
-    pseudo["header"]["pseudo_type"] == "1/r" && push!(unsupported, "Coulomb")
+    pseudo.header.has_so                && push!(unsupported, "spin-orbit coupling")
+    pseudo.header.pseudo_type == "SL"   && push!(unsupported, "semilocal potential")
+    pseudo.header.pseudo_type == "US"   && push!(unsupported, "ultrasoft")
+    pseudo.header.pseudo_type == "USPP" && push!(unsupported, "ultrasoft")
+    pseudo.header.pseudo_type == "PAW"  && push!(unsupported, "projector-augmented wave")
+    pseudo.header.has_gipaw             && push!(unsupported, "gipaw data")
+    pseudo.header.pseudo_type == "1/r"  && push!(unsupported, "Coulomb")
     length(unsupported) > 0 && error("Pseudopotential contains the following unsupported" *
                                      " features/quantities: $(join(unsupported, ","))")
 
-    Zion        = Int(pseudo["header"]["z_valence"])
-    rgrid       = pseudo["radial_grid"]
-    drgrid      = pseudo["radial_grid_derivative"]
-    lmax        = pseudo["header"]["l_max"]
-    vloc        = pseudo["local_potential"] ./ 2  # (Ry -> Ha)
-    description = get(pseudo["header"], "comment", "")
+    Zion        = Int(pseudo.header.z_valence)
+    rgrid       = pseudo.mesh.r
+    drgrid      = pseudo.mesh.rab
+    lmax        = pseudo.header.l_max
+    vloc        = pseudo.local_ ./ 2  # (Ry -> Ha)
+    description = something(pseudo.header.comment, "")
 
     # Ensure rcut is at most the end of the rgrid.
     rcut = isnothing(rcut) ? last(rgrid) : min(rcut, last(rgrid))
@@ -102,9 +103,9 @@ function PspUpf(path; identifier=path, rcut=nothing)
     # to facilitate comparison of the intermediate quantities with analytical GTH.
 
     r2_projs = map(0:lmax) do l
-        betas_l = filter(beta -> beta["angular_momentum"] == l, pseudo["beta_projectors"])
+        betas_l = filter(beta -> beta.angular_momentum == l, pseudo.nonlocal.betas)
         map(betas_l) do beta_li
-            r_beta_ha = beta_li["radial_function"] ./ 2  # Ry -> Ha
+            r_beta_ha = beta_li.beta[1:beta_li.cutoff_radius_index] ./ 2  # Ry -> Ha
             rgrid[1:length(r_beta_ha)] .* r_beta_ha  # rβ -> r²β
         end
     end
@@ -114,7 +115,7 @@ function PspUpf(path; identifier=path, rcut=nothing)
     for l = 0:lmax
         nproj_l = length(r2_projs[l+1])
         # 1/Ry -> 1/Ha
-        Dij_l = pseudo["D_ion"][count:count+nproj_l-1, count:count+nproj_l-1] .* 2
+        Dij_l = pseudo.nonlocal.dij[count:count+nproj_l-1, count:count+nproj_l-1] .* 2
         push!(h, Dij_l)
         count += nproj_l
     end
@@ -124,18 +125,19 @@ function PspUpf(path; identifier=path, rcut=nothing)
     pswfc_energies = [Float64[] for _ = 0:lmax]
     pswfc_labels = [String[] for _ = 0:lmax]
     for l = 0:lmax
-        pswfcs_l = filter(χ -> χ["angular_momentum"] == l, pseudo["atomic_wave_functions"])
+        pswfcs_l = filter(χ -> χ.l == l, something(pseudo.pswfc, []))
         for pswfc_li in pswfcs_l
             # rχ -> r²χ
-            push!(r2_pswfcs[l+1], rgrid .* pswfc_li["radial_function"])
-            push!(pswfc_occs[l+1], pswfc_li["occupation"])
-            push!(pswfc_energies[l+1], pswfc_li["pseudo_energy"])
-            push!(pswfc_labels[l+1], pswfc_li["label"])
+            push!(r2_pswfcs[l+1], rgrid .* pswfc_li.chi)
+            push!(pswfc_occs[l+1], pswfc_li.occupation)
+            # TODO: in principle these could be nothing
+            push!(pswfc_energies[l+1], pswfc_li.pseudo_energy)
+            push!(pswfc_labels[l+1], pswfc_li.label)
         end
     end
 
-    r2_ρion = pseudo["total_charge_density"] ./ (4π)
-    r2_ρcore = rgrid .^ 2 .* get(pseudo, "core_charge_density", zeros(length(rgrid)))
+    r2_ρion = pseudo.rhoatom ./ (4π)
+    r2_ρcore = rgrid .^ 2 .* (@something pseudo.nlcc zeros(length(rgrid)))
 
     vloc_interp = linear_interpolation((rgrid,), vloc)
     r2_projs_interp = map(r2_projs) do r2_projs_l
