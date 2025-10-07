@@ -47,6 +47,7 @@ PAGES = [
         "examples/polarizability.jl",
         "examples/forwarddiff.jl",
         "examples/phonons.jl",
+        "examples/elastic_constants.jl",
     ],
     "Ecosystem integration" => [
         # This concerns the discussion of interfaces, IO and integration
