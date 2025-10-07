@@ -29,18 +29,16 @@ end
 function extract_manifold(basis::PlaneWaveBasis{T}, projectors, labels,
                           manifold::OrbitalManifold) where {T}
     manifold_labels = filter(manifold, labels)
+    isempty(manifold_labels) && @warn "Projector for $(manifold) not found."
     manifold_projectors = Vector{Matrix{Complex{T}}}(undef, length(basis.kpoints))
     for (ik, projk) in enumerate(projectors)
         manifold_projectors[ik] = zeros(Complex{T}, size(projectors[ik], 1), length(manifold_labels))
-        for (iproj, orb) in enumerate(manifold_labels)
+        iproj = 0
+        for (proj_index, orb) in enumerate(labels)
             # Find the index of the projector that matches the manifold label
-            proj_index = findfirst(p -> p.iatom == orb.iatom && p.species == orb.species &&
-                                       p.n == orb.n && p.l == orb.l && p.m == orb.m, labels)
-            if proj_index !== nothing
+            if manifold(orb)
+                iproj += 1
                 manifold_projectors[ik][:, iproj] = projk[:, proj_index]
-            else
-                @warn "Projector for $(orb.species) with n=$(orb.n), l=$(orb.l), m=$(orb.m)
-                       not found in projectors."
             end
         end
     end
@@ -59,16 +57,13 @@ function symmetrize_nhubbard(nhubbard::Array{Matrix{Complex{T}}},
     natoms = size(nhubbard, 2)
     nsym = length(symmetries)
     l = Int64((size(nhubbard[1, 1, 1], 1)-1)/2)
+    ldim = 2*l+1
 
      # Initialize the nhubbard matrix
     ns = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)
     for σ in 1:nspins, iatom in 1:natoms, jatom in 1:natoms
-        ldim = size(nhubbard[σ, iatom, jatom], 1)  # TODO: discuss this. the program doesn't work as inteded without the species field in OrbitalManifold
-        ns[σ, iatom, jatom] = zeros(Complex{T},
-                                    ldim,
-                                    ldim)
+        ns[σ, iatom, jatom] = zeros(Complex{T}, ldim, ldim)
     end
-
     for symmetry in symmetries
         Wcart = model.lattice * symmetry.W * model.inv_lattice
         WigD = wigner_d_matrix(l, Wcart)
@@ -117,9 +112,6 @@ function compute_nhubbard(manifold::OrbitalManifold,
     nprojs = length(labels)
     nspins = basis.model.n_spin_components
     n_matrix = zeros(Complex{T}, nspins, nprojs, nprojs) 
-    @show manifold
-    @show size(projectors[1], 2)
-
     for σ in 1:nspins, ik = krange_spin(basis, σ)  
         # We divide by filled_occ to deal with the physical two spin channels separately.
         c = projectors[ik]'ψ[ik] # <ϕ|ψ>
@@ -131,7 +123,7 @@ function compute_nhubbard(manifold::OrbitalManifold,
     # Now I want to reshape it to match the notation used in the papers.
     # Reshape into n[I, J, σ][m1, m2] where I, J indicate the atom in the Hubbard manifold, 
     # σ is the spin, m1 and m2 are magnetic quantum numbers (n, l are fixed)
-    manifold_atoms = findall(at -> at.species == Symbol(manifold.species), basis.model.atoms)
+    manifold_atoms = findall(at -> at.species==manifold.species, basis.model.atoms)
     natoms = length(manifold_atoms)  # Number of atoms of the species in the manifold
     nhubbard = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)
     p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for ik in 1:length(basis.kpoints)]
@@ -169,7 +161,7 @@ end
 
 function reshape_hubbard_proj(basis, projectors::Vector{Matrix{Complex{T}}}, 
                               labels, manifold) where {T}
-    manifold_atoms = findall(at -> at.species == Symbol(manifold.species), basis.model.atoms)
+    manifold_atoms = findall(at -> at.species==manifold.species, basis.model.atoms)
     natoms = length(manifold_atoms)
     nprojs = length(labels)
     p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for i in 1:length(projectors)]
@@ -202,6 +194,9 @@ struct Hubbard
     U        
 end
 function (hubbard::Hubbard)(basis::AbstractBasis)
+    if isnothing(hubbard.manifold.label) || isnothing(hubbard.manifold.species)
+        error("TermHubbard needs both a species and a label inside OrbitalManifold")
+    end
     iszero(hubbard.U) && return TermNoop()
     projs, labels = atomic_orbital_projectors(basis)
     labels, projectors = extract_manifold(basis, projs, labels, hubbard.manifold)
@@ -235,12 +230,10 @@ end
 
     ops = [HubbardUOperator(basis, kpt, term.U, nhubbard, proj[ik]) 
            for (ik,kpt) in enumerate(basis.kpoints)]
-
     filled_occ = filled_occupation(basis.model)
-    types = findall(at -> at.species == Symbol(term.manifold.species), basis.model.atoms)
+    types = findall(at -> at.species==term.manifold.species, basis.model.atoms)
     natoms = length(types)
     nspins = basis.model.n_spin_components
-
     E = zero(T)
     for σ in 1:nspins, iatom in 1:natoms
         E += filled_occ * 1/2 * term.U * 

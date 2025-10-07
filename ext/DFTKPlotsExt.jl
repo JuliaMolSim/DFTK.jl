@@ -75,7 +75,7 @@ end
 
 function plot_dos(basis, eigenvalues; εF=nothing, unit=u"hartree",
                   temperature=basis.model.temperature,
-                  smearing=basis.model.smearing, 
+                  smearing=basis.model.smearing,
                   colors=[:blue, :red], p=nothing,
                   εrange=default_band_εrange(eigenvalues; εF), n_points=1000, kwargs...)
     # TODO Should also split this up into one stage doing the DOS computation
