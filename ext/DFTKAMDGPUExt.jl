@@ -13,22 +13,25 @@ function LinearAlgebra.cholesky(A::Hermitian{T, <:AMDGPU.ROCArray}) where {T}
     LinearAlgebra.Cholesky(Acopy, A.uplo, info)
 end
 
-# Precompilation block with a basic workflow
-@setup_workload begin
-    # very artificial silicon ground state example
-    a = 10.26
-    lattice = a / 2 * [[0 1 1.];
-                       [1 0 1.];
-                       [1 1 0.]]
-    pseudofile = joinpath(@__DIR__, "..", "test", "gth_pseudos", "Si.pbe-hgh.upf")
-    Si = ElementPsp(:Si, Dict(:Si => pseudofile))
-    atoms     = [Si, Si]
-    positions = [ones(3)/8, -ones(3)/8]
-    magnetic_moments = [2, -2]
+# Ensure precompilation is only performed if an AMD GPU is available
+if AMDGPU.functional()
+    # Precompilation block with a basic workflow
+    @setup_workload begin
+        # very artificial silicon ground state example
+        a = 10.26
+        lattice = a / 2 * [[0 1 1.];
+                        [1 0 1.];
+                        [1 1 0.]]
+        pseudofile = joinpath(@__DIR__, "..", "test", "gth_pseudos", "Si.pbe-hgh.upf")
+        Si = ElementPsp(:Si, Dict(:Si => pseudofile))
+        atoms     = [Si, Si]
+        positions = [ones(3)/8, -ones(3)/8]
+        magnetic_moments = [2, -2]
 
-    @compile_workload begin
-        precompilation_workflow(lattice, atoms, positions, magnetic_moments;
-                                architecture=GPU(ROCArray))
+        @compile_workload begin
+            precompilation_workflow(lattice, atoms, positions, magnetic_moments;
+                                    architecture=GPU(ROCArray))
+        end
     end
 end
 
