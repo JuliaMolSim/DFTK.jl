@@ -125,7 +125,7 @@ function PspUpf(path; identifier=path, rcut=nothing)
     pswfc_energies = [Float64[] for _ = 0:lmax]
     pswfc_labels = [String[] for _ = 0:lmax]
     for l = 0:lmax
-        pswfcs_l = filter(χ -> χ.l == l, something(pseudo.pswfc, []))
+        pswfcs_l = filter(χ -> χ.l == l, pseudo.pswfc)
         for pswfc_li in pswfcs_l
             # rχ -> r²χ
             push!(r2_pswfcs[l+1], rgrid .* pswfc_li.chi)
