@@ -37,8 +37,8 @@
 #   0      & 0      & 0      & 0      & 0      & C_{44} \\
 # \end{pmatrix}.
 # $$
-# Thus we can just choose a suitable strain pattern $\eta = (1, 0, 0, 1, 0, 0)^\top$,
-# such that $C\eta = (C_{11}, C_{12}, C_{12}, C_{44}, 0, 0)^\top$. That is,
+# Thus we can just choose a suitable strain pattern $\dot{\eta} = (1, 0, 0, 1, 0, 0)^\top$,
+# such that $C\dot{\eta} = (C_{11}, C_{12}, C_{12}, C_{44}, 0, 0)^\top$. That is,
 # for cubic crystals like diamond silicon we obtain all independent elastic
 # constants from a single Jacobian-vector product on the stress-strain function.
 #
