@@ -14,88 +14,88 @@
 # Structure of the docs. List files as *.jl or *.md here. All files
 # ending in *.jl will be processed to *.md with Literate.
 PAGES = [
-#    "Home" => "index.md",
-#    "features.md",
-#    "Getting started" => [
-#        "guide/installation.md",
-#        "guide/tutorial.jl",
-#    ],
-#    "Background" => [
-#        # Theoretical background
-#        "guide/introductory_resources.md",
-#        "guide/periodic_problems.jl",
-#        "guide/discretisation.jl",
-#        "guide/atomic_chains.jl",
-#        "guide/density_functional_theory.md",
-#        "guide/self_consistent_field.jl",
-#        "school2022.md",
-#    ],
+    "Home" => "index.md",
+    "features.md",
+    "Getting started" => [
+        "guide/installation.md",
+        "guide/tutorial.jl",
+    ],
+    "Background" => [
+        # Theoretical background
+        "guide/introductory_resources.md",
+        "guide/periodic_problems.jl",
+        "guide/discretisation.jl",
+        "guide/atomic_chains.jl",
+        "guide/density_functional_theory.md",
+        "guide/self_consistent_field.jl",
+        "school2022.md",
+    ],
     "Basic DFT calculations" => [
         # Ground-state DFT calculations, standard problems and modelling techniques
         # Some basic show cases; may feature integration of DFTK with other packages.
-#        "examples/metallic_systems.jl",
-#        "examples/collinear_magnetism.jl",
-#        "examples/convergence_study.jl",
-#        "examples/pseudopotentials.jl",
-#        "examples/supercells.jl",
+        "examples/metallic_systems.jl",
+        "examples/collinear_magnetism.jl",
+        "examples/convergence_study.jl",
+        "examples/pseudopotentials.jl",
+        "examples/supercells.jl",
         "examples/hubbard.jl",
-#        "examples/gaas_surface.jl",
-#        "examples/graphene.jl",
-#        "examples/geometry_optimization.jl",
-#        "examples/energy_cutoff_smearing.jl",
+        "examples/gaas_surface.jl",
+        "examples/graphene.jl",
+        "examples/geometry_optimization.jl",
+        "examples/energy_cutoff_smearing.jl",
     ],
-#    "Response and properties" => [
-#        "examples/polarizability.jl",
-#        "examples/forwarddiff.jl",
-#        "examples/phonons.jl",
-#    ],
-#    "Ecosystem integration" => [
-#        # This concerns the discussion of interfaces, IO and integration
-#        # options we have
-#        "ecosystem/atomsbase.jl",
-#        "ecosystem/atomscalculators.jl",
-#        "ecosystem/input_output.jl",
-#        "ecosystem/atomistic_simulation_environment.md",
-#        "ecosystem/wannier.jl",
-#    ],
-#    "Tips and tricks" => [
-#        # Resolving convergence issues, what solver to use, improving performance or
-#        # reliability of calculations.
-#        "tricks/achieving_convergence.md",
-#        "tricks/parallelization.md",
-#        "tricks/gpu.jl",
-#        "tricks/scf_checkpoints.jl",
-#        "tricks/compute_clusters.md",
-#    ],
-#    "Solvers" => [
-#        "examples/custom_solvers.jl",
-#        "examples/scf_callbacks.jl",
-#        "examples/compare_solvers.jl",
-#        "examples/analysing_scf_convergence.jl",
-#    ],
-#    "Nonstandard models" => [
-#        "examples/gross_pitaevskii.jl",
-#        "examples/gross_pitaevskii_2D.jl",
-#        "examples/custom_potential.jl",
-#        "examples/cohen_bergstresser.jl",
-#        "examples/anyons.jl",
-#    ],
-#    "Error control" => [
-#        "examples/arbitrary_floattype.jl",
-#        "examples/error_estimates_forces.jl",
-#    ],
-#    "Developer resources" => [
-#        "developer/setup.md",
-#        "developer/testsystem.md",
-#        "developer/conventions.md",
-#        "developer/style_guide.md",
-#        "developer/data_structures.md",
-#        "developer/useful_formulas.md",
-#        "developer/symmetries.md",
-#        "developer/gpu_computations.md",
-#    ],
-#    "api.md",
-#    "publications.md",
+    "Response and properties" => [
+        "examples/polarizability.jl",
+        "examples/forwarddiff.jl",
+        "examples/phonons.jl",
+    ],
+    "Ecosystem integration" => [
+        # This concerns the discussion of interfaces, IO and integration
+        # options we have
+        "ecosystem/atomsbase.jl",
+        "ecosystem/atomscalculators.jl",
+        "ecosystem/input_output.jl",
+        "ecosystem/atomistic_simulation_environment.md",
+        "ecosystem/wannier.jl",
+    ],
+    "Tips and tricks" => [
+        # Resolving convergence issues, what solver to use, improving performance or
+        # reliability of calculations.
+        "tricks/achieving_convergence.md",
+        "tricks/parallelization.md",
+        "tricks/gpu.jl",
+        "tricks/scf_checkpoints.jl",
+        "tricks/compute_clusters.md",
+    ],
+    "Solvers" => [
+        "examples/custom_solvers.jl",
+        "examples/scf_callbacks.jl",
+        "examples/compare_solvers.jl",
+        "examples/analysing_scf_convergence.jl",
+    ],
+    "Nonstandard models" => [
+        "examples/gross_pitaevskii.jl",
+        "examples/gross_pitaevskii_2D.jl",
+        "examples/custom_potential.jl",
+        "examples/cohen_bergstresser.jl",
+        "examples/anyons.jl",
+    ],
+    "Error control" => [
+        "examples/arbitrary_floattype.jl",
+        "examples/error_estimates_forces.jl",
+    ],
+    "Developer resources" => [
+        "developer/setup.md",
+        "developer/testsystem.md",
+        "developer/conventions.md",
+        "developer/style_guide.md",
+        "developer/data_structures.md",
+        "developer/useful_formulas.md",
+        "developer/symmetries.md",
+        "developer/gpu_computations.md",
+    ],
+    "api.md",
+    "publications.md",
 ]
 
 # Files from the /examples folder that need to be copied over to the docs
@@ -105,7 +105,7 @@ EXAMPLE_ASSETS = []  # Specify e.g. as "examples/Fe_afm.pwi"
 #
 # Configuration and setup
 #
-DEBUG = true  # Set to true to disable some checks and cleanup
+DEBUG = false  # Set to true to disable some checks and cleanup
 
 import LibGit2
 import Pkg

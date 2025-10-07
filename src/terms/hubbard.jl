@@ -28,17 +28,8 @@ end
 
 function extract_manifold(basis::PlaneWaveBasis{T}, projectors, labels,
                           manifold::OrbitalManifold) where {T}
-    manifold_labels = []
+    manifold_labels = filter(manifold, labels)
     manifold_projectors = Vector{Matrix{Complex{T}}}(undef, length(basis.kpoints))
-    for (iproj, orb) in enumerate(labels)
-        if Symbol(manifold.species) == Symbol(orb.species) && 
-           lowercase(manifold.label) == lowercase(orb.label)
-            # If the label matches the manifold, we add it to the labels
-            # This is useful for extracting specific orbitals from the basis
-            # e.g., (:Si, "3S") will match all 3S orbitals of Si atoms
-            push!(manifold_labels, (; orb.iatom, orb.species, orb.n, orb.l, orb.m, orb.label))
-        end
-    end
     for (ik, projk) in enumerate(projectors)
         manifold_projectors[ik] = zeros(Complex{T}, size(projectors[ik], 1), length(manifold_labels))
         for (iproj, orb) in enumerate(manifold_labels)
@@ -59,8 +50,8 @@ end
 """
 Symmetrize the Hubbard occupation matrix according to the l quantum number of the manifold.
 """
-function symmetrize_nhub(nhubbard::Array{Matrix{Complex{T}}}, 
-                         lattice, symmetries, positions) where {T}
+function symmetrize_nhubbard(nhubbard::Array{Matrix{Complex{T}}}, 
+                         model, symmetries, positions) where {T}
     # For now we apply symmetries only on nII terms, not on cross-atom terms (nIJ)
     # WARNING: To implement +V this will need to be changed!
 
@@ -72,24 +63,19 @@ function symmetrize_nhub(nhubbard::Array{Matrix{Complex{T}}},
      # Initialize the nhubbard matrix
     ns = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)
     for σ in 1:nspins, iatom in 1:natoms, jatom in 1:natoms
+        ldim = size(nhubbard[σ, iatom, jatom], 1)  # TODO: discuss this. the program doesn't work as inteded without the species field in OrbitalManifold
         ns[σ, iatom, jatom] = zeros(Complex{T},
-                                    size(nhubbard[σ, iatom, jatom], 1),
-                                    size(nhubbard[σ, iatom, jatom], 2))
+                                    ldim,
+                                    ldim)
     end
 
     for symmetry in symmetries
-        Wcart = lattice * symmetry.W * inv(lattice)
+        Wcart = model.lattice * symmetry.W * model.inv_lattice
         WigD = wigner_d_matrix(l, Wcart)
         for σ in 1:nspins, iatom in 1:natoms
             sym_atom = find_symmetry_preimage(positions, positions[iatom], symmetry)
-            for m1 in 1:size(ns[σ, iatom, iatom], 1), m2 in 1:size(ns[σ, iatom, iatom], 2)
-                # TODO: Here QE flips spin for time-reversal in collinear systems, should we?
-                for m0 in 1:size(nhubbard[σ,iatom,iatom],1), m00 in 1:size(nhubbard[σ,iatom,iatom],2)
-                    ns[σ, iatom, iatom][m1, m2] += WigD[m0, m1] *
-                                                   nhubbard[σ, sym_atom, sym_atom][m0, m00] *
-                                                   WigD[m00, m2]
-                end
-            end
+            # TODO: Here QE flips spin for time-reversal in collinear systems, should we?
+            ns[σ, iatom, iatom] .+= WigD' * nhubbard[σ, sym_atom, sym_atom] * WigD
         end
     end
     ns .= ns / nsym
@@ -131,14 +117,14 @@ function compute_nhubbard(manifold::OrbitalManifold,
     nprojs = length(labels)
     nspins = basis.model.n_spin_components
     n_matrix = zeros(Complex{T}, nspins, nprojs, nprojs) 
+    @show manifold
+    @show size(projectors[1], 2)
 
     for σ in 1:nspins, ik = krange_spin(basis, σ)  
         # We divide by filled_occ to deal with the physical two spin channels separately.
-        ψk, projk, nk = @views ψ[ik], projectors[ik], occupation[ik]/filled_occ  
-        c = projk' * ψk      # <ϕ|ψ>
-        # The matrix product is done over the bands. 
-        # In QE, basis.kweights[ik]*nk[ibnd] would be wg(ik,ibnd)
-        n_matrix[σ, :, :] .+= basis.kweights[ik] * c * diagm(nk) * c' 
+        c = projectors[ik]'ψ[ik] # <ϕ|ψ>
+        # Sums over the bands
+        n_matrix[σ, :, :] .+= basis.kweights[ik] * c * diagm(occupation[ik]/filled_occ) * c'
     end
     n_matrix = mpi_sum(n_matrix, basis.comm_kpts)
 
@@ -154,7 +140,7 @@ function compute_nhubbard(manifold::OrbitalManifold,
         i = 1
         while i <= nprojs
             il = labels[i].l
-            if !(manifold_atoms[iatom] == labels[i].iatom)
+            if manifold_atoms[iatom] != labels[i].iatom
                 i += 2*il + 1
                 continue
             end
@@ -162,8 +148,9 @@ function compute_nhubbard(manifold::OrbitalManifold,
                 j = 1
                 while j <= nprojs
                     jl = labels[j].l
-                    (manifold_atoms[jatom] == labels[j].iatom) && 
-                      (nhubbard[σ, iatom, jatom] = n_matrix[σ, i:i+2*il, j:j+2*jl])
+                    if manifold_atoms[jatom] == labels[j].iatom  
+                        nhubbard[σ, iatom, jatom] = n_matrix[σ, i:i+2*il, j:j+2*jl]
+                    end
                     j += 2*jl + 1
                 end
             end
@@ -174,7 +161,7 @@ function compute_nhubbard(manifold::OrbitalManifold,
         end
     end
 
-    nhubbard = symmetrize_nhub(nhubbard, basis.model.lattice, 
+    nhubbard = symmetrize_nhubbard(nhubbard, basis.model, 
                                basis.symmetries, basis.model.positions[manifold_atoms])
 
     return (; nhubbard, manifold_labels=labels, p_I)
@@ -216,8 +203,8 @@ struct Hubbard
 end
 function (hubbard::Hubbard)(basis::AbstractBasis)
     iszero(hubbard.U) && return TermNoop()
-    projs, labs = atomic_orbital_projectors(basis)
-    labels, projectors = extract_manifold(basis, projs, labs, hubbard.manifold)
+    projs, labels = atomic_orbital_projectors(basis)
+    labels, projectors = extract_manifold(basis, projs, labels, hubbard.manifold)
     U = austrip(hubbard.U)
     TermHubbard(hubbard.manifold, U, projectors, labels)
 end
@@ -231,14 +218,13 @@ end
 
 @timing "ene_ops: hubbard" function ene_ops(term::TermHubbard,
                                             basis::PlaneWaveBasis{T},
-                                            ψ, occupation; nhubbard=nothing, ψ_hub=nothing,
+                                            ψ, occupation; nhubbard=nothing,
                                             labels=term.labels,
                                             kwargs...) where {T}
     if isnothing(ψ)
         if isnothing(nhubbard)
            return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
         end
-        ψ = ψ_hub
         proj = reshape_hubbard_proj(basis, term.P, term.labels, term.manifold)
     else
         Hubbard = compute_nhubbard(term.manifold, basis, ψ, occupation; projectors=term.P, 

@@ -176,9 +176,9 @@ function apply!(Hψ, op::HubbardUOperator, ψ)
         n_ii = n_IJ[σ, iatom, iatom]
         iszero(n_ii) && continue
         for m1 = 1:size(n_ii, 1)
-            P_i_m1 = proj_I[iatom][:,m1]
+            P_i_m1 = @view proj_I[iatom][:,m1]
             for m2 = 1:size(n_ii, 2)
-                P_i_m2 = proj_I[iatom][:,m2]
+                P_i_m2 = @view proj_I[iatom][:,m2]
                 δm = (m1 == m2) ? one(eltype(n_ii)) : zero(eltype(n_ii))
                 coefficient = 1/2 * op.Us * (δm - 2*n_ii[m1, m2])
                 projection = P_i_m2' * ψ.fourier

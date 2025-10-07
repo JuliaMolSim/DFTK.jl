@@ -76,7 +76,7 @@ end
 function plot_dos(basis, eigenvalues; εF=nothing, unit=u"hartree",
                   temperature=basis.model.temperature,
                   smearing=basis.model.smearing, 
-                  colors = [:blue, :red], p=nothing,
+                  colors=[:blue, :red], p=nothing,
                   εrange=default_band_εrange(eigenvalues; εF), n_points=1000, kwargs...)
     # TODO Should also split this up into one stage doing the DOS computation
     #      and one stage doing the DOS plotting (like now for the bands.)
@@ -88,7 +88,7 @@ function plot_dos(basis, eigenvalues; εF=nothing, unit=u"hartree",
     # Constant to convert from AU to the desired unit
     to_unit = ustrip(auconvert(unit, 1.0))
 
-    isnothing(p) && (p = Plots.plot(; kwargs...))
+    isnothing(p) && (p = Plots.plot())
     p = Plots.plot(p; kwargs...)
     spinlabels = spin_components(basis.model)
     Dεs = compute_dos.(εs, Ref(basis), Ref(eigenvalues); smearing, temperature)
@@ -159,7 +159,7 @@ function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatom, label=nothi
     orb_name = isnothing(label) ? "all orbitals" : label
 
     # Plot pdos
-    isnothing(p) && (p = Plots.plot(; kwargs...))
+    isnothing(p) && (p = Plots.plot())
     p = Plots.plot(p; kwargs...)
     spinlabels = spin_components(basis.model)
     pdos = DFTK.sum_pdos(compute_pdos(εs, basis, ψ, eigenvalues;
