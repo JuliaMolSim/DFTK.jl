@@ -103,8 +103,8 @@ function stress_from_strain(model0, voigt_strain; symmetries, Ecut, kgrid, tol)
     DFTK.full_stress_to_voigt(compute_stresses_cart(scfres))
 end 
 
-f(voigt_strain) = stress_from_strain(model0, voigt_strain; symmetries=symmetries_strain, Ecut, kgrid, tol)
-stress, (dstress,) = value_and_pushforward(f, AutoForwardDiff(), zeros(6), (strain_pattern,))
+stress_fn(voigt_strain) = stress_from_strain(model0, voigt_strain; symmetries=symmetries_strain, Ecut, kgrid, tol)
+stress, (dstress,) = value_and_pushforward(stress_fn, AutoForwardDiff(), zeros(6), (strain_pattern,))
 
 c11 = uconvert(u"GPa", dstress[1] * u"hartree" / u"bohr"^3)
 c12 = uconvert(u"GPa", dstress[2] * u"hartree" / u"bohr"^3)
@@ -113,7 +113,7 @@ c44 = uconvert(u"GPa", dstress[4] * u"hartree" / u"bohr"^3)
 
 # These results can be compared directly to finite differences of the stress-strain relation:
 h = 1e-3
-dstress_fd = (f(h * strain_pattern) - f(-h * strain_pattern)) / 2h
+dstress_fd = (stress_fn(h * strain_pattern) - stress_fn(-h * strain_pattern)) / 2h
 c11_fd = uconvert(u"GPa", dstress_fd[1] * u"hartree" / u"bohr"^3)
 c12_fd = uconvert(u"GPa", dstress_fd[2] * u"hartree" / u"bohr"^3)
 c44_fd = uconvert(u"GPa", dstress_fd[4] * u"hartree" / u"bohr"^3)
