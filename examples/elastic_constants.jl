@@ -42,7 +42,7 @@
 # for cubic crystals like diamond silicon we obtain all independent elastic
 # constants from a single Jacobian-vector product on the stress-strain function.
 #
-#  [^Nye1985]:
+# [^Nye1985]:
 #      Nye, J. F. (1985).
 #      *Physical Properties of Crystals*. Oxford University Press.
 #      Comment: Since the elastic tensor transforms equivariantly under rotations,
