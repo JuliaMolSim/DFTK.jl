@@ -105,7 +105,7 @@ println("Polarizability :   $polarizability")
 
 ## Multiply δVext times the Bloch waves, then solve the Dyson equation:
 δVψ = DFTK.multiply_ψ_by_blochwave(scfres.basis, scfres.ψ, δVext)
-res = DFTK.solve_ΩplusK_split(scfres, -δVψ; verbose=true)
+res = DFTK.solve_ΩplusK_split(scfres, δVψ; verbose=true)
 
 # From the result of `solve_ΩplusK_split` we can easily compute the polarisabilities:
 
