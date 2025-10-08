@@ -426,7 +426,7 @@ end
     end
     T0 = .01
     derivative_ε = let ε = 1e-5
-        (get(ε) - get(-ε)) / 2ε
+        (get(T+ε) - get(T0-ε)) / 2ε
     end
     derivative_fd = ForwardDiff.derivative(get, T0)
     @test norm(derivative_ε - derivative_fd) < 1e-4
