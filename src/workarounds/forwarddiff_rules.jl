@@ -327,10 +327,3 @@ function erfc(x::Complex{Dual{T,V,N}}) where {T,V,N}
     complex(Dual{T,V,N}(real(erfc(xx)), ForwardDiff.Partials{N,V}(tuple(real(dgamma)...))),
             Dual{T,V,N}(imag(erfc(xx)), ForwardDiff.Partials{N,V}(tuple(imag(dgamma)...))))
 end
-function Smearing.xlogx(x::Dual{T,V,N}) where {T,V,N}
-    # Hardcode the fact that the derivative at exactly zero is 0, rather than Inf.
-    # Technically this is wrong, but in any reasonable application (that yields a finite result in the end),
-    # that (logarithmic) Inf will be multiplied by a (linear) 0, which will win
-    xx = ForwardDiff.value(x)
-    (xx == 0) ? zero(x) : Dual{T}(Smearing.xlogx(xx), ntuple(j -> (1+log(xx)) * ForwardDiff.partials(x, j), N))
-end
