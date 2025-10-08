@@ -81,8 +81,10 @@ from the solution.
 function newton(basis::PlaneWaveBasis{T}, ψ0;
                 tol=1e-6, tol_cg=tol / 100, maxiter=20,
                 callback=ScfDefaultCallback(),
-                is_converged=ScfConvergenceDensity(tol)) where {T}
+                is_converged=ScfConvergenceDensity(tol),
+                seed=nothing) where {T}
 
+    seed = seed_task_local_rng!(seed, MPI.COMM_WORLD)
     # setting parameters
     model = basis.model
     @assert iszero(model.temperature)  # temperature is not yet supported
@@ -149,7 +151,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
     # return results and call callback one last time with final state for clean
     # up
     info = (; ham=H, basis, energies, converged, ρ, eigenvalues, occupation, εF, n_iter, ψ,
-            stage=:finalize, algorithm="Newton", runtime_ns=time_ns() - start_ns)
+            stage=:finalize, algorithm="Newton", seed, runtime_ns=time_ns() - start_ns)
     callback(info)
     info
 end

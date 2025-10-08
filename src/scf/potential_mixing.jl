@@ -175,6 +175,7 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
     acceleration=AndersonAcceleration(;m=10),
     accept_step=ScfAcceptStepAll(),
     max_backtracks=3,  # Maximal number of backtracking line searches
+    seed=nothing,
 )
     # TODO Test other mixings and lift this
     @assert (   mixing isa SimpleMixing
@@ -185,6 +186,7 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
     if !isnothing(ψ)
         @assert length(ψ) == length(basis.kpoints)
     end
+    seed = seed_task_local_rng!(seed, MPI.COMM_WORLD)
 
     # Initial guess for V (if none given)
     ham = energy_hamiltonian(basis, nothing, nothing; ρ).ham
@@ -284,7 +286,7 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
     info = (; ham, basis, info.energies, converged, ρ=info.ρout, info.eigenvalues,
             info.occupation, info.εF, n_iter, info.ψ, info.n_bands_converge,
             info.diagonalization, stage=:finalize, algorithm="SCF",
-            history_Δρ, history_Etot, info.occupation_threshold,
+            history_Δρ, history_Etot, info.occupation_threshold, seed,
             runtime_ns=time_ns() - start_ns)
     callback(info)
     info

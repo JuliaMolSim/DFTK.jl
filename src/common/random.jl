@@ -6,7 +6,7 @@ If no seed is provided, a random seed is generated on the master process.
 The returned seed can be used to reproduce the run.
 
 If any subtask is spawned, it will be seeded based on the task local RNG of its parent,
-as explained in the documentation of [TaskLocalRNG](@ref).
+as explained in the documentation of [Random.TaskLocalRNG](@ref).
 Seeding the task local RNG at the beginning of a computation is thus sufficient.
 """
 function seed_task_local_rng!(seed::Union{Nothing,Integer}, comm)
