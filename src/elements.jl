@@ -153,9 +153,8 @@ AtomsBase.species(el::ElementPsp) = el.species
 charge_ionic(el::ElementPsp)      = charge_ionic(el.psp)
 has_core_density(el::ElementPsp)  = has_core_density(el.psp)
 
-function local_potential_fourier(el::ElementPsp, p::T) where {T <: Real}
-    p == 0 && return zero(T)  # Compensating charge background
-    eval_psp_local_fourier(el.psp, p)
+function local_potential_fourier(el::ElementPsp, ps::AbstractArray{T}) where {T <: Real}
+    eval_psp_local_fourier(el.psp, ps)
 end
 local_potential_real(el::ElementPsp, r::Real) = eval_psp_local_real(el.psp, r)
 
