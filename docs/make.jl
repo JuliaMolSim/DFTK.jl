@@ -243,7 +243,7 @@ end
 
 # Deploy docs to gh-pages branch
 # Note: Overwrites the commit history via a force push (saves storage space)
-deploydocs(; repo=DFTKREPO, devbranch="master", forcepush=true)
+deploydocs(; repo=DFTKREPO, devbranch="master", forcepush=true, push_preview=true)
 
 # Remove generated example files
 if !DEBUG
