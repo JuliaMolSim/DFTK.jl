@@ -92,9 +92,9 @@ If you want to pass custom symmetry operations (e.g. a reduced or extended set) 
 external potential breaks some of the passed symmetries. Use `false` to turn off
 symmetries completely.
 """
-function Model(lattice::AbstractMatrix{T},
+function Model(lattice::AbstractMatrix{Tstatic},
                atoms::Vector{<:Element}=Element[],
-               positions::Vector{<:AbstractVector}=Vec3{T}[];
+               positions::Vector{<:AbstractVector}=Vec3{Tstatic}[];
                model_name="custom",
                εF=nothing,
                n_electrons::Union{Int,Nothing}=isnothing(εF) ?
@@ -102,14 +102,17 @@ function Model(lattice::AbstractMatrix{T},
                # Force electrostatics with non-neutral cells; results not guaranteed.
                # Set to `true` by default for charged systems.
                disable_electrostatics_check=all(iszero, charge_ionic.(atoms)),
-               magnetic_moments=T[],
+               magnetic_moments=Tstatic[],
                terms=[Kinetic()],
-               temperature=zero(T),
+               temperature=zero(Tstatic),
                smearing=temperature > 0 ? Smearing.FermiDirac() : Smearing.None(),
                spin_polarization=determine_spin_polarization(magnetic_moments),
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
                                              spin_polarization, terms),
-               ) where {T <: Real}
+               ) where {Tstatic <: Real}
+    # # a bit convoluted because kwargs can't determine type parameters
+    T = promote_type(Tstatic, typeof(temperature))
+
     # Validate εF and n_electrons
     if !isnothing(εF)  # fixed Fermi level
         if !isnothing(n_electrons)
@@ -250,9 +253,9 @@ function Model{T}(model::Model;
     Model(T.(lattice), atoms, positions;
           model.model_name,
           model.n_electrons,
-          magnetic_moments,
+          magnetic_moments=T.(magnetic_moments),
           terms=model.term_types,
-          model.temperature,
+          temperature=T(model.temperature),
           model.smearing,
           model.εF,
           model.spin_polarization,
