@@ -36,7 +36,7 @@ It should thus be avoided for quick iteration.
 
 Instead, a workflow that works well is the following:
 1. Ensure that you have Revise.jl and TestEnv.jl installed in your default environment.
-1. Start the REPL in the DFTK directory.
+1. Start the REPL in the DFTK directory, with the `--project` flag to activate the DFTK project.
 1. Run `using TestEnv, Revise` (if they are not already in your `startup.jl` file).
 1. Setup an environment with the DFTK test dependencies: `TestEnv.activate()`.
 1. Run a specific test by name using TestItemRunner, for example:
