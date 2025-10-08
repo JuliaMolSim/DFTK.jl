@@ -48,6 +48,24 @@ As the above syntax suggests filters can be more general,
 see the [TestItemRunner documentation](https://github.com/julia-vscode/TestItemRunner.jl/#running-tests)
 for more details.
 
+## Test-driven development
+Oftentimes you want to iterate on either a test, or the corresponding code being tested.
+Running `Pkg.test` will instantiate a new test environment, precompile DFTK, etc... every single time.
+It should thus be avoided for quick iteration.
+
+Instead, a workflow that works well is the following:
+1. Ensure that you have Revise.jl and TestEnv.jl installed in your default environment.
+1. Start the REPL in the DFTK directory.
+1. Run `using TestEnv, Revise` (if they are not already in your `startup.jl` file).
+1. Setup an environment with the DFTK test dependencies: `TestEnv.activate()`.
+1. Run a specific test by name using TestItemRunner, for example:
+   ```jl
+   using TestItemRunner
+   TestItemRunner.run_tests("test/", filter=t->t.name=="Hamiltonian consistency")
+   ```
+1. Modify either DFTK or test code, and call `run_tests` again as many times as necessary.
+   Revise will ensure that changes to DFTK will be picked up.
+
 ## Developing unit tests
 If you need to write tests, note that you can create modules with `@testsetup`. To use
 a function `my_function` of a module `MySetup` in a `@testitem`, you can import it with
