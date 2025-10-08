@@ -46,3 +46,8 @@ Explanaition of key entries:
 function memory_usage(::CPU)
     (; max_rss=Sys.maxrss(), gc_bytes=Base.gc_live_bytes())
 end
+
+"""
+Returns the architecture of the given array.
+"""
+get_architecture(x::AbstractArray) = x isa AbstractGPUArray ? GPU{typeof(x)}() : CPU()

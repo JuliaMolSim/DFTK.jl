@@ -82,8 +82,8 @@ V_{\rm loc}(p) &= ∫_{ℝ^3} (V_{\rm loc}(r) - C(r)) e^{-ip·r} dr + F[C(r)] \\
 \end{aligned}
 ```
 """
-eval_psp_local_fourier(psp::NormConservingPsp, p::AbstractVector) =
-    eval_psp_local_fourier(psp, norm(p))
+#eval_psp_local_fourier(psp::NormConservingPsp, p::AbstractVector) =
+#    eval_psp_local_fourier(psp, norm(p))
 
 @doc raw"""
     eval_psp_energy_correction([T=Float64,] psp::NormConservingPsp)
