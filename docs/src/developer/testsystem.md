@@ -8,15 +8,14 @@ global scope.
 Moreover, it allows for greater flexibility by providing ways to launch a specific subset of
 the tests. 
 
-## Running selective tests
-### Selecting by tags
+## Running tests by tags
 To only run a minimal set of tests designed to ensure DFTK functionality (tests tagged with `:minimal`),
-on can simply run
+one can simply run
 ```julia
 using Pkg
 Pkg.test("DFTK"; test_args = ["minimal"])
 ```
-By default, all tests are run. Specifying any subset implicitly turns off all tests not
+If no `test_args` are given, all tests are run. Specifying any subset implicitly turns off all tests not
 tagged accordingly. Multiple tags can be specified at once. For example,
 ```julia
 using Pkg
@@ -30,23 +29,35 @@ Pkg.test("DFTK"; test_args = ["noslow"])
 will ignore any test tagged as `:slow`. Finally, parallel tests can be run by passing `"mpi"` to
 the `test_args` keyword argument. GPU tests are triggered with the `"gpu"` tag.
 
-### Selecting by file name
-This works by directly instantiating the test environment and triggering
-the `@run_package_tests` macro from `TestItemRunner` manually. For instance:
-```julia
-using TestEnv       # Optional: automatically installs required packages
-TestEnv.activate()  # for tests in a temporary environment.
-using TestItemRunner
-using DFTK
-cd(joinpath(pkgdir(DFTK), "test"))
-@run_package_tests filter = ti -> occursin("serialisation.jl", ti.filename)
-```
-would only run the tests of the particular unit test file `serialisation.jl`.
+## Test-driven development
+Oftentimes you want to iterate on either a test, or the corresponding code being tested.
+Running `Pkg.test` will instantiate a new test environment, precompile DFTK, etc... every single time.
+It should thus be avoided for quick iteration.
 
-### More general filters
+Instead, a workflow that works well is the following:
+1. Ensure that you have Revise.jl and TestEnv.jl installed in your default environment.
+1. Start the REPL in the DFTK directory, with the `--project` flag to activate the DFTK project.
+1. Run `using TestEnv, Revise` (if they are not already in your `startup.jl` file).
+1. Setup an environment with the DFTK test dependencies: `TestEnv.activate()`.
+1. Run a specific test by name using TestItemRunner, for example:
+   ```jl
+   using TestItemRunner
+   TestItemRunner.run_tests("test/", filter=ti->ti.name=="Hamiltonian consistency")
+   ```
+   This runs the test item with the name `Hamiltonian consistency`, i.e. declared in code as
+   `@testitem "Hamiltonian consistency" ...`.
+1. Modify either DFTK or test code, and call `run_tests` again as many times as necessary.
+   Revise will ensure that changes to DFTK will be picked up.
+
+### Other filters
+TestItemRunner also supports selection by a file name.
+For example, to run all tests in a unit test file named `serialisation.jl`:
+```julia
+TestItemRunner.run_tests("test/", filter=ti->occursin("serialisation.jl", ti.filename))
+```
+
 As the above syntax suggests filters can be more general,
-see the [TestItemRunner documentation](https://github.com/julia-vscode/TestItemRunner.jl/#running-tests)
-for more details.
+using the `ti.filename`, `ti.name` and/or `ti.tags` fields passed to the filter.
 
 ## Developing unit tests
 If you need to write tests, note that you can create modules with `@testsetup`. To use
