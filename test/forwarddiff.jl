@@ -423,7 +423,7 @@ end
         model = model_DFT(lattice, atoms, positions; functionals=LDA(), temperature=T)
         basis = PlaneWaveBasis(model; Ecut=10, kgrid=[1, 1, 1])
         scfres = self_consistent_field(basis, tol=1e-12)
-        scfres.energies.total
+        scfres.energies.Entropy
     end
     T0 = .01
     derivative_ε = let ε = 1e-5
