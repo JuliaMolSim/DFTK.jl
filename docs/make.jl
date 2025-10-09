@@ -44,6 +44,7 @@ PAGES = [
         "examples/energy_cutoff_smearing.jl",
     ],
     "Response and properties" => [
+        "examples/elastic_constants.jl",
         "examples/polarizability.jl",
         "examples/forwarddiff.jl",
         "examples/phonons.jl",

@@ -41,7 +41,7 @@ struct NoopOperator{T <: Real} <: RealFourierOperator
     kpoint::Kpoint{T}
 end
 apply!(Hψ, op::NoopOperator, ψ) = nothing
-function Matrix(op::NoopOperator)
+function Base.Matrix(op::NoopOperator)
     n_Gk = length(G_vectors(op.basis, op.kpoint))
     zeros_like(G_vectors(op.basis), eltype(op.basis), n_Gk, n_Gk)
 end
@@ -60,7 +60,7 @@ end
 function apply!(Hψ, op::RealSpaceMultiplication, ψ)
     Hψ.real .+= op.potential .* ψ.real
 end
-function Matrix(op::RealSpaceMultiplication)
+function Base.Matrix(op::RealSpaceMultiplication)
     # V(G, G') = <eG|V|eG'> = 1/sqrt(Ω) <e_{G-G'}|V>
     pot_fourier = fft(op.basis, op.potential)
     n_G = length(G_vectors(op.basis, op.kpoint))
