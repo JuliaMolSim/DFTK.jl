@@ -3,34 +3,42 @@
    using PseudoPotentialData
    using LinearAlgebra
    
-   # Identity
-   Id = Float64[1 0 0; 0 1 0; 0 0 1]
-   D = DFTK.wigner_d_matrix(1, Id)
-   @test D ≈ I
-   D = DFTK.wigner_d_matrix(2, Id)
-   @test D ≈ I
-   # This reverts all p orbitals, sends all d orbitals in themselves
-   Inv = -Id
-   D = DFTK.wigner_d_matrix(1, Inv)
-   @test D ≈ -I
-   D = DFTK.wigner_d_matrix(2, Inv)
-   @test D ≈ I
-   # This keeps pz, dz2, dx2-y2 and dxy unchanged, changes sign to all others
-   A3  = Float64[1 0 0; 0 -1 0; 0 0 -1] 
-   D3p = Float64[-1 0 0; 0 -1 0; 0 0 1]
-   D3d = Float64[-1 0 0 0 0; 0 1 0 0 0; 0 0 1 0 0; 0 0 0 -1 0; 0 0 0 0 1]
-   D = DFTK.wigner_d_matrix(1, A3)
-   @test D ≈ D3p
-   D = DFTK.wigner_d_matrix(2, A3)
-   @test D ≈ D3d
-   # This sends: px <-> py, dxz <-> dyz, dx2-y2 -> -(dx2-y2) and keeps the other fixed
-   A3  = Float64[0 1 0; 1 0 0; 0 0 1] 
-   D3p = Float64[0 0 1; 0 1 0; 1 0 0]
-   D3d = Float64[1 0 0 0 0; 0 0 0 1 0; 0 0 1 0 0; 0 1 0 0 0; 0 0 0 0 -1]
-   D = DFTK.wigner_d_matrix(1, A3)
-   @test D ≈ D3p
-   D = DFTK.wigner_d_matrix(2, A3)
-   @test D ≈ D3d
+    @testset "Wigner Identity" begin
+        # Identity
+        Id = [1.0 0 0; 0 1 0; 0 0 1]
+        D = DFTK.wigner_d_matrix(1, Id)
+        @test D ≈ I
+        D = DFTK.wigner_d_matrix(2, Id)
+        @test D ≈ I
+    end
+    @testset "Wigner Inversion" begin
+        # This reverts all p orbitals, sends all d orbitals in themselves
+        Inv = -[1.0 0 0; 0 1 0; 0 0 1]
+        D = DFTK.wigner_d_matrix(1, Inv)
+        @test D ≈ -I
+        D = DFTK.wigner_d_matrix(2, Inv)
+        @test D ≈ I
+    end
+    @testset "Wigner invert x and y" begin
+        # This keeps pz, dz2, dx2-y2 and dxy unchanged, changes sign to all others
+        A3  = [1.0 0 0; 0 -1 0; 0 0 -1] 
+        D3p = [-1.0 0 0; 0 -1 0; 0 0 1]
+        D3d = [-1.0 0 0 0 0; 0 1 0 0 0; 0 0 1 0 0; 0 0 0 -1 0; 0 0 0 0 1]
+        D = DFTK.wigner_d_matrix(1, A3)
+        @test D ≈ D3p
+        D = DFTK.wigner_d_matrix(2, A3)
+        @test D ≈ D3d
+    end
+    @testset "Wigner swap x and y" begin
+        # This sends: px <-> py, dxz <-> dyz, dx2-y2 -> -(dx2-y2) and keeps the other fixed
+        A3  = [0.0 1 0; 1 0 0; 0 0 1] 
+        D3p = [0.0 0 1; 0 1 0; 1 0 0]
+        D3d = [1.0 0 0 0 0; 0 0 0 1 0; 0 0 1 0 0; 0 1 0 0 0; 0 0 0 0 -1]
+        D = DFTK.wigner_d_matrix(1, A3)
+        @test D ≈ D3p
+        D = DFTK.wigner_d_matrix(2, A3)
+        @test D ≈ D3d
+    end
 end 
 
 @testitem "Test Hubbard U term in Nickel Oxide" setup=[TestCases] begin
@@ -81,5 +89,4 @@ end
    n_hub = scfres.nhubbard
    scfres_nosym = DFTK.unfold_bz(scfres)
    @test norm(n_hub .- scfres_nosym.nhubbard) < 1e-8
-
 end

@@ -3,7 +3,6 @@
 # with and without the Hubbard term correction.
 
 using DFTK
-using Printf
 using PseudoPotentialData
 using Unitful
 using UnitfulAtomic
@@ -15,17 +14,18 @@ lattice = a * [[ 1.0  0.5  0.5];
                [ 0.5  1.0  0.5];
                [ 0.5  0.5  1.0]]
 pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
-Ni, O = ElementPsp(:Ni, pseudopotentials), ElementPsp(:O, pseudopotentials)
+Ni = ElementPsp(:Ni, pseudopotentials)
+O = ElementPsp(:O, pseudopotentials)
 atoms = [Ni, O, Ni, O]
 positions = [zeros(3), ones(3) / 4, ones(3) / 2, ones(3) * 3 / 4]
 magnetic_moments = [2, 0, -1, 0]
  
-# First, we run an SCF and NSCF without the Hubbard term
+# First, we run an SCF and band computation without the Hubbard term
 model = model_DFT(lattice, atoms, positions; temperature=5e-3,
-                  functionals = PBE(), magnetic_moments=magnetic_moments)
-basis = PlaneWaveBasis(model; Ecut = 32, kgrid = [2, 2, 2] )
+                  functionals=PBE(), magnetic_moments=magnetic_moments)
+basis = PlaneWaveBasis(model; Ecut=32, kgrid=[2, 2, 2] )
 scfres = self_consistent_field(basis; tol=1e-10, ρ=guess_density(basis, magnetic_moments))
-bands = compute_bands(scfres, MonkhorstPack(2, 2, 2); ρ=scfres.ρ);
+bands = compute_bands(scfres, MonkhorstPack(2, 2, 2));
 band_gap = bands.eigenvalues[1][25] - bands.eigenvalues[1][24]
 
 # Then we plot the DOS and the PDOS for the relevant 3D (pseudo)atomic projector
@@ -45,7 +45,7 @@ model = model_DFT(lattice, atoms, positions; extra_terms=[DFTK.Hubbard(manifold,
 basis = PlaneWaveBasis(model; Ecut = 32, kgrid = [2, 2, 2] )
 scfres = self_consistent_field(basis; tol=1e-10, ρ=guess_density(basis, magnetic_moments))
 
-# Run NSCF
+# Run band computation
 bands_hub = compute_bands(scfres, MonkhorstPack(2, 2, 2); ρ=scfres.ρ)
 band_gap = bands_hub.eigenvalues[1][26] - bands_hub.eigenvalues[1][25]
 

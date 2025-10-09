@@ -58,10 +58,10 @@ end
 """
 function wigner_d_matrix(l::Integer, Wcart::AbstractMatrix{T}) where {T}
     if l == 0 # In this case no computation is needed
-        return hcat(one(T))
+        return [one(T);;]
     end
     rng = Xoshiro(1234)
-    neq = (2*l+2) # We need at least 2*l+1 equations, we add one for numerical stability
+    neq = 2*l+2 # We need at least 2*l+1 equations, we add one for numerical stability
     B = Matrix{T}(undef, 2*l+1, neq)
     A = Matrix{T}(undef, 2*l+1, neq)
     for n in 1:neq
