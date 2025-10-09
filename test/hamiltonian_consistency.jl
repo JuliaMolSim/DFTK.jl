@@ -93,7 +93,7 @@ end
     test_consistency_term(ExternalFromFourier(X -> abs(norm(X))))
     test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
     test_consistency_term(Hartree())
-    test_consistency_term(Hubbard(DFTK.OrbitalManifold(;species=:Si, label="3P"), 0.01), )
+    test_consistency_term(Hubbard(DFTK.OrbitalManifold(; species=:Si, label="3P"), 0.01))
     test_consistency_term(Ewald())
     test_consistency_term(PspCorrection())
     test_consistency_term(Xc([:lda_xc_teter93]))

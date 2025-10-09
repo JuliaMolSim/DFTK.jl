@@ -69,7 +69,6 @@ function symmetrize_nhubbard(nhubbard::Array{Matrix{Complex{T}}},
         WigD = wigner_d_matrix(l, Wcart)
         for σ in 1:nspins, iatom in 1:natoms
             sym_atom = find_symmetry_preimage(positions, positions[iatom], symmetry)
-            # TODO: Here QE flips spin for time-reversal in collinear systems, should we?
             ns[σ, iatom, iatom] .+= WigD' * nhubbard[σ, sym_atom, sym_atom] * WigD
         end
     end
@@ -104,59 +103,32 @@ Overviw of outputs:
     also against those outside of the manifold.
 """
 function compute_nhubbard(manifold::OrbitalManifold,
-                             basis::PlaneWaveBasis{T},
-                             ψ, occupation;
-                             projectors, labels,
-                             positions = basis.model.positions) where {T}
+                          basis::PlaneWaveBasis{T},
+                          ψ, occupation;
+                          projectors, labels,
+                          positions = basis.model.positions) where {T}
     filled_occ = filled_occupation(basis.model)
-    nprojs = length(labels)
     nspins = basis.model.n_spin_components
-    n_matrix = zeros(Complex{T}, nspins, nprojs, nprojs) 
-    for σ in 1:nspins, ik = krange_spin(basis, σ)  
-        # We divide by filled_occ to deal with the physical two spin channels separately.
-        c = projectors[ik]'ψ[ik] # <ϕ|ψ>
-        # Sums over the bands
-        n_matrix[σ, :, :] .+= basis.kweights[ik] * c * diagm(occupation[ik]/filled_occ) * c'
-    end
-    n_matrix = mpi_sum(n_matrix, basis.comm_kpts)
 
-    # Now I want to reshape it to match the notation used in the papers.
-    # Reshape into n[I, J, σ][m1, m2] where I, J indicate the atom in the Hubbard manifold, 
-    # σ is the spin, m1 and m2 are magnetic quantum numbers (n, l are fixed)
     manifold_atoms = findall(at -> at.species==manifold.species, basis.model.atoms)
     natoms = length(manifold_atoms)  # Number of atoms of the species in the manifold
+    l = labels[1].l
     nhubbard = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)
-    p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for ik in 1:length(basis.kpoints)]
-    # Very low-level, but works
-    for σ in 1:nspins, iatom in eachindex(manifold_atoms)
-        i = 1
-        while i <= nprojs
-            il = labels[i].l
-            if manifold_atoms[iatom] != labels[i].iatom
-                i += 2*il + 1
-                continue
-            end
-            for jatom in eachindex(manifold_atoms)
-                j = 1
-                while j <= nprojs
-                    jl = labels[j].l
-                    if manifold_atoms[jatom] == labels[j].iatom  
-                        nhubbard[σ, iatom, jatom] = n_matrix[σ, i:i+2*il, j:j+2*jl]
-                    end
-                    j += 2*jl + 1
-                end
-            end
-            for (ik, projk) in enumerate(projectors)
-                p_I[ik][iatom] = projk[:, i:i+2*il]  
-            end
-            i += 2*il + 1
+    for σ in 1:nspins, iatom in 1:natoms, jatom in 1:natoms
+        nhubbard[σ, iatom, jatom] = zeros(Complex{T}, 2*l+1, 2*l+1)
+        for ik = krange_spin(basis, σ) 
+            # We divide by filled_occ to deal with the physical two spin channels separately.
+            j_projection = ψ[ik]' * projectors[ik][jatom] # <ψ|ϕJ>
+            i_projection = projectors[ik][iatom]' * ψ[ik] # <ϕI|ψ>
+            # Sums over the bands
+            nhubbard[σ, iatom, jatom] .+= basis.kweights[ik] * i_projection * 
+                                          diagm(occupation[ik]/filled_occ) * j_projection
         end
     end
-
     nhubbard = symmetrize_nhubbard(nhubbard, basis.model, 
                                basis.symmetries, basis.model.positions[manifold_atoms])
 
-    return (; nhubbard, manifold_labels=labels, p_I)
+    return (; nhubbard, manifold_labels=labels)
 end
 
 function reshape_hubbard_proj(basis, projectors::Vector{Matrix{Complex{T}}}, 
@@ -164,19 +136,18 @@ function reshape_hubbard_proj(basis, projectors::Vector{Matrix{Complex{T}}},
     manifold_atoms = findall(at -> at.species==manifold.species, basis.model.atoms)
     natoms = length(manifold_atoms)
     nprojs = length(labels)
+    l = labels[1].l
+    @assert all(label -> label.l==l, labels)
+    @assert length(labels) == natoms * (2*l+1)
     p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for i in 1:length(projectors)]
-    for iatom in eachindex(manifold_atoms)
-        i = 1
-        while i <= nprojs
-            il = labels[i].l
-            if !(manifold_atoms[iatom] == labels[i].iatom)
-                i += 2*il + 1
+    for (iatom, idx) in enumerate(manifold_atoms)
+        for i in 1:2*l+1:nprojs
+            if iatom != labels[i].iatom
                 continue
             end
             for (ik, projk) in enumerate(projectors)
-                p_I[ik][iatom] = projk[:, i:i+2*il]  
+                p_I[ik][idx] = projk[:, i:i+2*l]  
             end
-            i += 2*il + 1
         end
     end
 
@@ -197,9 +168,9 @@ function (hubbard::Hubbard)(basis::AbstractBasis)
     if isnothing(hubbard.manifold.label) || isnothing(hubbard.manifold.species)
         error("TermHubbard needs both a species and a label inside OrbitalManifold")
     end
-    iszero(hubbard.U) && return TermNoop()
     projs, labels = atomic_orbital_projectors(basis)
     labels, projectors = extract_manifold(basis, projs, labels, hubbard.manifold)
+    projectors = reshape_hubbard_proj(basis, projectors, labels, hubbard.manifold)
     U = austrip(hubbard.U)
     TermHubbard(hubbard.manifold, U, projectors, labels)
 end
@@ -220,12 +191,12 @@ end
         if isnothing(nhubbard)
            return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
         end
-        proj = reshape_hubbard_proj(basis, term.P, term.labels, term.manifold)
+        proj = term.P
     else
         Hubbard = compute_nhubbard(term.manifold, basis, ψ, occupation; projectors=term.P, 
         labels)
         nhubbard = Hubbard.nhubbard
-        proj = Hubbard.p_I
+        proj = term.P
     end
 
     ops = [HubbardUOperator(basis, kpt, term.U, nhubbard, proj[ik]) 

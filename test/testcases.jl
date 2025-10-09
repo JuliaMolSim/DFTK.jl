@@ -10,7 +10,6 @@ gth_lda_semi  = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
 pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
 
 silicon = (;
-    symbol = :Si,
     lattice = [0.0  5.131570667152971 5.131570667152971;
                5.131570667152971 0.0 5.131570667152971;
                5.131570667152971 5.131570667152971  0.0],
@@ -32,7 +31,6 @@ silicon = merge(silicon,
                 (; atoms=fill(ElementPsp(silicon.atnum, load_psp(silicon.psp_gth)), 2)))
 
 magnesium = (;
-    symbol = :Mg,
     lattice = [-3.0179389205999998 -3.0179389205999998 0.0000000000000000;
                -5.2272235447000002 5.2272235447000002 0.0000000000000000;
                0.0000000000000000 0.0000000000000000 -9.7736219469000005],
@@ -57,7 +55,6 @@ magnesium = merge(magnesium,
 
 
 aluminium = (;
-    symbol = :Al,
     lattice = Matrix(Diagonal([4 * 7.6324708938577865, 7.6324708938577865,
                                7.6324708938577865])),
     atnum = 13,
@@ -74,7 +71,6 @@ aluminium = merge(aluminium,
 
 
 aluminium_primitive = (;
-    symbol = :Al,
     lattice = [5.39697192863632 2.69848596431816 2.69848596431816;
                0.00000000000000 4.67391479368660 1.55797159787754;
                0.00000000000000 0.00000000000000 4.40660912710674],
@@ -93,7 +89,6 @@ aluminium_primitive = merge(aluminium_primitive,
 
 
 platinum_hcp = (;
-    symbol = :Pt,
     lattice = [10.00000000000000 0.00000000000000 0.00000000000000;
                5.00000000000000 8.66025403784439 0.00000000000000;
                0.00000000000000 0.00000000000000 16.3300000000000],
@@ -111,7 +106,6 @@ platinum_hcp = merge(platinum_hcp,
                                               load_psp(platinum_hcp.psp_gth)), 2)))
 
 iron_bcc = (;
-    symbol = :Fe,
     lattice = 2.71176 .* [[-1 1 1]; [1 -1  1]; [1 1 -1]],
     atnum = 26,
     mass = 55.8452u"u",
@@ -138,28 +132,6 @@ o2molecule = (;
 o2molecule = merge(o2molecule,
                    (; atoms=fill(ElementPsp(o2molecule.atnum,
                                             load_psp(o2molecule.psp_gth)), 2)))
-
-nickel = (;
-    symbol = :Ni,
-    atnum = 28,
-    mass = 58.6934u"u",
-    n_electrons = 10,
-    psp_gth = gth_lda_semi[:Ni],
-    psp_upf = pd_lda_family[:Ni],
-    temperature = 0.02,
-    is_metal = true,
-)
-
-oxygen = (;
-    symbol = :O,
-    atnum = 8,
-    mass = 15.999u"u",
-    n_electrons = 6,
-    psp_gth = gth_lda_semi[:O],
-    psp_upf = pd_lda_family[:O],
-    temperature = 0.02, 
-    is_metal = true,
-)                          
 
 all_testcases = (; silicon, magnesium, aluminium, aluminium_primitive, platinum_hcp,
                  iron_bcc, o2molecule)

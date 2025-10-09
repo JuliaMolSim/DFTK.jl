@@ -171,18 +171,18 @@ function apply!(Hψ, op::HubbardUOperator, ψ)
     σ = op.kpoint.spin
     n_IJ   = op.n_IJs
     proj_I = op.proj_Is
-    natoms  = size(op.n_IJs, 2)
+    natoms = size(n_IJ, 2)
     for iatom in 1:natoms
         n_ii = n_IJ[σ, iatom, iatom]
         iszero(n_ii) && continue
-        for m1 = 1:size(n_ii, 1)
-            P_i_m1 = @view proj_I[iatom][:,m1]
-            for m2 = 1:size(n_ii, 2)
-                P_i_m2 = @view proj_I[iatom][:,m2]
+        for m2 = 1:size(n_ii, 2)
+            P_i_m2 = @view proj_I[iatom][:,m2]
+            projection = P_i_m2' * ψ.fourier
+            for m1 = 1:size(n_ii, 1)
+                P_i_m1 = @view proj_I[iatom][:,m1]
                 δm = (m1 == m2) ? one(eltype(n_ii)) : zero(eltype(n_ii))
                 coefficient = 1/2 * op.Us * (δm - 2*n_ii[m1, m2])
-                projection = P_i_m2' * ψ.fourier
-                Hψ.fourier .+= P_i_m1 * coefficient * projection
+                mul!(Hψ.fourier, P_i_m1, projection, coefficient, 1)
             end
         end
     end
