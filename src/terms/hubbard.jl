@@ -194,7 +194,7 @@ end
            return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
         end
     else
-        nhubbard = compute_nhubbard(term.manifold, basis, ψ, occupation; projectors=term.P, 
+        nhubbard = compute_nhubbard(term.manifold, basis, ψ, occupation; projectors=term.P,
                                     labels).nhubbard
     end
     proj = term.P
