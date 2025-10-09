@@ -25,7 +25,7 @@ end
 function test_solve_ΩplusK(scfres, δVext)
     # Compute a reference solution
     δHψ = DFTK.multiply_ψ_by_blochwave(scfres.basis, scfres.ψ, δVext)
-    ref = DFTK.solve_ΩplusK_split(scfres, -δHψ; verbose=true, s=1.0, tol=1e-12,
+    ref = DFTK.solve_ΩplusK_split(scfres, δHψ; verbose=true, s=1.0, tol=1e-12,
                                   bandtolalg=1e-6 * DFTK.BandtolGuaranteed(scfres))
     δρ0 = apply_χ0(scfres, δVext, tol=1e-13).δρ
 
@@ -40,7 +40,7 @@ function test_solve_ΩplusK(scfres, δVext)
 
     @testset "Adaptive algorithm yields desired tolerances" begin
         for tol in (1e-3, 1e-6, 1e-8, 1e-10)
-            res = DFTK.solve_ΩplusK_split(scfres, -δHψ; tol, verbose=false)
+            res = DFTK.solve_ΩplusK_split(scfres, δHψ; tol, verbose=false)
             @test maximum(abs, res.δρ - ref.δρ) < tol
 
             for ik in 1:length(scfres.basis.kpoints)
@@ -51,7 +51,7 @@ function test_solve_ΩplusK(scfres, δVext)
 
     @testset "Try very large value for s" begin
         tol = 1e-8
-        res = DFTK.solve_ΩplusK_split(scfres, -δHψ; tol, s=10^5, verbose=false)
+        res = DFTK.solve_ΩplusK_split(scfres, δHψ; tol, s=10^5, verbose=false)
         @test maximum(abs, res.δρ - ref.δρ) < tol
 
         for ik in 1:length(scfres.basis.kpoints)
@@ -190,8 +190,8 @@ end
     ϕ = rhs + ψ
 
     @testset "self-adjointness of solve_ΩplusK_split" begin
-        @test isapprox(real(dot(ϕ, solve_ΩplusK_split(scfres, rhs).δψ)),
-                        real(dot(solve_ΩplusK_split(scfres, ϕ).δψ, rhs)),
+        @test isapprox(real(dot(ϕ, solve_ΩplusK_split(scfres, -rhs).δψ)),
+                        real(dot(solve_ΩplusK_split(scfres, -ϕ).δψ, rhs)),
                         atol=1e-7)
     end
 end

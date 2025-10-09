@@ -150,7 +150,7 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T};
     ΩpKe2 = apply_Ω(e2, ψr, hamr, Λ) .+ apply_K(basis_ref, e2, ψr, ρr, occ)
     ΩpKe2 = transfer_blochwave(ΩpKe2, basis_ref, basis)
 
-    rhs = resLF - ΩpKe2
+    rhs = ΩpKe2 - resLF
 
     # Invert Ω+K on the small space
     ΩpK_res = solve_ΩplusK(basis, ψ, rhs, occ; tol, kwargs...)
