@@ -108,24 +108,25 @@ function compute_nhubbard(manifold::OrbitalManifold,
                           projectors, labels,
                           positions = basis.model.positions) where {T}
     filled_occ = filled_occupation(basis.model)
+    nprojs = length(labels)
     nspins = basis.model.n_spin_components
 
     manifold_atoms = findall(at -> at.species==manifold.species, basis.model.atoms)
     natoms = length(manifold_atoms)  # Number of atoms of the species in the manifold
     l = labels[1].l
     nhubbard = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)
-    for σ in 1:nspins, iatom in 1:natoms, jatom in 1:natoms
-        nhubbard[σ, iatom, jatom] = zeros(Complex{T}, 2*l+1, 2*l+1)
-        for ik = krange_spin(basis, σ) 
+    for σ in 1:nspins, (idx, iatom) in enumerate(manifold_atoms), (jdx, jatom) in enumerate(manifold_atoms)
+        nhubbard[σ, idx, jdx] = zeros(Complex{T}, 2*l+1, 2*l+1)
+        for ik = krange_spin(basis, σ)
             # We divide by filled_occ to deal with the physical two spin channels separately.
-            j_projection = ψ[ik]' * projectors[ik][jatom] # <ψ|ϕJ>
-            i_projection = projectors[ik][iatom]' * ψ[ik] # <ϕI|ψ>
+            j_projection = ψ[ik]' * projectors[ik][jdx] # <ψ|ϕJ>
+            i_projection = projectors[ik][idx]' * ψ[ik] # <ϕI|ψ>
             # Sums over the bands
-            nhubbard[σ, iatom, jatom] .+= basis.kweights[ik] * i_projection * 
+            nhubbard[σ, idx, jdx] .+= basis.kweights[ik] * i_projection *
                                           diagm(occupation[ik]/filled_occ) * j_projection
         end
     end
-    nhubbard = symmetrize_nhubbard(nhubbard, basis.model, 
+    nhubbard = symmetrize_nhubbard(nhubbard, basis.model,
                                basis.symmetries, basis.model.positions[manifold_atoms])
 
     return (; nhubbard, manifold_labels=labels)
@@ -140,13 +141,14 @@ function reshape_hubbard_proj(basis, projectors::Vector{Matrix{Complex{T}}},
     @assert all(label -> label.l==l, labels)
     @assert length(labels) == natoms * (2*l+1)
     p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for i in 1:length(projectors)]
-    for (iatom, idx) in enumerate(manifold_atoms)
+    for (idx, iatom) in enumerate(manifold_atoms)
         for i in 1:2*l+1:nprojs
             if iatom != labels[i].iatom
                 continue
-            end
-            for (ik, projk) in enumerate(projectors)
-                p_I[ik][idx] = projk[:, i:i+2*l]  
+            else
+                for (ik, projk) in enumerate(projectors)
+                    p_I[ik][idx] = projk[:, i:i+2*l]
+                end
             end
         end
     end
@@ -191,13 +193,11 @@ end
         if isnothing(nhubbard)
            return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
         end
-        proj = term.P
     else
-        Hubbard = compute_nhubbard(term.manifold, basis, ψ, occupation; projectors=term.P, 
-        labels)
-        nhubbard = Hubbard.nhubbard
-        proj = term.P
+        nhubbard = compute_nhubbard(term.manifold, basis, ψ, occupation; projectors=term.P, 
+                                    labels).nhubbard
     end
+    proj = term.P
 
     ops = [HubbardUOperator(basis, kpt, term.U, nhubbard, proj[ik]) 
            for (ik,kpt) in enumerate(basis.kpoints)]
@@ -210,5 +210,5 @@ end
         E += filled_occ * 1/2 * term.U * 
              real(tr(nhubbard[σ, iatom, iatom] * (I - nhubbard[σ, iatom, iatom])))
     end
-    return (; E, ops, nhubbard)
+    return (; E, ops)
 end

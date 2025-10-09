@@ -38,11 +38,11 @@ PAGES = [
         "examples/convergence_study.jl",
         "examples/pseudopotentials.jl",
         "examples/supercells.jl",
-        "examples/hubbard.jl",
         "examples/gaas_surface.jl",
         "examples/graphene.jl",
         "examples/geometry_optimization.jl",
         "examples/energy_cutoff_smearing.jl",
+        "examples/hubbard.jl",
     ],
     "Response and properties" => [
         "examples/polarizability.jl",
