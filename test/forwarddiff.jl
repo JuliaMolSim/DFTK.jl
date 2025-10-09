@@ -403,3 +403,32 @@ end
     # Check that scfres_dual has the same parameters as scfres
     @test isempty(setdiff(keys(scfres), keys(scfres_dual)))
 end
+
+
+@testitem "ForwardDiff wrt temperature" tags=[:dont_test_mpi, :minimal] begin
+    using DFTK
+    using ForwardDiff
+    using LinearAlgebra
+    using PseudoPotentialData
+
+    a = 10.26  # Silicon lattice constant in Bohr
+    lattice = a / 2 * [[0 1 1.];
+                       [1 0 1.];
+                       [1 1 0.]]
+    Si = ElementPsp(:Si, PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf"))
+    atoms     = [Si, Si]
+    positions = [ones(3)/8, -ones(3)/8]
+
+    function get(T)
+        model = model_DFT(lattice, atoms, positions; functionals=LDA(), temperature=T)
+        basis = PlaneWaveBasis(model; Ecut=10, kgrid=[1, 1, 1])
+        scfres = self_consistent_field(basis, tol=1e-12)
+        scfres.energies.total
+    end
+    T0 = .01
+    derivative_ε = let ε = 1e-5
+        (get(T0+ε) - get(T0-ε)) / 2ε
+    end
+    derivative_fd = ForwardDiff.derivative(get, T0)
+    @test norm(derivative_ε - derivative_fd) < 1e-4
+end

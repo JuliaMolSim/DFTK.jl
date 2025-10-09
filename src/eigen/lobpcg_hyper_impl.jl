@@ -151,7 +151,7 @@ end
     # For versions < 1.12, since we mainly care about eigenvectors being orthogonal
     # we re-orthogonalise explicitly.
     @static if VERSION >= v"1.12"
-        values, vectors = eigen(XAX; alg=DivideAndConquer())
+        values, vectors = eigen(XAX; alg=LinearAlgebra.DivideAndConquer())
         return vectors[:, 1:N], values[1:N]
     else
         values, vectors = eigen(XAX)
