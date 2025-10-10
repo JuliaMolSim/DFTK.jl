@@ -275,7 +275,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
        scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter,
        scfres.n_bands_converge, scfres.n_matvec, scfres.diagonalization, scfres.stage,
        scfres.history_Δρ, scfres.history_Etot, scfres.timedout, scfres.mixing,
-       scfres.algorithm, scfres.runtime_ns)
+       scfres.seed, scfres.algorithm, scfres.runtime_ns)
 end
 
 function hankel(r::AbstractVector, r2_f::AbstractVector, l::Integer, p::TT) where {TT <: ForwardDiff.Dual}

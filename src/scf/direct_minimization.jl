@@ -75,11 +75,13 @@ function direct_minimization(basis::PlaneWaveBasis{T};
                              optim_method=Optim.LBFGS,
                              alphaguess=LineSearches.InitialStatic(),
                              linesearch=LineSearches.BackTracking(),
+                             seed=nothing,
                              kwargs...) where {T}
     if mpi_nprocs() > 1
         # need synchronization in Optim
         error("Direct minimization with MPI is not supported yet")
     end
+    seed = seed_task_local_rng!(seed, MPI.COMM_WORLD)
     model = basis.model
     @assert iszero(model.temperature)  # temperature is not yet supported
     @assert isnothing(model.εF)        # neither are computations with fixed Fermi level
@@ -189,7 +191,7 @@ function direct_minimization(basis::PlaneWaveBasis{T};
     # We rely on the fact that the last point where fg! was called is the minimizer to
     # avoid recomputing at ψ
     info = (; ham, basis, energies, converged, ρ, eigenvalues, occupation, εF,
-            n_bands_converge=n_bands, n_iter=Optim.iterations(res),
+            n_bands_converge=n_bands, n_iter=Optim.iterations(res), seed,
             runtime_ns=time_ns() - start_ns, history_Δρ, history_Etot,
             ψ, stage=:finalize, algorithm="DM", optim_res=res)
     callback(info)
