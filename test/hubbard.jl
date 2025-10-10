@@ -74,19 +74,18 @@ end
    ρ0 = guess_density(basis, magnetic_moments)
    scfres = self_consistent_field(basis; tol=1e-10, ρ=ρ0)
    
-   ref = -354.907446880021
-   e_total = scfres.energies.total
-   @test abs(e_total - ref) < 1e-8
-   for (term, value) in scfres.energies
-       if term == "Hubbard"
-          ref_hub = 0.17629078433258719
-          e_hub = value
-          @test abs(e_hub - ref_hub) < 1e-8
-       end
-   end  
-
-   # Test symmetry consistency
-   n_hub = scfres.nhubbard
-   scfres_nosym = DFTK.unfold_bz(scfres)
-   @test norm(n_hub .- scfres_nosym.nhubbard) < 1e-8
+   @testset "Test Energy results" begin
+        # The reference values are obtained with first released version
+        # of the Hubbard code and are in good agreement with Quantum Espresso
+        ref = -354.907446880021
+        e_total = scfres.energies.total
+        @test abs(e_total - ref) < 1e-8
+        ref_hub = 0.17629078433258719
+        @test abs(scfres.energies.Hubbard - ref_hub) < 1e-8
+   end
+   @testset "Test symmetry consistency" begin
+        n_hub = scfres.nhubbard
+        scfres_nosym = DFTK.unfold_bz(scfres)
+        @test norm(n_hub .- scfres_nosym.nhubbard) < 1e-8
+   end
 end

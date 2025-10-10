@@ -166,7 +166,7 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
     labels = []
     for (iatom, atom) in enumerate(basis.model.atoms)
         psp = atom.psp
-        count_n_pswfc(psp) # We need this to check if we have any atomic orbital projector
+        @assert count_n_pswfc(psp) > 0 # We need this to check if we have any atomic orbital projector
         for l in 0:psp.lmax, n in 1:DFTK.count_n_pswfc_radial(psp, l)
             label = DFTK.pswfc_label(psp, n, l)
             if !isonmanifold((; iatom, atom.species, label))
