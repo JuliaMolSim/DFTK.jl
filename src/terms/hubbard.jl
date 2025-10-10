@@ -125,6 +125,7 @@ function compute_nhubbard(manifold::OrbitalManifold,
             nhubbard[σ, idx, jdx] .+= basis.kweights[ik] * i_projection *
                                           diagm(occupation[ik]/filled_occ) * j_projection
         end
+        nhubbard[σ, idx, jdx] = mpi_sum(nhubbard[σ, idx, jdx], basis.comm_kpts)
     end
     nhubbard = symmetrize_nhubbard(nhubbard, basis.model,
                                basis.symmetries, basis.model.positions[manifold_atoms])
