@@ -13,6 +13,28 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
     kpoints = ham.basis.kpoints
     results = Vector{Any}(undef, length(kpoints))
 
+    # TODO: temporary plumbing :P
+    B = [I for _ in kpoints]
+    if any(ham.basis.model.atoms) do el el isa ElementPsp && el.psp isa PspUpf && el.psp.type == "US" end
+        model = ham.basis.model
+
+        # keep only pseudopotential atoms and positions
+        psp_groups = [group for group in model.atom_groups
+                        if model.atoms[first(group)] isa ElementPsp]
+        psps          = [model.atoms[first(group)].psp for group in psp_groups]
+        psp_positions = [model.positions[group] for group in psp_groups]
+
+        # We have an overlap term
+        B = map(ham.blocks) do block
+            op = block.nonlocal_op
+            Q = build_projection_coefficients(eltype(ham.basis), psps, psp_positions, "Q")
+            LinearMap(size(op.P, 1)) do Sψ, ψ
+                mul!(Sψ, op.P, (Q * (op.P' * ψ)), 1, 0)
+                Sψ .+= ψ # + identity
+            end
+        end
+    end
+
     for (ik, kpt) in enumerate(kpoints)
         n_Gk = length(G_vectors(ham.basis, kpt))
         if n_Gk < nev_per_kpoint
@@ -48,7 +70,7 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
         prec = nothing
         !isnothing(prec_type) && (prec = prec_type(ham[ik]))
         results[ik] = eigensolver(ham[ik], ψguessk;
-                                  prec, tol, miniter, maxiter, n_conv_check)
+                                  B=B[ik], prec, tol, miniter, maxiter, n_conv_check)
     end
 
     # Transform results into a nicer datastructure

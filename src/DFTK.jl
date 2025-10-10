@@ -90,6 +90,7 @@ include("Kpoint.jl")
 include("PlaneWaveBasis.jl")
 include("orbitals.jl")
 include("input_output.jl")
+include("ultrasoft.jl")
 
 export create_supercell
 export cell_to_supercell
