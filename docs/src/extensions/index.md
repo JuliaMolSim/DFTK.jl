@@ -1,0 +1,6 @@
+# Extensions
+
+## Manopt.jl
+
+```@docs
+```
