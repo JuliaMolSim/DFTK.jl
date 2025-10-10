@@ -14,7 +14,8 @@ function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
             @test norm(operator_matrix*ψk - operator*ψk) < atol
         catch e
             allowed_missing_operators = Union{DFTK.DivAgradOperator,
-                                              DFTK.MagneticFieldOperator}
+                                              DFTK.MagneticFieldOperator,
+                                              DFTK.HubbardUOperator}
             @assert operator isa allowed_missing_operators
             @info "Matrix of operator $(nameof(typeof(operator))) not yet supported" maxlog=1
         end
@@ -22,13 +23,13 @@ function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
 end
 
 function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2, 3],
-                               kshift=[0, 1, 0]/2, lattice=testcase.lattice, Ecut=10,
+                               kshift=[0, 1, 0]/2, lattice=testcase.lattice, Ecut=15,
                                spin_polarization=:none)
     sspol = spin_polarization != :none ? " ($spin_polarization)" : ""
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
     @testset "$(typeof(term))$xc $sspol" begin
         n_dim = 3 - count(iszero, eachcol(lattice))
-        Si = n_dim == 3 ? ElementPsp(14, load_psp(testcase.psp_gth)) : ElementCoulomb(:Si)
+        Si = n_dim == 3 ? ElementPsp(14, load_psp(testcase.psp_upf)) : ElementCoulomb(:Si)
         atoms = [Si, Si]
         model = Model(lattice, atoms, testcase.positions; terms=[term], spin_polarization,
                       symmetries=true)
@@ -92,16 +93,17 @@ end
     test_consistency_term(ExternalFromFourier(X -> abs(norm(X))))
     test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
     test_consistency_term(Hartree())
+    test_consistency_term(Hubbard(DFTK.OrbitalManifold(; species=:Si, label="3P"), 0.01))
     test_consistency_term(Ewald())
     test_consistency_term(PspCorrection())
     test_consistency_term(Xc([:lda_xc_teter93]))
     test_consistency_term(Xc([:lda_xc_teter93]), spin_polarization=:collinear)
     test_consistency_term(Xc([:gga_x_pbe]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:mgga_x_tpss]))
-    test_consistency_term(Xc([:mgga_x_scan]))
-    test_consistency_term(Xc([:mgga_c_scan]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:mgga_x_b00]))
-    test_consistency_term(Xc([:mgga_c_b94]), spin_polarization=:collinear)
+    test_consistency_term(Xc([:mgga_x_tpss]; use_nlcc=false)) # TODO: fix consistency for meta-GGA with NLCC
+    test_consistency_term(Xc([:mgga_x_scan]; use_nlcc=false))
+    test_consistency_term(Xc([:mgga_c_scan]; use_nlcc=false), spin_polarization=:collinear)
+    test_consistency_term(Xc([:mgga_x_b00]; use_nlcc=false))
+    test_consistency_term(Xc([:mgga_c_b94]; use_nlcc=false), spin_polarization=:collinear)
 
     let
         a = 6
