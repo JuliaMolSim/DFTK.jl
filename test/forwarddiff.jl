@@ -300,7 +300,8 @@ end
     end
 
     # Instantiate Dual to test with perturbations
-    ε = ForwardDiff.Dual{ForwardDiff.Tag{Nothing, Float64}}(0.0, 1.0)
+    # We need to call the `Tag` constructor to trigger the `ForwardDiff.tagcount`
+    ε = ForwardDiff.Dual{typeof(ForwardDiff.Tag(Val(:mytag), Float64))}(0.0, 1.0)
 
     @testset "Atom movement" begin
         # Moving the second atom should break the transx symmetry, but not the others
@@ -388,7 +389,8 @@ end
                       functionals=LDA(), temperature=1e-3, smearing=Smearing.Gaussian())
     
     # Make silicon dual model
-    T = typeof(ForwardDiff.Tag(:mytag, Float64))
+    # We need to call the `Tag` constructor to trigger the `ForwardDiff.tagcount`
+    T = typeof(ForwardDiff.Tag(Val(:mytag), Float64))
     x_dual = ForwardDiff.Dual{T}(1.0, 1.0)
     model_dual = Model(model; lattice=x_dual * model.lattice)
 
