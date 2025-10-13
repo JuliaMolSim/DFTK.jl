@@ -74,6 +74,7 @@ jobs:
         uses: julia-actions/julia-downgrade-compat@v2
         with:
           skip: Pkg # TODO: is this really needed? do we need to add more like LinearAlgebra?
+        if: ${{ matrix.mode == 'downgrade' }}
 
       - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@v1
