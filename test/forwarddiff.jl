@@ -300,6 +300,7 @@ end
     end
 
     # Instantiate Dual to test with perturbations
+    # We need to call the `Tag` constructor to trigger the `ForwardDiff.tagcount`
     ε = ForwardDiff.Dual{typeof(ForwardDiff.Tag(Val(:mytag), Float64))}(0.0, 1.0)
 
     @testset "Atom movement" begin
