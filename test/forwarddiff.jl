@@ -398,6 +398,7 @@ end
                       functionals=LDA(), temperature=1e-3, smearing=Smearing.Gaussian())
     
     # Make silicon dual model
+    # We need to call the `Tag` constructor to trigger the `ForwardDiff.tagcount`
     T = typeof(ForwardDiff.Tag(Val(:mytag), Float64))
     x_dual = ForwardDiff.Dual{T}(1.0, 1.0)
     model_dual = Model(model; lattice=x_dual * model.lattice)
