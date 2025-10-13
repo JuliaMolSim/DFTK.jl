@@ -94,47 +94,40 @@ Return `true` if a symmetry that holds for the primal part is broken by
 a perturbation in the lattice or in the positions, `false` otherwise.
 """
 function is_symmetry_broken_by_dual(lattice, atoms, positions, symmetry::SymOp; tol_symmetry)
-    # For any lattice atom at position x, W*x + w should be in the lattice.
-    # In cartesian coordinates, with a perturbed lattice A = A₀ + εA₁,
-    # this means that for any atom position xcart in the unit cell and any 3 integers u,
-    # there should be an atom at position ycart and 3 integers v such that:
-    # Wcart * (xcart + A*u) + wcart = ycart + A*v
-    # where
-    #     Wcart = A₀ * W * A₀⁻¹; note that W is an integer matrix
-    #     wcart = A₀ * w.
-    #
-    # In relative coordinates this gives:
-    # A⁻¹ * Wcart * (A*x + A*u) + A⁻¹ * wcart = y + v   (*)
-    #
-    # The strategy is then to check that:
-    # 1. A⁻¹ * Wcart * A is still an integer matrix (i.e. no dual part),
-    #    such that any change in u is easily compensated for in v.
-    # 2. The primal component of (*), i.e. with ε=0, is already known to hold.
-    #    Since v does not have a dual component, it is enough to check that
-    #    the dual part of the following is 0:
-    #      A⁻¹ * Wcart * A*x + A⁻¹ * wcart - y 
+    # The check proceeds as follows:
+    # 1. Metric invariance: Verify that the perturbed lattice metric
+    #    `G = A' * A` satisfies `W' * G * W = G` to first order.
+    # 2. Atomic mapping: In reduced coordinates, each atomic position `x`
+    #    must still satisfy `W*x + w = y (mod 1)` for some equivalent atom `y`
+    #    of the same species, up to numerical tolerance.
+    # Only the dual (perturbation) components are checked, the primal part is
+    # assumed to already obey the symmetry.
 
-    lattice_primal = ForwardDiff.value.(lattice)
-    W = (compute_inverse_lattice(lattice) * lattice_primal
-        * symmetry.W * compute_inverse_lattice(lattice_primal) * lattice)
-    w = compute_inverse_lattice(lattice) * lattice_primal * symmetry.w
+    # TODO: work out the case of nested Duals for higher-order derivatives
+    #       (eg. symmetry breaking at higher order)
 
+    W = symmetry.W
+    w = symmetry.w
+
+    # 1) Metric tensor check in fractional frame: Wᵀ G W == G (to first order)
+    G = lattice'lattice  # 3x3 metric tensor on the unit cube
+    ΔG = W' * G * W - G
     is_dual_nonzero(x::AbstractArray) = any(x) do xi
         maximum(abs, ForwardDiff.partials(xi)) >= tol_symmetry
     end
-    # Check 1.
-    if is_dual_nonzero(W)
-        return true
+    if is_dual_nonzero(ΔG)
+        return true  # anisotropic lattice perturbation breaks this symmetry
     end
 
+    # 2) Atomic mapping check stays purely in reduced coordinates.
     atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
     for group in atom_groups
         positions_group = positions[group]
-        for position in positions_group
-            i_other_at = find_symmetry_preimage(positions_group, position, symmetry; tol_symmetry)
-
-            # Check 2. with x = positions_group[i_other_at] and y = position
-            if is_dual_nonzero(positions_group[i_other_at] + inv(W) * (w - position))
+        for y in positions_group
+            i_other = find_symmetry_preimage(positions_group, y, symmetry; tol_symmetry)
+            x = positions_group[i_other]
+            # Check that W*x + w - y has zero dual part (primal already ok by construction)
+            if is_dual_nonzero(W * x + w - y)
                 return true
             end
         end
