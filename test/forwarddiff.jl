@@ -332,7 +332,8 @@ end
     end
 
     @testset "Isotropic lattice scaling" begin
-        lattice_modified = lattice + ε * I
+        # Isotropic scaling should not break any symmetry
+        lattice_modified = (1 + ε) * lattice
         symmetries_filtered = DFTK.remove_dual_broken_symmetries(lattice_modified, atoms, positions, symmetries_full)
 
         @test length(symmetries_filtered) == length(symmetries_full)
