@@ -94,9 +94,13 @@ Return `true` if a symmetry that holds for the primal part is broken by
 a perturbation in the lattice or in the positions, `false` otherwise.
 """
 function is_symmetry_broken_by_dual(lattice, atoms, positions, symmetry::SymOp; tol_symmetry)
-    # The check proceeds as follows:
+    # The symmetry operation is given by (W,w) where W is a 3x3 matrix and w a 3-vector,
+    # both in reduced (fractional) coordinates.
+    # 
+    # The strategy is then to check that:
     # 1. Metric invariance: Verify that the perturbed lattice metric
     #    `G = A' * A` satisfies `W' * G * W = G` to first order.
+    #     (This is equivalent to checking that Wcart = A * W * A⁻¹ is orthogonal.)
     # 2. Atomic mapping: In reduced coordinates, each atomic position `x`
     #    must still satisfy `W*x + w = y (mod 1)` for some equivalent atom `y`
     #    of the same species, up to numerical tolerance.
