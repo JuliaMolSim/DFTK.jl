@@ -96,16 +96,24 @@ a perturbation in the lattice or in the positions, `false` otherwise.
 function is_symmetry_broken_by_dual(lattice, atoms, positions, symmetry::SymOp; tol_symmetry)
     # The symmetry operation is given by (W,w) where W is a 3x3 matrix and w a 3-vector,
     # both in reduced (fractional) coordinates.
+    # For any lattice atom at position x, W*x + w should be in the lattice.
+    # This means that for any atom position x (in reduced coordinates) in the unit cell
+    # and any 3 integers u, there should be an atom at position y and 3 integers v such that:
+    # W * (x + u) + w = y + v
+    #
+    # Additionally, Wcart = A * W * A⁻¹ (in cartesian coordinates) must be orthogonal.
     # 
     # The strategy is then to check that:
     # 1. Metric invariance: Verify that the perturbed lattice metric
-    #    `G = A' * A` satisfies `W' * G * W = G` to first order.
-    #     (This is equivalent to checking that Wcart = A * W * A⁻¹ is orthogonal.)
-    # 2. Atomic mapping: In reduced coordinates, each atomic position `x`
-    #    must still satisfy `W*x + w = y (mod 1)` for some equivalent atom `y`
+    #    G = A' * A satisfies W' * G * W = G.
+    #    (This is equivalent to checking that Wcart = A * W * A⁻¹ is orthogonal.)
+    # 2. Atomic mapping:
+    #    W is an integer matrix, such that any change in u is easily compensated for in v.
+    #    Thus we only need to check that for each atomic position `x`
+    #    `W*x + w = y (mod 1)` is still satisfied for some equivalent atom `y`
     #    of the same species, up to numerical tolerance.
-    # Only the dual (perturbation) components are checked, the primal part is
-    # assumed to already obey the symmetry.
+    #    Only the dual (perturbation) components are checked,
+    #    the primal part is assumed to already obey the symmetry.
 
     # TODO: work out the case of nested Duals for higher-order derivatives
     #       (eg. symmetry breaking at higher order)
