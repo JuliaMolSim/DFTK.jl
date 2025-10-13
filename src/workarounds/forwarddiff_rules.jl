@@ -117,6 +117,9 @@ function is_symmetry_broken_by_dual(lattice, atoms, positions, symmetry::SymOp; 
 
     # TODO: work out the case of nested Duals for higher-order derivatives
     #       (eg. symmetry breaking at higher order)
+    is_dual_nonzero(x::AbstractArray) = any(x) do xi
+        maximum(abs, ForwardDiff.partials(xi)) >= tol_symmetry
+    end
 
     W = symmetry.W
     w = symmetry.w
@@ -124,9 +127,6 @@ function is_symmetry_broken_by_dual(lattice, atoms, positions, symmetry::SymOp; 
     # 1) Metric tensor check in fractional frame: Wᵀ G W == G (to first order)
     G = lattice'lattice  # 3x3 metric tensor on the unit cube
     ΔG = W' * G * W - G
-    is_dual_nonzero(x::AbstractArray) = any(x) do xi
-        maximum(abs, ForwardDiff.partials(xi)) >= tol_symmetry
-    end
     if is_dual_nonzero(ΔG)
         return true  # anisotropic lattice perturbation breaks this symmetry
     end
