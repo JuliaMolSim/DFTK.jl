@@ -22,12 +22,13 @@ jobs:
     steps:
       - run: |
           cat > matrix.yaml <<- EOM
-          - {mode: stable,  arch: x64,     os: ubuntu-latest,  payload: minimal          }
-          - {mode: stable,  arch: x64,     os: ubuntu-latest,  payload: nominimal-noslow }
-          - {mode: stable,  arch: x64,     os: ubuntu-latest,  payload: example          }
-          - {mode: stable,  arch: aarch64, os: macOS-latest,   payload: minimal          }
-          - {mode: stable,  arch: x64,     os: ubuntu-latest,  payload: noslow-mpi       }
-          - {mode: latest,  arch: x64,     os: ubuntu-latest,  payload: minimal          }
+          - {mode: stable,    arch: x64,     os: ubuntu-latest,  payload: minimal          }
+          - {mode: downgrade, arch: x64,     os: ubuntu-latest,  payload: minimal          }
+          - {mode: stable,    arch: x64,     os: ubuntu-latest,  payload: nominimal-noslow }
+          - {mode: stable,    arch: x64,     os: ubuntu-latest,  payload: example          }
+          - {mode: stable,    arch: aarch64, os: macOS-latest,   payload: minimal          }
+          - {mode: stable,    arch: x64,     os: ubuntu-latest,  payload: noslow-mpi       }
+          - {mode: latest,    arch: x64,     os: ubuntu-latest,  payload: minimal          }
           EOM
       # Windows tests are disabled for PR builds
       - if: ${{ github.event_name != 'pull_request' }}
@@ -61,7 +62,7 @@ jobs:
         with:
           version: '1.10'
           arch: ${{ matrix.arch }}
-        if: ${{ matrix.mode == 'stable' }}
+        if: ${{ matrix.mode == 'stable' || matrix.mode == 'downgrade' }}
       - name: Setup Julia latest (pre-releases included)
         uses: julia-actions/setup-julia@v2
         with:
@@ -69,6 +70,11 @@ jobs:
           include-all-prereleases: true
           arch: x64
         if: ${{ matrix.mode == 'latest' }}
+      - name: Downgrade to lowest possible compat bounds
+        uses: julia-actions/julia-downgrade-compat@v2
+        with:
+          skip: Pkg # TODO: is this really needed? do we need to add more like LinearAlgebra?
+        if: ${{ matrix.mode == 'downgrade' }}
 
       - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@v1
