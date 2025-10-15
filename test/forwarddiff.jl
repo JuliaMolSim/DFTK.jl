@@ -331,6 +331,15 @@ end
         @test length(symmetries_filtered) == 4
         check_symmetries(symmetries_filtered, [mirrory, mirroryz])
     end
+
+    @testset "Isotropic lattice scaling" begin
+        # Isotropic scaling should not break any symmetry
+        lattice_modified = (1 + ε) * lattice
+        symmetries_filtered = DFTK.remove_dual_broken_symmetries(lattice_modified, atoms, positions, symmetries_full)
+
+        @test length(symmetries_filtered) == length(symmetries_full)
+        check_symmetries(symmetries_filtered, symmetries_full)
+    end
 end
 
 @testitem "Symmetry-breaking perturbation using ForwardDiff" #=
