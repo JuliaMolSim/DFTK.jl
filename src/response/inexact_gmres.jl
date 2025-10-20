@@ -99,6 +99,21 @@ Parameters specific to inexact GMRES:
         end
         y[1] = β = norm(r)
 
+        # Initial residual norm check:
+        # This check prevents unnecessary iterations when the initial guess
+        # or the restarted guess, is already sufficiently accurate.
+        # We use β < 2/3 tol here since ||b-Ax|| < ||b-Ãx|| + ||Ax-Ãx||,
+        # where Ã is the inexact operator used in the first matvec, which 
+        # is ensured to be accurate up to tol/3.
+        if β < 2tol/3
+            converged = true
+            info = (; x, resid_history=resid_history[1:n_iter], converged, n_iter,
+                     residual_norm=β, maxiter, tol, s, residual=r,
+                     restart_history, stage=:finalize, krylovdim, y, V, H, R)
+            callback(info)
+            return info
+        end
+
         while (n_iter < maxiter && k < m)  # Arnoldi loop
             n_iter += 1
 
@@ -132,6 +147,11 @@ Parameters specific to inexact GMRES:
             callback(info)
             Axinfos = []
 
+            # Note: Although in [^Herbst2025] we have tol / 3 in the following convergence check,
+            # our numerical tests still find that the requested tolerance is approximately
+            # achieved when dropping the /3. This prevents the GMRES from potential over-iterating
+            # when the `mul_approximate` calls happen to yield higher-accurate answers compared to
+            # what has been requested.
             if resid_history[n_iter] < tol
                 # If the guess for s happens to over-estimate the σ(H_m) than we need to
                 # restart, so convergence is only reached if this condition is true ...
