@@ -13,6 +13,11 @@ function LinearAlgebra.cholesky(A::Hermitian{T, <:AMDGPU.ROCArray}) where {T}
     LinearAlgebra.Cholesky(Acopy, A.uplo, info)
 end
 
+# Temporary workaround for SVD. See https://github.com/JuliaGPU/AMDGPU.jl/issues/837
+function LinearAlgebra.LAPACK.gesdd!(jobz::Char, A::AMDGPU.ROCArray{T}) where {T}
+    AMDGPU.rocSOLVER.gesvd!(jobz, jobz, A)
+end
+
 # Ensure precompilation is only performed if an AMD GPU is available
 if AMDGPU.functional()
     # Precompilation block with a basic workflow
