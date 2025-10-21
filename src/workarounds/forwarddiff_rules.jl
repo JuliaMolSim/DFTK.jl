@@ -219,9 +219,10 @@ function construct_value(basis::PlaneWaveBasis{T}) where {T <: Dual}
 end
 
 
-function self_consistent_field(basis_dual::PlaneWaveBasis{T};
-                               response=ResponseOptions(),
-                               kwargs...) where {T <: Dual}
+@timing "self_consistent_field ForwardDiff" function self_consistent_field(
+        basis_dual::PlaneWaveBasis{T};
+        response=ResponseOptions(),
+        kwargs...) where {T <: Dual}
     # Note: No guarantees on this interface yet.
 
     # Primal pass
