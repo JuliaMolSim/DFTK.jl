@@ -32,7 +32,8 @@ and runs out of the box on Linux, windows and macOS, see [Installation](@ref).
 ## Response and response properties
 - Density-functional perturbation theory (DFPT)
 - Integration of DFPT with **algorithmic differentiation**,
-  e.g. [Polarizability using automatic differentiation](@ref)
+  e.g. [Elastic constants](@ref),
+  [Polarizability using automatic differentiation](@ref)
 - [Phonon computations](@ref) *(preliminary implementation)*
 
 ## Unique features
