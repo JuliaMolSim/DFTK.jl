@@ -41,7 +41,9 @@
     end
 end 
 
-@testitem "Test Hubbard U term in Nickel Oxide" setup=[TestCases] begin
+# The unfolding of the kpoints is not supported with MPI 
+@testitem "Test Hubbard U term in Nickel Oxide" #=
+   =#    tags=[:dont_test_mpi] setup=[TestCases] begin
    using DFTK
    using PseudoPotentialData
    using Unitful
@@ -85,7 +87,10 @@ end
    end
    @testset "Test symmetry consistency" begin
         n_hub = scfres.nhubbard
+        #basis_nosym = DFTK.unfold_bz(basis)
+        #scfres_nosym = self_consistent_field(basis_nosym; tol=1e-10, ρ=ρ0)
         scfres_nosym = DFTK.unfold_bz(scfres)
-        @test norm(n_hub .- scfres_nosym.nhubbard) < 1e-8
+        nhub_nosym = DFTK.compute_nhubbard(manifold, scfres_nosym.basis, scfres_nosym.ψ, scfres_nosym.occupation)
+        @test norm(n_hub .- nhub_nosym) < 1e-8
    end
 end
