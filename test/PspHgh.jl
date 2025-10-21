@@ -195,20 +195,19 @@ end
 
     reg_param = 1e-6  # divergent integral, needs regularization
     p_small = 1e-6    # We are interested in p→0 term
-    function integrand(psp, n_electrons, r)
+    function integrand(psp, r)
         # Difference of potential of point-like atom (what is assumed in Ewald)
         # versus actual structure of the pseudo potential
         coulomb = -psp.Zion / r
-        diff = n_electrons * (eval_psp_local_real(psp, r) - coulomb)
+        diff = (eval_psp_local_real(psp, r) - coulomb)
         4π * diff * exp(-reg_param * r) * sin(p_small*r) / p_small * r
     end
 
-    n_electrons = 20
     family = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
     for element in (:Au, :Ba)
         psp = load_psp(family, element)
-        reference = quadgk(r -> integrand(psp, n_electrons, r), 0, Inf)[1]
-        @test reference ≈ eval_psp_energy_correction(psp, n_electrons) atol=1e-2
+        reference = quadgk(r -> integrand(psp, r), 0, Inf)[1]
+        @test reference ≈ eval_psp_energy_correction(psp) atol=1e-3
     end
 end
 
@@ -224,7 +223,7 @@ end
         psp = load_psp(family, element)
         coulomb = -4π * psp.Zion / p_small^2
         reference = eval_psp_local_fourier(psp, p_small) - coulomb
-        @test reference ≈ eval_psp_energy_correction(psp, 1) atol=1e-3
+        @test reference ≈ eval_psp_energy_correction(psp) atol=1e-3
     end
 end
 
