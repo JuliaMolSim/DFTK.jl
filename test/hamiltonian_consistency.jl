@@ -14,8 +14,7 @@ function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
             @test norm(operator_matrix*ψk - operator*ψk) < atol
         catch e
             allowed_missing_operators = Union{DFTK.DivAgradOperator,
-                                              DFTK.MagneticFieldOperator,
-                                              DFTK.HubbardOperator}
+                                              DFTK.MagneticFieldOperator}
             @assert operator isa allowed_missing_operators
             @info "Matrix of operator $(nameof(typeof(operator))) not yet supported" maxlog=1
         end
