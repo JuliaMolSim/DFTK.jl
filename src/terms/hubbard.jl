@@ -71,8 +71,7 @@ function compute_nhubbard(manifold::OrbitalManifold,
     filled_occ = filled_occupation(basis.model)
     nspins = basis.model.n_spin_components
 
-    manifold_atoms = isnothing(manifold.iatom) ? findall(at -> at.species==manifold.species, 
-                                                         basis.model.atoms) : Int[manifold.iatom]
+    manifold_atoms = findall(at -> at.species==manifold.species, basis.model.atoms)
     natoms = length(manifold_atoms)  # Number of atoms of the species in the manifold
     l = labels[1].l
     projectors = reshape_hubbard_proj(basis, projectors, labels, manifold)
@@ -99,8 +98,7 @@ end
 
 function reshape_hubbard_proj(basis, projectors::Vector{Matrix{Complex{T}}}, 
                               labels, manifold) where {T}
-    manifold_atoms = isnothing(manifold.iatom) ? findall(at -> at.species==manifold.species, 
-                                                         basis.model.atoms) : Int[manifold.iatom]
+    manifold_atoms = findall(at -> at.species==manifold.species, basis.model.atoms)
     natoms = length(manifold_atoms)
     nprojs = length(labels)
     l = labels[1].l

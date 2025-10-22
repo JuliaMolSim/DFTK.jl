@@ -81,16 +81,13 @@ end
         # of the Hubbard code and are in good agreement with Quantum Espresso
         ref = -354.907446880021
         e_total = scfres.energies.total
-        @test abs(e_total - ref) < 1e-8
+        @test e_total ≈ ref
         ref_hub = 0.17629078433258719
-        @test abs(scfres.energies.Hubbard - ref_hub) < 1e-8
+        @test scfres.energies.Hubbard ≈ ref_hub
    end
    @testset "Test symmetry consistency" begin
         n_hub = scfres.nhubbard
-        #basis_nosym = DFTK.unfold_bz(basis)
-        #scfres_nosym = self_consistent_field(basis_nosym; tol=1e-10, ρ=ρ0)
         scfres_nosym = DFTK.unfold_bz(scfres)
-        nhub_nosym = DFTK.compute_nhubbard(manifold, scfres_nosym.basis, scfres_nosym.ψ, scfres_nosym.occupation)
-        @test norm(n_hub .- nhub_nosym) < 1e-8
+        @test n_hub ≈ scfres_nosym.nhubbard
    end
 end
