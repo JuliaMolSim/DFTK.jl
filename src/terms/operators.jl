@@ -1,6 +1,8 @@
 ### Linear operators operating on quantities in real or fourier space
 # This is the optimized low-level interface. Use the functions in Hamiltonian for high-level usage
 
+import Base: Matrix, Array
+
 """
 Linear operators that act on tuples (real, fourier)
 The main entry point is `apply!(out, op, in)` which performs the operation `out += op*in`
@@ -41,7 +43,7 @@ struct NoopOperator{T <: Real} <: RealFourierOperator
     kpoint::Kpoint{T}
 end
 apply!(Hψ, op::NoopOperator, ψ) = nothing
-function Base.Matrix(op::NoopOperator)
+function Matrix(op::NoopOperator)
     n_Gk = length(G_vectors(op.basis, op.kpoint))
     zeros_like(G_vectors(op.basis), eltype(op.basis), n_Gk, n_Gk)
 end
@@ -60,7 +62,7 @@ end
 function apply!(Hψ, op::RealSpaceMultiplication, ψ)
     Hψ.real .+= op.potential .* ψ.real
 end
-function Base.Matrix(op::RealSpaceMultiplication)
+function Matrix(op::RealSpaceMultiplication)
     # V(G, G') = <eG|V|eG'> = 1/sqrt(Ω) <e_{G-G'}|V>
     pot_fourier = fft(op.basis, op.potential)
     n_G = length(G_vectors(op.basis, op.kpoint))

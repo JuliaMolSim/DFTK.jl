@@ -52,9 +52,7 @@ function core_charge_density_fourier(::Element, ::T)::T where {T <: Real}
     error("Abstract elements do not necesesarily provide core charge density.")
 end
 
-# Fallback print function:
 Base.show(io::IO, el::Element) = print(io, "$(typeof(el))(:$(species(el)))")
-
 
 #
 # ElementCoulomb
@@ -97,15 +95,19 @@ struct ElementPsp{P} <: Element
     family::Union{PseudoFamily,Nothing}  # PseudoFamily if known, else Nothing
     mass    # Atomic mass
 end
-function Base.show(io::IO, el::ElementPsp)
+function Base.show(io::IO, el::ElementPsp{P}) where {P}
     print(io, "ElementPsp(:$(el.species), ")
     if !isnothing(el.family)
-        print(io, el.family, ")")
+        print(io, el.family)
     elseif isempty(el.psp.identifier)
-        print(io, "custom psp)")
+        print(io, "custom psp")
     else
-        print(io, "\"$(el.psp.identifier)\")")
+        print(io, "\"$(el.psp.identifier)\"")
     end
+    if P <: PspLinComb
+        print(io, ", ", el.psp.description)
+    end
+    print(io, ")")
 end
 pseudofamily(el::ElementPsp) = el.family
 
@@ -275,3 +277,28 @@ function local_potential_fourier(el::ElementGaussian, p::Real)
     -el.α * exp(- (p * el.L)^2 / 2)  # = ∫_ℝ³ V(x) exp(-ix⋅p) dx
 end
 # TODO Strictly speaking needs a eval_psp_energy_correction
+
+#
+# Helper functions
+#
+
+# TODO Better name ?
+# TODO docstring
+function virtual_crystal_element(coefficients::Vector{<:Number}, elements::Vector{<:ElementPsp{<:NormConservingPsp}};
+                                 species=ChemicalSpecies(0))
+    length(coefficients) == length(elements) || throw(
+        ArgumentError("Expect coefficients and elements to have equal length."))
+    sum(coefficients) ≈ one(eltype(coefficients)) || throw(
+        ArgumentError("Expect coefficients to sum to 1"))
+    family = allequal(p -> p.family, elements) ? first(elements).family : nothing
+
+    description = "lin. comb. of " 
+    description *= join([(@sprintf "%.2f*%s" c "$(el.species)") for (c, el) in zip(coefficients, elements)], " ")
+    lincomb_psp  = PspLinComb(coefficients, [el.psp for el in elements]; description)
+    lincomb_mass = sum(c * mass(el) for (c, el) in zip(coefficients, elements))
+    ElementPsp(species, lincomb_psp, family, lincomb_mass)
+end
+function virtual_crystal_element(α::Number, αpsp::ElementPsp{<:NormConservingPsp},
+                                 β::Number, βpsp::ElementPsp{<:NormConservingPsp}; kwargs...)
+    virtual_crystal_element([α, β], [αpsp, βpsp]; kwargs...)
+end
