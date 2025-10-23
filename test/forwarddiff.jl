@@ -300,7 +300,8 @@ end
     end
 
     # Instantiate Dual to test with perturbations
-    ε = ForwardDiff.Dual{ForwardDiff.Tag{Nothing, Float64}}(0.0, 1.0)
+    # We need to call the `Tag` constructor to trigger the `ForwardDiff.tagcount`
+    ε = ForwardDiff.Dual{typeof(ForwardDiff.Tag(Val(:mytag), Float64))}(0.0, 1.0)
 
     @testset "Atom movement" begin
         # Moving the second atom should break the transx symmetry, but not the others
@@ -329,6 +330,15 @@ end
 
         @test length(symmetries_filtered) == 4
         check_symmetries(symmetries_filtered, [mirrory, mirroryz])
+    end
+
+    @testset "Isotropic lattice scaling" begin
+        # Isotropic scaling should not break any symmetry
+        lattice_modified = (1 + ε) * lattice
+        symmetries_filtered = DFTK.remove_dual_broken_symmetries(lattice_modified, atoms, positions, symmetries_full)
+
+        @test length(symmetries_filtered) == length(symmetries_full)
+        check_symmetries(symmetries_filtered, symmetries_full)
     end
 end
 
@@ -388,7 +398,8 @@ end
                       functionals=LDA(), temperature=1e-3, smearing=Smearing.Gaussian())
     
     # Make silicon dual model
-    T = typeof(ForwardDiff.Tag(:mytag, Float64))
+    # We need to call the `Tag` constructor to trigger the `ForwardDiff.tagcount`
+    T = typeof(ForwardDiff.Tag(Val(:mytag), Float64))
     x_dual = ForwardDiff.Dual{T}(1.0, 1.0)
     model_dual = Model(model; lattice=x_dual * model.lattice)
 

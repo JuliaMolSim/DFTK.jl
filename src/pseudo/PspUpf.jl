@@ -232,10 +232,10 @@ function eval_psp_density_core_fourier(psp::PspUpf, p::T) where {T<:Real}
     return hankel(rgrid, r2_ρcore, 0, p)
 end
 
-function eval_psp_energy_correction(T, psp::PspUpf, n_electrons)
+function eval_psp_energy_correction(T, psp::PspUpf)
     rgrid = @view psp.rgrid[1:psp.ircut]
     vloc = @view psp.vloc[1:psp.ircut]
-    4T(π) * n_electrons * simpson(rgrid) do i, r
+    4T(π) * simpson(rgrid) do i, r
         r * (r * vloc[i] - -psp.Zion)
     end
 end

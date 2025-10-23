@@ -147,6 +147,7 @@ Overview of parameters:
     fermialg::AbstractFermiAlgorithm=default_fermialg(basis.model),
     callback=ScfDefaultCallback(; show_damping=false),
     compute_consistent_energies=true,
+    seed=nothing,
     response=ResponseOptions(),  # Dummy here, only for AD
 ) where {T}
     if !isnothing(ψ)
@@ -154,6 +155,7 @@ Overview of parameters:
     end
     start_ns = time_ns()
     timeout_date = Dates.now() + maxtime
+    seed = seed_task_local_rng!(seed, MPI.COMM_WORLD)
 
     # We do density mixing in the real representation
     # TODO support other mixing types
@@ -189,7 +191,7 @@ Overview of parameters:
         # Update info with results gathered so far
         info_next = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
                        ρin, τ, nhubbard, α=damping, n_iter, nbandsalg.occupation_threshold,
-                       runtime_ns=time_ns() - start_ns, nextstate...,
+                       seed, runtime_ns=time_ns() - start_ns, nextstate...,
                        diagonalization=[nextstate.diagonalization])
 
         # Compute the energy of the new state
@@ -233,7 +235,7 @@ Overview of parameters:
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
                 ρ=ρout, τ, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
                 info.n_iter, info.n_matvec, ψ, nhubbard, info.diagonalization, stage=:finalize,
-                info.history_Δρ, info.history_Etot, info.timedout, mixing,
+                info.history_Δρ, info.history_Etot, info.timedout, mixing, seed,
                 runtime_ns=time_ns() - start_ns, algorithm="SCF")
     callback(scfres)
     scfres

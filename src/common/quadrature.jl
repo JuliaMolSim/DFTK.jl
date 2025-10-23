@@ -64,11 +64,10 @@ simpson(y::AbstractVector, x::AbstractVector) = simpson((i, xi) -> y[i], x)
     # Note: We used @turbo here before, but actually the allocation overhead
     #       needed to get all the data into an array is worse than what one gains
     #       with LoopVectorization
-    @fastmath @simd for i = 2:2:istop
-        I += @inline 4 / 3 * dx * integrand(i, x[i])
-    end
-    @fastmath @simd for i = 3:2:istop
-        I += @inline 2 / 3 * dx * integrand(i, x[i])
+    weven = 4 / 3 * dx
+    wodd = 2 / 3 * dx
+    @fastmath @simd for i = 2:istop
+        @inline I += iseven(i) ? weven * integrand(i, x[i]) : wodd * integrand(i, x[i])
     end
 
     if isodd(n_intervals)
