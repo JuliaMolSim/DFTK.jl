@@ -182,14 +182,14 @@ Overview of parameters:
         for term in basis.terms
             if isa(term, DFTK.TermHubbard)
                 nhubbard = compute_nhubbard(term.manifold, basis, ψ, occupation;
-                                            projectors=term.P, labels=term.labels).nhubbard
+                                            projectors=term.P, labels=term.labels)
             end
         end
 
         # Update info with results gathered so far
         info_next = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
                        ρin, τ, nhubbard, α=damping, n_iter, nbandsalg.occupation_threshold,
-                       runtime_ns=time_ns() - start_ns, nextstate...,
+                       seed, runtime_ns=time_ns() - start_ns, nextstate...,
                        diagonalization=[nextstate.diagonalization])
 
         # Compute the energy of the new state
@@ -233,7 +233,7 @@ Overview of parameters:
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
                 ρ=ρout, τ, α=damping, eigenvalues, occupation, εF, info.n_bands_converge,
                 info.n_iter, info.n_matvec, ψ, nhubbard, info.diagonalization, stage=:finalize,
-                info.history_Δρ, info.history_Etot, info.timedout, mixing,
+                info.history_Δρ, info.history_Etot, info.timedout, mixing, seed,
                 runtime_ns=time_ns() - start_ns, algorithm="SCF")
     callback(scfres)
     scfres

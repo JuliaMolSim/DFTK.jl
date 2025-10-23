@@ -54,14 +54,14 @@ Computes a matrix nhubbard of size (nspins, natoms, natoms), where each entry nh
 Overview of inputs:
 - `manifold`: OrbitalManifold with the atomic orbital type to define the Hubbard manifold.
 - `occupation`: Occupation matrix for the bands.
-- `positions`: Positions of the atoms in the unit cell. Default is model.positions.
+- `projectors` (kwarg): Vector of projection matrices. For each matrix, each column corresponds
+                        to a different atomic orbital projector, as specified in labels.
+- `labels` (kwarg): Vector of NamedTuples. Each projectors[ik][:,iproj] column has all relevant 
+                    chemical information stored in the corresponding labels[iproj] NamedTuple.
 
 Overviw of outputs:
 - `nhubbard`: 3-tensor of matrices. Outer indices select spin, iatom and jatom,
     inner indices select m1 and m2 in the manifold.
-- `manifold_labels`: Labels for all manifold orbitals, corresponding to different columns of p_I.
-- `p_I`: Projectors for the manifold. Those are orthonormalized against all orbitals,
-    also against those outside of the manifold.
 """
 function compute_nhubbard(manifold::OrbitalManifold,
                           basis::PlaneWaveBasis{T},
@@ -92,8 +92,6 @@ function compute_nhubbard(manifold::OrbitalManifold,
     end
     nhubbard = symmetrize_nhubbard(nhubbard, basis.model,
                                    basis.symmetries, basis.model.positions[manifold_atoms])
-
-    (; nhubbard, manifold_labels=labels)
 end
 
 function reshape_hubbard_proj(basis, projectors::Vector{Matrix{Complex{T}}}, 
@@ -125,17 +123,17 @@ Hubbard energy:
 1/2 Σ_{σI} U * Tr[nhubbard[σ,i,i] * (1 - nhubbard[σ,i,i])]
 ```
 """
-struct Hubbard
+struct Hubbard{T}
     manifold::OrbitalManifold
-    U::Float64
-    function Hubbard(manifold::OrbitalManifold, u)
+    U::T
+    function Hubbard(manifold::OrbitalManifold, U)
         if isnothing(manifold.label) || isnothing(manifold.species)
             error("Hubbard term needs both a species and a label inside OrbitalManifold")
         elseif !isnothing(manifold.iatom)
             error("Hubbard term does not support iatom specification inside OrbitalManifold")
         end
-        u = austrip(u)
-        new(manifold, u)
+        U = austrip(U)
+        new{typeof(U)}(manifold, U)
     end
 end
 function (hubbard::Hubbard)(basis::AbstractBasis)
@@ -144,11 +142,11 @@ function (hubbard::Hubbard)(basis::AbstractBasis)
     TermHubbard(hubbard.manifold, hubbard.U, projectors_matrix, labels)
 end
 
-struct TermHubbard{PT, L} <: Term
-    manifold:: OrbitalManifold
-    U::Float64     
-    P:: PT
-    labels:: L
+struct TermHubbard{T, PT, L} <: Term
+    manifold::OrbitalManifold
+    U::T     
+    P::PT
+    labels::L
 end
 
 @timing "ene_ops: hubbard" function ene_ops(term::TermHubbard,

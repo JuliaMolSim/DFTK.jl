@@ -16,7 +16,8 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
                                n_bands=default_n_bands_bandstructure(basis.model),
                                n_extra=3, ρ=nothing, τ=nothing, εF=nothing,
                                occupation=nothing, nhubbard=nothing,
-                               eigensolver=lobpcg_hyper, tol=1e-3, kwargs...)
+                               eigensolver=lobpcg_hyper, tol=1e-3, seed=nothing,
+                               kwargs...)
     # kcoords are the kpoint coordinates in fractional coordinates
     if isnothing(ρ)
         if any(t isa TermNonlinear for t in basis.terms)

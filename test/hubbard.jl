@@ -88,10 +88,12 @@ end
    @testset "Test symmetry consistency" begin
         n_hub = scfres.nhubbard
         scfres_nosym = DFTK.unfold_bz(scfres)
+        term_hub = only(findfirst(term -> typeof(term) == DFTK.TermHubbard, 
+                                  scfres_nosym.basis.terms))
         nhub_nosym = DFTK.compute_nhubbard(manifold, scfres_nosym.basis, 
                                            scfres_nosym.ψ, scfres_nosym.occupation;
-                                           projectors=scfres_nosym.basis.terms[8].P,
-                                           labels=scfres_nosym.basis.terms[8].labels).nhubbard
+                                           projectors=term_hub.P,
+                                           labels=term_hub.labels)
         @test n_hub ≈ nhub_nosym
    end
 end
