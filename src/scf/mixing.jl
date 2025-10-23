@@ -33,9 +33,11 @@ mix_density(::SimpleMixing, ::PlaneWaveBasis, δF; kwargs...) = δF
 @doc raw"""
 Kerker mixing: ``J^{-1} ≈ \frac{|G|^2}{k_{TF}^2 + |G|^2}``
 where ``k_{TF}`` is the Thomas-Fermi wave vector. For spin-polarized calculations
-by default the spin density is not preconditioned. Unless a non-default value
-for ``ΔDOS_Ω`` is specified. This value should roughly be the expected difference in density
-of states (per unit volume) between spin-up and spin-down.
+by default the spin density is not preconditioned unless a non-default value
+for `ΔDOS_Ω` is specified. This value should roughly be the expected difference in density
+of states (per unit volume) between spin-up and spin-down. Notably setting
+`ΔDOS_Ω = kTF^2 / 4π` disables acting on the ``β`` spin channel completely (as if the
+DOS on ``β`` spin was zero).
 
 Notes:
 - Abinit calls ``1/k_{TF}`` the dielectric screening length (parameter *dielng*)
@@ -43,8 +45,8 @@ Notes:
 @kwdef struct KerkerMixing <: Mixing
     # Default kTF parameter suggested by Kresse, Furthmüller 1996 (kTF=1.5Å⁻¹)
     # DOI 10.1103/PhysRevB.54.11169
-    kTF::Real    = 0.8  # == sqrt(4π (DOS_α + DOS_β)) / Ω
-    ΔDOS_Ω::Real = 0.0  # == (DOS_α - DOS_β) / Ω
+    kTF::Real    = 0.8  # == sqrt(4π (DOS_α + DOS_β) / Ω)
+    ΔDOS_Ω::Real = 0.0  # == (DOS_α - DOS_β) / Ω; set == kTF^2/4π to disable acting on β density
 end
 
 @timing "KerkerMixing" function mix_density(mixing::KerkerMixing, basis::PlaneWaveBasis,
