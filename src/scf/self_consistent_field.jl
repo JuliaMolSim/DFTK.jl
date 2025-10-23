@@ -147,6 +147,7 @@ Overview of parameters:
     fermialg::AbstractFermiAlgorithm=default_fermialg(basis.model),
     callback=ScfDefaultCallback(; show_damping=false),
     compute_consistent_energies=true,
+    seed=nothing,
     response=ResponseOptions(),  # Dummy here, only for AD
 ) where {T}
     if !isnothing(ψ)
@@ -154,6 +155,7 @@ Overview of parameters:
     end
     start_ns = time_ns()
     timeout_date = Dates.now() + maxtime
+    seed = seed_task_local_rng!(seed, MPI.COMM_WORLD)
 
     # We do density mixing in the real representation
     # TODO support other mixing types

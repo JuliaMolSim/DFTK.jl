@@ -32,6 +32,7 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
               "quantity to compute_bands as the τ keyword argument or use the " *
               "compute_bands(scfres) function.")
     end
+    seed = seed_task_local_rng!(seed, MPI.COMM_WORLD)
 
     # Create new basis with new kpoints
     bs_basis = PlaneWaveBasis(basis, kgrid)
@@ -56,7 +57,7 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
     #      types subtype. In a first version the ScfResult could just contain
     #      the currently used named tuple and forward all operations to it.
     (; basis=bs_basis, ψ=eigres.X, eigenvalues=eigres.λ, ρ, εF, occupation,
-     diagonalization=[eigres])
+     diagonalization=[eigres], seed)
 end
 
 """
