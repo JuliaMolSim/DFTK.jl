@@ -575,6 +575,7 @@ function construct_bandtol(Bandtol::Type, basis::PlaneWaveBasis, ψ, occupation:
     # Distributing the error equally across all k-points leads to (with w = sqrt(Ω / Ng))
     #   ‖z_{nk}‖ ≤ sqrt(Ω / Ng) / (‖K v_i‖ sqrt(Nocck) ‖Re(F⁻¹ Φk)‖_{2,∞} * 2f_{nk} Nk wk)
     # If we bound ‖Re(F⁻¹ Φk)‖_{2,∞} from below this is sqrt(Nocc / Ω).
+    # See also section SM6 and Table SM4 in 2505.02319.
     #
     # Note that the kernel term ||K v_i|| of 2505.02319 is dropped here as it purely arises
     # from the rescaling of the RHS performed in apply_χ0 above. Consequently the function
@@ -598,10 +599,13 @@ function construct_bandtol(Bandtol::Type, scfres::NamedTuple; kwargs...)
 end
 
 function adaptive_bandtol_orbital_term_(::Type{BandtolGuaranteed}, basis, kpt, ψk, mask_k)
-    # Orbital term ‖Re(F⁻¹ Φk)‖_{2,∞} for thik k-point
+    # Orbital term ‖F⁻¹ Φk‖_{2,∞} for thik k-point
+    # Note that compared to the paper we deliberately do not take the real part,
+    # since taking the real part represents an additional approximation
+    # (thus making the strategy less guaranteed)
     row_sums_squared = sum(mask_k) do n
         ψnk_real = @views ifft(basis, kpt, ψk[:, n])
-        abs2.(real.(ψnk_real))
+        abs2.(ψnk_real)
     end
     sqrt(maximum(row_sums_squared))
 end

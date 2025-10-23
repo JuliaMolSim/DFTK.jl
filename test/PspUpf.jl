@@ -104,9 +104,8 @@ end
     for psp_pair in mPspUpf.gth_pseudos
         upf = psp_pair.upf
         gth = psp_pair.gth
-        n_electrons = 3
-        reference_gth = eval_psp_energy_correction(gth, n_electrons)
-        @test reference_gth ≈ eval_psp_energy_correction(upf, n_electrons) atol=1e-3 rtol=1e-3
+        reference_gth = eval_psp_energy_correction(gth)
+        @test reference_gth ≈ eval_psp_energy_correction(upf) atol=1e-3 rtol=1e-3
     end
 end
 
@@ -199,7 +198,7 @@ end
     for psp in values(mPspUpf.upf_pseudos)
         coulomb = -4π * (psp.Zion) / p_small^2
         reference = eval_psp_local_fourier(psp, p_small) - coulomb
-        @test reference ≈ eval_psp_energy_correction(psp, 1) atol=1e-2
+        @test reference ≈ eval_psp_energy_correction(psp) atol=1e-2
     end
 end
 
