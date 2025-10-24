@@ -27,6 +27,7 @@ end
 
 function extract_manifold(basis::PlaneWaveBasis{T}, projectors, labels,
                           manifold::OrbitalManifold) where {T}
+    # We extract the labels only for orbitals belonging to the manifold
     manifold_labels = filter(manifold, labels)
     isempty(manifold_labels) && @warn "Projector for $(manifold) not found."
     proj_indices = findall(orb->manifold(orb)==true, labels)

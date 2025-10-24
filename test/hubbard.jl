@@ -40,8 +40,7 @@
         @test D ≈ D3d
     end
 end 
-
-# The unfolding of the kpoints is not supported with MPI 
+ 
 @testitem "Test Hubbard U term in Nickel Oxide" setup=[TestCases] begin
    using DFTK
    using PseudoPotentialData
@@ -84,6 +83,7 @@ end
         ref_hub = 0.17629078433258719
         @test scfres.energies.Hubbard ≈ ref_hub
    end
+   # The unfolding of the kpoints is not supported with MPI
    if mpi_nprocs() == 1
         @testset "Test symmetry consistency" begin
              n_hub = scfres.nhubbard

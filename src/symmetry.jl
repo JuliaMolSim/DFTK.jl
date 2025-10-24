@@ -447,7 +447,8 @@ function symmetrize_nhubbard(nhubbard::Array{Matrix{Complex{T}}},
             ns[σ, iatom, iatom] .+= WigD' * nhubbard[σ, sym_atom, sym_atom] * WigD
         end
     end
-    ns .= ns ./ nsym
+    ns ./= nsym
+    ns
 end
 
 """"
