@@ -99,12 +99,9 @@ Parameters specific to inexact GMRES:
         end
         y[1] = β = norm(r)
 
-        # Initial residual norm check:
-        # This check prevents unnecessary iterations when the initial guess
-        # or the restarted guess, is already sufficiently accurate.
-        # We use β < 2/3 tol here since ||b-Ax|| < ||b-Ãx|| + ||Ax-Ãx||,
-        # where Ã is the inexact operator used in the first matvec, which 
-        # is ensured to be accurate up to tol/3.
+        # Prevent iterations when the initial guess or the restarted guess are already sufficiently
+        # accurate. We check β < 2/3 tol since ||b-Ax|| < ||b-Ãx|| + ||Ax-Ãx||, where Ã is the
+        # inexact operator used in mul_approximate, which is accurate to tol/3.
         if β < 2tol/3
             converged = true
             info = (; x, resid_history=resid_history[1:n_iter], converged, n_iter,
