@@ -35,6 +35,9 @@ pseudofamily(::Element) = nothing
 has_core_density(::Element) = false
 # The preceding functions are fallback implementations that should be altered as needed.
 
+eval_psp_energy_correction(T, ::Element) = zero(T)
+eval_psp_energy_correction(psp::Element) = eval_psp_energy_correction(Float64, psp)
+
 # Fall back to the Gaussian table for Elements without pseudopotentials
 function valence_charge_density_fourier(el::Element, p::T)::T where {T <: Real}
     gaussian_valence_charge_density_fourier(el, p)
@@ -152,6 +155,7 @@ AtomsBase.mass(el::ElementPsp)    = el.mass
 AtomsBase.species(el::ElementPsp) = el.species
 charge_ionic(el::ElementPsp)      = charge_ionic(el.psp)
 has_core_density(el::ElementPsp)  = has_core_density(el.psp)
+eval_psp_energy_correction(T, el::ElementPsp) = eval_psp_energy_correction(T, el.psp)
 
 function local_potential_fourier(el::ElementPsp, p::T) where {T <: Real}
     p == 0 && return zero(T)  # Compensating charge background
@@ -237,6 +241,7 @@ function local_potential_fourier(el::ElementCohenBergstresser, p::T) where {T <:
     psq_pi = Int(round(p^2 / (2π / el.lattice_constant)^2, digits=2))
     T(get(el.V_sym, psq_pi, 0.0))
 end
+# TODO Strictly speaking needs a eval_psp_energy_correction
 
 
 #
@@ -269,3 +274,4 @@ end
 function local_potential_fourier(el::ElementGaussian, p::Real)
     -el.α * exp(- (p * el.L)^2 / 2)  # = ∫_ℝ³ V(x) exp(-ix⋅p) dx
 end
+# TODO Strictly speaking needs a eval_psp_energy_correction
