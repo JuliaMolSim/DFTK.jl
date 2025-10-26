@@ -102,16 +102,9 @@ Parameters specific to inexact GMRES:
         # Prevent iterations when the initial guess or the restarted guess are already sufficiently
         # accurate. We check β < 2/3 tol since ||b-Ax|| < ||b-Ãx|| + ||Ax-Ãx||, where Ã is the
         # inexact operator used in mul_approximate, which is accurate to tol/3.
-        if β < 2tol/3
-            converged = true
-            info = (; x, resid_history=resid_history[1:n_iter], converged, n_iter,
-                     residual_norm=β, maxiter, tol, s, residual=r,
-                     restart_history, stage=:finalize, krylovdim, y, V, H, R)
-            callback(info)
-            return info
-        end
+        converged = β < 2tol/3
 
-        while (n_iter < maxiter && k < m)  # Arnoldi loop
+        while (!converged && n_iter < maxiter && k < m)  # Arnoldi loop
             n_iter += 1
 
             # Push new Krylov vector
