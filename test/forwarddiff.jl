@@ -28,21 +28,21 @@
     derivative_ε1_fd = let ε1 = 1e-5
         (compute_force(ε1, 0.0) - F) / ε1
     end
-    derivative_ε1 = ForwardDiff.derivative(ε1 -> compute_force(ε1, 0.0), 0.0)
+    derivative_ε1 = tagged_derivative(ε1 -> compute_force(ε1, 0.0), 0.0)
     @test norm(derivative_ε1 - derivative_ε1_fd) < 1e-4
 
     derivative_ε2_fd = let ε2 = 1e-5
         (compute_force(0.0, ε2) - F) / ε2
     end
-    derivative_ε2 = ForwardDiff.derivative(ε2 -> compute_force(0.0, ε2), 0.0)
+    derivative_ε2 = tagged_derivative(ε2 -> compute_force(0.0, ε2), 0.0)
     @test norm(derivative_ε2 - derivative_ε2_fd) < 1e-4
 
     @testset "Multiple partials" begin
-        grad = ForwardDiff.gradient(v -> compute_force(v...)[1][1], [0.0, 0.0])
+        grad = tagged_gradient(v -> compute_force(v...)[1][1], [0.0, 0.0])
         @test abs(grad[1] - derivative_ε1[1][1]) < 1e-4
         @test abs(grad[2] - derivative_ε2[1][1]) < 1e-4
 
-        jac = ForwardDiff.jacobian(v -> compute_force(v...)[1], [0.0, 0.0])
+        jac = tagged_jacobian(v -> compute_force(v...)[1], [0.0, 0.0])
         @test norm(grad - jac[1, :]) < 1e-9
     end
 
@@ -51,7 +51,7 @@
         derivative_ε1_fd = let ε1 = 1e-5
             (compute_force(ε1, 0.0; metal) - compute_force(-ε1, 0.0; metal)) / 2ε1
         end
-        derivative_ε1 = ForwardDiff.derivative(ε1 -> compute_force(ε1, 0.0; metal), 0.0)
+        derivative_ε1 = tagged_derivative(ε1 -> compute_force(ε1, 0.0; metal), 0.0)
         @test norm(derivative_ε1 - derivative_ε1_fd) < 1e-4
     end
 
@@ -62,7 +62,7 @@
         derivative_ε1_fd = let ε1 = 1e-5
             (compute_force(ε1, 0.0; atoms) - compute_force(-ε1, 0.0; atoms)) / 2ε1
         end
-        derivative_ε1 = ForwardDiff.derivative(ε1 -> compute_force(ε1, 0.0; atoms), 0.0)
+        derivative_ε1 = tagged_derivative(ε1 -> compute_force(ε1, 0.0; atoms), 0.0)
         @test norm(derivative_ε1 - derivative_ε1_fd) < 1e-4
     end
 end
@@ -103,7 +103,7 @@ end
 
     @testset "$strain_fn" for strain_fn in (strain_isotropic, strain_anisotropic)
         f(ε) = compute_properties(strain_fn(ε))
-        dx = ForwardDiff.derivative(f, 0.)
+        dx = tagged_derivative(f, 0.)
 
         h = 1e-4
         x1 = f(-h)
@@ -155,7 +155,7 @@ end
     derivative_ε = let ε = 1e-4
         (compute_band_energies(ε) - compute_band_energies(-ε)) / 2ε
     end
-    derivative_fd = ForwardDiff.derivative(compute_band_energies, 0.0)
+    derivative_fd = tagged_derivative(compute_band_energies, 0.0)
     @test norm(derivative_fd - derivative_ε) < 5e-4
 end
 
@@ -187,7 +187,7 @@ end
     derivative_ε = let ε = 1e-5
         (compute_force(ε) - compute_force(-ε)) / 2ε
     end
-    derivative_fd = ForwardDiff.derivative(compute_force, 0.0)
+    derivative_fd = tagged_derivative(compute_force, 0.0)
     @test norm(derivative_ε - derivative_fd) < 1e-4
 end
 
@@ -202,7 +202,7 @@ end
     erfcα = x -> erfc(α * x)
 
     x0  = randn()
-    fd1 = ForwardDiff.derivative(erfcα, x0)
+    fd1 = tagged_derivative(erfcα, x0)
     fd2 = FiniteDifferences.central_fdm(5, 1)(erfcα, x0)
     @test norm(fd1 - fd2) < 1e-8
 end
@@ -216,7 +216,7 @@ end
 
     function compute_nth_derivative(n, f, x)
         (n == 0) && return f(x)
-        ForwardDiff.derivative(x -> compute_nth_derivative(n - 1, f, x), x)
+        tagged_derivative(x -> compute_nth_derivative(n - 1, f, x), x)
     end
 
     @testset "Avoid NaN from exp-overflow for large x" begin
@@ -257,7 +257,7 @@ end
     derivative_ε = let ε = 1e-5
         (compute_force(ε) - compute_force(-ε)) / 2ε
     end
-    derivative_fd = ForwardDiff.derivative(compute_force, 0.0)
+    derivative_fd = tagged_derivative(compute_force, 0.0)
     @test norm(derivative_ε - derivative_fd) < 1e-4
 end
 
@@ -373,7 +373,7 @@ end
             self_consistent_field(basis; tol=1e-10)
         end
 
-        δρ = ForwardDiff.derivative(ε -> run_scf(ε).ρ, 0.)
+        δρ = tagged_derivative(ε -> run_scf(ε).ρ, 0.)
 
         h = 1e-5
         scfres1 = run_scf(-h)
@@ -440,6 +440,6 @@ end
     derivative_ε = let ε = 1e-5
         (get(T0+ε) - get(T0-ε)) / 2ε
     end
-    derivative_fd = ForwardDiff.derivative(get, T0)
+    derivative_fd = tagged_derivative(get, T0)
     @test norm(derivative_ε - derivative_fd) < 1e-4
 end
