@@ -132,7 +132,7 @@ Parameters specific to inexact GMRES:
             resid_history[n_iter] = β = abs(y[k + 1])
 
             info = (; y, V, H, R, resid_history=resid_history[1:n_iter], converged, n_iter,
-                     residual_norm=β, maxiter, tol, s, last_krylov_vec=r,
+                     residual_norm=β, maxiter, tol, s,
                      restart_history, stage=:iterate, krylovdim, k, Axinfos)
             callback(info)
             Axinfos = []
@@ -159,7 +159,7 @@ Parameters specific to inexact GMRES:
 
         if converged || n_iter ≥ maxiter
             info = (; x, resid_history=resid_history[1:n_iter], converged, n_iter,
-                     residual_norm=β, maxiter, tol, s, last_krylov_vec=r,
+                     residual_norm=β, maxiter, tol, s,
                      restart_history, stage=:finalize, krylovdim, y, V, H, R)
             callback(info)
             return info
