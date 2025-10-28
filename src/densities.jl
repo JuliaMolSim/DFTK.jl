@@ -12,18 +12,20 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
 """
 @views @timing function compute_density(basis::PlaneWaveBasis{T,VT}, ψ, occupation;
                                         occupation_threshold=zero(T)) where {T,VT}
-    Tρ = promote_type(T,  real(eltype(ψ[1])))
-    Tψ = promote_type(VT, real(eltype(ψ[1])))
-    # Note, that we special-case Tψ, since when T is Dual and eltype(ψ[1]) is not
-    # (e.g. stress calculation), then only the normalisation factor introduces
-    # dual numbers, but not yet the FFT
-
     # Occupation should be on the CPU as we are going to be doing scalar indexing.
     occupation = [to_cpu(oc) for oc in occupation]
     mask_occ = [findall(occnk -> abs(occnk) ≥ occupation_threshold, occk)
                 for occk in occupation]
 
     function allocate_local_storage()
+        # The types were moved inside here to avoid a type instability,
+        # as it seems that captures over types do not get specialized!
+        Tρ = promote_type(T,  real(eltype(ψ[1])))
+        # Note, that we special-case Tψ, since when T is Dual and eltype(ψ[1]) is not
+        # (e.g. stress calculation), then only the normalisation factor introduces
+        # dual numbers, but not yet the FFT
+        Tψ = promote_type(VT, real(eltype(ψ[1])))
+
         (; ρ=zeros_like(G_vectors(basis), Tρ, basis.fft_size..., basis.model.n_spin_components),
          ψnk_real=zeros_like(G_vectors(basis), complex(Tψ), basis.fft_size...))
     end
@@ -39,7 +41,7 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
                                           .* abs2.(storage.ψnk_real))
 
     end
-    ρ = sum(getfield.(storages, :ρ))
+    ρ = sum(storage -> storage.ρ, storages)
 
     mpi_sum!(ρ, basis.comm_kpts)
     ρ = symmetrize_ρ(basis, ρ; do_lowpass=false)
@@ -49,7 +51,7 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     negtol = max(sqrt(eps(T)), 10occupation_threshold)
     minimum(ρ) < -negtol && @warn("Negative ρ detected", min_ρ=minimum(ρ))
 
-    ρ::AbstractArray{Tρ, 4}
+    ρ
 end
 
 # Variation in density corresponding to a variation in the orbitals and occupations.
