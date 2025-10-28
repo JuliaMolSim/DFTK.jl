@@ -142,7 +142,7 @@ Parameters specific to inexact GMRES:
             # achieved when dropping the /3. This prevents the GMRES from potential over-iterating
             # when the `mul_approximate` calls happen to yield higher-accurate answers compared to
             # what has been requested.
-            if resid_history[n_iter] < tol
+            if residual_norm < tol
                 # If the guess for s happens to over-estimate the σ(H_m) than we need to
                 # restart, so convergence is only reached if this condition is true ...
                 min_svdval_H = minimum(svdvals(H[1:(k+1), 1:k]))
