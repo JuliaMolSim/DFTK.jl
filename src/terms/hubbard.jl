@@ -30,7 +30,7 @@ function extract_manifold(basis::PlaneWaveBasis{T}, projectors, labels,
     # We extract the labels only for orbitals belonging to the manifold
     manifold_labels = filter(manifold, labels)
     isempty(manifold_labels) && @warn "Projector for $(manifold) not found."
-    proj_indices = findall(orb->manifold(orb)==true, labels)
+    proj_indices = findall(orb->manifold(orb) == true, labels)
     manifold_projectors = map(enumerate(projectors)) do (ik, projk)
         projk[:, proj_indices]
     end
@@ -72,7 +72,7 @@ function compute_nhubbard(manifold::OrbitalManifold,
     filled_occ = filled_occupation(basis.model)
     nspins = basis.model.n_spin_components
 
-    manifold_atoms = findall(at -> at.species==manifold.species, basis.model.atoms)
+    manifold_atoms = findall(at -> at.species == manifold.species, basis.model.atoms)
     natoms = length(manifold_atoms)  # Number of atoms of the species in the manifold
     l = labels[1].l
     projectors = reshape_hubbard_proj(basis, projectors, labels, manifold)
@@ -97,25 +97,23 @@ end
 
 function reshape_hubbard_proj(basis, projectors::Vector{Matrix{Complex{T}}}, 
                               labels, manifold) where {T}
-    manifold_atoms = findall(at -> at.species==manifold.species, basis.model.atoms)
+    manifold_atoms = findall(at -> at.species == manifold.species, basis.model.atoms)
     natoms = length(manifold_atoms)
     nprojs = length(labels)
     l = labels[1].l
     @assert all(label -> label.l==l, labels)
-    @assert length(labels) == natoms * (2*l+1) "Labels length error: 
-                                                $(length(labels)) != $(natoms)*$(2*l+1)"
+    @assert length(labels) == natoms * (2*l+1)
     p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for i in 1:length(projectors)]
     for (idx, iatom) in enumerate(manifold_atoms)
         for i in 1:2*l+1:nprojs
-            if iatom == labels[i].iatom
-                for (ik, projk) in enumerate(projectors)
-                    p_I[ik][idx] = projk[:, i:i+2*l]
-                end
+            iatom != labels[i].iatom && continue
+            for (ik, projk) in enumerate(projectors)
+                p_I[ik][idx] = projk[:, i:i+2*l]
             end
         end
     end
 
-    return p_I
+    p_I
 end
 
 @doc raw"""
@@ -161,21 +159,21 @@ end
     proj = term.P
 
     filled_occ = filled_occupation(basis.model)
-    types = findall(at -> at.species==term.manifold.species, basis.model.atoms)
+    types = findall(at -> at.species == term.manifold.species, basis.model.atoms)
     natoms = length(types)
-    nspins = basis.model.n_spin_components
+    n_spin = basis.model.n_spin_components
     nproj_atom = size(nhubbard[1,1,1], 1) # This is the number of projectors per atom, namely 2l+1
     # For the ops we have to reshape nhubbard to match the NonlocalOperator structure, using a block diagonal form
-    nhub = [zeros(Complex{T}, nproj_atom*natoms, nproj_atom*natoms) 
-            for _ in 1:nspins]
+    nhub = [zeros(Complex{T}, nproj_atom*natoms, nproj_atom*natoms) for _ in 1:n_spin]
     E = zero(T)
-    for σ in 1:nspins, iatom in 1:natoms
-        nhub[σ][1+nproj_atom*(iatom-1):nproj_atom*iatom, 1+nproj_atom*(iatom-1):nproj_atom*iatom] =
+    for σ in 1:n_spin, iatom in 1:natoms
+        proj_range = 1+nproj_atom*(iatom-1):nproj_atom*iatom,
+        nhub[σ][proj_range, proj_range] =
              nhubbard[σ, iatom, iatom]
-        E += filled_occ * 1/2 * term.U *
+        E += filled_occ * 1/T(2) * term.U *
              real(tr(nhubbard[σ, iatom, iatom] * (I - nhubbard[σ, iatom, iatom])))
     end
-    ops = [NonlocalOperator(basis, kpt, proj[ik], 1/2 * term.U * (I - 2*nhub[kpt.spin])) 
+    ops = [NonlocalOperator(basis, kpt, proj[ik], 1/T{2} * term.U * (I - 2*nhub[kpt.spin])) 
            for (ik,kpt) in enumerate(basis.kpoints)]
     return (; E, ops)
 end
