@@ -97,18 +97,18 @@ Parameters specific to inexact GMRES:
             w .= b .- Ax
             ldiv!(r, precon, w)  # Apply preconditioner
         end
-        y[1] = β = normr = norm(r)
+        y[1] = β = residual_norm = norm(r)
 
         # Prevent iterations when the initial guess or the restarted guess are already sufficiently
-        # accurate. We check β < 2/3 tol since ||b-Ax|| < ||b-Ãx|| + ||Ax-Ãx||, where Ã is the
-        # inexact operator used in mul_approximate, which is accurate to tol/3.
-        converged = β < 2tol/3
+        # accurate. We check residual_norm < 2/3 tol since ||b-Ax|| < ||b-Ãx|| + ||Ax-Ãx||,
+        # where Ã is the inexact operator used in mul_approximate, which is accurate to tol/3.
+        converged = residual_norm < 2tol/3
 
         while (!converged && n_iter < maxiter && k < m)  # Arnoldi loop
             n_iter += 1
 
             # Push new Krylov vector
-            push!(V, r / normr)
+            push!(V, r / β)
             k = length(V)
 
             # Compute new Krylov vector and orthogonalise against subspace
@@ -117,7 +117,7 @@ Parameters specific to inexact GMRES:
             push!(Axinfos, Axinfo)
             ldiv!(w, precon, p)  # Apply preconditioner
             r, _ = orthogonalize!!(w, V, @view(H[1:k, k]), orth)
-            H[k+1, k] = normr = norm(r)
+            H[k+1, k] = β = norm(r)
 
             # Copy Hessenberg matrix into R[:, k] and apply the collected Givens rotations
             R[1:k, k] = H[1:k, k]
@@ -129,10 +129,10 @@ Parameters specific to inexact GMRES:
             # Update right-hand side in Krylov subspace and new residual norm estimate
             y[k + 1] = zero(T)
             lmul!(Gs[k], y)
-            resid_history[n_iter] = β = abs(y[k + 1])
+            resid_history[n_iter] = residual_norm = abs(y[k + 1])
 
             info = (; y, V, H, R, resid_history=resid_history[1:n_iter], converged, n_iter,
-                     residual_norm=β, maxiter, tol, s,
+                     residual_norm, maxiter, tol, s,
                      restart_history, stage=:iterate, krylovdim, k, Axinfos)
             callback(info)
             Axinfos = []
@@ -159,7 +159,7 @@ Parameters specific to inexact GMRES:
 
         if converged || n_iter ≥ maxiter
             info = (; x, resid_history=resid_history[1:n_iter], converged, n_iter,
-                     residual_norm=β, maxiter, tol, s,
+                     residual_norm, maxiter, tol, s,
                      restart_history, stage=:finalize, krylovdim, y, V, H, R)
             callback(info)
             return info
