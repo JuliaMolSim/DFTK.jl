@@ -92,13 +92,13 @@ end
     test_consistency_term(ExternalFromFourier(X -> abs(norm(X))))
     test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
     test_consistency_term(Hartree())
-    test_consistency_term(Hubbard(DFTK.OrbitalManifold(; species=:Si, label="3P"), 0.01))
+    test_consistency_term(Hubbard(OrbitalManifold(; species=:Si, label="3P"), 0.01))
     test_consistency_term(Ewald())
     test_consistency_term(PspCorrection())
     test_consistency_term(Xc([:lda_xc_teter93]))
     test_consistency_term(Xc([:lda_xc_teter93]), spin_polarization=:collinear)
     test_consistency_term(Xc([:gga_x_pbe]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:mgga_x_tpss]; use_nlcc=false)) # TODO: fix consistency for meta-GGA with NLCC
+    test_consistency_term(Xc([:mgga_x_tpss]; use_nlcc=false)) # TODO: see JuliaMolSim/DFTK.jl#1180
     test_consistency_term(Xc([:mgga_x_scan]; use_nlcc=false))
     test_consistency_term(Xc([:mgga_c_scan]; use_nlcc=false), spin_polarization=:collinear)
     test_consistency_term(Xc([:mgga_x_b00]; use_nlcc=false))

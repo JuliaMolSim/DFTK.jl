@@ -30,7 +30,7 @@ function extract_manifold(basis::PlaneWaveBasis{T}, projectors, labels,
     # We extract the labels only for orbitals belonging to the manifold
     manifold_labels = filter(manifold, labels)
     isempty(manifold_labels) && @warn "Projector for $(manifold) not found."
-    proj_indices = findall(orb->manifold(orb) == true, labels)
+    proj_indices = findall(orb -> manifold(orb), labels)
     manifold_projectors = map(enumerate(projectors)) do (ik, projk)
         projk[:, proj_indices]
     end
@@ -40,7 +40,7 @@ end
 """
     compute_nhubbard(manifold, basis, ψ, occupation; [projectors, labels, positions])
 
-Computes a matrix nhubbard of size (nspins, natoms, natoms), where each entry nhubbard[iatom, jatom]
+Computes a matrix nhubbard of size (n_spin, natoms, natoms), where each entry nhubbard[iatom, jatom]
   contains the submatrix of the occupation matrix corresponding to the projectors
   of atom iatom and atom jatom, with dimensions determined by the number of projectors for each atom.
   The atoms and orbitals are defined by the manifold tuple.
@@ -70,14 +70,14 @@ function compute_nhubbard(manifold::OrbitalManifold,
                           projectors, labels,
                           positions = basis.model.positions) where {T}
     filled_occ = filled_occupation(basis.model)
-    nspins = basis.model.n_spin_components
+    n_spin = basis.model.n_spin_components
 
     manifold_atoms = findall(at -> at.species == manifold.species, basis.model.atoms)
     natoms = length(manifold_atoms)  # Number of atoms of the species in the manifold
     l = labels[1].l
     projectors = reshape_hubbard_proj(basis, projectors, labels, manifold)
-    nhubbard = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)
-    for σ in 1:nspins
+    nhubbard = Array{Matrix{Complex{T}}}(undef, n_spin, natoms, natoms)
+    for σ in 1:n_spin
         for idx in 1:length(manifold_atoms), jdx in 1:length(manifold_atoms)
             nhubbard[σ, idx, jdx] = zeros(Complex{T}, 2*l+1, 2*l+1)
             for ik = krange_spin(basis, σ)
@@ -85,8 +85,8 @@ function compute_nhubbard(manifold::OrbitalManifold,
                 i_projection = projectors[ik][idx]' * ψ[ik] # <ϕI|ψ>
                 # Sums over the bands, dividing by filled_occ to deal 
                 # with the physical two spin channels separately
-                nhubbard[σ, idx, jdx] .+= basis.kweights[ik] * (i_projection *
-                                          (diagm(occupation[ik]/filled_occ) * j_projection))
+                nhubbard[σ, idx, jdx] .+= (basis.kweights[ik] * i_projection *
+                                           diagm(occupation[ik]/filled_occ) * j_projection)
             end
             nhubbard[σ, idx, jdx] = mpi_sum(nhubbard[σ, idx, jdx], basis.comm_kpts)
         end
@@ -167,13 +167,12 @@ end
     nhub = [zeros(Complex{T}, nproj_atom*natoms, nproj_atom*natoms) for _ in 1:n_spin]
     E = zero(T)
     for σ in 1:n_spin, iatom in 1:natoms
-        proj_range = 1+nproj_atom*(iatom-1):nproj_atom*iatom,
-        nhub[σ][proj_range, proj_range] =
-             nhubbard[σ, iatom, iatom]
+        proj_range = (1+nproj_atom*(iatom-1)):(nproj_atom*iatom)
+        nhub[σ][proj_range, proj_range] = nhubbard[σ, iatom, iatom]
         E += filled_occ * 1/T(2) * term.U *
              real(tr(nhubbard[σ, iatom, iatom] * (I - nhubbard[σ, iatom, iatom])))
     end
-    ops = [NonlocalOperator(basis, kpt, proj[ik], 1/T{2} * term.U * (I - 2*nhub[kpt.spin])) 
+    ops = [NonlocalOperator(basis, kpt, proj[ik], 1/T(2) * term.U * (I - 2*nhub[kpt.spin])) 
            for (ik,kpt) in enumerate(basis.kpoints)]
     return (; E, ops)
 end

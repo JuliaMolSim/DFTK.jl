@@ -38,7 +38,7 @@ plot_pdos(bands; p, iatom=1, label="3D", colors=[:yellow, :orange], εrange)
 
 # To perform and Hubbard computation, we have to define the Hubbard manifold and associated constant
 U = 10u"eV"
-manifold = DFTK.OrbitalManifold(;species=:Ni, label="3D")
+manifold = OrbitalManifold(;species=:Ni, label="3D")
 
 # Run SCF
 model = model_DFT(lattice, atoms, positions; extra_terms=[DFTK.Hubbard(manifold, U)],

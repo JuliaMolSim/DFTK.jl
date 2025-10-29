@@ -50,7 +50,7 @@ end
    
    # Hubbard parameters
    U        = 10u"eV"
-   manifold = DFTK.OrbitalManifold(;species=:Ni, label="3D")
+   manifold = OrbitalManifold(;species=:Ni, label="3D")
    
    a = 7.9  # Bohr
    lattice = a * [[ 1.0  0.5  0.5];
@@ -88,8 +88,8 @@ end
         @testset "Test symmetry consistency" begin
              n_hub = scfres.nhubbard
              scfres_nosym = DFTK.unfold_bz(scfres)
-             term_idx = only(findfirst(term -> isa(term, DFTK.TermHubbard), 
-                                       scfres_nosym.basis.terms))
+             term_idx = findfirst(term -> isa(term, DFTK.TermHubbard), 
+                                scfres_nosym.basis.terms)
              term_hub = scfres_nosym.basis.terms[term_idx]
              nhub_nosym = DFTK.compute_nhubbard(manifold, scfres_nosym.basis, 
                                                 scfres_nosym.ψ, scfres_nosym.occupation;
