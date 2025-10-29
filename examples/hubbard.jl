@@ -43,7 +43,7 @@ manifold = OrbitalManifold(;species=:Ni, label="3D")
 # Run SCF
 model = model_DFT(lattice, atoms, positions; extra_terms=[DFTK.Hubbard(manifold, U)],
                   functionals=PBE(), temperature=5e-3, magnetic_moments)
-basis = PlaneWaveBasis(model; Ecut = 32, kgrid = [2, 2, 2] )
+basis = PlaneWaveBasis(model; Ecut=32, kgrid=[2, 2, 2] )
 scfres = self_consistent_field(basis; tol=1e-10, ρ=guess_density(basis, magnetic_moments))
 
 # Run band computation
