@@ -98,7 +98,8 @@ end
     test_consistency_term(Xc([:lda_xc_teter93]))
     test_consistency_term(Xc([:lda_xc_teter93]), spin_polarization=:collinear)
     test_consistency_term(Xc([:gga_x_pbe]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:mgga_x_tpss]; use_nlcc=false)) # TODO: see JuliaMolSim/DFTK.jl#1180
+    # TODO: for use_nlcc=true need to fix consistency for meta-GGA with NLCC (see JuliaMolSim/DFTK.jl#1180)
+    test_consistency_term(Xc([:mgga_x_tpss]; use_nlcc=false))
     test_consistency_term(Xc([:mgga_x_scan]; use_nlcc=false))
     test_consistency_term(Xc([:mgga_c_scan]; use_nlcc=false), spin_polarization=:collinear)
     test_consistency_term(Xc([:mgga_x_b00]; use_nlcc=false))
