@@ -84,6 +84,25 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
     density = LibxcDensities(basis, max_ρ_derivs, ρ, τ)
 
+    if !isnothing(term.ρcore) && !isnothing(τ)
+        negative_α = @views any(1:n_spin) do iσ
+            # α = (τ - τ_W) / τ_unif should be positive with τ_W = |∇ρ|² / 8ρ
+            # equivalently, check 8ρτ - |∇ρ|² ≥ 0
+            α_check = (8 .* density.ρ_real[iσ, :, :, :] .* density.τ_real[iσ, :, :, :]
+                       .- density.σ_real[DftFunctionals.spinindex_σ(iσ, iσ), :, :, :])
+            any(α_check .<= -sqrt(eps(T)))
+        end
+        if negative_α
+            @warn "Exchange-correlation term: the kinetic energy density τ is smaller " *
+                  "than the von Weizsäcker kinetic energy density τ_W somewhere. " *
+                  "This can lead to unphysical results. " *
+                  "This is typically caused by the non-linear core correction, " *
+                  "which is currently not applied for the kinetic energy density τ. " *
+                  "See also https://github.com/JuliaMolSim/DFTK.jl/issues/1180. " *
+                  "This message is only logged once." maxlog=1
+        end
+    end
+
     # Evaluate terms and energy contribution
     # If the XC functional is not supported for an architecture, terms is on the CPU
     terms = potential_terms(term.functionals, density)
