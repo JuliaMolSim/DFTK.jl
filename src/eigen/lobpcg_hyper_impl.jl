@@ -218,7 +218,15 @@ normest(M) = maximum(abs, diag(M)) + norm(M - Diagonal(diag(M)))
             success = false
         end
         invR = inv(R)
-        @assert !any(isnan, invR)
+        if any(isnan, invR)
+            # GPU inversion and cholesky can be brittle with ill-conditioned matrices, and
+            # NaN elements can silently appear. We fall back to the CPU in that (rare) case
+            X_cpu = Array(X)
+            X_cpu, nchol, growth_factor = ortho!(X_cpu)
+            X .= oftype(X, X_cpu)
+            @assert !any(isnan, X) # insure early stop if source of NaNs is not the GPU
+            return (; X, nchol, growth_factor)
+        end
         rmul!(X, invR)  # we do not use X/R because we use invR next
 
         # We would like growth_factor *= opnorm(inv(R)) but it's too
