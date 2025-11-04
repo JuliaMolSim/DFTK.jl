@@ -5,6 +5,14 @@ using Preferences
 # https://github.com/JuliaGPU/CUDA.jl/issues/1565
 LinearAlgebra.dot(x::AbstractGPUArray, D::Diagonal, y::AbstractGPUArray) = x' * (D * y)
 
+# Norm of Hermitian matrices. See https://github.com/JuliaGPU/AMDGPU.jl/issues/843
+function LinearAlgebra.norm(A::Hermitian{T, <:AbstractGPUArray}) where {T}
+    upper_triangle = sum(abs2, triu(parent(A)))
+    diago = sum(abs2, diag(parent(A)))
+    sqrt(2upper_triangle - diago)
+end
+
+
 for fun in (:potential_terms, :kernel_terms)
     @eval function DftFunctionals.$fun(fun::DispatchFunctional, ρ::AT,
                                        args...) where {AT <: AbstractGPUArray{Float64}}
