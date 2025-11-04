@@ -71,10 +71,9 @@ function random_orbitals(hamk::HamiltonianBlock, howmany::Integer)
     random_orbitals(hamk.basis, hamk.kpoint, howmany)
 end
 
-import Base: Matrix, Array
-Array(block::HamiltonianBlock)  = Matrix(block)
-Matrix(block::HamiltonianBlock) = sum(Matrix, block.operators)
-Matrix(block::GenericHamiltonianBlock) = sum(Matrix, block.optimized_operators)
+Base.Array(block::HamiltonianBlock)  = Matrix(block)
+Base.Matrix(block::HamiltonianBlock) = sum(Matrix, block.operators)
+Base.Matrix(block::GenericHamiltonianBlock) = sum(Matrix, block.optimized_operators)
 
 struct Hamiltonian
     basis::PlaneWaveBasis

@@ -93,7 +93,7 @@ end
 function apply!(Hψ, op::FourierMultiplication, ψ)
     Hψ.fourier .+= op.multiplier .* ψ.fourier
 end
-Matrix(op::FourierMultiplication) = Array(Diagonal(op.multiplier))
+Base.Matrix(op::FourierMultiplication) = Array(Diagonal(op.multiplier))
 
 """
 Nonlocal operator in Fourier space in Kleinman-Bylander format,
@@ -110,7 +110,7 @@ end
 function apply!(Hψ, op::NonlocalOperator, ψ)
     mul!(Hψ.fourier, op.P, (op.D * (op.P' * ψ.fourier)), 1, 1)
 end
-Matrix(op::NonlocalOperator) = op.P * op.D * op.P'
+Base.Matrix(op::NonlocalOperator) = op.P * op.D * op.P'
 
 """
 Magnetic field operator A⋅(-i∇).
@@ -130,7 +130,7 @@ function apply!(Hψ, op::MagneticFieldOperator, ψ)
         Hψ.real .+= op.Apot[α] .* ∂αψ_real
     end
 end
-# TODO Implement  Matrix(op::MagneticFieldOperator)
+# TODO Implement  Base.Matrix(op::MagneticFieldOperator)
 
 @doc raw"""
 Nonlocal "divAgrad" operator ``-½ ∇ ⋅ (A ∇)`` where ``A`` is a scalar field on the
@@ -153,7 +153,7 @@ function apply!(Hψ, op::DivAgradOperator, ψ;
         Hψ.fourier .-= im .* G_plus_k[α] .* A∇ψ ./ 2
     end
 end
-# TODO Implement  Matrix(op::DivAgradOperator)
+# TODO Implement  Base.Matrix(op::DivAgradOperator)
 
 
 # Optimize RFOs by combining terms that can be combined
