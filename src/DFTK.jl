@@ -242,12 +242,6 @@ include("workarounds/forwarddiff_rules.jl")
 include("gpu/linalg.jl")
 include("gpu/gpu_arrays.jl")
 
-# Wrappers around ForwardDiff to reduce compilation times
-export tagged_derivative
-export tagged_gradient
-export tagged_jacobian
-include("derivative_wrappers.jl")
-
 # Precompilation block with a basic workflow
 
 function precompilation_workflow(lattice, atoms, positions, magnetic_moments;

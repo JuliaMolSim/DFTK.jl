@@ -1,5 +1,45 @@
+# Wrappers around ForwardDiff to fix tags and reduce compilation time.
+# Warning: fixing types without care can lead to perturbation confusion,
+# this should only be used within the testing framework.
+@testmodule ForwardDiffWrappers begin
+using ForwardDiff
+export tagged_derivative, tagged_gradient, tagged_jacobian
+
+struct DerivativeTag end
+function tagged_derivative(f, x::T; custom_tag=DerivativeTag) where T
+    # explicit call to ForwardDiff.Tag() to trigger ForwardDiff.tagcount
+    TagType = typeof(ForwardDiff.Tag(custom_tag(), T))
+    x_dual = ForwardDiff.Dual{TagType, T, 1}(x, ForwardDiff.Partials((one(T),)))
+
+    res = ForwardDiff.extract_derivative(TagType, f(x_dual))
+    return res
+end
+
+struct GradientTag end
+GradientConfig(f, x, ::Type{Tag}) where {Tag} =
+    ForwardDiff.GradientConfig(f, x, ForwardDiff.Chunk(x), Tag())
+function tagged_gradient(f, x::AbstractArray{T}; custom_tag=GradientTag) where T
+    # explicit call to ForwardDiff.Tag() to trigger ForwardDiff.tagcount
+    TagType = typeof(ForwardDiff.Tag(custom_tag(), T))
+
+    cfg = GradientConfig(f, x, TagType)
+    ForwardDiff.gradient(f, x, cfg, Val{false}())
+end
+
+struct JacobianTag end
+JacobianConfig(f, x, ::Type{Tag}) where {Tag} =
+    ForwardDiff.JacobianConfig(f, x, ForwardDiff.Chunk(x), Tag())
+function tagged_jacobian(f, x::AbstractArray{T}; custom_tag=JacobianTag) where T
+    # explicit call to ForwardDiff.Tag() to trigger ForwardDiff.tagcount
+    TagType = typeof(ForwardDiff.Tag(custom_tag(), T))
+
+    cfg = JacobianConfig(f, x, TagType)
+    ForwardDiff.jacobian(f, x, cfg, Val{false}())
+end
+end
+
 @testitem "Force derivatives using ForwardDiff" #=
-    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases] begin
+    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases, ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -68,7 +108,7 @@
 end
 
 @testitem "Anisotropic strain sensitivity using ForwardDiff" #=
-    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases] begin
+    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases, ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -118,7 +158,7 @@ end
 end
 
 @testitem "scfres PSP sensitivity using ForwardDiff" #=
-    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases] begin
+    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases, ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -160,7 +200,7 @@ end
 end
 
 @testitem "Functional force sensitivity using ForwardDiff" #=
-    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases] begin
+    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases, ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -191,7 +231,8 @@ end
     @test norm(derivative_ε - derivative_fd) < 1e-4
 end
 
-@testitem "Derivative of complex function" tags=[:dont_test_mpi, :minimal] begin
+@testitem "Derivative of complex function" #=
+    =#    tags=[:dont_test_mpi, :minimal] setup=[ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -207,7 +248,8 @@ end
     @test norm(fd1 - fd2) < 1e-8
 end
 
-@testitem "Higher derivatives of Fermi-Dirac occupation" tags=[:dont_test_mpi, :minimal] begin
+@testitem "Higher derivatives of Fermi-Dirac occupation" #=
+    =#    tags=[:dont_test_mpi, :minimal] setup=[ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
 
@@ -232,7 +274,8 @@ end
     end
 end
 
-@testitem "LocalNonlinearity sensitivity using ForwardDiff" tags=[:dont_test_mpi, :minimal] begin
+@testitem "LocalNonlinearity sensitivity using ForwardDiff" #=
+    =#     tags=[:dont_test_mpi, :minimal] setup=[ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -261,7 +304,8 @@ end
     @test norm(derivative_ε - derivative_fd) < 1e-4
 end
 
-@testitem "Symmetries broken by perturbation are filtered out" tags=[:dont_test_mpi] begin
+@testitem "Symmetries broken by perturbation are filtered out" #=
+    =#    tags=[:dont_test_mpi] setup=[ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -343,7 +387,7 @@ end
 end
 
 @testitem "Symmetry-breaking perturbation using ForwardDiff" #=
-    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    =#    tags=[:dont_test_mpi] setup=[TestCases, ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -386,7 +430,7 @@ end
 end
 
 @testitem "Test scfres dual has the same params as scfres primal" #=
-    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    =#    tags=[:dont_test_mpi] setup=[TestCases, ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -416,7 +460,8 @@ end
 end
 
 
-@testitem "ForwardDiff wrt temperature" tags=[:dont_test_mpi, :minimal] begin
+@testitem "ForwardDiff wrt temperature" #=
+    =#    tags=[:dont_test_mpi, :minimal] setup=[ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
