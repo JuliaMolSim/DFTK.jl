@@ -49,7 +49,7 @@ Computes a matrix nhubbard of size (n_spin, natoms, natoms), where each entry nh
 
   where n or ibnd is the band index, ``weights[ik ibnd] = kweights[ik] * occupation[ik, ibnd]``
   and ``Pᵢₘ₁`` is the pseudoatomic orbital projector for atom i and orbital m₁
-  (usually just the magnetic quantum number, since l is usually fixed).
+  (just the magnetic quantum number, since l is fixed, as is usual in the literature).
  For details on the projectors see `atomic_orbital_projectors`.
 
 Overview of inputs:
@@ -60,9 +60,8 @@ Overview of inputs:
 - `labels` (kwarg): Vector of NamedTuples. Each projectors[ik][:,iproj] column has all relevant 
                     chemical information stored in the corresponding labels[iproj] NamedTuple.
 
-Overviw of outputs:
-- `nhubbard`: 3-tensor of matrices. Outer indices select spin, iatom and jatom,
-    inner indices select m1 and m2 in the manifold.
+Overview of outputs:
+- `nhubbard`: 3-tensor of matrices. See above for details.
 """
 function compute_nhubbard(manifold::OrbitalManifold,
                           basis::PlaneWaveBasis{T},
@@ -95,6 +94,12 @@ function compute_nhubbard(manifold::OrbitalManifold,
                                    basis.symmetries, basis.model.positions[manifold_atoms])
 end
 
+"""
+This function reshapes for each kpoint the projectors matrix to a vector of matrices,
+    taking only the columns corresponding to orbitals in the manifold and splitting them
+    into different matrices, one for each atom. Columns in the same matrix differ only in 
+    the value of the magnetic quantum number m of the corresponding orbitals.
+"""
 function reshape_hubbard_proj(basis, projectors::Vector{Matrix{Complex{T}}}, 
                               labels, manifold) where {T}
     manifold_atoms = findall(at -> at.species == manifold.species, basis.model.atoms)

@@ -61,16 +61,16 @@ function wigner_d_matrix(l::Integer, Wcart::AbstractMatrix{T}) where {T}
         return [one(T);;]
     end
     rng = Xoshiro(1234)
-    neq = 2*l+2 # We need at least 2*l+1 equations, we add one for numerical stability
-    B = Matrix{T}(undef, 2*l+1, neq)
-    A = Matrix{T}(undef, 2*l+1, neq)
+    neq = 2l+2 # We need at least 2l+1 equations, we add one for numerical stability
+    B = Matrix{T}(undef, 2l+1, neq)
+    A = Matrix{T}(undef, 2l+1, neq)
     for n in 1:neq
         r = rand(rng, T, 3)
         r = r / norm(r)
         r0 =  Wcart * r
         for m in -l:l
-            B[m+l+1, n] = DFTK.ylm_real(l, m, r0)
-            A[m+l+1, n] = DFTK.ylm_real(l, m, r)
+            B[m+l+1, n] = ylm_real(l, m, r0)
+            A[m+l+1, n] = ylm_real(l, m, r)
         end
     end
     κ = cond(A)
