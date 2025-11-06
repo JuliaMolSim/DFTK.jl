@@ -1,6 +1,8 @@
 # Wrappers around ForwardDiff to fix tags and reduce compilation time.
 # Warning: fixing types without care can lead to perturbation confusion,
-# this should only be used within the testing framework.
+# this should only be used within the testing framework. Risk of perturbation
+# confusion arises when nested derivatives of different functions are taken
+# with a fixed tag. Only use these wrappers at the top-level call.
 @testmodule ForwardDiffWrappers begin
 using ForwardDiff
 export tagged_derivative, tagged_gradient, tagged_jacobian
@@ -258,7 +260,7 @@ end
 
     function compute_nth_derivative(n, f, x)
         (n == 0) && return f(x)
-        tagged_derivative(x -> compute_nth_derivative(n - 1, f, x), x)
+        ForwardDiff.derivative(x -> compute_nth_derivative(n - 1, f, x), x)
     end
 
     @testset "Avoid NaN from exp-overflow for large x" begin
