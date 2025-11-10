@@ -30,3 +30,9 @@ Synchronize data and finish all operations on the execution stream of the device
 This needs to be called explicitly before a task finishes (e.g. in an `@spawn` block).
 """
 synchronize_device(::AbstractArchitecture) = nothing
+
+
+"""
+Returns the architecture of the given array.
+"""
+get_architecture(x::AbstractArray) = x isa AbstractGPUArray ? GPU{typeof(x)}() : CPU()
