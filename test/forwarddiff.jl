@@ -1,5 +1,47 @@
+# Wrappers around ForwardDiff to fix tags and reduce compilation time.
+# Warning: fixing types without care can lead to perturbation confusion,
+# this should only be used within the testing framework. Risk of perturbation
+# confusion arises when nested derivatives of different functions are taken
+# with a fixed tag. Only use these wrappers at the top-level call.
+@testmodule ForwardDiffWrappers begin
+using ForwardDiff
+export tagged_derivative, tagged_gradient, tagged_jacobian
+
+struct DerivativeTag end
+function tagged_derivative(f, x::T; custom_tag=DerivativeTag) where T
+    # explicit call to ForwardDiff.Tag() to trigger ForwardDiff.tagcount
+    TagType = typeof(ForwardDiff.Tag(custom_tag(), T))
+    x_dual = ForwardDiff.Dual{TagType, T, 1}(x, ForwardDiff.Partials((one(T),)))
+
+    res = ForwardDiff.extract_derivative(TagType, f(x_dual))
+    return res
+end
+
+struct GradientTag end
+GradientConfig(f, x, ::Type{Tag}) where {Tag} =
+    ForwardDiff.GradientConfig(f, x, ForwardDiff.Chunk(x), Tag())
+function tagged_gradient(f, x::AbstractArray{T}; custom_tag=GradientTag) where T
+    # explicit call to ForwardDiff.Tag() to trigger ForwardDiff.tagcount
+    TagType = typeof(ForwardDiff.Tag(custom_tag(), T))
+
+    cfg = GradientConfig(f, x, TagType)
+    ForwardDiff.gradient(f, x, cfg, Val{false}())
+end
+
+struct JacobianTag end
+JacobianConfig(f, x, ::Type{Tag}) where {Tag} =
+    ForwardDiff.JacobianConfig(f, x, ForwardDiff.Chunk(x), Tag())
+function tagged_jacobian(f, x::AbstractArray{T}; custom_tag=JacobianTag) where T
+    # explicit call to ForwardDiff.Tag() to trigger ForwardDiff.tagcount
+    TagType = typeof(ForwardDiff.Tag(custom_tag(), T))
+
+    cfg = JacobianConfig(f, x, TagType)
+    ForwardDiff.jacobian(f, x, cfg, Val{false}())
+end
+end
+
 @testitem "Force derivatives using ForwardDiff" #=
-    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases] begin
+    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases, ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -28,21 +70,21 @@
     derivative_ε1_fd = let ε1 = 1e-5
         (compute_force(ε1, 0.0) - F) / ε1
     end
-    derivative_ε1 = ForwardDiff.derivative(ε1 -> compute_force(ε1, 0.0), 0.0)
+    derivative_ε1 = tagged_derivative(ε1 -> compute_force(ε1, 0.0), 0.0)
     @test norm(derivative_ε1 - derivative_ε1_fd) < 1e-4
 
     derivative_ε2_fd = let ε2 = 1e-5
         (compute_force(0.0, ε2) - F) / ε2
     end
-    derivative_ε2 = ForwardDiff.derivative(ε2 -> compute_force(0.0, ε2), 0.0)
+    derivative_ε2 = tagged_derivative(ε2 -> compute_force(0.0, ε2), 0.0)
     @test norm(derivative_ε2 - derivative_ε2_fd) < 1e-4
 
     @testset "Multiple partials" begin
-        grad = ForwardDiff.gradient(v -> compute_force(v...)[1][1], [0.0, 0.0])
+        grad = tagged_gradient(v -> compute_force(v...)[1][1], [0.0, 0.0])
         @test abs(grad[1] - derivative_ε1[1][1]) < 1e-4
         @test abs(grad[2] - derivative_ε2[1][1]) < 1e-4
 
-        jac = ForwardDiff.jacobian(v -> compute_force(v...)[1], [0.0, 0.0])
+        jac = tagged_jacobian(v -> compute_force(v...)[1], [0.0, 0.0])
         @test norm(grad - jac[1, :]) < 1e-9
     end
 
@@ -51,7 +93,7 @@
         derivative_ε1_fd = let ε1 = 1e-5
             (compute_force(ε1, 0.0; metal) - compute_force(-ε1, 0.0; metal)) / 2ε1
         end
-        derivative_ε1 = ForwardDiff.derivative(ε1 -> compute_force(ε1, 0.0; metal), 0.0)
+        derivative_ε1 = tagged_derivative(ε1 -> compute_force(ε1, 0.0; metal), 0.0)
         @test norm(derivative_ε1 - derivative_ε1_fd) < 1e-4
     end
 
@@ -62,13 +104,13 @@
         derivative_ε1_fd = let ε1 = 1e-5
             (compute_force(ε1, 0.0; atoms) - compute_force(-ε1, 0.0; atoms)) / 2ε1
         end
-        derivative_ε1 = ForwardDiff.derivative(ε1 -> compute_force(ε1, 0.0; atoms), 0.0)
+        derivative_ε1 = tagged_derivative(ε1 -> compute_force(ε1, 0.0; atoms), 0.0)
         @test norm(derivative_ε1 - derivative_ε1_fd) < 1e-4
     end
 end
 
 @testitem "Anisotropic strain sensitivity using ForwardDiff" #=
-    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases] begin
+    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases, ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -103,7 +145,7 @@ end
 
     @testset "$strain_fn" for strain_fn in (strain_isotropic, strain_anisotropic)
         f(ε) = compute_properties(strain_fn(ε))
-        dx = ForwardDiff.derivative(f, 0.)
+        dx = tagged_derivative(f, 0.)
 
         h = 1e-4
         x1 = f(-h)
@@ -118,7 +160,7 @@ end
 end
 
 @testitem "scfres PSP sensitivity using ForwardDiff" #=
-    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases] begin
+    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases, ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -155,12 +197,12 @@ end
     derivative_ε = let ε = 1e-4
         (compute_band_energies(ε) - compute_band_energies(-ε)) / 2ε
     end
-    derivative_fd = ForwardDiff.derivative(compute_band_energies, 0.0)
+    derivative_fd = tagged_derivative(compute_band_energies, 0.0)
     @test norm(derivative_fd - derivative_ε) < 5e-4
 end
 
 @testitem "Functional force sensitivity using ForwardDiff" #=
-    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases] begin
+    =#    tags=[:dont_test_mpi, :minimal] setup=[TestCases, ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -187,11 +229,12 @@ end
     derivative_ε = let ε = 1e-5
         (compute_force(ε) - compute_force(-ε)) / 2ε
     end
-    derivative_fd = ForwardDiff.derivative(compute_force, 0.0)
+    derivative_fd = tagged_derivative(compute_force, 0.0)
     @test norm(derivative_ε - derivative_fd) < 1e-4
 end
 
-@testitem "Derivative of complex function" tags=[:dont_test_mpi, :minimal] begin
+@testitem "Derivative of complex function" #=
+    =#    tags=[:dont_test_mpi, :minimal] setup=[ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -202,12 +245,13 @@ end
     erfcα = x -> erfc(α * x)
 
     x0  = randn()
-    fd1 = ForwardDiff.derivative(erfcα, x0)
+    fd1 = tagged_derivative(erfcα, x0)
     fd2 = FiniteDifferences.central_fdm(5, 1)(erfcα, x0)
     @test norm(fd1 - fd2) < 1e-8
 end
 
-@testitem "Higher derivatives of Fermi-Dirac occupation" tags=[:dont_test_mpi, :minimal] begin
+@testitem "Higher derivatives of Fermi-Dirac occupation" #=
+    =#    tags=[:dont_test_mpi, :minimal] setup=[ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
 
@@ -232,7 +276,8 @@ end
     end
 end
 
-@testitem "LocalNonlinearity sensitivity using ForwardDiff" tags=[:dont_test_mpi, :minimal] begin
+@testitem "LocalNonlinearity sensitivity using ForwardDiff" #=
+    =#     tags=[:dont_test_mpi, :minimal] setup=[ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -257,11 +302,12 @@ end
     derivative_ε = let ε = 1e-5
         (compute_force(ε) - compute_force(-ε)) / 2ε
     end
-    derivative_fd = ForwardDiff.derivative(compute_force, 0.0)
+    derivative_fd = tagged_derivative(compute_force, 0.0)
     @test norm(derivative_ε - derivative_fd) < 1e-4
 end
 
-@testitem "Symmetries broken by perturbation are filtered out" tags=[:dont_test_mpi] begin
+@testitem "Symmetries broken by perturbation are filtered out" #=
+    =#    tags=[:dont_test_mpi] setup=[ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -343,7 +389,7 @@ end
 end
 
 @testitem "Symmetry-breaking perturbation using ForwardDiff" #=
-    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    =#    tags=[:dont_test_mpi] setup=[TestCases, ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -373,7 +419,7 @@ end
             self_consistent_field(basis; tol=1e-10)
         end
 
-        δρ = ForwardDiff.derivative(ε -> run_scf(ε).ρ, 0.)
+        δρ = tagged_derivative(ε -> run_scf(ε).ρ, 0.)
 
         h = 1e-5
         scfres1 = run_scf(-h)
@@ -386,7 +432,7 @@ end
 end
 
 @testitem "Test scfres dual has the same params as scfres primal" #=
-    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+    =#    tags=[:dont_test_mpi] setup=[TestCases, ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -416,7 +462,8 @@ end
 end
 
 
-@testitem "ForwardDiff wrt temperature" tags=[:dont_test_mpi, :minimal] begin
+@testitem "ForwardDiff wrt temperature" #=
+    =#    tags=[:dont_test_mpi, :minimal] setup=[ForwardDiffWrappers] begin
     using DFTK
     using ForwardDiff
     using LinearAlgebra
@@ -440,6 +487,6 @@ end
     derivative_ε = let ε = 1e-5
         (get(T0+ε) - get(T0-ε)) / 2ε
     end
-    derivative_fd = ForwardDiff.derivative(get, T0)
+    derivative_fd = tagged_derivative(get, T0)
     @test norm(derivative_ε - derivative_fd) < 1e-4
 end
