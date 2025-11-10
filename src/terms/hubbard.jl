@@ -13,24 +13,61 @@ All fields are optional, only the given ones will be used for selection.
 Can be called with an orbital NamedTuple and returns a boolean
   stating whether the orbital belongs to the manifold.
 """
+#@kwdef struct OrbitalManifold
+#    iatom   ::Union{Int64,  Nothing} = nothing
+#    species ::Union{Symbol, AtomsBase.ChemicalSpecies, Nothing} = nothing
+#    label   ::Union{String, Nothing} = nothing
+#end
+#function (s::OrbitalManifold)(orbital)
+#    iatom_match    = isnothing(s.iatom)   || (s.iatom == orbital.iatom)
+#    species_match  = isnothing(s.species) || (s.species == orbital.species)
+#    label_match    = isnothing(s.label)   || (s.label == orbital.label)
+#    iatom_match && species_match && label_match
+#end
 @kwdef struct OrbitalManifold
-    iatom   ::Union{Int64,  Nothing} = nothing
-    species ::Union{Symbol, AtomsBase.ChemicalSpecies, Nothing} = nothing
-    label   ::Union{String, Nothing} = nothing
+    iatoms::Union{Vector{Int64},  Nothing} = nothing
+    psp = nothing
+    projector_l::Union{Int64, Nothing} = nothing
+    projector_i::Union{Int64, Nothing} = nothing
 end
-function (s::OrbitalManifold)(orbital)
-    iatom_match    = isnothing(s.iatom)   || (s.iatom == orbital.iatom)
-    species_match  = isnothing(s.species) || (s.species == orbital.species)
-    label_match    = isnothing(s.label)   || (s.label == orbital.label)
-    iatom_match && species_match && label_match
+function is_on_manifold(orbital; iatoms=nothing, species=nothing, 
+                                 l=nothing, n=nothing, label=nothing)
+    iatom_match   = isnothing(iatoms)  || (orbital.iatom in iatoms)
+    species_match = isnothing(species) || (species == orbital.species)
+    label_match   = isnothing(label)   || (label == orbital.label)
+    l_match = isnothing(l) || (l == orbital.l)
+    n_match = isnothing(n) || (n == orbital.n)
+    iatom_match && species_match && l_match && n_match && label_match
+end
+function is_on_manifold(orbital, manifold::OrbitalManifold)
+    is_on_manifold(orbital; iatoms=manifold.iatoms, l=manifold.projector_l, n=manifold.projector_i)
+end
+
+function OrbitalManifold(atoms, labels; iatoms::Union{Vector{Int64}, Nothing}=nothing,
+                         label::Union{String, Nothing}=nothing,
+                         species::Union{Symbol, AtomsBase.ChemicalSpecies, Nothing}=nothing)
+    hub_atoms = Int64[]
+    for orbital in labels
+        if is_on_manifold(orbital; iatoms, species, label) 
+            append!(hub_atoms, orbital.iatom)
+        end
+    end
+    isempty(hub_atoms) && error("Unable to create Hubbard manifold. No atom matches the given keywords")
+    # If species is nothing, there can be errors if the iatoms correspond to different atomic species
+    model_atom = atoms[hub_atoms[1]]
+    !all(atom -> atom.psp == model_atom.psp, atoms[hub_atoms]) && 
+        error("The given Hubbard manifold contains more than one atomic pseudopotential species")
+    projector_l = isnothing(label) ? nothing : labels[hub_atoms[1]].l
+    projector_i = isnothing(label) ? nothing : labels[hub_atoms[1]].n
+    OrbitalManifold(;iatoms=hub_atoms, psp=model_atom.psp, projector_l, projector_i)
 end
 
 function extract_manifold(basis::PlaneWaveBasis{T}, projectors, labels,
                           manifold::OrbitalManifold) where {T}
     # We extract the labels only for orbitals belonging to the manifold
-    manifold_labels = filter(manifold, labels)
-    isempty(manifold_labels) && @warn "Projector for $(manifold) not found."
-    proj_indices = findall(orb -> manifold(orb), labels)
+    proj_indices = findall(orb -> is_on_manifold(orb, manifold), labels)
+    isempty(proj_indices) && @warn "Projector for $(manifold) not found."
+    manifold_labels = labels[proj_indices]
     manifold_projectors = map(enumerate(projectors)) do (ik, projk)
         projk[:, proj_indices]
     end
@@ -71,7 +108,7 @@ function compute_nhubbard(manifold::OrbitalManifold,
     filled_occ = filled_occupation(basis.model)
     n_spin = basis.model.n_spin_components
 
-    manifold_atoms = findall(at -> at.species == manifold.species, basis.model.atoms)
+    manifold_atoms = findall(at -> at.psp == manifold.psp, basis.model.atoms)
     natoms = length(manifold_atoms)  # Number of atoms of the species in the manifold
     l = labels[1].l
     projectors = reshape_hubbard_proj(basis, projectors, labels, manifold)
@@ -102,11 +139,11 @@ This function reshapes for each kpoint the projectors matrix to a vector of matr
 """
 function reshape_hubbard_proj(basis, projectors::Vector{Matrix{Complex{T}}}, 
                               labels, manifold) where {T}
-    manifold_atoms = findall(at -> at.species == manifold.species, basis.model.atoms)
+    manifold_atoms = findall(at -> at.psp == manifold.psp, basis.model.atoms)
     natoms = length(manifold_atoms)
     nprojs = length(labels)
     l = labels[1].l
-    @assert all(label -> label.l==l, labels)
+    @assert all(label -> label.l==l, labels) "$(labels)"
     @assert length(labels) == natoms * (2*l+1)
     p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for i in 1:length(projectors)]
     for (idx, iatom) in enumerate(manifold_atoms)
@@ -130,11 +167,10 @@ Hubbard energy:
 struct Hubbard{T}
     manifold::OrbitalManifold
     U::T
-    function Hubbard(manifold::OrbitalManifold, U)
-        if isnothing(manifold.label) || isnothing(manifold.species)
-            error("Hubbard term needs both a species and a label inside OrbitalManifold")
-        elseif !isnothing(manifold.iatom)
-            error("Hubbard term does not support iatom specification inside OrbitalManifold")
+    function Hubbard((manifold::OrbitalManifold), U)
+        if isnothing(manifold.iatoms) || isnothing(manifold.projector_l) ||
+           isnothing(manifold.projector_i)
+            error("Hubbard term needs specification of atoms and orbital")
         end
         U = austrip(U)
         new{typeof(U)}(manifold, U)
@@ -164,7 +200,7 @@ end
     proj = term.P
 
     filled_occ = filled_occupation(basis.model)
-    types = findall(at -> at.species == term.manifold.species, basis.model.atoms)
+    types = findall(at -> at.psp == term.manifold.psp, basis.model.atoms)
     natoms = length(types)
     n_spin = basis.model.n_spin_components
     nproj_atom = size(nhubbard[1,1,1], 1) # This is the number of projectors per atom, namely 2l+1

@@ -219,7 +219,7 @@ This function extracts and sums up all the PDOSes, directly from the output of t
 
 Overview of inputs:
 - `pdos_res`: Whole output from compute_pdos.
-- `manifolds`: Vector of OrbitalManifolds to select the desired projectors pdos.
+- `manifolds`: Vector of (;iatoms, label) NamedTuples to select the desired projectors pdos.
 
 Overview of outputs:
 - `pdos`: Vector containing the pdos(ε).
@@ -228,7 +228,7 @@ function sum_pdos(pdos_res, manifolds::AbstractVector)
     pdos = zeros(Float64, length(pdos_res.εs), size(pdos_res.pdos, 3))
     for σ in 1:size(pdos_res.pdos, 3)
        for (j, orb) in enumerate(pdos_res.projector_labels)
-            if any(manifold(orb) for manifold in manifolds)
+            if any(is_on_manifold(orb, manifold) for manifold in manifolds)
                 pdos[:, σ] += pdos_res.pdos[:, j, σ]
             end
         end

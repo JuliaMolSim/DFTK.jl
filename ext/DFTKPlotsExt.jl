@@ -142,7 +142,7 @@ function plot_ldos(basis, eigenvalues, ψ; εF=nothing, unit=u"hartree",
 end
 plot_ldos(scfres; kwargs...) = plot_ldos(scfres.basis, scfres.eigenvalues, scfres.ψ; scfres.εF, kwargs...)
 
-function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatom, label=nothing,
+function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatoms, label=nothing,
                    positions=basis.model.positions,
                    εF=nothing, unit=u"hartree",
                    temperature=basis.model.temperature,
@@ -155,16 +155,17 @@ function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatom, label=nothi
     n_spin = basis.model.n_spin_components
     to_unit = ustrip(auconvert(unit, 1.0))
 
-    species = isnothing(iatom) ? "all atoms" : "atom $(iatom) ($(basis.model.atoms[iatom].species))" 
+    species = isnothing(iatoms) ? "all atoms" : "atoms $(iatoms) ($(basis.model.atoms[iatoms].species))" 
     orb_name = isnothing(label) ? "all orbitals" : label
 
     # Plot pdos
     isnothing(p) && (p = Plots.plot())
     p = Plots.plot(p; kwargs...)
     spinlabels = spin_components(basis.model)
+    labels = basis.terms[findfirst(term -> isa(term, DFTK.TermHubbard), basis.terms)].labels
     pdos = DFTK.sum_pdos(compute_pdos(εs, basis, ψ, eigenvalues;
                                       positions, temperature, smearing), 
-                         [OrbitalManifold(;iatom, label)])
+                         [OrbitalManifold(basis.model.atoms, labels; iatoms, label)])
     for σ = 1:n_spin
         plot_label = n_spin > 1 ? "$(species) $(orb_name) $(spinlabels[σ]) spin" : "$(species) $(orb_name)"
         Plots.plot!(p, (εs .- eshift) .* to_unit, pdos[:, σ]; label=plot_label, color=colors[σ])

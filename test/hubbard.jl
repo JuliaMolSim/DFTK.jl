@@ -48,10 +48,6 @@ end
    using UnitfulAtomic
    using LinearAlgebra
    
-   # Hubbard parameters
-   U        = 10u"eV"
-   manifold = OrbitalManifold(;species=:Ni, label="3D")
-   
    a = 7.9  # Bohr
    lattice = a * [[ 1.0  0.5  0.5];
                   [ 0.5  1.0  0.5];
@@ -65,9 +61,13 @@ end
                 [0.5, 0.5, 0.5],
                 [0.75, 0.75, 0.75]]     
    magnetic_moments = [2, 0, -1, 0]
+
+   # Hubbard parameters
+   U        = 10u"eV"
+   manifold = OrbitalManifold([1,3], Ni.psp, 2, 1)
    
    model = model_DFT(lattice, atoms, positions; 
-                     extra_terms=[DFTK.Hubbard(manifold, U)],
+                     extra_terms=[Hubbard(manifold, U)],
                      temperature=0.01, functionals=PBE(),
                      smearing=DFTK.Smearing.Gaussian(), magnetic_moments=magnetic_moments)
    basis = PlaneWaveBasis(model; Ecut = 15, kgrid = [2, 2, 2])
