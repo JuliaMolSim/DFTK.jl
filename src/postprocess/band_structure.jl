@@ -15,7 +15,7 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
                                kgrid::Union{AbstractKgrid,AbstractKgridGenerator};
                                n_bands=default_n_bands_bandstructure(basis.model),
                                n_extra=3, ρ=nothing, τ=nothing, εF=nothing,
-                               occupation=nothing, nhubbard=nothing,
+                               occupation=nothing, hubbard_n=nothing,
                                eigensolver=lobpcg_hyper, tol=1e-3, seed=nothing,
                                kwargs...)
     # kcoords are the kpoint coordinates in fractional coordinates
@@ -37,7 +37,7 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
     # Create new basis with new kpoints
     bs_basis = PlaneWaveBasis(basis, kgrid)
 
-    ham = Hamiltonian(bs_basis; ρ, τ, nhubbard, occupation)
+    ham = Hamiltonian(bs_basis; ρ, τ, hubbard_n, occupation)
     eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + n_extra;
                                      n_conv_check=n_bands, tol, kwargs...)
     if !eigres.converged
@@ -69,9 +69,9 @@ function compute_bands(scfres::NamedTuple,
                        kgrid::Union{AbstractKgrid,AbstractKgridGenerator};
                        n_bands=default_n_bands_bandstructure(scfres), kwargs...)
     τ = haskey(scfres, :τ) ? scfres.τ : nothing
-    nhubbard = haskey(scfres, :nhubbard) ? scfres.nhubbard : nothing
+    hubbard_n = haskey(scfres, :hubbard_n) ? scfres.hubbard_n : nothing
     compute_bands(scfres.basis, kgrid; 
-                  scfres.ρ, τ, nhubbard, scfres.occupation, 
+                  scfres.ρ, τ, hubbard_n, scfres.occupation, 
                   scfres.εF, n_bands, kwargs...)
 end
 

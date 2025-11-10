@@ -86,12 +86,12 @@ end
    # The unfolding of the kpoints is not supported with MPI
    if mpi_nprocs() == 1
         @testset "Test symmetry consistency" begin
-             n_hub = scfres.nhubbard
+             n_hub = scfres.hubbard_n
              scfres_nosym = DFTK.unfold_bz(scfres)
              term_idx = findfirst(term -> isa(term, DFTK.TermHubbard), 
                                 scfres_nosym.basis.terms)
              term_hub = scfres_nosym.basis.terms[term_idx]
-             nhub_nosym = DFTK.compute_nhubbard(manifold, scfres_nosym.basis, 
+             nhub_nosym = DFTK.compute_hubbard_n(manifold, scfres_nosym.basis, 
                                                 scfres_nosym.ψ, scfres_nosym.occupation;
                                                 projectors=term_hub.P,
                                                 labels=term_hub.labels)

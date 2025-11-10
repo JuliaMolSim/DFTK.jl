@@ -2,7 +2,9 @@ using LinearAlgebra
 using Random
 
 """
-Structure for manifold choice and projectors extraction.
+Structure for Hubbard manifold choice and projectors extraction.
+  It is to be noted that, despite the name used in literature, this is 
+  not a manifold in the mathematical sense.
 
 Overview of fields:
 - `iatom`: Atom position in the atoms array.
@@ -13,17 +15,6 @@ All fields are optional, only the given ones will be used for selection.
 Can be called with an orbital NamedTuple and returns a boolean
   stating whether the orbital belongs to the manifold.
 """
-#@kwdef struct OrbitalManifold
-#    iatom   ::Union{Int64,  Nothing} = nothing
-#    species ::Union{Symbol, AtomsBase.ChemicalSpecies, Nothing} = nothing
-#    label   ::Union{String, Nothing} = nothing
-#end
-#function (s::OrbitalManifold)(orbital)
-#    iatom_match    = isnothing(s.iatom)   || (s.iatom == orbital.iatom)
-#    species_match  = isnothing(s.species) || (s.species == orbital.species)
-#    label_match    = isnothing(s.label)   || (s.label == orbital.label)
-#    iatom_match && species_match && label_match
-#end
 @kwdef struct OrbitalManifold
     iatoms::Union{Vector{Int64},  Nothing} = nothing
     psp = nothing
@@ -75,14 +66,14 @@ function extract_manifold(basis::PlaneWaveBasis{T}, projectors, labels,
 end
 
 """
-    compute_nhubbard(manifold, basis, ψ, occupation; [projectors, labels, positions])
+    compute_hubbard_n(manifold, basis, ψ, occupation; [projectors, labels, positions])
 
-Computes a matrix nhubbard of size (n_spin, natoms, natoms), where each entry nhubbard[iatom, jatom]
+Computes a matrix hubbard_n of size (n_spin, natoms, natoms), where each entry hubbard_n[iatom, jatom]
   contains the submatrix of the occupation matrix corresponding to the projectors
   of atom iatom and atom jatom, with dimensions determined by the number of projectors for each atom.
   The atoms and orbitals are defined by the manifold tuple.
 
-    nhubbard[σ, iatom, jatom][m1, m2] = Σₖ₍ₛₚᵢₙ₎Σₙ weights[ik, ibnd] * ψₙₖ' * Pᵢₘ₁ * Pᵢₘ₂' * ψₙₖ
+    hubbard_n[σ, iatom, jatom][m1, m2] = Σₖ₍ₛₚᵢₙ₎Σₙ weights[ik, ibnd] * ψₙₖ' * Pᵢₘ₁ * Pᵢₘ₂' * ψₙₖ
 
   where n or ibnd is the band index, ``weights[ik ibnd] = kweights[ik] * occupation[ik, ibnd]``
   and ``Pᵢₘ₁`` is the pseudoatomic orbital projector for atom i and orbital m₁
@@ -98,9 +89,9 @@ Overview of inputs:
                     chemical information stored in the corresponding labels[iproj] NamedTuple.
 
 Overview of outputs:
-- `nhubbard`: 3-tensor of matrices. See above for details.
+- `hubbard_n`: 3-tensor of matrices. See above for details.
 """
-function compute_nhubbard(manifold::OrbitalManifold,
+function compute_hubbard_n(manifold::OrbitalManifold,
                           basis::PlaneWaveBasis{T},
                           ψ, occupation;
                           projectors, labels,
@@ -112,22 +103,22 @@ function compute_nhubbard(manifold::OrbitalManifold,
     natoms = length(manifold_atoms)  # Number of atoms of the species in the manifold
     l = labels[1].l
     projectors = reshape_hubbard_proj(basis, projectors, labels, manifold)
-    nhubbard = Array{Matrix{Complex{T}}}(undef, n_spin, natoms, natoms)
+    hubbard_n = Array{Matrix{Complex{T}}}(undef, n_spin, natoms, natoms)
     for σ in 1:n_spin
         for idx in 1:length(manifold_atoms), jdx in 1:length(manifold_atoms)
-            nhubbard[σ, idx, jdx] = zeros(Complex{T}, 2*l+1, 2*l+1)
+            hubbard_n[σ, idx, jdx] = zeros(Complex{T}, 2*l+1, 2*l+1)
             for ik = krange_spin(basis, σ)
                 j_projection = ψ[ik]' * projectors[ik][jdx] # <ψ|ϕJ>
                 i_projection = projectors[ik][idx]' * ψ[ik] # <ϕI|ψ>
                 # Sums over the bands, dividing by filled_occ to deal 
                 # with the physical two spin channels separately
-                nhubbard[σ, idx, jdx] .+= (basis.kweights[ik] * i_projection *
+                hubbard_n[σ, idx, jdx] .+= (basis.kweights[ik] * i_projection *
                                            diagm(occupation[ik]/filled_occ) * j_projection)
             end
-            nhubbard[σ, idx, jdx] = mpi_sum(nhubbard[σ, idx, jdx], basis.comm_kpts)
+            hubbard_n[σ, idx, jdx] = mpi_sum(hubbard_n[σ, idx, jdx], basis.comm_kpts)
         end
     end
-    nhubbard = symmetrize_nhubbard(nhubbard, basis.model,
+    hubbard_n = symmetrize_hubbard_n(hubbard_n, basis.model,
                                    basis.symmetries, basis.model.positions[manifold_atoms])
 end
 
@@ -161,7 +152,7 @@ end
 @doc raw"""
 Hubbard energy:
 ```math
-1/2 Σ_{σI} U * Tr[nhubbard[σ,i,i] * (1 - nhubbard[σ,i,i])]
+1/2 Σ_{σI} U * Tr[hubbard_n[σ,i,i] * (1 - hubbard_n[σ,i,i])]
 ```
 """
 struct Hubbard{T}
@@ -191,10 +182,10 @@ end
 
 @timing "ene_ops: hubbard" function ene_ops(term::TermHubbard,
                                             basis::PlaneWaveBasis{T},
-                                            ψ, occupation; nhubbard=nothing,
+                                            ψ, occupation; hubbard_n=nothing,
                                             labels=term.labels,
                                             kwargs...) where {T}
-    if isnothing(nhubbard)
+    if isnothing(hubbard_n)
        return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
     end
     proj = term.P
@@ -203,15 +194,15 @@ end
     types = findall(at -> at.psp == term.manifold.psp, basis.model.atoms)
     natoms = length(types)
     n_spin = basis.model.n_spin_components
-    nproj_atom = size(nhubbard[1,1,1], 1) # This is the number of projectors per atom, namely 2l+1
-    # For the ops we have to reshape nhubbard to match the NonlocalOperator structure, using a block diagonal form
+    nproj_atom = size(hubbard_n[1,1,1], 1) # This is the number of projectors per atom, namely 2l+1
+    # For the ops we have to reshape hubbard_n to match the NonlocalOperator structure, using a block diagonal form
     nhub = [zeros(Complex{T}, nproj_atom*natoms, nproj_atom*natoms) for _ in 1:n_spin]
     E = zero(T)
     for σ in 1:n_spin, iatom in 1:natoms
         proj_range = (1+nproj_atom*(iatom-1)):(nproj_atom*iatom)
-        nhub[σ][proj_range, proj_range] = nhubbard[σ, iatom, iatom]
+        nhub[σ][proj_range, proj_range] = hubbard_n[σ, iatom, iatom]
         E += filled_occ * 1/T(2) * term.U *
-             real(tr(nhubbard[σ, iatom, iatom] * (I - nhubbard[σ, iatom, iatom])))
+             real(tr(hubbard_n[σ, iatom, iatom] * (I - hubbard_n[σ, iatom, iatom])))
     end
     ops = [NonlocalOperator(basis, kpt, proj[ik], 1/T(2) * term.U * (I - 2*nhub[kpt.spin])) 
            for (ik,kpt) in enumerate(basis.kpoints)]
