@@ -409,7 +409,7 @@ to the Hamiltonian change `δH` represented by the matrix-vector products `δHψ
     # We then use the extra information we have from these additional bands,
     # non-necessarily converged, to split the Sternheimer_solver with a Schur
     # complement.
-    (mask_occ, mask_extra) = range_masks(occupation, occupation_threshold)
+    (mask_occ, mask_extra) = occupied_empty_masks(occupation, occupation_threshold)
 
     ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
     ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
@@ -561,7 +561,7 @@ function construct_bandtol(Bandtol::Type, basis::PlaneWaveBasis, ψ, occupation:
     Ω  = basis.model.unit_cell_volume
     Ng = prod(basis.fft_size)
     Nk = length(basis.kpoints)
-    mask_occ = range_masks(occupation, occupation_threshold).mask_occ
+    mask_occ = occupied_empty_masks(occupation, occupation_threshold).mask_occ
 
     # Including k-points the expression (3.11) in 2505.02319 becomes
     #   with Φk = (ψ_{1,k} … ψ_{n,k})_k  (Concatenation of all occupied orbitals for this k)

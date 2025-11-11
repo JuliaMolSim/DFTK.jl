@@ -5,7 +5,7 @@ using Random  # Used to have a generic API for CPU and GPU computations alike: s
 # threshold is a parameter to distinguish between states we want to keep and the
 # others when using temperature. It is set to 0.0 by default, to treat with insulators.
 function select_occupied_orbitals(basis, ψ, occupation; threshold=0.0)
-    mask_occ = range_masks(occupation, threshold).mask_occ
+    mask_occ = occupied_empty_masks(occupation, threshold).mask_occ
     selected_ψ   = [@view ψk[:, mask_occ[ik]] for (ik, ψk)   in enumerate(ψ)]
     selected_occ = [      occk[mask_occ[ik]]  for (ik, occk) in enumerate(occupation)]
 

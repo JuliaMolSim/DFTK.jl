@@ -216,7 +216,7 @@ end
 """
 Return ranges of occupied elements based on a given occupation threshold
 """
-function range_masks(occupation, occupation_threshold)
+function occupied_empty_masks(occupation, occupation_threshold)
     n_occ = map(occupation) do occ
         n = count(occ_i -> abs(occ_i) > occupation_threshold, occ)
         # Check that all occupied elements are contiguous, otherwise range is wrong
