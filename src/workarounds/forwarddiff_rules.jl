@@ -219,9 +219,10 @@ end
 # get the value of each field of the functional
 @generated function construct_value(x::F) where {F <: DftFunctionals.Functional}
     new_arguments = map(fieldnames(F)) do fn
-        :(ForwardDiff.value.(x.$fn))
+        :(ForwardDiff.value(x.$fn))
     end
-    :($F($(new_arguments...)))
+    # Use typename(...).wrapper to reconstruct the correct parametrized type (without Duals)
+    :($(Base.typename(F).wrapper)($(new_arguments...)))
 end
 
 function construct_value(basis::PlaneWaveBasis{T}) where {T <: Dual}
