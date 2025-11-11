@@ -174,84 +174,80 @@ function B_ortho!(X, BX)
     rdiv!(BX, U)
 end
 
+# Gets a Cholesky factorization of an Hermitian O = R'R, protecting for failure,
+# in which case gets something *ressembling* a Cholesky factorization
+# Standard Cholesky factorization can fail when O is ill-conditioned.
+# On the GPU, it fails silently, and NaN elements start appearing.
+function safe_cholesky(O::AbstractArray{T}; nchol=0, α=100) where {T}
+    local R
+    local invR
+    nchol >= 5 && return nothing, nothing, 10000 # give up
+    try
+        nchol += 1
+        R = cholesky(O).U
+        invR = inv(R)
+        @assert !any(isnan, invR)
+    catch err
+        @debug "Cholesky failed in ortho(X)"
+        # see https://arxiv.org/pdf/1809.11085.pdf for a nice analysis
+        # We are not being very clever here; but this should very rarely happen
+        # so it should be OK
+        O += α*eps(real(T))*norm(O)*I
+        α *= 10
+        return safe_cholesky(O; nchol, α)
+    end
+
+    R, invR, nchol # we also return invR because it's used in the caller
+end
+
 normest(M) = maximum(abs, diag(M)) + norm(M - Diagonal(diag(M)))
 # Orthogonalizes X to tol
 # Returns the new X, the number of Cholesky factorizations algorithm, and the
 # growth factor by which small perturbations of X can have been magnified
 @timing function ortho!(X::AbstractArray{T}; tol=2eps(real(T))) where {T}
-    local R
     growth_factor = one(real(T))
 
-    success = false
-    nchol = 0
+    nchol_total = 0
     while true
+        # get cholesky factor
         O = mul_hermi(X', X)
-        try
-            R = cholesky(O).U
-            nchol += 1
-            success = true
-        catch err
-            @assert isa(err, PosDefException)
-            @debug "Cholesky failed in ortho(X)"
-            # see https://arxiv.org/pdf/1809.11085.pdf for a nice analysis
-            # We are not being very clever here; but this should very rarely happen
-            # so it should be OK
-            α = 100
-            nbad = 0
-            while true
-                O += α*eps(real(T))*norm(X)^2*I
-                α *= 10
-                try
-                    R = cholesky(O).U
-                    nchol += 1
-                    break
-                catch err
-                    @assert isa(err, PosDefException)
-                end
-                nbad += 1
-                if nbad > 10
-                    @error "Cholesky shifting is failing badly, falling back to SVD"
-                    U, _, V = svd(X)
-                    return (; X=U*V', nchol=1000, growth_factor=1)
-                end
-            end
-            success = false
-        end
-        invR = inv(R)
-        @assert !any(isnan, invR)
-        rmul!(X, invR)  # we do not use X/R because we use invR next
-
-        # We would like growth_factor *= opnorm(inv(R)) but it's too
-        # expensive, so we use an upper bound which is sharp enough to
-        # be close to 1 when R is close to I, which we need for the
-        # outer loop to terminate
-        # ||invR|| = ||D + E|| ≤ ||D|| + ||E|| ≤ ||D|| + ||E||_F,
-        # where ||.|| is the 2-norm and ||.||_F the Frobenius
-
-        norminvR = normest(invR)
-        growth_factor *= norminvR
-
-        # condR = 1/LAPACK.trcon!('I', 'U', 'N', Array(R))
-        condR = normest(R)*norminvR  # in practice this seems to be an OK estimate
-
-        @debug "Ortho(X) success? $success : $(eps(real(T))*condR^2) < $tol"
-
-        # a good a posteriori error is that X'X - I is eps()*κ(R)^2;
-        # in practice this seems to be sometimes very overconservative
-        estimated_error = eps(real(T))*condR^2
-        success && estimated_error < tol && break
-
+        R, invR, nchol = safe_cholesky(O)
+        nchol_total += nchol
         if nchol > 10
             @error("Ortho(X) is failing badly, falling back to SVD",
                    estimated_error=round(estimated_error; sigdigits=2), tol=tol)
             U, _, V = svd(X)
             return (; X=U*V', nchol=100, growth_factor=1)
         end
+
+        # attempt to orthogonalize using it
+        rmul!(X, invR)
+
+        # We would like growth_factor *= opnorm(inv(R)) but it's too
+        # expensive, so we use an upper bound which is sharp enough to
+        # be close to 1 when R is close to I, which we need for the
+        # outer loop to terminate anyway
+        # ||invR|| = ||D + E|| ≤ ||D|| + ||E|| ≤ ||D|| + ||E||_F,
+        # where ||.|| is the 2-norm and ||.||_F the Frobenius
+
+        norminvR = normest(invR)
+        growth_factor *= norminvR
+        # condR = 1/LAPACK.trcon!('I', 'U', 'N', Array(R))
+        condR = normest(R)*norminvR  # in practice this seems to be an OK estimate
+
+        @debug "Ortho(X) nchol_total $nchol_total $(eps(real(T))*condR^2) < $tol"
+
+        # a good a posteriori error (without actually recomputing X'X) is that X'X - I is eps()*κ(R)^2;
+        # in practice this seems to be sometimes very overconservative
+        estimated_error = eps(real(T))*condR^2
+        # we loop until 1) cholesky succeeded at first attempt
+        #               2) the a posteriori error estimate is sufficiently small
+        nchol == 1 && estimated_error < tol && break
     end
 
     # @assert norm(X'X - I) < tol
 
-    (; X, nchol, growth_factor)
+    (; X, nchol=nchol_total, growth_factor)
 end
 
 # Randomize the columns of X if the norm is below tol
