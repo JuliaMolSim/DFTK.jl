@@ -4,6 +4,8 @@ using PrecompileTools
 using LinearAlgebra
 import DFTK: CPU, GPU, precompilation_workflow
 using DFTK
+import ForwardDiff
+import ForwardDiff: Dual
 
 DFTK.synchronize_device(::GPU{<:AMDGPU.ROCArray}) = AMDGPU.synchronize()
 
@@ -58,4 +60,15 @@ if AMDGPU.functional()
     end
 end
 
+# Enable comparisons of Duals on AMD GPUs
+_val(x) = x
+_val(x::Dual) = _val(ForwardDiff.value(x))
+function Base.:<(x::Dual{T,V,N},
+                 y::Dual{T,V,N}) where {T,V,N}
+    _val(x) < _val(y)
+end
+function Base.:>(x::Dual{T,V,N},
+                 y::Dual{T,V,N}) where {T,V,N}
+    _val(x) > _val(y)
+end
 end

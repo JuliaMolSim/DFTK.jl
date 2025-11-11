@@ -23,3 +23,14 @@ for fun in (:potential_terms, :kernel_terms)
         $fun(fun, Array(ρ), cpuify.(args)...)
     end
 end
+
+# Make sure that computations done by DftFunctionals.jl are done on the CPU (until refactoring)
+for fun in (:potential_terms, :kernel_terms)
+    @eval function DftFunctionals.$fun(fun::DispatchFunctional, ρ::AT,
+                                       args...) where {AT <: AbstractGPUArray}
+        # Fallback implementation for the GPU: Transfer to the CPU and run computation there
+        cpuify(::Nothing) = nothing
+        cpuify(x::AbstractArray) = Array(x)
+        $fun(fun, Array(ρ), cpuify.(args)...)
+    end
+end

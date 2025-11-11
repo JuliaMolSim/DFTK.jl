@@ -42,7 +42,7 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
         # Strip duals from functional parameters if needed
         params = parameters(fun)
         if !isempty(params)
-            newparams = convert_dual.(T, params)
+            newparams = map(p -> convert_dual(T, p), params)
             fun = change_parameters(fun, newparams; keep_identifier=true)
         end
         fun
@@ -427,7 +427,7 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArra
 
     # If the XC functional is not supported for an architecture, terms is on the CPU
     terms = kernel_terms(term.functionals, density)
-    δV = zeros(Tδρ, size(ρ)...)  # [ix, iy, iz, iσ]
+    δV = zeros_like(δρ, Tδρ, size(ρ)...)  # [ix, iy, iz, iσ]
 
     Vρρ = to_device(basis.architecture, reshape(terms.Vρρ, n_spin, n_spin, basis.fft_size...))
     @views for s = 1:n_spin, t = 1:n_spin  # LDA term
@@ -529,9 +529,17 @@ _matify(data::AbstractArray) = reshape(data, size(data, 1), :)
 
 for fun in (:potential_terms, :kernel_terms)
     @eval begin
-        function DftFunctionals.$fun(xc::Functional, density::LibxcDensities)
+        function DftFunctionals.$fun(xc::DispatchFunctional, density::LibxcDensities)
             $fun(xc, _matify(density.ρ_real), _matify(density.σ_real),
                      _matify(density.τ_real), _matify(density.Δρ_real))
+        end
+
+        # Ensure functionals from DftFunctionals are sent to the CPU, until DftFunctionals.jl is refactored
+        function DftFunctionals.$fun(fun::DftFunctionals.Functional, density::LibxcDensities)
+            maticpuify(::Nothing) = nothing
+            maticpuify(x::AbstractArray) = reshape(Array(x), size(x, 1), :)
+            DftFunctionals.$fun(fun, maticpuify(density.ρ_real), maticpuify(density.σ_real),
+                                 maticpuify(density.τ_real), maticpuify(density.Δρ_real))
         end
 
         function DftFunctionals.$fun(xcs::Vector{Functional}, density::LibxcDensities)
