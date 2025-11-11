@@ -25,7 +25,14 @@ end
 
 function Base.show(io::IO, xc::Xc)
     fac = isone(xc.scaling_factor) ? "" : ", scaling_factor=$(xc.scaling_factor)"
-    fun = join(xc.functionals, ", ")
+    functional_identifiers = map(xc.functionals) do f
+        if f isa DispatchFunctional
+            string(f.inner.identifier)
+        else
+            string(f)
+        end
+    end
+    fun = join(functional_identifiers, ", ")
     print(io, "Xc($fun$fac)")
 end
 
@@ -38,17 +45,8 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
         ρcore = ρ_from_total(basis, atomic_total_density(basis, CoreDensity()))
         minimum(ρcore) < -sqrt(eps(T)) && @warn("Negative ρcore detected: $(minimum(ρcore))")
     end
-    functionals = map(xc.functionals) do fun
-        # Strip duals from functional parameters if needed
-        params = parameters(fun)
-        if !isempty(params)
-            newparams = convert_dual.(T, params)
-            fun = change_parameters(fun, newparams; keep_identifier=true)
-        end
-        fun
-    end
-    TermXc(convert(Vector{Functional}, functionals),
-           convert_dual(T, xc.scaling_factor),
+    TermXc(xc.functionals,
+           T(xc.scaling_factor),
            T(xc.potential_threshold), ρcore)
 end
 
