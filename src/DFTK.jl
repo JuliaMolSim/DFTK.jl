@@ -148,8 +148,8 @@ export diagonalize_all_kblocks
 include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
 
-export model_atomic, model_DFT, model_HF, model_PBE0
-export LDA, PBE, PBEsol, SCAN, r2SCAN
+export model_atomic, model_DFT, model_HF
+export LDA, PBE, PBE0, PBEsol, SCAN, r2SCAN
 include("standard_models.jl")
 
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing
