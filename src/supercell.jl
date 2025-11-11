@@ -112,6 +112,9 @@ function cell_to_supercell(scfres::NamedTuple)
     basis_supercell = cell_to_supercell(basis)
     ψ_supercell     = [cell_to_supercell(ψ, basis, basis_supercell)]
     eigs_supercell  = [reduce(vcat, scfres_unfold.eigenvalues)]
+    perms = [sortperm(eigs_supercell[ik]) for ik = 1:length(eigs_supercell)]
+    ψ_supercell     = [ψ_supercell[ik][:, perms[ik]] for ik = 1:length(ψ_supercell)]
+    eigs_supercell  = [eigs_supercell[ik][perms[ik]] for ik = 1:length(eigs_supercell)]
     occ_supercell   = compute_occupation(basis_supercell, eigs_supercell, scfres.εF).occupation
     ρ_supercell     = compute_density(basis_supercell, ψ_supercell, occ_supercell;
                                       scfres.occupation_threshold)
