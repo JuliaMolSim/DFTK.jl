@@ -5,7 +5,8 @@ using Preferences
 # https://github.com/JuliaGPU/CUDA.jl/issues/1565
 LinearAlgebra.dot(x::AbstractGPUArray, D::Diagonal, y::AbstractGPUArray) = x' * (D * y)
 
-# Norm of Hermitian matrices. See https://github.com/JuliaGPU/AMDGPU.jl/issues/843
+# Norm of Hermitian matrices. See https://github.com/JuliaGPU/AMDGPU.jl/issues/843 for AMDGPU,
+# and https://github.com/JuliaGPU/CUDA.jl/issues/2965 for CUDA.
 function LinearAlgebra.norm(A::Hermitian{T, <:AbstractGPUArray}) where {T}
     upper_triangle = sum(abs2, triu(parent(A)))
     diago = sum(abs2, diag(parent(A)))
