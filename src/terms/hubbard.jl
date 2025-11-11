@@ -16,11 +16,17 @@ Can be called with an orbital NamedTuple and returns a boolean
   stating whether the orbital belongs to the manifold.
 """
 @kwdef struct OrbitalManifold
-    iatoms::Union{Vector{Int64},  Nothing} = nothing
     psp = nothing
-    projector_l::Union{Int64, Nothing} = nothing
-    projector_i::Union{Int64, Nothing} = nothing
+    iatoms::Union{Vector{Int64},  Nothing} = nothing
+    l::Union{Int64, Nothing} = nothing
+    i::Union{Int64, Nothing} = nothing
 end
+OrbitalManifold(atom::ElementPsp, iatoms::Vector{Int64}; l, i) = OrbitalManifold(atom.psp, iatoms, l, i)
+function OrbitalManifold(atom::ElementPsp, iatoms::Vector{Int64}, label::String) 
+    l, i = DFTK.pswfc_indices(atom.psp, label)
+    OrbitalManifold(atom.psp, iatoms, l, i)
+end
+
 function is_on_manifold(orbital; iatoms=nothing, species=nothing, 
                                  l=nothing, n=nothing, label=nothing)
     iatom_match   = isnothing(iatoms)  || (orbital.iatom in iatoms)
@@ -31,10 +37,12 @@ function is_on_manifold(orbital; iatoms=nothing, species=nothing,
     iatom_match && species_match && l_match && n_match && label_match
 end
 function is_on_manifold(orbital, manifold::OrbitalManifold)
-    is_on_manifold(orbital; iatoms=manifold.iatoms, l=manifold.projector_l, n=manifold.projector_i)
+    is_on_manifold(orbital; iatoms=manifold.iatoms, l=manifold.l, n=manifold.i)
 end
 
-function OrbitalManifold(atoms, labels; iatoms::Union{Vector{Int64}, Nothing}=nothing,
+function OrbitalManifold(atoms::Union{Vector{ElementPsp}, Vector{DFTK.Element}},
+                         labels; 
+                         iatoms::Union{Vector{Int64}, Nothing}=nothing,
                          label::Union{String, Nothing}=nothing,
                          species::Union{Symbol, AtomsBase.ChemicalSpecies, Nothing}=nothing)
     hub_atoms = Int64[]
@@ -48,9 +56,9 @@ function OrbitalManifold(atoms, labels; iatoms::Union{Vector{Int64}, Nothing}=no
     model_atom = atoms[hub_atoms[1]]
     !all(atom -> atom.psp == model_atom.psp, atoms[hub_atoms]) && 
         error("The given Hubbard manifold contains more than one atomic pseudopotential species")
-    projector_l = isnothing(label) ? nothing : labels[hub_atoms[1]].l
-    projector_i = isnothing(label) ? nothing : labels[hub_atoms[1]].n
-    OrbitalManifold(;iatoms=hub_atoms, psp=model_atom.psp, projector_l, projector_i)
+    l = isnothing(label) ? nothing : labels[hub_atoms[1]].l
+    i = isnothing(label) ? nothing : labels[hub_atoms[1]].n
+    OrbitalManifold(;iatoms=hub_atoms, psp=model_atom.psp, l, i)
 end
 
 function extract_manifold(basis::PlaneWaveBasis{T}, projectors, labels,
@@ -92,10 +100,10 @@ Overview of outputs:
 - `hubbard_n`: 3-tensor of matrices. See above for details.
 """
 function compute_hubbard_n(manifold::OrbitalManifold,
-                          basis::PlaneWaveBasis{T},
-                          ψ, occupation;
-                          projectors, labels,
-                          positions = basis.model.positions) where {T}
+                           basis::PlaneWaveBasis{T},
+                           ψ, occupation;
+                           projectors, labels,
+                           positions = basis.model.positions) where {T}
     filled_occ = filled_occupation(basis.model)
     n_spin = basis.model.n_spin_components
 
@@ -159,8 +167,8 @@ struct Hubbard{T}
     manifold::OrbitalManifold
     U::T
     function Hubbard((manifold::OrbitalManifold), U)
-        if isnothing(manifold.iatoms) || isnothing(manifold.projector_l) ||
-           isnothing(manifold.projector_i)
+        if isnothing(manifold.iatoms) || isnothing(manifold.l) ||
+           isnothing(manifold.i)
             error("Hubbard term needs specification of atoms and orbital")
         end
         U = austrip(U)

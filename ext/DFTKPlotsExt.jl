@@ -142,7 +142,7 @@ function plot_ldos(basis, eigenvalues, ψ; εF=nothing, unit=u"hartree",
 end
 plot_ldos(scfres; kwargs...) = plot_ldos(scfres.basis, scfres.eigenvalues, scfres.ψ; scfres.εF, kwargs...)
 
-function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatoms, label=nothing,
+function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatoms=nothing, label=nothing,
                    positions=basis.model.positions,
                    εF=nothing, unit=u"hartree",
                    temperature=basis.model.temperature,

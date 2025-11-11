@@ -184,7 +184,7 @@ Overview of parameters:
         for term in basis.terms
             if isa(term, DFTK.TermHubbard)
                 hubbard_n = compute_hubbard_n(term.manifold, basis, ψ, occupation;
-                                            projectors=term.P, labels=term.labels)
+                                              projectors=term.P, labels=term.labels)
             end
         end
 

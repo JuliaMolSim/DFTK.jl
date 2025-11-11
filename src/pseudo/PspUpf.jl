@@ -175,6 +175,14 @@ count_n_pswfc_radial(psp::PspUpf, l) = length(psp.r2_pswfcs[l+1])
 
 pswfc_label(psp::PspUpf, i, l) = psp.pswfc_labels[l+1][i]
 
+function pswfc_indices(psp::PspUpf, label)
+    for l in 0:psp.lmax, n in 1:DFTK.count_n_pswfc_radial(psp, l)
+        if (DFTK.pswfc_label(psp, n, l) == label)
+            return (; l, n)
+        end
+    end
+end
+
 function eval_psp_pswfc_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
     psp.r2_pswfcs_interp[l+1][i](r) / r^2  # TODO if r is below a threshold, return zero
 end

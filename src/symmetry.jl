@@ -426,7 +426,7 @@ end
 Symmetrize the Hubbard occupation matrix according to the l quantum number of the manifold.
 """
 function symmetrize_hubbard_n(hubbard_n::Array{Matrix{Complex{T}}}, 
-                             model, symmetries, positions) where {T}
+                              model, symmetries, positions) where {T}
     # For now we apply symmetries only on nII terms, not on cross-atom terms (nIJ)
     # WARNING: To implement +V this will need to be changed!
 
@@ -434,7 +434,7 @@ function symmetrize_hubbard_n(hubbard_n::Array{Matrix{Complex{T}}},
     natoms = size(hubbard_n, 2)
     nsym = length(symmetries)
     # We extract the l value from the manifold size per atom (2l+1)
-    l = Int((size(hubbard_n[1, 1, 1], 1)-1)/2)
+    l = div(size(hubbard_n[1, 1, 1], 1)-1,2)
     ldim = 2*l+1
 
     # Initialize the hubbard_n matrix

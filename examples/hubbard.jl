@@ -33,7 +33,7 @@ band_gap = bands.eigenvalues[1][lowest_unocc_band] - bands.eigenvalues[1][lowest
 width = 5.0u"eV"
 εrange = (εF - austrip(width), εF + austrip(width))
 p = plot_dos(bands; εrange, colors=[:red, :red])
-plot_pdos(bands; p, iatom=1, label="3D", colors=[:yellow, :orange], εrange)
+plot_pdos(bands; p, iatoms=[1], label="3D", colors=[:yellow, :orange], εrange)
 
 # To perform and Hubbard computation, we have to define the Hubbard manifold and associated constant
 U = 10u"eV"
@@ -55,4 +55,4 @@ band_gap = bands_hub.eigenvalues[1][lowest_unocc_band] - bands_hub.eigenvalues[1
 εF = bands_hub.εF
 εrange = (εF - austrip(width), εF + austrip(width))
 p = plot_dos(bands_hub; p, colors=[:blue, :blue], εrange)
-plot_pdos(bands_hub; p, iatom=1, label="3D", colors=[:green, :purple], εrange)
+plot_pdos(bands_hub; p, iatoms=[1], label="3D", colors=[:green, :purple], εrange)
