@@ -434,7 +434,6 @@ function symmetrize_hubbard_n(manifold::OrbitalManifold,
     positions = model.positions[manifold.iatoms]
     nspins = size(hubbard_n, 1)
     natoms = size(hubbard_n, 2)
-    nsym = length(symmetries)
     ldim = 2*manifold.l+1
 
     # Initialize the hubbard_n matrix
@@ -447,7 +446,7 @@ function symmetrize_hubbard_n(manifold::OrbitalManifold,
             ns[σ, iatom, iatom] .+= WigD' * hubbard_n[σ, sym_atom, sym_atom] * WigD
         end
     end
-    ns ./= nsym
+    ns ./= length(symmetries)
     ns
 end
 

@@ -275,8 +275,8 @@ end
 
     # This has to be changed whenever the scfres structure changes
     (; ham, basis=basis_dual, energies, ρ, eigenvalues, occupation, εF, ψ,
-       scfres.τ, # TODO make τ and hubbard_n also differentiable for meta-GGA DFPT
-       scfres.hubbard_n,
+       # TODO make τ and hubbard_n also differentiable for meta-GGA/DFT+U DFPT
+       scfres.τ, scfres.hubbard_n,
        # non-differentiable metadata:
        response=getfield.(δresults, :info_gmres),
        scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter,

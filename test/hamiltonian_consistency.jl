@@ -22,14 +22,16 @@ function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
 end
 
 function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2, 3],
-                               kshift=[0, 1, 0]/2, lattice=testcase.lattice, Ecut=15,
-                               spin_polarization=:none)
+                               kshift=[0, 1, 0]/2, lattice=testcase.lattice,
+                               atom=nothing, Ecut=10, spin_polarization=:none)
     sspol = spin_polarization != :none ? " ($spin_polarization)" : ""
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
     @testset "$(typeof(term))$xc $sspol" begin
         n_dim = 3 - count(iszero, eachcol(lattice))
-        Si = n_dim == 3 ? ElementPsp(14, load_psp(testcase.psp_upf)) : ElementCoulomb(:Si)
-        atoms = [Si, Si]
+        if isnothing(atom)
+            atom = n_dim == 3 ? ElementPsp(14, load_psp(testcase.psp_gth)) : ElementCoulomb(:Si)
+        end
+        atoms = [atom, atom]
         model = Model(lattice, atoms, testcase.positions; terms=[term], spin_polarization,
                       symmetries=true)
         basis = PlaneWaveBasis(model; Ecut, kgrid=MonkhorstPack(kgrid; kshift))
@@ -73,6 +75,9 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         end
         diff_predicted = mpi_sum(diff_predicted, basis.comm_kpts)
 
+        # Make sure that we don't accidentally test 0 == 0
+        @test abs(diff) > atol
+
         err = abs(diff - diff_predicted)
         @test err < rtol * abs(E0.total) || err < atol
     end
@@ -83,7 +88,7 @@ end
 @testitem "Hamiltonian consistency" setup=[TestCases, HamConsistency] tags=[:dont_test_mpi] begin
     using DFTK
     using LinearAlgebra
-    using .HamConsistency: test_consistency_term
+    using .HamConsistency: test_consistency_term, testcase
 
     test_consistency_term(Kinetic())
     test_consistency_term(AtomicLocal())
@@ -92,18 +97,20 @@ end
     test_consistency_term(ExternalFromFourier(X -> abs(norm(X))))
     test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
     test_consistency_term(Hartree())
-    test_consistency_term(Hubbard(OrbitalManifold(Si, [1,2], "3P"), 0.01))
+    let
+        Si = ElementPsp(14, load_psp(testcase.psp_upf))
+        test_consistency_term(Hubbard(OrbitalManifold(Si, [1, 2], "3P"), 0.01), atom=Si)
+    end
     test_consistency_term(Ewald())
     test_consistency_term(PspCorrection())
     test_consistency_term(Xc([:lda_xc_teter93]))
     test_consistency_term(Xc([:lda_xc_teter93]), spin_polarization=:collinear)
     test_consistency_term(Xc([:gga_x_pbe]), spin_polarization=:collinear)
-    # TODO: for use_nlcc=true need to fix consistency for meta-GGA with NLCC (see JuliaMolSim/DFTK.jl#1180)
-    test_consistency_term(Xc([:mgga_x_tpss]; use_nlcc=false))
-    test_consistency_term(Xc([:mgga_x_scan]; use_nlcc=false))
-    test_consistency_term(Xc([:mgga_c_scan]; use_nlcc=false), spin_polarization=:collinear)
-    test_consistency_term(Xc([:mgga_x_b00]; use_nlcc=false))
-    test_consistency_term(Xc([:mgga_c_b94]; use_nlcc=false), spin_polarization=:collinear)
+    test_consistency_term(Xc([:mgga_x_tpss]))
+    test_consistency_term(Xc([:mgga_x_scan]))
+    test_consistency_term(Xc([:mgga_c_scan]), spin_polarization=:collinear)
+    test_consistency_term(Xc([:mgga_x_b00]))
+    test_consistency_term(Xc([:mgga_c_b94]), spin_polarization=:collinear)
 
     let
         a = 6

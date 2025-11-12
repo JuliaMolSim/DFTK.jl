@@ -155,6 +155,7 @@ function apply!(Hψ, op::DivAgradOperator, ψ;
 end
 # TODO Implement  Base.Matrix(op::DivAgradOperator)
 
+
 # Optimize RFOs by combining terms that can be combined
 function optimize_operators(ops)
     ops = [op for op in ops if !(op isa NoopOperator)]

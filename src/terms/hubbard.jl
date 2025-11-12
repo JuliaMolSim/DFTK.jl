@@ -148,9 +148,9 @@ function reshape_hubbard_proj(projectors::Vector{Matrix{Complex{T}}},
 end
 
 @doc raw"""
-Hubbard energy:
+Hubbard energy, following the Dudarev et al. (1998) rotationally invariant formalism:
 ```math
-1/2 Σ_{σI} U * Tr[hubbard_n[σ,i,i] * (1 - hubbard_n[σ,i,i])]
+1/2 Σ_{σI} U * Tr[hubbard_n[σ,I,I] * (1 - hubbard_n[σ,I,I])]
 ```
 """
 struct Hubbard{T}
