@@ -183,9 +183,7 @@ Overview of parameters:
         end
         ihubbard = findfirst(t -> t isa TermHubbard, basis.terms)
         if !isnothing(ihubbard)
-            term = basis.terms[ihubbard]
-            hubbard_n = compute_hubbard_n(term.manifold, basis, ψ, occupation;
-                                          projectors=term.P, labels=term.labels)
+            hubbard_n = compute_hubbard_n(basis.terms[ihubbard], basis, ψ, occupation)
         end
 
         # Update info with results gathered so far

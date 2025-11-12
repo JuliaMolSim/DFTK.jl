@@ -68,42 +68,31 @@ function extract_manifold(manifold::OrbitalManifold, projectors, labels)
 end
 
 """
-    compute_hubbard_n(manifold, basis, ψ, occupation; [projectors, labels, positions])
+    compute_hubbard_n(term::TermHubbard, basis, ψ, occupation)
 
 Computes a matrix hubbard_n of size (n_spin, natoms, natoms), where each entry hubbard_n[iatom, jatom]
-  contains the submatrix of the occupation matrix corresponding to the projectors
-  of atom iatom and atom jatom, with dimensions determined by the number of projectors for each atom.
-  The atoms and orbitals are defined by the manifold tuple.
+contains the submatrix of the occupation matrix corresponding to the projectors
+of atom iatom and atom jatom, with dimensions determined by the number of projectors for each atom.
+The atoms and orbitals are defined by the manifold tuple.
 
     hubbard_n[σ, iatom, jatom][m1, m2] = Σₖ₍ₛₚᵢₙ₎Σₙ weights[ik, ibnd] * ψₙₖ' * Pᵢₘ₁ * Pᵢₘ₂' * ψₙₖ
 
-  where n or ibnd is the band index, ``weights[ik ibnd] = kweights[ik] * occupation[ik, ibnd]``
-  and ``Pᵢₘ₁`` is the pseudoatomic orbital projector for atom i and orbital m₁
-  (just the magnetic quantum number, since l is fixed, as is usual in the literature).
- For details on the projectors see `atomic_orbital_projectors`.
-
-Overview of inputs:
-- `manifold`: OrbitalManifold with the atomic orbital type to define the Hubbard manifold.
-- `occupation`: Occupation matrix for the bands.
-- `projectors` (kwarg): Vector of projection matrices. For each matrix, each column corresponds
-                        to a different atomic orbital projector, as specified in labels.
-- `labels` (kwarg): Vector of NamedTuples. Each projectors[ik][:,iproj] column has all relevant 
-                    chemical information stored in the corresponding labels[iproj] NamedTuple.
-
-Overview of outputs:
-- `hubbard_n`: 3-tensor of matrices. See above for details.
+where n or ibnd is the band index, ``weights[ik ibnd] = kweights[ik] * occupation[ik, ibnd]``
+and ``Pᵢₘ₁`` is the pseudoatomic orbital projector for atom i and orbital m₁
+(just the magnetic quantum number, since l is fixed, as is usual in the literature).
+For details on the projectors see `atomic_orbital_projectors`.
 """
-function compute_hubbard_n(manifold::OrbitalManifold,
+function compute_hubbard_n(term::TermHubbard,
                            basis::PlaneWaveBasis{T},
-                           ψ, occupation;
-                           projectors, labels) where {T}
+                           ψ, occupation) where {T}
     filled_occ = filled_occupation(basis.model)
     n_spin = basis.model.n_spin_components
 
+    manifold = term.manifold
     manifold_atoms = manifold.iatoms
     natoms = length(manifold_atoms)
     l = manifold.l
-    projectors = reshape_hubbard_proj(projectors, labels, manifold)
+    projectors = reshape_hubbard_proj(term.P, term.labels, manifold)
     hubbard_n = Array{Matrix{Complex{T}}}(undef, n_spin, natoms, natoms)
     for σ in 1:n_spin
         for idx in 1:natoms, jdx in 1:natoms

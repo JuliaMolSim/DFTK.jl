@@ -91,10 +91,8 @@ end
              term_idx = findfirst(term -> isa(term, DFTK.TermHubbard),
                                   scfres_nosym.basis.terms)
              term_hub = scfres_nosym.basis.terms[term_idx]
-             nhub_nosym = DFTK.compute_hubbard_n(manifold, scfres_nosym.basis, 
-                                                 scfres_nosym.ψ, scfres_nosym.occupation;
-                                                 projectors=term_hub.P,
-                                                 labels=term_hub.labels)
+             nhub_nosym = DFTK.compute_hubbard_n(term_hub, scfres_nosym.basis,
+                                                 scfres_nosym.ψ, scfres_nosym.occupation)
              @test n_hub ≈ nhub_nosym
         end
    end

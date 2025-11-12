@@ -49,7 +49,11 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
             compute_density(basis, ψ, occupation)
         end
         τ = compute_kinetic_energy_density(basis, ψ, occupation)
-        E0, ham = energy_hamiltonian(basis, ψ, occupation; ρ, τ)
+        hubbard_n = nothing
+        if term isa Hubbard
+            hubbard_n = DFTK.compute_hubbard_n(only(basis.terms), basis, ψ, occupation)
+        end
+        E0, ham = energy_hamiltonian(basis, ψ, occupation; ρ, τ, hubbard_n)
 
         @assert length(basis.terms) == 1
 
@@ -60,7 +64,14 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
                 compute_density(basis, ψ_trial, occupation)
             end
             τ_trial = compute_kinetic_energy_density(basis, ψ_trial, occupation)
-            (; energies) = energy_hamiltonian(basis, ψ_trial, occupation; ρ=ρ_trial, τ=τ_trial)
+            hubbard_n_trial = nothing
+            if term isa Hubbard
+                hubbard_n_trial = DFTK.compute_hubbard_n(only(basis.terms), basis,
+                                                         ψ_trial, occupation)
+            end
+            (; energies) = energy_hamiltonian(basis, ψ_trial, occupation;
+                                              ρ=ρ_trial, τ=τ_trial,
+                                              hubbard_n=hubbard_n_trial)
             energies.total
         end
         diff = (compute_E(ε) - compute_E(-ε)) / (2ε)
@@ -91,8 +102,6 @@ end
     using .HamConsistency: test_consistency_term, testcase
 
     test_consistency_term(Kinetic())
-    test_consistency_term(AtomicLocal())
-    test_consistency_term(AtomicNonlocal())
     test_consistency_term(ExternalFromReal(X -> cos(X[1])))
     test_consistency_term(ExternalFromFourier(X -> abs(norm(X))))
     test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
@@ -100,17 +109,29 @@ end
     let
         Si = ElementPsp(14, load_psp(testcase.psp_upf))
         test_consistency_term(Hubbard(OrbitalManifold(Si, [1, 2], "3P"), 0.01), atom=Si)
+        test_consistency_term(Hubbard(OrbitalManifold(Si, [1, 2], "3P"), 0.01), atom=Si,
+                              spin_polarization=:collinear)
     end
-    test_consistency_term(Ewald())
-    test_consistency_term(PspCorrection())
-    test_consistency_term(Xc([:lda_xc_teter93]))
-    test_consistency_term(Xc([:lda_xc_teter93]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:gga_x_pbe]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:mgga_x_tpss]))
-    test_consistency_term(Xc([:mgga_x_scan]))
-    test_consistency_term(Xc([:mgga_c_scan]), spin_polarization=:collinear)
-    test_consistency_term(Xc([:mgga_x_b00]))
-    test_consistency_term(Xc([:mgga_c_b94]), spin_polarization=:collinear)
+    # Disabled since the energy is constant, and the test guards against 0 differences
+    # test_consistency_term(Ewald())
+    # test_consistency_term(PspCorrection())
+    for psp in [testcase.psp_gth, testcase.psp_upf]
+        Si = ElementPsp(14, load_psp(psp))
+        test_consistency_term(AtomicLocal(), atom=Si)
+        test_consistency_term(AtomicNonlocal(), atom=Si)
+        test_consistency_term(Xc([:lda_xc_teter93]), atom=Si)
+        test_consistency_term(Xc([:lda_xc_teter93]), atom=Si, spin_polarization=:collinear)
+        test_consistency_term(Xc([:gga_x_pbe]), atom=Si, spin_polarization=:collinear)
+        # TODO: for use_nlcc=true need to fix consistency for meta-GGA with NLCC
+        #       (see JuliaMolSim/DFTK.jl#1180)
+        test_consistency_term(Xc([:mgga_x_tpss]; use_nlcc=false), atom=Si)
+        test_consistency_term(Xc([:mgga_x_scan]; use_nlcc=false), atom=Si)
+        test_consistency_term(Xc([:mgga_c_scan]; use_nlcc=false), atom=Si,
+                              spin_polarization=:collinear)
+        test_consistency_term(Xc([:mgga_x_b00]; use_nlcc=false), atom=Si)
+        test_consistency_term(Xc([:mgga_c_b94]; use_nlcc=false), atom=Si,
+                              spin_polarization=:collinear)
+    end
 
     let
         a = 6
