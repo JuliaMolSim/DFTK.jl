@@ -28,5 +28,5 @@ plot_dos(scfres)
 plot_ldos(scfres; n_points=100, ldos_xyz=[:, 10, 10])
 
 # Plot the projected DOS
-p = plot_pdos(scfres; iatoms=[1], label="3S", εrange=(-0.3, 0.5))
-plot_pdos(scfres; p, colors=[:red], iatoms=[1], label="3P", εrange=(-0.3, 0.5))
+p = plot_pdos(scfres; iatom=1, label="3S", εrange=(-0.3, 0.5))
+plot_pdos(scfres; p, colors=[:red], iatom=1, label="3P", εrange=(-0.3, 0.5))

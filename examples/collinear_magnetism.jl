@@ -109,7 +109,7 @@ plot_dos(bands_666)
 # is sufficient.
 # We can clearly see that the origin of this spin-polarization traces back to the 
 # 3D orbital contribution if we look at the corresponding projected density of states (PDOS).
-plot_pdos(bands_666; iatoms=[1], label="3D")
+plot_pdos(bands_666; iatom=1, label="3D")
 
 # Similarly the band structure shows clear differences between both spin components.
 using Unitful

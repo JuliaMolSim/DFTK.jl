@@ -3,68 +3,62 @@ using Random
 
 """
 Structure for Hubbard manifold choice and projectors extraction.
-  It is to be noted that, despite the name used in literature, this is 
-  not a manifold in the mathematical sense.
+
+It is to be noted that, despite the name used in literature, this is
+not a manifold in the mathematical sense.
 
 Overview of fields:
-- `iatom`: Atom position in the atoms array.
-- `species`: Chemical Element as in ElementPsp.
-- `label`: Orbital name, e.g.: "3S".
+- `psp`: Pseudopotential containing the atomic orbital projectors
+- `iatoms`: Atom indices that are part of the manifold.
+- `l`: Angular momentum quantum number of the manifold.
+- `i`: Index of the atomic orbital within the given l.
 
-All fields are optional, only the given ones will be used for selection.
-Can be called with an orbital NamedTuple and returns a boolean
-  stating whether the orbital belongs to the manifold.
+See also the convenience constructors, to construct a manifold more easily.
 """
-@kwdef struct OrbitalManifold
-    psp = nothing
-    iatoms::Union{Vector{Int64},  Nothing} = nothing
-    l::Union{Int64, Nothing} = nothing
-    i::Union{Int64, Nothing} = nothing
+struct OrbitalManifold
+    psp::NormConservingPsp
+    iatoms::Vector{Int64}
+    l::Int64
+    i::Int64
 end
-OrbitalManifold(atom::ElementPsp, iatoms::Vector{Int64}; l, i) = OrbitalManifold(atom.psp, iatoms, l, i)
-function OrbitalManifold(atom::ElementPsp, iatoms::Vector{Int64}, label::String) 
-    l, i = DFTK.pswfc_indices(atom.psp, label)
-    OrbitalManifold(atom.psp, iatoms, l, i)
+function OrbitalManifold(atoms::Vector{<:Element}, atom::ElementPsp, label::AbstractString)
+    (; l, i) = find_pswfc(atom.psp, label)
+    OrbitalManifold(atom.psp, findall(at -> at === atom, atoms), l, i)
 end
-
-function is_on_manifold(orbital; iatoms=nothing, species=nothing, 
-                                 l=nothing, n=nothing, label=nothing)
-    iatom_match   = isnothing(iatoms)  || (orbital.iatom in iatoms)
-    species_match = isnothing(species) || (species == orbital.species)
-    label_match   = isnothing(label)   || (label == orbital.label)
-    l_match = isnothing(l) || (l == orbital.l)
-    n_match = isnothing(n) || (n == orbital.n)
-    iatom_match && species_match && l_match && n_match && label_match
+function OrbitalManifold(psp::NormConservingPsp, iatoms::Vector{Int64}, label::AbstractString)
+    (; l, i) = find_pswfc(psp, label)
+    OrbitalManifold(psp, iatoms, l, i)
 end
-function is_on_manifold(orbital, manifold::OrbitalManifold)
-    is_on_manifold(orbital; iatoms=manifold.iatoms, l=manifold.l, n=manifold.i)
+function OrbitalManifold(atom::ElementPsp, iatoms::Vector{Int64}, label::AbstractString)
+    OrbitalManifold(atom.psp, iatoms, label)
 end
 
-function OrbitalManifold(atoms::Union{Vector{ElementPsp}, Vector{DFTK.Element}},
-                         labels; 
-                         iatoms::Union{Vector{Int64}, Nothing}=nothing,
-                         label::Union{String, Nothing}=nothing,
-                         species::Union{Symbol, AtomsBase.ChemicalSpecies, Nothing}=nothing)
-    hub_atoms = Int64[]
-    for orbital in labels
-        if is_on_manifold(orbital; iatoms, species, label) 
-            append!(hub_atoms, orbital.iatom)
+function find_pswfc(psp::NormConservingPsp, label::String)
+    for l = 0:psp.lmax, i = 1:count_n_pswfc_radial(psp, l)
+        if pswfc_label(psp, i, l) == label
+            return (; l, i)
         end
     end
-    isempty(hub_atoms) && error("Unable to create Hubbard manifold. No atom matches the given keywords")
-    # If species is nothing, there can be errors if the iatoms correspond to different atomic species
-    model_atom = atoms[hub_atoms[1]]
-    !all(atom -> atom.psp == model_atom.psp, atoms[hub_atoms]) && 
-        error("The given Hubbard manifold contains more than one atomic pseudopotential species")
-    l = isnothing(label) ? nothing : labels[hub_atoms[1]].l
-    i = isnothing(label) ? nothing : labels[hub_atoms[1]].n
-    OrbitalManifold(;iatoms=hub_atoms, psp=model_atom.psp, l, i)
+    error("Could not find pseudo atomic orbital with label $label "
+          * "in pseudopotential $(psp.identifier).")
 end
 
-function extract_manifold(basis::PlaneWaveBasis{T}, projectors, labels,
-                          manifold::OrbitalManifold) where {T}
+function check_hubbard_manifold(manifold::OrbitalManifold, model::Model)
+    for atom in model.atoms[manifold.iatoms]
+        atom isa ElementPsp || error("Orbital manifold elements must have a psp.")
+        atom.psp === manifold.psp || error("Orbital manifold psp does not match the psp of atom $atom")
+    end
+    isempty(manifold.iatoms) && error("Orbital manifold has no atoms.")
+    # Tricky: make sure that the iatoms are consistent with the symmetries of the model,
+    #         i.e. that the manifold would be a valid atom group
+    _check_symmetries(model.symmetries, model.lattice, [manifold.iatoms], model.positions)
+
+    nothing
+end
+
+function extract_manifold(manifold::OrbitalManifold, projectors, labels)
     # We extract the labels only for orbitals belonging to the manifold
-    proj_indices = findall(orb -> is_on_manifold(orb, manifold), labels)
+    proj_indices = findall(orb -> orb.iatom ∈ manifold.iatoms && orb.l == manifold.l && orb.n == manifold.i, labels)
     isempty(proj_indices) && @warn "Projector for $(manifold) not found."
     manifold_labels = labels[proj_indices]
     manifold_projectors = map(enumerate(projectors)) do (ik, projk)
@@ -102,54 +96,50 @@ Overview of outputs:
 function compute_hubbard_n(manifold::OrbitalManifold,
                            basis::PlaneWaveBasis{T},
                            ψ, occupation;
-                           projectors, labels,
-                           positions = basis.model.positions) where {T}
+                           projectors, labels) where {T}
     filled_occ = filled_occupation(basis.model)
     n_spin = basis.model.n_spin_components
 
-    manifold_atoms = findall(at -> at.psp == manifold.psp, basis.model.atoms)
-    natoms = length(manifold_atoms)  # Number of atoms of the species in the manifold
-    l = labels[1].l
-    projectors = reshape_hubbard_proj(basis, projectors, labels, manifold)
+    manifold_atoms = manifold.iatoms
+    natoms = length(manifold_atoms)
+    l = manifold.l
+    projectors = reshape_hubbard_proj(projectors, labels, manifold)
     hubbard_n = Array{Matrix{Complex{T}}}(undef, n_spin, natoms, natoms)
     for σ in 1:n_spin
-        for idx in 1:length(manifold_atoms), jdx in 1:length(manifold_atoms)
-            hubbard_n[σ, idx, jdx] = zeros(Complex{T}, 2*l+1, 2*l+1)
+        for idx in 1:natoms, jdx in 1:natoms
+            hubbard_n[σ, idx, jdx] = zeros(Complex{T}, 2l+1, 2l+1)
             for ik = krange_spin(basis, σ)
                 j_projection = ψ[ik]' * projectors[ik][jdx] # <ψ|ϕJ>
                 i_projection = projectors[ik][idx]' * ψ[ik] # <ϕI|ψ>
                 # Sums over the bands, dividing by filled_occ to deal 
                 # with the physical two spin channels separately
                 hubbard_n[σ, idx, jdx] .+= (basis.kweights[ik] * i_projection *
-                                           diagm(occupation[ik]/filled_occ) * j_projection)
+                                            diagm(occupation[ik]/filled_occ) * j_projection)
             end
             hubbard_n[σ, idx, jdx] = mpi_sum(hubbard_n[σ, idx, jdx], basis.comm_kpts)
         end
     end
-    hubbard_n = symmetrize_hubbard_n(hubbard_n, basis.model,
-                                   basis.symmetries, basis.model.positions[manifold_atoms])
+    hubbard_n = symmetrize_hubbard_n(manifold, hubbard_n, basis.model, basis.symmetries)
 end
 
 """
 This function reshapes for each kpoint the projectors matrix to a vector of matrices,
-    taking only the columns corresponding to orbitals in the manifold and splitting them
-    into different matrices, one for each atom. Columns in the same matrix differ only in 
-    the value of the magnetic quantum number m of the corresponding orbitals.
+taking only the columns corresponding to orbitals in the manifold and splitting them
+into different matrices, one for each atom. Columns in the same matrix differ only in
+the value of the magnetic quantum number m of the corresponding orbitals.
 """
-function reshape_hubbard_proj(basis, projectors::Vector{Matrix{Complex{T}}}, 
+function reshape_hubbard_proj(projectors::Vector{Matrix{Complex{T}}},
                               labels, manifold) where {T}
-    manifold_atoms = findall(at -> at.psp == manifold.psp, basis.model.atoms)
-    natoms = length(manifold_atoms)
-    nprojs = length(labels)
-    l = labels[1].l
-    @assert all(label -> label.l==l, labels) "$(labels)"
-    @assert length(labels) == natoms * (2*l+1)
-    p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for i in 1:length(projectors)]
-    for (idx, iatom) in enumerate(manifold_atoms)
-        for i in 1:2*l+1:nprojs
+    natoms = length(manifold.iatoms)
+    l = manifold.l
+    @assert all(label -> label.l == manifold.l, labels) "$(labels)"
+    @assert length(labels) == natoms * (2l+1)
+    p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for _ = 1:length(projectors)]
+    for (idx, iatom) in enumerate(manifold.iatoms)
+        for i = 1:2l+1:length(labels)
             iatom != labels[i].iatom && continue
             for (ik, projk) in enumerate(projectors)
-                p_I[ik][idx] = projk[:, i:i+2*l]
+                p_I[ik][idx] = projk[:, i:i+2l]
             end
         end
     end
@@ -166,18 +156,16 @@ Hubbard energy:
 struct Hubbard{T}
     manifold::OrbitalManifold
     U::T
-    function Hubbard((manifold::OrbitalManifold), U)
-        if isnothing(manifold.iatoms) || isnothing(manifold.l) ||
-           isnothing(manifold.i)
-            error("Hubbard term needs specification of atoms and orbital")
-        end
+    function Hubbard(manifold::OrbitalManifold, U)
         U = austrip(U)
         new{typeof(U)}(manifold, U)
     end
 end
 function (hubbard::Hubbard)(basis::AbstractBasis)
+    check_hubbard_manifold(hubbard.manifold, basis.model)
+
     projs, labels = atomic_orbital_projectors(basis)
-    labels, projectors_matrix = extract_manifold(basis, projs, labels, hubbard.manifold)
+    labels, projectors_matrix = extract_manifold(hubbard.manifold, projs, labels)
     TermHubbard(hubbard.manifold, hubbard.U, projectors_matrix, labels)
 end
 
@@ -191,7 +179,6 @@ end
 @timing "ene_ops: hubbard" function ene_ops(term::TermHubbard,
                                             basis::PlaneWaveBasis{T},
                                             ψ, occupation; hubbard_n=nothing,
-                                            labels=term.labels,
                                             kwargs...) where {T}
     if isnothing(hubbard_n)
        return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])

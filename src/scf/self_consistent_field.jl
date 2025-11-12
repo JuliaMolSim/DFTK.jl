@@ -181,11 +181,11 @@ Overview of parameters:
         if any(needs_τ, basis.terms)
             τ = compute_kinetic_energy_density(basis, ψ, occupation)
         end
-        for term in basis.terms
-            if isa(term, DFTK.TermHubbard)
-                hubbard_n = compute_hubbard_n(term.manifold, basis, ψ, occupation;
-                                              projectors=term.P, labels=term.labels)
-            end
+        ihubbard = findfirst(t -> t isa TermHubbard, basis.terms)
+        if !isnothing(ihubbard)
+            term = basis.terms[ihubbard]
+            hubbard_n = compute_hubbard_n(term.manifold, basis, ψ, occupation;
+                                          projectors=term.P, labels=term.labels)
         end
 
         # Update info with results gathered so far
@@ -233,7 +233,7 @@ Overview of parameters:
 
     # Callback is run one last time with final state to allow callback to clean up
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
-                ρ=ρout, τ, hubbard_n, α=damping, eigenvalues, occupation, εF, 
+                ρ=ρout, τ, hubbard_n, α=damping, eigenvalues, occupation, εF,
                 info.n_bands_converge, info.n_iter, info.n_matvec, ψ, info.diagonalization, 
                 stage=:finalize, info.history_Δρ, info.history_Etot, info.timedout, mixing, 
                 seed, runtime_ns=time_ns() - start_ns, algorithm="SCF")

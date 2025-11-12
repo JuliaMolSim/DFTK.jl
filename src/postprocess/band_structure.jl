@@ -71,7 +71,7 @@ function compute_bands(scfres::NamedTuple,
     τ = haskey(scfres, :τ) ? scfres.τ : nothing
     hubbard_n = haskey(scfres, :hubbard_n) ? scfres.hubbard_n : nothing
     compute_bands(scfres.basis, kgrid; 
-                  scfres.ρ, τ, hubbard_n, scfres.occupation, 
+                  scfres.ρ, τ, hubbard_n, scfres.occupation,
                   scfres.εF, n_bands, kwargs...)
 end
 

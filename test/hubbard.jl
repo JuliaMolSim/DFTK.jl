@@ -64,7 +64,7 @@ end
 
    # Hubbard parameters
    U        = 10u"eV"
-   manifold = OrbitalManifold([1,3], Ni.psp, 2, 1)
+   manifold = OrbitalManifold(atoms, Ni, "3D")
    
    model = model_DFT(lattice, atoms, positions; 
                      extra_terms=[Hubbard(manifold, U)],
@@ -88,7 +88,7 @@ end
         @testset "Test symmetry consistency" begin
              n_hub = scfres.hubbard_n
              scfres_nosym = DFTK.unfold_bz(scfres)
-             term_idx = findfirst(term -> isa(term, DFTK.TermHubbard), 
+             term_idx = findfirst(term -> isa(term, DFTK.TermHubbard),
                                   scfres_nosym.basis.terms)
              term_hub = scfres_nosym.basis.terms[term_idx]
              nhub_nosym = DFTK.compute_hubbard_n(manifold, scfres_nosym.basis, 

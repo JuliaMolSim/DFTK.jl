@@ -136,8 +136,8 @@ The projectors are computed by decomposition into a form factor multiplied by a 
   
 Overview of inputs: 
 - `positions` : Positions of the atoms in the unit cell. Default is model.positions.
-- `isonmanifold` (opt) : (see notes below) OrbitalManifold struct to select only a subset of orbitals 
-     for the computation.
+- `isonmanifold` (opt) : (see notes below) A function, typically a lambda,
+                                           to select projectors to include in the pdos.
 
 Overview of outputs:
 - `projectors`: Vector of matrices of projectors
@@ -212,23 +212,24 @@ function atomic_orbital_projections(basis::PlaneWaveBasis{T}, ψ;
 end
 
 """
-    sum_pdos(pdos_res, manifolds)
+    sum_pdos(pdos_res, projector_filters)
 
 This function extracts and sums up all the PDOSes, directly from the output of the `compute_pdos` function, 
-  that match any of the manifolds.
+  that match any of the filters.
 
 Overview of inputs:
 - `pdos_res`: Whole output from compute_pdos.
-- `manifolds`: Vector of OrbitalManifolds to select the desired projectors pdos.
+- `projector_filters`: Vector of functions, typically lambdas,
+                       to select projectors to include in the pdos.
 
 Overview of outputs:
 - `pdos`: Vector containing the pdos(ε).
 """
-function sum_pdos(pdos_res, manifolds::AbstractVector)
+function sum_pdos(pdos_res, projector_filters::AbstractVector)
     pdos = zeros(Float64, length(pdos_res.εs), size(pdos_res.pdos, 3))
     for σ in 1:size(pdos_res.pdos, 3)
        for (j, orb) in enumerate(pdos_res.projector_labels)
-            if any(is_on_manifold(orb, manifold) for manifold in manifolds)
+            if any(filt(orb) for filt in projector_filters)
                 pdos[:, σ] += pdos_res.pdos[:, j, σ]
             end
         end
