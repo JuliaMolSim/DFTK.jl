@@ -425,9 +425,9 @@ end
 """
 Symmetrize the Hubbard occupation matrix according to the l quantum number of the manifold.
 """
-function symmetrize_hubbard_n(manifold::OrbitalManifold,
-                              hubbard_n::Array{Matrix{Complex{T}}},
-                              model, symmetries) where {T}
+function symmetrize_hubbard_n(model, manifold::OrbitalManifold,
+                              hubbard_n::Array{Matrix{Complex{T}}};
+                              symmetries, tol_symmetry=SYMMETRY_TOLERANCE) where {T}
     # For now we apply symmetries only on nII terms, not on cross-atom terms (nIJ)
     # WARNING: To implement +V this will need to be changed!
 
@@ -442,7 +442,8 @@ function symmetrize_hubbard_n(manifold::OrbitalManifold,
         Wcart = model.lattice * symmetry.W * model.inv_lattice
         WigD = wigner_d_matrix(manifold.l, Wcart)
         for σ in 1:nspins, iatom in 1:natoms
-            sym_atom = find_symmetry_preimage(positions, positions[iatom], symmetry)
+            sym_atom = find_symmetry_preimage(positions, positions[iatom], symmetry;
+                                              tol_symmetry)
             ns[σ, iatom, iatom] .+= WigD' * hubbard_n[σ, sym_atom, sym_atom] * WigD
         end
     end
