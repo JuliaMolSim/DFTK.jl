@@ -22,15 +22,14 @@ struct OrbitalManifold
     i::Int64
 end
 function OrbitalManifold(atoms::Vector{<:Element}, atom::ElementPsp, label::AbstractString)
-    (; l, i) = find_pswfc(atom.psp, label)
-    OrbitalManifold(atom.psp, findall(at -> at === atom, atoms), l, i)
+    OrbitalManifold(atom, findall(at -> at === atom, atoms), label)
+end
+function OrbitalManifold(atom::ElementPsp, iatoms::Vector{Int64}, label::AbstractString)
+    OrbitalManifold(atom.psp, iatoms, label)
 end
 function OrbitalManifold(psp::NormConservingPsp, iatoms::Vector{Int64}, label::AbstractString)
     (; l, i) = find_pswfc(psp, label)
     OrbitalManifold(psp, iatoms, l, i)
-end
-function OrbitalManifold(atom::ElementPsp, iatoms::Vector{Int64}, label::AbstractString)
-    OrbitalManifold(atom.psp, iatoms, label)
 end
 
 function find_pswfc(psp::NormConservingPsp, label::String)
