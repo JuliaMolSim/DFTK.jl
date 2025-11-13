@@ -231,9 +231,9 @@ function construct_value(basis::PlaneWaveBasis{T}) where {T <: Dual}
 end
 
 
-@timing "self_consistent_field ForwardDiff" function self_consistent_field(basis_dual::PlaneWaveBasis{<:Dual{T,V,N}};
+@timing "self_consistent_field ForwardDiff" function self_consistent_field(basis_dual::PlaneWaveBasis{<:Dual{Tg,V,N}};
                                response=ResponseOptions(),
-                               kwargs...) where {T,V,N}
+                               kwargs...) where {Tg,V,N}
     # Note: No guarantees on this interface yet.
 
     # Primal pass
@@ -262,19 +262,19 @@ end
     # Convert and combine
     ψ = map(scfres.ψ, getfield.(δresults, :δψ)...) do ψk, δψk...
         map(ψk, δψk...) do ψnk, δψnk...
-            Complex(Dual{T}(real(ψnk), real.(δψnk)),
-                    Dual{T}(imag(ψnk), imag.(δψnk)))
+            Complex(Dual{Tg}(real(ψnk), real.(δψnk)),
+                    Dual{Tg}(imag(ψnk), imag.(δψnk)))
         end
     end
     eigenvalues = map(scfres.eigenvalues, getfield.(δresults, :δeigenvalues)...) do εk, δεk...
-        map((εnk, δεnk...) -> Dual{T}(εnk, δεnk), εk, δεk...)
+        map((εnk, δεnk...) -> Dual{Tg}(εnk, δεnk), εk, δεk...)
     end
     occupation = map(scfres.occupation, getfield.(δresults, :δoccupation)...) do occk, δocck...
         occk_cpu = to_cpu(occk)
         to_device(basis_dual.architecture,
-                  map((occnk, δoccnk...) -> Dual{T}(occnk, δoccnk), occk_cpu, δocck...))
+                  map((occnk, δoccnk...) -> Dual{Tg}(occnk, δoccnk), occk_cpu, δocck...))
     end
-    εF = Dual{T}(scfres.εF, getfield.(δresults, :δεF)...)
+    εF = Dual{Tg}(scfres.εF, getfield.(δresults, :δεF)...)
 
     # For strain, basis_dual contributes an explicit lattice contribution which
     # is not contained in δresults, so we need to recompute ρ here
