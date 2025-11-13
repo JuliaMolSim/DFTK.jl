@@ -43,7 +43,51 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     end
     ρ = sum(storage -> storage.ρ, storages)
 
+    # Hacky augmentation charges
+    ρ_augmentation = zero(ρ)
+    nonloc_ops = AtomicNonlocal()(basis).ops
+    aug_coeffs = zeros(Complex{T}, 36, 36)
+    for (ik, n) in range
+        P = nonloc_ops[ik].P
+
+        projections = P' * ψ[ik][:, n]
+        for iatom in 1:length(basis.model.positions)
+            # TODO: only loop over iproj:18?
+            for iproj=1:18, jproj=1:18
+                coeff = projections[(iatom-1) * 18 + iproj]' *
+                        projections[(iatom-1) * 18 + jproj]
+                aug_coeffs[(iatom-1) * 18 + iproj, (iatom-1) * 18 + jproj] +=
+                                (real(coeff) * occupation[ik][n] # TODO: is the real call correct?
+                                * basis.kweights[ik])
+            end
+        end
+    end
+
+    # TODO: hardcoded for the Si psp I have
+    psp = basis.model.atoms[1].psp
+    # proj_indices = [1, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6]
+    # proj_to_m = [0, 0, -1, 0, 1, -1, 0, 1, -2, -1, 0, 1, 2, -2, -1, 0, 1, 2]
+    proj_indices = [1, 2, 3, 4, 3, 4, 3, 4, 5, 6, 5, 6, 5, 6, 5, 6, 5, 6]
+    proj_to_m = [0, 0, -1, -1, 0, 0, 1, 1, -2, -2, -1, -1, 0, 0, 1, 1, 2, 2]
+
+    for iatom in 1:length(basis.model.positions)
+        box = basis.augmentation_regions[iatom]
+        @info "Looping over grid for atom $iatom: box size $(length(box.grid_indices))"
+        for (xyz, Q) in zip(box.grid_indices, eachslice(box.augmentations; dims=1))
+            tot = zero(T)
+            # TODO: only loop over iproj:18?
+            for iproj=1:18, jproj=1:18
+                tot += aug_coeffs[(iatom-1) * 18 + iproj, (iatom-1) * 18 + jproj] * Q[iproj, jproj]
+            end
+            # TODO: assumes 1 spin channel
+            ρ_augmentation[xyz..., 1] += tot
+        end
+    end
+
+    ρ += ρ_augmentation
+
     mpi_sum!(ρ, basis.comm_kpts)
+    # TODO: is this fine to do after the charge augmentation?
     ρ = symmetrize_ρ(basis, ρ; do_lowpass=false)
 
     # There can always be small negative densities, e.g. due to numerical fluctuations

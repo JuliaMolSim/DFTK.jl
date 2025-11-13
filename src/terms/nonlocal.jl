@@ -105,7 +105,7 @@ end
 # The ordering of the projector indices is (A,l,m,i), where A is running over all
 # atoms, l, m are AM quantum numbers and i is running over all projectors for a
 # given l. The matrix is block-diagonal with non-zeros only if A, l and m agree.
-function build_projection_coefficients(T, psps, psp_positions)
+function build_projection_coefficients(T, psps, psp_positions, matrix="h")
     # TODO In the current version the proj_coeffs still has a lot of zeros.
     #      One could improve this by storing the blocks as a list or in a
     #      BlockDiagonal data structure
@@ -116,7 +116,7 @@ function build_projection_coefficients(T, psps, psp_positions)
     for (psp, positions) in zip(psps, psp_positions), _ in positions
         n_proj_psp = count_n_proj(psp)
         block = count+1:count+n_proj_psp
-        proj_coeffs[block, block] = build_projection_coefficients(T, psp)
+        proj_coeffs[block, block] = build_projection_coefficients(T, psp, matrix)
         count += n_proj_psp
     end
     @assert count == n_proj
@@ -128,14 +128,14 @@ end
 # The ordering of the projector indices is (l,m,i), where l, m are the
 # AM quantum numbers and i is running over all projectors for a given l.
 # The matrix is block-diagonal with non-zeros only if l and m agree.
-function build_projection_coefficients(T::Type, psp::NormConservingPsp)
+function build_projection_coefficients(T::Type, psp::NormConservingPsp, matrix="h")
     n_proj = count_n_proj(psp)
     proj_coeffs = zeros(T, n_proj, n_proj)
     count = 0
     for l = 0:psp.lmax, _ = -l:l
         n_proj_l = count_n_proj_radial(psp, l)  # Number of i's
         range = count .+ (1:n_proj_l)
-        proj_coeffs[range, range] = psp.h[l + 1]
+        proj_coeffs[range, range] = matrix == "h" ? psp.h[l + 1] : psp.Q[l + 1]
         count += n_proj_l
     end
     proj_coeffs

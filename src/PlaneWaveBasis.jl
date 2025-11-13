@@ -94,6 +94,8 @@ struct PlaneWaveBasis{T,
 
     ## Instantiated terms (<: Term). See Hamiltonian for high-level usage
     terms::Vector{Any}
+
+    augmentation_regions
 end
 
 
@@ -241,6 +243,8 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
     dvol  = model.unit_cell_volume ./ prod(fft_size)
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
 
+    augmentation_regions = precompute_augmentation_regions(model, fft_grid)
+
     basis = PlaneWaveBasis{T, value_type(T), Arch, typeof(fft_grid),
                            typeof(kpoints[1].G_vectors)}(
         model, fft_size, dvol,
@@ -250,7 +254,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
         kcoords_global, kweights_global, n_irreducible_kpoints,
         comm_kpts, krange_thisproc, krange_allprocs, krange_thisproc_allspin,
         architecture, symmetries, symmetries_respect_rgrid,
-        use_symmetries_for_kpoint_reduction, terms)
+        use_symmetries_for_kpoint_reduction, terms, augmentation_regions)
 
     # Instantiate the terms with the basis
     for (it, t) in enumerate(model.term_types)
