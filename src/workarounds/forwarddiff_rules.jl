@@ -94,47 +94,52 @@ Return `true` if a symmetry that holds for the primal part is broken by
 a perturbation in the lattice or in the positions, `false` otherwise.
 """
 function is_symmetry_broken_by_dual(lattice, atoms, positions, symmetry::SymOp; tol_symmetry)
+    # The symmetry operation is given by (W,w) where W is a 3x3 matrix and w a 3-vector,
+    # both in reduced (fractional) coordinates.
     # For any lattice atom at position x, W*x + w should be in the lattice.
-    # In cartesian coordinates, with a perturbed lattice A = A₀ + εA₁,
-    # this means that for any atom position xcart in the unit cell and any 3 integers u,
-    # there should be an atom at position ycart and 3 integers v such that:
-    # Wcart * (xcart + A*u) + wcart = ycart + A*v
-    # where
-    #     Wcart = A₀ * W * A₀⁻¹; note that W is an integer matrix
-    #     wcart = A₀ * w.
+    # This means that for any atom position x (in reduced coordinates) in the unit cell
+    # and any 3 integers u, there should be an atom at position y and 3 integers v such that:
+    # W * (x + u) + w = y + v
     #
-    # In relative coordinates this gives:
-    # A⁻¹ * Wcart * (A*x + A*u) + A⁻¹ * wcart = y + v   (*)
-    #
+    # Additionally, Wcart = A * W * A⁻¹ (in cartesian coordinates) must be orthogonal.
+    # 
     # The strategy is then to check that:
-    # 1. A⁻¹ * Wcart * A is still an integer matrix (i.e. no dual part),
-    #    such that any change in u is easily compensated for in v.
-    # 2. The primal component of (*), i.e. with ε=0, is already known to hold.
-    #    Since v does not have a dual component, it is enough to check that
-    #    the dual part of the following is 0:
-    #      A⁻¹ * Wcart * A*x + A⁻¹ * wcart - y 
+    # 1. Metric invariance: Verify that the perturbed lattice metric
+    #    G = A' * A satisfies W' * G * W = G.
+    #    (This is equivalent to checking that Wcart = A * W * A⁻¹ is orthogonal.)
+    # 2. Atomic mapping:
+    #    W is an integer matrix, such that any change in u is easily compensated for in v.
+    #    Thus we only need to check that for each atomic position `x`
+    #    `W*x + w = y (mod 1)` is still satisfied for some equivalent atom `y`
+    #    of the same species, up to numerical tolerance.
+    #    Only the dual (perturbation) components are checked,
+    #    the primal part is assumed to already obey the symmetry.
 
-    lattice_primal = ForwardDiff.value.(lattice)
-    W = (compute_inverse_lattice(lattice) * lattice_primal
-        * symmetry.W * compute_inverse_lattice(lattice_primal) * lattice)
-    w = compute_inverse_lattice(lattice) * lattice_primal * symmetry.w
-
+    # TODO: work out the case of nested Duals for higher-order derivatives
+    #       (eg. symmetry breaking at higher order)
     is_dual_nonzero(x::AbstractArray) = any(x) do xi
         maximum(abs, ForwardDiff.partials(xi)) >= tol_symmetry
     end
-    # Check 1.
-    if is_dual_nonzero(W)
-        return true
+
+    W = symmetry.W
+    w = symmetry.w
+
+    # 1) Metric tensor check in fractional frame: Wᵀ G W == G (to first order)
+    G = lattice'lattice  # 3x3 metric tensor on the unit cube
+    ΔG = W' * G * W - G
+    if is_dual_nonzero(ΔG)
+        return true  # anisotropic lattice perturbation breaks this symmetry
     end
 
+    # 2) Atomic mapping check stays purely in reduced coordinates.
     atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
     for group in atom_groups
         positions_group = positions[group]
-        for position in positions_group
-            i_other_at = find_symmetry_preimage(positions_group, position, symmetry; tol_symmetry)
-
-            # Check 2. with x = positions_group[i_other_at] and y = position
-            if is_dual_nonzero(positions_group[i_other_at] + inv(W) * (w - position))
+        for y in positions_group
+            i_other = find_symmetry_preimage(positions_group, y, symmetry; tol_symmetry)
+            x = positions_group[i_other]
+            # Check that W*x + w - y has zero dual part (primal already ok by construction)
+            if is_dual_nonzero(W * x + w - y)
                 return true
             end
         end
@@ -166,7 +171,7 @@ function construct_value(model::Model{T}) where {T <: Dual}
           newpositions;
           model.model_name,
           model.n_electrons,
-          magnetic_moments=[],  # Symmetries given explicitly
+          magnetic_moments=value_type(T)[],  # Symmetries given explicitly
           terms=model.term_types,
           temperature=ForwardDiff.value(model.temperature),
           model.smearing,
@@ -214,9 +219,10 @@ function construct_value(basis::PlaneWaveBasis{T}) where {T <: Dual}
 end
 
 
-function self_consistent_field(basis_dual::PlaneWaveBasis{T};
-                               response=ResponseOptions(),
-                               kwargs...) where {T <: Dual}
+@timing "self_consistent_field ForwardDiff" function self_consistent_field(
+        basis_dual::PlaneWaveBasis{T};
+        response=ResponseOptions(),
+        kwargs...) where {T <: Dual}
     # Note: No guarantees on this interface yet.
 
     # Primal pass
@@ -233,12 +239,12 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
                                       scfres.εF).ham
         ham_dual * scfres.ψ
     end
-
     # Implicit differentiation
     response.verbose && println("Solving response problem")
     δresults = ntuple(ForwardDiff.npartials(T)) do α
         δHextψ = [ForwardDiff.partials.(δHextψk, α) for δHextψk in Hψ_dual]
-        solve_ΩplusK_split(scfres, -δHextψ;
+        δtemperature = ForwardDiff.partials(basis_dual.model.temperature, α)
+        solve_ΩplusK_split(scfres, δHextψ; δtemperature,
                            tol=last(scfres.history_Δρ), response.verbose)
     end
 
@@ -275,7 +281,7 @@ function self_consistent_field(basis_dual::PlaneWaveBasis{T};
        scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter,
        scfres.n_bands_converge, scfres.n_matvec, scfres.diagonalization, scfres.stage,
        scfres.history_Δρ, scfres.history_Etot, scfres.timedout, scfres.mixing,
-       scfres.algorithm, scfres.runtime_ns)
+       scfres.seed, scfres.algorithm, scfres.runtime_ns)
 end
 
 function hankel(r::AbstractVector, r2_f::AbstractVector, l::Integer, p::TT) where {TT <: ForwardDiff.Dual}

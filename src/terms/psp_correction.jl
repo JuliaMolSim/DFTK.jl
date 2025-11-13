@@ -24,16 +24,11 @@ Compute the correction term for properly modelling the interaction of the pseudo
 core with the compensating background charge induced by the `Ewald` term.
 """
 function energy_psp_correction(lattice::AbstractMatrix{T}, atoms, atom_groups) where {T}
-    psp_groups = [group for group in atom_groups if atoms[first(group)] isa ElementPsp]
-    isempty(psp_groups) && return zero(T)
-
+    correction_per_cell_and_electron = sum(atom_groups) do group
+        length(group) * eval_psp_energy_correction(T, atoms[first(group)])::T
+    end
     n_electrons::Int = n_electrons_from_atoms(atoms)
-    correction_per_cell = sum(
-        length(group) * eval_psp_energy_correction(T, atoms[first(group)].psp, n_electrons)
-        for group in psp_groups
-    )
-
-    correction_per_cell / compute_unit_cell_volume(lattice)
+    correction_per_cell_and_electron * n_electrons / compute_unit_cell_volume(lattice)
 end
 function energy_psp_correction(model::Model)
     energy_psp_correction(model.lattice, model.atoms, model.atom_groups)

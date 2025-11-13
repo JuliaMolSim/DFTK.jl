@@ -18,7 +18,7 @@ abstract type NormConservingPsp end
 # eval_psp_projector_fourier(psp, i, l, p::Real)
 # eval_psp_local_real(psp, r::Real)
 # eval_psp_local_fourier(psp, p::Real)
-# eval_psp_energy_correction(T::Type, psp, n_electrons::Integer)
+# eval_psp_energy_correction(T::Type, psp)
 
 #### Optional methods:
 # eval_psp_density_valence_real(psp, r::Real)
@@ -29,6 +29,7 @@ abstract type NormConservingPsp end
 # eval_psp_pswfc_fourier(psp, i::Int, l::Int, p::Real)
 # count_n_pswfc(psp, l::Integer)
 # count_n_pswfc_radial(psp, l::Integer)
+# pswfc_label(psp, i::Integer, l::Integer)
 
 """
     eval_psp_projector_real(psp, i, l, r)
@@ -85,15 +86,15 @@ eval_psp_local_fourier(psp::NormConservingPsp, p::AbstractVector) =
     eval_psp_local_fourier(psp, norm(p))
 
 @doc raw"""
-    eval_psp_energy_correction([T=Float64,] psp, n_electrons)
+    eval_psp_energy_correction([T=Float64,] psp::NormConservingPsp)
+    eval_psp_energy_correction([T=Float64,] element::Element)
 
-Evaluate the energy correction to the Ewald electrostatic interaction energy of one unit
-cell, which is required compared the Ewald expression for point-like nuclei. `n_electrons`
-is the number of electrons per unit cell. This defines the uniform compensating background
-charge, which is assumed here.
-
-Notice: The returned result is the *energy per unit cell* and not the energy per volume.
-To obtain the latter, the caller needs to divide by the unit cell volume.
+Evaluate the energy correction to the Ewald electrostatic interaction energy per unit
+of uniform negative charge. This is the correction required to account for the fact that
+the Ewald expression assumes point-like nuclei and not nuclei of the shape induced by
+the pseudopotential. The compensating background charge assumed for this expression is
+scaled to ``1``. Therefore multiplying by the number of electrons and dividing by the unit
+cell volume yields the energy correction per volume for the DFT simulation.
 
 The energy correction is defined as the limit of the Fourier-transform of the local
 potential as ``p \to 0``, using the same correction as in the Fourier-transform of the local
@@ -102,12 +103,14 @@ potential:
 \lim_{p \to 0} 4π N_{\rm elec} ∫_{ℝ_+} (V(r) - C(r)) \frac{\sin(p·r)}{p·r} r^2 dr + F[C(r)]
  = 4π N_{\rm elec} ∫_{ℝ_+} (V(r) + Z/r) r^2 dr.
 ```
+where as discussed above the implementation is expected to return the result
+for ``N_{\rm elec} = 1``.
 """
 function eval_psp_energy_correction end
 # by default, no correction, see PspHgh implementation and tests
 # for details on what to implement
-eval_psp_energy_correction(psp::NormConservingPsp, n_electrons) =
-    eval_psp_energy_correction(Float64, psp, n_electrons)
+
+eval_psp_energy_correction(psp::NormConservingPsp) = eval_psp_energy_correction(Float64, psp)
 
 """
     eval_psp_density_valence_real(psp, r)
