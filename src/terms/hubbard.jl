@@ -4,8 +4,9 @@ using Random
 """
 Structure for Hubbard manifold choice and projectors extraction.
 
-It is to be noted that, despite the name used in literature, this is
-not a manifold in the mathematical sense.
+"Manifold" is the standard name used in the literature to refer
+to the set of atomic orbitals used to compute the Hubbard correction.
+It is to be noted that this is not meant in the mathematical sense of "manifold".
 
 Overview of fields:
 - `psp`: Pseudopotential containing the atomic orbital projectors

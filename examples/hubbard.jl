@@ -23,8 +23,8 @@ magnetic_moments = [2, 0, -1, 0]
 # First, we run an SCF and band computation without the Hubbard term
 model = model_DFT(lattice, atoms, positions; temperature=5e-3,
                   functionals=PBE(), magnetic_moments)
-basis = PlaneWaveBasis(model; Ecut=32, kgrid=[2, 2, 2])
-scfres = self_consistent_field(basis; tol=1e-10, ρ=guess_density(basis, magnetic_moments))
+basis = PlaneWaveBasis(model; Ecut=20, kgrid=[2, 2, 2])
+scfres = self_consistent_field(basis; tol=1e-6, ρ=guess_density(basis, magnetic_moments))
 bands = compute_bands(scfres, MonkhorstPack(4, 4, 4))
 lowest_unocc_band = findfirst(ε -> ε-bands.εF > 0, bands.eigenvalues[1])
 band_gap = bands.eigenvalues[1][lowest_unocc_band] - bands.eigenvalues[1][lowest_unocc_band-1]
@@ -39,18 +39,18 @@ plot_pdos(bands; p, iatom=1, label="3D", colors=[:yellow, :orange], εrange)
 # To perform and Hubbard computation, we have to define the Hubbard manifold and associated constant.
 #
 # In DFTK there are a few ways to construct the `OrbitalManifold`.
-# Here, we will apply the Hubbard correction on the 3D orbital of all Nickel atoms.
+# Here, we will apply the Hubbard correction on the 3D orbital of all nickel atoms.
 #
 # Note that "manifold" is the standard term used in the literature for the set of atomic orbitals
-# used to compute the Hubbard correction, but it is not a manifold in the mathematical sense.
+# used to compute the Hubbard correction, but it is not meant in the mathematical sense.
 U = 10u"eV"
 manifold = OrbitalManifold(atoms, Ni, "3D")
 
 # Run SCF with a DFT+U setup, notice the `extra_terms` keyword argument, setting up the Hubbard +U term.
 model = model_DFT(lattice, atoms, positions; extra_terms=[Hubbard(manifold, U)],
                   functionals=PBE(), temperature=5e-3, magnetic_moments)
-basis = PlaneWaveBasis(model; Ecut=32, kgrid=[2, 2, 2] )
-scfres = self_consistent_field(basis; tol=1e-10, ρ=guess_density(basis, magnetic_moments))
+basis = PlaneWaveBasis(model; Ecut=20, kgrid=[2, 2, 2])
+scfres = self_consistent_field(basis; tol=1e-6, ρ=guess_density(basis, magnetic_moments))
 
 # Run band computation
 bands_hub = compute_bands(scfres, MonkhorstPack(4, 4, 4))
