@@ -131,14 +131,14 @@ end
 """
     compute_hubbard_n(term::TermHubbard, basis, ψ, occupation)
 
-Computes a matrix hubbard_n of size (n_spin, natoms, natoms), where each entry hubbard_n[iatom, jatom]
+Computes a matrix hubbard_n of size (n_spin, natoms, natoms), where each entry hubbard_n[σ, iatom, jatom]
 contains the submatrix of the occupation matrix corresponding to the projectors
 of atom iatom and atom jatom, with dimensions determined by the number of projectors for each atom.
 The atoms and orbitals are defined by the manifold tuple.
 
     hubbard_n[σ, iatom, jatom][m1, m2] = Σₖ₍ₛₚᵢₙ₎Σₙ weights[ik, ibnd] * ψₙₖ' * Pᵢₘ₁ * Pᵢₘ₂' * ψₙₖ
 
-where n or ibnd is the band index, ``weights[ik ibnd] = kweights[ik] * occupation[ik, ibnd]``
+where n or ibnd is the band index, ``weights[ik, ibnd] = kweights[ik] * occupation[ik, ibnd]``
 and ``Pᵢₘ₁`` is the pseudoatomic orbital projector for atom i and orbital m₁
 (just the magnetic quantum number, since l is fixed, as is usual in the literature).
 For details on the projectors see `atomic_orbital_projectors`.
@@ -161,7 +161,7 @@ function compute_hubbard_n(term::TermHubbard,
             for ik = krange_spin(basis, σ)
                 j_projection = ψ[ik]' * projectors[ik][jdx] # <ψ|ϕJ>
                 i_projection = projectors[ik][idx]' * ψ[ik] # <ϕI|ψ>
-                # Sums over the bands, dividing by filled_occ to deal 
+                # Sums over the bands, dividing by filled_occ to deal
                 # with the physical two spin channels separately
                 hubbard_n[σ, idx, jdx] .+= (basis.kweights[ik] * i_projection *
                                             diagm(occupation[ik]/filled_occ) * j_projection)
