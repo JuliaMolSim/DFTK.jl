@@ -183,7 +183,10 @@ Overview of parameters:
         end
         ihubbard = findfirst(t -> t isa TermHubbard, basis.terms)
         if !isnothing(ihubbard)
-            hubbard_n = compute_hubbard_n(basis.terms[ihubbard], basis, ψ, occupation)
+            n_hub = Vector{Array{Matrix{ComplexF64}}}(undef, 0)
+            for iman in 1:length(basis.terms[ihubbard].manifolds)
+                hubbard_n = compute_hubbard_n(basis.terms[ihubbard], iman, basis, ψ, occupation)
+            end
         end
 
         # Update info with results gathered so far

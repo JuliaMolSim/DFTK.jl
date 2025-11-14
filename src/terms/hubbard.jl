@@ -74,7 +74,7 @@ end
 
 struct Hubbard
     manifolds::Vector{OrbitalManifold}
-    U::Vector{Float64}
+    U::Vector{T}
     function Hubbard(manifolds::Vector{OrbitalManifold}, U)
         U = austrip.(U)
         new{typeof(U)}(manifold, U)
@@ -146,16 +146,17 @@ and ``Pᵢₘ₁`` is the pseudoatomic orbital projector for atom i and orbital 
 For details on the projectors see `atomic_orbital_projectors`. Σₖ₍ₛₚᵢₙ₎Σᵢₘₐₙ
 """
 function compute_hubbard_n(term::TermHubbard,
+                           imanifold::Int64,
                            basis::PlaneWaveBasis{T},
                            ψ, occupation) where {T}
     filled_occ = filled_occupation(basis.model)
     n_spin = basis.model.n_spin_components
 
-    manifold = term.manifold
+    manifold = term.manifolds[imanifold]
     manifold_atoms = manifold.iatoms
     natoms = length(manifold_atoms)
     l = manifold.l
-    projectors = reshape_hubbard_proj(term.P, term.labels, manifold)
+    projectors = reshape_hubbard_proj(term.P[imanifold], term.labels[imanifold], manifold)
     hubbard_n = Array{Matrix{Complex{T}}}(undef, n_spin, natoms, natoms)
     for σ in 1:n_spin
         for idx in 1:natoms, jdx in 1:natoms

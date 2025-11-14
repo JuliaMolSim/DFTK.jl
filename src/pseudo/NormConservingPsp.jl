@@ -231,13 +231,3 @@ function find_pswfc(psp::NormConservingPsp, label::String)
     error("Could not find pseudo atomic orbital with label $label "
           * "in pseudopotential $(psp.identifier).")
 end
-
-function find_pswfc(psp::NormConservingPsp, label::String)
-    for l = 0:psp.lmax, i = 1:count_n_pswfc_radial(psp, l)
-        if pswfc_label(psp, i, l) == label
-            return (; l, i)
-        end
-    end
-    error("Could not find pseudo atomic orbital with label $label "
-          * "in pseudopotential $(psp.identifier).")
-end

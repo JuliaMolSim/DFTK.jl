@@ -27,7 +27,7 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
         ρ = guess_density(basis)
     end
     if isnothing(τ) && any(needs_τ, basis.terms)
-        error("A term requires evaluation of the kinetic energy density τ. Please pass this " *
+        error("A term reuqires evaluation of the kinetic energy density τ. Please pass this " *
               "quantity to compute_bands as the τ keyword argument or use the " *
               "compute_bands(scfres) function.")
     end

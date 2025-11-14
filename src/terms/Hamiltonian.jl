@@ -30,7 +30,6 @@ struct DftHamiltonianBlock <: HamiltonianBlock
     nonlocal_op::Union{Nothing,NonlocalOperator}
     divAgrad_op::Union{Nothing,DivAgradOperator}
     
-
     scratch  # Pre-allocated scratch arrays for fast application
 end
 

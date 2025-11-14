@@ -3,18 +3,9 @@ using Test
 using DFTK
 using Logging
 using DFTK: mpi_sum
-using DFTK: Hubbard
 using LinearAlgebra
-using ..TestCases: silicon, nickel, oxygen, magnesium
-using PseudoPotentialData
-testcase = silicon 
-custom_lattice = 7.9 * [[ 1.0  0.5  0.5];
-                        [ 0.5  1.0  0.5];
-                        [ 0.5  0.5  1.0]]
-custom_positions = [[0.0, 0.0, 0.0],
-                    [0.5, 0.5, 0.5],
-                    [0.25, 0.25, 0.25],
-                    [0.75, 0.75, 0.75]] 
+using ..TestCases: silicon
+testcase = silicon
 
 function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
     for operator in hamk.operators
@@ -23,8 +14,7 @@ function test_matrix_repr_operator(hamk, ψk; atol=1e-8)
             @test norm(operator_matrix*ψk - operator*ψk) < atol
         catch e
             allowed_missing_operators = Union{DFTK.DivAgradOperator,
-                                              DFTK.MagneticFieldOperator,
-                                              DFTK.HubbardUOperator}
+                                              DFTK.MagneticFieldOperator}
             @assert operator isa allowed_missing_operators
             @info "Matrix of operator $(nameof(typeof(operator))) not yet supported" maxlog=1
         end
@@ -45,13 +35,10 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         model = Model(lattice, atoms, testcase.positions; terms=[term], spin_polarization,
                       symmetries=true)
         basis = PlaneWaveBasis(model; Ecut, kgrid=MonkhorstPack(kgrid; kshift))
-        @show basis.model.atoms[1].psp.pswfc_labels
-        @show basis.model.n_spin_components
 
         n_electrons = testcase.n_electrons
         n_bands = div(n_electrons, 2, RoundUp)
         filled_occ = DFTK.filled_occupation(model)
-        @show filled_occ
 
         ψ = [Matrix(qr(randn(ComplexF64, length(G_vectors(basis, kpt)), n_bands)).Q)
              for kpt in basis.kpoints]
@@ -103,7 +90,6 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         @test abs(diff) > atol
 
         err = abs(diff - diff_predicted)
-        @show err diff diff_predicted rtol * abs(E0.total)
         @test err < rtol * abs(E0.total) || err < atol
     end
 end
@@ -112,7 +98,6 @@ end
 
 @testitem "Hamiltonian consistency" setup=[TestCases, HamConsistency] tags=[:dont_test_mpi] begin
     using DFTK
-    using DFTK: Hubbard
     using LinearAlgebra
     using .HamConsistency: test_consistency_term, testcase
 
