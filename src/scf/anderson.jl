@@ -103,6 +103,8 @@ and returns ``xₙ₊₁``.
     M = stack(Pfxs) .- vec(Pfxₙ)  # Mᵢⱼ = (Pfxⱼ)ᵢ - (Pfxₙ)ᵢ
     # We need to solve 0 = M' Pfxₙ + M'M βs <=> βs = - (M'M)⁻¹ M' Pfxₙ
 
+    # TODO If memory pressure is high, automatically drop old iterates here
+    #      (Note: This quickly happens in GPU scenarios)
     # Ensure the condition number of M stays below maxcond, else prune the history
     Mfac = qr(M)
     while size(M, 2) > 1 && cond(Mfac.R) > anderson.maxcond
@@ -110,7 +112,9 @@ and returns ``xₙ₊₁``.
         error_max, idrop = findmax(anderson.errors[1:end-1])
         @debug "Anderson cond(M) = $(cond(Mfac.R)): Dropping $idrop, error=$error_max"
         deleteat!(anderson, idrop)
-        M = @view M[:, 1:end .!= idrop]
+        kept_cols = collect(1:size(M, 2))
+        deleteat!(kept_cols, idrop)
+        M = @view M[:, kept_cols]
         Mfac = qr(M)
     end
 

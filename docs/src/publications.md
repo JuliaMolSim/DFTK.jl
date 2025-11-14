@@ -11,7 +11,7 @@ The current DFTK reference paper to cite is
   author = {Michael F. Herbst and Antoine Levitt and Eric Cancès},
   doi = {10.21105/jcon.00069},
   journal = {Proc. JuliaCon Conf.},
-  title = {DFTK: A Julian approach for simulating electrons in solids},
+  title = {{DFTK}: A {Julian} approach for simulating electrons in solids},
   volume = {3},
   pages = {69},
   year = {2021},
@@ -20,7 +20,11 @@ The current DFTK reference paper to cite is
 
 Additionally the following publications describe DFTK or one of its algorithms:
 
-- M. Herbst, B. Sun.
+- N. F. Schmitz, B. Ploumhans and M. F. Herbst.
+  [*Algorithmic differentiation for plane-wave DFT: materials design, error control and learning model parameters.*](https://arxiv.org/abs/2509.07785) (2025).
+  ([Supplementary material and computational scripts](https://github.com/niklasschmitz/ad-dfpt)).
+
+- M. F. Herbst, B. Sun.
   [*Efficient Krylov methods for linear response in plane-wave electronic structure calculations.*](https://arxiv.org/abs/2505.02319) (2025).
   ([Supplementary material and computational scripts](https://github.com/bonans/inexact_Krylov_response)).
 
@@ -56,6 +60,9 @@ Additionally the following publications describe DFTK or one of its algorithms:
 ## Research conducted with DFTK
 The following publications report research employing DFTK as a core component.
 Feel free to drop us a line if you want your work to be added here.
+
+- D. Petersheim, J.-F. Pietschmann, J. Püschel, K. Ruess.
+  [*Neural Network Acceleration of Iterative Methods for Nonlinear Schrödinger Eigenvalue Problems*](https://arxiv.org/abs/2507.16349) (2025).
 
 - A. Levitt, D. Lundholm, N. Rougerie.
   [*Magnetic Thomas-Fermi theory for 2D abelian anyons*](https://arxiv.org/abs/2504.13481) (2025).

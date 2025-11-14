@@ -103,9 +103,9 @@ end
 
 """
 Solve density-functional perturbation theory problem,
-that is return δψ where (Ω+K) δψ = rhs.
+that is return δψ where (Ω+K) δψ = -δHextψ.
 """
-@timing function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, rhs, occupation;
+@timing function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, δHextψ, occupation;
                               callback=ResponseCallback(), tol=1e-10) where {T}
     # for now, all orbitals have to be fully occupied -> need to strip them beforehand
     check_full_occupation(basis, occupation)
@@ -118,9 +118,9 @@ that is return δψ where (Ω+K) δψ = rhs.
     unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ))
     unsafe_unpack(x) = unsafe_unpack_ψ(reinterpret_complex(x), size.(ψ))
 
-    # project rhs on the tangent space before starting
-    proj_tangent!(rhs, ψ)
-    rhs_pack = pack(rhs)
+    # project δHextψ on the tangent space before starting
+    proj_tangent!(δHextψ, ψ)
+    δHextψ_pack = pack(δHextψ)
 
     # preconditioner
     Pks = [PreconditionerTPA(basis, kpt) for kpt in basis.kpoints]
@@ -145,15 +145,15 @@ that is return δψ where (Ω+K) δψ = rhs.
         Ωδψ = apply_Ω(δψ, ψ, H, Λ)
         pack(Ωδψ + Kδψ)
     end
-    J = LinearMap{T}(ΩpK, size(rhs_pack, 1))
+    J = LinearMap{T}(ΩpK, size(δHextψ_pack, 1))
 
-    # solve (Ω+K) δψ = rhs on the tangent space with CG
+    # solve (Ω+K) δψ = -δHextψ on the tangent space with CG
     function proj(x)
         δψ = unpack(x)
         proj_tangent!(δψ, ψ)
         pack(δψ)
     end
-    res = cg(J, rhs_pack; precon=FunctionPreconditioner(f_ldiv!), proj, tol,
+    res = cg(J, -δHextψ_pack; precon=FunctionPreconditioner(f_ldiv!), proj, tol,
              callback, comm=basis.comm_kpts)
     (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norm,
      res.n_iter)
@@ -219,10 +219,10 @@ function (cb::OmegaPlusKDefaultCallback)(info)
 end
 
 """
-Solve the problem `(Ω+K) δψ = rhs` (density-functional perturbation theory)
-using a split algorithm, where `rhs` is typically
-`-δHextψ` (the negative matvec of an external perturbation with the SCF orbitals `ψ`) and
-`δψ` is the corresponding total variation in the orbitals `ψ`. Additionally returns:
+Solve the problem `(Ω+K) δψ = -δHextψ` (density-functional perturbation theory)
+using a split algorithm, where
+`δψ` is the total variation in the orbitals `ψ` corresponding to the external perturbation δHext.
+Additionally returns:
     - `δρ`:  Total variation in density
     - `δHψ`: Total variation in Hamiltonian applied to orbitals
     - `δeigenvalues`: Total variation in eigenvalues
@@ -243,7 +243,8 @@ Input parameters:
    see [arxiv 2505.02319](https://arxiv.org/pdf/2505.02319) for more details.
 """
 @timing function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
-                                    eigenvalues, rhs;
+                                    eigenvalues, δHextψ;
+                                    δtemperature=zero(real(T)),
                                     tol=1e-8, verbose=true,
                                     mixing=SimpleMixing(),
                                     occupation_threshold,
@@ -268,7 +269,7 @@ Input parameters:
     #          =  χ04P (-1 + E K2P (1 - χ02P K2P)^-1 R (-χ04P))
     # where χ02P = R χ04P E and K2P = R K E
     basis = ham.basis
-    @assert size(rhs[1]) == size(ψ[1])  # Assume the same number of bands in ψ and rhs
+    @assert size(δHextψ[1]) == size(ψ[1])
     start_ns = time_ns()
 
     # TODO Better initial guess handling. Especially between the last iteration of the GMRES
@@ -281,10 +282,11 @@ Input parameters:
 
     # compute δρ0 (ignoring interactions)
     δρ0 = let  # Make sure memory owned by res0 is freed
-        res0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, -rhs;
+        res0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHextψ;
+                           δtemperature,
                            maxiter=maxiter_sternheimer, tol=tol * factor_initial,
                            bandtolalg, occupation_threshold,
-                           q, kwargs...)  # = -χ04P * rhs
+                           q, kwargs...)  # = χ04P * δHext
         callback((; stage=:noninteracting, runtime_ns=time_ns() - start_ns,
                     Axinfos=[(; basis, tol=tol*factor_initial, res0...)]))
         compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
@@ -293,14 +295,14 @@ Input parameters:
 
     # compute total δρ
     # TODO Can be smarter here, e.g. use mixing to come up with initial guess.
-    ε = DielectricAdjoint(ham, ρ, ψ, occupation, εF, eigenvalues, occupation_threshold,
-                          bandtolalg, maxiter_sternheimer, q)
+    ε_adj = DielectricAdjoint(ham, ρ, ψ, occupation, εF, eigenvalues, occupation_threshold,
+                              bandtolalg, maxiter_sternheimer, q)
     precon = FunctionPreconditioner() do Pδρ, δρ
         Pδρ .= vec(mix_density(mixing, basis, reshape(δρ, size(ρ));
                                ham, basis, ρin=ρ, εF, eigenvalues, ψ))
     end
     callback_inner(info) = callback(merge(info, (; runtime_ns=time_ns() - start_ns)))
-    info_gmres = inexact_gmres(ε, vec(δρ0);
+    info_gmres = inexact_gmres(ε_adj, vec(δρ0);
                                tol, precon, krylovdim, maxiter, s,
                                callback=callback_inner, kwargs...)
     δρ = reshape(info_gmres.x, size(ρ))
@@ -308,42 +310,46 @@ Input parameters:
         @warn "Solve_ΩplusK_split solver not converged"
     end
 
-    # Compute total change in Hamiltonian applied to ψ
+    # Now we got δρ, but we're not done yet, because we want the full output of the four-point apply_χ0_4P,
+    # so we redo an apply_χ0_4P
+
+    # Induced potential variation
     δVind = apply_kernel(basis, δρ; ρ, q)  # Change in potential induced by δρ
 
+    # Total variation δHtot ψ
     # For phonon calculations, assemble
     #   δHψ_k = δV_{q} · ψ_{k-q}.
-    δHψ = multiply_ψ_by_blochwave(basis, ψ, δVind, q) .- rhs
-
-    # Compute total change in eigenvalues
-    δeigenvalues = map(ψ, δHψ) do ψk, δHψk
-        map(eachcol(ψk), eachcol(δHψk)) do ψnk, δHψnk
-            real(dot(ψnk, δHψnk))  # δε_{nk} = <ψnk | δH | ψnk>
-        end
-    end
+    δHtotψ = multiply_ψ_by_blochwave(basis, ψ, δVind, q) .+ δHextψ
 
     # Compute final orbital response
     # TODO Here we just use what DFTK did before the inexact Krylov business, namely
     #      a fixed Sternheimer tolerance of tol / 10. There are probably
     #      smarter things one could do here
-    resfinal = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+    resfinal = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHtotψ;
+                           δtemperature,
                            maxiter=maxiter_sternheimer, tol=tol * factor_final,
                            bandtolalg, occupation_threshold, q, kwargs...)
     callback((; stage=:final, runtime_ns=time_ns() - start_ns,
                 Axinfos=[(; basis, tol=tol*factor_final, resfinal...)]))
+    # Compute total change in eigenvalues
+    δeigenvalues = map(ψ, δHtotψ) do ψk, δHtotψk
+        map(eachcol(ψk), eachcol(δHtotψk)) do ψnk, δHtotψnk
+            real(dot(ψnk, δHtotψnk))  # δε_{nk} = <ψnk | δHtot | ψnk>
+        end
+    end
 
-    (; resfinal.δψ, δρ, δHψ, δVind, δρ0, δeigenvalues, resfinal.δoccupation,
-       resfinal.δεF, ε, info_gmres)
+    (; resfinal.δψ, δρ, δHtotψ, δVind, δρ0, δeigenvalues, resfinal.δoccupation,
+       resfinal.δεF, ε_adj, info_gmres)
 end
 
-function solve_ΩplusK_split(scfres::NamedTuple, rhs; kwargs...)
+function solve_ΩplusK_split(scfres::NamedTuple, δHextψ; kwargs...)
     if (scfres.mixing isa KerkerMixing || scfres.mixing isa KerkerDosMixing)
         mixing = scfres.mixing
     else
         mixing = SimpleMixing()
     end
     solve_ΩplusK_split(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation,
-                       scfres.εF, scfres.eigenvalues, rhs;
+                       scfres.εF, scfres.eigenvalues, δHextψ;
                        scfres.occupation_threshold, mixing,
                        bandtolalg=BandtolBalanced(scfres), kwargs...)
 end
@@ -362,26 +368,27 @@ struct DielectricAdjoint{Tρ, Tψ, Toccupation, TεF, Teigenvalues, Tq}
 end
 
 @doc raw"""
-Representation of the dielectric adjoint operator ``ε^† = (1 - χ_0 K)^{-1}``.
+Representation of the dielectric adjoint operator ``ε^† = (1 - χ_0 K)``.
+This is the adjoint of the dielectric operator ``ε = (1 - K χ_0)``.
 """
 function DielectricAdjoint(scfres; bandtolalg=BandtolBalanced(scfres), q=zero(Vec3{Float64}), maxiter=100)
     DielectricAdjoint(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation, scfres.εF,
                       scfres.eigenvalues, scfres.occupation_threshold, bandtolalg, maxiter, q)
 end
-@timing "DielectricAdjoint" function mul_approximate(ε::DielectricAdjoint, δρ; rtol=0.0, kwargs...)
-    δρ = reshape(δρ, size(ε.ρ))
-    basis = ε.ham.basis
-    δV = apply_kernel(basis, δρ; ε.ρ, ε.q)
-    res = apply_χ0(ε.ham, ε.ψ, ε.occupation, ε.εF, ε.eigenvalues, δV;
-                   miniter=1, ε.occupation_threshold, tol=rtol*norm(δρ),
-                   ε.bandtolalg, ε.q, ε.maxiter, kwargs...)
+@timing "DielectricAdjoint" function mul_approximate(ε_adj::DielectricAdjoint, δρ; rtol=0.0, kwargs...)
+    δρ = reshape(δρ, size(ε_adj.ρ))
+    basis = ε_adj.ham.basis
+    δV = apply_kernel(basis, δρ; ε_adj.ρ, ε_adj.q)
+    res = apply_χ0(ε_adj.ham, ε_adj.ψ, ε_adj.occupation, ε_adj.εF, ε_adj.eigenvalues, δV;
+                   miniter=1, ε_adj.occupation_threshold, tol=rtol*norm(δρ),
+                   ε_adj.bandtolalg, ε_adj.q, ε_adj.maxiter, kwargs...)
     χ0δV = res.δρ
-    Ax = vec(δρ - χ0δV)  # (1 - χ0 K δρ)
+    Ax = vec(δρ - χ0δV)  # (1 - χ0 K) δρ
     (; Ax, info=(; rtol, basis, res...))
 end
-function size(ε::DielectricAdjoint, i::Integer)
+function size(ε_adj::DielectricAdjoint, i::Integer)
     if 1 ≤ i ≤ 2
-        return prod(size(ε.ρ))
+        return prod(size(ε_adj.ρ))
     else
         return one(i)
     end

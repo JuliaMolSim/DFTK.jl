@@ -25,7 +25,7 @@ end
     TermPairwisePotential(P.V, P.params, T(P.max_radius), energy, forces)
 end
 
-struct TermPairwisePotential{TV, Tparams, T} <:Term
+struct TermPairwisePotential{TV, Tparams, T} <: TermLinear
     V::TV
     params::Tparams
     max_radius::T

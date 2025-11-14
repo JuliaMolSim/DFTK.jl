@@ -82,7 +82,7 @@ in reduced coordinates.
         isnothing(δHψs_αs) && continue
         # Response solver to get δψ
         (; δψ, δρ, δoccupation) = solve_ΩplusK_split(ham, ρ, ψ, occupation, εF, eigenvalues,
-                                                     -δHψs_αs; q, kwargs...)
+                                                     δHψs_αs; q, kwargs...)
         δoccupations[α, s] = δoccupation
         δρs[α, s] = δρ
         δψs[α, s] = δψ

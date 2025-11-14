@@ -1,360 +1,200 @@
 using LinearAlgebra
+using Random
 
 """
-Structure for manifold choice and projectors estraction. Fields:
-    -> iatom   : Int64 corresponding to the atom position in the atoms array.
-    -> species : Symbol for the Chemical Element as in ElementPsp.
-    -> label   : String with the orbital name, i.e.: "3S".
-Implemented function for OrbitalManifold can be applied to an orbital NamedTuple and returns a boolean
-    stating whether the orbital belongs to the manifold.
+Structure for Hubbard manifold choice and projectors extraction.
+
+It is to be noted that, despite the name used in literature, this is
+not a manifold in the mathematical sense.
+
+Overview of fields:
+- `psp`: Pseudopotential containing the atomic orbital projectors
+- `iatoms`: Atom indices that are part of the manifold.
+- `l`: Angular momentum quantum number of the manifold.
+- `i`: Index of the atomic orbital within the given l.
+
+See also the convenience constructors, to construct a manifold more easily.
 """
-@kwdef struct OrbitalManifold
-    iatom   = nothing
-    species = nothing
-    label   = nothing
+struct OrbitalManifold
+    psp::NormConservingPsp
+    iatoms::Vector{Int64}
+    l::Int64
+    i::Int64
 end
-function (s::OrbitalManifold)(orb)
-    iatom_match    = isnothing(s.iatom)   || (s.iatom == orb.iatom)
-    species_match  = isnothing(s.species) || (s.species == orb.species)
-    label_match    = isnothing(s.label)   || (s.label == orb.label)
-
-    iatom_match && species_match && label_match
+function OrbitalManifold(atoms::Vector{<:Element}, atom::ElementPsp, label::AbstractString)
+    OrbitalManifold(atom, findall(at -> at === atom, atoms), label)
+end
+function OrbitalManifold(atom::ElementPsp, iatoms::Vector{Int64}, label::AbstractString)
+    OrbitalManifold(atom.psp, iatoms, label)
+end
+function OrbitalManifold(psp::NormConservingPsp, iatoms::Vector{Int64}, label::AbstractString)
+    (; l, i) = find_pswfc(psp, label)
+    OrbitalManifold(psp, iatoms, l, i)
 end
 
-function extract_manifold(basis::PlaneWaveBasis{T}, projectors, labels, manifold::OrbitalManifold) where {T}
-    manifold_labels = []
-    manifold_projectors = Vector{Matrix{Complex{T}}}(undef, length(basis.kpoints))
-    for (iproj, orb) in enumerate(labels)
-        if Symbol(manifold.species) == Symbol(orb.species) && lowercase(manifold.label) == lowercase(orb.label)
-            # If the label matches the manifold, we add it to the labels
-            # This is useful for extracting specific orbitals from the basis
-            # e.g., (:Si, "3S") will match all 3S orbitals of Si atoms
-            push!(manifold_labels, (; orb.iatom, orb.species, orb.n, orb.l, orb.m, orb.label))
-        end
+function check_hubbard_manifold(manifold::OrbitalManifold, model::Model)
+    for atom in model.atoms[manifold.iatoms]
+        atom isa ElementPsp || error("Orbital manifold elements must have a psp.")
+        atom.psp === manifold.psp || error("Orbital manifold psp $(manifold.psp.identifier) " *
+                                           "does not match the psp of atom $atom")
     end
-    for (ik, projk) in enumerate(projectors)
-        manifold_projectors[ik] = zeros(Complex{T}, size(projectors[ik], 1), length(manifold_labels))
-        for (iproj, orb) in enumerate(manifold_labels)
-            # Find the index of the projector that matches the manifold label
-            proj_index = findfirst(p -> p.iatom == orb.iatom && p.species == orb.species &&
-                                       p.n == orb.n && p.l == orb.l && p.m == orb.m, labels)
-            if proj_index !== nothing
-                manifold_projectors[ik][:, iproj] = projk[:, proj_index]
-            else
-                @warn "Projector for $(orb.species) with n=$(orb.n), l=$(orb.l), m=$(orb.m) not found in projectors."
+    isempty(manifold.iatoms) && error("Orbital manifold has no atoms.")
+    # Tricky: make sure that the iatoms are consistent with the symmetries of the model,
+    #         i.e. that the manifold would be a valid atom group
+    atom_positions = model.positions[manifold.iatoms]
+    for symop in model.symmetries
+        W, w = symop.W, symop.w
+        for coord in atom_positions
+            # If all elements of a difference in diffs is integer, then
+            # W * coord + w and pos are equivalent lattice positions
+            if !any(c -> is_approx_integer(W * coord + w - c; atol=SYMMETRY_TOLERANCE),
+                    atom_positions)
+                error("Inconsistency between orbital manifold and model symmetries: " *
+                      "Cannot map the atom at position $coord to another atom of the manifold " *
+                      "under the symmetry operation (W, w):\n($W, $w)")
             end
         end
     end
-    return (; manifold_labels, manifold_projectors)
+
+    nothing
 end
 
-function compute_overlap_matrix(basis::PlaneWaveBasis{T};
-                                manifold  = nothing,
-                                positions = basis.model.positions
-                                ) where {T}
-    
-    proj = atomic_orbital_projectors(basis; manifold, positions) 
-    projectors = proj.projectors
-    labels = proj.labels
-    overlap_matrix = Vector{Matrix{T}}(undef, length(basis.kpoints))  
-
-    for (ik, projk) in enumerate(projectors)
-        overlap_matrix[ik] = abs2.(projk' * projk)  
+function extract_manifold(manifold::OrbitalManifold, projectors, labels)
+    # We extract the labels only for orbitals belonging to the manifold
+    proj_indices = findall(orb -> (orb.iatom ∈  manifold.iatoms
+                                && orb.l     == manifold.l
+                                && orb.n     == manifold.i), labels)
+    isempty(proj_indices) && @warn "Projector for $(manifold) not found."
+    manifold_labels = labels[proj_indices]
+    manifold_projectors = map(enumerate(projectors)) do (ik, projk)
+        projk[:, proj_indices]
     end
-
-    return (;overlap_matrix, projectors, labels)
+    (; manifold_labels, manifold_projectors)
 end
 
-"""
-Symmetrize the Hubbard occupation matrix according to the l quantum number of the manifold.
-"""
-function symmetrize_nhub(n_IJ::Array{Matrix{Complex{T}}}, lattice, symmetry, positions) where {T}
-    # For now we apply symmetries only on nII terms, not on cross-atom terms (nIJ)
-    # WARNING: To implement +V this will need to be changed!
-
-    nspins = size(n_IJ, 1)
-    natoms = size(n_IJ, 2)
-    nsym = length(symmetry)
-
-     # Initialize the n_IJ matrix
-    ns = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms) 
-    for σ in 1:nspins, iatom in 1:natoms, jatom in 1:natoms
-        ns[σ, iatom, jatom] = zeros(Complex{T}, size(n_IJ[σ, iatom, jatom],1), size(n_IJ[σ, iatom, jatom],2))
-    end
-
-    for σ in 1:nspins, iatom in 1:natoms
-        l = Int64((size(n_IJ[σ, iatom, iatom], 1)-1)/2)
-        WigD = Wigner_sym(l, lattice, symmetry)
-        for m1 in 1:size(ns[σ, iatom, iatom], 1), m2 in 1:size(ns[σ, iatom, iatom], 2)  # Iterate over the rows of the n_IJ matrix
-            for isym in 1:nsym
-                sym_atom = find_symmetric(iatom, symmetry, isym, positions)
-                # TODO: Here QE flips spin for time-reversal in collinear systems, should we?
-                for m0 in 1:size(n_IJ[σ, iatom, iatom], 1), m00 in 1:size(n_IJ[σ, iatom, iatom], 2)
-                    ns[σ, iatom, iatom][m1, m2] += WigD[m0, m1, isym] * 
-                                                   n_IJ[σ, sym_atom, sym_atom][m0, m00] * 
-                                                   WigD[m00, m2, isym]
-                end
-            end
-        end
-    end
-    ns .= ns / nsym
-
-    return ns
-end
-"""
-Find the symmetric atom index for a given atom and symmetry operation
-"""
-function find_symmetric(iatom::Int64, symmetry::Vector{SymOp{T}}, 
-                        isym::Int64, positions
-                        ) where {T}
-    sym_atom = iatom
-    W, w = symmetry[isym].W, symmetry[isym].w
-    p = positions[iatom]
-    p2 = W * p + w  
-    for (jatom, pos) in enumerate(positions)
-        if isapprox(pos, p2, atol=1e-8)  
-            sym_atom = jatom
-            break
-        end
-    end
-    return sym_atom
-end
-
-"""
- This function returns the Wigner matrix for a given l and symmetry operation solving a randomized linear system.
-    The lattice L is needed to convert reduced symmetries to Cartesian space.
-"""
-function Wigner_sym(l::Int64, L, symmetries::Vector{SymOp{T}}) where {T}
-    
-    nsym = length(symmetries)
-    D = Array{Float64}(undef, 2*l+1, 2*l+1, nsym)
-    if l == 0
-        return D .= 1
-    end
-    for (isym,symmetry) in enumerate(symmetries)
-        W = symmetry.W
-        for m1 in -l:l
-            b = Vector{Float64}(undef, 2*l+1)
-            A = Matrix{Float64}(undef, 2*l+1, 2*l+1)
-            for n in 1:2*l+1
-                r = rand(Float64, 3)
-                r0 = L * W * inv(L) * r
-                b[n] = DFTK.ylm_real(l, m1, r0)
-                for m2 in -l:l
-                    A[n,m2+l+1] = DFTK.ylm_real(l, m2, r)
-                end
-            end
-            D[m1+l+1,:,isym] = A\b
-        end
-    end
-
-    return D
-end
-
-"""
-Computes a matrix n_IJ of size (nspins, natoms, natoms), where each entry n_IJ[iatom, jatom] contains the submatrix of the occupation matrix
-    corresponding to the projectors of atom iatom and atom jatom, with dimensions determined by the number of projectors for each atom.
-    The atoms and orbitals are defined by the manifold tuple.
-
-    Input:
-      -> manifold         : Tuple{Symbol, String} with the atomic orbital type to define the Hubbard manifold
-      -> basis            : PlaneWaveBasis containing the wavefunctions and k-points
-      -> ψ                : wavefunctions from the scf calculation
-      -> occupation       : Occupation matrix for the bands
-      -> positions (opt)  : positions of the atoms in the unit cell
-    Output:
-      ->  n_IJ            : 3-tensor of matrices. 
-                            Outer indices select spin, iatom and jatom, inner indices select m1 and m2 in the manifold.
-      ->  manifold_labels : Labels for all manifold orbitals, corresponding to different columns of p_I.
-      ->  p_I             : Projectors for the manifold. 
-                            Those are orthonormalized against all orbitals, also outside of the manifold.
-"""
-function compute_hubbard_nIJ(manifold::OrbitalManifold,
-                             basis::PlaneWaveBasis{T},
-                             ψ, occupation;
-                             projectors = nothing, labels = nothing,
-                             positions = basis.model.positions) where {T}
-    for (iatom, atom) in enumerate(basis.model.atoms)
-        @assert !iszero(size(atom.psp.r2_pswfcs[1], 1)) "FATAL ERROR: No Atomic projector found within the provided PseudoPotential."
-    end
-
-    filled_occ = filled_occupation(basis.model)
-    nprojs = length(labels)
-    nspins = basis.model.n_spin_components
-    n_matrix = zeros(Complex{T}, nspins, nprojs, nprojs) 
-
-    for σ in 1:nspins, ik = krange_spin(basis, σ)  
-        # We divide by filled_occ to deal with the physical two spin channels separately.
-        ψk, projk, nk = @views ψ[ik], projectors[ik], occupation[ik]/filled_occ  
-        c = projk' * ψk      # <ϕ|ψ>
-        # The matrix product is done over the bands. In QE, basis.kweights[ik]*nk[ibnd] would be wg(ik,ibnd)
-        n_matrix[σ, :, :] .+= basis.kweights[ik] * c * diagm(nk) * c' 
-    end
-    n_matrix = mpi_sum(n_matrix, basis.comm_kpts)
-
-    # Now I want to reshape it to match the notation used in the papers.
-    # Reshape into n[I, J, σ][m1, m2] where I, J indicate the atom in the Hubbard manifold, σ is the spin, m1 and m2 are magnetic quantum numbers (n, l are fixed)
-    manifold_atoms = findall(at -> at.species == Symbol(manifold.species), basis.model.atoms)
-    natoms = length(manifold_atoms)  # Number of atoms of the species in the manifold
-    n_IJ = Array{Matrix{Complex{T}}}(undef, nspins, natoms, natoms)
-    p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for ik in 1:length(basis.kpoints)]
-    # Very low-level, but works
-    for σ in 1:nspins, iatom in eachindex(manifold_atoms)
-        i = 1
-        #atom_offset = labels[1].iatom - 1
-        while i <= nprojs
-            il = labels[i].l
-            if !(manifold_atoms[iatom] == labels[i].iatom)
-                i += 2*il + 1
-                continue
-            end
-            for jatom in eachindex(manifold_atoms)
-                j = 1
-                while j <= nprojs
-                    #@show jatom, j
-                    jl = labels[j].l
-                    (manifold_atoms[jatom] == labels[j].iatom) && (n_IJ[σ, iatom, jatom] = n_matrix[σ, i:i+2*il, j:j+2*jl])
-                    j += 2*jl + 1
-                end
-            end
-            for (ik, projk) in enumerate(projectors)
-                p_I[ik][iatom] = projk[:, i:i+2*il]  
-            end
-            i += 2*il + 1
-        end
-    end
-
-    #l = labels[findfirst(orb -> orb.label == manifold.label, labels)].l  
-    n_IJ = symmetrize_nhub(n_IJ, basis.model.lattice, basis.symmetries, basis.model.positions)
-
-    return (; n_IJ=n_IJ, manifold_labels=labels, p_I=p_I)
-end
-
-function compute_hubbard_proj(manifold::OrbitalManifold,
-                              basis::PlaneWaveBasis{T};
-                              positions = basis.model.positions) where {T}
-    proj = atomic_orbital_projectors(basis; positions)
-    projs = proj.projectors
-    labs = proj.labels
-    labels, projectors = extract_manifold(basis, projs, labs, manifold)
-    nprojs = length(labels)
-    nspins = basis.model.n_spin_components
-
-    # Now I want to reshape it to match the notation used in the papers.
-    natoms = length(findall(at -> at.species == Symbol(manifold.species), basis.model.atoms))  # Number of atoms of the species in the manifold
-    p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for i in 1:length(basis.kpoints)]
-    # Very low-level, but works
-    for σ in 1:nspins
-        i = 1
-        while i <= nprojs
-            il = labels[i].l
-            iatom = labels[i].iatom
-            for (ik, projk) in enumerate(projectors)
-                p_I[ik][iatom] = Matrix{Complex{T}}(undef, size(projk,1), 2*il + 1)  
-                p_I[ik][iatom] = copy(projk[:, i:i+2*il])  # Store the projector for this atom
-            end
-            i += 2*il + 1
-        end
-    end
-
-    return (;p_I, labels)
-end
-
-function reshape_hubbard_proj(projectors::Vector{Matrix{Complex{T}}}, labels) where {T}
-    natoms = max([labels[i].iatom for i in 1:length(labels)]...)
-    p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for i in 1:length(projectors)]
-    i = 1
-    while i <= size(projectors, 2)
-        il = labels[i].l
-        iatom = labels[i].iatom
-        for (ik, projk) in enumerate(projectors)
-            p_I[ik][iatom] = Matrix{Complex{T}}(undef, size(projk,1), 2*il + 1)  
-            p_I[ik][iatom] = copy(projk[:, i:i+2*il])  
-        end
-        i += 2*il + 1
-    end
-
-    return p_I, labels
-end
-
-# TODO: Probably this implementation is not suitable for V as well, 
-#       since we can't make orbitals from different atom types interact directly through n_IJ
 struct Hubbard
     manifolds::Vector{OrbitalManifold}
     U::Vector{Float64}
+    function Hubbard(manifolds::Vector{OrbitalManifold}, U)
+        U = austrip.(U)
+        new{typeof(U)}(manifold, U)
+    end
 end
 function (hubbard::Hubbard)(basis::AbstractBasis)
-    isempty(hubbard.U) && return TermNoop()
-    projs, labs = atomic_orbital_projectors(basis)
-    labels = Vector{Vector{NamedTuple}}(undef, length(hubbard.manifolds))
-    MatT = typeof(projs[1])                  # e.g., Matrix{Complex{Float64}}
-    projectors = Vector{Vector{MatT}}(undef, length(hubbard.manifolds))
-    for (iman, manifold) in enumerate(hubbard.manifolds)
-        labels[iman], projectors[iman] = extract_manifold(basis, projs, labs, manifold)
-        @assert !isempty(labels[iman]) "No orbital found for the selected manifold $(manifold)"
+    for manifold in hubbard.manifolds
+        check_hubbard_manifold(manifold, basis.model)
     end
-    #@show size(projectors, 1), size(projectors, 2)
-    TermHubbard(hubbard.manifolds, hubbard.U, projectors, labels)
+
+    projs, labels = atomic_orbital_projectors(basis)
+    labels, projectors_matrices = [], []
+    for (iman, manifold) in enumerate(hubbard.manifolds)
+        labels[iman], projectors_matrix[iman] = extract_manifold(manifold, projs, labels)
+    end
+    TermHubbard(hubbard.manifolds, hubbard.U, projectors_matrices, labels)
 end
 
-struct TermHubbard{PT, L} <: Term
+struct TermHubbard{T, PT, L} <: Term
     manifolds::Vector{OrbitalManifold}
-    U::Vector{Float64}
+    U::Vector{T}
     P::Vector{PT}
     labels::Vector{L}
 end
 
 @timing "ene_ops: hubbard" function ene_ops(term::TermHubbard, 
                                             basis::PlaneWaveBasis{T}, 
-                                            ψ, occupation; n_hub=nothing, ψ_hub=nothing, 
-                                            labels=term.labels,
+                                            ψ, occupation; hubbard_n=nothing,
                                             kwargs...) where {T}
-    to_unit = ustrip(auconvert(u"eV", 1.0))  
-    U = term.U ./ to_unit   
-    nspins = basis.model.n_spin_components
-    natoms = [length(findall(at -> at.species == Symbol(manifold.species), basis.model.atoms)) 
-              for (iman, manifold) in enumerate(term.manifolds)]
-    if isnothing(ψ)
-        #@show isnothing(ψ)
-        if isnothing(n_hub)
-           return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
-        end
-        n = n_hub
-        ψ = ψ_hub
-        proj = [[Vector{Matrix{Complex{T}}}(undef, natoms[iman]) for i in 1:length(term.P[iman])] for iman in 1:length(term.manifolds)]
-        for (iman, P_mat) in enumerate(term.P)
-           proj[iman] = reshape_hubbard_proj(P_mat, term.labels[iman])
-        end
-    else
-        #@show isnothing(ψ)
-        proj = [[Vector{Matrix{Complex{T}}}(undef, natoms[iman]) for i in 1:length(term.P[iman])] 
-                for iman in 1:length(term.manifolds)]
-        n_hub = [Array{Matrix{Complex{T}}}(undef, nspins, natoms[iman], natoms[iman]) 
-                for iman in 1:length(term.manifolds)]
-        for (iman, manifold) in enumerate(term.manifolds)
-            #@show iman, manifold, natoms[iman]
-            Hubbard = compute_hubbard_nIJ(manifold, basis, ψ, occupation; projectors=term.P[iman], labels=term.labels[iman])
-            #@show "Hubbard computed"
-            n_hub[iman] = Hubbard.n_IJ
-            proj[iman] = Hubbard.p_I
-        end
+    if isnothing(hubbard_n)
+       return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
     end
-
-    ops = [HubbardUOperator(basis, kpt, U, n_hub, [proj[iman][ik] for iman in eachindex(term.manifolds)])
-           for (ik,kpt) in enumerate(basis.kpoints)]
+    projs = hcat(term.P)
 
     filled_occ = filled_occupation(basis.model)
-
-    # To compare the results with Quantum ESPRESSO, we need to convert the U value from eV.
-    #   In QE the U value is given in eV in the input but DFTK works in Hartrees.
+    natoms = length(term.manifold.iatoms)
+    n_spin = basis.model.n_spin_components
+    # For the ops we have to reshape hubbard_n to match the NonlocalOperator structure, using a block diagonal form
+    # 2l+1 is the number of projectors per atom
+    nhub_size = sum((2*manifold.l+1)*length(manifold.iatoms) for manifold in term.manifolds)
+    nhub = [zeros(Complex{T}, nhub_size, nhub_size) for _ in 1:n_spin]
     E = zero(T)
-    for (iman, n) in enumerate(n_hub)
-        for σ in 1:nspins, iatom in 1:natoms[iman]
-            E += filled_occ * 0.5 * U[iman] * real(tr(n[σ, iatom,iatom] * (I - n[σ, iatom,iatom])))
-        end
+    for (iman, manifold) in enumerate(term.manifolds), σ in 1:n_spin, iatom in 1:natoms
+        nproj_atom = (2*manifold.l+1)
+        proj_range = (1+iman*nproj_atom*(iatom-1)):(iman*nproj_atom*iatom)
+        nhub[σ][proj_range, proj_range] = hubbard_n[iman][σ, iatom, iatom]
+        E += filled_occ * 1/T(2) * term.U *
+             real(tr(hubbard_n[iman][σ, iatom, iatom] * (I - hubbard_n[iman][σ, iatom, iatom])))
     end
-    (; E, ops, n_hub)
+
+    D_nonloc = 1/T(2) * term.U * (I - 2*nhub[kpt.spin])
+    ops = [NonlocalOperator(basis, kpt, projs[ik], D_nonloc) for (ik,kpt) in enumerate(basis.kpoints)]
+    return (; E, ops)
 end
 
-# TODO: Once this is done, adding the V term as well should be trivial.
-#       But remember to change the symmetrization as well!
+"""
+    compute_hubbard_n(term::TermHubbard, basis, ψ, occupation)
+
+Computes a matrix hubbard_n of size (n_spin, natoms, natoms), where each entry hubbard_n[σ, iatom, jatom]
+contains the submatrix of the occupation matrix corresponding to the projectors
+of atom iatom and atom jatom, with dimensions determined by the number of projectors for each atom.
+The atoms and orbitals are defined by the manifold tuple.
+
+    hubbard_n[σ, iatom, jatom][m1, m2] = Σₖ₍ₛₚᵢₙ₎Σₙ weights[ik, ibnd] * ψₙₖ' * Pᵢₘ₁ * Pᵢₘ₂' * ψₙₖ
+
+where n or ibnd is the band index, ``weights[ik, ibnd] = kweights[ik] * occupation[ik, ibnd]``
+and ``Pᵢₘ₁`` is the pseudoatomic orbital projector for atom i and orbital m₁
+(just the magnetic quantum number, since l is fixed, as is usual in the literature).
+For details on the projectors see `atomic_orbital_projectors`. Σₖ₍ₛₚᵢₙ₎Σᵢₘₐₙ
+"""
+function compute_hubbard_n(term::TermHubbard,
+                           basis::PlaneWaveBasis{T},
+                           ψ, occupation) where {T}
+    filled_occ = filled_occupation(basis.model)
+    n_spin = basis.model.n_spin_components
+
+    manifold = term.manifold
+    manifold_atoms = manifold.iatoms
+    natoms = length(manifold_atoms)
+    l = manifold.l
+    projectors = reshape_hubbard_proj(term.P, term.labels, manifold)
+    hubbard_n = Array{Matrix{Complex{T}}}(undef, n_spin, natoms, natoms)
+    for σ in 1:n_spin
+        for idx in 1:natoms, jdx in 1:natoms
+            hubbard_n[σ, idx, jdx] = zeros(Complex{T}, 2l+1, 2l+1)
+            for ik = krange_spin(basis, σ)
+                j_projection = ψ[ik]' * projectors[ik][jdx] # <ψ|ϕJ>
+                i_projection = projectors[ik][idx]' * ψ[ik] # <ϕI|ψ>
+                # Sums over the bands, dividing by filled_occ to deal
+                # with the physical two spin channels separately
+                hubbard_n[σ, idx, jdx] .+= (basis.kweights[ik] * i_projection *
+                                            diagm(occupation[ik]/filled_occ) * j_projection)
+            end
+            hubbard_n[σ, idx, jdx] = mpi_sum(hubbard_n[σ, idx, jdx], basis.comm_kpts)
+        end
+    end
+    hubbard_n = symmetrize_hubbard_n(basis.model, manifold, hubbard_n; basis.symmetries)
+end
+
+"""
+This function reshapes for each kpoint the projectors matrix to a vector of matrices,
+taking only the columns corresponding to orbitals in the manifold and splitting them
+into different matrices, one for each atom. Columns in the same matrix differ only in
+the value of the magnetic quantum number m of the corresponding orbitals.
+"""
+function reshape_hubbard_proj(projectors::Vector{Matrix{Complex{T}}},
+                              labels, manifold) where {T}
+    natoms = length(manifold.iatoms)
+    l = manifold.l
+    @assert all(label -> label.l == manifold.l, labels) "$(labels)"
+    @assert length(labels) == natoms * (2l+1)
+    p_I = [Vector{Matrix{Complex{T}}}(undef, natoms) for _ = 1:length(projectors)]
+    for (idx, iatom) in enumerate(manifold.iatoms)
+        for i = 1:2l+1:length(labels)
+            iatom != labels[i].iatom && continue
+            for (ik, projk) in enumerate(projectors)
+                p_I[ik][idx] = projk[:, i:i+2l]
+            end
+        end
+    end
+
+    p_I
+end

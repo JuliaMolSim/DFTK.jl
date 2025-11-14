@@ -44,6 +44,8 @@ include("common/quadrature.jl")
 include("common/hankel.jl")
 include("common/hydrogenic.jl")
 include("common/derivatives.jl")
+include("common/linalg.jl")
+include("common/random.jl")
 
 export PspHgh
 export PspUpf
@@ -110,6 +112,8 @@ export AtomicNonlocal
 export Ewald
 export PspCorrection
 export Entropy
+export Hubbard
+export OrbitalManifold
 export Magnetic
 export PairwisePotential
 export Anyonic
@@ -140,7 +144,6 @@ export PreconditionerNone
 export lobpcg_hyper
 export diag_full
 export diagonalize_all_kblocks
-include("eigen/linalg.jl")
 include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
 

@@ -94,3 +94,33 @@ function ylm_complex(l::Integer, m::Integer, rvec::AbstractVector{T}) where {T}
 
     error("The case l = $l and m = $m is not implemented")
 end
+
+"""
+ This function returns the Wigner D matrix for real spherical harmonics, 
+ for a given l and orthogonal matrix, solving a randomized linear system.
+ Such D matrix gives the decomposition of a spherical harmonic after application
+ of an orthogonal matrix back into the basis of spherical harmonics.
+    
+                       Yₗₘ₁(Wr) = Σₘ₂ D(l,R̂)ₘ₁ₘ₂ * Yₗₘ₂(r)
+"""
+function wigner_d_matrix(l::Integer, Wcart::AbstractMatrix{T}) where {T}
+    if l == 0 # In this case no computation is needed
+        return [one(T);;]
+    end
+    rng = Xoshiro(1234)
+    neq = 2l+2 # We need at least 2l+1 equations, we add one for numerical stability
+    B = Matrix{T}(undef, 2l+1, neq)
+    A = Matrix{T}(undef, 2l+1, neq)
+    for n in 1:neq
+        r = rand(rng, T, 3)
+        r = r / norm(r)
+        r0 =  Wcart * r
+        for m in -l:l
+            B[m+l+1, n] = ylm_real(l, m, r0)
+            A[m+l+1, n] = ylm_real(l, m, r)
+        end
+    end
+    κ = cond(A)
+    @assert κ < 100.0 "The Wigner matrix computation is badly conditioned. κ(A)=$(κ)"
+    B / A
+end

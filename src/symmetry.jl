@@ -90,7 +90,16 @@ on each of the atoms. The symmetries are determined using spglib.
         if spin_polarization == :none
             Spglib.get_symmetry(cell, tol_symmetry)
         elseif spin_polarization == :collinear
-            Spglib.get_symmetry_with_collinear_spin(cell, tol_symmetry)
+            rotations, translations, spin_flips = Spglib.get_symmetry_with_site_tensors(
+                cell, tol_symmetry)
+            # Keep only the symmetries that don't flip the spins
+            rotations[spin_flips.==1], translations[spin_flips.==1]
+            # Taking into account the symmetries that flip spins here would mean detecting 
+            # antiferromagnetic order (where the down orbitals are the up orbitals 
+            # translated by half a cell) and optimizing by computing only the up channel of 
+            # the orbitals and building the density by symmetry. So, the density has two 
+            # components, but the orbitals have only one spin channel.
+            # This would cut runtime by a factor 2.
         end
     catch e
         if e isa Spglib.SpglibError
@@ -364,31 +373,40 @@ function symmetrize_stresses(basis::PlaneWaveBasis, stresses)
     symmetrize_stresses(basis.model, stresses; basis.symmetries)
 end
 
+"""
+Find the symmetry preimage of `position`, returning the corresponding index in `positions_group`.
+"""
+function find_symmetry_preimage(positions_group, position, symop;
+                                tol_symmetry=SYMMETRY_TOLERANCE)
+    # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
+    # (but careful that our symmetries are r -> Wr+w, not R(r+f))
+    other_at = symop.W \ (position - symop.w)
+
+    # Find the index of the atom to which idx is mapped to by the symmetry operation.
+    # To avoid issues due to numerical noise we compute the deviations from being
+    # an integer shift (thus equivalent by translational symmetry) for all atoms in
+    # the group and pick the smallest one.
+    smallest_deviation, i_other_at = findmin(positions_group) do at
+        δat = at - other_at
+        maximum(abs, δat - round.(δat))
+    end
+    # Note, that without a fudging factor this occasionally fails:
+    @assert smallest_deviation < 10tol_symmetry
+
+    i_other_at
+end
+
 function symmetrize_forces(positions::AbstractVector, atom_groups::AbstractVector, forces;
                            symmetries, tol_symmetry=SYMMETRY_TOLERANCE)
     symmetrized_forces = zero(forces)
     for group in atom_groups, symop in symmetries
         positions_group = positions[group]
-        W, w = symop.W, symop.w
         for (idx, position) in enumerate(positions_group)
-            # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
-            # (but careful that our symmetries are r -> Wr+w, not R(r+f))
-            other_at = W \ (position - w)
-
-            # Find the index of the atom to which idx is mapped to by the symmetry operation.
-            # To avoid issues due to numerical noise we compute the deviations from being
-            # an integer shift (thus equivalent by translational symmetry) for all atoms in
-            # the group and pick the smallest one.
-            smallest_deviation, i_other_at = findmin(positions_group) do at
-                δat = at - other_at
-                maximum(abs, δat - round.(δat))
-            end
-            # Note, that without a fudging factor this occasionally fails:
-            @assert smallest_deviation < 10tol_symmetry
+            i_other_at = find_symmetry_preimage(positions_group, position, symop; tol_symmetry)
 
             # (A.27) is in Cartesian coordinates, and since Wcart is orthogonal,
             # Fsymcart = Wcart * Fcart <=> Fsymred = inv(Wred') Fred
-            symmetrized_forces[group[idx]] += inv(W') * forces[group[i_other_at]]
+            symmetrized_forces[group[idx]] += inv(symop.W') * forces[group[i_other_at]]
         end
     end
     symmetrized_forces / length(symmetries)
@@ -402,6 +420,35 @@ Symmetrize the forces in *reduced coordinates*, forces given as an array `forces
 """
 function symmetrize_forces(basis::PlaneWaveBasis, forces)
     symmetrize_forces(basis.model, forces; basis.symmetries)
+end
+
+"""
+Symmetrize the Hubbard occupation matrix according to the l quantum number of the manifold.
+"""
+function symmetrize_hubbard_n(model, manifold::OrbitalManifold,
+                              hubbard_n::Array{Matrix{Complex{T}}};
+                              symmetries, tol_symmetry=SYMMETRY_TOLERANCE) where {T}
+    # For now we apply symmetries only on nII terms, not on cross-atom terms (nIJ)
+    # WARNING: To implement +V this will need to be changed!
+
+    positions = model.positions[manifold.iatoms]
+    nspins = size(hubbard_n, 1)
+    natoms = size(hubbard_n, 2)
+    ldim = 2*manifold.l+1
+
+    # Initialize the hubbard_n matrix
+    ns = [zeros(Complex{T}, ldim, ldim) for _ in 1:nspins, _ in 1:natoms, _ in 1:natoms]
+    for symmetry in symmetries
+        Wcart = model.lattice * symmetry.W * model.inv_lattice
+        WigD = wigner_d_matrix(manifold.l, Wcart)
+        for σ in 1:nspins, iatom in 1:natoms
+            sym_atom = find_symmetry_preimage(positions, positions[iatom], symmetry;
+                                              tol_symmetry)
+            ns[σ, iatom, iatom] .+= WigD' * hubbard_n[σ, sym_atom, sym_atom] * WigD
+        end
+    end
+    ns ./= length(symmetries)
+    ns
 end
 
 """"
@@ -476,7 +523,7 @@ function unfold_bz(scfres)
     eigenvalues = unfold_array(scfres.basis, basis_unfolded, scfres.eigenvalues, false)
     occupation = unfold_array(scfres.basis, basis_unfolded, scfres.occupation, false)
     energies, ham = energy_hamiltonian(basis_unfolded, ψ, occupation;
-                                       scfres.ρ, eigenvalues, scfres.εF)
+                                       scfres.ρ, scfres.hubbard_n, eigenvalues, scfres.εF)
     @assert energies.total ≈ scfres.energies.total
     new_scfres = (; basis=basis_unfolded, ψ, ham, eigenvalues, occupation)
     merge(scfres, new_scfres)

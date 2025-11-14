@@ -11,7 +11,7 @@ Base.@kwdef struct Ewald
 end
 (ewald::Ewald)(basis) = TermEwald(basis; η=something(ewald.η, default_η(basis.model.lattice)))
 
-struct TermEwald{T} <: Term
+struct TermEwald{T} <: TermLinear
     energy::T                # precomputed energy
     forces::Vector{Vec3{T}}  # and forces
     η::T                     # Parameter used for the splitting

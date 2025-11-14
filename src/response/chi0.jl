@@ -275,36 +275,37 @@ The derivatives of the occupations are in-place stored in δocc.
 The tuple (; δocc, δεF) is returned. It is assumed the passed `δocc`
 are initialised to zero.
 """
-function compute_δocc!(δocc, basis::PlaneWaveBasis{T}, ψ, εF, ε, δHψ) where {T}
+function compute_δocc!(δocc, basis::PlaneWaveBasis{T}, ψ, εF, ε, δHψ, δtemperature) where {T}
     model = basis.model
     temperature = model.temperature
     smearing = model.smearing
     filled_occ = filled_occupation(model)
 
-    # δocc = fn' * (δεn - δεF)
+    # compute the derivative of
+    # occ[k][n] = filled_occ*occupation((εnk-εF)/T)
     δεF = zero(T)
     if !is_effective_insulator(basis, ε, εF; smearing, temperature)
         # First compute δocc without self-consistent Fermi δεF.
         D = zero(T)
         for ik = 1:length(basis.kpoints), (n, εnk) in enumerate(ε[ik])
-            enred = (εnk - εF) / temperature
             δεnk = real(dot(ψ[ik][:, n], δHψ[ik][:, n]))
-            fpnk = filled_occ * Smearing.occupation_derivative(smearing, enred) / temperature
-            δocc[ik][n] = δεnk * fpnk
-            D += fpnk * basis.kweights[ik]
+            εnkred = (εnk - εF) / temperature
+            δεnkred = δεnk/temperature - εnkred*δtemperature/temperature
+            fpnk = filled_occ * Smearing.occupation_derivative(smearing, εnkred)
+            δocc[ik][n] = fpnk * δεnkred
+            D -= fpnk * basis.kweights[ik] / temperature  # while we're at it, accumulate the total DOS D
         end
-        D = mpi_sum(D, basis.comm_kpts)  # equal to minus the total DOS
+        D = mpi_sum(D, basis.comm_kpts)
 
         if isnothing(model.εF)  # εF === nothing means that Fermi level is fixed by model
-            # Compute δεF…
+            # Compute δεF from δ ∑ occ = 0…
             δocc_tot = mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)
-            δεF = δocc_tot / D
+            δεF = -δocc_tot / D
 
-            # … and recompute δocc, taking into account δεF.
+            # … and add the corresponding contribution to δocc
             for ik = 1:length(basis.kpoints), (n, εnk) in enumerate(ε[ik])
-                enred = (εnk - εF) / temperature
-                fpnk = filled_occ * Smearing.occupation_derivative(smearing, enred) / temperature
-                δocc[ik][n] -= fpnk * δεF
+                fpnk = filled_occ * Smearing.occupation_derivative(smearing, (εnk - εF) / temperature)
+                δocc[ik][n] -= fpnk * δεF / temperature
             end
         end
     end
@@ -396,6 +397,7 @@ Compute the orbital and occupation changes as a result of applying the ``χ_0`` 
 to the Hamiltonian change `δH` represented by the matrix-vector products `δHψ`. 
 """
 @views @timing function apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
+                                    δtemperature=zero(eltype(ham.basis)),
                                     occupation_threshold, q=zero(Vec3{eltype(ham.basis)}),
                                     bandtolalg, tol=1e-9, kwargs_sternheimer...)
     basis = ham.basis
@@ -436,10 +438,11 @@ to the Hamiltonian change `δH` represented by the matrix-vector products `δHψ
     δoccupation = zero.(occupation)
     if iszero(q)
         δocc_occ = [δoccupation[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-        (; δεF) = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_minus_q_occ)
+        (; δεF) = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, δtemperature)
     else
         # When δH is not periodic, δH ψnk is a Bloch wave at k+q and ψnk at k,
         # so that δεnk = <ψnk|δH|ψnk> = 0 and there is no occupation shift
+        @assert δtemperature == 0 # TODO think about this
         δεF = zero(εF)
     end
 
@@ -466,6 +469,7 @@ Parameters:
 - `maxiter`: Maximal number of CG iterations per k and band for Sternheimer
 """
 function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{TδV};
+                  δtemperature=zero(eltype(ham.basis)),
                   occupation_threshold=default_occupation_threshold(TδV),
                   q=zero(Vec3{eltype(ham.basis)}),
                   bandtolalg=BandtolBalanced(ham.basis, ψ, occupation; occupation_threshold),
@@ -493,7 +497,7 @@ function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{
     #   δHψ_k = δV_{q} · ψ_{k-q}.
     δHψ = multiply_ψ_by_blochwave(basis, ψ, δV, q)
     res = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                      occupation_threshold, q, bandtolalg,
+                      δtemperature, occupation_threshold, q, bandtolalg,
                       kwargs_sternheimer...)
 
     δρ = compute_δρ(basis, ψ, res.δψ, occupation, res.δoccupation; occupation_threshold, q)
@@ -571,6 +575,7 @@ function construct_bandtol(Bandtol::Type, basis::PlaneWaveBasis, ψ, occupation:
     # Distributing the error equally across all k-points leads to (with w = sqrt(Ω / Ng))
     #   ‖z_{nk}‖ ≤ sqrt(Ω / Ng) / (‖K v_i‖ sqrt(Nocck) ‖Re(F⁻¹ Φk)‖_{2,∞} * 2f_{nk} Nk wk)
     # If we bound ‖Re(F⁻¹ Φk)‖_{2,∞} from below this is sqrt(Nocc / Ω).
+    # See also section SM6 and Table SM4 in 2505.02319.
     #
     # Note that the kernel term ||K v_i|| of 2505.02319 is dropped here as it purely arises
     # from the rescaling of the RHS performed in apply_χ0 above. Consequently the function
@@ -594,10 +599,13 @@ function construct_bandtol(Bandtol::Type, scfres::NamedTuple; kwargs...)
 end
 
 function adaptive_bandtol_orbital_term_(::Type{BandtolGuaranteed}, basis, kpt, ψk, mask_k)
-    # Orbital term ‖Re(F⁻¹ Φk)‖_{2,∞} for thik k-point
+    # Orbital term ‖F⁻¹ Φk‖_{2,∞} for thik k-point
+    # Note that compared to the paper we deliberately do not take the real part,
+    # since taking the real part represents an additional approximation
+    # (thus making the strategy less guaranteed)
     row_sums_squared = sum(mask_k) do n
         ψnk_real = @views ifft(basis, kpt, ψk[:, n])
-        abs2.(real.(ψnk_real))
+        abs2.(ψnk_real)
     end
     sqrt(maximum(row_sums_squared))
 end

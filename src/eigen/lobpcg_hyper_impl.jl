@@ -33,8 +33,9 @@
 # other eigenvectors (which is not the case in many - all ? - other
 # implementations)
 
-# - Some functions are reimplemented in a GPU optimized way as part of
-# the DFTK CUDA Extension (ext/DFTKCUDAExt/lobpcg.jl).
+# - Some generic linear algebra functions are used in this implementation. They can be
+#   found in src/common/linalg.jl. GPU optimized versions of these functions are located
+#   in src/gpu/linalg.jl.
 
 
 ## TODO micro-optimization of buffer reuse
@@ -150,7 +151,7 @@ end
     # For versions < 1.12, since we mainly care about eigenvectors being orthogonal
     # we re-orthogonalise explicitly.
     @static if VERSION >= v"1.12"
-        values, vectors = eigen(XAX; alg=DivideAndConquer())
+        values, vectors = eigen(XAX; alg=LinearAlgebra.DivideAndConquer())
         return vectors[:, 1:N], values[1:N]
     else
         values, vectors = eigen(XAX)

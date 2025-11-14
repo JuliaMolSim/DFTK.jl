@@ -72,10 +72,9 @@ function random_orbitals(hamk::HamiltonianBlock, howmany::Integer)
     random_orbitals(hamk.basis, hamk.kpoint, howmany)
 end
 
-import Base: Matrix, Array
-Array(block::HamiltonianBlock)  = Matrix(block)
-Matrix(block::HamiltonianBlock) = sum(Matrix, block.operators)
-Matrix(block::GenericHamiltonianBlock) = sum(Matrix, block.optimized_operators)
+Base.Array(block::HamiltonianBlock)  = Matrix(block)
+Base.Matrix(block::HamiltonianBlock) = sum(Matrix, block.operators)
+Base.Matrix(block::GenericHamiltonianBlock) = sum(Matrix, block.optimized_operators)
 
 struct Hamiltonian
     basis::PlaneWaveBasis
@@ -149,11 +148,10 @@ end
         to = TimerOutput()  # Thread-local timer output
         ψ_real = storage.ψ_reals
 
-        @timeit to "local+kinetic" begin
+        @timeit to "local" begin
             ifft!(ψ_real, H.basis, H.kpoint, ψ[:, iband]; normalize=false)
             ψ_real .*= potential
             fft!(Hψ[:, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
-            Hψ[:, iband] .+= H.fourier_op.multiplier .* ψ[:, iband]
         end
 
         if have_divAgrad
@@ -168,9 +166,10 @@ end
         if Threads.threadid() == 1
             merge!(DFTK.timer, to; tree_point=[t.name for t in DFTK.timer.timer_stack])
         end
-
-        synchronize_device(H.basis.architecture)
     end
+
+    # Kinetic term
+    Hψ .+= H.fourier_op.multiplier .* ψ
 
     # Apply the nonlocal operator.
     if !isnothing(H.nonlocal_op)
