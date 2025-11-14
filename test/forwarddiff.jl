@@ -214,7 +214,7 @@ end
         pos = [[1.01, 1.02, 1.03] / 8, -ones(3) / 8]
         pbec = DftFunctional(:gga_c_pbe)
         pbex = DftFunctional(:gga_x_pbe)
-        pbex = change_parameters(pbex, parameters(pbex) + ComponentArray(κ=0, μ=ε1))
+        pbex = DftFunctionals.PbeExchange(; κ=pbex.κ, μ=pbex.μ+ε1)
 
         model = model_DFT(Matrix{T}(silicon.lattice), silicon.atoms, pos;
                           functionals=[pbex, pbec])
