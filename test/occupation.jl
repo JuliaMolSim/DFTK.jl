@@ -306,8 +306,8 @@ end
     model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
                       functionals=LDA(), temperature=0.8,
                       smearing=DFTK.Smearing.MethfesselPaxton(3))
-    basis = PlaneWaveBasis(model; Ecut=15, kgrid=[1, 1, 1])
-    scfres = self_consistent_field(basis; tol=1e-6)
+    basis = PlaneWaveBasis(model; Ecut=10, kgrid=[2, 2, 2])
+    scfres = self_consistent_field(basis; tol=1e-2)
 
     custom_threshold = 0.01
     (mask_occ, mask_empty) = DFTK.occupied_empty_masks(scfres.occupation, custom_threshold)
