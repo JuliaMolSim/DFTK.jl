@@ -43,8 +43,8 @@ plot_pdos(bands; p, iatom=1, label="3D", colors=[:yellow, :orange], εrange)
 #
 # Note that "manifold" is the standard term used in the literature for the set of atomic orbitals
 # used to compute the Hubbard correction, but it is not a manifold in the mathematical sense.
-U = 10u"eV"
-manifold = OrbitalManifold(atoms, Ni, "3D")
+U = [10u"eV"]
+manifold = [OrbitalManifold(atoms, Ni, "3D")]
 
 # Run SCF with a DFT+U setup, notice the `extra_terms` keyword argument, setting up the Hubbard +U term.
 model = model_DFT(lattice, atoms, positions; extra_terms=[Hubbard(manifold, U)],

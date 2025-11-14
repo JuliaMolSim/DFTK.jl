@@ -63,8 +63,8 @@ end
    magnetic_moments = [2, 0, -1, 0]
 
    # Hubbard parameters
-   U        = 10u"eV"
-   manifold = OrbitalManifold(atoms, Ni, "3D")
+   U        = [10u"eV"]
+   manifold = [OrbitalManifold(atoms, Ni, "3D")]
    
    model = model_DFT(lattice, atoms, positions; 
                      extra_terms=[Hubbard(manifold, U)],
