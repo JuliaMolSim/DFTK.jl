@@ -218,10 +218,7 @@ Return ranges of occupied elements based on a given occupation threshold
 """
 function occupied_empty_masks(occupation, occupation_threshold)
     n_occ = map(occupation) do occ
-        n = count(occ_i -> abs(occ_i) > occupation_threshold, occ)
-        # Check that all occupied elements are contiguous, otherwise range is wrong
-        @assert all(occ[1:n] .> occupation_threshold)
-        n
+        something(findlast(x -> abs(x) > occupation_threshold, occ), 0)
     end
     mask_occ  = [1:n_occ[ik] for ik in 1:length(occupation)]
     mask_empty = [(n_occ[ik] + 1):length(occupation[ik]) for ik in 1:length(occupation)]
