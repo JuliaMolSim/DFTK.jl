@@ -112,6 +112,8 @@ export AtomicNonlocal
 export Ewald
 export PspCorrection
 export Entropy
+export Hubbard
+export OrbitalManifold
 export Magnetic
 export PairwisePotential
 export Anyonic

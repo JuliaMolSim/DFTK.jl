@@ -248,3 +248,73 @@ end
         εF < εF_ref && @test n_electrons < n_electrons_ref
     end
 end
+
+@testitem "Occupied/empty orbitals definition" #=
+    =# tags=[:dont_test_mpi] setup=[Occupation, TestCases] begin
+    using DFTK
+    silicon = TestCases.silicon
+
+    temperatures = [0.0, 0.0005]
+    Ecut = 5
+    kgrid = [2, 2, 2]
+    maxiter = 3
+    threshold = 0.0
+
+    for smearing in Occupation.smearing_methods for temperature in temperatures
+        smearing isa DFTK.Smearing.None && continue
+
+        model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                          functionals=LDA(), temperature, smearing)
+        basis = PlaneWaveBasis(model; Ecut, kgrid)
+        scfres = self_consistent_field(basis; maxiter)
+
+        # Eigenvalues are monotonically increasing (up to epsilon)
+        @test all(all(diff(εk) .≥ -eps(typeof(basis.Ecut))) for εk in scfres.eigenvalues)
+
+        (mask_occ, mask_empty) = DFTK.occupied_empty_masks(scfres.occupation, threshold)
+
+        # All orbitals are either occupied or empty
+        for ik = 1:length(basis.kpoints)
+            @test length(mask_occ[ik]) + length(mask_empty[ik]) == size(scfres.ψ[ik], 2)
+        end
+
+        # All empty orbitals have occupation below threshold
+        for ik = 1:length(basis.kpoints)
+            @test all(abs(scfres.occupation[ik][j]) ≤ threshold for j in mask_empty[ik])
+        end
+
+        # Only MethfesselPaxton smearing can have negative occupations
+        for ik = 1:length(basis.kpoints)
+            if any(scfres.occupation[ik] .< -threshold)
+                @test smearing isa DFTK.Smearing.MethfesselPaxton
+            end
+        end
+
+        # For all other smearings, all occupied orbitals have occupation above threshold
+        if !(smearing isa DFTK.Smearing.MethfesselPaxton)
+            for ik = 1:length(basis.kpoints)
+                @test all(scfres.occupation[ik][j] ≥ threshold for j in mask_occ[ik])
+            end
+        end
+    end
+    end
+
+    # Special test specifically triggering case of occupied oribitals with occupations
+    # below threshold (oscillations of MethfesselPaxton smearing). If occupations are
+    # not carefully calculated, i.e. the last element with abs(occ) > threshold marks the
+    # boundary, some occupied orbitals can be classified as empty.
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                      functionals=LDA(), temperature=0.8,
+                      smearing=DFTK.Smearing.MethfesselPaxton(3))
+    basis = PlaneWaveBasis(model; Ecut=10, kgrid=[2, 2, 2])
+    scfres = self_consistent_field(basis; tol=1e-2)
+
+    custom_threshold = 0.01
+    (mask_occ, mask_empty) = DFTK.occupied_empty_masks(scfres.occupation, custom_threshold)
+
+    # All empty orbitals have occupation below threshold
+    for ik = 1:length(basis.kpoints)
+        @test all(abs(scfres.occupation[ik][j]) ≤ custom_threshold for j in mask_empty[ik])
+    end
+
+end
