@@ -62,6 +62,7 @@ apply_kernel(term::LinearDensitiesTerm, basis::AbstractBasis, δρ; kwargs...) =
 
 # TODO If needed improve this further by specialising energy() for certain terms
 function energy(term::Term, basis::AbstractBasis, ψ, occupation; kwargs...)
+    # TODO: needs to be updated
     ene_ops(term, basis, ψ, occupation; kwargs...).E
 end
 
@@ -76,9 +77,6 @@ function energy_potentials(term::TermNoop, basis::PlaneWaveBasis{T},
     (; E=zero(T), potentials=Densities())
 end
 needed_densities(::TermNoop) = ()
-function ene_ops(term::TermNoop, basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where {T}
-    (; E=zero(eltype(T)), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
-end
 
 include("Hamiltonian.jl")
 

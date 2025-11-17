@@ -102,7 +102,9 @@ struct TermHubbard{T, PT, L} <: NonlinearDensitiesTerm
     labels::L
 end
 
-function energy_potentials(term::TermHubbard, basis::PlaneWaveBasis{T}, densities::Densities) where {T}
+@timing "energy_potentials: hubbard" function energy_potentials(term::TermHubbard,
+                                                                basis::PlaneWaveBasis{T},
+                                                                densities::Densities) where {T}
     hubbard_n = densities.hubbard_n
     isnothing(hubbard_n) && error("hubbard_n must be provided")
 
@@ -140,33 +142,6 @@ function hubbard_ops(term::TermHubbard, basis::PlaneWaveBasis{T}, potential) whe
 
     [NonlocalOperator(basis, kpt, proj[ik], D[kpt.spin])
      for (ik,kpt) in enumerate(basis.kpoints)]
-end
-
-@timing "ene_ops: hubbard" function ene_ops(term::TermHubbard,
-                                            basis::PlaneWaveBasis{T},
-                                            ψ, occupation; hubbard_n=nothing,
-                                            kwargs...) where {T}
-    if isnothing(hubbard_n)
-       return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
-    end
-    proj = term.P
-
-    filled_occ = filled_occupation(basis.model)
-    natoms = length(term.manifold.iatoms)
-    n_spin = basis.model.n_spin_components
-    nproj_atom = size(hubbard_n[1,1,1], 1) # This is the number of projectors per atom, namely 2l+1
-    # For the ops we have to reshape hubbard_n to match the NonlocalOperator structure, using a block diagonal form
-    nhub = [zeros(Complex{T}, nproj_atom*natoms, nproj_atom*natoms) for _ in 1:n_spin]
-    E = zero(T)
-    for σ in 1:n_spin, iatom in 1:natoms
-        proj_range = (1+nproj_atom*(iatom-1)):(nproj_atom*iatom)
-        nhub[σ][proj_range, proj_range] = hubbard_n[σ, iatom, iatom]
-        E += filled_occ * 1/T(2) * term.U *
-             real(tr(hubbard_n[σ, iatom, iatom] * (I - hubbard_n[σ, iatom, iatom])))
-    end
-    ops = [NonlocalOperator(basis, kpt, proj[ik], 1/T(2) * term.U * (I - 2*nhub[kpt.spin])) 
-           for (ik,kpt) in enumerate(basis.kpoints)]
-    return (; E, ops)
 end
 
 """

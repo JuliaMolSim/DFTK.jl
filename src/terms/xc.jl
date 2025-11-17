@@ -156,8 +156,9 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T};
     (; E, potential, Vτ)
 end
 
-function energy_potentials(term::TermXc, basis::PlaneWaveBasis{T},
-                           densities::Densities) where {T}
+@timing "energy_potentials: xc" function energy_potentials(term::TermXc,
+                                                           basis::PlaneWaveBasis{T},
+                                                           densities::Densities) where {T}
     E, Vxc, Vτ = xc_potential_real(term, basis; densities.ρ, densities.τ)
     (; E, potentials=Densities(; ρ=Vxc, τ=Vτ))
 end
@@ -167,22 +168,6 @@ function needed_densities(term::TermXc)
     else
         (:ρ,)
     end
-end
-
-@views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},
-                                              ψ, occupation; ρ, τ=nothing,
-                                              kwargs...) where {T}
-    E, Vxc, Vτ = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
-
-    ops = map(basis.kpoints) do kpt
-        if !isnothing(Vτ)
-            [RealSpaceMultiplication(basis, kpt, Vxc[:, :, :, kpt.spin]),
-             DivAgradOperator(basis, kpt, Vτ[:, :, :, kpt.spin])]
-        else
-            RealSpaceMultiplication(basis, kpt, Vxc[:, :, :, kpt.spin])
-        end
-    end
-    (; E, ops)
 end
 
 @timing "forces: xc" function compute_forces(term::TermXc, basis::PlaneWaveBasis{T},

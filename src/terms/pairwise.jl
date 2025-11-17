@@ -39,9 +39,6 @@ function energy_potentials(term::TermPairwisePotential, basis::PlaneWaveBasis,
 end
 needed_densities(::TermPairwisePotential) = ()
 
-function ene_ops(term::TermPairwisePotential, basis::PlaneWaveBasis, ψ, occupation; kwargs...)
-    (; E=term.energy, ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
-end
 compute_forces(term::TermPairwisePotential, ::PlaneWaveBasis, ψ, occ; kwargs...) = term.forces
 
 @doc raw"""

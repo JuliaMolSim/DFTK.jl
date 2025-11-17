@@ -42,26 +42,6 @@ function ops(term::TermKinetic, basis::PlaneWaveBasis{T}) where {T}
      for (ik, kpoint) in enumerate(basis.kpoints)]
 end
 
-@timing "ene_ops: kinetic" function ene_ops(term::TermKinetic, basis::PlaneWaveBasis{T},
-                                            ψ, occupation; kwargs...) where {T}
-    ops = [FourierMultiplication(basis, kpoint, term.kinetic_energies[ik])
-           for (ik, kpoint) in enumerate(basis.kpoints)]
-    if isnothing(ψ) || isnothing(occupation)
-        return (; E=T(Inf), ops)
-    end
-
-    E = zero(T)
-    for (ik, ψk) in enumerate(ψ)
-        E += basis.kweights[ik] * 
-             sum(occupation[ik] .* 
-                 real(vec(columnwise_dots(ψk, Diagonal(term.kinetic_energies[ik]), ψk))))
-    end
-    E = mpi_sum(E, basis.comm_kpts)
-
-    (; E, ops)
-end
-
-
 """
 Default blow-up corresponding to the standard kinetic energies.
 """

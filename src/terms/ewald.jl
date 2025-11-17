@@ -29,10 +29,6 @@ function energy_potentials(term::TermEwald, basis::PlaneWaveBasis, densities::De
     (; E=term.energy, potentials=Densities())
 end
 needed_densities(::TermEwald) = ()
-
-function ene_ops(term::TermEwald, basis::PlaneWaveBasis, ψ, occupation; kwargs...)
-    (; E=term.energy, ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
-end
 compute_forces(term::TermEwald, ::PlaneWaveBasis, ψ, occupation; kwargs...) = term.forces
 
 # To compute the electrostatics of the system, we use the Ewald splitting method due to the
