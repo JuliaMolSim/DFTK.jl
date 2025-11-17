@@ -14,7 +14,6 @@
     )
 end
 
-
 @testitem "Smearing functions" setup=[Occupation] begin
     using DFTK
 
@@ -252,21 +251,21 @@ end
 @testitem "Occupied/empty orbitals definition" #=
     =# tags=[:dont_test_mpi] setup=[Occupation, TestCases] begin
     using DFTK
+    using Logging
     silicon = TestCases.silicon
 
     temperatures = [0.0, 0.0005]
-    Ecut = 5
-    kgrid = [2, 2, 2]
-    maxiter = 3
     threshold = 0.0
 
-    for smearing in Occupation.smearing_methods for temperature in temperatures
+    for smearing in Occupation.smearing_methods, temperature in temperatures
         smearing isa DFTK.Smearing.None && continue
 
         model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
                           functionals=LDA(), temperature, smearing)
-        basis = PlaneWaveBasis(model; Ecut, kgrid)
-        scfres = self_consistent_field(basis; maxiter)
+        basis = PlaneWaveBasis(model; Ecut=5, kgrid=(2, 2, 2))
+        scfres = with_logger(NullLogger()) do
+            self_consistent_field(basis; maxiter=3, callback=identity)
+        end
 
         # Eigenvalues are monotonically increasing (up to epsilon)
         @test all(all(diff(εk) .≥ -eps(typeof(basis.Ecut))) for εk in scfres.eigenvalues)
@@ -297,7 +296,6 @@ end
             end
         end
     end
-    end
 
     # Special test specifically triggering case of occupied oribitals with occupations
     # below threshold (oscillations of MethfesselPaxton smearing). If occupations are
@@ -307,7 +305,8 @@ end
                       functionals=LDA(), temperature=0.8,
                       smearing=DFTK.Smearing.MethfesselPaxton(3))
     basis = PlaneWaveBasis(model; Ecut=10, kgrid=[2, 2, 2])
-    scfres = self_consistent_field(basis; tol=1e-2)
+    scfres = self_consistent_field(basis; tol=1e-2, callback=identity)
+    @test minimum(minimum, scfres.occupation) < -1e-2  # "real" negative occupation
 
     custom_threshold = 0.01
     (mask_occ, mask_empty) = DFTK.occupied_empty_masks(scfres.occupation, custom_threshold)
