@@ -16,7 +16,7 @@ function Base.show(io::IO, kin::Kinetic)
     print(io, "Kinetic($bup$fac)")
 end
 
-struct TermKinetic <: TermLinear
+struct TermKinetic <: OrbitalsTerm
     scaling_factor::Real  # scaling factor, absorbed into kinetic_energies
     # kinetic energies 1/2(k+G)^2 *blowup(|k+G|, Ecut) for each k-point.
     kinetic_energies::Vector{<:AbstractVector}
@@ -37,25 +37,10 @@ function kinetic_energy(kin::Kinetic, Ecut, p)
     kinetic_energy(kin.blowup, kin.scaling_factor, Ecut, p)
 end
 
-@timing "ene_ops: kinetic" function ene_ops(term::TermKinetic, basis::PlaneWaveBasis{T},
-                                            ψ, occupation; kwargs...) where {T}
-    ops = [FourierMultiplication(basis, kpoint, term.kinetic_energies[ik])
-           for (ik, kpoint) in enumerate(basis.kpoints)]
-    if isnothing(ψ) || isnothing(occupation)
-        return (; E=T(Inf), ops)
-    end
-
-    E = zero(T)
-    for (ik, ψk) in enumerate(ψ)
-        E += basis.kweights[ik] * 
-             sum(occupation[ik] .* 
-                 real(vec(columnwise_dots(ψk, Diagonal(term.kinetic_energies[ik]), ψk))))
-    end
-    E = mpi_sum(E, basis.comm_kpts)
-
-    (; E, ops)
+function ops(term::TermKinetic, basis::PlaneWaveBasis{T}) where {T}
+    [FourierMultiplication(basis, kpoint, term.kinetic_energies[ik])
+     for (ik, kpoint) in enumerate(basis.kpoints)]
 end
-
 
 """
 Default blow-up corresponding to the standard kinetic energies.

@@ -29,6 +29,32 @@ function random_density(basis::PlaneWaveBasis{T}, n_electrons::Integer) where {T
     ρ_from_total_and_spin(ρtot, ρspin)
 end
 
+function guess_missing_densities(basis::PlaneWaveBasis{T}, densities::Densities) where {T}
+    ρ = @something densities.ρ guess_density(basis)
+    τ = densities.τ
+    # TODO: not sure that needed_densities is any better than only having needs_τ
+    if isnothing(τ) && any(t -> t isa DensitiesTerm && :τ ∈ needed_densities(t), basis.terms)
+        # TODO: better initial guess for τ
+        τ = zero(ρ)
+    end
+    hubbard_n = densities.hubbard_n
+    ihubbard = findfirst(t -> t isa TermHubbard, basis.terms)
+    if isnothing(hubbard_n) && !isnothing(ihubbard)
+        # TODO: for now we guess an initial hubbard_n of 0.5, which gives no hamiltonian
+        term = basis.terms[ihubbard]
+        n_spin = basis.model.n_spin_components
+        manifold_atoms = term.manifold.iatoms
+        natoms = length(manifold_atoms)
+        nproj_atom = 2*term.manifold.l+1
+
+        hubbard_n = Array{Matrix{Complex{T}}}(undef, n_spin, natoms, natoms)
+        for σ=1:n_spin, iatom=1:natoms, jatom=1:natoms
+            hubbard_n[σ, iatom, jatom] = I(nproj_atom) / Complex{T}(2)
+        end
+    end
+    Densities(ρ, τ, hubbard_n)
+end
+
 # Atomic density methods
 function guess_density(basis::PlaneWaveBasis, magnetic_moments=[],
                        n_electrons=basis.model.n_electrons)

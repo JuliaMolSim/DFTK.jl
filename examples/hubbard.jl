@@ -24,7 +24,7 @@ magnetic_moments = [2, 0, -1, 0]
 model = model_DFT(lattice, atoms, positions; temperature=5e-3,
                   functionals=PBE(), magnetic_moments)
 basis = PlaneWaveBasis(model; Ecut=20, kgrid=[2, 2, 2])
-scfres = self_consistent_field(basis; tol=1e-6, ρ=guess_density(basis, magnetic_moments))
+scfres = self_consistent_field(basis; tol=1e-6, densities=Densities(ρ=guess_density(basis, magnetic_moments)))
 bands = compute_bands(scfres, MonkhorstPack(4, 4, 4))
 lowest_unocc_band = findfirst(ε -> ε-bands.εF > 0, bands.eigenvalues[1])
 band_gap = bands.eigenvalues[1][lowest_unocc_band] - bands.eigenvalues[1][lowest_unocc_band-1]
@@ -50,7 +50,7 @@ manifold = OrbitalManifold(atoms, Ni, "3D")
 model = model_DFT(lattice, atoms, positions; extra_terms=[Hubbard(manifold, U)],
                   functionals=PBE(), temperature=5e-3, magnetic_moments)
 basis = PlaneWaveBasis(model; Ecut=20, kgrid=[2, 2, 2])
-scfres = self_consistent_field(basis; tol=1e-6, ρ=guess_density(basis, magnetic_moments))
+scfres = self_consistent_field(basis; tol=1e-6, densities=Densities(ρ=guess_density(basis, magnetic_moments)))
 
 # Run band computation
 bands_hub = compute_bands(scfres, MonkhorstPack(4, 4, 4))

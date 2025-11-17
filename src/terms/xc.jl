@@ -52,7 +52,7 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
            T(xc.potential_threshold), ρcore)
 end
 
-struct TermXc{T,CT} <: TermNonlinear where {T,CT}
+struct TermXc{T,CT} <: NonlinearDensitiesTerm where {T,CT}
     functionals::Vector{Functional}
     scaling_factor::T
     potential_threshold::T
@@ -60,7 +60,7 @@ struct TermXc{T,CT} <: TermNonlinear where {T,CT}
 end
 DftFunctionals.needs_τ(term::TermXc) = any(needs_τ, term.functionals)
 
-function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupation;
+function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T};
                            ρ, τ=nothing) where {T}
     @assert !isempty(term.functionals)
 
@@ -156,20 +156,18 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     (; E, potential, Vτ)
 end
 
-@views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},
-                                              ψ, occupation; ρ, τ=nothing,
-                                              kwargs...) where {T}
-    E, Vxc, Vτ = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
-
-    ops = map(basis.kpoints) do kpt
-        if !isnothing(Vτ)
-            [RealSpaceMultiplication(basis, kpt, Vxc[:, :, :, kpt.spin]),
-             DivAgradOperator(basis, kpt, Vτ[:, :, :, kpt.spin])]
-        else
-            RealSpaceMultiplication(basis, kpt, Vxc[:, :, :, kpt.spin])
-        end
+@timing "energy_potentials: xc" function energy_potentials(term::TermXc,
+                                                           basis::PlaneWaveBasis{T},
+                                                           densities::Densities) where {T}
+    E, Vxc, Vτ = xc_potential_real(term, basis; densities.ρ, densities.τ)
+    (; E, potentials=Densities(; ρ=Vxc, τ=Vτ))
+end
+function needed_densities(term::TermXc)
+    if any(needs_τ, term.functionals)
+        (:ρ, :τ)
+    else
+        (:ρ,)
     end
-    (; E, ops)
 end
 
 @timing "forces: xc" function compute_forces(term::TermXc, basis::PlaneWaveBasis{T},

@@ -22,7 +22,7 @@ function (M::MagneticFromValues)(Apotential)
     TermMagnetic(basis, Apotential)
 end
 
-struct TermMagnetic <: TermLinear
+struct TermMagnetic <: OrbitalsTerm
     # Apotential[α] is an array of size fft_size for α=1:3
     Apotential::Vector{<:AbstractArray}
 end
@@ -42,19 +42,7 @@ function TermMagnetic(basis::PlaneWaveBasis{T}, Afunction::Function) where {T}
     TermMagnetic(Apotential)
 end
 
-function ene_ops(term::TermMagnetic, basis::PlaneWaveBasis{T}, ψ, occupation;
-                 kwargs...) where {T}
-    ops = [MagneticFieldOperator(basis, kpoint, term.Apotential)
-           for (ik, kpoint) in enumerate(basis.kpoints)]
-    if isnothing(ψ) || isnothing(occupation)
-        return (; E=T(Inf), ops)
-    end
-
-    E = zero(T)
-    for (ik, k) in enumerate(basis.kpoints)
-        E += basis.kweights[ik] * sum(occupation[ik] .* vec(real(columnwise_dots(ψ[ik], ops[ik] * ψ[ik]))))
-    end
-    E = mpi_sum(E, basis.comm_kpts)
-
-    (; E, ops)
+function ops(term::TermMagnetic, basis::PlaneWaveBasis)
+    [MagneticFieldOperator(basis, kpoint, term.Apotential)
+     for kpoint in basis.kpoints]
 end

@@ -182,37 +182,82 @@ end
     Hψ
 end
 
+function orbitals_term_energy(basis::PlaneWaveBasis{T}, ψ, occupation, ops) where {T}
+    E = zero(T)
+    for (ik, ψk) in enumerate(ψ)
+        # TODO: is this allocation a problem?
+        op_applied_storage = zeros_like(ψk)
+        # TODO: what about non-fourier terms?
+        apply!((; fourier=op_applied_storage), ops[ik], (; fourier=ψk))
+        # TODO: use columnwise_dots function here I think
+        E += basis.kweights[ik] *
+            sum(occupation[ik] .*
+                real(vec(sum(conj(ψk) .* op_applied_storage; dims=1))))
+    end
+    mpi_sum(E, basis.comm_kpts)
+end
 
 """
 Get energies and Hamiltonian
 kwargs is additional info that might be useful for the energy terms to precompute
 (eg the density ρ)
 """
-@timing function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
-    # it: index into terms, ik: index into kpoints
-    @timing "ene_ops" ene_ops_arr = [ene_ops(term, basis, ψ, occupation; kwargs...)
-                                     for term in basis.terms]
+@timing function energy_hamiltonian(basis::PlaneWaveBasis{T}, ψ, occupation, densities;
+                                    eigenvalues=nothing, εF=nothing) where {T}
     term_names = [string(nameof(typeof(term))) for term in basis.model.term_types]
-    energy_values  = [eh.E for eh in ene_ops_arr]
-    operators = [eh.ops for eh in ene_ops_arr]         # operators[it][ik]
+    energy_values  = [zero(T) for _ in basis.model.term_types]
 
-    # flatten the inner arrays in case a term returns more than one operator
-    function flatten(arr)
-        ret = []
-        for a in arr
-            if a isa RealFourierOperator
-                push!(ret, a)
-            else
-                push!(ret, a...)
+    operators = [[] for _ in basis.kpoints]
+    total_potentials = Densities()
+
+    for (iterm, term) in enumerate(basis.terms)
+        if isa(term, OrbitalsTerm)
+            # TODO: is ops ambiguous without DFTK. prefix here?
+            ops = DFTK.ops(term, basis)
+            energy_values[iterm] = isnothing(ψ) ? T(Inf) : orbitals_term_energy(basis, ψ, occupation, ops)
+            for (ik, op) in enumerate(ops)
+                push!(operators[ik], op)
             end
+        else
+            (; E, potentials) = energy_potentials(term, basis, densities)
+            energy_values[iterm] = E
+            total_potentials = sum_densities(total_potentials, potentials)
         end
-        ret
     end
+
+    if !isnothing(total_potentials.ρ)
+        for (ik, kpt) in enumerate(basis.kpoints)
+            push!(operators[ik], RealSpaceMultiplication(basis, kpt, total_potentials.ρ[:, :, :, kpt.spin]))
+        end
+    end
+    if !isnothing(total_potentials.τ)
+        for (ik, kpt) in enumerate(basis.kpoints)
+            push!(operators[ik], DivAgradOperator(basis, kpt, total_potentials.τ[:, :, :, kpt.spin]))
+        end
+    end
+    if !isnothing(total_potentials.hubbard_n)
+        ihubbard = findfirst(t -> t isa TermHubbard, basis.terms)
+        term = basis.terms[ihubbard]
+        hubbard_operators = hubbard_ops(term, basis, total_potentials.hubbard_n)
+        for (ops, hubbard_op) in zip(operators, hubbard_operators)
+            push!(ops, hubbard_op)
+        end
+    end
+
     scratch = _ham_allocate_scratch(basis)
-    hks_per_k = [flatten([blocks[ik] for blocks in operators])
-                 for ik = 1:length(basis.kpoints)]      # hks_per_k[ik][it]
+    # TODO: Flattening should be restored
     ham = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks; scratch)
-                              for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
+                              for (hks, kpt) in zip(operators, basis.kpoints)])
+
+    if basis.model.temperature != 0
+        push!(term_names, "Entropy")
+        if isnothing(ψ) || isnothing(εF) || isnothing(eigenvalues)
+            push!(energy_values, T(Inf))
+        else
+            push!(energy_values, compute_entropy(basis, ψ, εF, eigenvalues))
+        end
+    end
+
     energies = Energies(term_names, energy_values)
     (; energies, ham)
 end
@@ -220,14 +265,17 @@ end
 """
 Faster version than energy_hamiltonian for cases where only the energy is needed.
 """
-@timing function energy(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
+@timing function energy(basis::PlaneWaveBasis, ψ, occupation, densities; kwargs...)
+    # TODO: reimplement
+    return (; energies=energy_hamiltonian(basis, ψ, occupation, densities; kwargs...).energies)
+
     energy_values = [energy(term, basis, ψ, occupation; kwargs...) for term in basis.terms]
     term_names = [string(nameof(typeof(term))) for term in basis.model.term_types]
     (; energies=Energies(term_names, energy_values))
 end
 
-function Hamiltonian(basis::PlaneWaveBasis; ψ=nothing, occupation=nothing, kwargs...)
-    energy_hamiltonian(basis, ψ, occupation; kwargs...).ham
+function Hamiltonian(basis::PlaneWaveBasis; ψ=nothing, occupation=nothing, densities=Densities(), kwargs...)
+    energy_hamiltonian(basis, ψ, occupation, densities; kwargs...).ham
 end
 
 """

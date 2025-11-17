@@ -73,8 +73,8 @@ function (cb::ScfDefaultCallback)(info)
         println(label_magn[2], label_damp[2], label_diag[2], label_time[2])
     end
     E    = isnothing(info.energies) ? Inf : info.energies.total
-    magn = sum(spin_density(info.ρout)) * info.basis.dvol
-    abs_magn = sum(abs, spin_density(info.ρout)) * info.basis.dvol
+    magn = sum(spin_density(info.densities_out.ρ)) * info.basis.dvol
+    abs_magn = sum(abs, spin_density(info.densities_out.ρ)) * info.basis.dvol
 
     tstr = " "^9
     if show_time
@@ -198,7 +198,7 @@ end
 # as opposed to any of these more sophisticated criteria.
 
 function default_diagtolalg(basis; tol, kwargs...)
-    if any(t -> t isa TermNonlinear, basis.terms)
+    if any(t -> t isa NonlinearDensitiesTerm, basis.terms)
         AdaptiveDiagtol()
     else
         AdaptiveDiagtol(; diagtol_first=tol/5)

@@ -53,9 +53,6 @@ function model_atomic(lattice::AbstractMatrix,
              Ewald(),
              PspCorrection(),
              extra_terms...]
-    if :temperature in keys(kwargs) && kwargs[:temperature] != 0
-        terms = [terms..., Entropy()]
-    end
     Model(lattice, atoms, positions; model_name="atomic", terms, kwargs...)
 end
 

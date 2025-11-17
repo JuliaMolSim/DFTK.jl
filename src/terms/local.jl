@@ -4,22 +4,17 @@
 # potential in real space on the grid. If the potential is different in the α and β
 # components then it should be a 4d-array with the last axis running over the
 # two spin components.
-abstract type TermLocalPotential <: TermLinear end
+abstract type TermLocalPotential <: LinearDensitiesTerm end
 
-@timing "ene_ops: local" function ene_ops(term::TermLocalPotential,
-                                          basis::PlaneWaveBasis{T}, ψ, occupation;
-                                          kwargs...) where {T}
-    potview(data, spin) = ndims(data) == 4 ? (@view data[:, :, :, spin]) : data
-    ops = [RealSpaceMultiplication(basis, kpt, potview(term.potential_values, kpt.spin))
-           for kpt in basis.kpoints]
-    if :ρ in keys(kwargs)
-        E = sum(total_density(kwargs[:ρ]) .* term.potential_values) * basis.dvol
-    else
-        E = T(Inf)
-    end
-
-    (; E, ops)
+@timing "energy_potentials: local" function energy_potentials(term::TermLocalPotential,
+                                                              basis::PlaneWaveBasis{T},
+                                                              densities::Densities) where {T}
+    E = sum(total_density(densities.ρ) .* term.potential_values) * basis.dvol
+    pot = ndims(term.potential_values) == 3 ? reshape(term.potential_values, basis.fft_size..., 1) :
+        term.potential_values
+    (; E, potentials=Densities(; ρ=pot))
 end
+needed_densities(::TermLocalPotential) = (:ρ,)
 
 ## External potentials
 

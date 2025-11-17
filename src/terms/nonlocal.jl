@@ -24,26 +24,12 @@ function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
     TermAtomicNonlocal(ops)
 end
 
-struct TermAtomicNonlocal <: TermLinear
+struct TermAtomicNonlocal <: OrbitalsTerm
     ops::Vector{NonlocalOperator}
 end
 
-@timing "ene_ops: nonlocal" function ene_ops(term::TermAtomicNonlocal,
-                                             basis::PlaneWaveBasis{T},
-                                             ψ, occupation; kwargs...) where {T}
-    if isnothing(ψ) || isnothing(occupation)
-        return (; E=T(Inf), term.ops)
-    end
-
-    E = zero(T)
-    for (ik, ψk) in enumerate(ψ)
-        Pψk = term.ops[ik].P' * ψk  # nproj x nband
-        band_enes = dropdims(sum(real.(conj.(Pψk) .* (term.ops[ik].D * Pψk)), dims=1), dims=1)
-        E += basis.kweights[ik] * sum(band_enes .* occupation[ik])
-    end
-    E = mpi_sum(E, basis.comm_kpts)
-
-    (; E, term.ops)
+function ops(term::TermAtomicNonlocal, basis::PlaneWaveBasis{T}) where {T}
+    term.ops
 end
 
 @timing "forces: nonlocal" function compute_forces(::TermAtomicNonlocal,

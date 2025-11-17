@@ -1,3 +1,5 @@
+# TODO: I don't know what to do about this term, it's just cursed :)
+
 # Ref https://arxiv.org/pdf/1901.10739.pdf
 # This term does not contain the kinetic energy, which must be added separately
 # /!\ They have no 1/2 factor in front of the kinetic energy,
