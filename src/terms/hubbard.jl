@@ -20,11 +20,11 @@ struct OrbitalManifold
     atoms::Union{ChemicalSpecies, Vector{Int64}}
     projectors::Union{AbstractString, @NamedTuple{l::Int64, i::Int64}}
 end
-function OrbitalManifold(atom::ElementPsp, label::AbstractString)
-    OrbitalManifold(atom.species, label)
+function OrbitalManifold(atom::ElementPsp, projectors)
+    OrbitalManifold(atom.species, projectors)
 end
-function OrbitalManifold(atom::Symbol, label::AbstractString)
-    OrbitalManifold(ChemicalSpecies(atom), label)
+function OrbitalManifold(atom::Symbol, projectors)
+    OrbitalManifold(ChemicalSpecies(atom), projectors)
 end
 
 """
