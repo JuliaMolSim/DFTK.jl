@@ -64,7 +64,7 @@ end
 
    # Hubbard parameters
    U        = 10u"eV"
-   manifold = OrbitalManifold(atoms, Ni, "3D")
+   manifold = OrbitalManifold(Ni, "3D")
    
    model = model_DFT(lattice, atoms, positions; 
                      extra_terms=[Hubbard(manifold, U)],
