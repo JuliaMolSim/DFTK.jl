@@ -79,6 +79,8 @@ function resolve_hubbard_manifold(manifold::OrbitalManifold, model::Model)
     if manifold.projectors isa AbstractString
         l, i = find_pswfc(psp, manifold.projectors)
     else
+        # guaranteed by union
+        @assert manifold.projectors isa @NamedTuple{l::Int, i::Int}
         (; l, i) = manifold.projectors
     end
 
