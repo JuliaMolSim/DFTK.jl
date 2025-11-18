@@ -40,17 +40,28 @@ plot_pdos(bands; p, iatom=1, label="3D", colors=[:yellow, :orange], εrange)
 #
 # In DFTK there are a few ways to construct the `OrbitalManifold`.
 # Here, we will apply the Hubbard correction on the 3D orbital of all nickel atoms.
+# To select all nickel atoms, we can:
+# - Pass the `Ni` element directly.
+# - Pass the `:Ni` symbol.
+# - Pass the list of atom indices, here `[1, 3]`.
+#
+# To select the orbitals, it is recommended to use their label, such as `"3D"`
+# for PseudoDojo pseudopotentials.
 #
 # Note that "manifold" is the standard term used in the literature for the set of atomic orbitals
 # used to compute the Hubbard correction, but it is not meant in the mathematical sense.
 U = 10u"eV"
-manifold = OrbitalManifold(atoms, Ni, "3D")
+## Alternative:
+## manifold = OrbitalManifold(:Ni, "3D")
+## Alternative:
+## manifold = OrbitalManifold([1, 3], "3D")
+manifold = OrbitalManifold(Ni, "3D")
 
 # Run SCF with a DFT+U setup, notice the `extra_terms` keyword argument, setting up the Hubbard +U term.
 model = model_DFT(lattice, atoms, positions; extra_terms=[Hubbard(manifold, U)],
                   functionals=PBE(), temperature=5e-3, magnetic_moments)
 basis = PlaneWaveBasis(model; Ecut=20, kgrid=[2, 2, 2])
-scfres = self_consistent_field(basis; tol=1e-6, ρ=guess_density(basis, magnetic_moments))
+scfres = self_consistent_field(basis; tol=1e-6, ρ=guess_density(basis, magnetic_moments));
 
 # Run band computation
 bands_hub = compute_bands(scfres, MonkhorstPack(4, 4, 4))

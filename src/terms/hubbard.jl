@@ -8,41 +8,60 @@ Structure for Hubbard manifold choice and projectors extraction.
 to the set of atomic orbitals used to compute the Hubbard correction.
 It is to be noted that this is not meant in the mathematical sense of "manifold".
 
-Overview of fields:
-- `psp`: Pseudopotential containing the atomic orbital projectors
-- `iatoms`: Atom indices that are part of the manifold.
-- `l`: Angular momentum quantum number of the manifold.
-- `i`: Index of the atomic orbital within the given l.
-
-See also the convenience constructors, to construct a manifold more easily.
+The manifold contains two pieces of information:
+- The atomic sites at which the correction is applied.
+  These can either be specified as a chemical species for convenience,
+  or as a list of atom indices for maximum flexibility.
+- The pseudoatomic orbitals to use for the projectors.
+  These can either be specified by their label (e.g. `"3D"` for PseudoDojo),
+  or by their angular momentum number `l` + the corresponding index `i`.
 """
 struct OrbitalManifold
-    psp::NormConservingPsp
-    iatoms::Vector{Int64}
-    l::Int64
-    i::Int64
+    atoms::Union{ChemicalSpecies, Vector{Int}}
+    projectors::Union{AbstractString, @NamedTuple{l::Int, i::Int}}
 end
-function OrbitalManifold(atoms::Vector{<:Element}, atom::ElementPsp, label::AbstractString)
-    OrbitalManifold(atom, findall(at -> at === atom, atoms), label)
+function OrbitalManifold(atom::ElementPsp, projectors)
+    OrbitalManifold(atom.species, projectors)
 end
-function OrbitalManifold(atom::ElementPsp, iatoms::Vector{Int64}, label::AbstractString)
-    OrbitalManifold(atom.psp, iatoms, label)
-end
-function OrbitalManifold(psp::NormConservingPsp, iatoms::Vector{Int64}, label::AbstractString)
-    (; l, i) = find_pswfc(psp, label)
-    OrbitalManifold(psp, iatoms, l, i)
+function OrbitalManifold(atom::Symbol, projectors)
+    OrbitalManifold(ChemicalSpecies(atom), projectors)
 end
 
-function check_hubbard_manifold(manifold::OrbitalManifold, model::Model)
-    for atom in model.atoms[manifold.iatoms]
-        atom isa ElementPsp || error("Orbital manifold elements must have a psp.")
-        atom.psp === manifold.psp || error("Orbital manifold psp $(manifold.psp.identifier) " *
-                                           "does not match the psp of atom $atom")
+"""
+DFTK-internal version of [`OrbitalManifold`](@ref)
+with resolved atom indices and projectors.
+
+This separation allows the manifold to be defined
+without requiring access to the pseudopotential.
+"""
+struct ResolvedOrbitalManifold
+    psp::NormConservingPsp
+    iatoms::Vector{Int}
+    l::Int
+    i::Int
+end
+
+function resolve_hubbard_manifold(manifold::OrbitalManifold, model::Model)
+    if manifold.atoms isa ChemicalSpecies
+        iatoms = findall(at -> species(at) == manifold.atoms, model.atoms)
+    else
+        # guaranteed by union
+        @assert manifold.atoms isa Vector{Int}
+        iatoms = manifold.atoms
     end
-    isempty(manifold.iatoms) && error("Orbital manifold has no atoms.")
+    isempty(iatoms) && error("Orbital manifold has no atoms.")
+
+    atom = first(model.atoms[iatoms])
+    atom isa ElementPsp || error("Orbital manifold elements must have a psp.")
+    psp = atom.psp
+    for atom in model.atoms[iatoms]
+        atom isa ElementPsp || error("Orbital manifold elements must have a psp.")
+        atom.psp === psp || error("Orbital manifold contains multiple psps: " *
+                                  "$(psp.identifier) and $(atom.psp.identifier)")
+    end
     # Tricky: make sure that the iatoms are consistent with the symmetries of the model,
     #         i.e. that the manifold would be a valid atom group
-    atom_positions = model.positions[manifold.iatoms]
+    atom_positions = model.positions[iatoms]
     for symop in model.symmetries
         W, w = symop.W, symop.w
         for coord in atom_positions
@@ -57,10 +76,18 @@ function check_hubbard_manifold(manifold::OrbitalManifold, model::Model)
         end
     end
 
-    nothing
+    if manifold.projectors isa AbstractString
+        l, i = find_pswfc(psp, manifold.projectors)
+    else
+        # guaranteed by union
+        @assert manifold.projectors isa @NamedTuple{l::Int, i::Int}
+        (; l, i) = manifold.projectors
+    end
+
+    ResolvedOrbitalManifold(psp, iatoms, l, i)
 end
 
-function extract_manifold(manifold::OrbitalManifold, projectors, labels)
+function extract_manifold(manifold::ResolvedOrbitalManifold, projectors, labels)
     # We extract the labels only for orbitals belonging to the manifold
     proj_indices = findall(orb -> (orb.iatom in manifold.iatoms
                                 && orb.l     == manifold.l
@@ -88,15 +115,15 @@ struct Hubbard{T}
     end
 end
 function (hubbard::Hubbard)(basis::AbstractBasis)
-    check_hubbard_manifold(hubbard.manifold, basis.model)
+    manifold = resolve_hubbard_manifold(hubbard.manifold, basis.model)
 
     projs, labels = atomic_orbital_projectors(basis)
-    labels, projectors_matrix = extract_manifold(hubbard.manifold, projs, labels)
-    TermHubbard(hubbard.manifold, hubbard.U, projectors_matrix, labels)
+    labels, projectors_matrix = extract_manifold(manifold, projs, labels)
+    TermHubbard(manifold, hubbard.U, projectors_matrix, labels)
 end
 
 struct TermHubbard{T, PT, L} <: Term
-    manifold::OrbitalManifold
+    manifold::ResolvedOrbitalManifold
     U::T   # U value
     P::PT  # projectors
     labels::L
@@ -144,7 +171,7 @@ and ``Pᵢₘ₁`` is the pseudoatomic orbital projector for atom i and orbital 
 (just the magnetic quantum number, since l is fixed, as is usual in the literature).
 For details on the projectors see `atomic_orbital_projectors`.
 """
-function compute_hubbard_n(manifold::OrbitalManifold, projectors, labels,
+function compute_hubbard_n(manifold::ResolvedOrbitalManifold, projectors, labels,
                            basis::PlaneWaveBasis{T}, ψ, occupation) where {T}
     filled_occ = filled_occupation(basis.model)
     n_spin = basis.model.n_spin_components
