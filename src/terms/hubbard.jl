@@ -45,6 +45,8 @@ function resolve_hubbard_manifold(manifold::OrbitalManifold, model::Model)
     if manifold.atoms isa ChemicalSpecies
         iatoms = findall(at -> species(at) == manifold.atoms, model.atoms)
     else
+        # guaranteed by union
+        @assert manifold.atoms isa Vector{Int}
         iatoms = manifold.atoms
     end
     isempty(iatoms) && error("Orbital manifold has no atoms.")

@@ -39,7 +39,42 @@
         D = DFTK.wigner_d_matrix(2, A3)
         @test D ≈ D3d
     end
-end 
+end
+
+@testitem "OrbitalManifold construction" begin
+    using AtomsBase
+    using DFTK
+    using PseudoPotentialData
+
+    a = 7.9  # Bohr
+    lattice = a * [[ 1.0  0.5  0.5];
+                   [ 0.5  1.0  0.5];
+                   [ 0.5  0.5  1.0]]
+    pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
+    Ni = ElementPsp(:Ni, pseudopotentials)
+    O = ElementPsp(:O, pseudopotentials)
+    atoms = [Ni, O, Ni, O]
+    positions = [[0.0, 0.0, 0.0],
+                 [0.25, 0.25, 0.25],
+                 [0.5, 0.5, 0.5],
+                 [0.75, 0.75, 0.75]]
+    model = model_DFT(lattice, atoms, positions; functionals=PBE())
+
+    # Test all supported ways of constructing an OrbitalManifold
+    for manifold in [OrbitalManifold(Ni,                   "3D"),
+                     OrbitalManifold(:Ni,                  "3D"),
+                     OrbitalManifold(ChemicalSpecies(:Ni), "3D"),
+                     OrbitalManifold(Ni,                   (; l=2, i=1)),
+                     OrbitalManifold(:Ni,                  (; l=2, i=1)),
+                     OrbitalManifold(ChemicalSpecies(:Ni), (; l=2, i=1))]
+        resolved_manifold = DFTK.resolve_hubbard_manifold(manifold, model)
+
+        @test resolved_manifold.psp === Ni.psp
+        @test resolved_manifold.iatoms == [1, 3]
+        @test resolved_manifold.l == 2
+        @test resolved_manifold.i == 1
+    end
+end
  
 @testitem "Test Hubbard U term in Nickel Oxide" setup=[TestCases] begin
    using DFTK
