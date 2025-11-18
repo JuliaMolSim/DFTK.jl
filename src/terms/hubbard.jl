@@ -62,7 +62,7 @@ end
 
 function extract_manifold(manifold::OrbitalManifold, projectors, labels)
     # We extract the labels only for orbitals belonging to the manifold
-    proj_indices = findall(orb -> (orb.iatom ∈  manifold.iatoms
+    proj_indices = findall(orb -> (orb.iatom in manifold.iatoms
                                 && orb.l     == manifold.l
                                 && orb.n     == manifold.i), labels)
     isempty(proj_indices) && @warn "Projector for $(manifold) not found."
@@ -97,8 +97,8 @@ end
 
 struct TermHubbard{T, PT, L} <: Term
     manifold::OrbitalManifold
-    U::T     
-    P::PT
+    U::T   # U value
+    P::PT  # projectors
     labels::L
 end
 
@@ -144,17 +144,15 @@ and ``Pᵢₘ₁`` is the pseudoatomic orbital projector for atom i and orbital 
 (just the magnetic quantum number, since l is fixed, as is usual in the literature).
 For details on the projectors see `atomic_orbital_projectors`.
 """
-function compute_hubbard_n(term::TermHubbard,
-                           basis::PlaneWaveBasis{T},
-                           ψ, occupation) where {T}
+function compute_hubbard_n(manifold::OrbitalManifold, projectors, labels,
+                           basis::PlaneWaveBasis{T}, ψ, occupation) where {T}
     filled_occ = filled_occupation(basis.model)
     n_spin = basis.model.n_spin_components
 
-    manifold = term.manifold
     manifold_atoms = manifold.iatoms
     natoms = length(manifold_atoms)
     l = manifold.l
-    projectors = reshape_hubbard_proj(term.P, term.labels, manifold)
+    projectors = reshape_hubbard_proj(projectors, labels, manifold)
     hubbard_n = Array{Matrix{Complex{T}}}(undef, n_spin, natoms, natoms)
     for σ in 1:n_spin
         for idx in 1:natoms, jdx in 1:natoms
@@ -171,6 +169,9 @@ function compute_hubbard_n(term::TermHubbard,
         end
     end
     hubbard_n = symmetrize_hubbard_n(basis.model, manifold, hubbard_n; basis.symmetries)
+end
+function compute_hubbard_n(term::TermHubbard, basis::PlaneWaveBasis, ψ, occupation)
+    compute_hubbard_n(term.manifold, term.P, term.labels, basis, ψ, occupation)
 end
 
 """
