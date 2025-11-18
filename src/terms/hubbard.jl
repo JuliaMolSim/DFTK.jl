@@ -17,8 +17,8 @@ The manifold contains two pieces of information:
   or by their angular momentum number `l` + the corresponding index `i`.
 """
 struct OrbitalManifold
-    atoms::Union{ChemicalSpecies, Vector{Int64}}
-    projectors::Union{AbstractString, @NamedTuple{l::Int64, i::Int64}}
+    atoms::Union{ChemicalSpecies, Vector{Int}}
+    projectors::Union{AbstractString, @NamedTuple{l::Int, i::Int}}
 end
 function OrbitalManifold(atom::ElementPsp, projectors)
     OrbitalManifold(atom.species, projectors)
@@ -36,9 +36,9 @@ without requiring access to the pseudopotential.
 """
 struct ResolvedOrbitalManifold
     psp::NormConservingPsp
-    iatoms::Vector{Int64}
-    l::Int64
-    i::Int64
+    iatoms::Vector{Int}
+    l::Int
+    i::Int
 end
 
 function resolve_hubbard_manifold(manifold::OrbitalManifold, model::Model)
