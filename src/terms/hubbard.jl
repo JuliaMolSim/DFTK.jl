@@ -118,17 +118,14 @@ struct Hubbard{T}
     end
 end
 function (hubbard::Hubbard)(basis::AbstractBasis)
-    for manifold in hubbard.manifolds
-        manifold = resolve_hubbard_manifold(manifold, basis.model)
-    end
-
+    manifolds = [resolve_hubbard_manifold(manifold, basis.model) for manifold in hubbard.manifolds]
     projs, labels = atomic_orbital_projectors(basis)
     manifold_labels, projs_matrices = [], []
-    for manifold in hubbard.manifolds
+    for manifold in manifolds
         push!(manifold_labels, extract_manifold(manifold, projs, labels).manifold_labels)
         push!(projs_matrices, extract_manifold(manifold, projs, labels).manifold_projectors)
     end
-    TermHubbard(hubbard.manifolds, hubbard.U, projs_matrices, manifold_labels)
+    TermHubbard(manifolds, hubbard.U, projs_matrices, manifold_labels)
 end
 
 struct TermHubbard{T, PT, L} <: Term
@@ -188,40 +185,37 @@ and ``Pᵢₘ₁`` is the pseudoatomic orbital projector for atom i and orbital 
 (just the magnetic quantum number, since l is fixed, as is usual in the literature).
 For details on the projectors see `atomic_orbital_projectors`.
 """
-function compute_hubbard_n(term::TermHubbard,
+function compute_hubbard_n(manifold::ResolvedOrbitalManifold,
+                           projectors, labels,
                            basis::PlaneWaveBasis{T},
                            ψ, occupation) where {T}
     filled_occ = filled_occupation(basis.model)
     n_spin = basis.model.n_spin_components
 
-    hubbard_ns = Vector{Array}(undef, length(term.manifolds))
-    for (iman, manifold) in enumerate(term.manifolds)
-        manifold_atoms = manifold.iatoms
-        natoms = length(manifold_atoms)
-        l = manifold.l
-        projectors = reshape_hubbard_proj(term.P[iman], term.labels[iman], manifold)
-        hubbard_n = Array{Matrix{Complex{T}}}(undef, n_spin, natoms, natoms)
-        for σ in 1:n_spin
-            for idx in 1:natoms, jdx in 1:natoms
-                hubbard_n[σ, idx, jdx] = zeros(Complex{T}, 2l+1, 2l+1)
-                for ik = krange_spin(basis, σ)
-                    j_projection = ψ[ik]' * projectors[ik][jdx] # <ψ|ϕJ>
-                    i_projection = projectors[ik][idx]' * ψ[ik] # <ϕI|ψ>
-                    # Sums over the bands, dividing by filled_occ to deal
-                    # with the physical two spin channels separately
-                    hubbard_n[σ, idx, jdx] .+= (basis.kweights[ik] * i_projection *
-                                                diagm(occupation[ik]/filled_occ) * j_projection)
-                end
-                hubbard_n[σ, idx, jdx] = mpi_sum(hubbard_n[σ, idx, jdx], basis.comm_kpts)
+    manifold_atoms = manifold.iatoms
+    natoms = length(manifold_atoms)
+    l = manifold.l
+    projectors = reshape_hubbard_proj(projectors, labels, manifold)
+    hubbard_n = Array{Matrix{Complex{T}}}(undef, n_spin, natoms, natoms)
+    for σ in 1:n_spin
+        for idx in 1:natoms, jdx in 1:natoms
+            hubbard_n[σ, idx, jdx] = zeros(Complex{T}, 2l+1, 2l+1)
+            for ik = krange_spin(basis, σ)
+                j_projection = ψ[ik]' * projectors[ik][jdx] # <ψ|ϕJ>
+                i_projection = projectors[ik][idx]' * ψ[ik] # <ϕI|ψ>
+                # Sums over the bands, dividing by filled_occ to deal
+                # with the physical two spin channels separately
+                hubbard_n[σ, idx, jdx] .+= (basis.kweights[ik] * i_projection *
+                                            diagm(occupation[ik]/filled_occ) * j_projection)
             end
+            hubbard_n[σ, idx, jdx] = mpi_sum(hubbard_n[σ, idx, jdx], basis.comm_kpts)
         end
-        hubbard_n = symmetrize_hubbard_n(basis.model, manifold, hubbard_n; basis.symmetries)
-        hubbard_ns[iman] = hubbard_n
     end
-    hubbard_ns
+    symmetrize_hubbard_n(basis.model, manifold, hubbard_n; basis.symmetries)
 end
 function compute_hubbard_ns(term::TermHubbard, basis::PlaneWaveBasis, ψ, occupation)
-    compute_hubbard_n(term.manifold, term.P, term.labels, basis, ψ, occupation)
+    [compute_hubbard_n(manifold, term.P[iman], term.labels[iman], basis, ψ, occupation)
+     for (iman, manifold) in enumerate(term.manifolds)]
 end
 
 """
