@@ -425,7 +425,7 @@ end
 """
 Symmetrize the Hubbard occupation matrix according to the l quantum number of the manifold.
 """
-function symmetrize_hubbard_n(model, manifold::OrbitalManifold,
+function symmetrize_hubbard_n(model, manifold::ResolvedOrbitalManifold,
                               hubbard_n::Array{Matrix{Complex{T}}};
                               symmetries, tol_symmetry=SYMMETRY_TOLERANCE) where {T}
     # For now we apply symmetries only on nII terms, not on cross-atom terms (nIJ)

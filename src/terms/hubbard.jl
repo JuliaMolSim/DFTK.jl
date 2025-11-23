@@ -4,44 +4,64 @@ using Random
 """
 Structure for Hubbard manifold choice and projectors extraction.
 
-It is to be noted that, despite the name used in literature, this is
-not a manifold in the mathematical sense.
+"Manifold" is the standard name used in the literature to refer
+to the set of atomic orbitals used to compute the Hubbard correction.
+It is to be noted that this is not meant in the mathematical sense of "manifold".
 
-Overview of fields:
-- `psp`: Pseudopotential containing the atomic orbital projectors
-- `iatoms`: Atom indices that are part of the manifold.
-- `l`: Angular momentum quantum number of the manifold.
-- `i`: Index of the atomic orbital within the given l.
-
-See also the convenience constructors, to construct a manifold more easily.
+The manifold contains two pieces of information:
+- The atomic sites at which the correction is applied.
+  These can either be specified as a chemical species for convenience,
+  or as a list of atom indices for maximum flexibility.
+- The pseudoatomic orbitals to use for the projectors.
+  These can either be specified by their label (e.g. `"3D"` for PseudoDojo),
+  or by their angular momentum number `l` + the corresponding index `i`.
 """
 struct OrbitalManifold
-    psp::NormConservingPsp
-    iatoms::Vector{Int64}
-    l::Int64
-    i::Int64
+    atoms::Union{ChemicalSpecies, Vector{Int}}
+    projectors::Union{AbstractString, @NamedTuple{l::Int, i::Int}}
 end
-function OrbitalManifold(atoms::Vector{<:Element}, atom::ElementPsp, label::AbstractString)
-    OrbitalManifold(atom, findall(at -> at === atom, atoms), label)
+function OrbitalManifold(atom::ElementPsp, projectors)
+    OrbitalManifold(atom.species, projectors)
 end
-function OrbitalManifold(atom::ElementPsp, iatoms::Vector{Int64}, label::AbstractString)
-    OrbitalManifold(atom.psp, iatoms, label)
-end
-function OrbitalManifold(psp::NormConservingPsp, iatoms::Vector{Int64}, label::AbstractString)
-    (; l, i) = find_pswfc(psp, label)
-    OrbitalManifold(psp, iatoms, l, i)
+function OrbitalManifold(atom::Symbol, projectors)
+    OrbitalManifold(ChemicalSpecies(atom), projectors)
 end
 
-function check_hubbard_manifold(manifold::OrbitalManifold, model::Model)
-    for atom in model.atoms[manifold.iatoms]
-        atom isa ElementPsp || error("Orbital manifold elements must have a psp.")
-        atom.psp === manifold.psp || error("Orbital manifold psp $(manifold.psp.identifier) " *
-                                           "does not match the psp of atom $atom")
+"""
+DFTK-internal version of [`OrbitalManifold`](@ref)
+with resolved atom indices and projectors.
+
+This separation allows the manifold to be defined
+without requiring access to the pseudopotential.
+"""
+struct ResolvedOrbitalManifold
+    psp::NormConservingPsp
+    iatoms::Vector{Int}
+    l::Int
+    i::Int
+end
+
+function resolve_hubbard_manifold(manifold::OrbitalManifold, model::Model)
+    if manifold.atoms isa ChemicalSpecies
+        iatoms = findall(at -> species(at) == manifold.atoms, model.atoms)
+    else
+        # guaranteed by union
+        @assert manifold.atoms isa Vector{Int}
+        iatoms = manifold.atoms
     end
-    isempty(manifold.iatoms) && error("Orbital manifold has no atoms.")
+    isempty(iatoms) && error("Orbital manifold has no atoms.")
+
+    atom = first(model.atoms[iatoms])
+    atom isa ElementPsp || error("Orbital manifold elements must have a psp.")
+    psp = atom.psp
+    for atom in model.atoms[iatoms]
+        atom isa ElementPsp || error("Orbital manifold elements must have a psp.")
+        atom.psp === psp || error("Orbital manifold contains multiple psps: " *
+                                  "$(psp.identifier) and $(atom.psp.identifier)")
+    end
     # Tricky: make sure that the iatoms are consistent with the symmetries of the model,
     #         i.e. that the manifold would be a valid atom group
-    atom_positions = model.positions[manifold.iatoms]
+    atom_positions = model.positions[iatoms]
     for symop in model.symmetries
         W, w = symop.W, symop.w
         for coord in atom_positions
@@ -56,10 +76,18 @@ function check_hubbard_manifold(manifold::OrbitalManifold, model::Model)
         end
     end
 
-    nothing
+    if manifold.projectors isa AbstractString
+        l, i = find_pswfc(psp, manifold.projectors)
+    else
+        # guaranteed by union
+        @assert manifold.projectors isa @NamedTuple{l::Int, i::Int}
+        (; l, i) = manifold.projectors
+    end
+
+    ResolvedOrbitalManifold(psp, iatoms, l, i)
 end
 
-function extract_manifold(manifold::OrbitalManifold, projectors, labels)
+function extract_manifold(manifold::ResolvedOrbitalManifold, projectors, labels)
     # We extract the labels only for orbitals belonging to the manifold
     proj_indices = findall(orb -> (orb.iatom ∈  manifold.iatoms
                                 && orb.l     == manifold.l
@@ -72,6 +100,12 @@ function extract_manifold(manifold::OrbitalManifold, projectors, labels)
     (; manifold_labels, manifold_projectors)
 end
 
+@doc raw"""
+Hubbard energy, following the Dudarev et al. (1998) rotationally invariant formalism:
+```math
+1/2 Σ_{σI} U * Tr[hubbard_n[σ,I,I] * (1 - hubbard_n[σ,I,I])]
+```
+"""
 struct Hubbard{T}
     manifolds::Vector{OrbitalManifold}
     U::Vector{T}
@@ -85,7 +119,7 @@ struct Hubbard{T}
 end
 function (hubbard::Hubbard)(basis::AbstractBasis)
     for manifold in hubbard.manifolds
-        check_hubbard_manifold(manifold, basis.model)
+        manifold = resolve_hubbard_manifold(manifold, basis.model)
     end
 
     projs, labels = atomic_orbital_projectors(basis)
@@ -98,9 +132,9 @@ function (hubbard::Hubbard)(basis::AbstractBasis)
 end
 
 struct TermHubbard{T, PT, L} <: Term
-    manifolds::Vector{OrbitalManifold}
-    U::Vector{T}
-    P::Vector{PT}
+    manifolds::Vector{ResolvedOrbitalManifold}
+    U::Vector{T}  # U values
+    P::Vector{PT} # projectors per manifold
     labels::Vector{L}
 end
 
@@ -140,7 +174,7 @@ end
 end
 
 """
-    compute_hubbard_n(term::TermHubbard, manifold_index, basis, ψ, occupation)
+    compute_hubbard_n(term::TermHubbard, basis, ψ, occupation)
 
 Computes a matrix hubbard_n of size (n_spin, natoms, natoms), where each entry hubbard_n[σ, iatom, jatom]
 contains the submatrix of the occupation matrix corresponding to the projectors
@@ -186,7 +220,9 @@ function compute_hubbard_n(term::TermHubbard,
     end
     hubbard_ns
 end
-
+function compute_hubbard_ns(term::TermHubbard, basis::PlaneWaveBasis, ψ, occupation)
+    compute_hubbard_n(term.manifold, term.P, term.labels, basis, ψ, occupation)
+end
 
 """
 This function reshapes for each kpoint the projectors matrix to a vector of matrices,
