@@ -79,6 +79,9 @@ struct Hubbard{T}
         U = austrip.(U)
         new{typeof(U[1])}(manifolds, U)
     end
+    function Hubbard(params::Dict)
+        Hubbard(collect(keys(params)), collect(values(params)))
+    end
 end
 function (hubbard::Hubbard)(basis::AbstractBasis)
     for manifold in hubbard.manifolds

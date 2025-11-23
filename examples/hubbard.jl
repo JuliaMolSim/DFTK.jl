@@ -43,13 +43,12 @@ plot_pdos(bands; p, iatom=1, label="3D", colors=[:yellow, :orange], εrange)
 #
 # Note that "manifold" is the standard term used in the literature for the set of atomic orbitals
 # used to compute the Hubbard correction, but it is not a manifold in the mathematical sense.
-U = [10u"eV"]
-manifold = [OrbitalManifold(atoms, Ni, "3D")]
-
+Hubbard_parameters = Dict(OrbitalManifold(atoms, Ni, "3D") => 10u"eV",
+                          OrbitalManifold(atoms, O, "2P")  =>  5u"eV" )
 # Run SCF with a DFT+U setup, notice the `extra_terms` keyword argument, setting up the Hubbard +U term.
-model = model_DFT(lattice, atoms, positions; extra_terms=[Hubbard(manifold, U)],
+model = model_DFT(lattice, atoms, positions; extra_terms=[Hubbard(Hubbard_parameters)],
                   functionals=PBE(), temperature=5e-3, magnetic_moments)
-basis = PlaneWaveBasis(model; Ecut=32, kgrid=[2, 2, 2] )
+basis = PlaneWaveBasis(model; Ecut=32, kgrid=[2, 2, 2])
 scfres = self_consistent_field(basis; tol=1e-10, ρ=guess_density(basis, magnetic_moments))
 
 # Run band computation

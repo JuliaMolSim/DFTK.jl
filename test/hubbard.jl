@@ -63,11 +63,10 @@ end
    magnetic_moments = [2, 0, -1, 0]
 
    # Hubbard parameters
-   U        = [10u"eV"]
-   manifold = [OrbitalManifold(atoms, Ni, "3D")]
+   Hubbard_parameters = Dict(OrbitalManifold(atoms, Ni, "3D") => 10u"eV")
    
    model = model_DFT(lattice, atoms, positions; 
-                     extra_terms=[Hubbard(manifold, U)],
+                     extra_terms=[Hubbard(Hubbard_parameters)],
                      temperature=0.01, functionals=PBE(),
                      smearing=DFTK.Smearing.Gaussian(), magnetic_moments=magnetic_moments)
    basis = PlaneWaveBasis(model; Ecut = 15, kgrid = [2, 2, 2])
