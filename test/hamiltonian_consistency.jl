@@ -51,7 +51,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         τ = compute_kinetic_energy_density(basis, ψ, occupation)
         hubbard_n = nothing
         if term isa Hubbard
-            hubbard_n = DFTK.compute_hubbard_n(only(basis.terms), basis, ψ, occupation)
+            hubbard_n = DFTK.compute_hubbard_ns(only(basis.terms), basis, ψ, occupation)
         end
         E0, ham = energy_hamiltonian(basis, ψ, occupation; ρ, τ, hubbard_n)
 
@@ -66,7 +66,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
             τ_trial = compute_kinetic_energy_density(basis, ψ_trial, occupation)
             hubbard_n_trial = nothing
             if term isa Hubbard
-                hubbard_n_trial = DFTK.compute_hubbard_n(only(basis.terms), basis,
+                hubbard_n_trial = DFTK.compute_hubbard_ns(only(basis.terms), basis,
                                                          ψ_trial, occupation)
             end
             (; energies) = energy_hamiltonian(basis, ψ_trial, occupation;
@@ -108,8 +108,8 @@ end
     test_consistency_term(Hartree())
     let
         Si = ElementPsp(14, load_psp(testcase.psp_upf))
-        test_consistency_term(Hubbard(OrbitalManifold([1, 2], "3P"), 0.01), atom=Si)
-        test_consistency_term(Hubbard(OrbitalManifold([1, 2], "3P"), 0.01), atom=Si,
+        test_consistency_term(Hubbard(OrbitalManifold([1, 2], "3P") => 0.01), atom=Si)
+        test_consistency_term(Hubbard(OrbitalManifold([1, 2], "3P") => 0.01), atom=Si,
                               spin_polarization=:collinear)
     end
     # Disabled since the energy is constant, and the test guards against 0 differences

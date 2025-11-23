@@ -116,6 +116,9 @@ struct Hubbard{T}
     function Hubbard(params::Dict)
         Hubbard(collect(keys(params)), collect(values(params)))
     end
+    function Hubbard(params::Pair)
+        Hubbard([params[1]], [params[2]])
+    end
 end
 function (hubbard::Hubbard)(basis::AbstractBasis)
     manifolds = [resolve_hubbard_manifold(manifold, basis.model) for manifold in hubbard.manifolds]
