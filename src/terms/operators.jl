@@ -204,7 +204,8 @@ function apply!(Hψ, op::ExchangeOperator, ψ)
         Vx_real = ifft(op.basis, Vx_four)
 
         # Real-space multiply and accumulate
-        Hψ.real .-= op.occk[n] .* ψnk_real .* Vx_real
+        fac_nk = op.occk[n] / 2
+        Hψ.real .-= 0.5 * fac_nk .* ψnk_real .* Vx_real 
     end
 end
 # TODO Implement  Matrix(op::ExchangeOperator)

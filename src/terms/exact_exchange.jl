@@ -18,9 +18,24 @@ struct TermExactExchange <: Term
     poisson_green_coeffs::AbstractArray
 end
 function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor) where T
-    poisson_green_coeffs = 4T(π) ./ [sum(abs2, basis.model.recip_lattice * G)
-                                     for G in to_cpu(G_vectors(basis))]
-    poisson_green_coeffs[1] = 0
+    ## spherical cutoff technique
+    Rcut = cbrt(basis.model.unit_cell_volume*3/4/π)
+    poisson_green_coeffs = similar(G_vectors(basis), Float64)
+    for (iG, G) in enumerate(G_vectors(basis))
+        G_cart = basis.model.recip_lattice * G
+        Gnorm2 = sum(abs2, G_cart)
+        if iG > 1
+            poisson_green_coeffs[iG] = 4π / Gnorm2 * (1-cos(Rcut*Gnorm2^0.5))
+        else
+            poisson_green_coeffs[iG] = 2π*Rcut^2  
+        end
+    end
+    poisson_green_coeffs[1] = 2π*Rcut^2
+
+    #poisson_green_coeffs = 4T(π) ./ [sum(abs2, basis.model.recip_lattice * G)
+    #                                 for G in to_cpu(G_vectors(basis))]
+    #poisson_green_coeffs[1] = 0
+
     TermExactExchange(T(scaling_factor), scaling_factor .* poisson_green_coeffs)
 end
 
@@ -61,16 +76,18 @@ end
 
     for (n, ψn) in enumerate(eachcol(ψk))
         ψn_real = ifft(basis, kpt, ψn)
-        for (m, ψm) in enumerate(eachcol(ψk))
-            ψm_real  = ifft(basis, kpt, ψm)
+        for (m, ψm) in enumerate(eachcol(ψk)) # TODO: restrict loop m<=n
+            ψm_real  = ifft(basis, kpt, ψm) # TODO: can we avoid FFT inside loop?
             ρnm_real = conj(ψn_real) .* ψm_real
             ρnm_fourier = fft(basis, ρnm_real)
 
             fac_mn = occk[n] * occk[m] / T(2)
-            E -= fac_mn * real(dot(ρnm_fourier .* term.poisson_green_coeffs, ρnm_fourier))
+            E -= 0.5 * fac_mn * real(dot(ρnm_fourier .* term.poisson_green_coeffs, ρnm_fourier)) 
         end
     end
 
     ops = [ExchangeOperator(basis, kpt, term.poisson_green_coeffs, occk, ψk)]
     (; E, ops)
 end
+
+
