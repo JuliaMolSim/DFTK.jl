@@ -76,7 +76,7 @@ function (cb::ScfDefaultCallback)(info)
         label_diag = show_diag   ? ("   Diag",   "   ----")   : ("", "")
         label_time = show_time   ? ("   Δtime ",  "   ------") : ("", "")
         label_memo = show_memory ? ("   Memory",  "   ------") : ("", "")
-        label_dmem = show_gpumem ? ("   (GPU) ",  "   ------") : ("", "")
+        label_dmem = show_gpumem ? ("   GPUmem",  "   ------") : ("", "")
         @printf "n     Energy            log10(ΔE)   log10(Δρ)"
         println(label_magn[1], label_damp[1], label_diag[1], label_time[1], label_memo[1], label_dmem[1])
         @printf "---   ---------------   ---------   ---------"
