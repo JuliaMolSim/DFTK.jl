@@ -81,7 +81,7 @@ end
 function local_potential_fourier(el::ElementCoulomb, p::T) where {T <: Real}
     p == 0 && return zero(T)  # Compensating charge background
     # General atom => Use default Coulomb potential
-    # We use int_{R^3} -Z/r e^{-i p⋅x} = -4π Z / |p|^2
+    # We use ∫_ℝ³ -Z/r exp(-ix⋅p) = -4π Z / |p|^2
     Z = charge_nuclear(el)
     return -4T(π) * Z / p^2
 end

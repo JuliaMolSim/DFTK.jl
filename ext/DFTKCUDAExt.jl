@@ -8,6 +8,10 @@ using Libxc
 
 DFTK.synchronize_device(::GPU{<:CUDA.CuArray}) = CUDA.synchronize()
 
+function DFTK.memory_usage(::GPU{<:CUDA.CuArray})
+    merge(DFTK.memory_usage(CPU()), (; gpu=CUDA.memory_stats().live))
+end
+
 for fun in (:potential_terms, :kernel_terms)
     @eval function DftFunctionals.$fun(fun::DispatchFunctional,
                                        ρ::CUDA.CuMatrix{Float64}, args...)
