@@ -2,7 +2,7 @@ module DFTKAMDGPUExt
 using AMDGPU
 using PrecompileTools
 using LinearAlgebra
-import DFTK: GPU, precompilation_workflow
+import DFTK: CPU, GPU, precompilation_workflow
 using DFTK
 
 DFTK.synchronize_device(::GPU{<:AMDGPU.ROCArray}) = AMDGPU.synchronize()

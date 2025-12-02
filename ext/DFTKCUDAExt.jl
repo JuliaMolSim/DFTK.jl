@@ -1,7 +1,7 @@
 module DFTKCUDAExt
 using CUDA
 using PrecompileTools
-import DFTK: GPU, DispatchFunctional, precompilation_workflow
+import DFTK: CPU, GPU, DispatchFunctional, precompilation_workflow
 using DftFunctionals
 using DFTK
 using Libxc
