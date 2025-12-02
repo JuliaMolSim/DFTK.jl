@@ -1,4 +1,4 @@
-struct EstimatedMemoryUsage
+struct MemoryStatistics
     n_kpoints::Int
     n_pw::Int
     n_bands::Int
@@ -36,8 +36,11 @@ function estimate_memory_usage(model::Model, basis_args...; basis_kwargs...)
 end
 
 function estimate_memory_usage(basis::PlaneWaveBasis{T}, model=basis.model) where {T}
-    n_kpoints = mpi_max(length(basis.kpoints), basis.comm_kpts)
-    n_pw = mpi_max(length(basis.kpoints[1].G_vectors), basis.comm_kpts)
+    isnothing(model.εF) || error("Cannot estimate memory usage for models with a fixed "
+                                 * "Fermi level, since the number of bands is not known.")
+
+    n_kpoints = maximum(length, basis.krange_allprocs)
+    n_pw = length(basis.kpoints[1].G_vectors)
     n_bands = AdaptiveBands(model).n_bands_compute
 
     ψk_bytes = sizeof(Complex{T}) * n_pw * n_bands
@@ -69,7 +72,7 @@ function estimate_memory_usage(basis::PlaneWaveBasis{T}, model=basis.model) wher
                       + 2 * ψ_bytes + 6 * ψk_bytes
                       + 12 * ρ_bytes)
 
-    EstimatedMemoryUsage(
+    MemoryStatistics(
         n_kpoints, n_pw, n_bands, n_nonlocal_projectors,
         ψk_bytes, nonlocal_Pk_bytes,
         ψ_bytes, ρ_bytes, nonlocal_P_bytes, scf_peak_bytes)

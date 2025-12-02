@@ -137,17 +137,20 @@ function Base.show(io::IO, ::MIME"text/plain", basis::PlaneWaveBasis)
     showfieldln(io, "num. irred. kpoints", basis.n_irreducible_kpoints)
     println(io)
 
-    memstats = estimate_memory_usage(basis)
-    memstatsstr = sprint(show, "text/plain", memstats)
     indent = " " ^ SHOWINDENTION
-    print(io, indent, replace(memstatsstr, "\n" => "\n" * indent))
 
-    println(io)
+    if isnothing(basis.model.εF) # Band count is unknown for a fixed Fermi level
+        memstats = estimate_memory_usage(basis)
+        memstatsstr = sprint(show, "text/plain", memstats)
+        print(io, indent, replace(memstatsstr, "\n" => "\n" * indent))
+        println(io)
+    end
+
     modelstr = sprint(show, "text/plain", basis.model)
     print(io, indent, "Discretized " * replace(modelstr, "\n" => "\n" * indent))
 end
 
-function Base.show(io::IO, ::MIME"text/plain", memstats::EstimatedMemoryUsage)
+function Base.show(io::IO, ::MIME"text/plain", memstats::MemoryStatistics)
     println(io, "Estimated memory usage (per MPI process):")
     function formatbytes(bytes)
         if bytes < 1024

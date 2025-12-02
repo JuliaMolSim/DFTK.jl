@@ -90,6 +90,8 @@ include("Kpoint.jl")
 include("PlaneWaveBasis.jl")
 include("orbitals.jl")
 include("memory_usage.jl")
+# TODO: likely doesn't work on julia 1.10?
+public estimate_memory_usage
 include("input_output.jl")
 
 export create_supercell
