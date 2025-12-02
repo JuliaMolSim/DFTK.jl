@@ -135,11 +135,37 @@ function Base.show(io::IO, ::MIME"text/plain", basis::PlaneWaveBasis)
     showfieldln(io, "kgrid",    basis.kgrid)
     showfieldln(io, "num.   red. kpoints", length(basis.kgrid))
     showfieldln(io, "num. irred. kpoints", basis.n_irreducible_kpoints)
+    println(io)
+
+    memstats = estimate_memory_usage(basis)
+    memstatsstr = sprint(show, "text/plain", memstats)
+    indent = " " ^ SHOWINDENTION
+    print(io, indent, replace(memstatsstr, "\n" => "\n" * indent))
 
     println(io)
     modelstr = sprint(show, "text/plain", basis.model)
-    indent = " " ^ SHOWINDENTION
     print(io, indent, "Discretized " * replace(modelstr, "\n" => "\n" * indent))
+end
+
+function Base.show(io::IO, ::MIME"text/plain", memstats::EstimatedMemoryUsage)
+    println(io, "Estimated memory usage (per MPI process):")
+    function formatbytes(bytes)
+        if bytes < 1024
+            return @sprintf "%3d     B" bytes
+        elseif bytes < 1024^2
+            return @sprintf "%5.1f KiB" (bytes / 1024)
+        elseif bytes < 1024^3
+            return @sprintf "%5.1f MiB" (bytes / 1024^2)
+        else
+            return @sprintf "%5.1f GiB" (bytes / 1024^3)
+        end
+    end
+    if memstats.nonlocal_P_bytes > 0
+        showfieldln(io, "nonlocal projectors", formatbytes(memstats.nonlocal_P_bytes))
+    end
+    showfieldln(io, "single ψ", formatbytes(memstats.ψ_bytes))
+    showfieldln(io, "single ρ", formatbytes(memstats.ρ_bytes))
+    showfieldln(io, "peak during SCF", formatbytes(memstats.scf_peak_bytes))
 end
 
 
