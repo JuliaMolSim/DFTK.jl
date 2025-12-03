@@ -138,7 +138,6 @@ function Base.show(io::IO, ::MIME"text/plain", basis::PlaneWaveBasis)
     println(io)
 
     indent = " " ^ SHOWINDENTION
-
     if isnothing(basis.model.εF) # Band count is unknown for a fixed Fermi level
         memstats = estimate_memory_usage(basis)
         memstatsstr = sprint(show, "text/plain", memstats)

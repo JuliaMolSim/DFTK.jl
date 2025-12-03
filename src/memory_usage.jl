@@ -1,16 +1,23 @@
+"""
+Struct to hold **approximate** memory usage statistics for a standard calculation.
+
+The memory usage is estimated per MPI process, based on the following quantities:
+`n_kpoints`: maximum number of k-points across all MPI processes.
+`n_Gk`: number of G-vectors for one of the k-points, might differ slightly between
+        k-points and processes.
+`n_bands`: estimated number of bands computed during the SCF.
+`n_nonlocal_projectors`: number of non-local projectors in the system.
+"""
 struct MemoryStatistics
     n_kpoints::Int
-    n_pw::Int
+    n_Gk::Int
     n_bands::Int
     n_nonlocal_projectors::Int
-
     ψk_bytes::Int
     nonlocal_Pk_bytes::Int
-
     ψ_bytes::Int
     ρ_bytes::Int
     nonlocal_P_bytes::Int
-
     scf_peak_bytes::Int
 end
 
@@ -40,10 +47,10 @@ function estimate_memory_usage(basis::PlaneWaveBasis{T}, model=basis.model) wher
                                  * "Fermi level, since the number of bands is not known.")
 
     n_kpoints = maximum(length, basis.krange_allprocs)
-    n_pw = length(basis.kpoints[1].G_vectors)
+    n_Gk = length(basis.kpoints[1].G_vectors)
     n_bands = AdaptiveBands(model).n_bands_compute
 
-    ψk_bytes = sizeof(Complex{T}) * n_pw * n_bands
+    ψk_bytes = sizeof(Complex{T}) * n_Gk * n_bands
     ψ_bytes = ψk_bytes * n_kpoints
 
     n_fftpoints = prod(basis.fft_size)
@@ -61,19 +68,20 @@ function estimate_memory_usage(basis::PlaneWaveBasis{T}, model=basis.model) wher
         n_nonlocal_projectors = 0
     end
 
-    nonlocal_Pk_bytes = sizeof(Complex{T}) * n_pw * n_nonlocal_projectors
+    nonlocal_Pk_bytes = sizeof(Complex{T}) * n_Gk * n_nonlocal_projectors
     nonlocal_P_bytes = nonlocal_Pk_bytes * n_kpoints
 
     # For the SCF, we estimate the following:
     # - 1x the nonlocal projectors
     # - 2x the full ψ (current + new) and 6 extra ψk for the LOBPCG
     # - 12x the density (current + new + default Anderson history of 10)
+    # This is a quick guess, the factors can likely be improved.
     scf_peak_bytes = (nonlocal_P_bytes
                       + 2 * ψ_bytes + 6 * ψk_bytes
                       + 12 * ρ_bytes)
 
     MemoryStatistics(
-        n_kpoints, n_pw, n_bands, n_nonlocal_projectors,
+        n_kpoints, n_Gk, n_bands, n_nonlocal_projectors,
         ψk_bytes, nonlocal_Pk_bytes,
         ψ_bytes, ρ_bytes, nonlocal_P_bytes, scf_peak_bytes)
 end
