@@ -62,11 +62,11 @@ jobs:
           version: '1.10'
           arch: ${{ matrix.arch }}
         if: ${{ matrix.mode == 'stable' }}
-      - name: Setup Julia latest (pre-releases included)
+      - name: Setup Julia latest (pre-releases excluded)
         uses: julia-actions/setup-julia@v2
         with:
           version: '1'
-          include-all-prereleases: true
+          include-all-prereleases: false
           arch: x64
         if: ${{ matrix.mode == 'latest' }}
 
