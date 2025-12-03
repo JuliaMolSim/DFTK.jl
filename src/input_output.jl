@@ -150,14 +150,17 @@ function Base.show(io::IO, ::MIME"text/plain", basis::PlaneWaveBasis)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", memstats::MemoryStatistics)
+    function prettify(bytes)
+        @sprintf "  % 6s" TimerOutputs.prettymemory(bytes)
+    end
+
     println(io, "Estimated memory usage (per MPI process):")
     if memstats.nonlocal_P_bytes > 0
-        showfieldln(io, "nonlocal projectors",
-                    TimerOutputs.prettymemory(memstats.nonlocal_P_bytes))
+        showfieldln(io, "nonlocal projectors", prettify(memstats.nonlocal_P_bytes))
     end
-    showfieldln(io, "single ψ", TimerOutputs.prettymemory(memstats.ψ_bytes))
-    showfieldln(io, "single ρ", TimerOutputs.prettymemory(memstats.ρ_bytes))
-    showfieldln(io, "peak during SCF", TimerOutputs.prettymemory(memstats.scf_peak_bytes))
+    showfieldln(io, "single ψ", prettify(memstats.ψ_bytes))
+    showfieldln(io, "single ρ", prettify(memstats.ρ_bytes))
+    showfieldln(io, "peak memory (SCF)", prettify(memstats.scf_peak_bytes))
 end
 
 
