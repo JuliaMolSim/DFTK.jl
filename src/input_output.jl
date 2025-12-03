@@ -152,23 +152,13 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", memstats::MemoryStatistics)
     println(io, "Estimated memory usage (per MPI process):")
-    function formatbytes(bytes)
-        if bytes < 1024
-            return @sprintf "%3d     B" bytes
-        elseif bytes < 1024^2
-            return @sprintf "%5.1f KiB" (bytes / 1024)
-        elseif bytes < 1024^3
-            return @sprintf "%5.1f MiB" (bytes / 1024^2)
-        else
-            return @sprintf "%5.1f GiB" (bytes / 1024^3)
-        end
-    end
     if memstats.nonlocal_P_bytes > 0
-        showfieldln(io, "nonlocal projectors", formatbytes(memstats.nonlocal_P_bytes))
+        showfieldln(io, "nonlocal projectors",
+                    TimerOutputs.prettymemory(memstats.nonlocal_P_bytes))
     end
-    showfieldln(io, "single ψ", formatbytes(memstats.ψ_bytes))
-    showfieldln(io, "single ρ", formatbytes(memstats.ρ_bytes))
-    showfieldln(io, "peak during SCF", formatbytes(memstats.scf_peak_bytes))
+    showfieldln(io, "single ψ", TimerOutputs.prettymemory(memstats.ψ_bytes))
+    showfieldln(io, "single ρ", TimerOutputs.prettymemory(memstats.ρ_bytes))
+    showfieldln(io, "peak during SCF", TimerOutputs.prettymemory(memstats.scf_peak_bytes))
 end
 
 
