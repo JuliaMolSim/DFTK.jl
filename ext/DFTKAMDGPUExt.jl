@@ -2,10 +2,14 @@ module DFTKAMDGPUExt
 using AMDGPU
 using PrecompileTools
 using LinearAlgebra
-import DFTK: GPU, precompilation_workflow
+import DFTK: CPU, GPU, precompilation_workflow
 using DFTK
 
 DFTK.synchronize_device(::GPU{<:AMDGPU.ROCArray}) = AMDGPU.synchronize()
+
+function DFTK.memory_usage(::GPU{<:AMDGPU.ROCArray})
+    merge(DFTK.memory_usage(CPU()), (; gpu=AMDGPU.memory_stats().live))
+end
 
 # Temporary workaround to not trigger https://github.com/JuliaGPU/AMDGPU.jl/issues/734
 function LinearAlgebra.cholesky(A::Hermitian{T, <:AMDGPU.ROCArray}) where {T}
