@@ -25,7 +25,7 @@ function (cb::ScfSaveCheckpoints)(info)
     info
 end
 
-const SCF_CALLBACK_SHOW_MEMORY = convert(Bool, @load_preference("SCF_CALLBACK_SHOW_MEMORY", true))
+const SCF_CALLBACK_SHOW_MEMORY = convert(Bool, @load_preference("SCF_CALLBACK_SHOW_MEMORY", false))
 
 """
 Default callback function for `self_consistent_field` methods,
@@ -34,7 +34,7 @@ which prints a convergence table.
 @kwdef struct ScfDefaultCallback
     show_damping::Bool     = true
     show_time::Bool        = true
-    show_memory::Bool      = true  # SCF_CALLBACK_SHOW_MEMORY
+    show_memory::Bool      = SCF_CALLBACK_SHOW_MEMORY
     prev_time::Ref{UInt64} = Ref(zero(UInt64))
 end
 function (cb::ScfDefaultCallback)(info)
