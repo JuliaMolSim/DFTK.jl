@@ -227,7 +227,7 @@ include("response/chi0.jl")
 include("response/hessian.jl")
 export compute_current
 include("postprocess/current.jl")
-export elastic_constants
+export elastic_tensor
 include("postprocess/elastic.jl")
 export phonon_modes
 include("postprocess/phonon.jl")

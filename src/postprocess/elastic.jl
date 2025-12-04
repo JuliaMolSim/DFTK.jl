@@ -16,8 +16,8 @@ function stress_from_strain(model0, voigt_strain; symmetries, Ecut, kgrid, tol, 
     DFTK.full_stress_to_voigt(compute_stresses_cart(scfres))
 end
 
-"""Computes the *clamped-ion* elastic constants (without ionic relaxation)"""
-function elastic_constants(scfres::NamedTuple; 
+"""Computes the *clamped-ion* elastic tensor (without ionic relaxation)"""
+function elastic_tensor(scfres::NamedTuple; 
                            magnetic_moments=[],
                            Ecut=scfres.basis.Ecut,
                            kgrid=scfres.basis.kgrid,

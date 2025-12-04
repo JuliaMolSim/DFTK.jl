@@ -19,7 +19,7 @@
     basis = PlaneWaveBasis(model0; Ecut, kgrid)
 
     scfres = self_consistent_field(basis; tol)
-    (; voigt_stress, C) = DFTK.elastic_constants(scfres)
+    (; voigt_stress, C) = DFTK.elastic_tensor(scfres)
 
     @test size(voigt_stress) == (6,)
     @test size(C) == (6, 6)
