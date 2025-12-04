@@ -278,4 +278,9 @@ end
         precompilation_workflow(lattice, atoms, positions, magnetic_moments)
     end
 end
+
+function __init__()
+    init_roctx()
+end
+
 end # module DFTK
