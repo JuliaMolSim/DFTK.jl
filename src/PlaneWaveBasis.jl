@@ -262,7 +262,8 @@ end
 
 @doc raw"""
 Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` for the Bloch waves
-and a k-point grid.
+and a k-point grid. See [Performing a convergence study](@ref) for some practical
+recommendations how to choose these numerical parameters.
 
 By default the kinetic energy cutoff `Ecut` and the `supersampling` for the density
 cutoff are determined from the pseudopotentials stored in the `model`. If this
