@@ -49,7 +49,7 @@ recommended_cutoff(family_upf, :Si)
 # but for **Stringent** a `stringent` pseudopotential, such as
 # `PseudoFamily("dojo.nc.sr.lda.v0_4_1.stringent.upf")` is recommended.
 #
-### Temperature and k-point grid
+# ### Temperature and k-point grid
 #
 # The study in [arxiv 2504.03962](http://arxiv.org/abs/2504.03962v1) focused on
 # [`Smearing.MarzariVanderbilt`](@ref) and resulted in the following recommended values.
