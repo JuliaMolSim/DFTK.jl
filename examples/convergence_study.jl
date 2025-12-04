@@ -26,9 +26,10 @@ using PseudoPotentialData
 #
 # Providing general recommendations is difficult. Here, we follow the recent preprint
 # [arxiv 2504.03962](http://arxiv.org/abs/2504.03962v1) in suggesting **Fast**,
-# **Balanced** and **Stringent** protocols. **Fast** is meant for testing purposes,
-# **Balanced** for most practical applications and **Stringent** for cases where
-# higher accuracy is needed.
+# **Balanced** and **Stringent** protocols:
+# - **Fast** is meant for testing purposes and structure optimisations,
+# - **Balanced** for most practical applications and high-throughput settings,
+# - **Stringent** for cases where higher accuracy is needed.
 #
 # Generally for insulators and metals **Balanced** is a good default option.
 # However, for **metals including lanthanide/actinide elements** the **Stringent**
