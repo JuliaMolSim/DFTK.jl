@@ -202,6 +202,16 @@ function construct_value(psp::PspUpf{T,I}) where {T <: AbstractFloat, I <: Abstr
     #       but does not yet permit response derivatives w.r.t. UPF parameters.
     psp
 end
+construct_value(psp::PspLinComb) = psp
+function construct_value(psp::PspLinComb{<: Dual})
+    PspLinComb(psp.lmax,
+               [ForwardDiff.value.(hl) for hl in psp.h],
+               psp.hidx_to_psp_proj,
+               ForwardDiff.value.(psp.coefficients),
+               construct_value.(psp.pseudos),
+               psp.identifier,
+               psp.description)
+end
 
 function construct_value(basis::PlaneWaveBasis{T}) where {T <: Dual}
     # NOTE: This is a pretty slow function as it *recomputes* basically
