@@ -18,7 +18,7 @@ function __init__()
     # Register rocTX instrumentation callbacks if available
     libroctx[] = Libdl.find_library("libroctx64")
     if libroctx[] != ""
-        function push_range(message::String)
+        function push_range(message::Cstring)
             ccall((:roctxRangePushA, libroctx[]), Cvoid, (Cstring,), message)
         end
 

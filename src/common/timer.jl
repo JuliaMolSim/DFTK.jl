@@ -130,6 +130,7 @@ end
 Pop the current range from the instrumentation callbacks.
 """
 function pop_range()
+    # TODO: config option to sync device here
     for cb in instrumentation_callbacks
         ccall(Base.unsafe_convert(Ptr{Cvoid}, cb.pop_range), Cvoid, (Bool,), false)
     end

@@ -147,14 +147,14 @@ end
         to = TimerOutput()  # Thread-local timer output
         ψ_real = storage.ψ_reals
 
-        @timeit to "local" begin
+        @timeit to "local" @instrument "local" begin
             ifft!(ψ_real, H.basis, H.kpoint, ψ[:, iband]; normalize=false)
             ψ_real .*= potential
             fft!(Hψ[:, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
         end
 
         if have_divAgrad
-            @timeit to "divAgrad" begin
+            @timeit to "divAgrad" @instrument "divAgrad" begin
                 apply!((; fourier=Hψ[:, iband], real=nothing),
                        H.divAgrad_op,
                        (; fourier=ψ[:, iband], real=nothing);
