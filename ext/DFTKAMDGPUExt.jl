@@ -1,6 +1,7 @@
 module DFTKAMDGPUExt
 using AMDGPU
 using PrecompileTools
+import Libdl
 using LinearAlgebra
 import DFTK: CPU, GPU, precompilation_workflow
 using DFTK
@@ -9,6 +10,32 @@ DFTK.synchronize_device(::GPU{<:AMDGPU.ROCArray}) = AMDGPU.synchronize()
 
 function DFTK.memory_usage(::GPU{<:AMDGPU.ROCArray})
     merge(DFTK.memory_usage(CPU()), (; gpu=AMDGPU.memory_stats().live))
+end
+
+global const libroctx = Ref{String}("")
+
+function __init__()
+    # Register rocTX instrumentation callbacks if available
+    libroctx[] = Libdl.find_library("libroctx64")
+    if libroctx[] != ""
+        function push_range(message::Cstring)
+            ccall((:roctxRangePushA, libroctx[]), Cvoid, (Cstring,), message)
+        end
+
+        function pop_range(sync_device::Bool)
+            ccall((:roctxRangePop, libroctx[]), Cvoid, ())
+            if sync_device
+                AMDGPU.synchronize()
+            end
+        end
+
+        DFTK.register_instrumentation_callback(
+            "ROC-TX",
+            push_range,
+            pop_range)
+    else
+        @warn "libroctx64 is unavailable, ROCm instrumentation will be disabled."
+    end
 end
 
 # Temporary workaround to not trigger https://github.com/JuliaGPU/AMDGPU.jl/issues/734

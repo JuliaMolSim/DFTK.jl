@@ -278,4 +278,5 @@ end
         precompilation_workflow(lattice, atoms, positions, magnetic_moments)
     end
 end
+
 end # module DFTK
