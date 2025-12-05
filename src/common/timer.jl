@@ -1,5 +1,4 @@
 import ExprTools: splitdef, combinedef
-import Libdl
 using Preferences
 
 # Control whether timings are enabled or not, by default yes
@@ -12,6 +11,9 @@ const timer = TimerOutput()
 """
 Shortened version of the `@timeit` macro from `TimerOutputs`,
 which writes to the DFTK timer.
+
+Also wraps the code in [`push_range`](@ref)/[`pop_range`](@ref) calls for
+instrumentation when running on the GPU.
 """
 macro timing(args...)
     length(args) >= 1 || error("@timing requires at least one argument: an expression to time")
@@ -32,11 +34,11 @@ macro timing(args...)
 
             @gensym val
             def[:body] = quote
-                $(roctx_push)($(label))
+                $(push_range)($(label))
                 $(Expr(
                     :tryfinally,
                     :($val = $(def[:body])),
-                    :($(roctx_pop)()),
+                    :($(pop_range)()),
                 ))
                 $val
             end
@@ -48,16 +50,16 @@ macro timing(args...)
             label = args[1]
 
             Expr(:block,
-                :(roctx_push($(esc(label)))),
+                blocks[1],                  # the timing setup
                 Expr(:tryfinally,
                     Expr(:block,
-                        blocks[1],                  # the timing setup
+                        :(push_range($(esc(label)))),
                         Expr(:tryfinally,
                             :($(esc(args[end]))),   # the user expr
-                            :($(blocks[2]))         # the timing finally
+                            :(pop_range()),
                         ),
                     ),
-                    :(roctx_pop()),
+                    :($(blocks[2]))         # the timing finally
                 )
             )
         end
@@ -66,26 +68,68 @@ macro timing(args...)
     end
 end
 
+"""
+Wraps the code in [`push_range`](@ref)/[`pop_range`](@ref) calls for
+instrumentation when running on the GPU.
+"""
+macro instrument(label, expr)
+    @static if @load_preference("timer_enabled", "true") == "true"
+        Expr(:block,
+            :(push_range($(esc(label)))),
+            Expr(:tryfinally,
+                :($(esc(expr))),
+                :(pop_range()),
+            ),
+        )
+    else
+        :($(esc(expr)))
+    end
+end
+
 function set_timer_enabled!(state=true)
     @set_preferences!("timer_enabled" => string(state))
     @info "timer_enabled preference changed. This is a permanent change, restart julia to see the effect."
 end
 
-# TODO: decide where to put it; it should remain trigger dynamically to avoid invalidating all precompilations
-const roctx_lib = Ref{String}("")
-
-function init_roctx()
-    roctx_lib[] = Libdl.find_library("libroctx64")
+"""
+Registered pair of instrumentation callbacks.
+We use function pointers to avoid the overhead of dynamic dispatch.
+"""
+# TODO: should we store a ref to the callbacks as well, to make sure they don't get GCed?
+struct InstrumentationCallback
+    name
+    # (message::Cstring,) -> Cvoid
+    push_range::Ptr{Cvoid}
+    # (sync_device::Bool,) -> Cvoid
+    pop_range::Ptr{Cvoid}
 end
 
-function roctx_push(message)
-    if roctx_lib[] != ""
-        ccall((:roctxRangePushA, roctx_lib[]), Cvoid, (Cstring,), message)
+const instrumentation_callbacks = InstrumentationCallback[]
+
+function register_instrumentation_callback(name, push_cb, pop_cb)
+    push!(instrumentation_callbacks, InstrumentationCallback(
+        name,
+        @cfunction($push_cb, Cvoid, (Cstring,)),
+        @cfunction($pop_cb, Cvoid, (Bool,)),
+    ))
+end
+
+"""
+Push a new range to the instrumentation callbacks.
+This should be followed by a corresponding [`pop_range`](@ref) call,
+preferably using a `try...finally` block.
+"""
+function push_range(message::String)
+    for cb in instrumentation_callbacks
+        ccall(cb.push_range, Cvoid, (Cstring,), message)
     end
 end
 
-function roctx_pop()
-    if roctx_lib[] != ""
-        ccall((:roctxRangePop, roctx_lib[]), Cvoid, ())
+"""
+Pop the current range from the instrumentation callbacks.
+"""
+function pop_range()
+    for cb in instrumentation_callbacks
+        ccall(cb.pop_range, Cvoid, (Bool,), false)
     end
 end

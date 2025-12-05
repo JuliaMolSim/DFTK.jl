@@ -279,8 +279,4 @@ end
     end
 end
 
-function __init__()
-    init_roctx()
-end
-
 end # module DFTK
