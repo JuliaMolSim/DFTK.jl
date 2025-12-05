@@ -91,17 +91,17 @@ function set_timer_enabled!(state=true)
     @info "timer_enabled preference changed. This is a permanent change, restart julia to see the effect."
 end
 
+# TODO: should probably use FunctionWrappers since closure cfunction won't work on arm...
 """
 Registered pair of instrumentation callbacks.
 We use function pointers to avoid the overhead of dynamic dispatch.
 """
-# TODO: should we store a ref to the callbacks as well, to make sure they don't get GCed?
 struct InstrumentationCallback
     name
     # (message::Cstring,) -> Cvoid
-    push_range::Ptr{Cvoid}
+    push_range::Base.CFunction
     # (sync_device::Bool,) -> Cvoid
-    pop_range::Ptr{Cvoid}
+    pop_range::Base.CFunction
 end
 
 const instrumentation_callbacks = InstrumentationCallback[]
@@ -112,6 +112,7 @@ function register_instrumentation_callback(name, push_cb, pop_cb)
         @cfunction($push_cb, Cvoid, (Cstring,)),
         @cfunction($pop_cb, Cvoid, (Bool,)),
     ))
+    nothing
 end
 
 """
@@ -121,7 +122,7 @@ preferably using a `try...finally` block.
 """
 function push_range(message::String)
     for cb in instrumentation_callbacks
-        ccall(cb.push_range, Cvoid, (Cstring,), message)
+        ccall(Base.unsafe_convert(Ptr{Cvoid}, cb.push_range), Cvoid, (Cstring,), message)
     end
 end
 
@@ -130,6 +131,6 @@ Pop the current range from the instrumentation callbacks.
 """
 function pop_range()
     for cb in instrumentation_callbacks
-        ccall(cb.pop_range, Cvoid, (Bool,), false)
+        ccall(Base.unsafe_convert(Ptr{Cvoid}, cb.pop_range), Cvoid, (Bool,), false)
     end
 end
