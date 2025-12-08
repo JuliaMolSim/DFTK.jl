@@ -1,4 +1,4 @@
-struct PairwisePotential
+struct PairwisePotential <: TermType
     V
     params
     max_radius

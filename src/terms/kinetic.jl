@@ -4,7 +4,7 @@ Kinetic energy:
 1/2 ∑_n f_n ∫ |∇ψ_n|^2 * {\rm blowup}(-i∇Ψ_n).
 ```
 """
-Base.@kwdef struct Kinetic{F}
+Base.@kwdef struct Kinetic{F} <: TermType
     scaling_factor::Real = 1
     blowup::F = BlowupIdentity()  # Blow-up to smooth energy bands.
 end

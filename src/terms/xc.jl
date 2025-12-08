@@ -1,7 +1,7 @@
 """
 Exchange-correlation term, defined by a list of functionals and usually evaluated through libxc.
 """
-struct Xc
+struct Xc <: TermType
     functionals::Vector{Functional}
     scaling_factor::Real  # Scales by an arbitrary factor (useful for exploration)
 
@@ -25,14 +25,7 @@ end
 
 function Base.show(io::IO, xc::Xc)
     fac = isone(xc.scaling_factor) ? "" : ", scaling_factor=$(xc.scaling_factor)"
-    functional_identifiers = map(xc.functionals) do f
-        if f isa DispatchFunctional
-            string(f.inner.identifier)
-        else
-            string(f)
-        end
-    end
-    fun = join(functional_identifiers, ", ")
+    fun = join(xc.functionals, ", ")
     print(io, "Xc($fun$fac)")
 end
 

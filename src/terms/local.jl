@@ -30,7 +30,7 @@ end
 """
 External potential given as values.
 """
-struct ExternalFromValues
+struct ExternalFromValues <: TermType
     potential_values::AbstractArray
 end
 function (external::ExternalFromValues)(basis::PlaneWaveBasis{T}) where {T}
@@ -43,7 +43,7 @@ end
 External potential from an analytic function `V` (in Cartesian coordinates).
 No low-pass filtering is performed.
 """
-struct ExternalFromReal
+struct ExternalFromReal <: TermType
     potential::Function
 end
 
@@ -56,7 +56,7 @@ end
 External potential from the (unnormalized) Fourier coefficients `V(G)`
 G is passed in Cartesian coordinates
 """
-struct ExternalFromFourier
+struct ExternalFromFourier <: TermType
     potential::Function
 end
 function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
@@ -103,7 +103,7 @@ end
 """
 Atomic local potential defined by `model.atoms`.
 """
-struct AtomicLocal end
+struct AtomicLocal <: TermType end
 function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model.positions,
                                  q=zero(Vec3{T})) where {T}
     # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}

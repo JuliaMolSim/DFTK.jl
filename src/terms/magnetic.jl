@@ -4,13 +4,13 @@
 @doc raw"""
 Magnetic term ``A⋅(-i∇)``. It is assumed (but not checked) that ``∇⋅A = 0``.
 """
-struct Magnetic
+struct Magnetic <: TermType
     Afunction::Function  # A(x,y,z) returns [Ax,Ay,Az]
                          # both [x,y,z] and [Ax,Ay,Az] are in *Cartesian* coordinates
 end
 (M::Magnetic)(basis) = TermMagnetic(basis, M.Afunction)
 
-struct MagneticFromValues
+struct MagneticFromValues <: TermType
     # Apotential[α] is an array of size fft_size for α=1:3
     Apotential::Vector{<:AbstractArray}
 end
