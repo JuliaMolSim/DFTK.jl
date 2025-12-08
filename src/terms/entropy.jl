@@ -4,7 +4,7 @@ Turns the energy ``E`` into the free energy ``F=E-TS``.
 This is in particular useful because the free energy,
 not the energy, is minimized at self-consistency.
 """
-struct Entropy end
+struct Entropy <: TermType end
 (::Entropy)(basis) = TermEntropy()
 struct TermEntropy <: Term end
 

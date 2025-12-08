@@ -5,7 +5,7 @@ Nonlocal term coming from norm-conserving pseudopotentials in Kleinmann-Bylander
     ∑_a ∑_{ij} ∑_{n} f_n \braket{ψ_n}{{\rm proj}_{ai}} D_{ij} \braket{{\rm proj}_{aj}}{ψ_n}.
 ```
 """
-struct AtomicNonlocal end
+struct AtomicNonlocal <: TermType end
 function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
 

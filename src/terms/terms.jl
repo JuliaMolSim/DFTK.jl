@@ -25,9 +25,6 @@ apply_kernel(term::TermLinear, basis::AbstractBasis, δρ; kwargs...) = nothing
 # contribution that is density-dependent or orbital-dependent as well)
 abstract type TermNonlinear <: Term end
 
-### Builders are objects X that store the term parameters, and produce a
-# XTerm <: Term when instantiated with a `basis`
-
 # TODO If needed improve this further by specialising energy() for certain terms
 function energy(term::Term, basis::AbstractBasis, ψ, occupation; kwargs...)
     ene_ops(term, basis, ψ, occupation; kwargs...).E
@@ -45,10 +42,10 @@ end
 
 include("Hamiltonian.jl")
 
-# breaks_symmetries on a term builder answers true if this term breaks
+# breaks_symmetries on a term type answers true if this term breaks
 # the symmetries of the lattice/atoms (in which case k-point reduction
 # is invalid)
-breaks_symmetries(::Any) = false
+breaks_symmetries(::TermType) = false
 
 include("kinetic.jl")
 

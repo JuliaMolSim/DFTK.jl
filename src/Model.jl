@@ -1,5 +1,12 @@
 # Contains the physical specification of the model
 
+# A builder for a term in the energy functional / Hamiltonian.
+# Term types are objects X that store the term parameters, and produce a
+# XTerm <: Term when instantiated with a `basis`.
+# See also `terms/terms.jl`
+# We have to define this here to avoid circular dependencies.
+abstract type TermType end
+
 # A physical specification of a model.
 # Contains the geometry information, but no discretization parameters.
 # The exact model used is defined by the list of terms.
@@ -53,10 +60,10 @@ struct Model{T <: Real, VT <: Real}
     positions::Vector{Vec3{T}}  # positions[i] is the location of atoms[i] in fract. coords
     atom_groups::Vector{Vector{Int}}  # atoms[i] == atoms[j] for all i, j in atom_group[α]
 
-    # each element t must implement t(basis), which instantiates a
-    # term in a given basis and gives back a term (<: Term)
+    # each element t must be <: TermType and implement t(basis), which
+    # instantiates a term in a given basis and gives back a term (<: Term)
     # see terms.jl for some default terms
-    term_types::Vector
+    term_types::Vector{TermType}
 
     # list of symmetries of the model
     symmetries::Vector{SymOp{VT}}

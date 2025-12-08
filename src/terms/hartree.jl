@@ -11,7 +11,7 @@ For the Coulomb potential with periodic boundary conditions, this is rather
 where G is the Green's function of the periodic Laplacian with zero
 mean (``-Δ G = ∑_R 4π δ_R``, integral of G zero on a unit cell).
 """
-struct Hartree
+struct Hartree <: TermType
     scaling_factor::Real  # to scale by an arbitrary factor (useful for exploration)
 end
 Hartree(; scaling_factor=1) = Hartree(scaling_factor)

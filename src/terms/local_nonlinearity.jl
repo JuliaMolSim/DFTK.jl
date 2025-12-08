@@ -1,7 +1,7 @@
 """
 Local nonlinearity, with energy ∫f(ρ) where ρ is the density
 """
-struct LocalNonlinearity
+struct LocalNonlinearity <: TermType
     f
 end
 struct TermLocalNonlinearity{TF} <: TermNonlinear

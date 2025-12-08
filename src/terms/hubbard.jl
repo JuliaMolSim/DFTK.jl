@@ -106,7 +106,7 @@ Hubbard energy, following the Dudarev et al. (1998) rotationally invariant forma
 1/2 Σ_{σI} U * Tr[hubbard_n[σ,I,I] * (1 - hubbard_n[σ,I,I])]
 ```
 """
-struct Hubbard{T}
+struct Hubbard{T} <: TermType
     manifold::OrbitalManifold
     U::T
     function Hubbard(manifold::OrbitalManifold, U)

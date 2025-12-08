@@ -1,7 +1,7 @@
 """
 Exchange-correlation term, defined by a list of functionals and usually evaluated through libxc.
 """
-struct Xc
+struct Xc <: TermType
     functionals::Vector{Functional}
     scaling_factor::Real  # Scales by an arbitrary factor (useful for exploration)
 
@@ -38,17 +38,8 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
         ρcore = ρ_from_total(basis, atomic_total_density(basis, CoreDensity()))
         minimum(ρcore) < -sqrt(eps(T)) && @warn("Negative ρcore detected: $(minimum(ρcore))")
     end
-    functionals = map(xc.functionals) do fun
-        # Strip duals from functional parameters if needed
-        params = parameters(fun)
-        if !isempty(params)
-            newparams = convert_dual.(T, params)
-            fun = change_parameters(fun, newparams; keep_identifier=true)
-        end
-        fun
-    end
-    TermXc(convert(Vector{Functional}, functionals),
-           convert_dual(T, xc.scaling_factor),
+    TermXc(xc.functionals,
+           T(xc.scaling_factor),
            T(xc.potential_threshold), ρcore)
 end
 

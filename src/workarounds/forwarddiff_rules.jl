@@ -1,5 +1,6 @@
 import ForwardDiff
 import ForwardDiff: Dual
+import Functors: fmap
 import AbstractFFTs
 
 # original PR by mcabbott: https://github.com/JuliaDiff/ForwardDiff.jl/pull/495
@@ -172,7 +173,7 @@ function construct_value(model::Model{T}) where {T <: Dual}
           model.model_name,
           model.n_electrons,
           magnetic_moments=value_type(T)[],  # Symmetries given explicitly
-          terms=model.term_types,
+          terms=map(construct_value, model.term_types),
           temperature=ForwardDiff.value(model.temperature),
           model.smearing,
           εF=ForwardDiff.value(model.εF),
@@ -201,6 +202,16 @@ function construct_value(psp::PspUpf{T,I}) where {T <: AbstractFloat, I <: Abstr
     # NOTE: This permits non-Dual UPF pseudos to be used in ForwardDiff computations,
     #       but does not yet permit response derivatives w.r.t. UPF parameters.
     psp
+end
+
+# by default, don't convert term types
+construct_value(x::TermType) = x
+function construct_value(x::Xc)
+    Xc(map(construct_value, x.functionals), ForwardDiff.value(x.scaling_factor),
+       x.potential_threshold, x.use_nlcc)
+end
+function construct_value(functional::DftFunctionals.Functional)
+    fmap(ForwardDiff.value, functional)
 end
 
 function construct_value(basis::PlaneWaveBasis{T}) where {T <: Dual}

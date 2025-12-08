@@ -58,7 +58,7 @@ function make_div_free(basis::PlaneWaveBasis{T}, A) where {T}
     [irfft(basis, out[α]) for α = 1:2]
 end
 
-struct Anyonic
+struct Anyonic <: TermType
     hbar
     β
 end

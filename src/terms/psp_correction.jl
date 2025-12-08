@@ -1,7 +1,7 @@
 """
 Pseudopotential correction energy. TODO discuss the need for this.
 """
-struct PspCorrection end
+struct PspCorrection <: TermType end
 (::PspCorrection)(basis) = TermPspCorrection(basis)
 
 struct TermPspCorrection{T} <: TermLinear
