@@ -39,7 +39,7 @@ import DifferentiationInterface: AutoForwardDiff, value_and_derivative
 """
 Invert the metric operator M.
 """
-function invert_refinement_metric(basis::PlaneWaveBasis{T}, ψ, res) where {T}
+@timing function invert_refinement_metric(basis::PlaneWaveBasis{T}, ψ, res) where {T}
     # Apply the M_n operator.
     function apply_M!(ψk, Pk, δψnk, n)
         proj_tangent_kpt!(δψnk, ψk)
@@ -112,10 +112,10 @@ Only full occupations are currently supported.
 Returns a [`RefinementResult`](@ref) instance that can be used to refine quantities of interest,
 through [`refine_energies`](@ref) and [`refine_forces`](@ref).
 """
-function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T};
-                       tol=1e-6,
-                       occ_threshold=default_occupation_threshold(T),
-                       kwargs...) where {T}
+@timing function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T};
+                               tol=1e-6,
+                               occ_threshold=default_occupation_threshold(T),
+                               kwargs...) where {T}
     basis = scfres.basis
 
     @assert basis.model.lattice == basis_ref.model.lattice
@@ -143,7 +143,7 @@ function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T};
     e2 = invert_refinement_metric(basis_ref, ψr, resHF)
 
     # Apply Ω+K to -M^{-1}_22 R_2(P)
-    Λ = map(hamr.blocks, ψr) do Hk, ψk
+    @timing "Λ computation" Λ = map(hamr.blocks, ψr) do Hk, ψk
         Hψk = Hk * ψk
         ψk'Hψk
     end # Rayleigh coefficients
@@ -170,7 +170,7 @@ Refine energies using a [`RefinementResult`](@ref).
 
 The refined energies can be obtained by E + dE.
 """
-function refine_energies(refinement::RefinementResult{T}) where {T}
+@timing function refine_energies(refinement::RefinementResult{T}) where {T}
     term_names = [string(nameof(typeof(term))) for term in refinement.basis.model.term_types]
 
     f(ε) = energy(refinement.basis,
@@ -186,7 +186,7 @@ Refine forces using a [`RefinementResult`](@ref).
 
 The refined forces can be obtained by F + dF.
 """
-function refine_forces(refinement::RefinementResult{T}) where {T}
+@timing function refine_forces(refinement::RefinementResult{T}) where {T}
     # Arrays of arrays are not officially supported by ForwardDiff.
     # Reinterpret the Vector{SVector{3}} as a flat vector for differentiation.
     pack(x) = reinterpret(eltype(eltype(x)), x) # eltype is a Dual not just T!
