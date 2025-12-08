@@ -89,6 +89,7 @@ include("fft.jl")
 include("Kpoint.jl")
 include("PlaneWaveBasis.jl")
 include("orbitals.jl")
+include("memory_usage.jl")
 include("input_output.jl")
 
 export create_supercell
@@ -112,6 +113,8 @@ export AtomicNonlocal
 export Ewald
 export PspCorrection
 export Entropy
+export Hubbard
+export OrbitalManifold
 export Magnetic
 export PairwisePotential
 export Anyonic

@@ -221,3 +221,13 @@ count_n_pswfc(psp::NormConservingPsp, l) = count_n_pswfc_radial(psp, l) * (2l + 
 function count_n_pswfc(psp::NormConservingPsp)
     sum(l -> count_n_pswfc(psp, l), 0:psp.lmax; init=0)::Int
 end
+
+function find_pswfc(psp::NormConservingPsp, label::String)
+    for l = 0:psp.lmax, i = 1:count_n_pswfc_radial(psp, l)
+        if pswfc_label(psp, i, l) == label
+            return (; l, i)
+        end
+    end
+    error("Could not find pseudo atomic orbital with label $label "
+          * "in pseudopotential $(psp.identifier).")
+end

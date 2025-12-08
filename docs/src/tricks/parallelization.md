@@ -2,6 +2,8 @@
 
 This section summarizes the options DFTK offers
 to monitor and influence performance of the code.
+For details on running DFTK on HPC systems,
+see also [Using DFTK on compute clusters](@ref) and [Using DFTK on GPUs](@ref).
 
 ```@setup parallelization
 using DFTK

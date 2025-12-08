@@ -75,7 +75,7 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
     density = LibxcDensities(basis, max_ρ_derivs, ρ, τ)
 
-    if !isnothing(term.ρcore) && !isnothing(τ)
+    if !isnothing(term.ρcore) && needs_τ(term)
         negative_α = @views any(1:n_spin) do iσ
             # α = (τ - τ_W) / τ_unif should be positive with τ_W = |∇ρ|² / 8ρ
             # equivalently, check 8ρτ - |∇ρ|² ≥ 0

@@ -1,12 +1,16 @@
 module DFTKCUDAExt
 using CUDA
 using PrecompileTools
-import DFTK: GPU, DispatchFunctional, precompilation_workflow
+import DFTK: CPU, GPU, DispatchFunctional, precompilation_workflow
 using DftFunctionals
 using DFTK
 using Libxc
 
 DFTK.synchronize_device(::GPU{<:CUDA.CuArray}) = CUDA.synchronize()
+
+function DFTK.memory_usage(::GPU{<:CUDA.CuArray})
+    merge(DFTK.memory_usage(CPU()), (; gpu=CUDA.memory_stats().live))
+end
 
 for fun in (:potential_terms, :kernel_terms)
     @eval function DftFunctionals.$fun(fun::DispatchFunctional,
