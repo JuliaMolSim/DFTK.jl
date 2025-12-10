@@ -22,6 +22,20 @@ function LinearAlgebra.LAPACK.gesdd!(jobz::Char, A::AMDGPU.ROCArray{T}) where {T
     AMDGPU.rocSOLVER.gesvd!(jobz, jobz, A)
 end
 
+# Temporary workaround for 5-argumet mul!, where performance is very bad when array
+# element types and scaling factors types differ.
+# See https://github.com/JuliaGPU/AMDGPU.jl/issues/866#issuecomment-3636981853
+# Scaling a Float/Complex matrix with an Integer:
+function LinearAlgebra.mul!(C::AMDGPU.ROCArray{T}, A::AMDGPU.ROCArray{T}, B::AMDGPU.ROCArray{T},
+                            α::U, β::U) where {T<:Union{AbstractFloat,Complex}, U<:Integer}
+    LinearAlgebra.mul!(C, A, B, T(α), T(β))
+end
+# Scaling a Complex matrix with a Float:
+function LinearAlgebra.mul!(C::AMDGPU.ROCArray{T}, A::AMDGPU.ROCArray{T}, B::AMDGPU.ROCArray{T},
+                            α::U, β::U) where {T<:Complex, U<:AbstractFloat}
+    LinearAlgebra.mul!(C, A, B, T(α), T(β))
+end
+
 # Ensure precompilation is only performed if an AMD GPU is available
 if AMDGPU.functional()
     # Precompilation block with a basic workflow
