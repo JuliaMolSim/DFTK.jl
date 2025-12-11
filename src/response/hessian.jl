@@ -106,7 +106,7 @@ Solve density-functional perturbation theory problem,
 that is return δψ where (Ω+K) δψ = -δHextψ.
 """
 @timing function solve_ΩplusK(basis::PlaneWaveBasis{T}, ψ, δHextψ, occupation;
-                              callback=ResponseCallback(), tol=1e-10) where {T}
+                              callback=ResponseCallback(), tol=1e-10, kwargs...) where {T}
     # for now, all orbitals have to be fully occupied -> need to strip them beforehand
     check_full_occupation(basis, occupation)
 
@@ -154,7 +154,7 @@ that is return δψ where (Ω+K) δψ = -δHextψ.
         pack(δψ)
     end
     res = cg(J, -δHextψ_pack; precon=FunctionPreconditioner(f_ldiv!), proj, tol,
-             callback, comm=basis.comm_kpts)
+             callback, comm=basis.comm_kpts, kwargs...)
     (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norm,
      res.n_iter)
 end
