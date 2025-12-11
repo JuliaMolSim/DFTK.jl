@@ -47,7 +47,7 @@ As such all pseudopotentials in the system must contain nonlocal projectors.
 This is for example satisfied by ONCVPSP-generated pseudopotentials.
 """
 # TODO: there is a bunch of type instability in this function, mostly coming from the psps
-function select_refinement_Ecutref(basis::PlaneWaveBasis{T}, ψ, occ;
+@timing function select_refinement_Ecutref(basis::PlaneWaveBasis{T}, ψ, occ;
                                    η=10, Ecut=basis.Ecut,
                                    # Max Ecutref we will consider selecting
                                    Ecutrefmax = T(4) * Ecut,
