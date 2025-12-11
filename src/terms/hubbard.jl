@@ -89,7 +89,7 @@ end
 
 function extract_manifold(manifold::ResolvedOrbitalManifold, projectors, labels)
     # We extract the labels only for orbitals belonging to the manifold
-    proj_indices = findall(orb -> (orb.iatom in manifold.iatoms
+    proj_indices = findall(orb -> (orb.iatom ∈  manifold.iatoms
                                 && orb.l     == manifold.l
                                 && orb.n     == manifold.i), labels)
     isempty(proj_indices) && @warn "Projector for $(manifold) not found."
@@ -107,51 +107,68 @@ Hubbard energy, following the Dudarev et al. (1998) rotationally invariant forma
 ```
 """
 struct Hubbard{T}
-    manifold::OrbitalManifold
-    U::T
-    function Hubbard(manifold::OrbitalManifold, U)
-        U = austrip(U)
-        new{typeof(U)}(manifold, U)
+    manifolds::Vector{OrbitalManifold}
+    U::Vector{T}
+    function Hubbard(manifolds::Vector{OrbitalManifold}, U)
+        U = austrip.(U)
+        new{typeof(U[1])}(manifolds, U)
+    end
+    function Hubbard(params::Dict)
+        Hubbard(collect(keys(params)), collect(values(params)))
+    end
+    function Hubbard(params::Pair)
+        Hubbard([params[1]], [params[2]])
     end
 end
 function (hubbard::Hubbard)(basis::AbstractBasis)
-    manifold = resolve_hubbard_manifold(hubbard.manifold, basis.model)
-
+    manifolds = [resolve_hubbard_manifold(manifold, basis.model) for manifold in hubbard.manifolds]
     projs, labels = atomic_orbital_projectors(basis)
-    labels, projectors_matrix = extract_manifold(manifold, projs, labels)
-    TermHubbard(manifold, hubbard.U, projectors_matrix, labels)
+    manifold_labels, projs_matrices = [], []
+    for manifold in manifolds
+        push!(manifold_labels, extract_manifold(manifold, projs, labels).manifold_labels)
+        push!(projs_matrices, extract_manifold(manifold, projs, labels).manifold_projectors)
+    end
+    TermHubbard(manifolds, hubbard.U, projs_matrices, manifold_labels)
 end
 
 struct TermHubbard{T, PT, L} <: Term
-    manifold::ResolvedOrbitalManifold
-    U::T   # U value
-    P::PT  # projectors
-    labels::L
+    manifolds::Vector{ResolvedOrbitalManifold}
+    U::Vector{T}  # U values
+    P::Vector{PT} # projectors per manifold
+    labels::Vector{L}
 end
 
-@timing "ene_ops: hubbard" function ene_ops(term::TermHubbard,
-                                            basis::PlaneWaveBasis{T},
+@timing "ene_ops: hubbard" function ene_ops(term::TermHubbard, 
+                                            basis::PlaneWaveBasis{T}, 
                                             ψ, occupation; hubbard_n=nothing,
                                             kwargs...) where {T}
     if isnothing(hubbard_n)
        return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
     end
-    proj = term.P
+    # Concatenate projectors from all manifolds per k-point as well as U value for each projector
+    projs = [hcat((P_manifold[ik] for P_manifold in term.P)...) for ik in 1:length(term.P[1])]
+    U = [term.U[iman] for iman in 1:length(term.manifolds) for _ in 1:size(term.P[iman][1],2)]
 
     filled_occ = filled_occupation(basis.model)
-    natoms = length(term.manifold.iatoms)
     n_spin = basis.model.n_spin_components
-    nproj_atom = size(hubbard_n[1,1,1], 1) # This is the number of projectors per atom, namely 2l+1
-    # For the ops we have to reshape hubbard_n to match the NonlocalOperator structure, using a block diagonal form
-    nhub = [zeros(Complex{T}, nproj_atom*natoms, nproj_atom*natoms) for _ in 1:n_spin]
+    # For the ops we have to reshape hubbard_n to match the NonlocalOperator structure, 
+    # using a block diagonal form whit one block per atom per manifold
+    # 2l+1 is the number of projectors per atom, i.e. the dimension of the blocks
+    nhub_size = sum((2*manifold.l+1)*length(manifold.iatoms) for manifold in term.manifolds)
+    nhub = [zeros(Complex{T}, nhub_size, nhub_size) for _ in 1:n_spin]
     E = zero(T)
-    for σ in 1:n_spin, iatom in 1:natoms
-        proj_range = (1+nproj_atom*(iatom-1)):(nproj_atom*iatom)
-        nhub[σ][proj_range, proj_range] = hubbard_n[σ, iatom, iatom]
-        E += filled_occ * 1/T(2) * term.U *
-             real(tr(hubbard_n[σ, iatom, iatom] * (I - hubbard_n[σ, iatom, iatom])))
+    offset = 0
+    for (iman, manifold) in enumerate(term.manifolds)
+        nproj_atom = (2*manifold.l+1)
+        for σ in 1:n_spin, iatom in 1:length(manifold.iatoms)
+            proj_range = (offset + (iatom-1)*nproj_atom + 1):(offset + iatom*nproj_atom)
+            nhub[σ][proj_range, proj_range] = hubbard_n[iman][σ, iatom, iatom]
+            E += filled_occ * 1/T(2) * term.U[iman] *
+                 real(tr(hubbard_n[iman][σ, iatom, iatom] * (I - hubbard_n[iman][σ, iatom, iatom])))
+        end
+        offset += nproj_atom*length(manifold.iatoms)
     end
-    ops = [NonlocalOperator(basis, kpt, proj[ik], 1/T(2) * term.U * (I - 2*nhub[kpt.spin])) 
+    ops = [NonlocalOperator(basis, kpt, projs[ik], 1/T(2) * U .* (I - 2*nhub[kpt.spin])) 
            for (ik,kpt) in enumerate(basis.kpoints)]
     return (; E, ops)
 end
@@ -171,8 +188,10 @@ and ``Pᵢₘ₁`` is the pseudoatomic orbital projector for atom i and orbital 
 (just the magnetic quantum number, since l is fixed, as is usual in the literature).
 For details on the projectors see `atomic_orbital_projectors`.
 """
-function compute_hubbard_n(manifold::ResolvedOrbitalManifold, projectors, labels,
-                           basis::PlaneWaveBasis{T}, ψ, occupation) where {T}
+function compute_hubbard_n(manifold::ResolvedOrbitalManifold,
+                           projectors, labels,
+                           basis::PlaneWaveBasis{T},
+                           ψ, occupation) where {T}
     filled_occ = filled_occupation(basis.model)
     n_spin = basis.model.n_spin_components
 
@@ -195,10 +214,11 @@ function compute_hubbard_n(manifold::ResolvedOrbitalManifold, projectors, labels
             hubbard_n[σ, idx, jdx] = mpi_sum(hubbard_n[σ, idx, jdx], basis.comm_kpts)
         end
     end
-    hubbard_n = symmetrize_hubbard_n(basis.model, manifold, hubbard_n; basis.symmetries)
+    symmetrize_hubbard_n(basis.model, manifold, hubbard_n; basis.symmetries)
 end
-function compute_hubbard_n(term::TermHubbard, basis::PlaneWaveBasis, ψ, occupation)
-    compute_hubbard_n(term.manifold, term.P, term.labels, basis, ψ, occupation)
+function compute_hubbard_ns(term::TermHubbard, basis::PlaneWaveBasis, ψ, occupation)
+    [compute_hubbard_n(manifold, term.P[iman], term.labels[iman], basis, ψ, occupation)
+     for (iman, manifold) in enumerate(term.manifolds)]
 end
 
 """
