@@ -109,6 +109,7 @@ This is for example satisfied by ONCVPSP-generated pseudopotentials.
         end
     end
     @assert offset == size(DPψs[1], 1)
+    mpi_sum!(integrand, basis.comm_kpts)
 
     @views function get_error(qi)
         return sqrt(DFTK.simpson(integrand[qi:end], qs[qi:end]) / (2π)^3)
@@ -119,18 +120,23 @@ This is for example satisfied by ONCVPSP-generated pseudopotentials.
     Ecut_error = get_error(qcut_i)
 
     # Find Eref such that the error is reduced by η
+    selected_Ecutref = nothing
     for qref_i in qcut_i+1:length(qs)
         Ecutref = qs[qref_i]^2/2
         if Ecutref > Ecutrefmax
             @warn "Could not find suitable Ecutref up to $Ecutrefmax Hartree."
+            selected_Ecutref = Ecutrefmax
             break
         end
         if get_error(qref_i) <= Ecut_error / η
-            return Ecutref
+            selected_Ecutref = Ecutref
+            break
         end
     end
 
-    return Ecutrefmax
+    # Take the max across all processes in case there is a slight difference
+    # in the selected Ecutref
+    return mpi_max(selected_Ecutref, basis.comm_kpts)
 end
 
 """
