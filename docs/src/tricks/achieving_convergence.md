@@ -40,7 +40,7 @@ basis = PlaneWaveBasis(model; Ecut=15, kgrid=(3, 3, 3))
 
 - Try the adaptive damping algorithm by
   using [`DFTK.scf_potential_mixing_adaptive`](@ref)
-  instead of `self_consistent_field`:
+  instead of [`self_consistent_field`](@ref):
   ```@example convergence
   DFTK.scf_potential_mixing_adaptive(basis; tol=1e-10)
   ```

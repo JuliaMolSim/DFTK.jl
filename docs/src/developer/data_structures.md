@@ -74,23 +74,23 @@ not limited to DFT. Convenience constructors are provided for common cases:
 - `model_atomic`: A linear model, which contains no electron-electron interaction
   (neither Hartree nor XC term).
 
-## `PlaneWaveBasis` and plane-wave discretisations
+## [`PlaneWaveBasis`](@ref) and plane-wave discretisations
 
-The `PlaneWaveBasis` datastructure handles the discretization of a
+The [`PlaneWaveBasis`](@ref) datastructure handles the discretization of a
 given `Model` in a plane-wave basis.
 In plane-wave methods the discretization is twofold:
 Once the ``k``-point grid, which determines the sampling
 *inside* the Brillouin zone and on top of that a finite
 plane-wave grid to discretise the lattice-periodic functions.
 The former aspect is controlled by the `kgrid` argument
-of `PlaneWaveBasis`, the latter is controlled by the
+of [`PlaneWaveBasis`](@ref), the latter is controlled by the
 cutoff energy parameter `Ecut`:
 
 ```@example data_structures
 PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
 ```
 
-The `PlaneWaveBasis` by default uses symmetry to reduce the number of
+The [`PlaneWaveBasis`](@ref) by default uses symmetry to reduce the number of
 `k`-points explicitly treated. For details see
 [Crystal symmetries](@ref).
 
