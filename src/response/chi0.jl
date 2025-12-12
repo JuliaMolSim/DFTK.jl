@@ -409,9 +409,7 @@ to the Hamiltonian change `δH` represented by the matrix-vector products `δHψ
     # We then use the extra information we have from these additional bands,
     # non-necessarily converged, to split the Sternheimer_solver with a Schur
     # complement.
-    occ_thresh = occupation_threshold
-    mask_occ   = map(occk -> findall(occnk -> abs(occnk) ≥ occ_thresh, occk), occupation)
-    mask_extra = map(occk -> findall(occnk -> abs(occnk) < occ_thresh, occk), occupation)
+    (mask_occ, mask_extra) = occupied_empty_masks(occupation, occupation_threshold)
 
     ψ_occ   = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ)]
     ψ_extra = [ψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_extra)]
@@ -563,7 +561,7 @@ function construct_bandtol(Bandtol::Type, basis::PlaneWaveBasis, ψ, occupation:
     Ω  = basis.model.unit_cell_volume
     Ng = prod(basis.fft_size)
     Nk = length(basis.kpoints)
-    mask_occ = map(ok -> findall(onk -> abs(onk) ≥ occupation_threshold, ok), occupation)
+    mask_occ = occupied_empty_masks(occupation, occupation_threshold).mask_occ
 
     # Including k-points the expression (3.11) in 2505.02319 becomes
     #   with Φk = (ψ_{1,k} … ψ_{n,k})_k  (Concatenation of all occupied orbitals for this k)
@@ -575,6 +573,7 @@ function construct_bandtol(Bandtol::Type, basis::PlaneWaveBasis, ψ, occupation:
     # Distributing the error equally across all k-points leads to (with w = sqrt(Ω / Ng))
     #   ‖z_{nk}‖ ≤ sqrt(Ω / Ng) / (‖K v_i‖ sqrt(Nocck) ‖Re(F⁻¹ Φk)‖_{2,∞} * 2f_{nk} Nk wk)
     # If we bound ‖Re(F⁻¹ Φk)‖_{2,∞} from below this is sqrt(Nocc / Ω).
+    # See also section SM6 and Table SM4 in 2505.02319.
     #
     # Note that the kernel term ||K v_i|| of 2505.02319 is dropped here as it purely arises
     # from the rescaling of the RHS performed in apply_χ0 above. Consequently the function
@@ -598,10 +597,13 @@ function construct_bandtol(Bandtol::Type, scfres::NamedTuple; kwargs...)
 end
 
 function adaptive_bandtol_orbital_term_(::Type{BandtolGuaranteed}, basis, kpt, ψk, mask_k)
-    # Orbital term ‖Re(F⁻¹ Φk)‖_{2,∞} for thik k-point
+    # Orbital term ‖F⁻¹ Φk‖_{2,∞} for thik k-point
+    # Note that compared to the paper we deliberately do not take the real part,
+    # since taking the real part represents an additional approximation
+    # (thus making the strategy less guaranteed)
     row_sums_squared = sum(mask_k) do n
         ψnk_real = @views ifft(basis, kpt, ψk[:, n])
-        abs2.(real.(ψnk_real))
+        abs2.(ψnk_real)
     end
     sqrt(maximum(row_sums_squared))
 end

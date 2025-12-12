@@ -8,6 +8,7 @@ and runs out of the box on Linux, windows and macOS, see [Installation](@ref).
 ## Standard methods and models
 - DFT models (LDA, GGA, meta-GGA): Any functional from the
   [libxc](https://libxc.gitlab.io/) library
+- DFT+U and Hubbard corrections
 - **Norm-conserving pseudopotentials**: Goedecker-type (GTH)
   or numerical (in UPF pseudopotential format),
   see [Pseudopotentials](@ref).
@@ -25,14 +26,15 @@ and runs out of the box on Linux, windows and macOS, see [Installation](@ref).
 
 ## Ground-state properties and post-processing
 - Total energy, forces, stresses
-- Density of states (DOS), local density of states (LDOS)
+- Density of states (DOS), local density of states (LDOS), projected density of states (PDOS)
 - Band structures
 - Easy access to all intermediate quantities (e.g. density, Bloch waves)
 
 ## Response and response properties
 - Density-functional perturbation theory (DFPT)
 - Integration of DFPT with **algorithmic differentiation**,
-  e.g. [Polarizability using automatic differentiation](@ref)
+  e.g. [Elastic constants](@ref),
+  [Polarizability using automatic differentiation](@ref)
 - [Phonon computations](@ref) *(preliminary implementation)*
 
 ## Unique features
