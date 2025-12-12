@@ -23,7 +23,19 @@
 
     @test size(voigt_stress) == (6,)
     @test size(C) == (6, 6)
-    # @test norm(C - Cref) < 3e-6  # ~0.1 GPa
+
+    # From this same test (only useful for regression testing)
+    C11 = 0.0051139072904275796
+    C12 = 0.001550846627726103
+    C44 = 0.003144827210436044
+    Cref = [C11 C12 C12 0   0   0;
+             C12 C11 C12 0   0   0;
+             C12 C12 C11 0   0   0;
+             0   0   0   C44 0   0;
+             0   0   0   0   C44 0;
+             0   0   0   0   0   C44]
+    @test isapprox(C, Cref; atol=tol)
+    # TODO could also compare values with ABINIT DFPT
 
     # Compare against finite difference of the stress
     h = 1e-5
