@@ -17,8 +17,7 @@ codes such as [Abinit](https://www.abinit.org/),
 DFTK's source code is [publicly available on github](https://dftk.org).
 
 If you are new to density-functional theory or plane-wave methods,
-see our notes on [Periodic problems](@ref periodic-problems) and our
-collection of [Introductory resources](@ref introductory-resources).
+see our collection of [Introductory resources](@ref introductory-resources).
 
 Found a bug, missing a feature? Look for an open issue or
 [create a new one](https://github.com/JuliaMolSim/DFTK.jl/issues).
@@ -35,6 +34,7 @@ An ideal starting point are the [Examples on basic DFT calculations](@ref metall
     Therefore results are far from converged.
     Tighter thresholds and larger grids should be used for
     more realistic results.
+    See also the tutorial on [Performing a convergence study](@ref).
 
 If you have an idea for an addition to the docs or see something wrong,
 please open an [issue](https://github.com/JuliaMolSim/DFTK.jl/issues)

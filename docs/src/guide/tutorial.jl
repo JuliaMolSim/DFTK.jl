@@ -6,20 +6,19 @@
 #
 # This document provides an overview of the structure of the code
 # and how to access basic information about calculations.
+# If you have not installed DFTK yet, please refer to the [Installation](@ref) instructions.
+#
 # Basic familiarity with the concepts of plane-wave density functional theory
-# is assumed throughout. Feel free to take a look at the
-#md # [Periodic problems](@ref periodic-problems)
-#nb # [Periodic problems](https://docs.dftk.org/stable/guide/periodic_problems/)
-# or the
-#md # [Introductory resources](@ref introductory-resources)
-#nb # [Introductory resources](https://docs.dftk.org/stable/guide/introductory_resources/)
-# chapters for some introductory material on the topic.
+# is assumed throughout this tutorial.
+# Feel free to take a look at the [Introductory resources](@ref introductory-resources)
+# for some introductory material on the topic.
 #
 # !!! note "Convergence parameters in the documentation"
 #     We use rough parameters in order to be able
 #     to automatically generate this documentation very quickly.
 #     Therefore results are far from converged.
 #     Tighter thresholds and larger grids should be used for more realistic results.
+#     See also the tutorial on [Performing a convergence study](@ref).
 #
 # For our discussion we will use the classic example of computing the LDA ground state
 # of the [silicon crystal](https://www.materialsproject.org/materials/mp-149).
@@ -123,10 +122,11 @@ plot_dos(scfres; temperature=1e-3, smearing=Smearing.FermiDirac())
 bands2 = compute_bands(scfres, MonkhorstPack(6, 6, 6))
 plot_dos(bands2; temperature=1e-3, smearing=Smearing.FermiDirac())
 # Note, that some other codes would refer to the functionality
-# we provide with compute_bands` as "performing a NSCF calculation".
+# we provide with `compute_bands` as "performing a NSCF calculation".
 
 # !!! info "Where to go from here"
 #     - **Background on DFT:**
+#       * [Introductory resources](@ref introductory-resources),
 #       * [Periodic problems](@ref periodic-problems),
 #       * [Introduction to density-functional theory](@ref),
 #       * [Self-consistent field methods](@ref)
