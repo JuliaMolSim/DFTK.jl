@@ -17,9 +17,9 @@ architecture-specific package ([CUDA](https://github.com/JuliaGPU/CUDA.jl),
 ## Current implementation
 
 For now, GPU computations are done by specializing the `architecture` keyword argument
-when creating the basis. `architecture` should be an initialized instance of
-the (non-exported) `CPU` and `GPU` structures. `CPU` does not require any argument,
-but `GPU` requires the type of array which will be used for GPU computations.
+when creating the [`PlaneWaveBasis`](@ref). `architecture` should be an initialized instance of
+the (non-exported) [`CPU`](@ref) and [`GPU`](@ref) structures. [`CPU`](@ref) does not require any argument,
+but [`GPU`](@ref) requires the type of array which will be used for GPU computations.
 
 ```julia
 PlaneWaveBasis(model; Ecut, kgrid, architecture = DFTK.CPU())
@@ -30,7 +30,7 @@ PlaneWaveBasis(model; Ecut, kgrid, architecture = DFTK.GPU(CuArray))
     Julia ecosystem concerning distributed architectures.
 
 Not all terms can be used when doing GPU computations. As of January 2023 this
-concerns `Anyonic`, `Magnetic` and `TermPairwisePotential`. Similarly GPU features are
+concerns [`Anyonic`](@ref), [`Magnetic`](@ref) and [`TermPairwisePotential`](@ref). Similarly GPU features are
 not yet exhaustively tested, and it is likely that some aspects of the code such as
 automatic differentiation or stresses will not work.
 
@@ -40,7 +40,7 @@ There are a few things to keep in mind when doing GPU programming in DFTK.
 an other type. However, hard-coding the new array type (such as writing
 `CuArray(A)` to move `A` to a CUDA GPU) is not cross-architecture, and can
 be confusing for developers working only on the CPU code. These data transfers
-should be done using the helper functions `to_device` and `to_cpu` which
+should be done using the helper functions [`to_device`](@ref) and [`to_cpu`](@ref) which
 provide a level of abstraction while also allowing multiple architectures
 to be used.
 ```julia
