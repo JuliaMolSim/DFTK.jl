@@ -46,7 +46,7 @@ function estimate_memory_usage(basis::PlaneWaveBasis{T}, model=basis.model) wher
     isnothing(model.εF) || error("Cannot estimate memory usage for models with a fixed "
                                  * "Fermi level, since the number of bands is not known.")
 
-    n_kpoints = maximum(length, basis.krange_allprocs)
+    n_kpoints = maximum(krange -> length(krange[1]), basis.krange_allprocs)
     n_Gk = length(basis.kpoints[1].G_vectors)
     n_bands = AdaptiveBands(model).n_bands_compute
 
