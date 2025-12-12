@@ -196,7 +196,7 @@
 #   ``u_{kn}`` is not stored (in favor of ``ψ_{kn}``).
 # - ``ε_{kn}`` is called `eigenvalues`.
 # - ``k``-points are represented by `Kpoint` and respective variables called `kpt`.
-# - The basis of plane waves is managed by `PlaneWaveBasis` and variables usually just called `basis`.
+# - The basis of plane waves is managed by [`PlaneWaveBasis`](@ref) and variables usually just called `basis`.
 #
 # ## Solving the free-electron Hamiltonian
 #
@@ -235,17 +235,17 @@ using Plots
 
 plot_bandstructure(basis; n_bands=6, kline_density=100)
 
-# !!! note "Selection of k-point grids in `PlaneWaveBasis` construction"
+# !!! note "Selection of k-point grids in [`PlaneWaveBasis`](@ref) construction"
 #     You might wonder why we only selected a single ``k``-point (clearly a very crude
 #     and inaccurate approximation). In this example the `kgrid` parameter specified
-#     in the construction of the `PlaneWaveBasis`
+#     in the construction of the [`PlaneWaveBasis`](@ref)
 #     is not actually used for plotting the bands. It is only used when solving more
 #     involved models like density-functional theory (DFT) where the Hamiltonian is
 #     non-linear. In these cases before plotting the bands the self-consistent field
 #     equations (SCF) need to be solved first. This is typically done on
 #     a different ``k``-point grid than the grid used for the bands later on.
 #     In our case we don't need this extra step and therefore the `kgrid` value passed
-#     to `PlaneWaveBasis` is actually arbitrary.
+#     to [`PlaneWaveBasis`](@ref) is actually arbitrary.
 
 
 # ## Adding potentials
