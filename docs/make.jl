@@ -182,23 +182,34 @@ function add_badges(badges)
 end
 
 # Run Literate on them all
-for file in literate_files
-    subfolder = relpath(file.dest, SRCPATH)
-    if CONTINUOUS_INTEGRATION
-        badges = [
-            "[![](https://mybinder.org/badge_logo.svg)]" *
+if get(ENV, "DFTK_EXECUTE_CODE", false) == "true"
+    @debug "Processing literate files"
+    for file in literate_files
+        @debug "Processing" file.src file.dest
+        subfolder = relpath(file.dest, SRCPATH)
+        if CONTINUOUS_INTEGRATION
+            badges = [
+                "[![](https://mybinder.org/badge_logo.svg)]" *
                 "(@__BINDER_ROOT_URL__/$subfolder/@__NAME__.ipynb)",
-            "[![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)]" * 
+                "[![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)]" *
                 "(@__NBVIEWER_ROOT_URL__/$subfolder/@__NAME__.ipynb)",
-        ]
-    else
-        badges = ["Binder links to `/$subfolder/@__NAME__.ipynb`"]
+            ]
+        else
+            badges = ["Binder links to `/$subfolder/@__NAME__.ipynb`"]
+        end
+        Literate.markdown(
+            file.src, file.dest;
+            flavor=Literate.DocumenterFlavor(),
+            credit=false,
+            preprocess=add_badges(badges),
+            execute=true,
+            codefence="````julia" => "````",
+        )
+        # Literate.notebook(file.src, file.dest; credit=false,
+        #                   execute=CONTINUOUS_INTEGRATION || DEBUG)
     end
-    Literate.markdown(file.src, file.dest;
-                      flavor=Literate.DocumenterFlavor(),
-                      credit=false, preprocess=add_badges(badges))
-    Literate.notebook(file.src, file.dest; credit=false,
-                      execute=CONTINUOUS_INTEGRATION || DEBUG)
+else
+    @info "Skipping Literate processing of files"
 end
 
 # Generate the docs in BUILDPATH
@@ -225,7 +236,7 @@ makedocs(;
         prettyurls=CONTINUOUS_INTEGRATION,
         canonical="https://docs.dftk.org/stable/",
         edit_link="master",
-        assets=["assets/favicon.ico"],
+        assets=["assets/favicon.ico", "assets/custom.css"],
         size_threshold=nothing,  # do not fail build if large HTML outputs
         mathengine,
     ),
@@ -245,16 +256,6 @@ end
 # Deploy docs to gh-pages branch
 # Note: Overwrites the commit history via a force push (saves storage space)
 deploydocs(; repo=DFTKREPO, devbranch="master", forcepush=true)
-
-# Remove generated example files
-if !DEBUG
-    for file in literate_files
-        base = splitext(basename(file.src))[1]
-        for ext in [".ipynb", ".md"]
-            rm(joinpath(file.dest, base * ext), force=true)
-        end
-    end
-end
 
 if !CONTINUOUS_INTEGRATION
     println("\nDocs generated, try $(joinpath(BUILDPATH, "index.html"))")
