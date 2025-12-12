@@ -190,12 +190,12 @@
 # Before solving a few example problems numerically in DFTK, a short overview
 # of the correspondence of the introduced quantities to data structures inside DFTK.
 #
-# - ``H`` is represented by a `Hamiltonian` object and variables for hamiltonians are usually called `ham`.
-# - ``H_k`` by a `HamiltonianBlock` and variables are `hamk`.
+# - ``H`` is represented by a [`Hamiltonian`](@ref) object and variables for hamiltonians are usually called `ham`.
+# - ``H_k`` by a [`HamiltonianBlock`](@ref) and variables are `hamk`.
 # - ``ψ_{kn}`` is usually just called `ψ`.
 #   ``u_{kn}`` is not stored (in favor of ``ψ_{kn}``).
 # - ``ε_{kn}`` is called `eigenvalues`.
-# - ``k``-points are represented by `Kpoint` and respective variables called `kpt`.
+# - ``k``-points are represented by [`Kpoint`](@ref) and respective variables called `kpt`.
 # - The basis of plane waves is managed by [`PlaneWaveBasis`](@ref) and variables usually just called `basis`.
 #
 # ## Solving the free-electron Hamiltonian
@@ -268,7 +268,7 @@ plot_bandstructure(basis; n_bands=6, kline_density=100)
 #     (see [Gross-Pitaevskii equation in one dimension](@ref gross-pitaevskii))
 #   * even some more unusual cases like anyonic models.
 #
-# We will use `ElementGaussian`, which is an analytic potential describing a Gaussian
+# We will use [`ElementGaussian`](@ref), which is an analytic potential describing a Gaussian
 # interaction with the electrons to DFTK. See [Custom potential](@ref custom-potential) for
 # how to create a custom potential.
 #
