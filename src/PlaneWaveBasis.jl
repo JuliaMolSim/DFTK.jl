@@ -13,10 +13,10 @@ abstract type AbstractBasis{T <: Real} end
 @doc raw"""
 A plane-wave discretized `Model`.
 Normalization conventions:
-- Things that are expressed in the G basis are normalized so that if ``x`` is the vector,
+- Things that are expressed in the ``G`` basis are normalized so that if ``x`` is the vector,
   then the actual function is ``\sum_G x_G e_G`` with
   ``e_G(x) = e^{iG x} / \sqrt(\Omega)``, where ``\Omega`` is the unit cell volume.
-  This is so that, eg ``norm(ψ) = 1`` gives the correct normalization.
+  This is so that, eg `norm(ψ) = 1` gives the correct normalization.
   This also holds for the density and the potentials.
 - Quantities expressed on the real-space grid are in actual values.
 
@@ -261,25 +261,76 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
 end
 
 @doc raw"""
-Creates a `PlaneWaveBasis` using the kinetic energy cutoff `Ecut` for the Bloch waves
-and a k-point grid. See [Performing a convergence study](@ref) for some practical
-recommendations how to choose these numerical parameters.
+Creates a plane-wave discretization of a given [`Model`](@ref).
 
-By default the kinetic energy cutoff `Ecut` and the `supersampling` for the density
-cutoff are determined from the pseudopotentials stored in the `model`. If this
-cannot be done automatically the `Ecut` keyword argument needs to be provided.
+`PlaneWaveBasis` defines the reciprocal-space basis used for Bloch orbitals and the
+real-space FFT grid used for densities and potentials. It bundles the kinetic-energy
+cutoff `Ecut`, k-point sampling into a single object which
+is then used by the Hamiltonian and SCF machinery.
 
-By default a [`MonkhorstPack`](@ref) grid is employed corresponding to a maximal k-point
-spacing of `2π * 0.022` per Bohr. This can be changed via the `kgrid` keyword argument,
-where one can pass a [`MonkhorstPack`](@ref) object, a vector of three integers or
-a [`KgridSpacing`](@ref) object, which will generate the actual number of k-points
-to ensure a minimal k-point density (a certain maximal spacing between k-points).
+The constructor attempts to choose sensible defaults from the `model` (pseudopotentials,
+recommended cutoffs and symmetries) but allows explicit control of numerical
+parameters through keyword arguments described below.
 
-By default the size of the FFT grid is automatically chosen from the kinetic energy
-cutoff for the Bloch waves and a `supersampling` of 2.0 for the density. This is equal
-to a density cutoff of ``\text{supersampling}^2 * \text{Ecut}`` or `4 * Ecut`.
-A fully custom FFT grid size can also be chosen by specifying the `fft_size` parameter.
-Note, this disables certain symmetry features.
+See [Performing a convergence study](@ref) for some practical
+recommendations how to tune these numerical discretization parameters.
+
+Arguments
+- `model::Model`: Physical model to be discretized. See [`Model`](@ref).
+
+Keyword arguments
+- `Ecut::Number` (default: `recommended_cutoff(model).Ecut`): Kinetic-energy cutoff
+    for Bloch orbitals (units of energy in atomic units). If DFTK cannot infer a
+    recommended cutoff from the pseudopotentials this argument must be supplied.
+- `supersampling::Real` (default: `recommended_cutoff(model).supersampling`): Factor
+    determining the density/potential cutoff relative to `Ecut`. The density cutoff is
+    `supersampling^2 * Ecut` (default supersampling = 2.0, i.e. density cutoff = 4 * Ecut).
+- `kgrid` (default: `KgridSpacing(2π * 0.022)`): Specifies Brillouin-zone sampling.
+    Accepts a [`MonkhorstPack`](@ref) object, a vector of three integers,
+    a [`KgridSpacing`](@ref) object, or any object accepted by `build_kgrid`.
+    The default corresponds to a heuristic spacing.
+- `kshift` (deprecated): Legacy k-point shift. Prefer `kgrid=MonkhorstPack(kgrid, kshift)`.
+- `variational::Bool` (default: `true`): Whether the k-point-specific orbital basis is
+    variationally consistent with the density/potential grid. Non-variational mode is
+    experimental and may disable features.
+- `fft_size::Union{Nothing,Tuple{Int,Int,Int}}` (default: `nothing`): Explicit FFT grid
+    size. If `nothing`, an automatic FFT grid compatible with `Ecut` and `supersampling`
+    is computed. Specifying `fft_size` may disable certain symmetry optimizations.
+- `symmetries_respect_rgrid::Bool` (default: `isnothing(fft_size)`): When `true` the
+    automatically chosen FFT grid will be adjusted to be compatible with common fractional
+    translation denominators (2,3,4,6) to preserve symmetries; set to `false` to skip
+    this behavior when providing a custom FFT grid.
+- `use_symmetries_for_kpoint_reduction::Bool` (default: `true`): If `true`, symmetry
+    operations are used to reduce the explicit k-point set to the irreducible Brillouin
+    zone (saves work); set to `false` for debugging or to disable k-point reduction.
+- `comm_kpts` (default: `MPI.COMM_WORLD`): MPI communicator used to distribute k-points
+    across processes. Must be an initialized MPI communicator; the constructor calls
+    `MPI.Init()` if necessary.
+- `architecture` (default: `CPU()`): Hardware architecture descriptor (e.g. `CPU()` or
+    `GPU(...)`) that controls FFT/backend selection and device placement.
+
+Notes
+- If `Ecut` is left missing (explicit `missing`), an `ArgumentError` is thrown.
+- When `fft_size` is provided the constructor validates it for compatibility with the
+    internal FFT routines (use `next_working_fft_size` if needed).
+- If you set `variational=false` some features may be unsupported; this mode is
+    considered experimental.
+
+Examples
+```julia
+# Use recommended cutoffs from pseudopotentials if available
+basis = PlaneWaveBasis(model)
+
+# Provide explicit Ecut and k-grid
+basis = PlaneWaveBasis(model; Ecut=10.0, kgrid=[4,4,4])
+
+# Custom FFT grid (note: may disable symmetry-driven optimizations)
+basis = PlaneWaveBasis(model; Ecut=12.0, fft_size=(48,48,48))
+```
+
+See also
+- [`PlaneWaveBasis` and plane-wave discretisations](@ref)
+- [`Model`](@ref), [`Kpoint`](@ref), [`MonkhorstPack`](@ref)
 """
 @timing function PlaneWaveBasis(model::Model{T};
                                 Ecut::Union{Number,Missing}=recommended_cutoff(model).Ecut,

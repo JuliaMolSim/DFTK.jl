@@ -121,6 +121,7 @@ Notes
     (high matrix condition number).
 
 See also
+- [`Model` datastructure](@ref)
 - [`PlaneWaveBasis`](@ref), [`self_consistent_field`](@ref)
 """
 function Model(lattice::AbstractMatrix{Tstatic},
