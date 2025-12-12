@@ -182,7 +182,7 @@
 # and typically one forms basis sets from these by specifying a
 # **kinetic energy cutoff** ``E_\text{cut}``:
 # ```math
-# \left\{ e_{G} \, \big| \, (G + k)^2 \leq 2E_\text{cut} \right\}
+# \left\{ e_{G} \, \big| \, \frac{1}{2} (G + k)^2 \leq E_\text{cut} \right\}
 # ```
 #
 # ## Correspondence of theory to DFTK code
