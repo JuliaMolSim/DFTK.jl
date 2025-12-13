@@ -102,11 +102,7 @@ PAGES = [
 # the documentation to not run all the code examples, e.g. when working on a
 # particular file or even when working just on the text or the structure of
 # the documentation. When set to :ALL, everything is executed.
-# JL_FILES_TO_EXECUTE = :ALL
-JL_FILES_TO_EXECUTE = [
-    "examples/arbitrary_floattype.jl",
-    "examples/error_estimates_forces.jl",
-]
+JL_FILES_TO_EXECUTE = :ALL
 
 # Files from the /examples folder that need to be copied over to the docs
 # (typically images, input or data files etc.)
