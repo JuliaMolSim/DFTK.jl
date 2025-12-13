@@ -98,6 +98,16 @@ PAGES = [
     "publications.md",
 ]
 
+# .jl files to execute with Literate.jl. This can be helpful when working on
+# the documentation to not run all the code examples, e.g. when working on a
+# particular file or even when working just on the text or the structure of
+# the documentation. When set to :ALL, everything is executed.
+# JL_FILES_TO_EXECUTE = :ALL
+JL_FILES_TO_EXECUTE = [
+    "examples/arbitrary_floattype.jl",
+    "examples/error_estimates_forces.jl",
+]
+
 # Files from the /examples folder that need to be copied over to the docs
 # (typically images, input or data files etc.)
 EXAMPLE_ASSETS = []  # Specify e.g. as "examples/Fe_afm.pwi"
@@ -160,9 +170,9 @@ end
 # The examples go to docs/literate_build/examples, the .jl files stay where they are
 literate_files = map(filter!(endswith(".jl"), extract_paths(PAGES))) do file
     if startswith(file, "examples/")
-        (; src=joinpath(ROOTPATH, file), dest=joinpath(SRCPATH, "examples"), example=true)
+        (; src=joinpath(ROOTPATH, file), dest=joinpath(SRCPATH, "examples"), example=true, original_src=file)
     else
-        (; src=joinpath(SRCPATH, file), dest=joinpath(SRCPATH, dirname(file)), example=false)
+        (; src=joinpath(SRCPATH, file), dest=joinpath(SRCPATH, dirname(file)), example=false, original_src=file)
     end
 end
 
@@ -197,12 +207,19 @@ if get(ENV, "DFTK_EXECUTE_CODE", false) == "true"
         else
             badges = ["Binder links to `/$subfolder/@__NAME__.ipynb`"]
         end
+        execute = if JL_FILES_TO_EXECUTE == :ALL || file.original_src in JL_FILES_TO_EXECUTE
+            @debug "Executing code"
+            true
+        else
+            @debug "Not executing code"
+            false
+        end
         Literate.markdown(
             file.src, file.dest;
             flavor=Literate.DocumenterFlavor(),
             credit=false,
             preprocess=add_badges(badges),
-            execute=true,
+            execute=execute,
             codefence="````julia" => "````",
         )
         # Literate.notebook(file.src, file.dest; credit=false,
