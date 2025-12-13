@@ -222,8 +222,6 @@ if get(ENV, "DFTK_EXECUTE_CODE", false) == "true"
             execute=execute,
             codefence="````julia" => "````",
         )
-        # Literate.notebook(file.src, file.dest; credit=false,
-        #                   execute=CONTINUOUS_INTEGRATION || DEBUG)
     end
 else
     @info "Skipping Literate processing of files"
