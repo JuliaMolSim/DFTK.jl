@@ -192,39 +192,39 @@ function add_badges(badges)
 end
 
 # Run Literate on them all
-if get(ENV, "DFTK_EXECUTE_CODE", false) == "true"
-    @debug "Processing literate files"
-    for file in literate_files
-        @debug "Processing" file.src file.dest
-        subfolder = relpath(file.dest, SRCPATH)
-        if CONTINUOUS_INTEGRATION
-            badges = [
-                "[![](https://mybinder.org/badge_logo.svg)]" *
-                "(@__BINDER_ROOT_URL__/$subfolder/@__NAME__.ipynb)",
-                "[![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)]" *
-                "(@__NBVIEWER_ROOT_URL__/$subfolder/@__NAME__.ipynb)",
-            ]
-        else
-            badges = ["Binder links to `/$subfolder/@__NAME__.ipynb`"]
-        end
-        execute = if JL_FILES_TO_EXECUTE == :ALL || file.original_src in JL_FILES_TO_EXECUTE
-            @debug "Executing code"
-            true
-        else
-            @debug "Not executing code"
-            false
-        end
-        Literate.markdown(
-            file.src, file.dest;
-            flavor=Literate.DocumenterFlavor(),
-            credit=false,
-            preprocess=add_badges(badges),
-            execute=execute,
-            codefence="````julia" => "````",
-        )
+@debug "Processing literate files"
+for file in literate_files
+    @debug "Processing" file.src file.dest
+    if mtime(file.src) <= mtime(file.dest) && !DEBUG && file.original_src ∉ JL_FILES_TO_EXECUTE
+        @debug "Skipping up-to-date file"
+        continue
     end
-else
-    @info "Skipping Literate processing of files"
+    subfolder = relpath(file.dest, SRCPATH)
+    if CONTINUOUS_INTEGRATION
+        badges = [
+            "[![](https://mybinder.org/badge_logo.svg)]" *
+            "(@__BINDER_ROOT_URL__/$subfolder/@__NAME__.ipynb)",
+            "[![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)]" *
+            "(@__NBVIEWER_ROOT_URL__/$subfolder/@__NAME__.ipynb)",
+        ]
+    else
+        badges = ["Binder links to `/$subfolder/@__NAME__.ipynb`"]
+    end
+    execute = if JL_FILES_TO_EXECUTE == :ALL || file.original_src in JL_FILES_TO_EXECUTE
+        @debug "Executing code"
+        true
+    else
+        @debug "Not executing code"
+        false
+    end
+    Literate.markdown(
+        file.src, file.dest;
+        flavor=Literate.DocumenterFlavor(),
+        credit=false,
+        preprocess=add_badges(badges),
+        execute=execute,
+        codefence="````julia" => "````",
+    )
 end
 
 # Generate the docs in BUILDPATH
