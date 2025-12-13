@@ -260,6 +260,7 @@ makedocs(;
     pages=transform_to_md(PAGES),
     checkdocs=:exports,
     warnonly=DEBUG,
+    # draft=true, # set this to tell Documenter not to execute julia code in the .md files
     remote_args...,
 )
 
