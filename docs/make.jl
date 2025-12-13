@@ -116,6 +116,7 @@ EXAMPLE_ASSETS = []  # Specify e.g. as "examples/Fe_afm.pwi"
 # Configuration and setup
 #
 DEBUG = false  # Set to true to disable some checks and cleanup
+DEBUG && (ENV["JULIA_DEBUG"] = "make") # Activate @debug logs
 
 import LibGit2
 import Pkg
@@ -149,6 +150,7 @@ using Literate
 #
 # Generate the docs
 #
+@debug "Generating docs in $(BUILDPATH)"
 
 # Get list of files from PAGES
 extract_paths(file::AbstractString) = [file]
@@ -244,6 +246,7 @@ mathengine  = Documenter.MathJax3(Dict(
     ),
 ))
 
+@debug "Generating docs with `Documenter.makedocs`"
 makedocs(;
     modules=[DFTK],
     format=Documenter.HTML(;
@@ -271,6 +274,7 @@ end
 
 # Deploy docs to gh-pages branch
 # Note: Overwrites the commit history via a force push (saves storage space)
+@debug "Deploying docs to GitHub Pages with `Documenter.deploydocs`"
 deploydocs(; repo=DFTKREPO, devbranch="master", forcepush=true)
 
 # Remove generated example files
