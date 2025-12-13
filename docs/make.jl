@@ -196,7 +196,8 @@ end
 @debug "Processing literate files"
 for file in literate_files
     @debug "Processing" file.src file.dest
-    if mtime(file.src) <= mtime(file.dest) && !DEBUG && file.original_src ∉ JL_FILES_TO_EXECUTE
+    explicit_execute = JL_FILES_TO_EXECUTE != :ALL && file.original_src in JL_FILES_TO_EXECUTE
+    if mtime(file.src) <= mtime(file.dest) && !DEBUG && !explicit_execute
         @debug "Skipping up-to-date file"
         continue
     end
@@ -211,12 +212,11 @@ for file in literate_files
     else
         badges = ["Binder links to `/$subfolder/@__NAME__.ipynb`"]
     end
-    execute = if JL_FILES_TO_EXECUTE == :ALL || file.original_src in JL_FILES_TO_EXECUTE
+    execute = explicit_execute || JL_FILES_TO_EXECUTE == :ALL
+    if execute
         @debug "Executing code"
-        true
     else
         @debug "Not executing code"
-        false
     end
     Literate.markdown(
         file.src, file.dest;
