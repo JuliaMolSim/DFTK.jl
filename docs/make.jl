@@ -101,8 +101,13 @@ PAGES = [
 # .jl files to execute with Literate.jl. This can be helpful when working on
 # the documentation to not run all the code examples, e.g. when working on a
 # particular file or even when working just on the text or the structure of
-# the documentation. When set to :ALL, everything is executed.
+# the documentation. When set to :ALL, all files are executed (except if they
+# did not change since last build).
 JL_FILES_TO_EXECUTE = :ALL
+# JL_FILES_TO_EXECUTE = [
+#     "guide/tutorial.jl",
+#     "examples/arbitrary_floattype.jl",
+# ]
 
 # Files from the /examples folder that need to be copied over to the docs
 # (typically images, input or data files etc.)
@@ -193,8 +198,8 @@ end
 @debug "Processing literate files"
 for file in literate_files
     @debug "Processing" file.src file.dest
-    explicit_execute = JL_FILES_TO_EXECUTE != :ALL && file.original_src in JL_FILES_TO_EXECUTE
-    if mtime(file.src) <= mtime(file.dest) && !DEBUG && !explicit_execute
+    # Skip all flies that did not change since last build
+    if mtime(file.src) <= mtime(file.dest) && !DEBUG
         @debug "Skipping up-to-date file"
         continue
     end
@@ -209,7 +214,7 @@ for file in literate_files
     else
         badges = ["Binder links to `/$subfolder/@__NAME__.ipynb`"]
     end
-    execute = explicit_execute || JL_FILES_TO_EXECUTE == :ALL
+    execute = JL_FILES_TO_EXECUTE == :ALL || file.original_src in JL_FILES_TO_EXECUTE
     if execute
         @debug "Executing code"
     else
