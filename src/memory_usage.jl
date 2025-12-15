@@ -46,7 +46,7 @@ function estimate_memory_usage(basis::PlaneWaveBasis{T}, model=basis.model) wher
     isnothing(model.εF) || error("Cannot estimate memory usage for models with a fixed "
                                  * "Fermi level, since the number of bands is not known.")
 
-    n_kpoints = maximum(length, basis.krange_allprocs)
+    n_kpoints = maximum(krange -> sum(length, krange), basis.krange_allprocs)
     n_Gk = length(basis.kpoints[1].G_vectors)
     n_bands = AdaptiveBands(model).n_bands_compute
 
@@ -54,7 +54,7 @@ function estimate_memory_usage(basis::PlaneWaveBasis{T}, model=basis.model) wher
     ψ_bytes = ψk_bytes * n_kpoints
 
     n_fftpoints = prod(basis.fft_size)
-    ρ_bytes = sizeof(T) * n_fftpoints
+    ρ_bytes = sizeof(T) * n_fftpoints * model.n_spin_components
 
     if any(term_type -> term_type isa AtomicNonlocal, model.term_types)
         n_nonlocal_projectors = sum(model.atoms) do atom
