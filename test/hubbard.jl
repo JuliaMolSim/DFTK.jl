@@ -126,7 +126,7 @@ end
              term_idx = findfirst(term -> isa(term, DFTK.TermHubbard),
                                   scfres_nosym.basis.terms)
              term_hub = scfres_nosym.basis.terms[term_idx]
-             nhub_nosym = DFTK.compute_hubbard_ns(term_hub, scfres_nosym.basis,
+             nhub_nosym = DFTK.compute_hubbard_n(term_hub, scfres_nosym.basis,
                                                  scfres_nosym.ψ, scfres_nosym.occupation)
              @test n_hub ≈ nhub_nosym
         end

@@ -183,7 +183,7 @@ Overview of parameters:
         end
         ihubbard = findfirst(t -> t isa TermHubbard, basis.terms)
         if !isnothing(ihubbard)
-            hubbard_n = compute_hubbard_ns(basis.terms[ihubbard], basis, ψ, occupation)
+            hubbard_n = compute_hubbard_n(basis.terms[ihubbard], basis, ψ, occupation)
         end
 
         # Update info with results gathered so far
