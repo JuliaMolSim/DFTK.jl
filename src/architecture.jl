@@ -30,3 +30,19 @@ Synchronize data and finish all operations on the execution stream of the device
 This needs to be called explicitly before a task finishes (e.g. in an `@spawn` block).
 """
 synchronize_device(::AbstractArchitecture) = nothing
+
+"""
+Get key memory usage statistics. What is determined depends
+on the architecture and values on the calling MPI process are returned.
+Explanaition of key entries:
+  * `max_rss`: Maximal residual memory size of the julia process up to this point.
+    Note that this number may be well above the minimal memory required to run
+    the computation for performance reasons (see the '--heap-size-hint' command line flag
+    of julia for details).
+  * `gc_bytes`: Currently used bytes according to the Julia GC, usually a little lower
+    than the currently required memory to run the computation.
+  * `gpu`: Currently used memory on the GPU device associated to this MPI process.
+"""
+function memory_usage(::CPU)
+    (; max_rss=Sys.maxrss(), gc_bytes=Base.gc_live_bytes())
+end

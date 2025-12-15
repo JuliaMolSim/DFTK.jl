@@ -48,7 +48,7 @@ using LinearMaps
 #  Compute the gradient of the energy, projected on the space tangent to ψ, that
 #  is to say H(ψ)*ψ - ψ*λ where λ is the set of Rayleigh coefficients associated
 #  to the ψ.
-function compute_projected_gradient(basis::PlaneWaveBasis, ψ, occupation)
+@timing function compute_projected_gradient(basis::PlaneWaveBasis, ψ, occupation)
     ρ = compute_density(basis, ψ, occupation)
     H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
 
