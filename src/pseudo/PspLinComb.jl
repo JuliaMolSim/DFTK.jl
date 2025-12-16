@@ -20,7 +20,7 @@ function PspLinComb(coefficients::Vector{T}, pseudos::Vector{<:NormConservingPsp
     @assert sum(coefficients) ≈ one(eltype(coefficients))
     @assert !any(p -> p isa PspLinComb, pseudos)
 
-    # These assumptions we could lift, but we make tham to make our lifes easier
+    # These assumptions we could lift, but we make them to make our lifes easier for now
     @assert allequal(charge_ionic,        pseudos)
     @assert allequal(has_valence_density, pseudos)
     @assert allequal(has_core_density,    pseudos)
@@ -38,7 +38,6 @@ function PspLinComb(coefficients::Vector{T}, pseudos::Vector{<:NormConservingPsp
         for (ipsp, p) in enumerate(pseudos)
             iproj_offset = isempty(splits) ? 0 : last(splits)[2]
             rnge = iproj_offset .+ (1:count_n_proj_radial(p, l))
-            # TODO Is this the correct scaling of the coefficient in h ?
             hl[rnge, rnge] = p.h[l+1] * coefficients[ipsp]
             append!(splits, [(ipsp, iproj) for iproj in 1:count_n_proj_radial(p, l)])
         end
