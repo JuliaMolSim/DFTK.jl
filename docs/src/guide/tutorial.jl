@@ -18,7 +18,7 @@
 #     to automatically generate this documentation very quickly.
 #     Therefore results are far from converged.
 #     Tighter thresholds and larger grids should be used for more realistic results.
-#     See also the tutorial on [Performing a convergence study](@ref).
+#     See also the example on [Performing a convergence study](@ref).
 #
 # For our discussion we will use the classic example of computing the LDA ground state
 # of the [silicon crystal](https://www.materialsproject.org/materials/mp-149).
