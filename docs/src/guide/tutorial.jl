@@ -6,7 +6,7 @@
 # is assumed in this tutorial.
 #
 # !!! tip "Mathematical tutorial"
-#     There is also a [Mathematical tutorial](@ref)
+#     There is also a [Mathematical Tutorial](@ref)
 #     for more mathematically-minded readers, where no familiarity
 #     with condensed-matter simulations is assumed.
 #

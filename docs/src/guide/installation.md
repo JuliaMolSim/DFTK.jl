@@ -16,7 +16,7 @@ which will install the latest DFTK release.
 DFTK is continuously tested on Debian, Ubuntu, mac OS and Windows and should work on
 these operating systems out of the box.
 With this you are all set to run the code in the [Tutorial](@ref),
-the [Mathematical tutorial](@ref) or the
+the [Mathematical Tutorial](@ref) or the
 [`examples` directory](https://dftk.org/tree/master/examples).
 If you encounter problems, see the [Troubleshooting](@ref troubleshooting) notes below.
 
@@ -81,7 +81,7 @@ by DFTK run the `DFTK.versioninfo()` command.
 See also [Using DFTK on compute clusters](@ref), where some of this is explained
 in more details.
 
-## Troubleshooting
+## [Troubleshooting](@id troubleshooting)
 * If you encounter problems with DFTK, the first thing to check is if your setup finds
   the expected DFTK version, MPI version and BLAS configuration. This you find by running
   ```julia

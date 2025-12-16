@@ -1,4 +1,4 @@
-# # Mathematical tutorial
+# # Mathematical Tutorial
 #
 # This document provides an overview of the structure of DFTK
 # and how to access basic information about calculations.
@@ -79,7 +79,7 @@
 # the **first Brillouin zone**.
 # All $k$-points are taken from $Ω^∗$.
 # For more intuition about periodic problems,
-# see [Periodic problems and plane-wave discretisations](@ref).
+# see [Periodic problems and plane-wave discretisations](@ref periodic-problems).
 #
 # We now provide some idea about the potential terms, these are
 # - the **nuclear attraction potential** $V_\text{nuc}$, describing the interaction
@@ -117,7 +117,7 @@
 #     by the **plane-wave cutoff** `Ecut`.
 #
 # More intuition about the role of ``k``-points provides
-# [Periodic problems and plane-wave discretisations](@ref) and
+# [Periodic problems and plane-wave discretisations](@ref periodic-problems) and
 # [Modelling atomic chains](@ref).
 # Some comparison of plane-wave discretisation techniques
 # in contrast to finite difference methods is provided in
@@ -231,9 +231,9 @@ scfres = self_consistent_field(basis, tol=1e-5);
 
 # For example, the eigenvalues are obtained as an array indexed as
 # `eigenvalues[ik][n]` where `ik` is an index running over all ``k``-points.
-length(eigenvalues)
+length(scfres.eigenvalues)
 #-
-length(eigenvalues[1])
+length(scfres.eigenvalues[1])
 #-
 stack(scfres.eigenvalues)
 
@@ -265,7 +265,7 @@ scfres.energies
 # ## Post-processing quantities
 #
 # Further important post-processing quantities, such as the density of states ([`plot_dos`](@ref)),
-# the computation of band structures ([`compute_bands`](@ref) and [`plot_bands`](@ref))
+# the computation of band structures ([`compute_bands`](@ref))
 # or the computation of response properties such as [Elastic constants](@ref) are also
 # readily available in DFTK. See also the end of the [General Tutorial](@ref "Tutorial") for some examples
 # as well as a list of pointers where to go from here.
