@@ -32,6 +32,7 @@ Polynomials = "f27b6e38-b328-58d1-80ce-0feddd5e7a45"
 PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 Preferences = "21216c6a-2e73-6563-6e65-726566657250"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
 PseudoPotentialData = "5751a51d-ac76-4487-a056-413ecf6fbe19"
 PseudoPotentialIO = "cb339c56-07fa-4cb2-923a-142469552264"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
@@ -119,6 +120,7 @@ Polynomials = "3, 4"
 PrecompileTools = "1"
 Preferences = "1"
 Printf = "1"
+ProgressMeter = "1.11.0"
 PseudoPotentialData = "0.2.4"
 PseudoPotentialIO = "0.1"
 PythonCall = "0.9"
@@ -137,8 +139,8 @@ Unitful = "1"
 UnitfulAtomic = "1"
 Wannier = "0.3.2"
 WriteVTK = "1"
-julia = "1.10"
 YAML = "0.4"
+julia = "1.10"
 wannier90_jll = "3.1"
 
 [extras]
@@ -171,4 +173,4 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 wannier90_jll = "c5400fa0-8d08-52c2-913f-1e3f656c1ce9"
 
 [targets]
-test = ["Test", "TestItemRunner", "AMDGPU", "ASEconvert", "AtomsBuilder", "Aqua", "AtomsIO", "AtomsIOPython", "CUDA", "CUDA_Runtime_jll", "ComponentArrays", "DoubleFloats", "FiniteDiff", "FiniteDifferences", "GenericLinearAlgebra", "GeometryOptimization", "IntervalArithmetic", "JLD2", "JSON3", "Logging", "Plots", "PythonCall", "QuadGK", "Random", "KrylovKit", "Wannier", "WriteVTK", "wannier90_jll"]
+test = ["Test", "TestItemRunner", "AMDGPU", "ASEconvert", "AtomsBuilder", "Aqua", "AtomsIO", "AtomsIOPython", "CUDA", "CUDA_Runtime_jll", "ComponentArrays", "DoubleFloats", "FiniteDiff", "FiniteDifferences", "GenericLinearAlgebra", "IntervalArithmetic", "JLD2", "JSON3", "Logging", "Plots", "PythonCall", "QuadGK", "Random", "KrylovKit", "Wannier", "WriteVTK", "wannier90_jll"]

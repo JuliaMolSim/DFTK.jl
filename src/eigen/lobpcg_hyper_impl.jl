@@ -44,6 +44,7 @@
 ## TODO debug orthogonalizations when A=I
 
 using LinearAlgebra
+using Printf
 import LinearAlgebra: BlasFloat
 import Base: *
 import Base.size, Base.adjoint, Base.Array
@@ -396,6 +397,12 @@ end
     full_BX = BX
     full_λs = λs
 
+    if display_progress
+        @printf "Iter     Converged     log10(resid)    Δtime\n"
+        @printf "----   -------------   ------------   -------\n"
+        prev_time = time()
+    end
+
     while true
         if niter > 0  # first iteration is just to compute the residuals (no X update)
             ###  Perform the Rayleigh-Ritz
@@ -458,8 +465,14 @@ end
         end
 
         if display_progress
-            println("Iter $niter, converged $(nlocked)/$(n_conv_check), resid ",
-                    norm(resid_history[1:n_conv_check, niter+1]))
+            current_time = time()
+            Δt = current_time - prev_time
+            tstr = @sprintf "% 6s" TimerOutputs.prettytime(Δt * 1e9)  # Convert to ns
+            resid_norm = norm(resid_history[1:n_conv_check, niter+1])
+            resid_str = " " * format_log8(resid_norm)
+            @printf "% 4d   %5d / %5d   %s       %s\n" niter nlocked n_conv_check resid_str tstr
+            flush(stdout)
+            prev_time = current_time
         end
 
         if nlocked >= n_conv_check  # Converged!

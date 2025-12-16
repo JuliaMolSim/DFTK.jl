@@ -44,13 +44,13 @@ function write_eigenenergies(folder::AbstractString,
 end
 
 # See https://manuals.cc4s.org/user-manual/objects/CoulombVertex.html
-function write_coulomb_vector(folder::AbstractString, ΓnmG::AbstractArray{T, 5};
+function write_coulomb_vector(folder::AbstractString, ΓnmF::AbstractArray{T, 5};
                               force=true) where {T}
-    n_kpt   = size(ΓnmG, 1)
-    n_bands = size(ΓnmG, 2)
-    n_aux_field = size(ΓnmG, 5)
-    @assert n_kpt   == size(ΓnmG, 3)
-    @assert n_bands == size(ΓnmG, 4)
+    n_kpt   = size(ΓnmF, 1)
+    n_bands = size(ΓnmF, 2)
+    n_aux_field = size(ΓnmF, 5)
+    @assert n_kpt   == size(ΓnmF, 3)
+    @assert n_bands == size(ΓnmF, 4)
     @assert n_kpt  == 1  # 1 kpt is hard-coded for now (see write_eigenenergies)
 
     yamlfile     = joinpath(folder, "CoulombVertex.yaml")
@@ -75,12 +75,14 @@ function write_coulomb_vector(folder::AbstractString, ΓnmG::AbstractArray{T, 5}
     )
     open(fp -> YAML.write(fp, data), yamlfile, "w")
 
-    # C++ is row-major, julia is column-major. Therefore vectorising
-    # a (1, n_bands, 1, n_bands, n_aux_field) tensor leads to a
-    # (n_aux_field, n_bands, n_bands) tensor in row-major ordering
-
-    binary = convert(Vector{Complex{Cdouble}}, vec(ΓnmG))
-    open(fp -> write(fp, binary), elementsfile, "w")
+    # C++ is row-major, julia is column-major. Therefore we write
+    # ΓnmF in a stream using chunks of all field Fs for given (n,m)
+    open(elementsfile, "w") do fp
+        for n = 1:n_bands, m = 1:n_bands
+           binary = convert(Vector{Complex{Cdouble}}, vec(ΓnmF[1,n,1,m,:]))
+           write(fp, binary)
+        end # n,m
+    end
 
     [yamlfile, elementsfile]
 end
@@ -100,7 +102,7 @@ If `force` is true then existing files will be overwritten.
 function export_cc4s(scfres::NamedTuple,
                      folder::AbstractString=joinpath(pwd(), "cc4s");
                      n_bands=scfres.n_bands_converge,
-                     force=false, svdtol=1e-10)
+                     force=false, auxfield_thresh=1e-6, Ecut_ratio=2/3)
     # TODO Check for the scfres to be Hartree-Fock ... otherwise the resulting Calculation
     #      is not necessarily proper Coupled Cluster
 
@@ -110,7 +112,22 @@ function export_cc4s(scfres::NamedTuple,
     files_ene = write_eigenenergies(folder, eigenvalues, scfres.εF; force)
 
     ΓmnG = compute_coulomb_vertex(scfres.basis, scfres.ψ; n_bands)
-    Γcompress = svdcompress_coulomb_vertex(ΓmnG; tol=svdtol)
+
+    # set up a filter
+    # this only works for Gamma-only now
+    Ecut_reduced = scfres.basis.Ecut * Ecut_ratio
+    basis = scfres.basis
+    kpt = basis.kpoints[1]
+    model = basis.model
+    G_mask = [sum(abs2, model.recip_lattice * G) / 2 <= Ecut_reduced
+              for G in kpt.G_vectors]
+    G_indices = findall(G_mask)
+    nG_reduced = length(G_indices)
+    nk1, nb1, nk2, nb2, nG = size(ΓmnG)
+    ΓmnG_reduced = zeros(eltype(ΓmnG), nk1, nb1, nk2, nb2, nG_reduced)
+    ΓmnG_reduced[:,:,:,:,:] = ΓmnG[:,:,:,:,G_indices]
+
+    Γcompress = svdcompress_coulomb_vertex(ΓmnG_reduced; thresh=auxfield_thresh)
     files_coul = write_coulomb_vector(folder, Γcompress; force)
 
     append!(files_ene, files_coul)
