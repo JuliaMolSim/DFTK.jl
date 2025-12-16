@@ -16,18 +16,20 @@ codes such as [Abinit](https://www.abinit.org/),
 [VASP](https://www.vasp.at/).
 DFTK's source code is [publicly available on github](https://dftk.org).
 
-If you are new to density-functional theory or plane-wave methods,
-see our notes on [Periodic problems](@ref periodic-problems) and our
-collection of [Introductory resources](@ref introductory-resources).
-
 Found a bug, missing a feature? Look for an open issue or
 [create a new one](https://github.com/JuliaMolSim/DFTK.jl/issues).
 Want to contribute? See our [contributing notes](https://github.com/JuliaMolSim/DFTK.jl#contributing).
 
 # [Getting started](@id getting-started)
-First, new users should take a look at the [Installation](@ref) and
-[Tutorial](@ref) sections. Then, make your way through the various examples.
-An ideal starting point are the [Examples on basic DFT calculations](@ref metallic-systems).
+First, new users should take a look at the [Installation](@ref) and tutorial sections.
+There is a [General Tutorial](@ref "Tutorial") for researchers familiar with plane-wave DFT
+as well as a [Mathematical Tutorial](@ref) for mathematical researchers new to DFT simulations.
+After the tutorial make your way through the various examples.
+A good starting point are the [Examples on basic DFT calculations](@ref metallic-systems).
+
+If you are new to density-functional theory or plane-wave methods,
+see also our notes on [Periodic problems](@ref periodic-problems) and our
+collection of [Introductory resources](@ref introductory-resources).
 
 !!! note "Convergence parameters in the documentation"
     In the documentation we use very rough convergence parameters to be able

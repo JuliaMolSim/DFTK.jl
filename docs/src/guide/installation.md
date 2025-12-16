@@ -15,8 +15,10 @@ Pkg.add("DFTK")
 which will install the latest DFTK release.
 DFTK is continuously tested on Debian, Ubuntu, mac OS and Windows and should work on
 these operating systems out of the box.
-With this you are all set to run the code in the [Tutorial](@ref) or the
+With this you are all set to run the code in the [Tutorial](@ref),
+the [Mathematical tutorial](@ref) or the
 [`examples` directory](https://dftk.org/tree/master/examples).
+If you encounter problems, see the [Troubleshooting](@ref troubleshooting) notes below.
 
 For obtaining a good user experience as well as peak performance
 some optional steps see the next sections on *Recommended packages*
@@ -78,6 +80,21 @@ If you want to obtain a summary of the backend libraries currently employed
 by DFTK run the `DFTK.versioninfo()` command.
 See also [Using DFTK on compute clusters](@ref), where some of this is explained
 in more details.
+
+## Troubleshooting
+* If you encounter problems with DFTK, the first thing to check is if your setup finds
+  the expected DFTK version, MPI version and BLAS configuration. This you find by running
+  ```julia
+  DFTK.versioninfo()
+  ```
+  which prints a nice summary of this information.
+* What often helps to prevent many issues is to install DFTK in its own separate
+  Julia package environment. By default DFTK is installed into the *global*
+  package environments, where conflicts with other packages could prevent
+  the most recent versions of packages to be installed. Some information on
+  Julia package environments
+  [can be found on the documentation pages of the Pkg tool](https://julialang.github.io/Pkg.jl/v1/environments/)
+  which Julia uses for package management.
 
 ## Installation for DFTK development
 If you want to contribute to DFTK, see the [Developer setup](@ref)

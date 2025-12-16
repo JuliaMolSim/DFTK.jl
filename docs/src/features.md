@@ -8,7 +8,7 @@ and runs out of the box on Linux, windows and macOS, see [Installation](@ref).
 ## Standard methods and models
 - DFT models (LDA, GGA, meta-GGA): Any functional from the
   [libxc](https://libxc.gitlab.io/) library
-- DFT+U and Hubbard corrections
+- [DFT+U and Hubbard corrections](@ref "Hubbard correction (DFT+U)")
 - **Norm-conserving pseudopotentials**: Goedecker-type (GTH)
   or numerical (in UPF pseudopotential format),
   see [Pseudopotentials](@ref).
