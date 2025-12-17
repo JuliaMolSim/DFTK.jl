@@ -2,8 +2,11 @@
 
 # This document provides an overview of the structure of the code
 # and how to access basic information about calculations.
+# If you have not installed DFTK yet, please refer to the [Installation](@ref) instructions.
+#
 # Basic familiarity with the concepts of plane-wave density functional theory
-# is assumed in this tutorial.
+# is assumed in this tutorial. Take a look at the [Introductory resources](@ref introductory-resources)
+# for some broader introductory material. There is also a [Mathematical Tutorial](@ref).
 #
 # !!! tip "Mathematical tutorial"
 #     There is also a [Mathematical Tutorial](@ref)
@@ -15,6 +18,7 @@
 #     to automatically generate this documentation very quickly.
 #     Therefore results are far from converged.
 #     Tighter thresholds and larger grids should be used for more realistic results.
+#     See also the example on [Performing a convergence study](@ref).
 #
 
 # ## Setting up a first calculation
@@ -123,10 +127,11 @@ plot_dos(scfres; temperature=1e-3, smearing=Smearing.FermiDirac())
 bands2 = compute_bands(scfres, MonkhorstPack(6, 6, 6))
 plot_dos(bands2; temperature=1e-3, smearing=Smearing.FermiDirac())
 # Note, that some other codes would refer to the functionality
-# we provide with compute_bands` as "performing a NSCF calculation".
+# we provide with `compute_bands` as "performing a NSCF calculation".
 
 # !!! info "Where to go from here"
 #     - **Background on DFT:**
+#       * [Introductory resources](@ref introductory-resources),
 #       * [Periodic problems](@ref periodic-problems),
 #       * [Introduction to density-functional theory](@ref),
 #       * [Self-consistent field methods](@ref)

@@ -2,11 +2,7 @@
 
 This page collects a bunch of articles, lecture notes, textbooks and recordings
 related to density-functional theory (DFT) and DFTK.
-Most introductory aspects of the code and the theory behind it are also covered
-in the "Getting started" section of the documentation, e.g.
-[Periodic problems and plane-wave discretisations](@ref periodic-problems),
-[Introduction to density-functional theory](@ref)
-or [Self-consistent field methods](@ref).
+These serve as an introduction to DFT and its implementation in DFTK.
 
 Since DFTK aims for an interdisciplinary audience the
 level and scope of the referenced works varies.
@@ -14,9 +10,15 @@ They are roughly ordered from beginner to advanced.
 For a list of articles dealing with novel research aspects achieved using DFTK,
 see [Publications](@ref).
 
+A good starting point is going through a first Julia tutorial,
+and through the lecture notes from the [DFTK school 2022](https://school2022.dftk.org) referenced below.
+
 ## Julia resources
+Since DFTK is written and meant to be used in Julia, learning the basics of the
+language will be useful.
+
 - There are tons of great resources for learning Julia on the internet.
-  For a comprehensive overview see the [JuliaLang learning website](https://julialang.org/learning/)
+  For a comprehensive overview see the [JuliaLang learning website](https://julialang.org/learning/).
 
 - Condensed introductions are also provided in
   [Michael's numerical analysis course](https://teaching.matmat.org/numerical-analysis/exercises/ex0_introduction_julia_pluto_statement.html)
@@ -42,6 +44,19 @@ see [Publications](@ref).
 - [Workshop on mathematics and numerics of DFT](https://michael-herbst.com/teaching/2022-mit-workshop-dftk/):
   Two-day workshop at MIT centred around DFTK by M. F. Herbst,
   in particular the [summary of DFT theory](https://michael-herbst.com/teaching/2022-mit-workshop-dftk/2022-mit-workshop-dftk/DFT_Theory.pdf).
+
+## DFTK documentation resources
+See also these pages from the _Theoretical Background_ section of the DFTK docs:
+- [Periodic problems and plane-wave discretizations](@ref periodic-problems):
+  periodic operators, Bloch's theorem, $k$-points,
+  Brillouin zone, plane waves, band structures.
+- [Comparing discretization techniques](@ref): finite differences vs. plane waves.
+- [Modelling atomic chains](@ref): a simple atomic chain model.
+- [Introduction to density-functional theory](@ref): the basic DFT equations
+  -- a nonlinear eigenvalue problem known as the Kohn-Sham equations --
+  and how they can be solved.
+- [Self-consistent field methods](@ref): expanding upon the previous tutorial,
+  more details on the fixed-point problem that is typically solved in DFT.
 
 ## Textbooks and reviews
 - [Density Functional Theory](https://doi.org/10.1007/978-3-031-22340-2)

@@ -37,6 +37,7 @@ collection of [Introductory resources](@ref introductory-resources).
     Therefore results are far from converged.
     Tighter thresholds and larger grids should be used for
     more realistic results.
+    See also the example on [Performing a convergence study](@ref).
 
 If you have an idea for an addition to the docs or see something wrong,
 please open an [issue](https://github.com/JuliaMolSim/DFTK.jl/issues)
