@@ -233,8 +233,12 @@ end
 end
 
 @testitem "parse_system with Dual positions and/or lattice" tags=[:atomsbase] begin
-    using AtomsBase, ForwardDiff, Unitful, UnitfulAtomic
-    using DFTK, PseudoPotentialData
+    using AtomsBase
+    using ForwardDiff
+    using Unitful
+    using UnitfulAtomic
+    using DFTK
+    using PseudoPotentialData
 
     pos1 = [0.0, 0.0, 0.0]
     pos2 = [1.35, 1.35, 1.35]
