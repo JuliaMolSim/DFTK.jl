@@ -107,7 +107,7 @@
 #   * Discretization of the orbitals. For this many choices are possible.
 #     In DFTK we employ plane waves, i.e. basis sets of the form
 #     ```math
-#     \left\{ e_G \, \middle| \, G ∈ \mathbb{L}^∗, \frac12 |G+k|^2 ≤ \text{\texttt{Ecut}} \right\}
+#     \left\{ e_G \, \middle| \, G ∈ \mathbb{L}^∗, \frac12 |G+k|^2 ≤ E_\text{cut} \right\}
 #     ```
 #     where the plane-waves are functions $\mathbb{R}^3 → \mathbb{C}$ of the form
 #     ```math
