@@ -40,13 +40,13 @@
 # \right.
 # ```
 # where for each $k ∈ Ω^∗$ the $ε_{k1} ≤ ε_{k2} ≤ ⋯ ≤ ε_{kN}$
-# are the eigenvalues and the orbitals $ψ_{kn} ∈ H^1(\mathbb{R}^3)$
+# are the eigenvalues and the orbitals $ψ_{kn} ∈ H^1(\Omega)$
 # the eigenfunctions of the non-linear operator
 # ```math
 # H = -\frac12 \Delta + V\left(\rho\right)
 # ```
 # making this problem an eigenvector-dependent non-linear eigenvalue problem.
-# Here, $-\frac12 (-i∇ + k)^2$ is the **kinetic operator**.
+# Here, $\frac12 (-i∇ + k)^2$ is the **kinetic operator**.
 # It arises from a quantum-mechanical
 # treatment of the classical kinetic energy of the electrons. In turn, $V$ is the
 # non-linear **potential**, which arises
