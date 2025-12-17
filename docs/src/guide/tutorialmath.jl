@@ -32,7 +32,7 @@
 # \tag{1}
 # \left\{
 # \begin{aligned}
-# &\left( -\frac12 (-i∇ + k)^2 + V\left(\rho\right) \right) ψ_{kn}
+# &\left( \frac12 (-i∇ + k)^2 + V\left(\rho\right) \right) ψ_{kn}
 #   = ε_{kn} ψ_{kn}, \qquad \text{for } 1 ≤ n ≤ N, k ∈ Ω^∗ ⊂ \mathbb{R}^3 \\
 # V(ρ) = &\, V_\text{nuc} + V_\text{H}^ρ + V_\text{XC}(ρ), \\
 # ρ(r) = & \frac{1}{|Ω|}  ∫_{Ω^∗} ∑_{n=1}^N f(ε_{kn})  \abs{ψ_{kn}(r)}^2 \, d k, \\
