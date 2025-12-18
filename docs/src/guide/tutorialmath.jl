@@ -33,18 +33,18 @@
 # \left\{
 # \begin{aligned}
 # &\left( \frac12 (-i∇ + k)^2 + V\left(\rho\right) \right) ψ_{kn}
-#   = ε_{kn} ψ_{kn}, \qquad \text{for } 1 ≤ n ≤ N, k ∈ Ω^∗ ⊂ \mathbb{R}^3 \\
+#   = ε_{kn} ψ_{kn}, \qquad \text{for } 1 ≤ n ≤ N, k ∈ \Omega^∗ ⊂ \mathbb{R}^3 \\
 # V(ρ) = &\, V_\text{nuc} + V_\text{H}(ρ) + V_\text{XC}(ρ), \\
-# ρ(r) = & \frac{1}{|Ω|}  ∫_{Ω^∗} ∑_{n=1}^N f\left(\frac{ε_{kn} - ε_F}{T}\right) \,  \abs{ψ_{kn}(r)}^2 \, d k, \\
-# N_\text{el} &= ∫_{Ω} ρ(r) \, dr.
+# ρ(r) = & \frac{1}{|\Omega|}  ∫_{\Omega^∗} ∑_{n=1}^N f\left(\frac{ε_{kn} - ε_F}{T}\right) \,  \abs{ψ_{kn}(r)}^2 \, d k, \\
+# N_\text{el} &= ∫_{\Omega} ρ(r) \, dr.
 # \end{aligned}
 # \right.
 # ```
 # where the unknowns are
-# for each $k ∈ Ω^∗$ the **eigenvalues** $ε_{k1} ≤ ε_{k2} ≤ ⋯ ≤ ε_{kN}$ (each real numbers),
+# for each $k ∈ \Omega^∗$ the **eigenvalues** $ε_{k1} ≤ ε_{k2} ≤ ⋯ ≤ ε_{kN}$ (each real numbers),
 # the **orbitals** (eigenfunctions) $ψ_{kn} ∈ H^1(\Omega)$
 # as well as the **Fermi level** $ε_F ∈ \mathbb{R}$.
-# This is an eigenvector-dependent non-linear eigenvalue problem of the operators ($k ∈ Ω^∗$)
+# This is an eigenvector-dependent non-linear eigenvalue problem of the operators ($k ∈ \Omega^∗$)
 # ```math
 # H_k = \frac12 (-i∇ + k)^2 + V\left(\rho\right),
 # ```
@@ -80,7 +80,7 @@
 # electron density $ρ$ to very good approximation. Numerical routines in DFTK determine this
 # value of $N$ adaptively ensuring that $N$ is taken sufficiently large.
 #
-# The set $Ω ⊂ \mathbb{R}^3$ is the **unit cell** of the problem, that is the periodically
+# The set $\Omega ⊂ \mathbb{R}^3$ is the **unit cell** of the problem, that is the periodically
 # repeating unit with respect to which the material as well as the potential $V$ are periodic.
 # More precisely. Let $a_1, a_2, a_3 ∈ \mathbb{R}^3$ linearly independent.
 # Then $\mathbb{L} = a_1 \mathbb{Z} + a_2 \mathbb{Z} + a_3 \mathbb{Z}$
@@ -91,9 +91,9 @@
 # Associated to $\mathbb{L}$ is the **reciprocal lattice**
 # $\mathbb{L}^∗ = b_1 \mathbb{Z} + b_2 \mathbb{Z} + b_3 \mathbb{Z}$
 # with $a_i ⋅ b_j = 2π δ_{ij}$.
-# Its unit cell is the domain $Ω^∗ ⊂ \mathbb{R}^3$,
+# Its unit cell is the domain $\Omega^∗ ⊂ \mathbb{R}^3$,
 # the **first Brillouin zone**.
-# All $k$-points are taken from $Ω^∗$.
+# All $k$-points are taken from $\Omega^∗$.
 # For more intuition about periodic problems,
 # see [Periodic problems and plane-wave discretisations](@ref periodic-problems).
 #
@@ -101,12 +101,12 @@
 #
 # The usual discretisation strategy for solving the self-consistent
 # field equations (1) consists of two aspects:
-#   * Discretization of the integrals over $Ω^∗$ (e.g. in the computation of
+#   * Discretization of the integrals over $\Omega^∗$ (e.g. in the computation of
 #     $ρ$). For this one usually employs a trapezoidal rule with an equispaced
-#     integration grid. This selected regular subset of points from $Ω^∗$
+#     integration grid. This selected regular subset of points from $\Omega^∗$
 #     is called the **``k``-points** --- also called a Monkhorst-Pack grid.
 #     Typically one refers to a grid of $n_x, n_y$ and $n_z$ points in
-#     $x$, $y$ and $z$ direction of $Ω^∗$ as an $(n_x, n_y, n_z)$
+#     $x$, $y$ and $z$ direction of $\Omega^∗$ as an $(n_x, n_y, n_z)$
 #     Monkhorst-Pack grid.
 #   * Discretization of the orbitals. For this many choices are possible.
 #     In DFTK we employ plane waves, i.e. basis sets of the form
@@ -115,7 +115,7 @@
 #     ```
 #     where the plane-waves are functions $\mathbb{R}^3 → \mathbb{C}$ of the form
 #     ```math
-#     e_G(r) = \frac{1}{\sqrt{|Ω|}} e^{2π\, G⋅r}.
+#     e_G(r) = \frac{1}{\sqrt{|\Omega|}} e^{2π\, G⋅r}.
 #     ```
 #     Crucially the size of the basis is controlled
 #     by the **plane-wave cutoff** `Ecut`.
@@ -156,7 +156,7 @@ lattice = a / 2 * [[0 1 1.];  # Silicon lattice vectors
                    [1 1 0.]];
 
 # This defines $\mathbb{L}$ and $\mathbb{L}^∗$ and as a result
-# the unit cell $Ω$ and Brillouin zone $Ω^∗$.
+# the unit cell $\Omega$ and Brillouin zone $\Omega^∗$.
 #
 # Next we specify the location of the nuclei and their chemical elements.
 # Additionally we attach a pseudopotential from
