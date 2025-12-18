@@ -275,10 +275,10 @@ parameters through keyword arguments described below.
 See [Performing a convergence study](@ref) for some practical
 recommendations how to tune these numerical discretization parameters.
 
-Arguments
+## Arguments
 - `model::Model`: Physical model to be discretized. See [`Model`](@ref).
 
-Keyword arguments
+## Keyword arguments
 - `Ecut::Number` (default: `recommended_cutoff(model).Ecut`): Kinetic-energy cutoff
     for Bloch orbitals (units of energy in atomic units). If DFTK cannot infer a
     recommended cutoff from the pseudopotentials this argument must be supplied.
@@ -309,14 +309,14 @@ Keyword arguments
 - `architecture` (default: `CPU()`): Hardware architecture descriptor (e.g. `CPU()` or
     `GPU(...)`) that controls FFT/backend selection and device placement.
 
-Notes
+## Notes
 - If `Ecut` is left missing (explicit `missing`), an `ArgumentError` is thrown.
 - When `fft_size` is provided the constructor validates it for compatibility with the
     internal FFT routines (use `next_working_fft_size` if needed).
 - If you set `variational=false` some features may be unsupported; this mode is
     considered experimental.
 
-Examples
+## Examples
 ```julia
 # Use recommended cutoffs from pseudopotentials if available
 basis = PlaneWaveBasis(model)
@@ -328,7 +328,7 @@ basis = PlaneWaveBasis(model; Ecut=10.0, kgrid=[4,4,4])
 basis = PlaneWaveBasis(model; Ecut=12.0, fft_size=(48,48,48))
 ```
 
-See also
+## See also
 - [`PlaneWaveBasis` and plane-wave discretisations](@ref)
 - [`Model`](@ref), [`Kpoint`](@ref), [`MonkhorstPack`](@ref)
 """

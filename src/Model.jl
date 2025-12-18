@@ -77,7 +77,7 @@ electronic structure (number of electrons, spin polarization), and physical term
 It does not include discretization parameters; those are set separately when constructing
 a [`PlaneWaveBasis`](@ref) from a `Model`.
 
-Arguments
+## Arguments
 - `lattice::AbstractMatrix`: Lattice vectors given column-wise (atomic units).
 - `atoms::Vector{<:Element}`: Atomic species (may include pseudopotential metadata).
 - `positions::Vector{Vec3}`: Atomic positions in fractional (reduced) coordinates.
@@ -112,7 +112,7 @@ Arguments
     - `Vector{SymOp}`: use the provided explicit symmetry operations. Passing incorrect
         symmetries may produce wrong results.
 
-Notes
+## Notes
 - `magnetic_moments` are used only to determine `spin_polarization` and symmetries,
     but are otherwise not stored on the `Model`.
 - The constructor validates consistency between `εF` and `n_electrons` and will error if
@@ -120,7 +120,7 @@ Notes
 - Lattice conditioning is checked and a warning is issued for poorly conditioned lattices
     (high matrix condition number).
 
-See also
+## See also
 - [`Model` datastructure](@ref)
 - [`PlaneWaveBasis`](@ref), [`self_consistent_field`](@ref)
 """
