@@ -261,6 +261,8 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
 end
 
 @doc raw"""
+    PlaneWaveBasis(model::Model; kwargs...)
+
 Creates a plane-wave discretization of a given [`Model`](@ref).
 
 `PlaneWaveBasis` defines the reciprocal-space basis used for Bloch orbitals and the
@@ -282,13 +284,17 @@ recommendations how to tune these numerical discretization parameters.
 - `Ecut::Number` (default: `recommended_cutoff(model).Ecut`): Kinetic-energy cutoff
     for Bloch orbitals (units of energy in atomic units). If DFTK cannot infer a
     recommended cutoff from the pseudopotentials this argument must be supplied.
-- `supersampling::Real` (default: `recommended_cutoff(model).supersampling`): Factor
-    determining the density/potential cutoff relative to `Ecut`. The density cutoff is
-    `supersampling^2 * Ecut` (default supersampling = 2.0, i.e. density cutoff = 4 * Ecut).
 - `kgrid` (default: `KgridSpacing(2π * 0.022)`): Specifies Brillouin-zone sampling.
     Accepts a [`MonkhorstPack`](@ref) object, a vector of three integers,
     a [`KgridSpacing`](@ref) object, or any object accepted by `build_kgrid`.
     The default corresponds to a heuristic spacing.
+- `architecture` (default: `CPU()`): Hardware architecture descriptor (e.g. `CPU()` or
+    `GPU(...)`) that controls backend selection and device placement.
+
+## Keyword arguments part 2 (expert-level)
+- `supersampling::Real` (default: `recommended_cutoff(model).supersampling`): Factor
+    determining the density/potential cutoff relative to `Ecut`. The density cutoff is
+    `supersampling^2 * Ecut` (default supersampling = 2.0, i.e. density cutoff = 4 * Ecut).
 - `fft_size::Union{Nothing,Tuple{Int,Int,Int}}` (default: `nothing`): Explicit FFT grid
     size. If `nothing`, an automatic FFT grid compatible with `Ecut` and `supersampling`
     is computed.
@@ -298,12 +304,8 @@ recommendations how to tune these numerical discretization parameters.
 - `comm_kpts` (default: `MPI.COMM_WORLD`): MPI communicator used to distribute k-points
     across processes. Must be an initialized MPI communicator; the constructor calls
     `MPI.Init()` if necessary.
-- `architecture` (default: `CPU()`): Hardware architecture descriptor (e.g. `CPU()` or
-    `GPU(...)`) that controls FFT/backend selection and device placement.
 
 ## Notes
-- When `fft_size` is provided the constructor validates it for compatibility with the
-    internal FFT routines (use `next_working_fft_size` if needed).
 - If you set `variational=false` some features may be unsupported; this mode is
     considered experimental.
 
@@ -372,8 +374,10 @@ basis = PlaneWaveBasis(model; Ecut=12, fft_size=(48,48,48))
 end
 
 """
+    PlaneWaveBasis(basis::PlaneWaveBasis, kgrid)
+
 Creates a new basis identical to `basis`, but with a new k-point grid,
-e.g. an [`MonkhorstPack`](@ref) or a [`ExplicitKpoints`](@ref) grid.
+e.g. a [`MonkhorstPack`](@ref) or a [`ExplicitKpoints`](@ref) grid.
 """
 @timing function PlaneWaveBasis(basis::PlaneWaveBasis, kgrid::Union{AbstractKgrid,AbstractKgridGenerator})
     kgrid_inner = build_kgrid(basis.model.lattice, kgrid)

@@ -80,7 +80,8 @@ It does not include discretization parameters; those are set separately when con
 a [`PlaneWaveBasis`](@ref) from a `Model`.
 
 ## Arguments
-- `lattice::AbstractMatrix`: Lattice vectors given column-wise (atomic units).
+- `lattice::AbstractMatrix`: Lattice vectors given column-wise (default: atomic units).
+    Alternatively, a matrix of [`Unitful.Quantity`](@ref) can be provided.
 - `atoms::Vector{<:Element}`: Atomic species (may include pseudopotential metadata).
 - `positions::Vector{Vec3}`: Atomic positions in fractional (reduced) coordinates.
 
