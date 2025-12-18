@@ -109,7 +109,7 @@ a [`PlaneWaveBasis`](@ref) from a `Model`.
     - `::Vector{SymOp}`: use the provided explicit symmetry operations. Passing incorrect
         symmetries may produce wrong results.
 
-## Keyword arguments part 2 (expert-level)
+## Keyword arguments (Expert level)
 - `model_name::String` (default: "custom"): Human-readable model name (e.g. "LDA", "PBE").
 - `εF` (default: `nothing`): Fixed Fermi level option. If set, the model is defined at fixed
     Fermi level instead of fixed electron count. Mutually exclusive with `n_electrons`.
