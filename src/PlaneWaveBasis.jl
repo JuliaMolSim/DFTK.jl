@@ -287,7 +287,7 @@ If parameters are not given explicitly as a kwarg, the constructor chooses sensi
 - `architecture` (default: `CPU()`): Hardware architecture descriptor (e.g. `CPU()` or
     `GPU(...)`) that controls backend selection and device placement.
 
-## Keyword arguments part 2 (expert-level)
+## Keyword arguments (Expert level)
 - `supersampling::Real` (default: `recommended_cutoff(model).supersampling`): Factor
     determining the density/potential cutoff relative to `Ecut`. The density cutoff is
     `supersampling^2 * Ecut` (default supersampling = 2.0, i.e. density cutoff = 4 * Ecut).
