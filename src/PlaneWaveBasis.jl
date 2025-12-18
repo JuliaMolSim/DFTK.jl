@@ -302,8 +302,7 @@ recommendations how to tune these numerical discretization parameters.
     operations are used to reduce the explicit k-point set to the irreducible Brillouin
     zone (saves work, recommended).
 - `comm_kpts` (default: `MPI.COMM_WORLD`): MPI communicator used to distribute k-points
-    across processes. Must be an initialized MPI communicator; the constructor calls
-    `MPI.Init()` if necessary.
+    across processes.
 
 ## Notes
 - If you set `variational=false` some features may be unsupported; this mode is
