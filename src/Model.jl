@@ -82,7 +82,7 @@ a [`PlaneWaveBasis`](@ref) from a `Model`.
 ## Arguments
 - `lattice::AbstractMatrix`: Lattice vectors given column-wise (atomic units by default).
     Alternatively, a matrix of [`Unitful.Quantity`](@ref) can be provided,
-    which is converted to atomic units automatically.
+    which is then converted to atomic units automatically.
 - `atoms::Vector{<:Element}`: Atomic species (may include pseudopotential metadata).
 - `positions::Vector{Vec3}`: Atomic positions in fractional (reduced) coordinates.
 
