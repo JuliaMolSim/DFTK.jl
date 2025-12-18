@@ -102,7 +102,6 @@ a [`PlaneWaveBasis`](@ref) from a `Model`.
     Smearing function used to compute occupations from Kohn-Sham eigenvalues.
 - `spin_polarization::Symbol` (default: `determine_spin_polarization(magnetic_moments)`):
     Controls spin treatment; allowed values are `:none`, `:collinear`, `:spinless`.
-    (`:full` exists but is not supported and will error.)
 - `symmetries` (default: `true`):
     - `true`: run automatic symmetry detection with [`default_symmetries`](@ref).
     - `false`: disable all symmetries.
