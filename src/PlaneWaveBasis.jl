@@ -289,17 +289,9 @@ recommendations how to tune these numerical discretization parameters.
     Accepts a [`MonkhorstPack`](@ref) object, a vector of three integers,
     a [`KgridSpacing`](@ref) object, or any object accepted by `build_kgrid`.
     The default corresponds to a heuristic spacing.
-- `kshift` (deprecated): Legacy k-point shift. Prefer `kgrid=MonkhorstPack(kgrid, kshift)`.
-- `variational::Bool` (default: `true`): Whether the k-point-specific orbital basis is
-    variationally consistent with the density/potential grid. Non-variational mode is
-    experimental and may disable features.
 - `fft_size::Union{Nothing,Tuple{Int,Int,Int}}` (default: `nothing`): Explicit FFT grid
     size. If `nothing`, an automatic FFT grid compatible with `Ecut` and `supersampling`
-    is computed. Specifying `fft_size` may disable certain symmetry optimizations.
-- `symmetries_respect_rgrid::Bool` (default: `isnothing(fft_size)`): When `true` the
-    automatically chosen FFT grid will be adjusted to be compatible with common fractional
-    translation denominators (2,3,4,6) to preserve symmetries; set to `false` to skip
-    this behavior when providing a custom FFT grid.
+    is computed.
 - `use_symmetries_for_kpoint_reduction::Bool` (default: `true`): If `true`, symmetry
     operations are used to reduce the explicit k-point set to the irreducible Brillouin
     zone (saves work); set to `false` for debugging or to disable k-point reduction.
@@ -310,7 +302,6 @@ recommendations how to tune these numerical discretization parameters.
     `GPU(...)`) that controls FFT/backend selection and device placement.
 
 ## Notes
-- If `Ecut` is left missing (explicit `missing`), an `ArgumentError` is thrown.
 - When `fft_size` is provided the constructor validates it for compatibility with the
     internal FFT routines (use `next_working_fft_size` if needed).
 - If you set `variational=false` some features may be unsupported; this mode is
@@ -322,15 +313,15 @@ recommendations how to tune these numerical discretization parameters.
 basis = PlaneWaveBasis(model)
 
 # Provide explicit Ecut and k-grid
-basis = PlaneWaveBasis(model; Ecut=10.0, kgrid=[4,4,4])
+basis = PlaneWaveBasis(model; Ecut=10, kgrid=[4,4,4])
 
-# Custom FFT grid (note: may disable symmetry-driven optimizations)
-basis = PlaneWaveBasis(model; Ecut=12.0, fft_size=(48,48,48))
+# Custom FFT grid
+basis = PlaneWaveBasis(model; Ecut=12, fft_size=(48,48,48))
 ```
 
 ## See also
 - [`PlaneWaveBasis` and plane-wave discretisations](@ref)
-- [`Model`](@ref), [`Kpoint`](@ref), [`MonkhorstPack`](@ref)
+- [`Model`](@ref)
 """
 @timing function PlaneWaveBasis(model::Model{T};
                                 Ecut::Union{Number,Missing}=recommended_cutoff(model).Ecut,
