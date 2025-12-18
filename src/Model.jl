@@ -83,15 +83,8 @@ a [`PlaneWaveBasis`](@ref) from a `Model`.
 - `positions::Vector{Vec3}`: Atomic positions in fractional (reduced) coordinates.
 
 ## Keyword arguments
-- `model_name::String` (default: "custom"): Human-readable model name (e.g. "LDA", "PBE").
-- `εF` (default: `nothing`): Fixed Fermi level option. If set, the model is defined at fixed
-    Fermi level instead of fixed electron count. Mutually exclusive with `n_electrons`.
 - `n_electrons::Union{Int,Nothing}` (default: inferred from `atoms`): Total electron count.
     If `εF !== nothing` then `n_electrons` must be `nothing`.
-- `disable_electrostatics_check::Bool` (default: `all(iszero, charge_ionic.(atoms))`): When
-    `false` (the default safety path), constructing a non-neutral model will raise an error
-    unless explicitly allowed. Set to `true` to bypass neutrality/electrostatics
-    checks (experimental).
 - `magnetic_moments` (default: `[]`): Per-atom initial magnetic moments used to infer
     `spin_polarization` and to determine symmetries. These values influence model setup
     but are otherwise not stored on the `Model`.
@@ -106,11 +99,20 @@ a [`PlaneWaveBasis`](@ref) from a `Model`.
 - `spin_polarization::Symbol` (default: `determine_spin_polarization(magnetic_moments)`):
     Controls spin treatment; allowed values are `:none`, `:collinear`, `:spinless`.
     (`:full` exists but is not supported and will error.)
-- `symmetries::Union{Bool,Vector{SymOp}}` (default: `true`):
-    - `true`: run automatic symmetry detection.
+- `symmetries` (default: `true`):
+    - `true`: run automatic symmetry detection with [`default_symmetries`](@ref).
     - `false`: disable all symmetries.
-    - `Vector{SymOp}`: use the provided explicit symmetry operations. Passing incorrect
+    - `::Vector{SymOp}`: use the provided explicit symmetry operations. Passing incorrect
         symmetries may produce wrong results.
+
+## Keyword arguments part 2 (expert-level)
+- `model_name::String` (default: "custom"): Human-readable model name (e.g. "LDA", "PBE").
+- `εF` (default: `nothing`): Fixed Fermi level option. If set, the model is defined at fixed
+    Fermi level instead of fixed electron count. Mutually exclusive with `n_electrons`.
+- `disable_electrostatics_check::Bool` (default: `all(iszero, charge_ionic.(atoms))`): When
+    `false` (the default safety path), constructing a non-neutral model will raise an error
+    unless explicitly allowed. Set to `true` to bypass neutrality/electrostatics
+    checks (experimental).
 
 ## Notes
 - `magnetic_moments` are used only to determine `spin_polarization` and symmetries,
