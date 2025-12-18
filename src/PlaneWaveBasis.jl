@@ -300,7 +300,7 @@ recommendations how to tune these numerical discretization parameters.
     is computed.
 - `use_symmetries_for_kpoint_reduction::Bool` (default: `true`): If `true`, symmetry
     operations are used to reduce the explicit k-point set to the irreducible Brillouin
-    zone (saves work); set to `false` for debugging or to disable k-point reduction.
+    zone (saves work, recommended).
 - `comm_kpts` (default: `MPI.COMM_WORLD`): MPI communicator used to distribute k-points
     across processes. Must be an initialized MPI communicator; the constructor calls
     `MPI.Init()` if necessary.
