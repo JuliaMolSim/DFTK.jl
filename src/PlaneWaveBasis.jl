@@ -287,7 +287,6 @@ recommendations how to tune these numerical discretization parameters.
 - `kgrid` (default: `KgridSpacing(2π * 0.022)`): Specifies Brillouin-zone sampling.
     Accepts a [`MonkhorstPack`](@ref) object, a vector of three integers,
     a [`KgridSpacing`](@ref) object, or any object accepted by `build_kgrid`.
-    The default corresponds to a heuristic spacing.
 - `architecture` (default: `CPU()`): Hardware architecture descriptor (e.g. `CPU()` or
     `GPU(...)`) that controls backend selection and device placement.
 
