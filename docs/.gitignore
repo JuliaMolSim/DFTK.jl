@@ -19,6 +19,8 @@ src/guide/self_consistent_field.ipynb
 src/guide/self_consistent_field.md
 src/guide/tutorial.ipynb
 src/guide/tutorial.md
+src/guide/tutorialmath.ipynb
+src/guide/tutorialmath.md
 src/tricks/scf_checkpoints.ipynb
 src/tricks/scf_checkpoints.md
 /Artifacts.toml
