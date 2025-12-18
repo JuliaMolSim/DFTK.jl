@@ -99,7 +99,7 @@ a [`PlaneWaveBasis`](@ref) from a `Model`.
     [`Smearing.FermiDirac`](@ref)().
 - `smearing::Smearing.SmearingFunction` (default: `FermiDirac()` when `temperature>0`,
     else `None()`):
-    Function used to convert eigenvalue differences to occupations.
+    Smearing function used to compute occupations from Kohn-Sham eigenvalues.
 - `spin_polarization::Symbol` (default: `determine_spin_polarization(magnetic_moments)`):
     Controls spin treatment; allowed values are `:none`, `:collinear`, `:spinless`.
     (`:full` exists but is not supported and will error.)
