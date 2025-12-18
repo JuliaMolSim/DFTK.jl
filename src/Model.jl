@@ -246,6 +246,8 @@ AtomsBase-compatible Model constructor. Sets structural information (`atoms`, `p
    pseudopotential from the specified pseudo family or (c)
    a `Dict{Symbol,String}` mapping an atomic symbol
    to the pseudopotential to be employed.
+- `kwargs...`: Additional keyword arguments passed to the main
+   [`Model(::AbstractMatrix, ::Vector, ::Vector)`](@ref) constructor.
 """
 function Model(system::AbstractSystem;
                pseudopotentials=fill(nothing, length(system)), kwargs...)
