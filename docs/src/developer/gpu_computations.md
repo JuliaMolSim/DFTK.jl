@@ -18,8 +18,8 @@ architecture-specific package ([CUDA](https://github.com/JuliaGPU/CUDA.jl),
 
 For now, GPU computations are done by specializing the `architecture` keyword argument
 when creating the [`PlaneWaveBasis`](@ref). `architecture` should be an initialized instance of
-the (non-exported) [`CPU`](@ref) and [`GPU`](@ref) structures. [`CPU`](@ref) does not require any argument,
-but [`GPU`](@ref) requires the type of array which will be used for GPU computations.
+the (non-exported) `CPU` and `GPU` structures. `CPU` does not require any argument,
+but `GPU` requires the type of array which will be used for GPU computations.
 
 ```julia
 PlaneWaveBasis(model; Ecut, kgrid, architecture = DFTK.CPU())
@@ -30,7 +30,7 @@ PlaneWaveBasis(model; Ecut, kgrid, architecture = DFTK.GPU(CuArray))
     Julia ecosystem concerning distributed architectures.
 
 Not all terms can be used when doing GPU computations. As of January 2023 this
-concerns [`Anyonic`](@ref), [`Magnetic`](@ref) and [`TermPairwisePotential`](@ref). Similarly GPU features are
+concerns `Anyonic`, [`Magnetic`](@ref) and [`PairwisePotential`](@ref). Similarly GPU features are
 not yet exhaustively tested, and it is likely that some aspects of the code such as
 automatic differentiation or stresses will not work.
 
