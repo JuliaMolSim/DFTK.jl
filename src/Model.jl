@@ -70,6 +70,8 @@ _is_well_conditioned(A; tol=1e5) = (cond(A) <= tol)
                 temperature, smearing, spin_polarization, symmetries)
 
 Creates the physical specification of a model (without any discretization information).
+See also [`Model(system::AbstractSystem; kwargs...)`](@ref) for an AtomsBase-compatible
+constructor.
 
 The `Model` represents the model system through its geometry (lattice, atomic positions),
 electronic structure (number of electrons, spin polarization), and physical terms
@@ -124,6 +126,7 @@ a [`PlaneWaveBasis`](@ref) from a `Model`.
 
 ## See also
 - [`Model` datastructure](@ref)
+- [`Model(system::AbstractSystem; kwargs...)`](@ref)
 - [`PlaneWaveBasis`](@ref), [`self_consistent_field`](@ref)
 """
 function Model(lattice::AbstractMatrix{Tstatic},
