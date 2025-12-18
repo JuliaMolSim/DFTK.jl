@@ -296,7 +296,7 @@ recommendations how to tune these numerical discretization parameters.
     determining the density/potential cutoff relative to `Ecut`. The density cutoff is
     `supersampling^2 * Ecut` (default supersampling = 2.0, i.e. density cutoff = 4 * Ecut).
 - `fft_size::Union{Nothing,Tuple{Int,Int,Int}}` (default: `nothing`): Explicit FFT grid
-    size. If `nothing`, an automatic FFT grid compatible with `Ecut` and `supersampling`
+    size. If `nothing` (recommended), an automatic FFT grid compatible with `Ecut` and `supersampling`
     is computed.
 - `use_symmetries_for_kpoint_reduction::Bool` (default: `true`): If `true`, symmetry
     operations are used to reduce the explicit k-point set to the irreducible Brillouin
