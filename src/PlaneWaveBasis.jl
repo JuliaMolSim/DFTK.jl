@@ -270,12 +270,9 @@ real-space FFT grid used for densities and potentials. It bundles the model, the
 kinetic-energy cutoff `Ecut`, k-point sampling into a single object which
 is then used by the Hamiltonian and SCF machinery.
 
-The constructor attempts to choose sensible defaults from the `model` (pseudopotentials,
-recommended cutoffs and symmetries) but allows explicit control of numerical
-parameters through keyword arguments described below.
-
 See [Performing a convergence study](@ref) for some practical
-recommendations how to tune these numerical discretization parameters.
+recommendations for choosing plane-wave discretization parameters.
+If parameters are not given explicitly as a kwarg, the constructor chooses sensible defaults from inspecting the `model`.
 
 ## Arguments
 - `model::Model`: Physical model to be discretized. See [`Model`](@ref).
