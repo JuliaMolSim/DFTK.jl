@@ -19,16 +19,7 @@ PAGES = [
     "Getting started" => [
         "guide/installation.md",
         "guide/tutorial.jl",
-    ],
-    "Background" => [
-        # Theoretical background
         "guide/introductory_resources.md",
-        "guide/periodic_problems.jl",
-        "guide/discretisation.jl",
-        "guide/atomic_chains.jl",
-        "guide/density_functional_theory.md",
-        "guide/self_consistent_field.jl",
-        "school2022.md",
     ],
     "Basic DFT calculations" => [
         # Ground-state DFT calculations, standard problems and modelling techniques
@@ -84,6 +75,13 @@ PAGES = [
     "Error control" => [
         "examples/arbitrary_floattype.jl",
         "examples/error_estimates_forces.jl",
+    ],
+    "Theoretical Background" => [
+        "guide/periodic_problems.jl",
+        "guide/discretisation.jl",
+        "guide/atomic_chains.jl",
+        "guide/density_functional_theory.md",
+        "guide/self_consistent_field.jl",
     ],
     "Developer resources" => [
         "developer/setup.md",
