@@ -111,10 +111,6 @@ a [`PlaneWaveBasis`](@ref) from a `Model`.
 - `model_name::String` (default: "custom"): Human-readable model name (e.g. "LDA", "PBE").
 - `εF` (default: `nothing`): Fixed Fermi level option. If set, the model is defined at fixed
     Fermi level instead of fixed electron count. Mutually exclusive with `n_electrons`.
-- `disable_electrostatics_check::Bool` (default: `all(iszero, charge_ionic.(atoms))`): When
-    `false` (the default safety path), constructing a non-neutral model will raise an error
-    unless explicitly allowed. Set to `true` to bypass neutrality/electrostatics
-    checks (experimental).
 
 ## Notes
 - `magnetic_moments` are used only to determine `spin_polarization` and symmetries,
