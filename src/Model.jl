@@ -88,7 +88,6 @@ a [`PlaneWaveBasis`](@ref) from a `Model`.
 
 ## Keyword arguments
 - `n_electrons::Union{Int,Nothing}` (default: inferred from `atoms`): Total electron count.
-    If `εF !== nothing` then `n_electrons` must be `nothing`.
 - `magnetic_moments` (default: `[]`): Per-atom initial magnetic moments used to infer
     `spin_polarization` and to determine symmetries. These values influence model setup
     but are otherwise not stored on the `Model`.
