@@ -34,35 +34,51 @@
 # \begin{aligned}
 # &\left( \frac12 (-i∇ + k)^2 + V\left(\rho\right) \right) ψ_{kn}
 #   = ε_{kn} ψ_{kn}, \qquad \text{for } 1 ≤ n ≤ N, k ∈ Ω^∗ ⊂ \mathbb{R}^3 \\
-# V(ρ) = &\, V_\text{nuc} + V_\text{H}^ρ + V_\text{XC}(ρ), \\
-# ρ(r) = & \frac{1}{|Ω|}  ∫_{Ω^∗} ∑_{n=1}^N f(ε_{kn})  \abs{ψ_{kn}(r)}^2 \, d k, \\
+# V(ρ) = &\, V_\text{nuc} + V_\text{H}(ρ) + V_\text{XC}(ρ), \\
+# ρ(r) = & \frac{1}{|Ω|}  ∫_{Ω^∗} ∑_{n=1}^N f\left(\frac{ε_{kn} - ε_F}{T}\right) \,  \abs{ψ_{kn}(r)}^2 \, d k, \\
+# N_\text{el} &= ∫_{Ω} ρ(r) \, dr.
 # \end{aligned}
 # \right.
 # ```
-# where for each $k ∈ Ω^∗$ the $ε_{k1} ≤ ε_{k2} ≤ ⋯ ≤ ε_{kN}$
-# are the eigenvalues and the orbitals $ψ_{kn} ∈ H^1(\Omega)$
-# the eigenfunctions of the non-linear operator
+# where the unknowns are
+# for each $k ∈ Ω^∗$ the **eigenvalues** $ε_{k1} ≤ ε_{k2} ≤ ⋯ ≤ ε_{kN}$ (each real numbers),
+# the **orbitals** (eigenfunctions) $ψ_{kn} ∈ H^1(\Omega)$
+# as well as the **Fermi level** $ε_F ∈ \mathbb{R}$.
+# This is an eigenvector-dependent non-linear eigenvalue problem of the operators ($k ∈ Ω^∗$)
 # ```math
-# H = -\frac12 \Delta + V\left(\rho\right)
+# H_k = \frac12 (-i∇ + k)^2 + V\left(\rho\right),
 # ```
-# making this problem an eigenvector-dependent non-linear eigenvalue problem.
-# Here, $\frac12 (-i∇ + k)^2$ is the **kinetic operator**.
-# It arises from a quantum-mechanical
-# treatment of the classical kinetic energy of the electrons. In turn, $V$ is the
-# non-linear **potential**, which arises
-# from the interaction of the electrons amongst each other
-# as well as the interactions of the electrons with
-# the nuclei of a material. It can be shown that for the usual potentials
-# (Coulomb or more regular) that $H$ is self-adjoint with compact support, meaning that
+# which has as its principle parameters the functional form of the **potential** $V$,
+# respectively its terms $V_\text{nuc}$, $V_\text{H}(ρ)$ and $V_\text{XC}$,
+# the value for the **number of electrons** $N_\text{el} ∈ \mathbb{N}$
+# as well as the **smearing temperature** $T$.
+# Physically, the first term of $H_k$, i.e.  $\frac12 (-i∇ + k)^2$ is the **kinetic operator**,
+# which arises from a quantum-mechanical
+# treatment of the classical kinetic energy of the electrons.
+# In turn the terms of $V$ arise from the interaction of the electrons with themselves
+# as well as the nuclei:
+# - the **nuclear attraction potential** $V_\text{nuc}$ describes the interaction
+#   of electrons and nuclei,
+# - the **Hartree potential** $V_\text{H}(ρ)$ provides the classical interaction of
+#   the electrons and is obtained as the unique
+#   zero-mean solution to the periodic Poisson equation
+#   ```math
+#   -\Delta \left(V_\text{H}(ρ)\right)(r)
+#   = 4\pi \left(\rho(r) - \frac{1}{|\Omega|} \int_\Omega \rho \right).
+#   ```
+# - the **exchange-correlation potential** $V_\text{xc}$
+#   provides the quantum-mechanical part of the electron-electron interaction
+#   and depends on $ρ$ as well as potentially its derivatives.
+# It can be shown that for the usual potentials
+# (Coulomb or more regular) that $H_k$ is self-adjoint with compact support, meaning that
 # its spectrum is entirely discrete and its eigenfunctions countable.
-# The terms of $V$ are explained in more details below.
 #
-# In principle the sum over $n$ in the expression for the **electron density** $ρ$
-# needs to be infinite, meaning that we need to know in theory the entire spectrum of $H$
+# In principle the sum over $n$ in the expression for the **electron density** $ρ$ in (1)
+# needs to be infinite, meaning that we need to know in theory the entire spectrum of all $H_k$
 # in order to compute $ρ$. However, since the **occupation function** $f$ decays to zero as
 # its argument gets larger, there exists a finite value $N$ at which we obtain the
-# **electron density** $ρ$ to very good approximation and we assume here this value $N$
-# is given. Notice that $f_{kn} ≡ f(ε_{kn})$.
+# electron density $ρ$ to very good approximation. Numerical routines in DFTK determine this
+# value of $N$ adaptively ensuring that $N$ is taken sufficiently large.
 #
 # The set $Ω ⊂ \mathbb{R}^3$ is the **unit cell** of the problem, that is the periodically
 # repeating unit with respect to which the material as well as the potential $V$ are periodic.
@@ -80,18 +96,6 @@
 # All $k$-points are taken from $Ω^∗$.
 # For more intuition about periodic problems,
 # see [Periodic problems and plane-wave discretisations](@ref periodic-problems).
-#
-# We now provide some idea about the potential terms, these are
-# - the **nuclear attraction potential** $V_\text{nuc}$, describing the interaction
-#   of electrons and nuclei
-# - the **exchange-correlation potential** $V_\text{xc}$,
-#   depending on $\rho$ and potentially its derivatives.
-# - the **Hartree potential** $V_\text{H}^\rho$, which is obtained as the unique
-#   zero-mean solution to the periodic Poisson equation
-#   ```math
-#   -\Delta V_\text{H}^\rho(r)
-#   = 4\pi \left(\rho(r) - \frac{1}{|\Omega|} \int_\Omega \rho \right).
-#   ```
 #
 # ## Discretization and techniques
 #
@@ -125,13 +129,11 @@
 #
 # ## A first computation
 #
-#
 # Summarising the above discussion we collect
 # the **input parameters of a DFT calculation** and show how to
-# provide them to DFTK. 
+# provide them to DFTK.
 # We will use the classic example of computing the LDA ground state
 # of the [silicon crystal](https://www.materialsproject.org/materials/mp-149).
-# We first load a few packages:
 
 using DFTK
 using Unitful
@@ -176,14 +178,17 @@ nothing  # hide
 # and [Input and output formats](@ref) for details.
 
 # **Step 2:**
-# Define the DFT model, that is the functional form of $V_\text{xc}$.
+# Define the DFT model, that is the functional form of $V_\text{xc}$
 # This is indicated below by `functionals=LDA()`, which defines
 # an LDA (local density approximation) model.
+# Notice, that $V_H(ρ)$ is used by all DFT models in the potential $V$,
+# so it is not explicitly mentioned in the code below.
+#
 # The additional keyword arguments `temperature` and `smearing`
-# define the functional form of the **occupation function** $f$,
+# define the value for the smearing temperate $T$ to `1e-3`
+# as well as the functional form of the **occupation function** $f$,
 # which is often also called **smearing function**. Here we employ
-# [`Smearing.Gaussian`](@ref), which itself is parametrised in the
-# **smearing temperature** for which we choose `1e-3` Hartree.
+# [`Smearing.Gaussian`](@ref).
 
 model = model_DFT(lattice, atoms, positions; functionals=LDA(),
                   temperature=1e-3, smearing=Smearing.Gaussian())
