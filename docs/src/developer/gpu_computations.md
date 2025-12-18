@@ -33,3 +33,58 @@ Not all terms can be used when doing GPU computations. As of January 2023 this
 concerns [`Anyonic`](@ref), [`Magnetic`](@ref) and [`TermPairwisePotential`](@ref). Similarly GPU features are
 not yet exhaustively tested, and it is likely that some aspects of the code such as
 automatic differentiation or stresses will not work.
+
+## Pitfalls
+There are a few things to keep in mind when doing GPU programming in DFTK.
+- Transfers to and from a device can be done simply by converting an array to
+an other type. However, hard-coding the new array type (such as writing
+`CuArray(A)` to move `A` to a CUDA GPU) is not cross-architecture, and can
+be confusing for developers working only on the CPU code. These data transfers
+should be done using the helper functions [`to_device`](@ref) and [`to_cpu`](@ref) which
+provide a level of abstraction while also allowing multiple architectures
+to be used.
+```julia
+cuda_gpu = DFTK.GPU(CuArray)
+cpu_architecture = DFTK.CPU()
+A = rand(10)  # A is on the CPU
+B = DFTK.to_device(cuda_gpu, A)  # B is a copy of A on the CUDA GPU
+B .+= 1.
+C = DFTK.to_cpu(B)  # C is a copy of B on the CPU
+D = DFTK.to_device(cpu_architecture, B)  # Equivalent to the previous line, but
+                                         # should be avoided as it is less clear
+```
+*Note:* `similar` could also be used, but then a reference array
+(one which already lives on the device) needs to be available at call time.
+This was done previously, with helper functions to easily build new arrays
+on a given architecture: see for example
+[`zeros_like`](https://github.com/JuliaMolSim/DFTK.jl/pull/711/commits/ce5da66009440bd8552429eb8cfe96944da16564).
+- Functions which will get executed on the GPU should always have arguments
+which are `isbits` (immutable and contains no references to other values).
+When using `map`, also make sure that every structure used is also `isbits`.
+For example, the following map will fail, as `model` contains strings and
+arrays which are not `isbits`.
+```julia
+function map_lattice(model::Model, Gs::AbstractArray{Vec3})
+    # model is not isbits
+    map(Gs) do Gi
+        model.lattice * Gi
+    end
+end
+```
+However, the following map will run on a GPU, as the lattice is a static matrix.
+```julia
+function map_lattice(model::Model, Gs::AbstractArray{Vec3})
+    lattice = model.lattice # lattice is isbits
+    map(Gs) do Gi
+        model.lattice * Gi
+    end
+end
+```
+- List comprehensions should be avoided, as they always return a CPU `Array`.
+Instead, we should use `map` which returns an array of the same type as the input
+one.
+- Sometimes, creating a new array or making a copy can be necessary to achieve good
+performance. For example, iterating through the columns of a matrix to compute their
+norms is not efficient, as a new kernel is launched for every column. Instead, it
+is better to build the vector containing these norms, as it is a vectorized
+operation and will be much faster on the GPU.
