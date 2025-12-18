@@ -18,7 +18,7 @@ struct GenericHamiltonianBlock <: HamiltonianBlock
     scratch  # dummy field
 end
 
-# More optimized HamiltonianBlock for the important case of a DFT Hamiltonian
+"""A more optimized HamiltonianBlock for the important case of a DFT Hamiltonian."""
 struct DftHamiltonianBlock <: HamiltonianBlock
     basis::PlaneWaveBasis
     kpoint::Kpoint

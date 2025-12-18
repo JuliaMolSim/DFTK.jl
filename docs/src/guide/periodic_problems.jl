@@ -191,7 +191,7 @@
 # of the correspondence of the introduced quantities to data structures inside DFTK.
 #
 # - ``H`` is represented by a [`Hamiltonian`](@ref) object and variables for hamiltonians are usually called `ham`.
-# - ``H_k`` by a [`HamiltonianBlock`](@ref) and variables are `hamk`.
+# - ``H_k`` by a `HamiltonianBlock` and variables are `hamk`.
 # - ``ψ_{kn}`` is usually just called `ψ`.
 #   ``u_{kn}`` is not stored (in favor of ``ψ_{kn}``).
 # - ``ε_{kn}`` is called `eigenvalues`.
