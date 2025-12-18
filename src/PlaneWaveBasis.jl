@@ -266,8 +266,8 @@ end
 Creates a plane-wave discretization of a given [`Model`](@ref).
 
 `PlaneWaveBasis` defines the reciprocal-space basis used for Bloch orbitals and the
-real-space FFT grid used for densities and potentials. It bundles the kinetic-energy
-cutoff `Ecut`, k-point sampling into a single object which
+real-space FFT grid used for densities and potentials. It bundles the model, the
+kinetic-energy cutoff `Ecut`, k-point sampling into a single object which
 is then used by the Hamiltonian and SCF machinery.
 
 The constructor attempts to choose sensible defaults from the `model` (pseudopotentials,
