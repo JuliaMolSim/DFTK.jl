@@ -87,7 +87,7 @@ a [`PlaneWaveBasis`](@ref) from a `Model`.
 - `positions::Vector{Vec3}`: Atomic positions in fractional (reduced) coordinates.
 
 ## Keyword arguments
-- `n_electrons::Union{Int,Nothing}` (default: inferred from `atoms`): Total electron count.
+- `n_electrons::Int` (default: inferred from `atoms`): Total electron count.
 - `magnetic_moments` (default: `[]`): Per-atom initial magnetic moments used to infer
     `spin_polarization` and to determine symmetries. These values influence model setup
     but are otherwise not stored on the `Model`.
