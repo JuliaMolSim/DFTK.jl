@@ -121,8 +121,8 @@ a [`PlaneWaveBasis`](@ref) from a `Model`.
     (high matrix condition number).
 
 ## See also
-- [`Model` datastructure](@ref)
 - [`Model(system::AbstractSystem; kwargs...)`](@ref)
+- [Data structures](@ref)
 - [`PlaneWaveBasis`](@ref), [`self_consistent_field`](@ref)
 """
 function Model(lattice::AbstractMatrix{Tstatic},

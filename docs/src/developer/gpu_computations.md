@@ -40,7 +40,7 @@ There are a few things to keep in mind when doing GPU programming in DFTK.
 an other type. However, hard-coding the new array type (such as writing
 `CuArray(A)` to move `A` to a CUDA GPU) is not cross-architecture, and can
 be confusing for developers working only on the CPU code. These data transfers
-should be done using the helper functions [`to_device`](@ref) and [`to_cpu`](@ref) which
+should be done using the helper functions [`DFTK.to_device`](@ref) and [`DFTK.to_cpu`](@ref) which
 provide a level of abstraction while also allowing multiple architectures
 to be used.
 ```julia

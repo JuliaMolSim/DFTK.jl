@@ -317,7 +317,7 @@ basis = PlaneWaveBasis(model; Ecut=12, fft_size=(48,48,48))
 ```
 
 ## See also
-- [`PlaneWaveBasis` and plane-wave discretisations](@ref)
+- [Data structures](@ref)
 - [`Model`](@ref)
 """
 @timing function PlaneWaveBasis(model::Model{T};
