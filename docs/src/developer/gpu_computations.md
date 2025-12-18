@@ -76,7 +76,7 @@ However, the following map will run on a GPU, as the lattice is a static matrix.
 function map_lattice(model::Model, Gs::AbstractArray{Vec3})
     lattice = model.lattice # lattice is isbits
     map(Gs) do Gi
-        model.lattice * Gi
+        lattice * Gi
     end
 end
 ```
