@@ -159,10 +159,10 @@ _is_approx_in(x::AbstractArray{T}, X) where {T} = any(y -> isapprox(x, y; atol=s
 """
 Filter out the symmetry operations that don't respect the symmetries of the discrete BZ grid
 """
-function symmetries_preserving_kgrid(symmetries, kgrid::ExplicitKpoints)
+function symmetries_preserving_kgrid(symmetries, kgrid::AbstractKgrid)
     # First apply symmetries as the provided k-points can be arbitrary
     # (e.g. only along a line or similar)
-    all_kcoords = unfold_kcoords(kgrid.kcoords, symmetries)
+    all_kcoords = unfold_kcoords(reducible_kcoords(kgrid).kcoords, symmetries)
     kcoords_normalized = normalize_kpoint_coordinate.(all_kcoords)
     function preserves_grid(symop)
         all(_is_approx_in(normalize_kpoint_coordinate(symop.S * k), kcoords_normalized)
@@ -170,15 +170,18 @@ function symmetries_preserving_kgrid(symmetries, kgrid::ExplicitKpoints)
     end
     filter(preserves_grid, symmetries)
 end
+# Special case for Monkhorst-Pack grids since the generic function above
+# is quadratic in the number of k-points.
 function symmetries_preserving_kgrid(symmetries, kgrid::MonkhorstPack)
     # we have to check if S * k is in the grid for all k
-    # by linearity, checking the origin and each unit vector is enough
+    # by linearity, it is enough to check the origin and
+    # (1/kgrid_size[1], 0, 0), (0, 1/kgrid_size[2], 0), (0, 0, 1/kgrid_size[3]).
     kcoords_normalized = normalize_kpoint_coordinate.(reducible_kcoords(kgrid).kcoords)
 
     function preserves_kgrid(symop)
         function _check(dx, dy, dz)
             k = (kgrid.kshift .+ Vec3(dx, dy, dz)) .// kgrid.kgrid_size
-            _is_approx_in(normalize_kpoint_coordinate(symop.S * k), kcoords_normalized)
+            normalize_kpoint_coordinate(symop.S * k) ∈ kcoords_normalized
         end
         _check(0, 0, 0) && _check(1, 0, 0) && _check(0, 1, 0) && _check(0, 0, 1)
     end
