@@ -105,9 +105,10 @@ end
     T = promote_type(eltype(basis), real(eltype(ψ[1])))
     τ = similar(ψ[1], T, (basis.fft_size..., basis.model.n_spin_components))
     τ .= 0
-    dαψnk_real = zeros(complex(eltype(basis)), basis.fft_size)
+    dαψnk_real = zeros_like(G_vectors(basis), complex(eltype(basis)), basis.fft_size...)
+    occupation = [to_cpu(oc) for oc in occupation]
     for (ik, kpt) in enumerate(basis.kpoints)
-        G_plus_k = [[p[α] for p in Gplusk_vectors_cart(basis, kpt)] for α = 1:3]
+        G_plus_k = [map(p -> p[α], Gplusk_vectors_cart(basis, kpt)) for α = 1:3]
         for n = 1:size(ψ[ik], 2), α = 1:3
             ifft!(dαψnk_real, basis, kpt, im .* G_plus_k[α] .* ψ[ik][:, n])
             @. τ[:, :, :, kpt.spin] += occupation[ik][n] * basis.kweights[ik] / 2 * abs2(dαψnk_real)

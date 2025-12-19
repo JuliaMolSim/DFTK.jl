@@ -140,6 +140,10 @@ end
     n_bands = size(ψ, 2)
     iszero(n_bands) && return Hψ  # Nothing to do if ψ empty
     have_divAgrad = !isnothing(H.divAgrad_op)
+    if have_divAgrad
+        # Precompute G_plus_k for DivAgradOperator
+        G_plus_k = [map(p -> p[α], Gplusk_vectors_cart(H.basis, H.kpoint)) for α = 1:3]
+    end
 
     # Notice that we use unnormalized plans for extra speed
     potential = H.local_op.potential / prod(H.basis.fft_size)
@@ -159,7 +163,8 @@ end
                 apply!((; fourier=Hψ[:, iband], real=nothing),
                        H.divAgrad_op,
                        (; fourier=ψ[:, iband], real=nothing);
-                       ψ_scratch=ψ_real)
+                       ψ_real=ψ_real,
+                       G_plus_k=G_plus_k)
             end
         end
 
