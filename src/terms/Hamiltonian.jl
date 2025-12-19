@@ -18,7 +18,7 @@ struct GenericHamiltonianBlock <: HamiltonianBlock
     scratch  # dummy field
 end
 
-# More optimized HamiltonianBlock for the important case of a DFT Hamiltonian
+"""A more optimized HamiltonianBlock for the important case of a DFT Hamiltonian."""
 struct DftHamiltonianBlock <: HamiltonianBlock
     basis::PlaneWaveBasis
     kpoint::Kpoint
@@ -75,6 +75,7 @@ Base.Array(block::HamiltonianBlock)  = Matrix(block)
 Base.Matrix(block::HamiltonianBlock) = sum(Matrix, block.operators)
 Base.Matrix(block::GenericHamiltonianBlock) = sum(Matrix, block.optimized_operators)
 
+"""Represents a matrix-free Hamiltonian discretized in a given plane-wave basis."""
 struct Hamiltonian
     basis::PlaneWaveBasis
     blocks::Vector{HamiltonianBlock}

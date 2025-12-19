@@ -18,7 +18,8 @@ PAGES = [
     "features.md",
     "Getting started" => [
         "guide/installation.md",
-        "guide/tutorial.jl",
+        "General Tutorial" => "guide/tutorial.jl",
+        "guide/tutorialmath.jl",
         "guide/introductory_resources.md",
     ],
     "Basic DFT calculations" => [
@@ -208,7 +209,8 @@ mathengine  = Documenter.MathJax3(Dict(
         :tags       => "ams",
         :packages   => ["base", "ams", "autoload", "configmacros"],
         :macros     => Dict(
-            :abs    => [raw"\left\|#1\right\|",     1],
+            :abs    => [raw"\left|#1\right|",       1],
+            :norm   => [raw"\left\|#1\right\|",     1],
             :ket    => [raw"\left|#1\right\rangle", 1],
             :bra    => [raw"\left\langle#1\right|", 1],
             :braket => [raw"\left\langle#1\middle|#2\right\rangle", 2],

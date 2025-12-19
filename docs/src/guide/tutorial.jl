@@ -1,17 +1,17 @@
 # # Tutorial
 
-#nb # DFTK is a Julia package for playing with plane-wave
-#nb # density-functional theory algorithms. In its basic formulation it
-#nb # solves periodic Kohn-Sham equations.
-#
 # This document provides an overview of the structure of the code
 # and how to access basic information about calculations.
 # If you have not installed DFTK yet, please refer to the [Installation](@ref) instructions.
 #
 # Basic familiarity with the concepts of plane-wave density functional theory
-# is assumed throughout this tutorial.
-# Feel free to take a look at the [Introductory resources](@ref introductory-resources)
-# for some introductory material on the topic.
+# is assumed in this tutorial. Take a look at the [Introductory resources](@ref introductory-resources)
+# for some broader introductory material. There is also a [Mathematical Tutorial](@ref).
+#
+# !!! tip "Mathematical tutorial"
+#     There is also a [Mathematical Tutorial](@ref)
+#     for more mathematically-minded readers, where no familiarity
+#     with condensed-matter simulations is assumed.
 #
 # !!! note "Convergence parameters in the documentation"
 #     We use rough parameters in order to be able
@@ -19,6 +19,9 @@
 #     Therefore results are far from converged.
 #     Tighter thresholds and larger grids should be used for more realistic results.
 #     See also the example on [Performing a convergence study](@ref).
+#
+
+# ## Setting up a first calculation
 #
 # For our discussion we will use the classic example of computing the LDA ground state
 # of the [silicon crystal](https://www.materialsproject.org/materials/mp-149).
@@ -41,7 +44,7 @@ lattice = a / 2 * [[0 1 1.];  # Silicon lattice vectors
 # the k-point grid spacing can optionally be annotated with Unitful units,
 # which are automatically converted to the atomic units used internally. For
 # more details, see the [Unitful package
-# documentation](https://painterqubits.github.io/Unitful.jl/stable/) and the
+# documentation](https://juliaphysics.github.io/Unitful.jl/stable/) and the
 # [UnitfulAtomic.jl package](https://github.com/sostock/UnitfulAtomic.jl).
 
 # We use a pseudodojo pseudopotential
@@ -75,6 +78,8 @@ basis = PlaneWaveBasis(model; Ecut, kgrid)
 ## 3. Run the SCF procedure to obtain the ground state
 scfres = self_consistent_field(basis, tol=1e-5);
 
+# ## Inspecting the results
+
 # That's it! Now you can get various quantities from the result of the SCF.
 # For instance, the different components of the energy:
 scfres.energies
@@ -90,7 +95,7 @@ stack(scfres.eigenvalues)
 # electrons per silicon atom, two atoms per unit cell, and paired
 # spins), and the eigensolver gives itself some breathing room by
 # computing some extra states (see the `bands` argument to
-# `self_consistent_field` as well as the [`AdaptiveBands`](@ref) documentation).
+# [`self_consistent_field`](@ref) as well as the [`AdaptiveBands`](@ref) documentation).
 # There are only 8 k-points (instead of 4x4x4) because symmetry has been used to reduce the
 # amount of computations to just the irreducible k-points (see
 #md # [Crystal symmetries](@ref)
@@ -130,10 +135,12 @@ plot_dos(bands2; temperature=1e-3, smearing=Smearing.FermiDirac())
 #       * [Periodic problems](@ref periodic-problems),
 #       * [Introduction to density-functional theory](@ref),
 #       * [Self-consistent field methods](@ref)
+#       * Further [Introductory resources](@ref introductory-resources)
 #     - **Running calculations:**
 #       * [Temperature and metallic systems](@ref metallic-systems)
 #       * [Pseudopotentials](@ref)
 #       * [Performing a convergence study](@ref)
+#       * Computing [Elastic constants](@ref)
 #       * [Geometry optimization](@ref)
 #       * [AtomsBase integration](@ref) and wider ecosystem: Building / reading structures etc.
 #     - **Tips and tricks:**
