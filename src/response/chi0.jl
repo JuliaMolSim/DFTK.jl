@@ -297,7 +297,7 @@ function compute_δocc!(δocc, basis::PlaneWaveBasis{T}, ψ, εF, ε, δHψ, δt
         end
         D = mpi_sum(D, basis.comm_kpts)
 
-        if isnothing(model.εF)  # εF === nothing means that Fermi level is fixed by model
+        if isnothing(model.εF)  # εF === nothing means that Fermi level is not fixed by model
             # Compute δεF from δ ∑ occ = 0…
             δocc_tot = mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)
             δεF = -δocc_tot / D
