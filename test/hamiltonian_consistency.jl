@@ -113,6 +113,8 @@ end
                               spin_polarization=:collinear)
         test_consistency_term(Hubbard(OrbitalManifold([1, 2], "3S") => 0.01,
                                       OrbitalManifold([1, 2], "3P") => 0.02), atom=Si)
+        test_consistency_term(Hubbard([OrbitalManifold(Si, "3S"), OrbitalManifold(Si, "3P")],
+                                      [0.01, 0.02]), atom=Si)
     end
     # Disabled since the energy is constant, and the test guards against 0 differences
     # test_consistency_term(Ewald())

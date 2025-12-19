@@ -109,19 +109,17 @@ Hubbard energy, following the Dudarev et al. (1998) rotationally invariant forma
 struct Hubbard{T}
     manifolds::Vector{OrbitalManifold}
     U::Vector{T}
-    function Hubbard(manifolds::Vector{OrbitalManifold}, U)
-        U = austrip.(U)
-        new{typeof(U[1])}(manifolds, U)
-    end
-    function Hubbard(manifold_to_U::Vararg{<:Pair})
-        manifolds = map(p -> p[1], manifold_to_U)
-        Us = map(p -> p[2], manifold_to_U)
-        Hubbard([manifold for manifold in manifolds], [U for U in Us])
-    end
-    function Hubbard(params::Pair)
-        Hubbard([params[1]], [params[2]])
-    end
 end
+function Hubbard(manifolds::Vector{OrbitalManifold}, U)
+    U = austrip.(U)
+    new{typeof(U[1])}(manifolds, U)
+end
+function Hubbard(manifold_to_U::Vararg{<:Pair})
+    manifolds = map(p -> p[1], manifold_to_U)
+    Us = map(p -> p[2], manifold_to_U)
+    Hubbard([manifold for manifold in manifolds], [U for U in Us])
+end
+
 function (hubbard::Hubbard{T})(basis::AbstractBasis) where {T}
     manifolds = [resolve_hubbard_manifold(manifold, basis.model) for manifold in hubbard.manifolds]
     projs, labels = atomic_orbital_projectors(basis)
@@ -129,10 +127,8 @@ function (hubbard::Hubbard{T})(basis::AbstractBasis) where {T}
     manifold_labels = [data.manifold_labels for data in manifold_data]
     projs_matrices = [data.manifold_projectors for data in manifold_data]
     # Concatenate projectors from all manifolds per each k-point
-    projs_per_kpt = Vector{Matrix{Complex{T}}}(undef, length(basis.kpoints))
-    for iman in 1:length(manifolds), ik in 1:length(basis.kpoints)
-        projs_per_kpt[ik] = (iman == 1) ? projs_matrices[iman][ik] : 
-                                          hcat(projs_per_kpt[ik], projs_matrices[iman][ik])
+    projs_per_kpt = map(1:length(basis.kpoints)) do ik
+    reduce(hcat, map(iman -> projs_matrices[iman][ik], 1:length(manifolds)))
     end
     TermHubbard(manifolds, hubbard.U, projs_matrices, projs_per_kpt, manifold_labels)
 end
@@ -159,14 +155,17 @@ end
     # For the ops we have to reshape hubbard_n to match the NonlocalOperator structure, 
     # using a block diagonal form whit one block per atom per manifold
     # 2l+1 is the number of projectors per atom, i.e. the dimension of the blocks
-    D_size = sum((2*manifold.l+1)*length(manifold.iatoms) for manifold in term.manifolds)
+    D_size = 0
+    for manifold in term.manifolds
+        D_size += (2*manifold.l + 1) * length(manifold.iatoms)
+    end
     D = [zeros(Complex{T}, D_size, D_size) for _ in 1:n_spin]
 
     U = Vector{T}(undef, 0)
     E = zero(T)
     offset = 0 
     for (iman, manifold) in enumerate(term.manifolds)
-        nproj_atom = (2*manifold.l+1)
+        nproj_atom = (2*manifold.l + 1)
         for σ in 1:n_spin, iatom in 1:length(manifold.iatoms)
             proj_range = (offset + (iatom-1)*nproj_atom + 1):(offset + iatom*nproj_atom)
             D[σ][proj_range, proj_range] = 1/T(2) * term.U[iman] * (I - 2*hubbard_n[iman][σ, iatom, iatom])
