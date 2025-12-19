@@ -159,34 +159,31 @@ _is_approx_in(x::AbstractArray{T}, X) where {T} = any(y -> isapprox(x, y; atol=s
 """
 Filter out the symmetry operations that don't respect the symmetries of the discrete BZ grid
 """
-function symmetries_preserving_kgrid(symmetries, kcoords)
-    kcoords_normalized = normalize_kpoint_coordinate.(kcoords)
+function symmetries_preserving_kgrid(symmetries, kgrid::ExplicitKpoints)
+    # First apply symmetries as the provides k-points can be arbitrary
+    # (e.g. only along a line or similar)
+    all_kcoords = unfold_kcoords(kgrid.kcoords, symmetries)
+    kcoords_normalized = normalize_kpoint_coordinate.(all_kcoords)
     function preserves_grid(symop)
         all(_is_approx_in(normalize_kpoint_coordinate(symop.S * k), kcoords_normalized)
             for k in kcoords_normalized)
     end
     filter(preserves_grid, symmetries)
 end
-function symmetries_preserving_kgrid(symmetries, kgrid::ExplicitKpoints)
-    # First apply symmetries as the provides k-points can be arbitrary
-    # (e.g. only along a line or similar)
-    all_kcoords = unfold_kcoords(kgrid.kcoords, symmetries)
-    symmetries_preserving_kgrid(symmetries, all_kcoords)
-end
 function symmetries_preserving_kgrid(symmetries, kgrid::MonkhorstPack)
-    if all(isone, kgrid.kgrid_size)
-        # TODO Keeping this special casing from version of the code before refactor
-        [one(SymOp)]
-    else
-        # if k' = Rk
-        # then
-        #    R' = diag(kgrid) R diag(kgrid)^-1
-        # should be integer where
+    # we have to check if S * k is in the grid for all k
+    # by linearity, checking the origin and each unit vector is enough
+    kcoords_normalized = normalize_kpoint_coordinate.(reducible_kcoords(kgrid).kcoords)
 
-        # TODO This can certainly be improved by knowing this is an MP grid,
-        #      see symmetries_preserving_rgrid below for ideas
-        symmetries_preserving_kgrid(symmetries, reducible_kcoords(kgrid).kcoords)
+    function preserves_kgrid(symop)
+        function _check(dx, dy, dz)
+            k = (kgrid.kshift .+ Vec3(dx, dy, dz)) .// kgrid.kgrid_size
+            _is_approx_in(normalize_kpoint_coordinate(symop.S * k), kcoords_normalized)
+        end
+        _check(0, 0, 0) && _check(1, 0, 0) && _check(0, 1, 0) && _check(0, 0, 1)
     end
+
+    filter(preserves_kgrid, symmetries)
 end
 
 """
