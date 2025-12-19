@@ -160,7 +160,7 @@ _is_approx_in(x::AbstractArray{T}, X) where {T} = any(y -> isapprox(x, y; atol=s
 Filter out the symmetry operations that don't respect the symmetries of the discrete BZ grid
 """
 function symmetries_preserving_kgrid(symmetries, kgrid::ExplicitKpoints)
-    # First apply symmetries as the provides k-points can be arbitrary
+    # First apply symmetries as the provided k-points can be arbitrary
     # (e.g. only along a line or similar)
     all_kcoords = unfold_kcoords(kgrid.kcoords, symmetries)
     kcoords_normalized = normalize_kpoint_coordinate.(all_kcoords)
