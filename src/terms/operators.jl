@@ -153,8 +153,7 @@ function apply!(Hψ, op::DivAgradOperator, ψ;
         Hψ.fourier .-= im .* G_plus_k[α] .* A∇ψ ./ 2
     end
 end
-# TODO Implement  Base.Matrix(op::DivAgradOperator)
-
+# TODO Implement  Matrix(op::DivAgrad)
 
 # Optimize RFOs by combining terms that can be combined
 function optimize_operators(ops)
