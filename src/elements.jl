@@ -282,23 +282,78 @@ end
 # Helper functions
 #
 
-# TODO Better name ?
-# TODO docstring
-function virtual_crystal_element(coefficients::Vector{<:Number}, elements::Vector{<:ElementPsp{<:NormConservingPsp}};
-                                 species=ChemicalSpecies(0))
+"""
+    virtual_crystal_approximation(coefficients::Vector{<:Number}, elements::Vector{<:ElementPsp};
+                                  species=ChemicalSpecies(0))
+
+Build a virtual crystal approximation in form of a convex combination of the physics
+(local, non-local potentials, masses) of the `elements`. The passed `coefficients` are
+expected to sum to one. The result is returned as a [`ElementPsp`](@ref) with a
+[`DFTK.PspLinComb`](@ref) pseudopotential. By default the `species` of the returned element
+is set to `ChemicalSpecies(0)`, which can be changed using the respective keyword argument.
+"""
+function virtual_crystal_approximation(coefficients::Vector{<:Number},
+                                       elements::Vector{<:ElementPsp{<:NormConservingPsp}};
+                                       species=ChemicalSpecies(0))
     length(coefficients) == length(elements) || throw(
         ArgumentError("Expect coefficients and elements to have equal length."))
     sum(coefficients) ≈ one(eltype(coefficients)) || throw(
         ArgumentError("Expect coefficients to sum to 1"))
     family = allequal(p -> p.family, elements) ? first(elements).family : nothing
 
-    description = "lin. comb. of " 
-    description *= join([(@sprintf "%.2f*%s" c "$(el.species)") for (c, el) in zip(coefficients, elements)], " ")
-    lincomb_psp  = PspLinComb(coefficients, [el.psp for el in elements]; description)
+    pseudopotentials = [el.psp for el in elements]
+    symbols = [el.species for el in elements]
+    lincomb_psp = virtual_crystal_approximation(coefficients, pseudopotentials; symbols)
     lincomb_mass = sum(c * mass(el) for (c, el) in zip(coefficients, elements))
     ElementPsp(species, lincomb_psp, family, lincomb_mass)
 end
-function virtual_crystal_element(α::Number, αpsp::ElementPsp{<:NormConservingPsp},
-                                 β::Number, βpsp::ElementPsp{<:NormConservingPsp}; kwargs...)
-    virtual_crystal_element([α, β], [αpsp, βpsp]; kwargs...)
+
+"""
+    virtual_crystal_approximation(coefficients::Vector{<:Number},
+                                  pseudopotentials::Vector{<:NormConservingPsp};
+                                  symbols=nothing)
+
+Build a virtual crystal approximation pseudopotential from a list of `coefficients`
+and a list of `pseudopotentials`; returns a [`DFTK.PspLinComb`](@ref) object.
+The `symbols` keyword argument can be used to pass the symbols of the elements,
+which are linearly combined. This is only used to make up a descriptive human-redable
+string for printing.
+"""
+function virtual_crystal_approximation(coefficients::Vector{<:Number},
+                                       pseudopotentials::Vector{<:NormConservingPsp};
+                                       symbols::Union{Nothing,<:AbstractVector}=nothing)
+    length(coefficients) == length(pseudopotentials) || throw(
+        ArgumentError("Expect coefficients and pseudopotentials to have equal length."))
+    if isnothing(symbols)
+        description = "lin. comb. psp"
+    else
+        length(coefficients) == length(symbols) || throw(
+            ArgumentError("Expect coefficients and symbols to have equal length."))
+        description = "lin. comb. of "
+        description *= join([(@sprintf "%.2f*%s" c "$spec")
+                             for (c, spec) in zip(coefficients, symbols)], " ")
+    end
+    PspLinComb(coefficients, pseudopotentials; description)
+end
+
+"""
+    virtual_crystal_approximation(coeff_α, element_α, coeff_β, element_β;
+                                  species=ChemicalSpecies(0))
+
+Signature, whichis provided for convenience for the use case of mixing two elements / pseudopotentials.
+
+## Examples
+Form a 10% germanium in 90% tin virtual element
+```julia
+using PseudoPotentialData
+pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
+Ge = ElementPsp(:Ge, pseudopotentials)
+Sn = ElementPsp(:Sn, pseudopotentials)
+
+X = virtual_crystal_approximation(0.1, Ge, 0.9, Sn)
+```
+"""
+function virtual_crystal_approximation(coeff_α::Number, element_α,
+                                       coeff_β::Number, element_β; kwargs...)
+    virtual_crystal_approximation([coeff_α, coeff_β], [element_α, element_β]; kwargs...)
 end

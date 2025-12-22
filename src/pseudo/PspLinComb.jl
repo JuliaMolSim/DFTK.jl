@@ -1,7 +1,7 @@
 # Linear combination of two pseudos
 #    Note that this data structure is deliberately not yet exported for now
 #    as we may want to find a different solution for representing virtual crystal elements
-#    in the future; users should use virtual_crystal_element to implicitly construct
+#    in the future; users should use virtual_crystal_approximation to implicitly construct
 #    these objects.
 #
 struct PspLinComb{T, P <: NormConservingPsp} <: NormConservingPsp
@@ -15,7 +15,7 @@ struct PspLinComb{T, P <: NormConservingPsp} <: NormConservingPsp
 end
 
 function PspLinComb(coefficients::Vector{T}, pseudos::Vector{<:NormConservingPsp};
-                    description="psp linear combination") where {T}
+                    description="lin. comb. psp") where {T}
     @assert length(coefficients) == length(pseudos)
     @assert sum(coefficients) ≈ one(eltype(coefficients))
     @assert !any(p -> p isa PspLinComb, pseudos)

@@ -61,7 +61,7 @@ export ElementGaussian
 export charge_nuclear, charge_ionic
 export n_elec_valence, n_elec_core
 export element_symbol, mass, species  # Note: Re-exported from AtomsBase
-export virtual_crystal_element
+export virtual_crystal_approximation
 include("elements.jl")
 
 export SymOp
