@@ -18,7 +18,7 @@ function parse_system(system::AbstractSystem{D},
     # Parse abstract system and return data required to construct model
     mtx = austrip.(stack(cell_vectors(system)))
     lattice_eltype = eltype(mtx)
-    pos_eltype = promote_type(eltype.((austrip.(p) for p in position(system, :)))...)
+    pos_eltype = typeof(ustrip(one(eltype(position(system, :)))))
     T = promote_type(lattice_eltype, pos_eltype)
     lattice = zeros(T, 3, 3)
     lattice[1:D, 1:D] .= mtx
