@@ -15,12 +15,12 @@ function parse_system(system::AbstractSystem{D},
         error("Length of pseudopotentials vector needs to agree with number of atoms.")
     end
 
+    # Strip unit from a quantity type (like ustrip for types)
+    strip_unit(::Type{<:Quantity{T}}) where {T} = T
+  
     # Parse abstract system and return data required to construct model
     mtx = austrip.(stack(cell_vectors(system)))
-    lattice_eltype = eltype(mtx)
-    pos_eltype_units = eltype(eltype(position(system, :)))
-    pos_eltype = typeof(one(pos_eltype_units))  # Strip units from type
-    T = promote_type(lattice_eltype, pos_eltype)
+    T = reduce(promote_type, strip_unit.(eltype.(position(system, :))); init=eltype(mtx))
     lattice = zeros(T, 3, 3)
     lattice[1:D, 1:D] .= mtx
 
