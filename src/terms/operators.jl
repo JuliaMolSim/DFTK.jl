@@ -187,7 +187,7 @@ end
 struct ExchangeOperator{T <: Real,Tocc,Tpsi} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
     kpoint::Kpoint{T}
-    poisson_green_coeffs::Array{T, 3}
+    poisson_green_coeffs::Array{T}
     occk::Tocc
     ψk::Tpsi
 end
@@ -199,9 +199,9 @@ function apply!(Hψ, op::ExchangeOperator, ψ)
         # TODO Some symmetrisation of x_real might be needed here ...
 
         # Compute integral by Poisson solve
-        x_four  = fft(op.basis, x_real)
+        x_four  = fft(op.basis, op.kpoint, x_real) # actually we need q-point here
         Vx_four = x_four .* op.poisson_green_coeffs
-        Vx_real = ifft(op.basis, Vx_four)
+        Vx_real = ifft(op.basis, op.kpoint, Vx_four) # actually we need q-point here
 
         # Real-space multiply and accumulate
         fac_nk = op.occk[n] / 2

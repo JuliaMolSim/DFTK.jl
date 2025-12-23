@@ -123,6 +123,7 @@ export compute_kernel
 export BlowupIdentity
 export BlowupCHV
 export BlowupAbinit
+export WignerSeitzTruncated, SphericallyTruncated, NeglectSingularity, ProbeCharge, MeanPotential
 include("coulomb.jl")
 include("DispatchFunctional.jl")
 include("terms/terms.jl")

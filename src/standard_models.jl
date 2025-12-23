@@ -141,18 +141,20 @@ end
 """
 Build an Hartree-Fock model from the specified atoms.
 """
-function model_HF(system::AbstractSystem; pseudopotentials, kwargs...)
+function model_HF(system::AbstractSystem; pseudopotentials, 
+                  coulomb_model::CoulombModel=ProbeCharge(), kwargs...)
     parsed = parse_system(system, pseudopotentials)
-    _model_HF(parsed.lattice, parsed.atoms, parsed.positions;
-              parsed.magnetic_moments, kwargs...)
+    _model_HF(parsed.lattice, parsed.atoms, parsed.positions; 
+              coulomb_model=coulomb_model, parsed.magnetic_moments, kwargs...)
 end
 function model_HF(lattice::AbstractMatrix, atoms::Vector{<:Element},
-                  positions::Vector{<:AbstractVector}; kwargs...)
-    _model_HF(lattice, atoms, positions; kwargs...)
+                  positions::Vector{<:AbstractVector}; 
+                  coulomb_model::CoulombModel=ProbeCharge(), kwargs...)
+    _model_HF(lattice, atoms, positions; coulomb_model=coulomb_model, kwargs...)
 end
-function _model_HF(args...; extra_terms=[], kwargs...)
+function _model_HF(args...; extra_terms=[], coulomb_model::CoulombModel=ProbeCharge(), kwargs...)
     @warn "Exact exchange in DFTK is hardly optimised and not yet production-ready."
-    model_atomic(args...; extra_terms=[Hartree(), ExactExchange(), extra_terms...],
+    model_atomic(args...; extra_terms=[Hartree(), ExactExchange(coulomb_model=coulomb_model), extra_terms...],
                  model_name="HF", kwargs...)
 end
 
