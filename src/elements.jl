@@ -289,7 +289,7 @@ end
 Build a virtual crystal approximation in form of a convex combination of the physics
 (local, non-local potentials, masses) of the `elements`. The passed `coefficients` are
 expected to sum to one. The result is returned as a [`ElementPsp`](@ref) with a
-[`DFTK.PspLinComb`](@ref) pseudopotential. By default the `species` of the returned element
+`DFTK.PspLinComb` pseudopotential. By default the `species` of the returned element
 is set to `ChemicalSpecies(0)`, which can be changed using the respective keyword argument.
 """
 function virtual_crystal_approximation(coefficients::Vector{<:Number},
@@ -314,7 +314,7 @@ end
                                   symbols=nothing)
 
 Build a virtual crystal approximation pseudopotential from a list of `coefficients`
-and a list of `pseudopotentials`; returns a [`DFTK.PspLinComb`](@ref) object.
+and a list of `pseudopotentials`; returns a `DFTK.PspLinComb` object.
 The `symbols` keyword argument can be used to pass the symbols of the elements,
 which are linearly combined. This is only used to make up a descriptive human-redable
 string for printing.
