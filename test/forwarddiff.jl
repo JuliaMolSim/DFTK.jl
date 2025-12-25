@@ -98,7 +98,7 @@ end
     end
 
     @testset "Using PspUpf" begin
-        Si = ElementPsp(:Si; psp=load_psp(silicon.psp_upf))
+        Si = ElementPsp(:Si, load_psp(silicon.psp_upf))
         atoms = [Si, Si]
 
         derivative_ε1_fd = let ε1 = 1e-5
