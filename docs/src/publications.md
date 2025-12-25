@@ -61,6 +61,12 @@ Additionally the following publications describe DFTK or one of its algorithms:
 The following publications report research employing DFTK as a core component.
 Feel free to drop us a line if you want your work to be added here.
 
+- X. Gonze, C. Tantardini, A. Levitt.
+  [*Low-temperature behavior of density-functional theory for metals based on density-functional perturbation theory and Sommerfeld expansion*](https://arxiv.org/abs/2512.14438) (2025).
+
+- X. Quan, H. Chen.
+  [*Stochastic Density Functional Theory Through the Lens of Multilevel Monte Carlo Method*](https://arxiv.org/abs/2512.04860v2) (2025).
+
 - D. Petersheim, J.-F. Pietschmann, J. Püschel, K. Ruess.
   [*Neural Network Acceleration of Iterative Methods for Nonlinear Schrödinger Eigenvalue Problems*](https://arxiv.org/abs/2507.16349) (2025).
 

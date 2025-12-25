@@ -108,26 +108,19 @@ function PspUpf(path; identifier=path, rcut=nothing)
             rgrid[1:length(r_beta_ha)] .* r_beta_ha  # rβ -> r²β
         end
     end
-
-    h = Matrix[]
-    count = 1
-    for l = 0:lmax
-        nproj_l = length(r2_projs[l+1])
-        # 1/Ry -> 1/Ha
-        Dij_l = pseudo["D_ion"][count:count+nproj_l-1, count:count+nproj_l-1] .* 2
-        push!(h, Dij_l)
-        count += nproj_l
+    h = map(0:lmax) do l
+        mask_l = findall(beta -> beta["angular_momentum"] == l, pseudo["beta_projectors"])
+        pseudo["D_ion"][mask_l, mask_l] .* 2  # 1/Ry -> 1/Ha
     end
 
     r2_pswfcs = [Vector{Float64}[] for _ = 0:lmax]
-    pswfc_occs = [Float64[] for _ = 0:lmax]
-    pswfc_energies = [Float64[] for _ = 0:lmax]
-    pswfc_labels = [String[] for _ = 0:lmax]
+    pswfc_occs     = [Float64[]    for _ = 0:lmax]
+    pswfc_energies = [Float64[]    for _ = 0:lmax]
+    pswfc_labels   = [String[]     for _ = 0:lmax]
     for l = 0:lmax
         pswfcs_l = filter(χ -> χ["angular_momentum"] == l, pseudo["atomic_wave_functions"])
         for pswfc_li in pswfcs_l
-            # rχ -> r²χ
-            push!(r2_pswfcs[l+1], rgrid .* pswfc_li["radial_function"])
+            push!(r2_pswfcs[l+1], rgrid .* pswfc_li["radial_function"])  # rχ -> r²χ
             push!(pswfc_occs[l+1], pswfc_li["occupation"])
             push!(pswfc_energies[l+1], pswfc_li["pseudo_energy"])
             push!(pswfc_labels[l+1], pswfc_li["label"])

@@ -9,7 +9,7 @@ function test_addiis(testcase; temperature=0, Ecut=10, kgrid=[3, 3, 3], n_bands=
     basis = PlaneWaveBasis(model; kgrid, Ecut)
     tol   = 1e-10
     ρ = guess_density(basis)
-    ψ = [DFTK.random_orbitals(basis, kpt, n_bands) for kpt in basis.kpoints]
+    ψ = DFTK.random_orbitals(basis, n_bands)
 
     solver = scf_anderson_solver(; errorfactor=Inf, maxcond=Inf, m=100)
     scfres_simple = self_consistent_field(basis; ρ, ψ, tol, mixing=SimpleMixing(), solver)

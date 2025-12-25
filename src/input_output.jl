@@ -381,3 +381,20 @@ function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true, save_ρ=true)
 
     dict
 end
+
+function Base.show(io::IO, psp::NormConservingPsp)
+    print(io, "$(nameof(typeof(psp)))(")
+    if !isempty(psp.identifier)
+        print(io, "identifier=\"$(psp.identifier)\", ")
+    end
+    print(io, "Zion=$(charge_ionic(psp)), projectors=")
+
+    lmap = Dict(0 => "S", 1 => "P", 2 => "D", 3 => "F", 4 => "G", 5 => "H")
+    for l in 1:psp.lmax
+        print(io, " ", count_n_proj(psp, l), lmap[l])
+    end
+    if !isempty(psp.description)
+        print(io, ", ", psp.description)
+    end
+    print(io, ")")
+end

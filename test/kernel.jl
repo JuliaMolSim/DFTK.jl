@@ -5,7 +5,7 @@
     function test_kernel(spin_polarization, termtype; test_compute=true, psp=TestCases.silicon.psp_gth)
         kgrid  = MonkhorstPack([2, 2, 2]; kshift = ones(3) / 2)
         testcase = TestCases.silicon
-        Si = ElementPsp(TestCases.silicon.atnum; psp=load_psp(psp))
+        Si = ElementPsp(TestCases.silicon.atnum, load_psp(psp))
         atoms = [Si, Si]
         ε   = 1e-8
         tol = 1e-5
