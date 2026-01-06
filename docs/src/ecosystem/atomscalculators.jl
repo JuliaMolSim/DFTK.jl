@@ -16,7 +16,7 @@
 # [`self_consistent_field`](@ref) function on the resulting basis to solve the problem
 # numerically. Thus when using the `DFTKCalculator` the user is expected to
 # pass these objects exactly the keyword argument one would pass when constructing
-# a `model` and `basis` and when calling `self_consistent_field`.
+# a `model` and `basis` and when calling [`self_consistent_field`](@ref).
 #
 # For example, to perform the calculation of the [Tutorial](@ref) using
 # the AtomsCalculators interface we define the calculator as such:
@@ -31,7 +31,7 @@ scf_kwargs    = (; tol=1e-5)
 calc = DFTKCalculator(; model_kwargs, basis_kwargs, scf_kwargs)
 
 # Note, that the `scf_kwargs` is optional and can be missing
-# (then the defaults of `self_consistent_field` are used).
+# (then the defaults of [`self_consistent_field`](@ref) are used).
 #
 # !!! tip "Kpoints from kpoint density"
 #     Note that as the `kgrid` parameter as part of the `basis_kwargs`
