@@ -6,7 +6,7 @@ using DFTK
 using PseudoPotentialData
 using Unitful
 using UnitfulAtomic
-#using Plots
+using Plots
 
 # Define the geometry and pseudopotential
 a = 7.9  # Nickel Oxide lattice constant in Bohr
@@ -33,8 +33,8 @@ band_gap = bands.eigenvalues[1][lowest_unocc_band] - bands.eigenvalues[1][lowest
 εF = bands.εF
 width = 5.0u"eV"
 εrange = (εF - austrip(width), εF + austrip(width))
-#p = plot_dos(bands; εrange, colors=[:red, :red])
-#plot_pdos(bands; p, iatom=1, label="3D", colors=[:yellow, :orange], εrange)
+p = plot_dos(bands; εrange, colors=[:red, :red])
+plot_pdos(bands; p, iatom=1, label="3D", colors=[:yellow, :orange], εrange)
 
 # To perform and Hubbard computation, we have to define the Hubbard manifold and associated constant.
 #
@@ -75,5 +75,5 @@ band_gap = bands_hub.eigenvalues[1][lowest_unocc_band] - bands_hub.eigenvalues[1
 # reflecting the experimental insulating behaviour of Nickel Oxide.
 εF = bands_hub.εF
 εrange = (εF - austrip(width), εF + austrip(width))
-#p = plot_dos(bands_hub; p, colors=[:blue, :blue], εrange)
-#plot_pdos(bands_hub; p, iatom=1, label="3D", colors=[:green, :purple], εrange)
+p = plot_dos(bands_hub; p, colors=[:blue, :blue], εrange)
+plot_pdos(bands_hub; p, iatom=1, label="3D", colors=[:green, :purple], εrange)

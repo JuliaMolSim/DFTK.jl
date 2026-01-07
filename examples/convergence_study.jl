@@ -4,26 +4,80 @@
 # discretisation parameters for the Brillouin zone (`kgrid`) and kinetic energy
 # cutoff (`Ecut`), such that the simulation results are converged to a desired
 # accuracy tolerance.
-#
+
+using DFTK
+using LinearAlgebra
+using Statistics
+using PseudoPotentialData
+
 # Such a convergence study is generally performed by starting with a
 # reasonable base line value for `kgrid` and `Ecut` and then increasing these
 # parameters (i.e. using finer discretisations) until a desired property (such
 # as the energy) changes less than the tolerance.
 #
 # This procedure must be performed for each discretisation parameter. Beyond
-# the `Ecut` and the `kgrid` also convergence in the smearing temperature or
-# other numerical parameters should be checked. For simplicity we will neglect
-# this aspect in this example and concentrate on `Ecut` and `kgrid`. Moreover
-# we will restrict ourselves to using the same number of ``k``-points in each
-# dimension of the Brillouin zone.
+# the `Ecut` and the `kgrid` also convergence in the smearing temperature and
+# other numerical parameters should be checked. We will first discuss some guidelines
+# for default choices of these computational parameters and then provide an example
+# which shows how to converge `Ecut` and `kgrid` without looking at the other parameters
+# too much.
 #
+# ## Recommended default parameters
+#
+# Providing general recommendations is difficult. Here, we follow the recent preprint
+# [arxiv 2504.03962](http://arxiv.org/abs/2504.03962v1) in suggesting **Fast**,
+# **Balanced** and **Stringent** protocols:
+# - **Fast** is meant for testing purposes and structure optimisations,
+# - **Balanced** for most practical applications and high-throughput settings,
+# - **Stringent** for cases where higher accuracy is needed.
+#
+# Generally for insulators and metals **Balanced** is a good default option.
+# However, for **metals including lanthanide/actinide elements** the **Stringent**
+# protocol is recommended.
+#
+# ### Ecut
+#
+# Standard pseudopotential libraries often already provide tabulated
+# recommendations for the kinetic energy cutoff `Ecut`, see [Pseudopotentials](@ref).
+# This is the case for the common pseudodojo pseudopotentials, for example
+
+family_upf = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
+recommended_cutoff(family_upf, :Si)
+
+# DFTK uses the recommended "normal" cutoff by default when constructing a `PlaneWaveBasis`.
+# For **Fast** and **Balanced** a `standard` pseudopotential, such as
+# `PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")`, is generally fine,
+# but for **Stringent** a `stringent` pseudopotential, such as
+# `PseudoFamily("dojo.nc.sr.lda.v0_4_1.stringent.upf")` is recommended.
+#
+# ### Temperature and k-point grid
+#
+# The study in [arxiv 2504.03962](http://arxiv.org/abs/2504.03962v1) focused on
+# [`Smearing.MarzariVanderbilt`](@ref) and resulted in the following recommended values.
+# For `k`-grid spacing we use the [`KgridSpacing`](@ref) struct, which can be passed
+# to the [`PlaneWaveBasis`](@ref) as `kgrid=KgridSpacing(0.08 )`, for example.
+#
+# |     Protocol       |  Temperature (Hartree)    |   k-grid spacing (1/bohr)  |
+# | :----------------- | :-----------------------  | :------------------------: |
+# | Fast               | 0.01375                   | `KgridSpacing(0.106)`      |
+# | Balanced           | 0.01                      | `KgridSpacing(0.08 )`      |
+# | Stringent          | 0.00625                   | `KgridSpacing(0.053)`      |
+#
+# We remark that for other first-order smearing schemes,
+# such as frist-order [`Smearing.MethfesselPaxton`](@ref)
+# the optimal values should be similar.
+#
+# For [`Smearing.Gaussian`](@ref) (Gaussian smearing) one expects smaller optimal values
+# for the smearing temperature, while at the same time requiring finer ``k``-point
+# meshes as well (smaller k-grid spacing). Finally, for [`Smearing.FermiDirac`](@ref)
+# we expect yet an even smaller optimal smearing temperature, related to the optimal
+# temperature of [`Smearing.Gaussian`](@ref) by `sqrt(2/3) * π` as discussed more in
+# [arxiv 2504.03962](http://arxiv.org/abs/2504.03962v1).
+#
+#
+# ## Example: Bulk platinum
 # As the objective of this study we consider bulk platinum. For running the SCF
 # conveniently we define a function:
-
-using DFTK
-using LinearAlgebra
-using Statistics
-using PseudoPotentialData
 
 function run_scf(; a=5.0, Ecut, nkpt, tol)
     pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")

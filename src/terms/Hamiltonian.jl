@@ -18,7 +18,7 @@ struct GenericHamiltonianBlock <: HamiltonianBlock
     scratch  # dummy field
 end
 
-# More optimized HamiltonianBlock for the important case of a DFT Hamiltonian
+"""A more optimized HamiltonianBlock for the important case of a DFT Hamiltonian."""
 struct DftHamiltonianBlock <: HamiltonianBlock
     basis::PlaneWaveBasis
     kpoint::Kpoint
@@ -29,7 +29,7 @@ struct DftHamiltonianBlock <: HamiltonianBlock
     local_op::RealSpaceMultiplication
     nonlocal_op::Union{Nothing,NonlocalOperator}
     divAgrad_op::Union{Nothing,DivAgradOperator}
-
+    
     scratch  # Pre-allocated scratch arrays for fast application
 end
 
@@ -71,11 +71,11 @@ function random_orbitals(hamk::HamiltonianBlock, howmany::Integer)
     random_orbitals(hamk.basis, hamk.kpoint, howmany)
 end
 
-import Base: Matrix, Array
-Array(block::HamiltonianBlock)  = Matrix(block)
-Matrix(block::HamiltonianBlock) = sum(Matrix, block.operators)
-Matrix(block::GenericHamiltonianBlock) = sum(Matrix, block.optimized_operators)
+Base.Array(block::HamiltonianBlock)  = Matrix(block)
+Base.Matrix(block::HamiltonianBlock) = sum(Matrix, block.operators)
+Base.Matrix(block::GenericHamiltonianBlock) = sum(Matrix, block.optimized_operators)
 
+"""Represents a matrix-free Hamiltonian discretized in a given plane-wave basis."""
 struct Hamiltonian
     basis::PlaneWaveBasis
     blocks::Vector{HamiltonianBlock}

@@ -63,7 +63,17 @@ basis = PlaneWaveBasis(model; Ecut, kgrid);
 basis_default = PlaneWaveBasis(model)
 
 # As can be seen the default discretisation selects the much finer discretisation
-# parameters `Ecut=42` and `kgrid=[9, 9, 5]`.
+# parameters `Ecut=42` and `kgrid=[9, 9, 5]`. In production calculations it
+# is often advisable to refine these values by [Performing a convergence study](@ref).
+#
+# !!! info "Getting the above output in a script"
+#     The above detailed `basis` printing with parallelisation information,
+#     discretisation parameters, structure and model is the default output generated
+#     when returning a `basis` in an interactive session or a Pluto / Jupyter notebook.
+#     In order to obtain the same information in a script (e.g. to `stdout`) execute
+#     ```julia
+#     show(stdout, "text/plain", basis)
+#     ```
 
 # Finally we run the SCF. Two magnesium atoms in
 # our pseudopotential model result in four valence electrons being explicitly

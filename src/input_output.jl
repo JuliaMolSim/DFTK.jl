@@ -135,11 +135,32 @@ function Base.show(io::IO, ::MIME"text/plain", basis::PlaneWaveBasis)
     showfieldln(io, "kgrid",    basis.kgrid)
     showfieldln(io, "num.   red. kpoints", length(basis.kgrid))
     showfieldln(io, "num. irred. kpoints", basis.n_irreducible_kpoints)
-
     println(io)
-    modelstr = sprint(show, "text/plain", basis.model)
+
     indent = " " ^ SHOWINDENTION
+    if isnothing(basis.model.εF) # Band count is unknown for a fixed Fermi level
+        memstats = estimate_memory_usage(basis)
+        memstatsstr = sprint(show, "text/plain", memstats)
+        print(io, indent, replace(memstatsstr, "\n" => "\n" * indent))
+        println(io)
+    end
+
+    modelstr = sprint(show, "text/plain", basis.model)
     print(io, indent, "Discretized " * replace(modelstr, "\n" => "\n" * indent))
+end
+
+function Base.show(io::IO, ::MIME"text/plain", memstats::MemoryStatistics)
+    function prettify(bytes)
+        @sprintf "  % 6s" TimerOutputs.prettymemory(bytes)
+    end
+
+    println(io, "Estimated memory usage (per MPI process):")
+    if memstats.nonlocal_P_bytes > 0
+        showfieldln(io, "nonlocal projectors", prettify(memstats.nonlocal_P_bytes))
+    end
+    showfieldln(io, "single ψ", prettify(memstats.ψ_bytes))
+    showfieldln(io, "single ρ", prettify(memstats.ρ_bytes))
+    showfieldln(io, "peak memory (SCF)", prettify(memstats.scf_peak_bytes))
 end
 
 

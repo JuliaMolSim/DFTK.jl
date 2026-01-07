@@ -45,6 +45,7 @@ include("common/hankel.jl")
 include("common/hydrogenic.jl")
 include("common/derivatives.jl")
 include("common/linalg.jl")
+include("common/random.jl")
 
 export PspHgh
 export PspUpf
@@ -88,6 +89,7 @@ include("fft.jl")
 include("Kpoint.jl")
 include("PlaneWaveBasis.jl")
 include("orbitals.jl")
+include("memory_usage.jl")
 include("input_output.jl")
 
 export create_supercell
@@ -111,6 +113,8 @@ export AtomicNonlocal
 export Ewald
 export PspCorrection
 export Entropy
+export Hubbard
+export OrbitalManifold
 export Magnetic
 export PairwisePotential
 export Anyonic
@@ -255,6 +259,9 @@ function precompilation_workflow(lattice, atoms, positions, magnetic_moments;
     scfres = self_consistent_field(basis; ρ=ρ0, tol=1e-2, maxiter=3, callback=identity)
     compute_forces_cart(scfres)
 
+    # Clear precompilation section timings
+    reset_timer!(timer)
+
     nothing
 end
 
@@ -274,4 +281,10 @@ end
         precompilation_workflow(lattice, atoms, positions, magnetic_moments)
     end
 end
+
+function __init__()
+    # Reset timer; otherwise the starting time is the time of precompilation
+    reset_timer!(timer)
+end
+
 end # module DFTK

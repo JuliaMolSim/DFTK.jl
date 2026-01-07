@@ -18,17 +18,9 @@ PAGES = [
     "features.md",
     "Getting started" => [
         "guide/installation.md",
-        "guide/tutorial.jl",
-    ],
-    "Background" => [
-        # Theoretical background
+        "General Tutorial" => "guide/tutorial.jl",
+        "guide/tutorialmath.jl",
         "guide/introductory_resources.md",
-        "guide/periodic_problems.jl",
-        "guide/discretisation.jl",
-        "guide/atomic_chains.jl",
-        "guide/density_functional_theory.md",
-        "guide/self_consistent_field.jl",
-        "school2022.md",
     ],
     "Basic DFT calculations" => [
         # Ground-state DFT calculations, standard problems and modelling techniques
@@ -42,8 +34,10 @@ PAGES = [
         "examples/graphene.jl",
         "examples/geometry_optimization.jl",
         "examples/energy_cutoff_smearing.jl",
+        "examples/hubbard.jl",
     ],
     "Response and properties" => [
+        "examples/elastic_constants.jl",
         "examples/polarizability.jl",
         "examples/forwarddiff.jl",
         "examples/phonons.jl",
@@ -82,6 +76,13 @@ PAGES = [
     "Error control" => [
         "examples/arbitrary_floattype.jl",
         "examples/error_estimates_forces.jl",
+    ],
+    "Theoretical Background" => [
+        "guide/periodic_problems.jl",
+        "guide/discretisation.jl",
+        "guide/atomic_chains.jl",
+        "guide/density_functional_theory.md",
+        "guide/self_consistent_field.jl",
     ],
     "Developer resources" => [
         "developer/setup.md",
@@ -208,7 +209,8 @@ mathengine  = Documenter.MathJax3(Dict(
         :tags       => "ams",
         :packages   => ["base", "ams", "autoload", "configmacros"],
         :macros     => Dict(
-            :abs    => [raw"\left\|#1\right\|",     1],
+            :abs    => [raw"\left|#1\right|",       1],
+            :norm   => [raw"\left\|#1\right\|",     1],
             :ket    => [raw"\left|#1\right\rangle", 1],
             :bra    => [raw"\left\langle#1\right|", 1],
             :braket => [raw"\left\langle#1\middle|#2\right\rangle", 2],
