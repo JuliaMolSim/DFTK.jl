@@ -9,10 +9,11 @@ struct TermLocalNonlinearity{TF} <: TermNonlinear
 end
 (L::LocalNonlinearity)(::AbstractBasis) = TermLocalNonlinearity(L.f)
 
-# FD on the GPU, when T<:Dual causes all sorts of troubles, at least on AMD. TODO: also on NVIDIA?
-# TODO: only transfer to CPU when T <: Dual ?, or only if ROCArray?
 function ene_ops(term::TermLocalNonlinearity, basis::PlaneWaveBasis{T}, ψ, occupation;
                  ρ, kwargs...) where {T}
+    
+    # FD on the GPU, when T<:Dual causes all sorts of troubles, at least on AMD.
+    # Because this is not often use, simply treat it on the CPU, and move result to GPU.
     fp(ρ) = ForwardDiff.derivative(term.f, ρ)
     E = sum(fρ -> convert_dual(T, fρ), term.f.(ρ)) * basis.dvol
     potential = to_device(basis.architecture, convert_dual.(T, fp.(to_cpu(ρ))))

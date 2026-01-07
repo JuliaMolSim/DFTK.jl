@@ -30,6 +30,7 @@
         @test abs(scfres_cpu.energies.total - scfres_cuda.energies.total) < 1e-9
         @test norm(scfres_cpu.ρ - Array(scfres_cuda.ρ)) < 1e-9
         @test norm(compute_forces(scfres_cuda)) < 1e-6  # Symmetric structure
+        @test norm(compute_stresses_cart(scfres_cpu) - compute_stresses_cart(scfres_cuda)) < 1e-7
     end
     end
 
@@ -40,6 +41,7 @@
         @test abs(scfres_cpu.energies.total - scfres_rocm.energies.total) < 1e-9
         @test norm(scfres_cpu.ρ - Array(scfres_rocm.ρ)) < 1e-9
         @test norm(compute_forces(scfres_rocm)) < 1e-6  # Symmetric structure
+        @test norm(compute_stresses_cart(scfres_cpu) - compute_stresses_cart(scfres_rocm)) < 1e-7
     end
     end
 end
@@ -111,6 +113,7 @@ end
         @test abs(scfres_cpu.energies.total - scfres_cuda.energies.total) < 1e-10
         @test norm(scfres_cpu.ρ - Array(scfres_cuda.ρ)) < 1e-8
         @test norm(compute_forces(scfres_cpu) - compute_forces(scfres_cuda)) < 1e-7
+        @test norm(compute_stresses_cart(scfres_cpu) - compute_stresses_cart(scfres_cuda)) < 1e-7
     end
     end
 

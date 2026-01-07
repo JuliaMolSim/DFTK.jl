@@ -1,53 +1,19 @@
-@testmodule ForwardDiffCases begin
+### TODO: make sure the ForwardDiffWrappers help timings in this way, by measuring const
+###       of all FD tests at once. Worry is that recompilation occurs for wach file
+
+### ForwardDiff tests related to goemetry and symmetry perturbations. Each test is defined
+### in its own explicitly named module, implementing a run_test(architecture) function. This
+### allows easy testing of the same feature on CPU and GPU. @testitem are located immediatly
+### below the @testmodule definition. Note that the order of the test modules in the @testitem 
+### setup matters for successful compilation.
+@testmodule ForceDerivatives begin
 using DFTK
 using Test
-using ForwardDiff
 using LinearAlgebra
-using ComponentArrays
-using PseudoPotentialData
-using DftFunctionals
-using FiniteDifferences
-using SpecialFunctions
-using ..TestCases: silicon, aluminium
+using ..TestCases: silicon
+using ..ForwardDiffWrappers: tagged_derivative, tagged_gradient, tagged_jacobian
 
-# Wrappers around ForwardDiff to fix tags and reduce compilation time.
-# Warning: fixing types without care can lead to perturbation confusion,
-# this should only be used within the testing framework. Risk of perturbation
-# confusion arises when nested derivatives of different functions are taken
-# with a fixed tag. Only use these wrappers at the top-level call.
-struct DerivativeTag end
-function tagged_derivative(f, x::T; custom_tag=DerivativeTag) where T
-    # explicit call to ForwardDiff.Tag() to trigger ForwardDiff.tagcount
-    TagType = typeof(ForwardDiff.Tag(custom_tag(), T))
-    x_dual = ForwardDiff.Dual{TagType, T, 1}(x, ForwardDiff.Partials((one(T),)))
-
-    res = ForwardDiff.extract_derivative(TagType, f(x_dual))
-    return res
-end
-
-struct GradientTag end
-GradientConfig(f, x, ::Type{Tag}) where {Tag} =
-    ForwardDiff.GradientConfig(f, x, ForwardDiff.Chunk(x), Tag())
-function tagged_gradient(f, x::AbstractArray{T}; custom_tag=GradientTag) where T
-    # explicit call to ForwardDiff.Tag() to trigger ForwardDiff.tagcount
-    TagType = typeof(ForwardDiff.Tag(custom_tag(), T))
-
-    cfg = GradientConfig(f, x, TagType)
-    ForwardDiff.gradient(f, x, cfg, Val{false}())
-end
-
-struct JacobianTag end
-JacobianConfig(f, x, ::Type{Tag}) where {Tag} =
-    ForwardDiff.JacobianConfig(f, x, ForwardDiff.Chunk(x), Tag())
-function tagged_jacobian(f, x::AbstractArray{T}; custom_tag=JacobianTag) where T
-    # explicit call to ForwardDiff.Tag() to trigger ForwardDiff.tagcount
-    TagType = typeof(ForwardDiff.Tag(custom_tag(), T))
-
-    cfg = JacobianConfig(f, x, TagType)
-    ForwardDiff.jacobian(f, x, cfg, Val{false}())
-end
-
-function test_FD_force_derivatives(architecture)
+function run_test(architecture)
     function compute_force(ε1, ε2; metal=false, tol=1e-10, atoms=silicon.atoms)
         T = promote_type(typeof(ε1), typeof(ε2))
         pos = [[1.01, 1.02, 1.03] / 8, -ones(3) / 8 + ε1 * [1., 0, 0] + ε2 * [0, 1., 0]]
@@ -110,8 +76,36 @@ function test_FD_force_derivatives(architecture)
     end
 
 end
+end
 
-function test_FD_strain_sensitivity(architecture)
+@testitem "Force derivatives using ForwardDiff" tags=[:dont_test_mpi, :minimal] #=
+    =#    setup=[TestCases, ForwardDiffWrappers, ForceDerivatives] begin
+    using DFTK
+    ForceDerivatives.run_test(DFTK.CPU())
+end
+
+@testitem "Force derivatives using ForwardDiff (GPU)" tags=[:gpu] #=
+    =#    setup=[TestCases, ForwardDiffWrappers, ForceDerivatives] begin
+    using DFTK
+    using CUDA
+    using AMDGPU
+    if CUDA.has_cuda() && CUDA.has_cuda_gpu()
+        ForceDerivatives.run_test(DFTK.GPU(CuArray))
+    end
+    if AMDGPU.has_rocm_gpu()
+        ForceDerivatives.run_test(DFTK.GPU(ROCArray))
+    end
+end
+
+@testmodule StrainSensitivity begin
+using DFTK
+using Test
+using LinearAlgebra
+using ComponentArrays
+using ..TestCases: aluminium
+using ..ForwardDiffWrappers: tagged_derivative
+
+function run_test(architecture)
     Ecut = 5
     kgrid = [2, 2, 2]
     model = model_DFT(aluminium.lattice, aluminium.atoms, aluminium.positions;
@@ -153,91 +147,34 @@ function test_FD_strain_sensitivity(architecture)
         @test maximum(abs, dx.occupation - dx_findiff.occupation) < 1e-4
     end 
 end
-
-function test_FD_psp_sensitivity(architecture)
-    function compute_band_energies(ε::T) where {T}
-        psp  = load_psp(PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"), :Al)
-        rloc = convert(T, psp.rloc)
-
-        pspmod = PspHgh(psp.Zion, rloc,
-                        psp.cloc, psp.rp .+ [0, ε], psp.h;
-                        psp.identifier, psp.description)
-        atoms = fill(ElementPsp(aluminium.atnum; psp=pspmod), length(aluminium.positions))
-        model = model_DFT(Matrix{T}(aluminium.lattice), atoms, aluminium.positions;
-                          functionals=LDA(), temperature=1e-2, smearing=Smearing.Gaussian())
-        basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], architecture)
-
-        is_converged = DFTK.ScfConvergenceDensity(1e-10)
-        scfres = self_consistent_field(basis; is_converged, mixing=KerkerMixing(),
-                                       nbandsalg=FixedBands(; n_bands_converge=10),
-                                       damping=0.6, response=ResponseOptions(; verbose=true))
-
-        ComponentArray(
-           eigenvalues=stack([ev[1:10] for ev in DFTK.to_cpu(scfres.eigenvalues)]),
-           ρ=DFTK.to_cpu(scfres.ρ),
-           energies=collect(values(scfres.energies)),
-           εF=scfres.εF,
-           occupation=reduce(vcat, DFTK.to_cpu(scfres.occupation)),
-        )
-    end
-
-    derivative_ε = let ε = 1e-4
-        (compute_band_energies(ε) - compute_band_energies(-ε)) / 2ε
-    end
-    derivative_fd = tagged_derivative(compute_band_energies, 0.0)
-    @test norm(derivative_fd - derivative_ε) < 5e-4
 end
 
-function test_FD_force_sensitivity(architecture)
-    function compute_force(ε1::T) where {T}
-        pos = [[1.01, 1.02, 1.03] / 8, -ones(3) / 8]
-        pbec = DftFunctional(:gga_c_pbe)
-        pbex = DftFunctional(:gga_x_pbe)
-        pbex = change_parameters(pbex, parameters(pbex) + ComponentArray(κ=0, μ=ε1))
-
-        model = model_DFT(Matrix{T}(silicon.lattice), silicon.atoms, pos;
-                          functionals=[pbex, pbec])
-        basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], architecture)
-
-        is_converged = DFTK.ScfConvergenceDensity(1e-10)
-        scfres = self_consistent_field(basis; is_converged,
-                                       response=ResponseOptions(; verbose=true))
-        compute_forces_cart(scfres)
-    end
-
-    derivative_ε = let ε = 1e-5
-        (compute_force(ε) - compute_force(-ε)) / 2ε
-    end
-    derivative_fd = tagged_derivative(compute_force, 0.0)
-    @test norm(derivative_ε - derivative_fd) < 1e-4
+@testitem "Anisotropic strain sensitivity using ForwardDiff" tags=[:dont_test_mpi, :minimal] #=
+    =#    setup=[TestCases, ForwardDiffWrappers, StrainSensitivity] begin
+    using DFTK
+    StrainSensitivity.run_test(DFTK.CPU())
 end
 
-function test_FD_local_nonlinearity_sensitivity(architecture)
-    function compute_force(ε::T) where {T}
-        # solve the 1D Gross-Pitaevskii equation with ElementGaussian potential
-        lattice = 10.0 .* [[1 0 0.]; [0 0 0]; [0 0 0]]
-        positions = [[0.2, 0, 0], [0.8, 0, 0]]
-        gauss = ElementGaussian(1.0, 0.5)
-        atoms = [gauss, gauss]
-        n_electrons = 1
-        terms = [Kinetic(), AtomicLocal(), LocalNonlinearity(ρ -> (1.0 + ε) * ρ^2)]
-        model = Model(Matrix{T}(lattice), atoms, positions;
-                      n_electrons, terms, spin_polarization=:spinless)
-        basis = PlaneWaveBasis(model; Ecut=500, kgrid=(1, 1, 1), architecture)
-        ρ = DFTK.to_device(architecture, zeros(Float64, basis.fft_size..., 1))
-        is_converged = DFTK.ScfConvergenceDensity(1e-10)
-        scfres = self_consistent_field(basis; ρ, is_converged,
-                                       response=ResponseOptions(; verbose=true))
-        compute_forces_cart(scfres)
+@testitem "Anisotropic strain sensitivity using ForwardDiff (GPU)" tags=[:gpu] #=
+    =#    setup=[TestCases, ForwardDiffWrappers, StrainSensitivity] begin
+    using DFTK
+    using CUDA
+    using AMDGPU
+    if CUDA.has_cuda() && CUDA.has_cuda_gpu()
+        StrainSensitivity.run_test(DFTK.GPU(CuArray))
     end
-    derivative_ε = let ε = 1e-5
-        (compute_force(ε) - compute_force(-ε)) / 2ε
+    if AMDGPU.has_rocm_gpu()
+        StrainSensitivity.run_test(DFTK.GPU(ROCArray))
     end
-    derivative_fd = tagged_derivative(compute_force, 0.0)
-    @test norm(derivative_ε - derivative_fd) < 1e-4
 end
 
-function test_FD_filter_broken_symmetries(architecture)
+@testmodule FilterBrokenSymmetries begin
+using DFTK
+using Test
+using LinearAlgebra
+using ForwardDiff
+
+function run_test(architecture)
     lattice = [2. 0. 0.; 0. 1. 0.; 0. 0. 1.]
     positions = [[0., 0., 0.], [0.5, 0., 0.]]
     gauss = ElementGaussian(1.0, 0.5)
@@ -313,8 +250,35 @@ function test_FD_filter_broken_symmetries(architecture)
         check_symmetries(symmetries_filtered, symmetries_full)
     end
 end
+end
 
-function test_FD_symmetry_breaking_perturbation(architecture)
+@testitem "Symmetries broken by perturbation are filtered out" tags=[:dont_test_mpi, :minimal] #=
+    =#    setup=[FilterBrokenSymmetries] begin
+    using DFTK
+    FilterBrokenSymmetries.run_test(DFTK.CPU())
+end
+
+@testitem "Symmetries broken by perturbation are filtered out (GPU)" tags=[:gpu] #=
+    =#    setup=[FilterBrokenSymmetries] begin
+    using DFTK
+    using CUDA
+    using AMDGPU
+    if CUDA.has_cuda() && CUDA.has_cuda_gpu()
+        FilterBrokenSymmetries.run_test(DFTK.GPU(CuArray))
+    end
+    if AMDGPU.has_rocm_gpu()
+        FilterBrokenSymmetries.run_test(DFTK.GPU(ROCArray))
+    end
+end
+
+@testmodule SymmetryBreakingPerturbation begin
+using DFTK
+using Test
+using LinearAlgebra
+using ..TestCases: aluminium
+using ..ForwardDiffWrappers: tagged_derivative
+
+function run_test(architecture)
     @testset for perturbation in (:lattice, :positions)
         function run_scf(ε)
             lattice = if perturbation == :lattice
@@ -350,85 +314,23 @@ function test_FD_symmetry_breaking_perturbation(architecture)
         @test norm(δρ - δρ_finitediff, 1) < rtol * norm(δρ, 1)
     end
 end
-
-function test_FD_scfres_parameter_consistency(architecture)
-    # Make silicon primal model
-    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
-                      functionals=LDA(), temperature=1e-3, smearing=Smearing.Gaussian())
-    
-    # Make silicon dual model
-    # We need to call the `Tag` constructor to trigger the `ForwardDiff.tagcount`
-    T = typeof(ForwardDiff.Tag(Val(:mytag), Float64))
-    x_dual = ForwardDiff.Dual{T}(1.0, 1.0)
-    model_dual = Model(model; lattice=x_dual * model.lattice)
-
-    # Construct the primal and dual basis
-    basis = PlaneWaveBasis(model; Ecut=5, kgrid=(1,1,1), architecture)
-    basis_dual = PlaneWaveBasis(model_dual; Ecut=5, kgrid=(1,1,1), architecture)
-
-    # Compute scfres with primal and dual basis
-    scfres = self_consistent_field(basis; tol=1e-5)
-    scfres_dual = self_consistent_field(basis_dual; tol=1e-5)
-    
-    # Check that scfres_dual has the same parameters as scfres
-    @test isempty(setdiff(keys(scfres), keys(scfres_dual)))
 end
 
-function test_FD_wrt_temperature(architecture)
-    a = 10.26  # Silicon lattice constant in Bohr
-    lattice = a / 2 * [[0 1 1.];
-                       [1 0 1.];
-                       [1 1 0.]]
-    Si = ElementPsp(:Si, PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf"))
-    atoms     = [Si, Si]
-    positions = [ones(3)/8, -ones(3)/8]
-
-    function get(T)
-        model = model_DFT(lattice, atoms, positions; functionals=LDA(), temperature=T)
-        basis = PlaneWaveBasis(model; Ecut=10, kgrid=[1, 1, 1], architecture)
-        scfres = self_consistent_field(basis, tol=1e-12)
-        scfres.energies.Entropy
-    end
-    T0 = .01
-    derivative_ε = let ε = 1e-5
-        (get(T0+ε) - get(T0-ε)) / 2ε
-    end
-    derivative_fd = tagged_derivative(get, T0)
-    @test norm(derivative_ε - derivative_fd) < 1e-4
+@testitem "Symmetry-breaking perturbation using ForwardDiff" tags=[:dont_test_mpi, :minimal] #=
+    =#    setup=[TestCases, ForwardDiffWrappers, SymmetryBreakingPerturbation] begin
+    using DFTK
+   SymmetryBreakingPerturbation.run_test(DFTK.CPU())
 end
 
-### Generic ForwardDiff tests (independent of DFTK architecture)
-function test_FD_complex_function_derivative()
-    α = randn(ComplexF64)
-    erfcα = x -> erfc(α * x)
-
-    x0  = randn()
-    fd1 = tagged_derivative(erfcα, x0)
-    fd2 = FiniteDifferences.central_fdm(5, 1)(erfcα, x0)
-    @test norm(fd1 - fd2) < 1e-8
-end
-
-function test_FD_fermi_dirac_higher_derivatives()
-    smearing = Smearing.FermiDirac()
-    f(x) = Smearing.occupation(smearing, x)
-
-    function compute_nth_derivative(n, f, x)
-        (n == 0) && return f(x)
-        ForwardDiff.derivative(x -> compute_nth_derivative(n - 1, f, x), x)
+@testitem "Symmetry-breaking perturbation using ForwardDiff (GPU)" tags=[:gpu] #=
+    =#    setup=[TestCases, ForwardDiffWrappers, SymmetryBreakingPerturbation] begin
+    using DFTK
+    using CUDA
+    using AMDGPU
+    if CUDA.has_cuda() && CUDA.has_cuda_gpu()
+        SymmetryBreakingPerturbation.run_test(DFTK.GPU(CuArray))
     end
-
-    @testset "Avoid NaN from exp-overflow for large x" begin
-        T = Float64
-        x = log(floatmax(T)) / 2 + 1
-        for n in 0:8
-            @testset "Derivative order $n" begin
-                y = compute_nth_derivative(n, f, x)
-                @test isfinite(y)
-                @test abs(y) ≤ eps(T)
-            end
-        end
+    if AMDGPU.has_rocm_gpu()
+        SymmetryBreakingPerturbation.run_test(DFTK.GPU(ROCArray))
     end
-end
-
-
 end

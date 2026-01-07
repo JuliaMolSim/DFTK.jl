@@ -534,7 +534,8 @@ for fun in (:potential_terms, :kernel_terms)
                      _matify(density.τ_real), _matify(density.Δρ_real))
         end
 
-        # Ensure functionals from DftFunctionals are sent to the CPU, until DftFunctionals.jl is refactored
+        # Ensure functionals from DftFunctionals are sent to the CPU
+        # TODO: Allow GPUArrys once DftFunctionals is refactored to support GPU. 
         function DftFunctionals.$fun(fun::DftFunctionals.Functional, density::LibxcDensities)
             maticpuify(::Nothing) = nothing
             maticpuify(x::AbstractArray) = reshape(Array(x), size(x, 1), :)
