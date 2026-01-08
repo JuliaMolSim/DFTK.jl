@@ -192,3 +192,17 @@ end
                            mixing=DielectricMixing(εr=10),
                            atol=1e-7, temperature=1e-3)
 end
+
+@testitem "Forces silicon SCAN" setup=[TestCases,TestForces] tags=[:forces] begin
+    using DFTK
+    using PseudoPotentialData
+    silicon = TestCases.silicon
+    test_forces = TestForces.test_forces
+
+    positions = [([1.01, 1.02, 1.03]) / 8, -ones(3) / 8]  # displace a bit from equilibrium
+    system = atomic_system(silicon.lattice, silicon.atoms, positions)
+
+    pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
+    test_forces(system; pseudopotentials, functionals=SCAN(),
+                temperature=0.01, Ecut=10, kgrid=[2, 2, 2], atol=1e-7)
+end
