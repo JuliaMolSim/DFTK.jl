@@ -18,7 +18,7 @@
         model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
                           functionals=PBE())
         basis = PlaneWaveBasis(model; Ecut=10, kgrid=(3, 3, 3), architecture)
-        self_consistent_field(basis; tol=1e-9, solver=scf_damping_solver(damping=1.0))
+        self_consistent_field(basis; tol=1e-9, solver=scf_damping_solver())
     end
 
     # Bad copy and paste for now ... think of something more clever later

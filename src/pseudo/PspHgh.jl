@@ -106,6 +106,7 @@ function PspHgh(Zion, rloc::T, cloc::AbstractVector, rp, h;
     PspHgh{T}(Zion, rloc, cloc, lmax, rp, h, identifier, description)
 end
 
+
 @doc raw"""
 The local potential of a HGH pseudopotentials in reciprocal space
 can be brought to the form ``Q(t) / (t^2 exp(t^2 / 2))``
