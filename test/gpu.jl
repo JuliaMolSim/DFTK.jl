@@ -123,3 +123,40 @@ end
     end
     end
 end
+
+@testitem "GPU magnesium mGGA test" tags=[:gpu] setup=[TestCases] begin
+    using DFTK
+    using CUDA
+    using AMDGPU
+    using LinearAlgebra
+    magnesium = TestCases.magnesium
+
+    function run_problem(; architecture)
+        Mg = ElementPsp(magnesium.atnum, load_psp(magnesium.psp_upf))
+        atoms = fill(Mg, length(magnesium.atoms))
+        model = model_DFT(magnesium.lattice, atoms, magnesium.positions;
+                          functionals=SCAN(), temperature=0.01)
+        basis = PlaneWaveBasis(model; Ecut=24, kgrid=(3, 3, 3), architecture)
+        self_consistent_field(basis; tol=1e-7, mixing=DielectricMixing())
+    end
+
+    scfres_cpu  = run_problem(; architecture=DFTK.CPU())
+    @testset "CUDA" begin
+    if CUDA.has_cuda() && CUDA.has_cuda_gpu()
+        scfres_cuda = run_problem(; architecture=DFTK.GPU(CuArray))
+        @test abs(scfres_cpu.energies.total - scfres_cuda.energies.total) < 1e-10
+        @test norm(scfres_cpu.ρ - Array(scfres_cuda.ρ)) < 5e-6
+        @test norm(compute_forces(scfres_cpu) - compute_forces(scfres_cuda)) < 1e-7
+    end
+    end
+
+    @testset "AMDGPU" begin
+    if AMDGPU.has_rocm_gpu()
+        scfres_rocm = run_problem(; architecture=DFTK.GPU(ROCArray))
+        @test scfres_rocm.ρ isa ROCArray
+        @test abs(scfres_cpu.energies.total - scfres_rocm.energies.total) < 1e-10
+        @test norm(scfres_cpu.ρ - Array(scfres_rocm.ρ)) < 5e-6
+        @test norm(compute_forces(scfres_cpu) - compute_forces(scfres_rocm)) < 1e-7
+    end
+    end
+end
