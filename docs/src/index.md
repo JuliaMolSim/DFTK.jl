@@ -8,7 +8,7 @@ The unique feature of the code is its **emphasis on simplicity
 and flexibility**
 with the goal of facilitating methodological development and
 interdisciplinary collaboration.
-In about 7k lines of pure Julia code
+In about 10k lines of Julia code
 we support a [sizeable set of features](@ref package-features).
 Our performance is of the same order of magnitude as much larger production
 codes such as [Abinit](https://www.abinit.org/),

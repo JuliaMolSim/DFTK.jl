@@ -229,5 +229,5 @@ function find_pswfc(psp::NormConservingPsp, label::String)
         end
     end
     error("Could not find pseudo atomic orbital with label $label "
-          * "in pseudopotential $(psp.identifier).")
+          * "in pseudopotential $(psp).")
 end
