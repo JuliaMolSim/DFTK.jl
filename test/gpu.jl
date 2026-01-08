@@ -126,6 +126,7 @@ end
         scfres_cuda = run_problem(; architecture=DFTK.GPU(CuArray))
         @test abs(scfres_cpu.energies.total - scfres_cuda.energies.total) < 1e-10
         @test norm(scfres_cpu.ρ - Array(scfres_cuda.ρ)) < 5e-6
+        @test norm(compute_forces(scfres_cpu) - compute_forces(scfres_cuda)) < 1e-7
     end
     end
 
@@ -135,6 +136,7 @@ end
         @test scfres_rocm.ρ isa ROCArray
         @test abs(scfres_cpu.energies.total - scfres_rocm.energies.total) < 1e-10
         @test norm(scfres_cpu.ρ - Array(scfres_rocm.ρ)) < 5e-6
+        @test norm(compute_forces(scfres_cpu) - compute_forces(scfres_rocm)) < 1e-7
     end
     end
 end

@@ -145,13 +145,18 @@ end
 function apply!(Hψ, op::DivAgradOperator, ψ;
                 ψ_real=zeros_like(ψ.fourier, complex(eltype(op.basis)), op.basis.fft_size...),
                 G_plus_k=nothing)
+    # ψ_real is a pre-allocated buffer to hold temporary real-space representations of ψ,
+    # this function overwrites it.
     if isnothing(G_plus_k)
+        # Note: it is wasteful to recompute G_plus_k on every call, ideally passed from outside
         G_plus_k = [map(p -> p[α], Gplusk_vectors_cart(op.basis, op.kpoint)) for α = 1:3]
     end
+
+    # use unnormalized FFT plans for speed
+    norm = op.basis.fft_grid.fft_normalization * op.basis.fft_grid.ifft_normalization
     ψ_recip = similar(ψ.fourier)   # pre-allocate large array
-    norm = prod(op.basis.fft_size) # use unnormalized FFT plans for speed
     for α = 1:3
-        ψ_recip .= im .* G_plus_k[α] .* ψ.fourier ./ norm   # ∂αψ
+        ψ_recip .= im .* G_plus_k[α] .* ψ.fourier .* norm   # ∂αψ
         ifft!(ψ_real, op.basis, op.kpoint, ψ_recip; normalize=false)
         ψ_real .*= op.A   # A∇ψ
         fft!(ψ_recip, op.basis, op.kpoint, ψ_real; normalize=false)
