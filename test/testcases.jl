@@ -132,7 +132,7 @@ o2molecule = (;
 o2molecule = merge(o2molecule,
                    (; atoms=fill(ElementPsp(o2molecule.atnum,
                                             load_psp(o2molecule.psp_gth)), 2)))
-       
+
 all_testcases = (; silicon, magnesium, aluminium, aluminium_primitive, platinum_hcp,
                  iron_bcc, o2molecule)
 end
