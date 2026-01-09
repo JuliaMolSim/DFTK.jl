@@ -1,11 +1,9 @@
-### TODO: make sure the ForwardDiffWrappers help timings in this way, by measuring const
-###       of all FD tests at once. Worry is that recompilation occurs for wach file
-
 ### ForwardDiff tests related to goemetry and symmetry perturbations. Each test is defined
 ### in its own explicitly named module, implementing a run_test(architecture) function. This
 ### allows easy testing of the same feature on CPU and GPU. @testitem are located immediatly
 ### below the @testmodule definition. Note that the order of the test modules in the @testitem 
 ### setup matters for successful compilation.
+
 @testmodule ForceDerivatives begin
 using DFTK
 using Test
@@ -13,7 +11,7 @@ using LinearAlgebra
 using ..TestCases: silicon
 using ..ForwardDiffWrappers: tagged_derivative, tagged_gradient, tagged_jacobian
 
-function run_test(architecture)
+function run_test(; architecture)
     function compute_force(ε1, ε2; metal=false, tol=1e-10, atoms=silicon.atoms)
         T = promote_type(typeof(ε1), typeof(ε2))
         pos = [[1.01, 1.02, 1.03] / 8, -ones(3) / 8 + ε1 * [1., 0, 0] + ε2 * [0, 1., 0]]
@@ -81,7 +79,7 @@ end
 @testitem "Force derivatives using ForwardDiff" tags=[:dont_test_mpi, :minimal] #=
     =#    setup=[TestCases, ForwardDiffWrappers, ForceDerivatives] begin
     using DFTK
-    ForceDerivatives.run_test(DFTK.CPU())
+    ForceDerivatives.run_test(; architecture=DFTK.CPU())
 end
 
 @testitem "Force derivatives using ForwardDiff (GPU)" tags=[:gpu] #=
@@ -90,10 +88,10 @@ end
     using CUDA
     using AMDGPU
     if CUDA.has_cuda() && CUDA.has_cuda_gpu()
-        ForceDerivatives.run_test(DFTK.GPU(CuArray))
+        ForceDerivatives.run_test(; architecture=DFTK.GPU(CuArray))
     end
     if AMDGPU.has_rocm_gpu()
-        ForceDerivatives.run_test(DFTK.GPU(ROCArray))
+        ForceDerivatives.run_test(; architecture=DFTK.GPU(ROCArray))
     end
 end
 
@@ -105,7 +103,7 @@ using ComponentArrays
 using ..TestCases: aluminium
 using ..ForwardDiffWrappers: tagged_derivative
 
-function run_test(architecture)
+function run_test(; architecture)
     Ecut = 5
     kgrid = [2, 2, 2]
     model = model_DFT(aluminium.lattice, aluminium.atoms, aluminium.positions;
@@ -152,7 +150,7 @@ end
 @testitem "Anisotropic strain sensitivity using ForwardDiff" tags=[:dont_test_mpi, :minimal] #=
     =#    setup=[TestCases, ForwardDiffWrappers, StrainSensitivity] begin
     using DFTK
-    StrainSensitivity.run_test(DFTK.CPU())
+    StrainSensitivity.run_test(; architecture=DFTK.CPU())
 end
 
 @testitem "Anisotropic strain sensitivity using ForwardDiff (GPU)" tags=[:gpu] #=
@@ -161,10 +159,10 @@ end
     using CUDA
     using AMDGPU
     if CUDA.has_cuda() && CUDA.has_cuda_gpu()
-        StrainSensitivity.run_test(DFTK.GPU(CuArray))
+        StrainSensitivity.run_test(; architecture=DFTK.GPU(CuArray))
     end
     if AMDGPU.has_rocm_gpu()
-        StrainSensitivity.run_test(DFTK.GPU(ROCArray))
+        StrainSensitivity.run_test(; architecture=DFTK.GPU(ROCArray))
     end
 end
 
@@ -174,7 +172,7 @@ using Test
 using LinearAlgebra
 using ForwardDiff
 
-function run_test(architecture)
+function run_test()
     lattice = [2. 0. 0.; 0. 1. 0.; 0. 0. 1.]
     positions = [[0., 0., 0.], [0.5, 0., 0.]]
     gauss = ElementGaussian(1.0, 0.5)
@@ -255,20 +253,7 @@ end
 @testitem "Symmetries broken by perturbation are filtered out" tags=[:dont_test_mpi, :minimal] #=
     =#    setup=[FilterBrokenSymmetries] begin
     using DFTK
-    FilterBrokenSymmetries.run_test(DFTK.CPU())
-end
-
-@testitem "Symmetries broken by perturbation are filtered out (GPU)" tags=[:gpu] #=
-    =#    setup=[FilterBrokenSymmetries] begin
-    using DFTK
-    using CUDA
-    using AMDGPU
-    if CUDA.has_cuda() && CUDA.has_cuda_gpu()
-        FilterBrokenSymmetries.run_test(DFTK.GPU(CuArray))
-    end
-    if AMDGPU.has_rocm_gpu()
-        FilterBrokenSymmetries.run_test(DFTK.GPU(ROCArray))
-    end
+    FilterBrokenSymmetries.run_test()
 end
 
 @testmodule SymmetryBreakingPerturbation begin
@@ -278,7 +263,7 @@ using LinearAlgebra
 using ..TestCases: aluminium
 using ..ForwardDiffWrappers: tagged_derivative
 
-function run_test(architecture)
+function run_test(; architecture)
     @testset for perturbation in (:lattice, :positions)
         function run_scf(ε)
             lattice = if perturbation == :lattice
@@ -319,7 +304,7 @@ end
 @testitem "Symmetry-breaking perturbation using ForwardDiff" tags=[:dont_test_mpi, :minimal] #=
     =#    setup=[TestCases, ForwardDiffWrappers, SymmetryBreakingPerturbation] begin
     using DFTK
-   SymmetryBreakingPerturbation.run_test(DFTK.CPU())
+   SymmetryBreakingPerturbation.run_test(; architecture=DFTK.CPU())
 end
 
 @testitem "Symmetry-breaking perturbation using ForwardDiff (GPU)" tags=[:gpu] #=
@@ -328,9 +313,9 @@ end
     using CUDA
     using AMDGPU
     if CUDA.has_cuda() && CUDA.has_cuda_gpu()
-        SymmetryBreakingPerturbation.run_test(DFTK.GPU(CuArray))
+        SymmetryBreakingPerturbation.run_test(; architecture=DFTK.GPU(CuArray))
     end
     if AMDGPU.has_rocm_gpu()
-        SymmetryBreakingPerturbation.run_test(DFTK.GPU(ROCArray))
+        SymmetryBreakingPerturbation.run_test(; architecture=DFTK.GPU(ROCArray))
     end
 end

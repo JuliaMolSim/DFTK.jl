@@ -3,6 +3,7 @@
 ### allows easy testing of the same feature on CPU and GPU. @testitem are located immediatly
 ### below the @testmodule definition. Note that the order of the test modules in the @testitem 
 ### setup matters for successful compilation. 
+
 @testmodule PspSensitivity begin
 using DFTK
 using Test
@@ -12,7 +13,7 @@ using ComponentArrays
 using ..TestCases: aluminium
 using ..ForwardDiffWrappers: tagged_derivative
 
-function run_test(architecture)
+function run_test(; architecture)
     function compute_band_energies(ε::T) where {T}
         psp  = load_psp(PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"), :Al)
         rloc = convert(T, psp.rloc)
@@ -50,7 +51,7 @@ end
 @testitem "scfres PSP sensitivity using ForwardDiff" tags=[:dont_test_mpi, :minimal] #=
     =#    setup=[TestCases, ForwardDiffWrappers, PspSensitivity] begin
     using DFTK
-    PspSensitivity.run_test(DFTK.CPU())
+    PspSensitivity.run_test(; architecture=DFTK.CPU())
 end
 
 @testitem "scfres PSP sensitivity using ForwardDiff (GPU)" tags=[:gpu] #=
@@ -59,10 +60,10 @@ end
     using CUDA
     using AMDGPU
     if CUDA.has_cuda() && CUDA.has_cuda_gpu()
-        PspSensitivity.run_test(DFTK.GPU(CuArray))
+        PspSensitivity.run_test(; architecture=DFTK.GPU(CuArray))
     end
     if AMDGPU.has_rocm_gpu()
-        PspSensitivity.run_test(DFTK.GPU(ROCArray))
+        PspSensitivity.run_test(; architecture=DFTK.GPU(ROCArray))
     end
 end
 
@@ -75,7 +76,7 @@ using DftFunctionals
 using ..TestCases: silicon
 using ..ForwardDiffWrappers: tagged_derivative
 
-function run_test(architecture)
+function run_test(; architecture)
     function compute_force(ε1::T) where {T}
         pos = [[1.01, 1.02, 1.03] / 8, -ones(3) / 8]
         pbec = DftFunctional(:gga_c_pbe)
@@ -103,7 +104,7 @@ end
 @testitem "Functional force sensitivity using ForwardDiff" tags=[:dont_test_mpi, :minimal] #=
     =#    setup=[TestCases, ForwardDiffWrappers, ForceSensitivity] begin
     using DFTK
-    ForceSensitivity.run_test(DFTK.CPU())
+    ForceSensitivity.run_test(; architecture=DFTK.CPU())
 end
 
 @testitem "Functional force sensitivity using ForwardDiff (GPU)" tags=[:gpu] #=
@@ -112,10 +113,10 @@ end
     using CUDA
     using AMDGPU
     if CUDA.has_cuda() && CUDA.has_cuda_gpu()
-        ForceSensitivity.run_test(DFTK.GPU(CuArray))
+        ForceSensitivity.run_test(; architecture=DFTK.GPU(CuArray))
     end
     if AMDGPU.has_rocm_gpu()
-        ForceSensitivity.run_test(DFTK.GPU(ROCArray))
+        ForceSensitivity.run_test(; architecture=DFTK.GPU(ROCArray))
     end
 end
 
@@ -125,7 +126,7 @@ using Test
 using LinearAlgebra
 using ..ForwardDiffWrappers: tagged_derivative
 
-function run_test(architecture)
+function run_test(; architecture)
     function compute_force(ε::T) where {T}
         # solve the 1D Gross-Pitaevskii equation with ElementGaussian potential
         lattice = 10.0 .* [[1 0 0.]; [0 0 0]; [0 0 0]]
@@ -154,7 +155,7 @@ end
 @testitem "LocalNonlinearity sensitivity using ForwardDiff" tags=[:dont_test_mpi, :minimal] #=
     =#    setup=[ForwardDiffWrappers, LocalNonlinearitySensitivity] begin
     using DFTK
-    LocalNonlinearitySensitivity.run_test(DFTK.CPU())
+    LocalNonlinearitySensitivity.run_test(; architecture=DFTK.CPU())
 end
 
 @testitem "LocalNonlinearity sensitivity using ForwardDiff (GPU)" tags=[:gpu] #=
@@ -163,10 +164,10 @@ end
     using CUDA
     using AMDGPU
     if CUDA.has_cuda() && CUDA.has_cuda_gpu()
-        LocalNonlinearitySensitivity.run_test(DFTK.GPU(CuArray))
+        LocalNonlinearitySensitivity.run_test(; architecture=DFTK.GPU(CuArray))
     end
     if AMDGPU.has_rocm_gpu()
-        LocalNonlinearitySensitivity.run_test(DFTK.GPU(ROCArray))
+        LocalNonlinearitySensitivity.run_test(; architecture=DFTK.GPU(ROCArray))
     end
 end
 
@@ -175,7 +176,7 @@ using DFTK
 using Test
 using ForwardDiff
 using ..TestCases: silicon
-function run_test(architecture)
+function run_test(; architecture)
     # Make silicon primal model
     model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
                       functionals=LDA(), temperature=1e-3, smearing=Smearing.Gaussian())
@@ -202,7 +203,7 @@ end
 @testitem "Test scfres dual has the same params as scfres primal" tags=[:dont_test_mpi, :minimal] #=
     =#    setup=[TestCases, ScfresParameterConsistency] begin
     using DFTK
-    ScfresParameterConsistency.run_test(DFTK.CPU())
+    ScfresParameterConsistency.run_test(; architecture=DFTK.CPU())
 end
 
 @testitem "Test scfres dual has the same params as scfres primal (GPU)" tags=[:gpu] #=
@@ -211,10 +212,10 @@ end
     using CUDA
     using AMDGPU
     if CUDA.has_cuda() && CUDA.has_cuda_gpu()
-        ScfresParameterConsistency.run_test(DFTK.GPU(CuArray))
+        ScfresParameterConsistency.run_test(; architecture=DFTK.GPU(CuArray))
     end
     if AMDGPU.has_rocm_gpu()
-        ScfresParameterConsistency.run_test(DFTK.GPU(ROCArray))
+        ScfresParameterConsistency.run_test(; architecture=DFTK.GPU(ROCArray))
     end
 end
 
@@ -224,7 +225,7 @@ using Test
 using LinearAlgebra
 using PseudoPotentialData
 using ..ForwardDiffWrappers: tagged_derivative
-function run_test(architecture)
+function run_test(; architecture)
     a = 10.26  # Silicon lattice constant in Bohr
     lattice = a / 2 * [[0 1 1.];
                        [1 0 1.];
@@ -251,7 +252,7 @@ end
 @testitem "ForwardDiff wrt temperature" tags=[:dont_test_mpi, :minimal] #=
     =#    setup=[ForwardDiffWrappers, TemperatureSensitivity] begin
     using DFTK
-    TemperatureSensitivity.run_test(DFTK.CPU())
+    TemperatureSensitivity.run_test(; architecture=DFTK.CPU())
 end
 
 @testitem "ForwardDiff wrt temperature (GPU)" tags=[:gpu] #=
@@ -260,9 +261,9 @@ end
     using CUDA
     using AMDGPU
     if CUDA.has_cuda() && CUDA.has_cuda_gpu()
-        TemperatureSensitivity.run_test(DFTK.GPU(CuArray))
+        TemperatureSensitivity.run_test(; architecture=DFTK.GPU(CuArray))
     end
     if AMDGPU.has_rocm_gpu()
-        TemperatureSensitivity.run_test(DFTK.GPU(ROCArray))
+        TemperatureSensitivity.run_test(; architecture=DFTK.GPU(ROCArray))
     end
 end

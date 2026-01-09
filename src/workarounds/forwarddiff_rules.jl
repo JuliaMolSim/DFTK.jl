@@ -231,9 +231,10 @@ function construct_value(basis::PlaneWaveBasis{T}) where {T <: Dual}
 end
 
 
-@timing "self_consistent_field ForwardDiff" function self_consistent_field(basis_dual::PlaneWaveBasis{<:Dual{Tg,V,N}};
-                               response=ResponseOptions(),
-                               kwargs...) where {Tg,V,N}
+@timing "self_consistent_field ForwardDiff" function self_consistent_field(
+        basis_dual::PlaneWaveBasis{<:Dual{Tg,V,N}};
+        response=ResponseOptions(),
+        kwargs...) where {Tg,V,N}
     # Note: No guarantees on this interface yet.
 
     # Primal pass
@@ -271,8 +272,7 @@ end
     end
     occupation = map(scfres.occupation, getfield.(δresults, :δoccupation)...) do occk, δocck...
         occk_cpu = to_cpu(occk)
-        to_device(basis_dual.architecture,
-                  map((occnk, δoccnk...) -> Dual{Tg}(occnk, δoccnk), occk_cpu, δocck...))
+        to_device(basis_dual.architecture, map(Dual{Tg}, occk_cpu, δocck...))
     end
     εF = Dual{Tg}(scfres.εF, getfield.(δresults, :δεF)...)
 
