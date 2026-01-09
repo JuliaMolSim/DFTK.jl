@@ -102,7 +102,7 @@ end
    manifold = OrbitalManifold(Ni, "3D")
    
    model = model_DFT(lattice, atoms, positions; 
-                     extra_terms=[Hubbard(manifold, U)],
+                     extra_terms=[Hubbard(manifold => U)],
                      temperature=0.01, functionals=PBE(),
                      smearing=DFTK.Smearing.Gaussian(), magnetic_moments=magnetic_moments)
    basis = PlaneWaveBasis(model; Ecut = 15, kgrid = [2, 2, 2])
