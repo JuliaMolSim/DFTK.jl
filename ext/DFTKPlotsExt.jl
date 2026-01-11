@@ -148,7 +148,6 @@ function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatom=nothing, lab
                    temperature=basis.model.temperature,
                    smearing=basis.model.smearing,
                    colors = [:blue, :red],
-                   colors = [:blue, :red],
                    εrange=default_band_εrange(eigenvalues; εF),
                    n_points=1000, p=nothing, kwargs...) where {T}
     eshift = something(εF, 0.0)

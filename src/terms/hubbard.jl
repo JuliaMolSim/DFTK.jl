@@ -122,15 +122,8 @@ end
 function Hubbard(manifolds::Vector{OrbitalManifold}, U::Vector{T}) where {T}
     Hubbard{T}(manifolds, U)
 end
-Hubbard(manifold::OrbitalManifold, U) = Hubbard([manifold], [U])
 function Hubbard(manifold_to_U::Vararg{<:Pair})
     Hubbard([m[1] for m in manifold_to_U], [m[2] for m in manifold_to_U])
-end
-function Hubbard(; manifolds::Vector{OrbitalManifold}, U)
-    Hubbard(manifolds, U)
-end
-function Hubbard(; manifold::OrbitalManifold, U)
-    Hubbard([manifold], U)
 end
 
 function (hubbard::Hubbard{T})(basis::AbstractBasis) where {T}
@@ -143,8 +136,7 @@ function (hubbard::Hubbard{T})(basis::AbstractBasis) where {T}
     projs_per_kpt = map(1:length(basis.kpoints)) do ik
         reduce(hcat, map(P -> P[ik], projs_matrices))
     end
-    U = collect(austrip.(hubbard.U))
-    TermHubbard(manifolds, U, projs_matrices, projs_per_kpt, manifold_labels)
+    TermHubbard(manifolds, hubbard.U, projs_matrices, projs_per_kpt, manifold_labels)
 end
 
 struct TermHubbard{T, PT, L} <: Term
