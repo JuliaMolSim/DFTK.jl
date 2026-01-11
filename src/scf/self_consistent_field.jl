@@ -7,12 +7,15 @@ which start checkpointing (if no checkpoint file is present) or that continue a 
 run (if a checkpoint file can be loaded). `filename` is the location where the checkpoint
 is saved, `save_ψ` determines whether orbitals are saved in the checkpoint as well.
 The latter is discouraged, since generally slow.
+See [Saving SCF results on disk and SCF checkpoints](@ref) for details how to use
+this function in practice.
 """
 function kwargs_scf_checkpoints(basis::AbstractBasis;
                                 filename="dftk_scf_checkpoint.jld2",
                                 callback=ScfDefaultCallback(),
                                 diagtolalg::AdaptiveDiagtol=AdaptiveDiagtol(),
                                 ρ=guess_density(basis),
+                                τ=any(needs_τ, basis.terms) ? zero(ρ) : nothing,
                                 ψ=nothing, save_ψ=false,
                                 kwargs...)
     if isfile(filename)
@@ -22,6 +25,7 @@ function kwargs_scf_checkpoints(basis::AbstractBasis;
         # If we can expect the guess to be good, tighten the diagtol.
         if !isnothing(previous.ρ)
             ρ = previous.ρ
+            τ = previous.τ
             consistent_kpts = hasproperty(previous, :eigenvalues)
             if consistent_kpts && hasproperty(previous, :history_Δρ)
                 diagtol_first = determine_diagtol(diagtolalg, previous)
@@ -37,7 +41,7 @@ function kwargs_scf_checkpoints(basis::AbstractBasis;
     end
 
     callback = callback ∘ ScfSaveCheckpoints(; filename, save_ψ)
-    (; callback, diagtolalg, ψ, ρ, kwargs...)
+    (; callback, diagtolalg, ψ, ρ, τ, kwargs...)
 end
 
 

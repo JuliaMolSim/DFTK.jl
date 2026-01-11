@@ -243,7 +243,7 @@ end
     pos1 = [0.0, 0.0, 0.0]
     pos2 = [1.35, 1.35, 1.35]
     cell = [[5.4, 0.0, 0.0], [0.0, 5.4, 0.0], [0.0, 0.0, 5.4]]
-    psp = PseudoFamily("cp2k.nc.sr.pbe.v0_1.largecore.gth")
+    psp = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
 
     # Float64 positions, Float64 lattice
     system_ff = periodic_system(
