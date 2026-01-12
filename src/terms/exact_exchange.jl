@@ -23,23 +23,6 @@ function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, coulomb_mod
     TermExactExchange(T(scaling_factor), poisson_green_coeffs)
 end
 
-# Note: Implementing exact exchange in a scalable and numerically stable way, such that it
-# rapidly converges with k-points is tricky. This implementation here is far too simple and
-# slow to be useful.
-#
-# ABINIT/src/66_wfs/m_getghc.F90
-# ABINIT/src/66_wfs/m_fock_getghc.F90
-# ABINIT/src/66_wfs/m_prep_kgb.F90
-# ABINIT/src/66_wfs/m_bandfft_kpt.F90
-#
-# For further information (in particular on regularising the Coulomb), consider the following
-#      https://www.vasp.at/wiki/index.php/Coulomb_singularity
-#      https://journals.aps.org/prb/pdf/10.1103/PhysRevB.34.4405   (QE default)
-#      https://journals.aps.org/prb/pdf/10.1103/PhysRevB.73.205119
-#      https://journals.aps.org/prb/pdf/10.1103/PhysRevB.77.193110
-#      https://docs.abinit.org/topics/documents/hybrids-2017.pdf (Abinit apparently
-#           uses a short-ranged Coulomb)
-
 @timing "ene_ops: ExactExchange" function ene_ops(term::TermExactExchange,
                                                   basis::PlaneWaveBasis{T}, ψ, occupation;
                                                   kwargs...) where {T}
@@ -60,12 +43,14 @@ end
 
     for (n, ψn) in enumerate(eachcol(ψk))
         ψn_real = ifft(basis, kpt, ψn)
-        for (m, ψm) in enumerate(eachcol(ψk)) # TODO: restrict loop m<=n
-            ψm_real  = ifft(basis, kpt, ψm) # TODO: avoid FFT inside loop (e.g. prepare chunks of ψm_real in advance)
+        for (m, ψm) in enumerate(eachcol(ψk)) 
+            if m > n continue end
+            ψm_real  = ifft(basis, kpt, ψm) 
             ρnm_real = conj(ψn_real) .* ψm_real
             ρnm_fourier = fft(basis, kpt, ρnm_real) # actually we need a q-point here
 
             fac_mn = occk[n] * occk[m] / T(2)
+            fac_mn *= (m != n ? 2 : 1) # factor 2 because we skipped m>n
             E -= 0.5 * fac_mn * real(dot(ρnm_fourier .* term.poisson_green_coeffs, ρnm_fourier)) 
         end
     end
