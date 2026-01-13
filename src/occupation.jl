@@ -30,6 +30,11 @@ end
 function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues::AbstractVector, εF::Number;
                             temperature=basis.model.temperature,
                             smearing=basis.model.smearing) where {T}
+    # Check that eigenvalues are increasing monotonically, for contiguous occupations
+    if !all(all(diff(εk) .≥ -eps(T)) for εk in eigenvalues)
+        error("Eigenvalues should be monotonically increasing.")
+    end
+
     # This is needed to get the right behaviour for special floating-point types
     # such as intervals.
     inverse_temperature = iszero(temperature) ? T(Inf) : 1/temperature
@@ -206,4 +211,16 @@ function check_full_occupation(basis::PlaneWaveBasis, occupation)
     for occ_k in occupation
         all(occ_k .== filled_occ) || error("Only full occupation is supported, but $occ_k has partial occupation.")
     end
+end
+
+"""
+Return ranges of occupied elements based on a given occupation threshold
+"""
+function occupied_empty_masks(occupation, occupation_threshold)
+    n_occ = map(occupation) do occ
+        something(findlast(x -> abs(x) > occupation_threshold, occ), 0)
+    end
+    mask_occ  = [1:n_occ[ik] for ik in 1:length(occupation)]
+    mask_empty = [(n_occ[ik] + 1):length(occupation[ik]) for ik in 1:length(occupation)]
+    (; mask_occ, mask_empty)
 end

@@ -141,7 +141,7 @@ function test_agreement_scfres(scfres, dict; explicit_reshape=false, test_ψ=tru
 end  # function
 end  # module
 
-@testitem "todict" setup=[TestCases, DictAgreement] tags=[:serialisation] begin
+@testitem "todict" setup=[TestCases, DictAgreement] tags=[:serialisation, :minimal] begin
 using Test
 using DFTK
 testcase = TestCases.silicon

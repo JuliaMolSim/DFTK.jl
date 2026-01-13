@@ -41,7 +41,7 @@ struct NoopOperator{T <: Real} <: RealFourierOperator
     kpoint::Kpoint{T}
 end
 apply!(Hψ, op::NoopOperator, ψ) = nothing
-function Matrix(op::NoopOperator)
+function Base.Matrix(op::NoopOperator)
     n_Gk = length(G_vectors(op.basis, op.kpoint))
     zeros_like(G_vectors(op.basis), eltype(op.basis), n_Gk, n_Gk)
 end
@@ -60,7 +60,7 @@ end
 function apply!(Hψ, op::RealSpaceMultiplication, ψ)
     Hψ.real .+= op.potential .* ψ.real
 end
-function Matrix(op::RealSpaceMultiplication)
+function Base.Matrix(op::RealSpaceMultiplication)
     # V(G, G') = <eG|V|eG'> = 1/sqrt(Ω) <e_{G-G'}|V>
     pot_fourier = fft(op.basis, op.potential)
     n_G = length(G_vectors(op.basis, op.kpoint))
@@ -93,7 +93,7 @@ end
 function apply!(Hψ, op::FourierMultiplication, ψ)
     Hψ.fourier .+= op.multiplier .* ψ.fourier
 end
-Matrix(op::FourierMultiplication) = Array(Diagonal(op.multiplier))
+Base.Matrix(op::FourierMultiplication) = Array(Diagonal(op.multiplier))
 
 """
 Nonlocal operator in Fourier space in Kleinman-Bylander format,
@@ -110,7 +110,7 @@ end
 function apply!(Hψ, op::NonlocalOperator, ψ)
     mul!(Hψ.fourier, op.P, (op.D * (op.P' * ψ.fourier)), 1, 1)
 end
-Matrix(op::NonlocalOperator) = op.P * op.D * op.P'
+Base.Matrix(op::NonlocalOperator) = op.P * op.D * op.P'
 
 """
 Magnetic field operator A⋅(-i∇).
@@ -130,7 +130,7 @@ function apply!(Hψ, op::MagneticFieldOperator, ψ)
         Hψ.real .+= op.Apot[α] .* ∂αψ_real
     end
 end
-# TODO Implement  Matrix(op::MagneticFieldOperator)
+# TODO Implement  Base.Matrix(op::MagneticFieldOperator)
 
 @doc raw"""
 Nonlocal "divAgrad" operator ``-½ ∇ ⋅ (A ∇)`` where ``A`` is a scalar field on the
@@ -143,17 +143,27 @@ struct DivAgradOperator{T <: Real, AT} <: RealFourierOperator
     A::AT
 end
 function apply!(Hψ, op::DivAgradOperator, ψ;
-                ψ_scratch=zeros(complex(eltype(op.basis)), op.basis.fft_size...))
-    # TODO: Performance improvements: Unscaled plans, avoid remaining allocations
-    #       (which are only on the small k-point-specific Fourier grid
-    G_plus_k = [[p[α] for p in Gplusk_vectors_cart(op.basis, op.kpoint)] for α = 1:3]
+                ψ_real=zeros_like(ψ.fourier, complex(eltype(op.basis)), op.basis.fft_size...),
+                G_plus_k=nothing)
+    # ψ_real is a pre-allocated buffer to hold temporary real-space representations of ψ,
+    # this function overwrites it.
+    if isnothing(G_plus_k)
+        # Note: it is wasteful to recompute G_plus_k on every call, ideally passed from outside
+        G_plus_k = [map(p -> p[α], Gplusk_vectors_cart(op.basis, op.kpoint)) for α = 1:3]
+    end
+
+    # use unnormalized FFT plans for speed
+    norm = op.basis.fft_grid.fft_normalization * op.basis.fft_grid.ifft_normalization
+    ψ_recip = similar(ψ.fourier)   # pre-allocate large array
     for α = 1:3
-        ∂αψ_real = ifft!(ψ_scratch, op.basis, op.kpoint, im .* G_plus_k[α] .* ψ.fourier)
-        A∇ψ      = fft(op.basis, op.kpoint, ∂αψ_real .* op.A)
-        Hψ.fourier .-= im .* G_plus_k[α] .* A∇ψ ./ 2
+        ψ_recip .= im .* G_plus_k[α] .* ψ.fourier .* norm   # ∂αψ
+        ifft!(ψ_real, op.basis, op.kpoint, ψ_recip; normalize=false)
+        ψ_real .*= op.A   # A∇ψ
+        fft!(ψ_recip, op.basis, op.kpoint, ψ_real; normalize=false)
+        Hψ.fourier .-= im .* G_plus_k[α] .* ψ_recip ./ 2
     end
 end
-# TODO Implement  Matrix(op::DivAgrad)
+# TODO Implement  Base.Matrix(op::DivAgradOperator)
 
 
 # Optimize RFOs by combining terms that can be combined

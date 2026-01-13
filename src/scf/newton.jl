@@ -48,7 +48,7 @@ using LinearMaps
 #  Compute the gradient of the energy, projected on the space tangent to ψ, that
 #  is to say H(ψ)*ψ - ψ*λ where λ is the set of Rayleigh coefficients associated
 #  to the ψ.
-function compute_projected_gradient(basis::PlaneWaveBasis, ψ, occupation)
+@timing function compute_projected_gradient(basis::PlaneWaveBasis, ψ, occupation)
     ρ = compute_density(basis, ψ, occupation)
     H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
 
@@ -81,8 +81,10 @@ from the solution.
 function newton(basis::PlaneWaveBasis{T}, ψ0;
                 tol=1e-6, tol_cg=tol / 100, maxiter=20,
                 callback=ScfDefaultCallback(),
-                is_converged=ScfConvergenceDensity(tol)) where {T}
+                is_converged=ScfConvergenceDensity(tol),
+                seed=nothing) where {T}
 
+    seed = seed_task_local_rng!(seed, MPI.COMM_WORLD)
     # setting parameters
     model = basis.model
     @assert iszero(model.temperature)  # temperature is not yet supported
@@ -117,7 +119,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
         # compute Newton step and next iteration
         res = compute_projected_gradient(basis, ψ, occupation)
         # solve (Ω+K) δψ = -res so that the Newton step is ψ <- ψ + δψ
-        δψ = solve_ΩplusK(basis, ψ, -res, occupation; tol=tol_cg, callback=identity).δψ
+        δψ = solve_ΩplusK(basis, ψ, res, occupation; tol=tol_cg, callback=identity).δψ
         ψ  = [ortho_qr(ψ[ik] + δψ[ik]) for ik = 1:Nk]
 
         ρout        = compute_density(basis, ψ, occupation)
@@ -149,7 +151,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
     # return results and call callback one last time with final state for clean
     # up
     info = (; ham=H, basis, energies, converged, ρ, eigenvalues, occupation, εF, n_iter, ψ,
-            stage=:finalize, algorithm="Newton", runtime_ns=time_ns() - start_ns)
+            stage=:finalize, algorithm="Newton", seed, runtime_ns=time_ns() - start_ns)
     callback(info)
     info
 end

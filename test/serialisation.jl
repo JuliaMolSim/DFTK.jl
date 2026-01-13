@@ -40,6 +40,8 @@ function test_scfres_agreement(tested, ref; test_ψ=true)
     if test_ψ
         @test tested.ψ == ref.ψ
     end
+
+    @test tested.seed == ref.seed
 end
 end
 

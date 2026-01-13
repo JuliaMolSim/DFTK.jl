@@ -168,6 +168,35 @@ Note, however that this is just a *hint*,
 i.e. no hard limits are enforced.
 Furthermore using too small a heap size hint can have a negative impact on performance.
 
+## Estimating and monitoring memory usage
+DFTK provides some routines for estimating the memory consumption for storing
+density, Bloch waves as well as the peak memory consumption during an SCF run.
+Based on a `model` this information can be obtained before constructing a basis as
+```julia
+estimate = estimate_memory_usage(model::Model; Ecut=15, kgrid=(1, 1, 1), other_basis_kwargs...)
+```
+which takes exactly the same kind of arguments and keyword arguments as a
+[`PlaneWaveBasis`](@ref) constructor. The `estimate` object provides the estimated memory consumption,
+which in a script can be pretty-printed to `stdout` as follows
+```julia
+show(stdout, "text/plain", estimate)
+```
+```
+Estimated memory usage (per MPI process):
+    nonlocal projectors  :   6.7 GiB
+    single ψ             : 915.2 MiB
+    single ρ             :  25.0 MiB
+    peak during SCF      :  14.1 GiB
+```
+Notice, that in particular the peak memory during SCF provides an orientation for requesting
+resources from queuing systems (but at this stage this estimate is still very rough).
+The same information is also available in the basis printout
+(i.e. `show(stdout, "text/plain", basis)`).
+
+During an SCF run the current memory consumption (within the main RAM as well as a potential
+GPU device) can be monitored by passing the callback `ScfDefaultCallback(show_memory=true)`,
+see [Monitoring self-consistent field calculations](@ref).
+
 ## Running slurm jobs
 This example shows how to run a DFTK calculation on a slurm-based system
 such as scitas. We use the MKL for FFTW and BLAS and the system-provided MPI.

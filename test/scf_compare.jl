@@ -1,5 +1,5 @@
 @testitem "Compare different SCF algorithms (no spin, no temperature)" #=
-    =#    tags=[:core] setup=[TestCases] begin
+    =#    tags=[:minimal] setup=[TestCases] begin
     using DFTK
     using Manopt, Manifolds, RecursiveArrayTools
     using DFTK: Applyχ0Model, select_occupied_orbitals
@@ -64,7 +64,7 @@
 end
 
 @testitem "Compare different SCF algorithms (collinear spin, no temperature)" #=
-    =#    tags=[:core] setup=[TestCases] begin
+    =#    tags=[:minimal] setup=[TestCases] begin
     using DFTK
     using DFTK: Applyχ0Model, select_occupied_orbitals
     silicon = TestCases.silicon
@@ -97,7 +97,7 @@ end
 end
 
 @testitem "Compare different SCF algorithms (no spin, temperature)" #=
-    =#    tags=[:core] setup=[TestCases] begin
+    =#    tags=[:minimal] setup=[TestCases] begin
     using DFTK
     silicon = TestCases.silicon
     tol = 1e-7
@@ -122,7 +122,7 @@ end
 
 
 @testitem "Compare different SCF algorithms (collinear spin, temperature)" #=
-    =#    tags=[:core] setup=[TestCases] begin
+    =#    tags=[:minimal] setup=[TestCases] begin
     using DFTK
     using DFTK: Applyχ0Model
     iron_bcc = TestCases.iron_bcc

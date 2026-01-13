@@ -83,7 +83,13 @@ function xlogx(x)
 end
 function entropy(S::FermiDirac, x)
     f = occupation(S, x)
-    - (xlogx(f) + xlogx(1 - f))
+    # protect against the occupation being exactly zero or one, which causes trouble with the derivative
+    # this check is a bit stupid, but if we just check for f == 0, the branch won't get picked up by forwarddiff
+    if abs(f) < eps(typeof(x))|| abs(1-f) < eps(typeof(x))
+        zero(x)
+    else
+        - (xlogx(f) + xlogx(1 - f))
+    end
 end
 function occupation_divided_difference(S::FermiDirac, x, y, εF, temp)
     temp == 0 && return occupation_divided_difference(None(), x, y, εF, temp)

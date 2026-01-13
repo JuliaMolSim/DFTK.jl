@@ -14,18 +14,39 @@ concurrency:
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 
 jobs:
+  build_matrix:
+    name: Build Test Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - run: |
+          cat > matrix.yaml <<- EOM
+          - {mode: stable,  arch: x64,     os: ubuntu-latest,  payload: minimal          }
+          - {mode: stable,  arch: x64,     os: ubuntu-latest,  payload: nominimal-noslow }
+          - {mode: stable,  arch: x64,     os: ubuntu-latest,  payload: example          }
+          - {mode: stable,  arch: aarch64, os: macOS-latest,   payload: minimal          }
+          - {mode: stable,  arch: x64,     os: ubuntu-latest,  payload: noslow-mpi       }
+          - {mode: latest,  arch: x64,     os: ubuntu-latest,  payload: minimal          }
+          EOM
+      # Windows tests are disabled for PR builds
+      - if: ${{ github.event_name != 'pull_request' }}
+        run: |
+          cat >> matrix.yaml <<- EOM
+          - {mode: stable,  arch: x64,     os: windows-latest, payload: minimal          }
+          EOM
+      - name: Convert to JSON
+        run: |
+          python3 -c 'import sys, yaml, json; json.dump(yaml.safe_load(sys.stdin), sys.stdout)' < matrix.yaml > matrix.json
+      - id: set-matrix
+        run: echo "matrix={\"include\":$(cat matrix.json)}" >> $GITHUB_OUTPUT
   test:
     name: Julia ${{ matrix.mode }} - ${{ matrix.os }} - ${{ matrix.payload }}
+    needs: build_matrix
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - {mode: stable,  os: ubuntu-latest,  payload: noslow-example }
-          - {mode: stable,  os: macOS-latest,   payload: noslow         }
-          - {mode: stable,  os: windows-latest, payload: noslow         }
-          - {mode: stable,  os: ubuntu-latest,  payload: noslow-mpi     }
-          - {mode: latest,  os: ubuntu-latest,  payload: noslow         }
+      matrix: ${{ fromJson(needs.build_matrix.outputs.matrix) }}
     env:
       GKS_ENCODING: utf8
       GKSwstype: 100       # Needed for Plots-related tests
@@ -33,19 +54,19 @@ jobs:
       DFTK_TEST_NPROCS: 2  # For MPI parallelised tests
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Setup Julia stable
         uses: julia-actions/setup-julia@v2
         with:
           version: '1.10'
-          arch: x64
+          arch: ${{ matrix.arch }}
         if: ${{ matrix.mode == 'stable' }}
-      - name: Setup Julia latest (pre-releases included)
+      - name: Setup Julia latest (pre-releases excluded)
         uses: julia-actions/setup-julia@v2
         with:
           version: '1'
-          include-all-prereleases: true
+          include-all-prereleases: false
           arch: x64
         if: ${{ matrix.mode == 'latest' }}
 

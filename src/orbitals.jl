@@ -5,9 +5,9 @@ using Random  # Used to have a generic API for CPU and GPU computations alike: s
 # threshold is a parameter to distinguish between states we want to keep and the
 # others when using temperature. It is set to 0.0 by default, to treat with insulators.
 function select_occupied_orbitals(basis, ψ, occupation; threshold=0.0)
-    N = [something(findlast(x -> x > threshold, occk), 0) for occk in occupation]
-    selected_ψ   = [@view ψk[:, 1:N[ik]] for (ik, ψk)   in enumerate(ψ)]
-    selected_occ = [      occk[1:N[ik]]  for (ik, occk) in enumerate(occupation)]
+    mask_occ = occupied_empty_masks(occupation, threshold).mask_occ
+    selected_ψ   = [@view ψk[:, mask_occ[ik]] for (ik, ψk)   in enumerate(ψ)]
+    selected_occ = [      occk[mask_occ[ik]]  for (ik, occk) in enumerate(occupation)]
 
     # if we have an insulator, sanity check that the orbitals we kept are the
     # occupied ones
@@ -83,4 +83,10 @@ function random_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, howmany::Integer
     orbitals = similar(G_vectors(basis), Complex{T}, length(G_vectors(basis, kpt)), howmany)
     randn!(TaskLocalRNG(), orbitals)  # use the RNG on the device if we're using a GPU
     ortho_qr(orbitals)
+end
+
+function random_orbitals(basis::AbstractBasis, howmany::Integer)
+    map(basis.kpoints) do kpt
+        random_orbitals(basis, kpt, howmany)
+    end
 end

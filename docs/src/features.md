@@ -3,36 +3,41 @@
 The following lists the functionality of DFTK
 achieved in **less than 10 000 lines** of code.
 Our code has a performance comparable to standard DFT codes
-and runs out of the box on Linux, windows and macOS, see [Installation](@ref).
+and runs out of the box on Linux, Windows and macOS, see [Installation](@ref).
 
 ## Standard methods and models
-- DFT models (LDA, GGA, meta-GGA): Any functional from the
-  [libxc](https://libxc.gitlab.io/) library
+- Any DFT exchange-correlation functional from the [libxc](https://libxc.gitlab.io/) library
+  at the LDA, GGA, meta-GGA level.
+- [Hubbard correction (DFT+U)](@ref).
 - **Norm-conserving pseudopotentials**: Goedecker-type (GTH)
   or numerical (in UPF pseudopotential format),
   see [Pseudopotentials](@ref).
+- Collinear spin, see [Collinear spin and magnetic systems](@ref).
 - **Black-box self-consistent field approaches**, such as
   [LDOS mixing](https://doi.org/10.1088/1361-648X/abcbdb) (autodetects metal versus insulator)
   or [adaptive damping](https://arxiv.org/abs/2109.14018).
 - Direct minimisation methods, see [Comparison of DFT solvers](@ref).
-- Various smearing methods
-- Collinear spin, see [Collinear spin and magnetic systems](@ref).
+- Various smearing methods, see [Temperature and metallic systems](@ref metallic-systems)
+  and [Energy cutoff smearing](@ref).
 
 ## Parallelisation
 - **MPI-based distributed parallelism** (distribution over ``k``-points)
 - **[Using DFTK on GPUs](@ref)**: Nvidia *(mostly supported)* and AMD GPUs *(preliminary support)*
 - Multi-level threading (``k``-points eigenvectors, FFTs, linear algebra)
+- See also: [Using DFTK on compute clusters](@ref).
 
 ## Ground-state properties and post-processing
 - Total energy, forces, stresses
-- Density of states (DOS), local density of states (LDOS)
+- Density of states (DOS), local density of states (LDOS), projected density of states (PDOS)
 - Band structures
+- [Geometry optimization](@ref)
 - Easy access to all intermediate quantities (e.g. density, Bloch waves)
 
 ## Response and response properties
 - Density-functional perturbation theory (DFPT)
 - Integration of DFPT with **algorithmic differentiation**,
-  e.g. [Polarizability using automatic differentiation](@ref)
+  e.g. [Elastic constants](@ref),
+  [Polarizability using automatic differentiation](@ref)
 - [Phonon computations](@ref) *(preliminary implementation)*
 
 ## Unique features
@@ -55,6 +60,6 @@ and runs out of the box on Linux, windows and macOS, see [Installation](@ref).
   with the [Atomistic simulation environment (ASE)](@ref).
 - [Wannierization using Wannier.jl or Wannier90](@ref)
 
-## Missing a feature ?
+## Missing a feature?
 Look for an open issue or [create a new one](https://github.com/JuliaMolSim/DFTK.jl/issues).
 Want to contribute? See our [contributing notes](https://github.com/JuliaMolSim/DFTK.jl#contributing).

@@ -106,6 +106,7 @@ function PspHgh(Zion, rloc::T, cloc::AbstractVector, rp, h;
     PspHgh{T}(Zion, rloc, cloc, lmax, rp, h, identifier, description)
 end
 
+
 @doc raw"""
 The local potential of a HGH pseudopotentials in reciprocal space
 can be brought to the form ``Q(t) / (t^2 exp(t^2 / 2))``
@@ -218,7 +219,7 @@ function eval_psp_projector_real(psp::PspHgh, i, l, r::T) where {T <: Real}
     sqrt(T(2)) * r^(l + 2(i - 1)) * exp(-r^2 / 2rp^2) / rp^(l + ired) / sqrt(gamma(l + ired))
 end
 
-function eval_psp_energy_correction(T, psp::PspHgh, n_electrons)
+function eval_psp_energy_correction(T, psp::PspHgh)
     # By construction we need to compute the DC component of the difference
     # of the Coulomb potential (-Z/G^2 in Fourier space) and the pseudopotential
     # i.e. -4πZ/(ΔG)^2 -  eval_psp_local_fourier(psp, ΔG) for ΔG → 0. This is:
@@ -228,5 +229,5 @@ function eval_psp_energy_correction(T, psp::PspHgh, n_electrons)
 
     # Multiply by number of electrons and 4π (spherical Hankel prefactor)
     # to get energy per unit cell
-    4T(π) * n_electrons * difference_DC
+    4T(π) * difference_DC
 end

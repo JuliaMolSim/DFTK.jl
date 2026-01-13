@@ -159,34 +159,34 @@ _is_approx_in(x::AbstractArray{T}, X) where {T} = any(y -> isapprox(x, y; atol=s
 """
 Filter out the symmetry operations that don't respect the symmetries of the discrete BZ grid
 """
-function symmetries_preserving_kgrid(symmetries, kcoords)
-    kcoords_normalized = normalize_kpoint_coordinate.(kcoords)
+function symmetries_preserving_kgrid(symmetries, kgrid::AbstractKgrid)
+    # First apply symmetries as the provided k-points can be arbitrary
+    # (e.g. only along a line or similar)
+    all_kcoords = unfold_kcoords(reducible_kcoords(kgrid).kcoords, symmetries)
+    kcoords_normalized = normalize_kpoint_coordinate.(all_kcoords)
     function preserves_grid(symop)
         all(_is_approx_in(normalize_kpoint_coordinate(symop.S * k), kcoords_normalized)
             for k in kcoords_normalized)
     end
     filter(preserves_grid, symmetries)
 end
-function symmetries_preserving_kgrid(symmetries, kgrid::ExplicitKpoints)
-    # First apply symmetries as the provides k-points can be arbitrary
-    # (e.g. only along a line or similar)
-    all_kcoords = unfold_kcoords(kgrid.kcoords, symmetries)
-    symmetries_preserving_kgrid(symmetries, all_kcoords)
-end
+# Special case for Monkhorst-Pack grids since the generic function above
+# is quadratic in the number of k-points.
 function symmetries_preserving_kgrid(symmetries, kgrid::MonkhorstPack)
-    if all(isone, kgrid.kgrid_size)
-        # TODO Keeping this special casing from version of the code before refactor
-        [one(SymOp)]
-    else
-        # if k' = Rk
-        # then
-        #    R' = diag(kgrid) R diag(kgrid)^-1
-        # should be integer where
+    # we have to check if S * k is in the grid for all k
+    # by linearity, it is enough to check the origin and
+    # (1/kgrid_size[1], 0, 0), (0, 1/kgrid_size[2], 0), (0, 0, 1/kgrid_size[3]).
+    kcoords_normalized = normalize_kpoint_coordinate.(reducible_kcoords(kgrid).kcoords)
 
-        # TODO This can certainly be improved by knowing this is an MP grid,
-        #      see symmetries_preserving_rgrid below for ideas
-        symmetries_preserving_kgrid(symmetries, reducible_kcoords(kgrid).kcoords)
+    function preserves_kgrid(symop)
+        function _check(dx, dy, dz)
+            k = (kgrid.kshift .+ Vec3(dx, dy, dz)) .// kgrid.kgrid_size
+            normalize_kpoint_coordinate(symop.S * k) ∈ kcoords_normalized
+        end
+        _check(0, 0, 0) && _check(1, 0, 0) && _check(0, 1, 0) && _check(0, 0, 1)
     end
+
+    filter(preserves_kgrid, symmetries)
 end
 
 """
@@ -305,7 +305,7 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, sym
     # Looping over symmetries inside of map! on G vectors allow for a single GPU kernel launch
     map!(ρaccu, Gs) do G
         acc = zero(complex(T))
-        # Explicit loop over indicies because AMDGPU does not support zip() in map!
+        # Explicit loop over indices because AMDGPU does not support zip() in map!
         for i_symm in 1:n_symm
             invS = symm_invS[i_symm]
             τ = symm_τ[i_symm]
@@ -422,6 +422,35 @@ function symmetrize_forces(basis::PlaneWaveBasis, forces)
     symmetrize_forces(basis.model, forces; basis.symmetries)
 end
 
+"""
+Symmetrize the Hubbard occupation matrix according to the l quantum number of the manifold.
+"""
+function symmetrize_hubbard_n(model, manifold::ResolvedOrbitalManifold,
+                              hubbard_n::Array{Matrix{Complex{T}}};
+                              symmetries, tol_symmetry=SYMMETRY_TOLERANCE) where {T}
+    # For now we apply symmetries only on nII terms, not on cross-atom terms (nIJ)
+    # WARNING: To implement +V this will need to be changed!
+
+    positions = model.positions[manifold.iatoms]
+    nspins = size(hubbard_n, 1)
+    natoms = size(hubbard_n, 2)
+    ldim = 2*manifold.l+1
+
+    # Initialize the hubbard_n matrix
+    ns = [zeros(Complex{T}, ldim, ldim) for _ in 1:nspins, _ in 1:natoms, _ in 1:natoms]
+    for symmetry in symmetries
+        Wcart = model.lattice * symmetry.W * model.inv_lattice
+        WigD = wigner_d_matrix(manifold.l, Wcart)
+        for σ in 1:nspins, iatom in 1:natoms
+            sym_atom = find_symmetry_preimage(positions, positions[iatom], symmetry;
+                                              tol_symmetry)
+            ns[σ, iatom, iatom] .+= WigD' * hubbard_n[σ, sym_atom, sym_atom] * WigD
+        end
+    end
+    ns ./= length(symmetries)
+    ns
+end
+
 """"
 Convert a `basis` into one that doesn't use BZ symmetry.
 This is mainly useful for debug purposes (e.g. in cases we don't want to
@@ -494,7 +523,7 @@ function unfold_bz(scfres)
     eigenvalues = unfold_array(scfres.basis, basis_unfolded, scfres.eigenvalues, false)
     occupation = unfold_array(scfres.basis, basis_unfolded, scfres.occupation, false)
     energies, ham = energy_hamiltonian(basis_unfolded, ψ, occupation;
-                                       scfres.ρ, eigenvalues, scfres.εF)
+                                       scfres.ρ, scfres.hubbard_n, eigenvalues, scfres.εF)
     @assert energies.total ≈ scfres.energies.total
     new_scfres = (; basis=basis_unfolded, ψ, ham, eigenvalues, occupation)
     merge(scfres, new_scfres)

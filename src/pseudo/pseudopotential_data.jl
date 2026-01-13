@@ -29,7 +29,7 @@ Return the recommended kinetic energy cutoff, supersampling and density cutoff f
 Values may be `missing` if the data cannot be determined.
 """
 function PseudoPotentialData.recommended_cutoff(el::Element)
-    if isnothing(pseudofamily(el))
+    if isnothing(pseudofamily(el)) || :X == element_symbol(el)
         return (; Ecut=missing, supersampling=missing, Ecut_density=missing)
     else
         return recommended_cutoff(pseudofamily(el), element_symbol(el))
@@ -45,7 +45,7 @@ Effectively this returns `pseudometa(pseudofamily(element), element_symbol(eleme
 """
 function PseudoPotentialData.pseudometa(el::Element)
     family = pseudofamily(el)
-    if isnothing(family)
+    if isnothing(family) || :X == element_symbol(el)
         return Dict{String,Any}()
     else
         return pseudometa(family, element_symbol(el))
