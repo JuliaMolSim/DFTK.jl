@@ -101,23 +101,16 @@ function build_coefficient_field_fourier(basis, inclusion_fourier_func, backgrou
     
     for (iG, G) in enumerate(Gs)
         G_cart = basis.model.recip_lattice * G
-        p = norm(G_cart)
         
-        if iG == 1  # G = 0
-            # DC component: background + integral of inclusions
-            value = background_value * basis.model.unit_cell_volume
-            for pos in positions
-                value += inclusion_fourier_func(G_cart) / sqrt(basis.model.unit_cell_volume)
-            end
-            a_fourier[DFTK.index_G_vectors(basis, G)] = value / sqrt(basis.model.unit_cell_volume)
-        else
-            # Structure factor: sum over positions
-            value = zero(Complex{T})
-            for pos in positions
-                value += DFTK.cis2pi(-dot(G, pos)) * inclusion_fourier_func(G_cart)
-            end
-            a_fourier[DFTK.index_G_vectors(basis, G)] = value / sqrt(basis.model.unit_cell_volume)
+        # Structure factor: sum over positions
+        value = zero(Complex{T})
+        if iG == 1
+            value += background_value * basis.model.unit_cell_volume
         end
+        for pos in positions
+            value += DFTK.cis2pi(-dot(G, pos)) * inclusion_fourier_func(G_cart)
+        end
+        a_fourier[iG] = value / sqrt(basis.model.unit_cell_volume)
     end
     
     # Transform to real space
@@ -189,7 +182,7 @@ function LinearAlgebra.ldiv!(y, P::PseudoInversePreconditioner, x)
         if i == P.zero_idx
             y[i] = 0  # Zero out the DC component (pseudo-inverse)
         else
-            y[i] = x[i] / (P.diag[i] + 1)  # Add small shift for stability
+            y[i] = x[i] / (P.diag[i])
         end
     end
     return y
@@ -210,7 +203,7 @@ Solve the linear PDE problem -div(a(x)∇u(x)) = f(x) using CG iteration.
 - `u`: Solution on the real-space grid
 - `info`: Information from the CG solver
 """
-function solve_linear_problem(basis, f; tol=1e-6, maxiter=100)
+function solve_linear_problem(basis, f; tol=1e-6, maxiter=1000)
     # Convert f to Fourier space and create right-hand side
     # We solve for the first k-point and first band (single equation)
     kpt = only(basis.kpoints)
@@ -302,105 +295,83 @@ function rectangular_inclusion_fourier(wx, wy, wz, a_inc)
         function my_sinc(x)
             return abs(x) < 1e-10 ? one(T) : sin(x) / x
         end
-        
+
         return a_inc * volume * my_sinc(G[1] * wx) * my_sinc(G[2] * wy) * my_sinc(G[3] * wz)
     end
 end
 
 # Inclusion parameters
-wx, wy, wz = 1.0, 0.8, 0.5  # Half-widths
+wx, wy, wz = 1, 1, 1.0  # Half-widths (cartesian coordinates)
 a_inc = 3.0  # Inclusion value
 
-# Positions of inclusions
-positions = [[0.25 * a, 0.25 * a, 0.0], 
-             [0.75 * a, 0.75 * a, 0.0],
-             [0.25 * a, 0.75 * a, 0.0]]
+# Positions of inclusions (relative coordinates)
+positions = [[0.5, 0.5, 0.0],]
 
 # Background value of a(x)
 background_a = 1.0
 
-# Test both real and Fourier approaches
-println("=== Testing with DivAGradFromReal ===")
 terms_real = [DivAGradFromReal(rectangular_inclusion_real(wx, wy, wz, a_inc),
                                 background_a, positions)]
-model_real = DFTK.Model(lattice, Float64[], Vector{Float64}[]; n_electrons=0, terms=terms_real,
-                        spin_polarization=:spinless)
-Ecut = 50
-basis_real = DFTK.PlaneWaveBasis(model_real; Ecut, kgrid=(1, 1, 1))
-
-println("\n=== Testing with DivAGradFromFourier ===")
 terms_fourier = [DivAGradFromFourier(rectangular_inclusion_fourier(wx, wy, wz, a_inc),
                                       background_a, positions)]
-model_fourier = DFTK.Model(lattice, Float64[], Vector{Float64}[]; n_electrons=0, terms=terms_fourier,
-                            spin_polarization=:spinless)
-basis_fourier = DFTK.PlaneWaveBasis(model_fourier; Ecut, kgrid=(1, 1, 1))
+terms = terms_fourier
+model = DFTK.Model(lattice; n_electrons=0, terms,
+                        spin_polarization=:spinless)
+Ecut = 200
+basis = DFTK.PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
 
-# Get the coefficient fields for comparison
-a_real = basis_real.terms[1].A_values ./ 2  # Divide by 2 since A = 2a
-a_fourier = basis_fourier.terms[1].A_values ./ 2
-
-println("Difference between real and Fourier constructions:")
-println("  Max absolute difference: ", maximum(abs.(a_real .- a_fourier)))
-println("  RMS difference: ", sqrt(sum(abs2.(a_real .- a_fourier)) / length(a_real)))
-
-# Define the right-hand side f(x) = da/dx (derivative in x direction)
-# Calculate this in Fourier domain for exactness
-kpt = only(basis_fourier.kpoints)
-a_fourier_coeff = DFTK.fft(basis_fourier, a_fourier)
+kpt = only(basis.kpoints)
+a_real = (basis.terms[1].A_values ./ 2)
+a_fourier_kpt = fft(basis, kpt, complex.(a_real)) # exact fourier coefficients
 
 # Derivative: multiply by i*G_x in Fourier space
-f_fourier = similar(a_fourier_coeff)
-for (iG, G) in enumerate(DFTK.G_vectors(basis_fourier, kpt))
-    G_cart = basis_fourier.model.recip_lattice * G
-    f_fourier[iG] = 2π * im * G_cart[1] * a_fourier_coeff[iG]
+f = zeros(ComplexF64, length(kpt.G_vectors))
+for (iG, G) in enumerate(DFTK.G_vectors(basis, kpt))
+    G_cart = basis.model.recip_lattice * G
+    f[iG] = 2π * im * G_cart[1] * a_fourier_kpt[iG]
 end
 
 # Transform to real space
-f_values = DFTK.ifft(basis_fourier, kpt, f_fourier)
+f_values = DFTK.ifft(basis, kpt, f)
 
 # Ensure zero average (should already be satisfied, but enforce numerically)
 f_values .-= sum(f_values) / length(f_values)
 
-println("\nRight-hand side f = da/dx:")
-println("  Min: ", minimum(real.(f_values)))
-println("  Max: ", maximum(real.(f_values)))
-println("  Average: ", sum(real.(f_values)) / length(f_values))
-
 # Solve the problem
 println("\n=== Solving -div(a(x)∇u(x)) = f(x) ===")
-u, info = solve_linear_problem(basis_fourier, f_values; tol=1e-6, maxiter=200)
+u, info = solve_linear_problem(basis, f_values; tol=1e-6, maxiter=1000)
 println("CG converged: $(info.converged) after $(info.n_iter) iterations")
 println("Final residual: $(info.residual_norm)")
 
 # Compute derivatives of u for visualization
-u_fourier_coeff = DFTK.fft(basis_fourier, u)
+u_coeff = DFTK.fft(basis, kpt, u)
 
 # du/dx
-dudx_fourier = similar(u_fourier_coeff)
-for (iG, G) in enumerate(DFTK.G_vectors(basis_fourier, kpt))
-    G_cart = basis_fourier.model.recip_lattice * G
-    dudx_fourier[iG] = 2π * im * G_cart[1] * u_fourier_coeff[iG]
+dudx = zeros(ComplexF64, length(kpt.G_vectors))
+for (iG, G) in enumerate(DFTK.G_vectors(basis, kpt))
+    G_cart = basis.model.recip_lattice * G
+    dudx[iG] = 2π * im * G_cart[1] * u_coeff[iG]
 end
-dudx = DFTK.ifft(basis_fourier, kpt, dudx_fourier)
+dudx = DFTK.ifft(basis, kpt, dudx)
 
 # du/dy
-dudy_fourier = similar(u_fourier_coeff)
-for (iG, G) in enumerate(DFTK.G_vectors(basis_fourier, kpt))
-    G_cart = basis_fourier.model.recip_lattice * G
-    dudy_fourier[iG] = 2π * im * G_cart[2] * u_fourier_coeff[iG]
+dudy = zeros(ComplexF64, length(kpt.G_vectors))
+for (iG, G) in enumerate(DFTK.G_vectors(basis, kpt))
+    G_cart = basis.model.recip_lattice * G
+    dudy[iG] = 2π * im * G_cart[2] * u_coeff[iG]
 end
-dudy = DFTK.ifft(basis_fourier, kpt, dudy_fourier)
+dudy = DFTK.ifft(basis, kpt, dudy)
 
 # Visualize the results
-r_vectors = DFTK.r_vectors_cart(basis_fourier)
+r_vectors = DFTK.r_vectors_cart(basis)
 x_coords = [r[1] for r in r_vectors]
 y_coords = [r[2] for r in r_vectors]
 
 # Reshape for plotting (2D)
-nx, ny, nz = basis_fourier.fft_size
+nx, ny, nz = basis.fft_size
 X = reshape(x_coords, nx, ny, nz)[:, :, 1]
 Y = reshape(y_coords, nx, ny, nz)[:, :, 1]
-A = reshape(real.(a_fourier), nx, ny, nz)[:, :, 1]
+A = reshape(real.(a_real), nx, ny, nz)[:, :, 1]
 F = reshape(real.(f_values), nx, ny, nz)[:, :, 1]
 U = reshape(real.(u), nx, ny, nz)[:, :, 1]
 DUDx = reshape(real.(dudx), nx, ny, nz)[:, :, 1]
