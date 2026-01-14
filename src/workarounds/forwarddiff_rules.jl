@@ -33,7 +33,9 @@ function LinearAlgebra.mul!(y::AbstractArray{<:Union{Complex{<:Dual}}},
                             x::AbstractArray{<:Union{Complex{<:Dual}}})
     copyto!(y, p*x)
 end
-function Base.:*(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:Dual{Tg}}}) where {Tg}
+# Custom rule for FFTs used to overload the Base.:* operator. This is a function
+# of it's own because DFTKCUDAExt.jl uses it to implement a specific overload.
+function dual_fft_mul(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:Dual{Tg}}}) where {Tg}
     # TODO do we want x::AbstractArray{<:Dual{T}} too?
     xtil = p * ForwardDiff.value.(x)
     dxtils = ntuple(ForwardDiff.npartials(eltype(x))) do n
@@ -45,6 +47,9 @@ function Base.:*(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:Dual{Tg}}}) 
             Dual{Tg}(imag(val), map(imag, parts)),
         )
     end
+end
+function Base.:*(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:Dual{Tg}}}) where {Tg}
+    dual_fft_mul(p, x)
 end
 
 function build_fft_plans!(tmp::AbstractArray{Complex{T}}) where {T<:Dual}
@@ -230,9 +235,9 @@ end
 
 
 @timing "self_consistent_field ForwardDiff" function self_consistent_field(
-        basis_dual::PlaneWaveBasis{T};
+        basis_dual::PlaneWaveBasis{<:Dual{Tg,V,N}};
         response=ResponseOptions(),
-        kwargs...) where {T <: Dual}
+        kwargs...) where {Tg,V,N}
     # Note: No guarantees on this interface yet.
 
     # Primal pass
@@ -251,7 +256,7 @@ end
     end
     # Implicit differentiation
     response.verbose && println("Solving response problem")
-    δresults = ntuple(ForwardDiff.npartials(T)) do α
+    δresults = ntuple(N) do α
         δHextψ = [ForwardDiff.partials.(δHextψk, α) for δHextψk in Hψ_dual]
         δtemperature = ForwardDiff.partials(basis_dual.model.temperature, α)
         solve_ΩplusK_split(scfres, δHextψ; δtemperature,
@@ -259,20 +264,21 @@ end
     end
 
     # Convert and combine
-    DT = Dual{ForwardDiff.tagtype(T)}
     ψ = map(scfres.ψ, getfield.(δresults, :δψ)...) do ψk, δψk...
         map(ψk, δψk...) do ψnk, δψnk...
-            Complex(DT(real(ψnk), real.(δψnk)),
-                    DT(imag(ψnk), imag.(δψnk)))
+            Complex(Dual{Tg}(real(ψnk), real.(δψnk)),
+                    Dual{Tg}(imag(ψnk), imag.(δψnk)))
         end
     end
     eigenvalues = map(scfres.eigenvalues, getfield.(δresults, :δeigenvalues)...) do εk, δεk...
-        map((εnk, δεnk...) -> DT(εnk, δεnk), εk, δεk...)
+        map((εnk, δεnk...) -> Dual{Tg}(εnk, δεnk), εk, δεk...)
     end
     occupation = map(scfres.occupation, getfield.(δresults, :δoccupation)...) do occk, δocck...
-        map((occnk, δoccnk...) -> DT(occnk, δoccnk), occk, δocck...)
+        occk_cpu = to_cpu(occk)
+        to_device(basis_dual.architecture,
+                  map((occk_cpu, δocck...) -> Dual{Tg}(occk_cpu, δocck), occk_cpu, δocck...))
     end
-    εF = DT(scfres.εF, getfield.(δresults, :δεF)...)
+    εF = Dual{Tg}(scfres.εF, getfield.(δresults, :δεF)...)
 
     # For strain, basis_dual contributes an explicit lattice contribution which
     # is not contained in δresults, so we need to recompute ρ here

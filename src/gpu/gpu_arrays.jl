@@ -13,10 +13,10 @@ function LinearAlgebra.norm(A::Hermitian{T, <:AbstractGPUArray}) where {T}
     sqrt(2upper_triangle - diago)
 end
 
-
+# Make sure that there is a CPU fallback for AbstractGPUArrays (e.g. for Duals)
 for fun in (:potential_terms, :kernel_terms)
     @eval function DftFunctionals.$fun(fun::DispatchFunctional, ρ::AT,
-                                       args...) where {AT <: AbstractGPUArray{Float64}}
+                                       args...) where {AT <: AbstractGPUArray}
         # Fallback implementation for the GPU: Transfer to the CPU and run computation there
         cpuify(::Nothing) = nothing
         cpuify(x::AbstractArray) = Array(x)
