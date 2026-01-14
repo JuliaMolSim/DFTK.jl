@@ -113,122 +113,6 @@ function LinearAlgebra.ldiv!(y, P::PseudoInversePreconditioner, x)
 end
 
 #
-# Alternative preconditioner: M = 1/√a (-Δ)^(-1) 1/√a
-#
-# Mathematical proof that M⁻¹ ∘ H = 1 + K where K is compact:
-#
-# Let H = -∇⋅(a∇) be our operator and M = 1/√a (-Δ)^(-1) 1/√a be the preconditioner.
-#
-# Then M⁻¹ = √a (-Δ) √a
-#
-# The preconditioned operator is:
-#   M⁻¹ H = √a (-Δ) √a ∘ (-∇⋅(a∇))
-#         = √a (-Δ) √a ∘ (-∇⋅(a∇))
-#
-# In Fourier space, for each plane wave e^(iG⋅x):
-#   (-Δ) acts as multiplication by |G|²
-#   (-∇⋅(a∇)) requires computing ∇⋅(a∇u)
-#
-# For smooth a(x) = a₀ + δa(x) where a₀ is constant and δa is the perturbation:
-#   -∇⋅(a∇u) = -a₀Δu - ∇⋅(δa ∇u)
-#
-# Therefore:
-#   M⁻¹ H = √a (-Δ) √a ∘ (-a₀Δ - ∇⋅(δa ∇))
-#         = √a (-Δ) √a ∘ (-a₀Δ) + √a (-Δ) √a ∘ (-∇⋅(δa ∇))
-#         = √a/√a ⋅ a₀ ⋅ (-Δ)/(-Δ) ⋅ √a/√a + K
-#         = a₀ I + K
-#
-# where K = √a (-Δ) √a ∘ (-∇⋅(δa ∇)) is compact because:
-# 1. The operator (-Δ)^(-1) is smoothing (increases regularity)
-# 2. Multiplication by √a is bounded
-# 3. The perturbation operator ∇⋅(δa ∇) involves δa which is in a compact Sobolev embedding
-# 4. The composition of a smoothing operator with a relatively compact perturbation is compact
-#
-# More precisely, in Fourier space:
-# - (-Δ)^(-1) maps plane waves e^(iG⋅x) to 1/|G|² e^(iG⋅x), decaying rapidly for large |G|
-# - The multiplication by a(x) mixes Fourier modes: (au)^(G) = Σ_G' â(G-G') û(G')
-# - For smooth a(x), â(G) decays rapidly, so high-frequency modes are suppressed
-# - This makes K a compact operator on L²
-#
-# Therefore M⁻¹ H = a₀ I + K, and after scaling by 1/a₀, we get:
-#   (1/a₀) M⁻¹ H = I + (1/a₀)K
-#
-# which has the form I + compact, guaranteeing good convergence properties for iterative solvers.
-#
-
-struct DivAGradPreconditioner{T, BT, AT}
-    basis::BT
-    kpt::Any
-    a_values::AT  # a(x) on real-space grid
-    sqrt_a::AT    # √a(x) on real-space grid
-    inv_sqrt_a::AT  # 1/√a(x) on real-space grid
-    zero_idx::Int
-    temp1::Vector{Complex{T}}  # Temporary storage
-    temp2::Vector{Complex{T}}
-end
-
-function DivAGradPreconditioner(basis, kpt, a_values::AbstractArray{T}) where {T}
-    # Compute √a and 1/√a
-    sqrt_a = sqrt.(a_values)
-    inv_sqrt_a = 1 ./ sqrt_a
-    
-    # Find G=0 index
-    zero_idx = findfirst(G -> all(iszero, G), DFTK.G_vectors(basis, kpt))
-    @assert !isnothing(zero_idx)
-    
-    # Temporary storage
-    n_G = length(DFTK.G_vectors(basis, kpt))
-    CT = Complex{real(T)}
-    temp1 = zeros(CT, n_G)
-    temp2 = zeros(CT, n_G)
-    
-    DivAGradPreconditioner{real(T), typeof(basis), typeof(a_values)}(
-        basis, kpt, a_values, sqrt_a, inv_sqrt_a, zero_idx, temp1, temp2
-    )
-end
-
-function LinearAlgebra.ldiv!(y, P::DivAGradPreconditioner{T}, x) where {T}
-    # Apply M = 1/√a (-Δ)^(-1) 1/√a to x
-    # This is equivalent to: y = 1/√a ∘ (-Δ)^(-1) ∘ (1/√a ∘ x)
-    
-    # Step 1: Multiply by 1/√a in real space
-    # Convert x (Fourier) to real space
-    x_real = DFTK.ifft(P.basis, P.kpt, x)
-    
-    # Multiply by 1/√a
-    x_real_scaled = x_real .* P.inv_sqrt_a
-    
-    # Step 2: Apply (-Δ)^(-1) in Fourier space
-    # Convert back to Fourier space
-    x_fourier = DFTK.fft(P.basis, P.kpt, x_real_scaled)
-    
-    # Apply (-Δ)^(-1): divide by |G|² (but avoid division by zero at G=0)
-    for (iG, G) in enumerate(DFTK.G_vectors_cart(P.basis, P.kpt))
-        if iG == P.zero_idx
-            P.temp1[iG] = 0  # Zero out DC component (pseudo-inverse)
-        else
-            k_norm_sq = DFTK.norm2(P.kpt.coordinate + G)
-            P.temp1[iG] = x_fourier[iG] / k_norm_sq  # (-Δ)^(-1)
-        end
-    end
-    
-    # Step 3: Multiply by 1/√a in real space again
-    # Convert to real space
-    y_real = DFTK.ifft(P.basis, P.kpt, P.temp1)
-    
-    # Multiply by 1/√a
-    y_real_final = y_real .* P.inv_sqrt_a
-    
-    # Convert back to Fourier space
-    y_fourier = DFTK.fft(P.basis, P.kpt, y_real_final)
-    
-    # Copy to output
-    y .= y_fourier
-    
-    return y
-end
-
-#
 # Solver function for the linear problem -div(a∇u) = f
 #
 
@@ -238,13 +122,12 @@ Solve the linear PDE problem -div(a(x)∇u(x)) = f(x) using CG iteration.
 # Arguments
 - `basis`: PlaneWaveBasis for the problem
 - `f`: Right-hand side function values on the real-space grid
-- `preconditioner`: Either `:kinetic` (default, diagonal kinetic energy) or `:divAgrad` (1/√a (-Δ)^(-1) 1/√a)
 
 # Returns
 - `u`: Solution on the real-space grid
 - `info`: Information from the CG solver
 """
-function solve_linear_problem(basis, f; tol=1e-6, maxiter=100, preconditioner=:kinetic)
+function solve_linear_problem(basis, f; tol=1e-6, maxiter=100)
     # Convert f to Fourier space and create right-hand side
     # We solve for the first k-point and first band (single equation)
     kpt = only(basis.kpoints)
@@ -271,25 +154,16 @@ function solve_linear_problem(basis, f; tol=1e-6, maxiter=100, preconditioner=:k
     T = real(eltype(basis))
     H_map = LinearMap{Complex{T}}(apply_H, n_G, n_G; ishermitian=true, isposdef=false)
     
+    # Setup preconditioner - pseudo-inverse of diagonal kinetic energy
+    # For the DivAGrad operator with roughly uniform a(x), the eigenvalues
+    # scale like |k+G|², so we use this as a preconditioner
+    kin_energies = [T(DFTK.norm2(kpt.coordinate + G) / 2) for G in DFTK.G_vectors_cart(basis, kpt)]
+    
     # Find the index of G=0 for the pseudo-inverse
     G_zero_idx = findfirst(G -> all(iszero, G), DFTK.G_vectors(basis, kpt))
     @assert !isnothing(G_zero_idx)
     
-    # Setup preconditioner based on choice
-    if preconditioner == :kinetic
-        # Simple diagonal preconditioner based on kinetic energy
-        kin_energies = [T(DFTK.norm2(kpt.coordinate + G) / 2) for G in DFTK.G_vectors_cart(basis, kpt)]
-        P = PseudoInversePreconditioner(kin_energies, G_zero_idx)
-    elseif preconditioner == :divAgrad
-        # Advanced preconditioner: M = 1/√a (-Δ)^(-1) 1/√a
-        # Get a(x) from the model
-        # Extract a(x) from the Hamiltonian term
-        term = only(basis.model.term_types)
-        a_values_grid = term.A_values ./ 2  # Divide by 2 since A = 2a
-        P = DivAGradPreconditioner(basis, kpt, a_values_grid)
-    else
-        error("Unknown preconditioner type: $preconditioner. Choose :kinetic or :divAgrad")
-    end
+    P = PseudoInversePreconditioner(kin_energies, G_zero_idx)
     
     # Initial guess (zero)
     u_fourier = zeros(Complex{T}, n_G)
@@ -359,22 +233,9 @@ f_values .-= sum(f_values) / length(f_values)
 
 # Solve the problem
 println("Solving -div(a(x)∇u(x)) = f(x)...")
-println("\n=== Using kinetic energy preconditioner ===")
-u_kinetic, info_kinetic = solve_linear_problem(basis, f_values; tol=1e-6, maxiter=200, preconditioner=:kinetic)
-println("CG converged: $(info_kinetic.converged) after $(info_kinetic.n_iter) iterations")
-println("Final residual: $(info_kinetic.residual_norm)")
-
-println("\n=== Using 1/√a (-Δ)^(-1) 1/√a preconditioner ===")
-u_divAgrad, info_divAgrad = solve_linear_problem(basis, f_values; tol=1e-6, maxiter=200, preconditioner=:divAgrad)
-println("CG converged: $(info_divAgrad.converged) after $(info_divAgrad.n_iter) iterations")
-println("Final residual: $(info_divAgrad.residual_norm)")
-
-println("\nPreconditioner comparison:")
-println("  Kinetic:  $(info_kinetic.n_iter) iterations")
-println("  DivAGrad: $(info_divAgrad.n_iter) iterations")
-
-# Use the kinetic solution for plotting
-u = u_kinetic
+u, info = solve_linear_problem(basis, f_values; tol=1e-6, maxiter=200)
+println("CG converged: $(info.converged) after $(info.n_iter) iterations")
+println("Final residual: $(info.residual_norm)")
 
 # Visualize the results
 x_coords = [r[1] for r in r_vectors]
