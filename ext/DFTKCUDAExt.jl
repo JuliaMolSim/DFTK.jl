@@ -25,7 +25,7 @@ end
 # See: https://github.com/JuliaGPU/CUDA.jl/issues/3018
 function Base.:*(p::CUFFT.CuFFTPlan{T,S,K,false},
                  x::CuArray{<:Complex{<:Dual{Tg}}}) where {T,S,K,Tg}
-    DFTK.dual_fft(p, x)
+    DFTK.dual_fft_mul(p, x)
 end
 
 # Insure pre-compilation can proceed without error (old Julia/packages versions)

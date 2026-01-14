@@ -35,7 +35,7 @@ function LinearAlgebra.mul!(y::AbstractArray{<:Union{Complex{<:Dual}}},
 end
 # Custom rule for FFTs used to overload the Base.:* operator. This is a function
 # of it's own because DFTKCUDAExt.jl uses it to implement a specific overload.
-function dual_fft(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:Dual{Tg}}}) where {Tg}
+function dual_fft_mul(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:Dual{Tg}}}) where {Tg}
     # TODO do we want x::AbstractArray{<:Dual{T}} too?
     xtil = p * ForwardDiff.value.(x)
     dxtils = ntuple(ForwardDiff.npartials(eltype(x))) do n
@@ -49,7 +49,7 @@ function dual_fft(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:Dual{Tg}}})
     end
 end
 function Base.:*(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:Dual{Tg}}}) where {Tg}
-    dual_fft(p, x)
+    dual_fft_mul(p, x)
 end
 
 function build_fft_plans!(tmp::AbstractArray{Complex{T}}) where {T<:Dual}
