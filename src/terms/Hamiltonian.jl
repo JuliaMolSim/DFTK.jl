@@ -193,10 +193,26 @@ end
 
 
 """
-Get energies and Hamiltonian
-kwargs is additional info that might be useful for the energy terms to precompute
-(eg the density ρ)
+    (; energies, hamiltonian) = energy_hamiltonian(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
+
+Compute the energies and Hamiltonian.
+
+# Arguments
+- `basis::PlaneWaveBasis`: The plane wave basis to use.
+- `ψ`: The wavefunctions, as a vector of arrays, one for each k-point.
+- `occupation`: The occupation numbers for each k-point and band.
+
+The keyword arguments `kwargs...` are passed to the internal function `ene_ops`.
+These can be used to pass additional information to that function, e.g., the density ρ.
+
+# Returns
+
+The [`Energies`](@ref) object with the energy values for each term and the [`Hamiltonian`](@ref) object
+in a dictionary with the keys `energies` and `ham`.
+
 """
+energy_hamiltonian(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
+
 @timing function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
     # it: index into terms, ik: index into kpoints
     @timing "ene_ops" ene_ops_arr = [ene_ops(term, basis, ψ, occupation; kwargs...)
