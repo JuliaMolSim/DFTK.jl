@@ -78,7 +78,7 @@ function (divAgrad::AtomicDivAGrad)(basis::DFTK.PlaneWaveBasis{T}) where {T}
     # Therefore we need A = 2a
     
     # Start with uniform background
-    A_values = fill(convert_dual(T, 2 * divAgrad.background_value), basis.fft_size...)
+    A_values = fill(DFTK.convert_dual(T, 2 * divAgrad.background_value), basis.fft_size...)
     
     # Add contributions from each "atom" (spherical inclusion)
     # These add to a(x), so we multiply by 2 to get the contribution to A(x)
