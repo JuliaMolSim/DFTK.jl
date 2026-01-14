@@ -94,6 +94,18 @@ end
     (; E, ops)
 end
 
+# Custom preconditioner type that implements pseudo-inverse (zeroing DC component)
+struct PseudoInversePreconditioner{T}
+    diag::Vector{T}
+    zero_idx::Int
+end
+
+function LinearAlgebra.ldiv!(y, P::PseudoInversePreconditioner, x)
+    y .= x ./ (P.diag .+ 1)  # Add 1 to avoid division by zero
+    y[P.zero_idx] = 0  # Zero out the DC component
+    return y
+end
+
 #
 # Solver function for the linear problem -div(a∇u) = f
 #
@@ -134,7 +146,7 @@ function solve_linear_problem(basis, f; tol=1e-6, maxiter=100)
     end
     
     T = real(eltype(basis))
-    H_map = LinearMap{Complex{T}}(apply_H, n_G, n_G; ishermitian=true, isposdef=true)
+    H_map = LinearMap{Complex{T}}(apply_H, n_G, n_G; ishermitian=true, isposdef=false)
     
     # Setup preconditioner - pseudo-inverse of diagonal kinetic energy
     # For the DivAGrad operator with roughly uniform a(x), the eigenvalues
@@ -144,18 +156,6 @@ function solve_linear_problem(basis, f; tol=1e-6, maxiter=100)
     # Find the index of G=0 for the pseudo-inverse
     G_zero_idx = findfirst(G -> all(iszero, G), DFTK.G_vectors(basis, kpt))
     @assert !isnothing(G_zero_idx)
-    
-    # Custom preconditioner type that implements pseudo-inverse (zeroing DC component)
-    struct PseudoInversePreconditioner{T}
-        diag::Vector{T}
-        zero_idx::Int
-    end
-    
-    function LinearAlgebra.ldiv!(y, P::PseudoInversePreconditioner, x)
-        y .= x ./ (P.diag .+ 1)  # Add 1 to avoid division by zero
-        y[P.zero_idx] = 0  # Zero out the DC component
-        return y
-    end
     
     P = PseudoInversePreconditioner(kin_energies, G_zero_idx)
     
