@@ -265,4 +265,13 @@ p2 = heatmap(X[:, 1], Y[1, :], F', title="Right-hand side f(x)",
 p3 = heatmap(X[:, 1], Y[1, :], U', title="Solution u(x)", 
              xlabel="x", ylabel="y", c=:plasma)
 
-plot(p1, p2, p3, layout=(1, 3), size=(1200, 400))
+p = plot(p1, p2, p3, layout=(1, 3), size=(1200, 400))
+
+# Save to PDF if requested
+if get(ENV, "SAVE_PLOT", "false") == "true"
+    output_file = get(ENV, "PLOT_FILE", "divAgrad_result.pdf")
+    savefig(p, output_file)
+    println("\nPlot saved to: $output_file")
+end
+
+p
