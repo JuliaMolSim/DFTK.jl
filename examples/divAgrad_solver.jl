@@ -101,8 +101,14 @@ struct PseudoInversePreconditioner{T}
 end
 
 function LinearAlgebra.ldiv!(y, P::PseudoInversePreconditioner, x)
-    y .= x ./ (P.diag .+ 1)  # Add 1 to avoid division by zero
-    y[P.zero_idx] = 0  # Zero out the DC component
+    # Pseudo-inverse: invert all diagonal elements except the DC component
+    for i in eachindex(y)
+        if i == P.zero_idx
+            y[i] = 0  # Zero out the DC component (pseudo-inverse)
+        else
+            y[i] = x[i] / (P.diag[i] + 1)  # Add small shift for stability
+        end
+    end
     return y
 end
 
