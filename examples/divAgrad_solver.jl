@@ -127,7 +127,7 @@ function solve_linear_problem(basis, f; tol=1e-6, maxiter=100)
     # Get the Hamiltonian (which represents our -div(a∇) operator)
     # We pass a dummy ψ and occupation to construct the Hamiltonian
     ψ_dummy = [DFTK.random_orbitals(basis, kpt, 1) for kpt in basis.kpoints]
-    occupation_dummy = [[1.0]]
+    occupation_dummy = [fill(1.0, 1) for _ in basis.kpoints]
     
     eh = DFTK.energy_hamiltonian(basis, ψ_dummy, occupation_dummy)
     ham = eh.ham
@@ -143,7 +143,7 @@ function solve_linear_problem(basis, f; tol=1e-6, maxiter=100)
         return result
     end
     
-    H_map = LinearMap{ComplexF64}(apply_H, n_G, n_G; ishermitian=true, isposdef=true)
+    H_map = LinearMap{ComplexF64}(apply_H, n_G, n_G; ishermitian=true, isposdef=false)
     
     # Setup preconditioner
     # We construct a simple diagonal preconditioner based on kinetic energy
