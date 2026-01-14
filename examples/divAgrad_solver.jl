@@ -21,28 +21,25 @@ using Plots
 Element representing a spherical inclusion that modifies the coefficient a(x)
 in the div-grad problem. The inclusion has a constant value inside a ball of given radius.
 """
-struct ElementSphericalInclusion <: DFTK.Element
-    a_value::Float64  # Value of the coefficient modification in the inclusion
-    radius::Float64   # Radius of the spherical inclusion
+struct ElementSphericalInclusion{T} <: DFTK.Element
+    a_value::T  # Value of the coefficient modification in the inclusion
+    radius::T   # Radius of the spherical inclusion
 end
-
-# Default constructor
-ElementSphericalInclusion(; a_value=1.0, radius=0.5) = ElementSphericalInclusion(a_value, radius)
 
 # We need to implement the Fourier transform of the characteristic function of a ball
 # For a ball of radius R centered at origin, the Fourier transform is:
 # FT[χ_R](p) = 4π R³/3 * 3(sin(p*R) - p*R*cos(p*R))/(p*R)³
 # However, this is for the characteristic function. For our coefficient a(x),
 # we want the value a_value in the ball.
-function DFTK.local_potential_fourier(el::ElementSphericalInclusion, p::Real)
+function DFTK.local_potential_fourier(el::ElementSphericalInclusion{T}, p) where {T}
     R = el.radius
     if p == 0
         # Integral of a_value over the ball: a_value * (4π/3) * R³
-        return el.a_value * 4π * R^3 / 3
+        return el.a_value * 4 * T(π) * R^3 / 3
     else
         pR = p * R
         # Fourier transform: a_value * 4π * R³ * (sin(pR) - pR*cos(pR)) / (pR)³
-        return el.a_value * 4π * R^3 * (sin(pR) - pR * cos(pR)) / (pR)^3
+        return el.a_value * 4 * T(π) * R^3 * (sin(pR) - pR * cos(pR)) / (pR)^3
     end
 end
 
@@ -66,24 +63,20 @@ end
 """
 AtomicDivAGrad: Construct the coefficient field a(x) from atomic positions.
 """
-struct AtomicDivAGrad
-    background_value::Float64  # Background uniform value of a(x)
+struct AtomicDivAGrad{T}
+    background_value::T  # Background uniform value of a(x)
 end
-
-AtomicDivAGrad(; background_value=1.0) = AtomicDivAGrad(background_value)
 
 function (divAgrad::AtomicDivAGrad)(basis::DFTK.PlaneWaveBasis{T}) where {T}
     # Compute the coefficient field a(x) = background + sum of inclusions
     # Note: DivAgradOperator implements -½∇⋅(A∇), but we want -∇⋅(a∇)
     # Therefore we need A = 2a
     
-    # Start with uniform background
-    A_values = fill(DFTK.convert_dual(T, 2 * divAgrad.background_value), basis.fft_size...)
-    
-    # Add contributions from each "atom" (spherical inclusion)
-    # These add to a(x), so we multiply by 2 to get the contribution to A(x)
+    # Start with contributions from each "atom" (spherical inclusion)
     local_pot = DFTK.compute_local_potential(basis)
-    A_values .+= 2 .* local_pot
+    # These add to a(x), so we multiply by 2 to get the contribution to A(x)
+    # Then add the background contribution
+    A_values = 2 * divAgrad.background_value .+ 2 .* local_pot
     
     TermAtomicDivAGrad(A_values)
 end
@@ -110,7 +103,7 @@ Solve the linear PDE problem -div(a(x)∇u(x)) = f(x) using CG iteration.
 
 # Arguments
 - `basis`: PlaneWaveBasis for the problem
-- `f`: Right-hand side function values on the real-space grid (3D or 4D array)
+- `f`: Right-hand side function values on the real-space grid
 
 # Returns
 - `u`: Solution on the real-space grid
@@ -119,10 +112,7 @@ Solve the linear PDE problem -div(a(x)∇u(x)) = f(x) using CG iteration.
 function solve_linear_problem(basis, f; tol=1e-6, maxiter=100)
     # Convert f to Fourier space and create right-hand side
     # We solve for the first k-point and first band (single equation)
-    kpt = basis.kpoints[1]
-    
-    # Convert f to Fourier space
-    f_fourier = DFTK.fft(basis, f)
+    kpt = only(basis.kpoints)
     
     # Get the Hamiltonian (which represents our -div(a∇) operator)
     # We pass a dummy ψ and occupation to construct the Hamiltonian
@@ -143,37 +133,43 @@ function solve_linear_problem(basis, f; tol=1e-6, maxiter=100)
         return result
     end
     
-    H_map = LinearMap{ComplexF64}(apply_H, n_G, n_G; ishermitian=true, isposdef=false)
+    T = real(eltype(basis))
+    H_map = LinearMap{Complex{T}}(apply_H, n_G, n_G; ishermitian=true, isposdef=true)
     
-    # Setup preconditioner
-    # We construct a simple diagonal preconditioner based on kinetic energy
+    # Setup preconditioner - pseudo-inverse of diagonal kinetic energy
     # For the DivAGrad operator with roughly uniform a(x), the eigenvalues
     # scale like |k+G|², so we use this as a preconditioner
-    kin_energies = [DFTK.norm2(kpt.coordinate + G) / 2 for G in DFTK.G_vectors_cart(basis, kpt)]
-    P_diag = kin_energies .+ 1.0  # Add shift to avoid division by zero
-    P = LinearAlgebra.Diagonal(P_diag)
+    kin_energies = [T(DFTK.norm2(kpt.coordinate + G) / 2) for G in DFTK.G_vectors_cart(basis, kpt)]
     
-    # Initial guess (zero)
-    u_fourier = zeros(ComplexF64, n_G)
+    # Find the index of G=0 for the pseudo-inverse
+    G_zero_idx = findfirst(G -> all(iszero, G), DFTK.G_vectors(basis, kpt))
+    @assert !isnothing(G_zero_idx)
     
-    # Right-hand side in Fourier space (only the components in the basis)
-    b = zeros(ComplexF64, n_G)
-    for (iG, G) in enumerate(DFTK.G_vectors(basis, kpt))
-        idx = DFTK.index_G_vectors(basis, G)
-        b[iG] = f_fourier[idx]
+    # Custom preconditioner type that implements pseudo-inverse (zeroing DC component)
+    struct PseudoInversePreconditioner{T}
+        diag::Vector{T}
+        zero_idx::Int
     end
     
-    # Projection operator to enforce zero average (if needed)
-    # For periodic problems with pure Neumann conditions, we need ∫f = 0
-    # Find the index of G=0
-    G_zero_idx = findfirst(G -> all(iszero, G), DFTK.G_vectors(basis, kpt))
+    function LinearAlgebra.ldiv!(y, P::PseudoInversePreconditioner, x)
+        y .= x ./ (P.diag .+ 1)  # Add 1 to avoid division by zero
+        y[P.zero_idx] = 0  # Zero out the DC component
+        return y
+    end
     
+    P = PseudoInversePreconditioner(kin_energies, G_zero_idx)
+    
+    # Initial guess (zero)
+    u_fourier = zeros(Complex{T}, n_G)
+    
+    # Right-hand side in Fourier space
+    b = DFTK.fft(basis, kpt, f)
+    
+    # Projection operator to enforce zero average
     function proj(x)
         # Remove the zero Fourier mode (constant component)
         x_copy = copy(x)
-        if !isnothing(G_zero_idx)
-            x_copy[G_zero_idx] = 0.0
-        end
+        x_copy[G_zero_idx] = 0
         return x_copy
     end
     
@@ -184,14 +180,7 @@ function solve_linear_problem(basis, f; tol=1e-6, maxiter=100)
     info = DFTK.cg!(u_fourier, H_map, b; precon=P, proj=proj, tol=tol, maxiter=maxiter)
     
     # Convert solution back to real space
-    # Reconstruct full Fourier grid
-    u_fourier_full = zeros(ComplexF64, basis.fft_size...)
-    for (iG, G) in enumerate(DFTK.G_vectors(basis, kpt))
-        idx = DFTK.index_G_vectors(basis, G)
-        u_fourier_full[idx] = u_fourier[iG]
-    end
-    
-    u = DFTK.irfft(basis, u_fourier_full)
+    u = DFTK.ifft(basis, kpt, u_fourier)
     
     return u, info
 end
@@ -206,16 +195,16 @@ lattice = a .* [[1 0 0.]; [0 1 0]; [0 0 0]]  # 2D system
 
 # Define spherical inclusions at specific positions
 # These act as "atoms" that modify the coefficient a(x)
-inclusion = ElementSphericalInclusion(a_value=2.0, radius=1.0)
-positions = [[0.25, 0.25, 0.0], [0.75, 0.75, 0.0]]
-atoms = [inclusion, inclusion]
+inclusion = ElementSphericalInclusion(4.0, 2.0)
+positions = [[0.3, 0.2, 0.0], [0.7, 0.6, 0.0], [0.15, 0.8, 0.0]]
+atoms = [inclusion, inclusion, inclusion]
 
 # Background value of a(x)
 background_a = 1.0
 
 # Create model with our custom term
 # Note: We use a minimal model without actual electrons
-terms = [AtomicDivAGrad(background_value=background_a)]
+terms = [AtomicDivAGrad(background_a)]
 n_electrons = 0  # No electrons, this is a pure PDE problem
 model = DFTK.Model(lattice, atoms, positions; n_electrons, terms,
                    spin_polarization=:spinless)
@@ -226,12 +215,12 @@ basis = DFTK.PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
 
 # Define the right-hand side f(x)
 # Must have zero average for solvability: ∫f = 0
-# Let's use f(x) = sin(2π x/a) * sin(2π y/a) - mean
+# Use a more interesting function
 r_vectors = DFTK.r_vectors_cart(basis)
 f_values = zeros(Float64, basis.fft_size...)
 for (i, r) in enumerate(r_vectors)
     x, y = r[1], r[2]
-    f_values[i] = sin(2π * x / a) * sin(2π * y / a)
+    f_values[i] = sin(2π * x / a) * cos(2π * y / a) + 0.5 * sin(4π * x / a) * sin(4π * y / a)
 end
 # Ensure zero average
 f_values .-= sum(f_values) / length(f_values)
@@ -266,12 +255,3 @@ p3 = heatmap(X[:, 1], Y[1, :], U', title="Solution u(x)",
              xlabel="x", ylabel="y", c=:plasma)
 
 p = plot(p1, p2, p3, layout=(1, 3), size=(1200, 400))
-
-# Save to PDF if requested
-if get(ENV, "SAVE_PLOT", "false") == "true"
-    output_file = get(ENV, "PLOT_FILE", "divAgrad_result.pdf")
-    savefig(p, output_file)
-    println("\nPlot saved to: $output_file")
-end
-
-p
