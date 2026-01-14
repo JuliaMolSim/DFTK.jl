@@ -90,33 +90,9 @@ end
                                                         kwargs...) where {T}
     ops = [DFTK.DivAgradOperator(basis, kpt, term.A_values) for kpt in basis.kpoints]
     
-    # Energy contribution: ½ ∫ a(x)|∇u|² dx
-    # This would need ψ to compute, so we return Inf if ψ is not provided
-    if ψ !== nothing && !isempty(ψ)
-        E = zero(T)
-        # Compute energy by applying operators
-        # For now, simplified - the energy functional is E = ½⟨ψ|H|ψ⟩ for our linear problem
-        for (ik, kpt) in enumerate(basis.kpoints)
-            ψk = ψ[ik]
-            Hψk = similar(ψk)
-            fill!(Hψk, 0)
-            
-            ψk_real = DFTK.ifft(basis, kpt, ψk[:, 1])
-            Hψk_real = similar(ψk_real)
-            fill!(Hψk_real, 0)
-            Hψk_fourier = similar(ψk[:, 1])
-            fill!(Hψk_fourier, 0)
-            
-            DFTK.apply!((; real=Hψk_real, fourier=Hψk_fourier),
-                       ops[ik],
-                       (; real=ψk_real, fourier=ψk[:, 1]))
-            
-            Hψk[:, 1] .= Hψk_fourier .+ DFTK.fft(basis, kpt, Hψk_real)
-            E += real(dot(ψk[:, 1], Hψk[:, 1])) * kpt.weight
-        end
-    else
-        E = T(Inf)
-    end
+    # For a linear problem, we don't need to compute the energy during the solve
+    # The energy would be E = ½⟨ψ|H|ψ⟩ - ⟨f|ψ⟩, but we're solving Hψ = f
+    E = T(Inf)
     
     (; E, ops)
 end
@@ -165,8 +141,13 @@ function solve_linear_problem(basis, f; tol=1e-6, maxiter=100)
     
     H_map = LinearMap{ComplexF64}(apply_H, n_G, n_G; ishermitian=true, isposdef=true)
     
-    # Setup preconditioner (TPA)
-    P = DFTK.PreconditionerTPA(hamk; default_shift=1.0)
+    # Setup preconditioner
+    # We construct a simple diagonal preconditioner based on kinetic energy
+    # For the DivAGrad operator with roughly uniform a(x), the eigenvalues
+    # scale like |k+G|², so we use this as a preconditioner
+    kin_energies = [DFTK.norm2(kpt.coordinate + G) / 2 for G in DFTK.G_vectors_cart(basis, kpt)]
+    P_diag = kin_energies .+ 1.0  # Add shift to avoid division by zero
+    P = LinearAlgebra.Diagonal(P_diag)
     
     # Initial guess (zero)
     u_fourier = zeros(ComplexF64, n_G)
