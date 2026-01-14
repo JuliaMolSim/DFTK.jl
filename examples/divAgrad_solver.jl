@@ -106,7 +106,7 @@ function LinearAlgebra.ldiv!(y, P::PseudoInversePreconditioner, x)
         if i == P.zero_idx
             y[i] = 0  # Zero out the DC component (pseudo-inverse)
         else
-            y[i] = x[i] / (P.diag[i] + 1)  # Add small shift for stability
+            y[i] = x[i] / P.diag[i]
         end
     end
     return y
@@ -169,7 +169,7 @@ function solve_linear_problem(basis, f; tol=1e-6, maxiter=100)
     u_fourier = zeros(Complex{T}, n_G)
     
     # Right-hand side in Fourier space
-    b = DFTK.fft(basis, kpt, f)
+    b = DFTK.fft(basis, kpt, complex.(f))
     
     # Projection operator to enforce zero average
     function proj(x)
@@ -186,7 +186,7 @@ function solve_linear_problem(basis, f; tol=1e-6, maxiter=100)
     info = DFTK.cg!(u_fourier, H_map, b; precon=P, proj=proj, tol=tol, maxiter=maxiter)
     
     # Convert solution back to real space
-    u = DFTK.ifft(basis, kpt, u_fourier)
+    u = real(DFTK.ifft(basis, kpt, u_fourier))
     
     return u, info
 end
@@ -216,7 +216,7 @@ model = DFTK.Model(lattice, atoms, positions; n_electrons, terms,
                    spin_polarization=:spinless)
 
 # Create basis
-Ecut = 50  # Energy cutoff for plane waves
+Ecut = 200  # Energy cutoff for plane waves
 basis = DFTK.PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
 
 # Define the right-hand side f(x)
