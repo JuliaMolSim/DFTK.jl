@@ -74,12 +74,16 @@ AtomicDivAGrad(; background_value=1.0) = AtomicDivAGrad(background_value)
 
 function (divAgrad::AtomicDivAGrad)(basis::DFTK.PlaneWaveBasis{T}) where {T}
     # Compute the coefficient field a(x) = background + sum of inclusions
+    # Note: DivAgradOperator implements -½∇⋅(A∇), but we want -∇⋅(a∇)
+    # Therefore we need A = 2a
+    
     # Start with uniform background
-    A_values = fill(convert_dual(T, divAgrad.background_value), basis.fft_size...)
+    A_values = fill(convert_dual(T, 2 * divAgrad.background_value), basis.fft_size...)
     
     # Add contributions from each "atom" (spherical inclusion)
+    # These add to a(x), so we multiply by 2 to get the contribution to A(x)
     local_pot = DFTK.compute_local_potential(basis)
-    A_values .+= local_pot
+    A_values .+= 2 .* local_pot
     
     TermAtomicDivAGrad(A_values)
 end
@@ -161,10 +165,15 @@ function solve_linear_problem(basis, f; tol=1e-6, maxiter=100)
     
     # Projection operator to enforce zero average (if needed)
     # For periodic problems with pure Neumann conditions, we need ∫f = 0
+    # Find the index of G=0
+    G_zero_idx = findfirst(G -> all(iszero, G), DFTK.G_vectors(basis, kpt))
+    
     function proj(x)
         # Remove the zero Fourier mode (constant component)
         x_copy = copy(x)
-        x_copy[1] = 0.0
+        if !isnothing(G_zero_idx)
+            x_copy[G_zero_idx] = 0.0
+        end
         return x_copy
     end
     
