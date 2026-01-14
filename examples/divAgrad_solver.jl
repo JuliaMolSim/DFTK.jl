@@ -28,7 +28,7 @@ end
                                                         basis::DFTK.PlaneWaveBasis{T}, 
                                                         ψ, occupation;
                                                         kwargs...) where {T}
-    ops = [DFTK.DivAgradOperator(basis, kpt, term.A_values) for kpt in basis.kpoints]
+    ops = [DFTK.DivAgradOperator(basis, kpt, term.A_values ./ 2) for kpt in basis.kpoints]
     
     # For a linear problem, we don't need to compute the energy during the solve
     E = T(Inf)
@@ -51,8 +51,7 @@ Handles periodic images (one cell away) in real space.
 - `positions`: List of inclusion center positions
 - `use_periodic_images`: Whether to sum over periodic images (default: true)
 """
-function build_coefficient_field_real(basis, inclusion_func, background_value, positions; 
-                                      use_periodic_images=true)
+function build_coefficient_field_real(basis, inclusion_func, background_value, positions)
     T = real(eltype(basis))
     a_values = fill(T(background_value), basis.fft_size...)
     
@@ -65,14 +64,9 @@ function build_coefficient_field_real(basis, inclusion_func, background_value, p
         
         for pos in positions
             # Consider the main cell and neighboring cells
-            if use_periodic_images
-                for i1 in -1:1, i2 in -1:1, i3 in -1:1
-                    offset = lattice * [i1, i2, i3]
-                    r_relative = r - (pos + offset)
-                    inclusion_value += inclusion_func(r_relative)
-                end
-            else
-                r_relative = r - pos
+            for i1 in -1:1, i2 in -1:1, i3 in -1:1
+                offset = lattice * [i1, i2, i3]
+                r_relative = r - (pos + offset)
                 inclusion_value += inclusion_func(r_relative)
             end
         end
@@ -108,7 +102,7 @@ function build_coefficient_field_fourier(basis, inclusion_fourier_func, backgrou
             value += background_value * basis.model.unit_cell_volume
         end
         for pos in positions
-            value += DFTK.cis2pi(-dot(G, pos)) * inclusion_fourier_func(G_cart)
+            value += DFTK.cis(-dot(G_cart, pos)) * inclusion_fourier_func(G_cart)
         end
         a_fourier[iG] = value / sqrt(basis.model.unit_cell_volume)
     end
@@ -139,9 +133,7 @@ end
 function (divAgrad::DivAGradFromReal)(basis::DFTK.PlaneWaveBasis{T}) where {T}
     a_values = build_coefficient_field_real(basis, divAgrad.inclusion_real, 
                                              divAgrad.background_value, divAgrad.positions)
-    # Note: DivAgradOperator implements -½∇⋅(A∇), we want -∇⋅(a∇), so A = 2a
-    A_values = 2 .* a_values
-    TermDivAGrad(A_values)
+    TermDivAGrad(a_values)
 end
 
 """
@@ -161,9 +153,7 @@ end
 function (divAgrad::DivAGradFromFourier)(basis::DFTK.PlaneWaveBasis{T}) where {T}
     a_values = build_coefficient_field_fourier(basis, divAgrad.inclusion_fourier,
                                                 divAgrad.background_value, divAgrad.positions)
-    # Note: DivAgradOperator implements -½∇⋅(A∇), we want -∇⋅(a∇), so A = 2a
-    A_values = 2 .* a_values
-    TermDivAGrad(A_values)
+    TermDivAGrad(a_values)
 end
 
 #
@@ -305,7 +295,7 @@ wx, wy, wz = 1, 1, 1.0  # Half-widths (cartesian coordinates)
 a_inc = 3.0  # Inclusion value
 
 # Positions of inclusions (relative coordinates)
-positions = [[0.5, 0.5, 0.0],]
+positions = [a .* [0.5, 0.5, 0.0],]
 
 # Background value of a(x)
 background_a = 1.0
@@ -321,7 +311,7 @@ Ecut = 200
 basis = DFTK.PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
 
 kpt = only(basis.kpoints)
-a_real = (basis.terms[1].A_values ./ 2)
+a_real = (basis.terms[1].A_values)
 a_fourier_kpt = fft(basis, kpt, complex.(a_real)) # exact fourier coefficients
 
 # Derivative: multiply by i*G_x in Fourier space
