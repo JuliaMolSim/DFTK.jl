@@ -31,9 +31,11 @@ end
 function LinearAlgebra.mul!(y::AbstractArray{<:Union{Complex{<:Dual}}},
                             p::AbstractFFTs.Plan,
                             x::AbstractArray{<:Union{Complex{<:Dual}}})
-    copyto!(y, _mul(p, x))
+    copyto!(y, p*x)
 end
-function _mul(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:Dual{Tg}}}) where {Tg}
+# Custom rule for FFTs used to overload the Base.:* operator. This is a function
+# of it's own because DFTKCUDAExt.jl uses it to implement a specific overload.
+function dual_fft(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:Dual{Tg}}}) where {Tg}
     # TODO do we want x::AbstractArray{<:Dual{T}} too?
     xtil = p * ForwardDiff.value.(x)
     dxtils = ntuple(ForwardDiff.npartials(eltype(x))) do n
@@ -46,8 +48,9 @@ function _mul(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:Dual{Tg}}}) whe
         )
     end
 end
-Base.:*(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:Dual}}) = _mul(p, x)
-Base.:*(p::DummyInplace, x::AbstractArray{<:Union{Complex{<:Dual}}}) = copyto!(x, _mul(p.fft, x))
+function Base.:*(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:Dual{Tg}}}) where {Tg}
+    dual_fft(p, x)
+end
 
 function build_fft_plans!(tmp::AbstractArray{Complex{T}}) where {T<:Dual}
     opFFT  = AbstractFFTs.plan_fft(tmp)
@@ -272,7 +275,8 @@ end
     end
     occupation = map(scfres.occupation, getfield.(δresults, :δoccupation)...) do occk, δocck...
         occk_cpu = to_cpu(occk)
-        to_device(basis_dual.architecture, map(Dual{Tg}, occk_cpu, δocck...))
+        to_device(basis_dual.architecture,
+                  map((occk_cpu, δocck...) -> Dual{Tg}(occk_cpu, δocck), occk_cpu, δocck...))
     end
     εF = Dual{Tg}(scfres.εF, getfield.(δresults, :δεF)...)
 
