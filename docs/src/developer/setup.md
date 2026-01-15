@@ -58,3 +58,48 @@ At the time of writing dropping a file `LocalPreferences.toml` in DFTK's root fo
 [DFTK]
 precompile_workload = false
 ```
+
+A template file `LocalPreferences.toml.example` is provided in the repository
+root that you can copy and modify as needed.
+
+## Package depot and caching
+
+Julia stores downloaded packages and precompilation cache in the *depot* directory,
+which by default is located at `~/.julia` (Linux/macOS) or `%USERPROFILE%\.julia` (Windows).
+This depot is persistent across Julia sessions and projects.
+
+### Understanding Julia's caching behavior
+
+When you run `Pkg.instantiate()` in a project:
+1. **Dependency resolution:** Julia reads `Project.toml` and resolves all dependencies,
+   creating or updating `Manifest.toml` with exact versions.
+2. **Package download:** If packages are not already in the depot, they are downloaded
+   to `~/.julia/packages/`.
+3. **Precompilation:** Packages are compiled and the cache is stored in
+   `~/.julia/compiled/`.
+
+In subsequent sessions using the same `Manifest.toml`:
+- Julia reuses downloaded packages (no re-download)
+- Julia reuses precompilation cache (no recompilation)
+- Only packages that changed or have modified dependencies are recompiled
+
+### For automated tools and CI systems
+
+If you're using DFTK in an automated environment (like GitHub Copilot agents,
+CI/CD pipelines, or containers), ensure the Julia depot is persistent across runs:
+
+1. **Persistent depot path:** Set the environment variable `JULIA_DEPOT_PATH` to
+   a persistent location:
+   ```bash
+   export JULIA_DEPOT_PATH="/persistent/path/.julia:$JULIA_DEPOT_PATH"
+   ```
+
+2. **Manifest.toml:** While gitignored by default, committing a `Manifest.toml`
+   (or using a cached one) ensures reproducible package versions. However, this
+   is generally not recommended for libraries.
+
+3. **GitHub Actions:** The workflow in `.github/workflows/ci.yaml` uses
+   `julia-actions/cache@v2` which automatically caches the Julia depot between runs.
+
+For development, the default depot at `~/.julia` should work well and persist
+packages across sessions automatically.

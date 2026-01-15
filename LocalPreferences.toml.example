@@ -1,0 +1,16 @@
+# LocalPreferences.toml - Example configuration for DFTK development
+#
+# This file demonstrates local preferences that can be set for DFTK.
+# Copy this file to LocalPreferences.toml (which is gitignored) and
+# uncomment/modify settings as needed.
+#
+# Documentation: https://github.com/JuliaPackaging/Preferences.jl
+
+# Disable precompilation workload for faster development iteration.
+# This skips the precompilation workload defined with PrecompileTools,
+# which is useful during development to avoid long precompilation times
+# after each code change. Not recommended for production use.
+#
+# Uncomment to enable:
+# [DFTK]
+# precompile_workload = false
