@@ -26,8 +26,13 @@ end
 @timing "ene_ops: ExactExchange" function ene_ops(term::TermExactExchange,
                                                   basis::PlaneWaveBasis{T}, ψ, occupation;
                                                   kwargs...) where {T}
+    # check for the inconsistency first (ψ given but no occupation)
+    if !isnothing(ψ) && isnothing(occupation)
+        @warn "ψ provided but occupation is missing; cannot calculate exact exchange."
+    end
+    # If either is missing, we cannot proceed
     if isnothing(ψ) || isnothing(occupation)
-        return (; E=T(0), ops=NoopOperator.(basis, basis.kpoints))
+        return (; E=zero(T), ops=NoopOperator.(basis, basis.kpoints))
     end
 
     # TODO Occupation threshold

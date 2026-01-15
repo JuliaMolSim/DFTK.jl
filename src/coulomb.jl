@@ -69,8 +69,11 @@ function _compute_coulomb_kernel(basis::PlaneWaveBasis{T},
     model = basis.model
     NG = length(qpt.G_vectors)
     coulomb_kernel = zeros(T, NG)
-    # default Coulomb potential using probe charge method for singularity
-    α = π^2 / basis.Ecut # well tested in VASP such that e^(-α*G²) is localized charge with full support on G grid
+    
+    # well tested in VASP such that e^(-α*G²) is localized 
+    # charge with full support on G grid
+    α = π^2 / basis.Ecut  
+    
     probe_charge_sum = zero(T)
     for (iG, G) in enumerate(to_cpu(qpt.G_vectors))
         G_cart = model.recip_lattice * (G+q)
@@ -84,7 +87,10 @@ function _compute_coulomb_kernel(basis::PlaneWaveBasis{T},
 
     # calculate coulomb_kernel[1]
     Ω = model.unit_cell_volume  # volume of cell 
-    probe_charge_integral = 8*π^2*sqrt(π/α) * Ω/(2π)^3  #  = Ω/(2π)^3 ∫ 4π/q² ρ(q) dq  with  ρ(q)=e^(-αq²)
+
+    #  = Ω/(2π)^3 ∫ 4π/q² ρ(q) dq  with  ρ(q)=e^(-αq²)
+    probe_charge_integral = 8*π^2*sqrt(π/α) * Ω/(2π)^3 
+    
     coulomb_kernel[1] = probe_charge_integral - probe_charge_sum
     coulomb_kernel
 end

@@ -56,8 +56,12 @@ function next_density(ham::Hamiltonian,
                       fermialg::AbstractFermiAlgorithm=default_fermialg(ham.basis.model);
                       eigensolver=lobpcg_hyper, ψ=nothing, eigenvalues=nothing,
                       occupation=nothing, kwargs...)
-    n_bands_converge, n_bands_compute = determine_n_bands(nbandsalg, occupation,
-                                                          eigenvalues, ψ)
+    n_bands_converge, n_bands_compute = determine_n_bands(
+                                            nbandsalg, 
+                                            isnothing(eigenvalues) ? nothing : occupation,
+                                            eigenvalues,
+                                            ψ
+                                        )
 
     if isnothing(ψ)
         increased_n_bands = true
@@ -133,6 +137,8 @@ Overview of parameters:
     τ=any(needs_τ, basis.terms) ? zero(ρ) : nothing,
     hubbard_n=nothing,
     ψ=nothing,
+    occupation=nothing,
+    eigenvalues=nothing,
     tol=1e-6,
     is_converged=ScfConvergenceDensity(tol),
     miniter=0,
@@ -216,7 +222,7 @@ Overview of parameters:
         ρnext, info_next
     end
 
-    info_init = (; ρin=ρ, τ, hubbard_n, ψ, occupation=nothing, eigenvalues=nothing, εF=nothing,
+    info_init = (; ρin=ρ, τ, hubbard_n, ψ, occupation, eigenvalues, εF=nothing,
                    n_iter=0, n_matvec=0, timedout=false, converged=false,
                    history_Etot=T[], history_Δρ=T[])
 
