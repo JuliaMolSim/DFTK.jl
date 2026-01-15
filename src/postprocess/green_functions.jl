@@ -63,7 +63,7 @@ function compute_periodic_green_function(basis::PlaneWaveBasis, y, E;
         u_k = solve_at_kpoint(basis, kpt, y, E, tol)
         
         # Add contribution to Green's function
-        add_green_contribution!(G, basis, k_complex, u_k, weight)
+        add_green_contribution!(G, basis, k_complex, u_k, weight, ik)
     end
     
     return G
@@ -74,12 +74,12 @@ end
 
 Compute h(k) = -alpha * sum_n grad_k λ_nk * χ(λ_nk - E)
 
-Uses Hellmann-Feynman theorem: grad_k λ_n = 2<ψ_n|(k+G)|ψ_n> in reciprocal space.
+Uses Hellmann-Feynman theorem: grad_k λ_n = <ψ_n|∇_k H|ψ_n>. 
+For kinetic energy ∇_k(-½|k+G|²) = -(k+G), giving grad_k λ_n = Σ_G |ψ_G|²(k+G).
 The function χ(x) = exp(-x²/deltaE²) weights contributions by proximity to energy E.
 """
 function compute_h_values(basis, eigres, E, alpha, deltaE)
     recip_lattice = basis.model.recip_lattice
-    n_dim = count(!iszero, eachcol(basis.model.lattice))
     h_values = Vector{Vec3{Float64}}(undef, length(basis.kpoints))
     
     for (ik, kpt) in enumerate(basis.kpoints)
@@ -114,14 +114,15 @@ Compute ∇h via finite differences. Proper implementation would use neighboring
 k-points in the grid. Current version uses simplified approximation for research code.
 """
 function compute_nabla_h_finite_diff(basis, h_values)
-    n_dim = count(!iszero, eachcol(basis.model.lattice))
+    # Simplified approximation: small derivative scale
+    # In full implementation, would compute actual finite differences using k-grid neighbors
+    nabla_h_scale = 1e-2  # Small default scale for simplified version
+    
     nabla_h_values = Vector{Mat3{Float64}}(undef, length(basis.kpoints))
     
-    # Simple approximation for research code
     for (ik, kpt) in enumerate(basis.kpoints)
-        # Approximate nabla h as identity (simplified)
-        # Full implementation would compute proper finite differences
-        nabla_h_k = Matrix{Float64}(I, 3, 3) * 1e-2  # Small default
+        # Use the scale defined above
+        nabla_h_k = Matrix{Float64}(I, 3, 3) * nabla_h_scale
         nabla_h_values[ik] = Mat3(nabla_h_k)
     end
     return nabla_h_values
@@ -167,14 +168,17 @@ end
 
 Add weighted contribution to Green's function from solution at complex k-point.
 Phase factor: exp(i(k_real + i*k_imag)·x) = exp(ik_real·x - k_imag·x)
+
+NOTE: Currently uses placeholder logic. Full implementation needs proper k-point
+indexing to ensure ifft uses correct k-point for each contribution.
 """
-function add_green_contribution!(G, basis, k_complex, u_k, weight)
+function add_green_contribution!(G, basis, k_complex, u_k, weight, ik)
     k_real, k_imag = k_complex
-    kpt_real = basis.kpoints[1]  # Use first as template
+    kpt = basis.kpoints[ik]  # Use the actual k-point for this contribution
     recip_lattice = basis.model.recip_lattice
     
-    # Transform u to real space
-    u_real = ifft(basis.fft_grid, kpt_real, u_k)
+    # Transform u to real space using correct k-point
+    u_real = ifft(basis.fft_grid, kpt, u_k)
     
     # Add weighted contribution with phase
     for idx in CartesianIndices(basis.fft_size)
