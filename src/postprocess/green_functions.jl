@@ -73,10 +73,9 @@ function compute_periodic_green_function(basis::PlaneWaveBasis, y, E;
 
         # Vectorize over R vectors (inner loop)
         for R in R_vectors
-            # Vectorized computation of phase factors
-            # phase[idx] = weight * exp(2πi * kdef · (r + R)) * u_real[idx]
-            phase_factors = [weight * cis2pi(sum(kdef .* (r .+ R))) for r in r_vecs]
-            G_dict[R] .+= phase_factors .* u_real
+            for (ir, r) in enumerate(r_vecs)
+                G_dict[R][ir] += weight * cis2pi(sum(kdef .* (r .+ R))) * u_real[ir]
+            end
         end
     end
     
@@ -137,29 +136,28 @@ function compute_nabla_h_finite_diff(basis, h_values)
     
     T = eltype(eltype(h_values))
     kgrid_size = kgrid.kgrid_size
+    n_kpts = length(basis.kpoints)
     
-    # Compute ∇h using central finite differences
-    nabla_h_values = map(enumerate(basis.kpoints)) do (ik, kpt)
-        nabla_h_k = zeros(T, 3, 3)
+    # Initialize output
+    nabla_h_values = [(zeros(T, 3, 3)) for _ in 1:n_kpts]
+    
+    for α in 1:3
+        kgrid_size[α] == 1 && continue
         
-        for i in 1:3
-            kgrid_size[i] == 1 && continue
-            
-            dk = 1.0 / kgrid_size[i]
-            ei = [j == i ? dk : 0.0 for j in 1:3]
-            
-            # Find k-points at k ± shift using k_to_kpq_permutation
-            ik_fwd = k_to_kpq_permutation(basis, ei)[ik]
-            ik_bwd = k_to_kpq_permutation(basis, -ei)[ik]
-            
-            # Central difference
-            nabla_h_k[:, i] = (h_values[ik_fwd] - h_values[ik_bwd]) / (2dk)
+        dk = 1.0 / kgrid_size[α]
+        eα = [β == α ? dk : 0.0 for β in 1:3]
+        
+        # Compute permutations once per direction
+        ik_fwd = k_to_kpq_permutation(basis, eα)
+        ik_bwd = k_to_kpq_permutation(basis, -eα)
+        
+        # Update all k-points for this direction
+        for ik in 1:n_kpts
+            nabla_h_values[ik][α, :] = (h_values[ik_fwd[ik]] - h_values[ik_bwd[ik]]) / (2dk)
         end
-        
-        Mat3(nabla_h_k)
     end
     
-    return nabla_h_values
+    return Mat3.(nabla_h_values)
 end
 
 @doc raw"""
