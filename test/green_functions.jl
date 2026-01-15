@@ -70,24 +70,20 @@ using LinearAlgebra
         @test !iszero(delta_y)
     end
     
-    @testset "Green's function structure" begin
-        # Call the main function (will use placeholders for complex k-points)
+    @testset "Green's function with GMRES" begin
+        # Call the main function with full GMRES implementation
         y = Vec3([0.5, 0.0, 0.0])
         E_test = 1.0  # Test energy
         
-        # This will run but use simplified/placeholder logic
-        try
-            G = compute_periodic_green_function(basis, y, E_test; 
-                                               alpha=0.1, deltaE=0.1, n_bands=3)
-            
-            @test size(G) == basis.fft_size
-            @test isa(G, Array{ComplexF64})
-            
-            # G should have some structure (not all zeros)
-            @test any(!iszero, G)
-        catch e
-            # Expected to potentially fail since complex k-points aren't fully implemented
-            @test_skip "Complex k-point support not fully implemented: $e"
-        end
+        # Now fully implemented with GMRES solver
+        G = compute_periodic_green_function(basis, y, E_test; 
+                                           alpha=0.1, deltaE=0.1, n_bands=3,
+                                           tol=1e-4, maxiter=50)
+        
+        @test size(G) == basis.fft_size
+        @test isa(G, Array{ComplexF64})
+        
+        # G should have some structure (not all zeros)
+        @test any(!iszero, G)
     end
 end

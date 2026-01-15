@@ -45,36 +45,30 @@ println("\nSystem properties:")
 println("  Ground state energy: ", E)
 println("  Source position y (fractional): ", y)
 
-# Compute Green's function
-# Note: Current implementation uses placeholders for complex k-point parts
+# Compute Green's function with full GMRES implementation
 println("\nComputing Green's function...")
-println("  (Using simplified implementation - see code comments)")
 
-try
-    G = compute_periodic_green_function(basis, y, E;
-                                       alpha=0.1,    # h(k) scaling
-                                       deltaE=0.1,   # Energy width
-                                       n_bands=5)    # Number of bands
-    
-    println("  Green's function computed!")
-    println("  Size: ", size(G))
-    println("  Type: ", typeof(G))
-    println("  Max |G|: ", maximum(abs, G))
-    
-    # The Green's function G(x,y;E) should satisfy:
-    # (E - H) G(x,y;E) = δ(x-y) (modulo periodicity)
-    
-catch e
-    println("  Note: Full computation requires complex k-point support")
-    println("  Error: ", e)
-end
+G = compute_periodic_green_function(basis, y, E;
+                                   alpha=0.1,    # h(k) scaling
+                                   deltaE=0.1,   # Energy width
+                                   n_bands=5,    # Number of bands
+                                   tol=1e-4,     # GMRES tolerance
+                                   maxiter=50)   # GMRES max iterations
+
+println("  Green's function computed!")
+println("  Size: ", size(G))
+println("  Type: ", typeof(G))
+println("  Max |G|: ", maximum(abs, G))
+
+# The Green's function G(x,y;E) should satisfy:
+# (E - H) G(x,y;E) = δ(x-y) (modulo periodicity)
 
 println("\nImplementation notes:")
 println("  ✓ h(k) computation via Hellmann-Feynman theorem")
 println("  ✓ Periodized delta function")
 println("  ✓ Assembly framework with det(I+i∇h) weighting")
-println("  ⚠ Complex k-point Hamiltonian needs core DFTK extension")
-println("  ⚠ GMRES solver integration pending")
+println("  ✓ Complex k-point Hamiltonian via kinetic correction")
+println("  ✓ GMRES solver using KrylovKit")
 println("\nFor full implementation details, see:")
 println("  - src/postprocess/green_functions.jl")
 println("  - test/green_functions.jl")
