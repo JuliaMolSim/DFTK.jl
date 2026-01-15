@@ -179,8 +179,8 @@ function compute_kinetic_correction(basis, kpt, h_k)
     h_k_cart = recip_lattice * h_k
     k_plus_G_vectors = Gplusk_vectors_cart(basis, kpt)
     
-    h_dot_kG = [im * dot(h_k_cart, kG) for kG in k_plus_G_vectors]
-    h_squared = dot(h_k_cart, h_k_cart)
+    h_dot_kG = [im * sum(h_k_cart .* kG) for kG in k_plus_G_vectors]
+    h_squared = sum(h_k_cart .^ 2)
     
     return h_dot_kG .- 0.5 * h_squared
 end
