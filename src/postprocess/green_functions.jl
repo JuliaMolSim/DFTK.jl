@@ -52,11 +52,8 @@ function compute_h_values(basis, eigres, E, alpha, deltaE)
             chi_n = exp(-(λ_n - E)^2 / deltaE^2)
             
             # Hellmann-Feynman: grad_k lambda_n in reciprocal space
-            grad_lambda_n = zeros(3)
-            for (iG, G) in enumerate(kpt.G_vectors)
-                k_plus_G = recip_lattice * (kpt.coordinate + G)
-                grad_lambda_n += abs2(psi_n[iG]) * k_plus_G
-            end
+            k_plus_G_vectors = Gplusk_vectors_cart(basis, kpt)
+            grad_lambda_n = sum(abs2.(psi_n) .* k_plus_G_vectors)
             
             h_k -= alpha * chi_n * grad_lambda_n
         end
@@ -199,25 +196,24 @@ function solve_at_kpoint(basis, kpt, ik, k_imag, y, E, tol, maxiter)
 end
 
 @doc raw"""
-    compute_kinetic_correction(basis, kpt, k_imag)
+    compute_kinetic_correction(basis, kpt, h_k)
 
 Compute diagonal kinetic energy correction for complex k-point.
 Returns a vector of corrections for each G-vector.
+
+When k → k̃ = k + im·h, kinetic energy becomes:
+  T_{k̃} = ½|k+G + im·h|² = ½|k+G|² + im·h·(k+G) - ½h²
+  ΔT = T_{k̃} - T_k = im·h·(k+G) - ½h²
 """
 function compute_kinetic_correction(basis, kpt, h_k)
     recip_lattice = basis.model.recip_lattice
-    n_G = length(kpt.G_vectors)
     h_k_cart = recip_lattice * h_k
+    k_plus_G_vectors = Gplusk_vectors_cart(basis, kpt)
     
-    correction = zeros(ComplexF64, n_G)
-    for (iG, G) in enumerate(kpt.G_vectors)
-        k_plus_G_cart = recip_lattice * (kpt.coordinate + G)
-        # Kinetic at k̃ = k + im·h is: ½|k+G + im·h|² = ½[(k+G)² + 2im·h·(k+G) + (im·h)²]
-        #                            = ½|k+G|² + im·h·(k+G) - ½h²
-        # Correction ΔT = T_{k̃} - T_k = im·h·(k+G) - ½h²
-        correction[iG] = im * dot(h_k_cart, k_plus_G_cart) - 0.5 * dot(h_k_cart, h_k_cart)
-    end
-    return correction
+    h_dot_kG = [im * dot(h_k_cart, kG) for kG in k_plus_G_vectors]
+    h_squared = dot(h_k_cart, h_k_cart)
+    
+    return h_dot_kG .- 0.5 * h_squared
 end
 
 @doc raw"""
@@ -234,53 +230,48 @@ For the deformed k-point k̃ = k + im·h, we need an additional factor e^{h·y}
 from the im·h part of the shift.
 """
 function build_periodized_delta(basis, kpt, h_k, y)
-    n_G = length(kpt.G_vectors)
-    delta_fourier = zeros(ComplexF64, n_G)
     Omega = basis.model.unit_cell_volume
     recip_lattice = basis.model.recip_lattice
     h_k_cart = recip_lattice * h_k
     y_cart = basis.model.lattice * y
     
-    for (iG, G) in enumerate(kpt.G_vectors)
-        G_cart = recip_lattice * G
-        # Source for periodic part: e^{-iG·y} / Ω
-        # Plus correction for complex k-shift: e^{h·y} (from e^{-i·(im·h)·y} = e^{h·y})
-        delta_fourier[iG] = exp(-im * dot(G_cart, y_cart) + dot(h_k_cart, y_cart)) / Omega
-    end
-    return delta_fourier
+    G_vectors_cart = [recip_lattice * G for G in G_vectors(basis, kpt)]
+    
+    return [exp(-im * dot(G_cart, y_cart)) * exp(dot(h_k_cart, y_cart)) / Omega for G_cart in G_vectors_cart]
 end
 
 @doc raw"""
     assemble_green_with_R(basis, h_values, u_k_solutions, weights, R)
 
 Assemble Green's function G(r+R, y) for lattice vector R.
-Uses phase factor e^{ik·R} to extend u_k to r+R positions.
+Uses phase factor e^{ik̃·(r+R)} where k̃ = k + im·h.
 """
 function assemble_green_with_R(basis, h_values, u_k_solutions, weights, R)
     G = zeros(ComplexF64, basis.fft_size)
     recip_lattice = basis.model.recip_lattice
     R_cart = basis.model.lattice * R
+    r_vecs = r_vectors(basis)
     
     for (ik, kpt) in enumerate(basis.kpoints)
-        k_real = kpt.coordinate
-        k_imag = h_values[ik]
+        k = kpt.coordinate
+        h_k = h_values[ik]
         u_k = u_k_solutions[ik]
         weight = weights[ik]
         
         # Transform u to real space
         u_real = ifft(basis.fft_grid, kpt, u_k)
         
-        # Compute phase factor for R: e^{i(k+ih)·R}
-        k_real_cart = recip_lattice * k_real
-        k_imag_cart = recip_lattice * k_imag
-        phase_R = exp(im * dot(k_real_cart, R_cart) - dot(k_imag_cart, R_cart))
+        # Deformed k-point: k̃ = k + im·h
+        kdef = k + im * h_k
+        kdef_cart = recip_lattice * kdef
         
-        # Add weighted contribution with phase for r+R
+        # Phase factor for lattice vector R: e^{ik̃·R}
+        phase_R = exp(im * dot(kdef_cart, R_cart))
+        
+        # Add weighted contribution with phase for each r
         for idx in CartesianIndices(basis.fft_size)
-            x_frac = Vec3([idx[1]-1, idx[2]-1, idx[3]-1]) ./ Vec3(basis.fft_size)
-            x_cart = basis.model.lattice * x_frac
-            
-            phase_r = exp(im * dot(k_real_cart, x_cart) - dot(k_imag_cart, x_cart))
+            r_cart = r_vecs[idx]
+            phase_r = exp(im * dot(kdef_cart, r_cart))
             G[idx] += weight * phase_R * phase_r * u_real[idx]
         end
     end
