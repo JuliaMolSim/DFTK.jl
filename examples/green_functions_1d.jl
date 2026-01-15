@@ -74,7 +74,7 @@ h_x_sorted = h_x[sorted_indices]
 nabla_h_xx_sorted = nabla_h_xx[sorted_indices]
 
 # Compute numerical derivative manually for verification
-dh_dk_numerical = zeros(length(k_sorted))
+dh_dk_numerical = zeros(typeof(alpha), length(k_sorted))
 for i in 2:length(k_sorted)-1
     dk = k_sorted[i+1] - k_sorted[i-1]
     dh_dk_numerical[i] = (h_x_sorted[i+1] - h_x_sorted[i-1]) / dk
@@ -84,12 +84,12 @@ dh_dk_numerical[1] = (h_x_sorted[2] - h_x_sorted[1]) / (k_sorted[2] - k_sorted[1
 dh_dk_numerical[end] = (h_x_sorted[end] - h_x_sorted[end-1]) / (k_sorted[end] - k_sorted[end-1])
 
 # Plot h(k) and both derivatives for comparison
-p_h = plot(k_sorted, h_x_sorted, label="h_x(k)", linewidth=2, marker=:circle,
+p_h = plot(k_sorted, real(h_x_sorted), label="h_x(k)", linewidth=2, marker=:circle,
            xlabel="k (fractional)", ylabel="Value", 
            title="h(k) and its derivatives", legend=:best)
-plot!(p_h, k_sorted, nabla_h_xx_sorted, label="∂h_x/∂k_x (finite diff)", 
+plot!(p_h, k_sorted, real(nabla_h_xx_sorted), label="∂h_x/∂k_x (finite diff)", 
       linewidth=2, marker=:square, linestyle=:dash, color=:red)
-plot!(p_h, k_sorted, dh_dk_numerical, label="∂h_x/∂k_x (numerical)", 
+plot!(p_h, k_sorted, real(dh_dk_numerical), label="∂h_x/∂k_x (numerical)", 
       linewidth=2, marker=:diamond, color=:green)
 display(p_h)
 println("h(k) and ∇h(k) plotted!")
