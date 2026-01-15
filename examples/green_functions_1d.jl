@@ -10,12 +10,12 @@ using LinearAlgebra
 a = 1.0  # Box size in atomic units
 
 # Source position for delta function (fractional coordinates)
-y = [0.5, 0.0, 0.0]  # Center of box
+y = [0.0, 0.0, 0.0]  # Center of box
 E = -1
 nkpoints = 50
 Ecut = 200000
-V0 = 5
-alpha = 0.0
+V0 = 0
+alpha = 0.0im
 deltaE = 5
 
 # Define lattice vectors for extended range (plot over 5 unit cells centered at origin)

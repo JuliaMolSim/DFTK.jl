@@ -1,51 +1,5 @@
 using KrylovKit
 
-@doc raw"""
-    compute_periodic_green_function(basis, y, E; alpha=0.1, deltaE=0.1, n_bands=10, 
-                                   tol=1e-6, maxiter=100, R_vectors=[])
-
-Compute periodic Green's function G(x,y;E) via complex k-point deformation.
-Algorithm from https://hal.science/hal-03611185/document
-
-Returns G(r+R, y) for r in the unit cell and R in R_vectors (lattice vectors).
-If R_vectors is empty, returns only G(r, y) for r in the unit cell.
-
-# Algorithm outline:
-1. Compute eigenfunctions λ_nk, ψ_nk on Monkhorst-Pack grid
-2. Compute h(k) = -alpha * sum_n grad_k λ_nk * χ(λ_nk - E)
-   where χ(x) = exp(-x²/deltaE²) using Hellmann-Feynman theorem
-3. Compute ∇h and ∇²h (via finite differences respecting periodicity)
-4. Build basis with complex k-points: k̃ = k + im*h(k)
-5. Solve (E - H_{k̃}) u_{k̃} = P δ_y for each k̃ using GMRES
-6. Assemble: G(x) = sum_k det(1+im∇h(k)) exp(im k̃·x) u_{k̃}(x)
-
-# Current implementation status:
-- Steps 1-6: Fully implemented
-- Complex k-point Hamiltonian: Implemented via kinetic energy correction
-- GMRES solver: Integrated using KrylovKit
-
-# Arguments
-- `basis::PlaneWaveBasis`: Plane-wave basis (symmetries must be disabled)
-- `y::AbstractVector`: Delta source position (fractional coordinates)  
-- `E::Real`: Energy for Green's function
-
-# Keyword arguments
-- `alpha::Real=0.1`: h(k) scaling parameter
-- `deltaE::Real=0.1`: χ function energy width
-- `n_bands::Int=10`: Number of eigenfunctions  
-- `tol::Real=1e-6`: GMRES tolerance
-- `maxiter::Int=100`: Maximum GMRES iterations
-- `R_vectors::Vector=[]`: Lattice vectors for extended range (fractional coords)
-
-# Returns
-- If R_vectors is empty: Array of size fft_size with G(r, y) for r in unit cell
-- If R_vectors provided: Dict mapping R to arrays of G(r+R, y)
-
-# Notes
-Complex k-point Hamiltonian is constructed by adding correction to kinetic energy:
--½|k + ik_imag + G|² = -½|k+G|² -½|k_imag|² - i(k+G)·k_imag
-The resulting non-Hermitian system is solved with GMRES from KrylovKit.
-"""
 function compute_periodic_green_function(basis::PlaneWaveBasis, y, E;
                                         alpha=0.1, deltaE=0.1, n_bands=10,
                                         tol=1e-6, maxiter=100, R_vectors=[])
@@ -81,16 +35,6 @@ function compute_periodic_green_function(basis::PlaneWaveBasis, y, E;
     end
     return G_dict
 end
-
-@doc raw"""
-    compute_h_values(basis, eigres, E, alpha, deltaE)
-
-Compute h(k) = -alpha * sum_n grad_k λ_nk * χ(λ_nk - E)
-
-Uses Hellmann-Feynman theorem: grad_k λ_n = <ψ_n|∇_k H|ψ_n>. 
-For kinetic energy ∇_k(-½|k+G|²) = -(k+G), giving grad_k λ_n = Σ_G |ψ_G|²(k+G).
-The function χ(x) = exp(-x²/deltaE²) weights contributions by proximity to energy E.
-"""
 function compute_h_values(basis, eigres, E, alpha, deltaE)
     recip_lattice = basis.model.recip_lattice
     T = typeof((alpha))
@@ -121,12 +65,6 @@ function compute_h_values(basis, eigres, E, alpha, deltaE)
     return h_values
 end
 
-@doc raw"""
-    compute_nabla_h_finite_diff(basis, h_values)
-
-Compute ∇h via finite differences using k-grid neighbors.
-For each k-point, compute ∂h/∂k_i using neighboring k-points in the grid.
-"""
 function compute_nabla_h_finite_diff(basis, h_values)
     # Get k-grid structure
     kgrid = basis.kgrid
@@ -201,8 +139,8 @@ operator application plus diagonal correction. Includes kinetic energy precondit
 to improve convergence.
 """
 function solve_at_kpoint(basis, kpt, ik, k_imag, y, E, tol, maxiter)
-    # Build periodized delta function (RHS)
-    delta_y = build_periodized_delta(basis, kpt, y)
+    # Build periodized delta function (RHS) at shifted k-point k̃ = k + im·h
+    delta_y = build_periodized_delta(basis, kpt, k_imag, y)
     
     # Get Hamiltonian operator at real k-point
     ham = Hamiltonian(basis)
@@ -266,37 +204,48 @@ end
 Compute diagonal kinetic energy correction for complex k-point.
 Returns a vector of corrections for each G-vector.
 """
-function compute_kinetic_correction(basis, kpt, k_imag)
+function compute_kinetic_correction(basis, kpt, h_k)
     recip_lattice = basis.model.recip_lattice
     n_G = length(kpt.G_vectors)
-    k_imag_cart = recip_lattice * k_imag
+    h_k_cart = recip_lattice * h_k
     
     correction = zeros(ComplexF64, n_G)
     for (iG, G) in enumerate(kpt.G_vectors)
         k_plus_G_cart = recip_lattice * (kpt.coordinate + G)
-        # Correction: -½|k_imag|² - i(k+G)·k_imag
-        correction[iG] = -0.5 * dot(k_imag_cart, k_imag_cart) - 
-                        im * dot(k_plus_G_cart, k_imag_cart)
+        # Kinetic at k̃ = k + im·h is: ½|k+G + im·h|² = ½[(k+G)² + 2im·h·(k+G) + (im·h)²]
+        #                            = ½|k+G|² + im·h·(k+G) - ½h²
+        # Correction ΔT = T_{k̃} - T_k = im·h·(k+G) - ½h²
+        correction[iG] = im * dot(h_k_cart, k_plus_G_cart) - 0.5 * dot(h_k_cart, h_k_cart)
     end
     return correction
 end
 
 @doc raw"""
-    build_periodized_delta(basis, kpt, y)
+    build_periodized_delta(basis, kpt, h_k, y)
 
-Build periodized delta function P δ_y in Fourier space.
-For k-point k: P δ_y(k+G) = exp(-i(k+G)·y) / √Ω
+Build the source term for the Green's function equation in the periodic-part basis.
+
+In DFTK, we work with periodic parts u_k, not full Bloch functions ψ_k = e^{ik·r} u_k.
+The delta function source for the equation (E - H_k) g_k = b_k should be:
+  b_k(G) = e^{-iG·y} / Ω
+The e^{-ik·y} factor is handled in the assembly step.
+
+For the deformed k-point k̃ = k + im·h, we need an additional factor e^{h·y}
+from the im·h part of the shift.
 """
-function build_periodized_delta(basis, kpt, y)
+function build_periodized_delta(basis, kpt, h_k, y)
     n_G = length(kpt.G_vectors)
     delta_fourier = zeros(ComplexF64, n_G)
     Omega = basis.model.unit_cell_volume
     recip_lattice = basis.model.recip_lattice
+    h_k_cart = recip_lattice * h_k
+    y_cart = basis.model.lattice * y
     
     for (iG, G) in enumerate(kpt.G_vectors)
-        G_cart = recip_lattice * (G + kpt.coordinate)
-        y_cart = basis.model.lattice * y
-        delta_fourier[iG] = exp(-im * dot(G_cart, y_cart)) / sqrt(Omega)
+        G_cart = recip_lattice * G
+        # Source for periodic part: e^{-iG·y} / Ω
+        # Plus correction for complex k-shift: e^{h·y} (from e^{-i·(im·h)·y} = e^{h·y})
+        delta_fourier[iG] = exp(-im * dot(G_cart, y_cart) + dot(h_k_cart, y_cart)) / Omega
     end
     return delta_fourier
 end
