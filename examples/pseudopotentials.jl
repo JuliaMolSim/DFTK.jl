@@ -32,6 +32,12 @@
 # [PseudoDojo](http://www.pseudo-dojo.org/).
 # Then, we will compare the bandstructure at the converged parameters calculated
 # using the two PSPs.
+#
+# While pseudopotentials are standard, note that they remain an approximation.
+# A comparison of results obtained with different codes and pseudopotentials
+# — including DFTK with the PseudoDojo pseudopotentials —
+# against reference full-potential calculations
+# is available on https://acwf-verification.materialscloud.org/.
 
 using AtomsBuilder
 using DFTK
