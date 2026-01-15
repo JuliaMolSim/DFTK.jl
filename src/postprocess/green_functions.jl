@@ -10,9 +10,20 @@ using KrylovKit
 
 function compute_periodic_green_function(basis::PlaneWaveBasis, y, E;
                                         alpha=0.1, deltaE=0.1, n_bands=10,
-                                        tol=1e-6, maxiter=100, R_vectors=[])
+                                        tol=1e-6, maxiter=100, 
+                                        Rmin=[0, 0, 0], Rmax=[0, 0, 0])
     @assert basis.model.n_spin_components == 1 "Only spinless systems supported"
     @assert length(basis.model.symmetries) == 1 "Symmetry must be disabled"
+    
+    # Generate R_vectors from Rmin and Rmax
+    R_vectors = []
+    for i in Rmin[1]:Rmax[1]
+        for j in Rmin[2]:Rmax[2]
+            for k in Rmin[3]:Rmax[3]
+                push!(R_vectors, [i, j, k])
+            end
+        end
+    end
     
     # Compute eigenfunctions
     ham = Hamiltonian(basis)
@@ -35,14 +46,64 @@ function compute_periodic_green_function(basis::PlaneWaveBasis, y, E;
         u_k_solutions[ik] = solve_at_kpoint(basis, kpt, ik, h_values[ik], y, E, tol, maxiter)
     end
 
-    # Assemble Green's function
-    # Return dict with G for each R
-    G_dict = Dict()
+    # Assemble Green's function - optimized version
+    # Loop over k-points first, then R vectors, so iffts are only done once per k-point
+    recip_lattice = basis.model.recip_lattice
+    r_vecs = r_vectors(basis)
+    nx, ny, nz = basis.fft_size
+    
+    # Initialize dictionary to store Green's function for each R
+    G_dict = Dict{Vector{Int}, Array{ComplexF64, 3}}()
     for R in R_vectors
-        G_dict[R] = assemble_green_with_R(basis, h_values, u_k_solutions, weights, R)
+        G_dict[R] = zeros(ComplexF64, basis.fft_size)
     end
-    return G_dict
+    
+    # Loop over k-points (outer loop)
+    for (ik, kpt) in enumerate(basis.kpoints)
+        k = kpt.coordinate
+        h_k = h_values[ik]
+        u_k = u_k_solutions[ik]
+        weight = weights[ik]
+        
+        # Transform u to real space once per k-point
+        u_real = ifft(basis.fft_grid, kpt, u_k)
+        
+        # Deformed k-point: k̃ = k + im·h
+        kdef = k .+ im .* h_k
+
+        # Vectorize over R vectors (inner loop)
+        for R in R_vectors
+            # Vectorized computation of phase factors
+            # phase[idx] = weight * exp(2πi * kdef · (r + R)) * u_real[idx]
+            phase_factors = [weight * cis2pi(sum(kdef .* (r .+ R))) for r in r_vecs]
+            G_dict[R] .+= phase_factors .* u_real
+        end
+    end
+    
+    # Build extended Green's function array
+    ncell = Tuple(Rmax .- Rmin .+ 1)
+    G_extended = zeros(ComplexF64, ncell[1] * nx, ncell[2] * ny, ncell[3] * nz)
+    
+    for R in R_vectors
+        i, j, k = Int(R[1]), Int(R[2]), Int(R[3])
+        G_R = G_dict[R]
+        
+        # Place in extended grid
+        ix_start = (i - Rmin[1]) * nx + 1
+        iy_start = (j - Rmin[2]) * ny + 1
+        iz_start = (k - Rmin[3]) * nz + 1
+        G_extended[ix_start:ix_start+nx-1, iy_start:iy_start+ny-1, iz_start:iz_start+nz-1] = G_R
+    end
+    
+    # Create fractional coordinate arrays for extended grid
+    # These are in fractional coordinates (relative to lattice vectors)
+    r_frac_coords = range(Rmin[1], Rmax[1]+1, length=ncell[1]*nx+1)[1:end-1]
+    s_frac_coords = range(Rmin[2], Rmax[2]+1, length=ncell[2]*ny+1)[1:end-1]
+    t_frac_coords = range(Rmin[3], Rmax[3]+1, length=ncell[3]*nz+1)[1:end-1]
+    
+    return (; G_dict, G_extended, r_frac_coords, s_frac_coords, t_frac_coords)
 end
+
 function compute_h_values(basis, eigres, E, alpha, deltaE)
     recip_lattice = basis.model.recip_lattice
     T = typeof((alpha))
@@ -207,36 +268,4 @@ function build_periodized_delta(basis, kpt, h_k, y)
     G_vecs = G_vectors(basis, kpt)
     
     return [cis2pi(-dot(G, y)) * exp(dot(h_k_cart, y_cart)) / Omega for G in G_vecs]
-end
-
-@doc raw"""
-    assemble_green_with_R(basis, h_values, u_k_solutions, weights, R)
-
-Assemble Green's function G(r+R, y) for lattice vector R.
-Uses phase factor e^{ik̃·(r+R)} where k̃ = k + im·h.
-"""
-function assemble_green_with_R(basis, h_values, u_k_solutions, weights, R)
-    G = zeros(ComplexF64, basis.fft_size)
-    recip_lattice = basis.model.recip_lattice
-    r_vecs = r_vectors(basis)
-    
-    for (ik, kpt) in enumerate(basis.kpoints)
-        k = kpt.coordinate
-        h_k = h_values[ik]
-        u_k = u_k_solutions[ik]
-        weight = weights[ik]
-        
-        # Transform u to real space
-        u_real = ifft(basis.fft_grid, kpt, u_k)
-        
-        # Deformed k-point: k̃ = k + im·h
-        kdef = k + im * h_k
-        
-        # Add weighted contribution with phase for each r
-        for (idx, r) in enumerate(r_vecs)
-            G[idx] += weight * cis2pi(sum(kdef .* (r+R))) * u_real[idx]
-        end
-    end
-    
-    return G
 end

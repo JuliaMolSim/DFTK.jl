@@ -13,9 +13,8 @@ V0 = 3
 alpha = .1
 deltaE = 5
 
-# Define lattice vectors for extended range (plot over 5 unit cells centered at origin)
-Rmax = 5
-R_vectors = [[r, 0.0, 0.0] for r in -Rmax:Rmax]
+# Define supercell range parameter
+Rmax = 5  # Will compute Green's function from -Rmax to Rmax
 
 
 lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]]  # 1D lattice
@@ -74,26 +73,30 @@ plot!(p2, k_sorted, real(nabla_h_xx_sorted), label="∂h_x/∂k_x",
 
 # ===== Panel 3: Green's function =====
 println("Computing Green's function...")
-G_dict = compute_periodic_green_function(basis, y, E;
+Rmin = [-Rmax, 0, 0]
+Rmax_vec = [Rmax, 0, 0]
+result = compute_periodic_green_function(basis, y, E;
                                         alpha=alpha, deltaE=deltaE, n_bands=5,
-                                        tol=1e-8, maxiter=50, R_vectors=R_vectors)
+                                        tol=1e-8, maxiter=50, 
+                                        Rmin=Rmin, Rmax=Rmax_vec)
+
+# Destructure returned values
+G_dict = result.G_dict
+G_extended_3d = result.G_extended
+r_frac = result.r_frac_coords
+
+# Convert fractional coordinates to Cartesian for 1D system
+# x = r * lattice[1,1] (first lattice vector component)
+lat = basis.model.lattice
+x_coords = r_frac .* lat[1, 1]
 
 println("  Green's function computed!")
 println("  Number of cells: ", length(G_dict))
 println("  Max |G|: ", maximum(maximum(abs, G) for G in values(G_dict)))
 
-# Build extended x coordinates and G values
-n_points_per_cell = size(first(values(G_dict)))[1]
-x_all = Float64[]
-G_all = ComplexF64[]
-
-for R in R_vectors
-    G_R = G_dict[R][:, 1, 1]
-    x_cell = range(0, a, length=n_points_per_cell+1)[1:end-1]
-    x_shifted = x_cell .+ R[1] * a
-    append!(x_all, x_shifted)
-    append!(G_all, G_R)
-end
+# Extract 1D data from 3D extended array
+G_all = G_extended_3d[:, 1, 1]
+x_all = collect(x_coords)
 
 p3 = plot(x_all, real.(G_all), label="Re[G(x,y;E)]", linewidth=2,
           xlabel="x (a.u.)", ylabel="Green's function", title="Green's Function")
