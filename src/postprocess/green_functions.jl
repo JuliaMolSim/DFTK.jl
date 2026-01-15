@@ -234,7 +234,7 @@ function assemble_green_with_R(basis, h_values, u_k_solutions, weights, R)
         
         # Add weighted contribution with phase for each r
         for (idx, r) in enumerate(r_vecs)
-            G[idx] += weight * cis2pi(dot(kdef, r+R)) * u_real[idx]
+            G[idx] += weight * cis2pi(sum(kdef .* (r+R))) * u_real[idx]
         end
     end
     
