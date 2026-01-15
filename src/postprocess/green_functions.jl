@@ -50,7 +50,7 @@ function compute_periodic_green_function(basis::PlaneWaveBasis, y, E;
                                         alpha=0.1, deltaE=0.1, n_bands=10,
                                         tol=1e-6, maxiter=100, R_vectors=[])
     @assert basis.model.n_spin_components == 1 "Only spinless systems supported"
-    @assert !basis.model.symmetries "Symmetry must be disabled"
+    @assert length(basis.model.symmetries) == 1 "Symmetry must be disabled"
     
     # Compute eigenfunctions
     ham = Hamiltonian(basis)
@@ -330,33 +330,4 @@ function assemble_green_with_R(basis, h_values, u_k_solutions, weights, R)
     end
     
     return G
-end
-
-@doc raw"""
-    add_green_contribution!(G, basis, k_complex, u_k, weight, ik)
-
-Add weighted contribution to Green's function from solution at complex k-point.
-Phase factor: exp(i(k_real + i*k_imag)·x) = exp(ik_real·x - k_imag·x)
-
-NOTE: This function is deprecated in favor of assemble_green_unit_cell and assemble_green_with_R.
-"""
-function add_green_contribution!(G, basis, k_complex, u_k, weight, ik)
-    k_real, k_imag = k_complex
-    kpt = basis.kpoints[ik]  # Use the actual k-point for this contribution
-    recip_lattice = basis.model.recip_lattice
-    
-    # Transform u to real space using correct k-point
-    u_real = ifft(basis.fft_grid, kpt, u_k)
-    
-    # Add weighted contribution with phase
-    for idx in CartesianIndices(basis.fft_size)
-        x_frac = Vec3([idx[1]-1, idx[2]-1, idx[3]-1]) ./ Vec3(basis.fft_size)
-        x_cart = basis.model.lattice * x_frac
-        
-        k_real_cart = recip_lattice * k_real
-        k_imag_cart = recip_lattice * k_imag
-        
-        phase = exp(im * dot(k_real_cart, x_cart) - dot(k_imag_cart, x_cart))
-        G[idx] += weight * phase * u_real[idx]
-    end
 end
