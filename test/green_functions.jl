@@ -7,21 +7,22 @@ using LinearAlgebra
     a = 10.0  # Box size
     lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]]
     
-    # Harmonic potential centered at mid-point
-    pot(x) = 0.5 * (x - a/2)^2
+    # Periodic cosine potential
+    pot(x) = cos(2π * x / a)
     
-    # Build model with only kinetic and external potential (no LocalNonlinearity)
+    # Build model with only kinetic and external potential
+    # Disable symmetry at model level
     n_electrons = 1
     terms = [
         Kinetic(),
         ExternalFromReal(r -> pot(r[1])),
     ]
-    model = Model(lattice; n_electrons, terms, spin_polarization=:spinless)
+    model = Model(lattice; n_electrons, terms, spin_polarization=:spinless, symmetries=false)
     
-    # Setup basis with small Ecut and no symmetry
+    # Setup basis with small Ecut
     Ecut = 50
     kgrid = MonkhorstPack([4, 1, 1])  # 1D grid with 4 k-points
-    basis = PlaneWaveBasis(model; Ecut, kgrid, use_symmetries_for_kpoint_reduction=false)
+    basis = PlaneWaveBasis(model; Ecut, kgrid)
     
     # Test h function computation
     @testset "h-function computation" begin

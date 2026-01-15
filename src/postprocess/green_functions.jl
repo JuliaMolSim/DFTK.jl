@@ -1,10 +1,14 @@
 using KrylovKit
 
 @doc raw"""
-    compute_periodic_green_function(basis, y, E; alpha=0.1, deltaE=0.1, n_bands=10, tol=1e-6)
+    compute_periodic_green_function(basis, y, E; alpha=0.1, deltaE=0.1, n_bands=10, 
+                                   tol=1e-6, maxiter=100, R_vectors=[])
 
 Compute periodic Green's function G(x,y;E) via complex k-point deformation.
 Algorithm from https://hal.science/hal-03611185/document
+
+Returns G(r+R, y) for r in the unit cell and R in R_vectors (lattice vectors).
+If R_vectors is empty, returns only G(r, y) for r in the unit cell.
 
 # Algorithm outline:
 1. Compute eigenfunctions λ_nk, ψ_nk on Monkhorst-Pack grid
@@ -21,7 +25,7 @@ Algorithm from https://hal.science/hal-03611185/document
 - GMRES solver: Integrated using KrylovKit
 
 # Arguments
-- `basis::PlaneWaveBasis`: Plane-wave basis (use_symmetries_for_kpoint_reduction=false)
+- `basis::PlaneWaveBasis`: Plane-wave basis (symmetries must be disabled)
 - `y::AbstractVector`: Delta source position (fractional coordinates)  
 - `E::Real`: Energy for Green's function
 
@@ -31,6 +35,11 @@ Algorithm from https://hal.science/hal-03611185/document
 - `n_bands::Int=10`: Number of eigenfunctions  
 - `tol::Real=1e-6`: GMRES tolerance
 - `maxiter::Int=100`: Maximum GMRES iterations
+- `R_vectors::Vector=[]`: Lattice vectors for extended range (fractional coords)
+
+# Returns
+- If R_vectors is empty: Array of size fft_size with G(r, y) for r in unit cell
+- If R_vectors provided: Dict mapping R to arrays of G(r+R, y)
 
 # Notes
 Complex k-point Hamiltonian is constructed by adding correction to kinetic energy:
@@ -39,9 +48,9 @@ The resulting non-Hermitian system is solved with GMRES from KrylovKit.
 """
 function compute_periodic_green_function(basis::PlaneWaveBasis, y, E; 
                                         alpha=0.1, deltaE=0.1, n_bands=10,
-                                        tol=1e-6, maxiter=100)
+                                        tol=1e-6, maxiter=100, R_vectors=[])
     @assert basis.model.n_spin_components == 1 "Only spinless systems supported"
-    @assert !basis.use_symmetries_for_kpoint_reduction "Symmetry must be disabled"
+    @assert !basis.model.symmetries "Symmetry must be disabled"
     
     # Compute eigenfunctions
     ham = Hamiltonian(basis)
@@ -51,24 +60,32 @@ function compute_periodic_green_function(basis::PlaneWaveBasis, y, E;
     h_values = compute_h_values(basis, eigres, E, alpha, deltaE)
     nabla_h_values = compute_nabla_h_finite_diff(basis, h_values)
     
-    # Build and solve at complex k-points
-    G = zeros(ComplexF64, basis.fft_size)
+    # Solve for u_k at each k-point and store
+    u_k_solutions = Vector{Vector{ComplexF64}}(undef, length(basis.kpoints))
+    weights = Vector{ComplexF64}(undef, length(basis.kpoints))
+    
     for (ik, kpt) in enumerate(basis.kpoints)
-        # Complex k-point: k_c = k + im*h(k)
-        k_complex = (kpt.coordinate, h_values[ik])
-        
         # Weight with determinant factor
         det_factor = det(I + im * nabla_h_values[ik])
-        weight = basis.kweights[ik] * det_factor
+        weights[ik] = basis.kweights[ik] * det_factor
         
         # Solve (E - H) u = delta_y with complex k-point using GMRES
-        u_k = solve_at_kpoint(basis, kpt, ik, h_values[ik], y, E, tol, maxiter)
-        
-        # Add contribution to Green's function
-        add_green_contribution!(G, basis, k_complex, u_k, weight, ik)
+        u_k_solutions[ik] = solve_at_kpoint(basis, kpt, ik, h_values[ik], y, E, tol, maxiter)
     end
     
-    return G
+    # Assemble Green's function for unit cell and extended lattice
+    if isempty(R_vectors)
+        # Return only unit cell
+        G = assemble_green_unit_cell(basis, h_values, u_k_solutions, weights)
+        return G
+    else
+        # Return dict with G for each R
+        G_dict = Dict()
+        for R in R_vectors
+            G_dict[R] = assemble_green_with_R(basis, h_values, u_k_solutions, weights, R)
+        end
+        return G_dict
+    end
 end
 
 @doc raw"""
@@ -112,44 +129,81 @@ end
 @doc raw"""
     compute_nabla_h_finite_diff(basis, h_values)
 
-Compute ∇h via finite differences. Proper implementation would use neighboring
-k-points in the grid. Current version uses simplified approximation for research code.
+Compute ∇h via finite differences using k-grid neighbors.
+For each k-point, compute ∂h/∂k_i using neighboring k-points in the grid.
 """
 function compute_nabla_h_finite_diff(basis, h_values)
-    # Simplified approximation: small derivative scale
-    # In full implementation, would compute actual finite differences using k-grid neighbors
-    nabla_h_scale = 1e-2  # Small default scale for simplified version
+    # Get k-grid structure
+    kgrid = basis.kgrid
+    if !(kgrid isa MonkhorstPack)
+        error("Only MonkhorstPack grids supported for finite differences")
+    end
     
-    nabla_h_values = Vector{Mat3{Float64}}(undef, length(basis.kpoints))
+    kgrid_size = kgrid.kgrid_size
+    n_kpts = length(basis.kpoints)
+    nabla_h_values = Vector{Mat3{Float64}}(undef, n_kpts)
     
+    # Build mapping from k-point to grid index
+    # For MonkhorstPack, k-points are ordered
     for (ik, kpt) in enumerate(basis.kpoints)
-        # Use the scale defined above
-        nabla_h_k = Matrix{Float64}(I, 3, 3) * nabla_h_scale
+        nabla_h_k = zeros(3, 3)
+        
+        # Compute finite difference for each direction
+        for i in 1:3
+            if kgrid_size[i] > 1
+                # Find neighboring k-points in direction i
+                # Use periodic boundary conditions
+                dk = 1.0 / kgrid_size[i]
+                
+                # Forward and backward neighbors
+                k_forward = mod.(kpt.coordinate + [j==i ? dk : 0.0 for j in 1:3], 1.0)
+                k_backward = mod.(kpt.coordinate - [j==i ? dk : 0.0 for j in 1:3], 1.0)
+                
+                # Find indices of neighboring k-points
+                ik_forward = findfirst(k -> norm(k.coordinate - k_forward) < 1e-10, basis.kpoints)
+                ik_backward = findfirst(k -> norm(k.coordinate - k_backward) < 1e-10, basis.kpoints)
+                
+                if !isnothing(ik_forward) && !isnothing(ik_backward)
+                    # Central difference: (h(k+dk) - h(k-dk)) / (2*dk)
+                    dh_dk = (h_values[ik_forward] - h_values[ik_backward]) / (2 * dk)
+                    nabla_h_k[:, i] = dh_dk
+                end
+            end
+        end
+        
         nabla_h_values[ik] = Mat3(nabla_h_k)
     end
+    
     return nabla_h_values
 end
 
 @doc raw"""
     solve_at_kpoint(basis, kpt, ik, k_imag, y, E, tol, maxiter)
 
-Solve (E*I - H_{k+ik_imag}) u = δ_y at a complex k-point using GMRES.
+Solve (E*I - H_{k+ik_imag}) u = δ_y at a complex k-point using iterative solver.
 
-The Hamiltonian at complex k-point k + ik_imag has kinetic energy:
--½|k + ik_imag + G|² = -½|k+G|² + ½|k_imag|² + i(k+G)·k_imag
-
-This is non-Hermitian, requiring GMRES for the linear solve.
+Uses a matrix-free approach where the Hamiltonian application is done via
+operator application plus diagonal correction.
 """
 function solve_at_kpoint(basis, kpt, ik, k_imag, y, E, tol, maxiter)
     # Build periodized delta function (RHS)
     delta_y = build_periodized_delta(basis, kpt, y)
     
-    # Build Hamiltonian at complex k-point
-    ham_complex = build_complex_hamiltonian(basis, kpt, ik, k_imag)
+    # Get Hamiltonian operator at real k-point
+    ham = Hamiltonian(basis)
+    H_op = ham.blocks[ik]
     
-    # Define linear operator: A*v = (E*I - H)*v
+    # Compute kinetic correction as diagonal
+    kinetic_correction = compute_kinetic_correction(basis, kpt, k_imag)
+    
+    # Define linear operator: A*v = (E*I - H_real - H_correction)*v
     function apply_A(v)
-        return E * v - ham_complex * v
+        # Apply real Hamiltonian
+        Hv = H_op * v
+        # Add diagonal correction
+        Hv_corrected = Hv + kinetic_correction .* v
+        # Return (E*I - H)*v
+        return E * v - Hv_corrected
     end
     
     # Solve using linsolve from KrylovKit (suitable for non-Hermitian systems)
@@ -166,41 +220,24 @@ function solve_at_kpoint(basis, kpt, ik, k_imag, y, E, tol, maxiter)
 end
 
 @doc raw"""
-    build_complex_hamiltonian(basis, kpt, ik, k_imag)
+    compute_kinetic_correction(basis, kpt, k_imag)
 
-Build Hamiltonian matrix at complex k-point k + ik_imag.
-
-The kinetic energy at complex k becomes:
--½|k + ik_imag + G|² = -½(|k+G|² - |k_imag|²) - i(k+G)·k_imag
-
-This creates a non-Hermitian Hamiltonian matrix.
+Compute diagonal kinetic energy correction for complex k-point.
+Returns a vector of corrections for each G-vector.
 """
-function build_complex_hamiltonian(basis, kpt, ik, k_imag)
+function compute_kinetic_correction(basis, kpt, k_imag)
     recip_lattice = basis.model.recip_lattice
     n_G = length(kpt.G_vectors)
-    
-    # Build Hamiltonian matrix at real k-point by applying it to basis vectors
-    ham = Hamiltonian(basis)
-    H = zeros(ComplexF64, n_G, n_G)
-    for j in 1:n_G
-        ej = zeros(ComplexF64, n_G)
-        ej[j] = 1.0
-        H[:, j] = ham.blocks[ik] * ej
-    end
-    
-    # Add complex k-point correction to kinetic energy
-    # -½|k+ik_imag+G|² = -½|k+G|² -½|k_imag|² - i(k+G)·k_imag
     k_imag_cart = recip_lattice * k_imag
     
+    correction = zeros(ComplexF64, n_G)
     for (iG, G) in enumerate(kpt.G_vectors)
         k_plus_G_cart = recip_lattice * (kpt.coordinate + G)
         # Correction: -½|k_imag|² - i(k+G)·k_imag
-        kinetic_correction = -0.5 * dot(k_imag_cart, k_imag_cart) - 
-                            im * dot(k_plus_G_cart, k_imag_cart)
-        H[iG, iG] += kinetic_correction
+        correction[iG] = -0.5 * dot(k_imag_cart, k_imag_cart) - 
+                        im * dot(k_plus_G_cart, k_imag_cart)
     end
-    
-    return H
+    return correction
 end
 
 @doc raw"""
@@ -224,13 +261,84 @@ function build_periodized_delta(basis, kpt, y)
 end
 
 @doc raw"""
-    add_green_contribution!(G, basis, k_complex, u_k, weight)
+    assemble_green_unit_cell(basis, h_values, u_k_solutions, weights)
+
+Assemble Green's function G(r, y) for r in the unit cell.
+"""
+function assemble_green_unit_cell(basis, h_values, u_k_solutions, weights)
+    G = zeros(ComplexF64, basis.fft_size)
+    recip_lattice = basis.model.recip_lattice
+    
+    for (ik, kpt) in enumerate(basis.kpoints)
+        k_real = kpt.coordinate
+        k_imag = h_values[ik]
+        u_k = u_k_solutions[ik]
+        weight = weights[ik]
+        
+        # Transform u to real space
+        u_real = ifft(basis.fft_grid, kpt, u_k)
+        
+        # Add weighted contribution with phase
+        for idx in CartesianIndices(basis.fft_size)
+            x_frac = Vec3([idx[1]-1, idx[2]-1, idx[3]-1]) ./ Vec3(basis.fft_size)
+            x_cart = basis.model.lattice * x_frac
+            
+            k_real_cart = recip_lattice * k_real
+            k_imag_cart = recip_lattice * k_imag
+            
+            phase = exp(im * dot(k_real_cart, x_cart) - dot(k_imag_cart, x_cart))
+            G[idx] += weight * phase * u_real[idx]
+        end
+    end
+    
+    return G
+end
+
+@doc raw"""
+    assemble_green_with_R(basis, h_values, u_k_solutions, weights, R)
+
+Assemble Green's function G(r+R, y) for lattice vector R.
+Uses phase factor e^{ik·R} to extend u_k to r+R positions.
+"""
+function assemble_green_with_R(basis, h_values, u_k_solutions, weights, R)
+    G = zeros(ComplexF64, basis.fft_size)
+    recip_lattice = basis.model.recip_lattice
+    R_cart = basis.model.lattice * R
+    
+    for (ik, kpt) in enumerate(basis.kpoints)
+        k_real = kpt.coordinate
+        k_imag = h_values[ik]
+        u_k = u_k_solutions[ik]
+        weight = weights[ik]
+        
+        # Transform u to real space
+        u_real = ifft(basis.fft_grid, kpt, u_k)
+        
+        # Compute phase factor for R: e^{i(k+ih)·R}
+        k_real_cart = recip_lattice * k_real
+        k_imag_cart = recip_lattice * k_imag
+        phase_R = exp(im * dot(k_real_cart, R_cart) - dot(k_imag_cart, R_cart))
+        
+        # Add weighted contribution with phase for r+R
+        for idx in CartesianIndices(basis.fft_size)
+            x_frac = Vec3([idx[1]-1, idx[2]-1, idx[3]-1]) ./ Vec3(basis.fft_size)
+            x_cart = basis.model.lattice * x_frac
+            
+            phase_r = exp(im * dot(k_real_cart, x_cart) - dot(k_imag_cart, x_cart))
+            G[idx] += weight * phase_R * phase_r * u_real[idx]
+        end
+    end
+    
+    return G
+end
+
+@doc raw"""
+    add_green_contribution!(G, basis, k_complex, u_k, weight, ik)
 
 Add weighted contribution to Green's function from solution at complex k-point.
 Phase factor: exp(i(k_real + i*k_imag)·x) = exp(ik_real·x - k_imag·x)
 
-NOTE: Currently uses placeholder logic. Full implementation needs proper k-point
-indexing to ensure ifft uses correct k-point for each contribution.
+NOTE: This function is deprecated in favor of assemble_green_unit_cell and assemble_green_with_R.
 """
 function add_green_contribution!(G, basis, k_complex, u_k, weight, ik)
     k_real, k_imag = k_complex

@@ -10,28 +10,27 @@ using LinearAlgebra
 a = 10.0  # Box size in atomic units
 lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]]  # 1D lattice
 
-# Harmonic potential V(x) = (x - a/2)^2
-potential(x) = (x - a/2)^2
+# Periodic cosine potential V(x) = cos(2π x / a)
+potential(x) = cos(2π * x / a)
 
 # Build model (simple kinetic + external potential, spinless)
+# Disable symmetry at model level for Green's function computation
 n_electrons = 1
 terms = [
     Kinetic(),
     ExternalFromReal(r -> potential(r[1])),
 ]
-model = Model(lattice; n_electrons, terms, spin_polarization=:spinless)
+model = Model(lattice; n_electrons, terms, spin_polarization=:spinless, symmetries=false)
 
 # Create plane-wave basis
-# Note: Symmetry MUST be disabled for Green's function computation
 Ecut = 50
 kgrid = MonkhorstPack([4, 1, 1])  # 4 k-points in 1D
-basis = PlaneWaveBasis(model; Ecut, kgrid, 
-                       use_symmetries_for_kpoint_reduction=false)
+basis = PlaneWaveBasis(model; Ecut, kgrid)
 
 println("Basis setup:")
 println("  Grid size: ", basis.fft_size)
 println("  Number of k-points: ", length(basis.kpoints))
-println("  Symmetry disabled: ", !basis.use_symmetries_for_kpoint_reduction)
+println("  Symmetry disabled: ", !basis.model.symmetries)
 
 # Source position for delta function (fractional coordinates)
 y = [0.5, 0.0, 0.0]  # Center of box
