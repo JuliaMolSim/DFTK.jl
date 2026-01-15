@@ -1,3 +1,5 @@
+using KrylovKit
+
 @doc raw"""
     compute_periodic_green_function(basis, y, E; alpha=0.1, deltaE=0.1, n_bands=10, tol=1e-6)
 
@@ -60,7 +62,7 @@ function compute_periodic_green_function(basis::PlaneWaveBasis, y, E;
         weight = basis.kweights[ik] * det_factor
         
         # Solve (E - H) u = delta_y with complex k-point using GMRES
-        u_k = solve_at_kpoint(basis, kpt, h_values[ik], y, E, tol, maxiter)
+        u_k = solve_at_kpoint(basis, kpt, ik, h_values[ik], y, E, tol, maxiter)
         
         # Add contribution to Green's function
         add_green_contribution!(G, basis, k_complex, u_k, weight, ik)
@@ -129,7 +131,7 @@ function compute_nabla_h_finite_diff(basis, h_values)
 end
 
 @doc raw"""
-    solve_at_kpoint(basis, kpt, k_imag, y, E, tol, maxiter)
+    solve_at_kpoint(basis, kpt, ik, k_imag, y, E, tol, maxiter)
 
 Solve (E*I - H_{k+ik_imag}) u = δ_y at a complex k-point using GMRES.
 
@@ -138,36 +140,33 @@ The Hamiltonian at complex k-point k + ik_imag has kinetic energy:
 
 This is non-Hermitian, requiring GMRES for the linear solve.
 """
-function solve_at_kpoint(basis, kpt, k_imag, y, E, tol, maxiter)
-    using KrylovKit
-    
+function solve_at_kpoint(basis, kpt, ik, k_imag, y, E, tol, maxiter)
     # Build periodized delta function (RHS)
     delta_y = build_periodized_delta(basis, kpt, y)
     
     # Build Hamiltonian at complex k-point
-    ham_complex = build_complex_hamiltonian(basis, kpt, k_imag)
+    ham_complex = build_complex_hamiltonian(basis, kpt, ik, k_imag)
     
     # Define linear operator: A*v = (E*I - H)*v
     function apply_A(v)
         return E * v - ham_complex * v
     end
     
-    # Solve using GMRES from KrylovKit
-    # For non-Hermitian problems, GMRES is appropriate
-    result, info = KrylovKit.gmres(apply_A, delta_y; 
-                                   tol=tol, 
-                                   maxiter=maxiter,
-                                   krylovdim=min(20, length(delta_y)))
+    # Solve using linsolve from KrylovKit (suitable for non-Hermitian systems)
+    result, info = linsolve(apply_A, delta_y, delta_y;
+                           tol=tol, 
+                           maxiter=maxiter,
+                           krylovdim=min(20, length(delta_y)))
     
-    if !info.converged
-        @warn "GMRES did not converge for k-point" info.normres
+    if info.converged != 1
+        @warn "linsolve did not converge for k-point" info.normres
     end
     
     return result
 end
 
 @doc raw"""
-    build_complex_hamiltonian(basis, kpt, k_imag)
+    build_complex_hamiltonian(basis, kpt, ik, k_imag)
 
 Build Hamiltonian matrix at complex k-point k + ik_imag.
 
@@ -176,35 +175,32 @@ The kinetic energy at complex k becomes:
 
 This creates a non-Hermitian Hamiltonian matrix.
 """
-function build_complex_hamiltonian(basis, kpt, k_imag)
+function build_complex_hamiltonian(basis, kpt, ik, k_imag)
     recip_lattice = basis.model.recip_lattice
     n_G = length(kpt.G_vectors)
     
-    # Start with real k-point Hamiltonian
-    ham_real = Hamiltonian(basis)
-    H_real = Matrix(ham_real[kpt.spin])
+    # Build Hamiltonian matrix at real k-point by applying it to basis vectors
+    ham = Hamiltonian(basis)
+    H = zeros(ComplexF64, n_G, n_G)
+    for j in 1:n_G
+        ej = zeros(ComplexF64, n_G)
+        ej[j] = 1.0
+        H[:, j] = ham.blocks[ik] * ej
+    end
     
     # Add complex k-point correction to kinetic energy
-    # The difference is: -½|k+ik_imag+G|² - (-½|k+G|²)
-    # = -½|k_imag|² - i(k+G)·k_imag
-    
+    # -½|k+ik_imag+G|² = -½|k+G|² -½|k_imag|² - i(k+G)·k_imag
     k_imag_cart = recip_lattice * k_imag
-    kinetic_correction = zeros(ComplexF64, n_G)
     
     for (iG, G) in enumerate(kpt.G_vectors)
         k_plus_G_cart = recip_lattice * (kpt.coordinate + G)
         # Correction: -½|k_imag|² - i(k+G)·k_imag
-        kinetic_correction[iG] = -0.5 * dot(k_imag_cart, k_imag_cart) - 
-                                im * dot(k_plus_G_cart, k_imag_cart)
+        kinetic_correction = -0.5 * dot(k_imag_cart, k_imag_cart) - 
+                            im * dot(k_plus_G_cart, k_imag_cart)
+        H[iG, iG] += kinetic_correction
     end
     
-    # Add diagonal correction to Hamiltonian
-    H_complex = ComplexF64.(H_real)
-    for iG in 1:n_G
-        H_complex[iG, iG] += kinetic_correction[iG]
-    end
-    
-    return H_complex
+    return H
 end
 
 @doc raw"""
