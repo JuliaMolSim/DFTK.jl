@@ -1,5 +1,13 @@
 using KrylovKit
 
+# The Green function is
+# ∫_k e^ik(x-y) u_nk(x) u_nk(y) / (E-εnk) dk
+# ∫_k e^ik(x-y) 1/(E-Hk) (δ_y)_k dk
+# where Hk is the periodic hamiltonian
+# δ_y has decomposition (up to normalizations)
+# δ_y = ∫_k ∑_G e^i(k+G)(x-y) dk = ∫_k e^ikx ∑_G e^-i(k+G)y e^iG x
+# so Bloch transform ∑_G e^-i(k+G)y e^iG x = P δ_y
+
 function compute_periodic_green_function(basis::PlaneWaveBasis, y, E;
                                         alpha=0.1, deltaE=0.1, n_bands=10,
                                         tol=1e-6, maxiter=100, R_vectors=[])
@@ -63,64 +71,31 @@ function compute_h_values(basis, eigres, E, alpha, deltaE)
 end
 
 function compute_nabla_h_finite_diff(basis, h_values)
-    # Get k-grid structure
     kgrid = basis.kgrid
-    if !(kgrid isa MonkhorstPack)
-        error("Only MonkhorstPack grids supported for finite differences")
-    end
+    !(kgrid isa MonkhorstPack) && error("Only MonkhorstPack grids supported")
     
-    kgrid_size = kgrid.kgrid_size
-    n_kpts = length(basis.kpoints)
-    # Infer type from h_values (may be complex)
     T = eltype(eltype(h_values))
-    nabla_h_values = Vector{Mat3{T}}(undef, n_kpts)
+    kgrid_size = kgrid.kgrid_size
     
-    # Build a mapping from fractional k-coordinates to k-point indices
-    # Handle periodicity correctly by wrapping to [-0.5, 0.5)
-    function wrap_k(k)
-        k_wrapped = mod.(k .+ 0.5, 1.0) .- 0.5
-        return k_wrapped
-    end
-    
-    function find_kpoint(k_target)
-        k_wrapped = wrap_k(k_target)
-        for (ik, kpt) in enumerate(basis.kpoints)
-            k_current = wrap_k(kpt.coordinate)
-            if norm(k_current - k_wrapped) < 1e-10
-                return ik
-            end
-        end
-        return nothing
-    end
-    
-    # Compute finite difference for each k-point
-    for (ik, kpt) in enumerate(basis.kpoints)
+    # Compute ∇h using central finite differences
+    nabla_h_values = map(enumerate(basis.kpoints)) do (ik, kpt)
         nabla_h_k = zeros(T, 3, 3)
         
-        # Compute finite difference for each direction
         for i in 1:3
-            if kgrid_size[i] > 1
-                # Grid spacing in direction i
-                dk = 1.0 / kgrid_size[i]
-                
-                # Forward and backward neighbors in fractional coordinates
-                shift = [j==i ? dk : 0.0 for j in 1:3]
-                k_forward = kpt.coordinate .+ shift
-                k_backward = kpt.coordinate .- shift
-                
-                # Find indices of neighboring k-points
-                ik_forward = find_kpoint(k_forward)
-                ik_backward = find_kpoint(k_backward)
-                
-                if !isnothing(ik_forward) && !isnothing(ik_backward)
-                    # Central difference: (h(k+dk) - h(k-dk)) / (2*dk)
-                    dh_dk = (h_values[ik_forward] - h_values[ik_backward]) / (2 * dk)
-                    nabla_h_k[:, i] = dh_dk
-                end
-            end
+            kgrid_size[i] == 1 && continue
+            
+            dk = 1.0 / kgrid_size[i]
+            ei = [j == i ? dk : 0.0 for j in 1:3]
+            
+            # Find k-points at k ± shift using k_to_kpq_permutation
+            ik_fwd = k_to_kpq_permutation(basis, ei)[ik]
+            ik_bwd = k_to_kpq_permutation(basis, -ei)[ik]
+            
+            # Central difference
+            nabla_h_k[:, i] = (h_values[ik_fwd] - h_values[ik_bwd]) / (2dk)
         end
         
-        nabla_h_values[ik] = Mat3(nabla_h_k)
+        Mat3(nabla_h_k)
     end
     
     return nabla_h_values
@@ -148,14 +123,8 @@ function solve_at_kpoint(basis, kpt, ik, k_imag, y, E, tol, maxiter)
     
     # Build kinetic energy preconditioner
     # Kinetic energies: 1/2|k+G|^2
-    kinetic_term = [t for t in basis.model.term_types if t isa Kinetic]
-    if !isempty(kinetic_term)
-        kinetic_term = only(kinetic_term)
-        kin = kinetic_energy(kinetic_term, basis.Ecut, Gplusk_vectors_cart(basis, kpt))
-    else
-        # Fallback: compute manually if no Kinetic term
-        kin = [norm2(p) / 2 for p in Gplusk_vectors_cart(basis, kpt)]
-    end
+    kinetic_term = only([t for t in basis.model.term_types if t isa Kinetic])
+    kin = kinetic_energy(kinetic_term, basis.Ecut, Gplusk_vectors_cart(basis, kpt))
     
     # Preconditioner: P ≈ diag(kinetic + shift)
     # This approximates the dominant diagonal part of the operator
@@ -235,9 +204,9 @@ function build_periodized_delta(basis, kpt, h_k, y)
     h_k_cart = recip_lattice * h_k
     y_cart = basis.model.lattice * y
     
-    G_vectors_cart = [recip_lattice * G for G in G_vectors(basis, kpt)]
+    G_vecs = G_vectors(basis, kpt)
     
-    return [exp(-im * dot(G_cart, y_cart)) * exp(dot(h_k_cart, y_cart)) / Omega for G_cart in G_vectors_cart]
+    return [cis2pi(-dot(G, y)) * exp(dot(h_k_cart, y_cart)) / Omega for G in G_vecs]
 end
 
 @doc raw"""
@@ -249,7 +218,6 @@ Uses phase factor e^{ik̃·(r+R)} where k̃ = k + im·h.
 function assemble_green_with_R(basis, h_values, u_k_solutions, weights, R)
     G = zeros(ComplexF64, basis.fft_size)
     recip_lattice = basis.model.recip_lattice
-    R_cart = basis.model.lattice * R
     r_vecs = r_vectors(basis)
     
     for (ik, kpt) in enumerate(basis.kpoints)
@@ -263,16 +231,10 @@ function assemble_green_with_R(basis, h_values, u_k_solutions, weights, R)
         
         # Deformed k-point: k̃ = k + im·h
         kdef = k + im * h_k
-        kdef_cart = recip_lattice * kdef
-        
-        # Phase factor for lattice vector R: e^{ik̃·R}
-        phase_R = exp(im * dot(kdef_cart, R_cart))
         
         # Add weighted contribution with phase for each r
-        for idx in CartesianIndices(basis.fft_size)
-            r_cart = r_vecs[idx]
-            phase_r = exp(im * dot(kdef_cart, r_cart))
-            G[idx] += weight * phase_R * phase_r * u_real[idx]
+        for (idx, r) in enumerate(r_vecs)
+            G[idx] += weight * cis2pi(dot(kdef, r+R)) * u_real[idx]
         end
     end
     

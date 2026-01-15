@@ -1,8 +1,3 @@
-# Example: Computing Periodic Green's Functions in 1D
-# 
-# This example demonstrates the periodic Green's function computation 
-# framework for a 1D harmonic oscillator system.
-
 using DFTK
 using LinearAlgebra
 
@@ -135,10 +130,8 @@ p_green = plot(x_all, real.(G_all), label="Re[G(x,y;E)]",
                title="Green's Function G(x,y;E) - Multiple Unit Cells")
 plot!(p_green, x_all, imag.(G_all), label="Im[G(x,y;E)]", 
       linewidth=2, linestyle=:dash)
-# Mark source position (periodically repeated)
-for R in R_vectors
-    vline!(p_green, [(y[1] + R[1]) * a], label=(R == R_vectors[1] ? "Source y+R" : ""), 
+# Mark source position
+vline!(p_green, [(y[1]) * a], label="source", 
            linestyle=:dot, linewidth=1, color=:red, alpha=0.5)
-end
 display(p_green)
 println("Green's function plotted!")
