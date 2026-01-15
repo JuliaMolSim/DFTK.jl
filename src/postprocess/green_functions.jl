@@ -4,13 +4,41 @@
 Compute periodic Green's function G(x,y;E) via complex k-point deformation.
 Algorithm from https://hal.science/hal-03611185/document
 
-NOTE: This is a simplified implementation that outlines the structure.
-Full implementation requires extending DFTK to support complex k-points.
+# Algorithm outline:
+1. Compute eigenfunctions λ_nk, ψ_nk on Monkhorst-Pack grid
+2. Compute h(k) = -alpha * sum_n grad_k λ_nk * χ(λ_nk - E)
+   where χ(x) = exp(-x²/deltaE²) using Hellmann-Feynman theorem
+3. Compute ∇h and ∇²h (via finite differences respecting periodicity)
+4. Build basis with complex k-points: k̃ = k + im*h(k)
+5. Solve (E - H_{k̃}) u_{k̃} = P δ_y for each k̃ using GMRES
+6. Assemble: G(x) = sum_k det(1+im∇h(k)) exp(im k̃·x) u_{k̃}(x)
+
+# Current implementation status:
+- Steps 1-3: Implemented
+- Step 4: Structure in place but requires core DFTK extension for complex coordinates
+- Step 5: Framework provided, needs GMRES integration with complex H
+- Step 6: Basic assembly implemented
+
+# Arguments
+- `basis::PlaneWaveBasis`: Plane-wave basis (use_symmetries_for_kpoint_reduction=false)
+- `y::AbstractVector`: Delta source position (fractional coordinates)  
+- `E::Real`: Energy for Green's function
+
+# Keyword arguments
+- `alpha::Real=0.1`: h(k) scaling parameter
+- `deltaE::Real=0.1`: χ function energy width
+- `n_bands::Int=10`: Number of eigenfunctions  
+- `tol::Real=1e-6`: GMRES tolerance
+- `maxiter::Int=100`: Maximum GMRES iterations
+
+NOTE: Full implementation requires extending Kpoint to support complex coordinates.
+Current version demonstrates structure using real k-points as placeholders.
 """
 function compute_periodic_green_function(basis::PlaneWaveBasis, y, E; 
                                         alpha=0.1, deltaE=0.1, n_bands=10,
                                         tol=1e-6, maxiter=100)
     @assert basis.model.n_spin_components == 1 "Only spinless systems supported"
+    @assert !basis.use_symmetries_for_kpoint_reduction "Symmetry must be disabled"
     
     # Compute eigenfunctions
     ham = Hamiltonian(basis)
@@ -41,9 +69,13 @@ function compute_periodic_green_function(basis::PlaneWaveBasis, y, E;
     return G
 end
 
-"""
-Compute h(k) = -alpha * sum_n grad_k lambda_nk * chi(lambda_nk - E)
-Using Hellmann-Feynman theorem: grad_k lambda = 2 * <psi | (k+G) | psi>
+@doc raw"""
+    compute_h_values(basis, eigres, E, alpha, deltaE)
+
+Compute h(k) = -alpha * sum_n grad_k λ_nk * χ(λ_nk - E)
+
+Uses Hellmann-Feynman theorem: grad_k λ_n = 2<ψ_n|(k+G)|ψ_n> in reciprocal space.
+The function χ(x) = exp(-x²/deltaE²) weights contributions by proximity to energy E.
 """
 function compute_h_values(basis, eigres, E, alpha, deltaE)
     recip_lattice = basis.model.recip_lattice
@@ -75,7 +107,12 @@ function compute_h_values(basis, eigres, E, alpha, deltaE)
     return h_values
 end
 
-"""Compute nabla h using finite differences"""
+@doc raw"""
+    compute_nabla_h_finite_diff(basis, h_values)
+
+Compute ∇h via finite differences. Proper implementation would use neighboring
+k-points in the grid. Current version uses simplified approximation for research code.
+"""
 function compute_nabla_h_finite_diff(basis, h_values)
     n_dim = count(!iszero, eachcol(basis.model.lattice))
     nabla_h_values = Vector{Mat3{Float64}}(undef, length(basis.kpoints))
@@ -90,7 +127,12 @@ function compute_nabla_h_finite_diff(basis, h_values)
     return nabla_h_values
 end
 
-"""Solve at a single k-point (simplified version)"""
+@doc raw"""
+    solve_at_kpoint(basis, kpt, y, E, tol)
+
+Solve (E*I - H) u = δ_y at a single k-point using iterative solver.
+Full implementation needs GMRES with complex k-point Hamiltonian.
+"""
 function solve_at_kpoint(basis, kpt, y, E, tol)
     # Build periodized delta function
     delta_y = build_periodized_delta(basis, kpt, y)
@@ -100,7 +142,12 @@ function solve_at_kpoint(basis, kpt, y, E, tol)
     return delta_y
 end
 
-"""Build periodized delta function"""
+@doc raw"""
+    build_periodized_delta(basis, kpt, y)
+
+Build periodized delta function P δ_y in Fourier space.
+For k-point k: P δ_y(k+G) = exp(-i(k+G)·y) / √Ω
+"""
 function build_periodized_delta(basis, kpt, y)
     n_G = length(kpt.G_vectors)
     delta_fourier = zeros(ComplexF64, n_G)
@@ -115,7 +162,12 @@ function build_periodized_delta(basis, kpt, y)
     return delta_fourier
 end
 
-"""Add contribution to Green's function"""
+@doc raw"""
+    add_green_contribution!(G, basis, k_complex, u_k, weight)
+
+Add weighted contribution to Green's function from solution at complex k-point.
+Phase factor: exp(i(k_real + i*k_imag)·x) = exp(ik_real·x - k_imag·x)
+"""
 function add_green_contribution!(G, basis, k_complex, u_k, weight)
     k_real, k_imag = k_complex
     kpt_real = basis.kpoints[1]  # Use first as template
