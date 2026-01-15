@@ -80,9 +80,7 @@ function compute_nabla_h_finite_diff(basis, h_values)
     n_dim = count(!iszero, eachcol(basis.model.lattice))
     nabla_h_values = Vector{Mat3{Float64}}(undef, length(basis.kpoints))
     
-    # Simple approximation: use neighboring k-points in grid
-    kgrid_size = basis.kgrid isa MonkhorstPack ? basis.kgrid.kgrid_size : Vec3(1, 1, 1)
-    
+    # Simple approximation for research code
     for (ik, kpt) in enumerate(basis.kpoints)
         # Approximate nabla h as identity (simplified)
         # Full implementation would compute proper finite differences

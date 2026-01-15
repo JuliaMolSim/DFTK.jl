@@ -27,21 +27,30 @@ using LinearAlgebra
     
     # Test h function computation
     @testset "h-function computation" begin
+        # For LocalNonlinearity, we need a simpler model without it
+        # Create a simpler model just for testing h-function
+        simple_terms = [
+            Kinetic(),
+            ExternalFromReal(r -> pot(r[1])),
+        ]
+        simple_model = Model(lattice; n_electrons, terms=simple_terms, spin_polarization=:spinless)
+        simple_basis = PlaneWaveBasis(simple_model; Ecut, kgrid, use_symmetries_for_kpoint_reduction=false)
+        
         # Get eigenstates
-        ham = Hamiltonian(basis)
+        ham = Hamiltonian(simple_basis)
         n_bands = 5
         eigres = diagonalize_all_kblocks(diag_full, ham, n_bands)
         
-        @test length(eigres.λ) == length(basis.kpoints)
+        @test length(eigres.λ) == length(simple_basis.kpoints)
         @test all(length(λk) == n_bands for λk in eigres.λ)
         
         # Compute h values
         E = eigres.λ[1][1]  # Ground state energy
         alpha = 0.1
         deltaE = 0.1
-        h_values = DFTK.compute_h_values(basis, eigres, E, alpha, deltaE)
+        h_values = DFTK.compute_h_values(simple_basis, eigres, E, alpha, deltaE)
         
-        @test length(h_values) == length(basis.kpoints)
+        @test length(h_values) == length(simple_basis.kpoints)
         @test all(h -> isa(h, Vec3), h_values)
         
         # h should be small for  1D system (no variation in y,z)
