@@ -44,7 +44,6 @@
 ## TODO debug orthogonalizations when A=I
 
 using LinearAlgebra
-using Printf
 import LinearAlgebra: BlasFloat
 import Base: *
 import Base.size, Base.adjoint, Base.Array

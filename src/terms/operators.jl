@@ -194,21 +194,18 @@ end
 function apply!(Hψ, op::ExchangeOperator, ψ)
     # Hψ = - ∑_n f_n ψ_n(r) ∫ (ψ_n)†(r') * ψ(r') / |r-r'| dr'
     for (n, ψnk) in enumerate(eachcol(op.ψk))
-        for symop in op.basis.symmetries
-            k_sym, ψnk_sym  = DFTK.apply_symop(symop, op.basis, op.kpoint, ψnk) # need q-point here
-            ψnk_real = ifft(op.basis, k_sym, ψnk_sym)
-            x_real   = conj(ψnk_real) .* ψ.real
+        ψnk_real = ifft(op.basis, op.kpoint, ψnk)
+        x_real   = conj(ψnk_real) .* ψ.real
+        # TODO Some symmetrisation of x_real might be needed here ...
 
-            # Compute integral by Poisson solve
-            x_four  = fft(op.basis, op.kpoint, x_real) # actually we need q-point here
-            Vx_four = x_four .* op.poisson_green_coeffs
-            Vx_real = ifft(op.basis, op.kpoint, Vx_four) # actually we need q-point here
+        # Compute integral by Poisson solve
+        x_four  = fft(op.basis, op.kpoint, x_real) # actually we need q-point here
+        Vx_four = x_four .* op.poisson_green_coeffs
+        Vx_real = ifft(op.basis, op.kpoint, Vx_four) # actually we need q-point here
 
-            fac_nk = op.occk[n] / 2 / length(op.basis.symmetries)
-
-            # Real-space multiply and accumulate
-            Hψ.real .-= 0.5 * fac_nk .* ψnk_real .* Vx_real 
-        end
+        # Real-space multiply and accumulate
+        fac_nk = op.occk[n] / 2
+        Hψ.real .-= 0.5 * fac_nk .* ψnk_real .* Vx_real 
     end
 end
-# TODO Implement  Matrix(op::ExchangeOperator)
+

@@ -18,7 +18,7 @@ abstract type CoulombModel end
 
 
 raw"""
-    compute_coulomb_kernel(basis; scaling_factor=1, q=0, coulomb_model=ProbeCharge())
+    compute_coulomb_kernel(basis; q=0, coulomb_model=ProbeCharge())
 
 Compute Coulomb kernel, i.e. essentially ``v(G+q) = 4π/|G+q|²``, on spherical plane-wave grid.
 
@@ -31,7 +31,6 @@ evaluated only on the spherical cutoff |G+q|² < 2Ecut (not the full cubic FFT g
 
 # Arguments
 - `basis::PlaneWaveBasis`: Plane-wave basis defining the grid
-- `scaling_factor=1`: Global scaling factor applied to the result
 - `q=zero(Vec3)`: Momentum transfer vector in fractional coordinates
 - `coulomb_model::CoulombModel=ProbeCharge()`: Method for treating singularity
 
@@ -39,19 +38,15 @@ evaluated only on the spherical cutoff |G+q|² < 2Ecut (not the full cubic FFT g
 Vector of Coulomb kernel values for each G-vector in the spherical cutoff.
 """
 function compute_coulomb_kernel(basis::PlaneWaveBasis{T};
-                                scaling_factor=one(T),
                                 q=zero(Vec3{T}),
-                                coulomb_model::CoulombModel=ProbeCharge()) where {T}
+                                coulomb_model::CoulombModel) where {T}
     # currently only works for Gamma-only (need correct q-point otherwise)
     qpt = basis.kpoints[1] 
     coulomb_kernel =  _compute_coulomb_kernel(basis, qpt, q, coulomb_model)
 
-    if iszero(q) # Symmetrize Fourier coeffs to have real iFFT.
-        #enforce_real!(coulomb_kernel, basis) # enforce_real doesn't work as we don't use the full cubic G-grid
-    end
+    # TODO: if q=0, symmetrize Fourier coeffs to have real iFFT 
 
     coulomb_kernel = to_device(basis.architecture, coulomb_kernel)
-    scaling_factor .* coulomb_kernel
 end
 
 
@@ -85,13 +80,13 @@ function _compute_coulomb_kernel(basis::PlaneWaveBasis{T},
             coulomb_kernel[iG] = 4T(π) / Gnorm2
             probe_charge_sum += coulomb_kernel[iG] * exp(-α*Gnorm2)
         end
-        if iG == NG # in the last cycle probe_charge_sum is complete
-            Ω = model.unit_cell_volume  # volume of cell 
-            probe_charge_integral = 8*π^2*sqrt(π/α) * Ω/(2π)^3  #  = Ω/(2π)^3 ∫ 4π/q² ρ(q) dq  with  ρ(q)=e^(-αq²)
-            coulomb_kernel[1] = probe_charge_integral - probe_charge_sum
-        end
     end
-    return coulomb_kernel
+
+    # calculate coulomb_kernel[1]
+    Ω = model.unit_cell_volume  # volume of cell 
+    probe_charge_integral = 8*π^2*sqrt(π/α) * Ω/(2π)^3  #  = Ω/(2π)^3 ∫ 4π/q² ρ(q) dq  with  ρ(q)=e^(-αq²)
+    coulomb_kernel[1] = probe_charge_integral - probe_charge_sum
+    coulomb_kernel
 end
 
 """
@@ -118,12 +113,12 @@ function _compute_coulomb_kernel(basis::PlaneWaveBasis{T},
             coulomb_kernel[iG] = 4T(π) / Gnorm2
         end
     end
-    return coulomb_kernel
+    coulomb_kernel
 end
 
 
 """
-    SphericallyTruncated(; Rcut=-1.0) <: CoulombModel
+    SphericallyTruncated(; Rcut=nothing) <: CoulombModel
 
 Spherical truncation of Coulomb interaction at radius Rcut.
 
@@ -134,9 +129,9 @@ where V is the BvK cell volume.
 Phys. Rev. B 77, 193110 (2008), doi.org/10.1103/PhysRevB.77.193110
 """
 struct SphericallyTruncated <: CoulombModel 
-    Rcut::Float64
+    Rcut::Union{Float64, Nothing}
 end
-SphericallyTruncated(; Rcut=-1.0) = SphericallyTruncated(Rcut)
+SphericallyTruncated(; Rcut=nothing) = SphericallyTruncated(Rcut)
 function _compute_coulomb_kernel(basis::PlaneWaveBasis{T},
                                  qpt::Kpoint,
                                  q::Vec3{T},
@@ -144,12 +139,8 @@ function _compute_coulomb_kernel(basis::PlaneWaveBasis{T},
     model = basis.model
     NG = length(qpt.G_vectors)
     coulomb_kernel = zeros(T, NG)
-    if coulomb_model.Rcut < 0.0 
-        # use default value: V_BvK = 4/3πRcut³
-        Rcut = cbrt(basis.model.unit_cell_volume*3/4/π) # TODO: multiply V with number of k-points
-    else
-        Rcut = coulomb_model.Rcut
-    end
+
+    Rcut = @something(coulomb_model.Rcut, cbrt(basis.model.unit_cell_volume*3/4/π))
     for (iG, G) in enumerate(to_cpu(qpt.G_vectors))
         G_cart = model.recip_lattice * (G+q)
         Gnorm2 = sum(abs2, G_cart)
@@ -160,7 +151,7 @@ function _compute_coulomb_kernel(basis::PlaneWaveBasis{T},
             coulomb_kernel[iG] = 2T(π)*Rcut^2
         end
     end
-    return coulomb_kernel
+    coulomb_kernel
 end
 
 """
@@ -247,6 +238,6 @@ function _compute_coulomb_kernel(basis::PlaneWaveBasis{T},
             coulomb_kernel[iG] = T(π)/α^2 + coulomb_kernel_lr[iG]
         end
     end
-    return coulomb_kernel
+    coulomb_kernel
 end
 

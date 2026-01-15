@@ -12,14 +12,14 @@ ExactExchange(; scaling_factor=1, coulomb_model=ProbeCharge()) = ExactExchange(s
 (exchange::ExactExchange)(basis) = TermExactExchange(basis, exchange.scaling_factor, exchange.coulomb_model)
 function Base.show(io::IO, exchange::ExactExchange)
     fac = isone(exchange.scaling_factor) ? "" : "scaling_factor=$(exchange.scaling_factor), "
-    print(io, "ExactExchange($faccoulomb_model=$(exchange.coulomb_model))")
+    print(io, "ExactExchange($coulomb_model=$(exchange.coulomb_model))")
 end
 struct TermExactExchange <: Term
-    scaling_factor::Real  # scaling factor, absorbed into poisson_green_coeffs
+    scaling_factor::Real  # scaling factor
     poisson_green_coeffs::AbstractArray
 end
 function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, coulomb_model::CoulombModel) where T
-    poisson_green_coeffs = compute_coulomb_kernel(basis; scaling_factor=scaling_factor, coulomb_model=coulomb_model) # TODO: we need this for every q-point
+    poisson_green_coeffs = compute_coulomb_kernel(basis; coulomb_model=coulomb_model) # TODO: we need this for every q-point
     TermExactExchange(T(scaling_factor), poisson_green_coeffs)
 end
 
