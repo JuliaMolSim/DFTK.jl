@@ -6,11 +6,11 @@ a = 1.0  # Box size in atomic units
 
 # Source position for delta function (fractional coordinates)
 y = [0.0, 0.0, 0.0]  # Center of box
-E = -1
+E = 2
 nkpoints = 50
 Ecut = 200000
-V0 = 0
-alpha = 0.0im
+V0 = 3
+alpha = .1
 deltaE = 5
 
 # Define lattice vectors for extended range (plot over 5 unit cells centered at origin)
@@ -42,11 +42,12 @@ using Plots
 println("\nComputing band structure...")
 bands_kpath = compute_bands(basis; kline_density=40, n_bands=3)
 
-p1 = plot_bandstructure(bands_kpath; ylims=(-2, 20))
+p1 = plot_bandstructure(bands_kpath)
 title!(p1, "Band Structure")
 xlabel!(p1, "k-point")
 ylabel!(p1, "Energy (Ha)")
 hline!(p1, [E], label="E = $E", linestyle=:dash, color=:black, linewidth=2)
+ylims!(p1, -2, 20)
 
 # ===== Panel 2: h(k) and ∇h(k) =====
 println("Computing h(k) and ∇h(k)...")
