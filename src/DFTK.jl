@@ -198,6 +198,9 @@ include("pseudo/load_psp.jl")
 include("pseudo/list_psp.jl")
 include("pseudo/pseudopotential_data.jl")
 
+export compute_periodic_green_function
+include("postprocess/green_functions.jl")
+
 export atomic_system, periodic_system  # Reexport from AtomsBase
 export run_wannier90
 export DFTKCalculator
