@@ -14,7 +14,7 @@ Rmax = 2  # integer; produces a (2*Rmax+1)×(2*Rmax+1) supercell
 V0 = 1.0
 alpha = 0.02
 deltaE = 2
-E = 5.  # Middle of first band
+E = 5.0
 function potential(r)
     x, y = r[1], r[2]
     return V0 * (cos(2π * x / a) + cos(2π * y / a) + 0.5 * cos(4π * x / a) * sin(4π * y / a))
@@ -53,7 +53,9 @@ E_min = minimum(first_band_energies)
 E_max = maximum(first_band_energies)
 
 println("First band energy range: [$(E_min), $(E_max)]")
-println("Chosen E = $(E)")
+
+# Initial E for single frame plot
+println("Initial E for plot = $(E)")
 
 # Compute Green's function with new API using Rmin/Rmax
 println("\nComputing Green's function...")
@@ -137,7 +139,7 @@ surface!(ax1, k_unique_x, k_unique_y, E1_matrix', color=:red, alpha=0.7)
 surface!(ax1, k_unique_x, k_unique_y, E2_matrix', color=:blue, alpha=0.7)
 surface!(ax1, k_unique_x, k_unique_y, E3_matrix', color=:green, alpha=0.7)
 
-# Add horizontal plane at E with more transparency
+# Add horizontal plane at E
 xlims = extrema(k_unique_x)
 ylims = extrema(k_unique_y)
 E_plane = fill(E, 2, 2)
@@ -176,3 +178,80 @@ println("Panel 1: First three bands in 3D with plane at E=$(round(E, digits=3))"
 println("Panel 2: Real part of G(x,y;E)")
 println("Panel 3: Imaginary part of G(x,y;E)")
 
+# ===== Create video sweeping E from -10 to 20 =====
+println("\n" * "="^60)
+println("Creating video with E sweep from -10 to 20...")
+println("="^60)
+
+# Video parameters
+nframes = 10
+duration = 10 #seconds
+E_values = range(-10, 20, length=nframes)
+fps = nframes/duration  # frames per second for 10s duration
+output_file = "green_function_E_sweep.mp4"
+
+# Pre-compute data that doesn't change with E
+# h_values and G will be recomputed for each E
+
+# Create figure for video
+fig_video = Figure(size=(1800, 600))
+
+# Setup axes (reuse structure)
+ax1_v = Axis3(fig_video[1, 1], xlabel="kₓ", ylabel="kᵧ", zlabel="Energy (Ha)",
+              title="First Three Bands", azimuth=0.5π, elevation=0.3π)
+ax2_v = Axis(fig_video[1, 2], xlabel="x (a.u.)", ylabel="y (a.u.)",
+             title="Re[G(x,y;E)]", aspect=DataAspect())
+ax3_v = Axis(fig_video[1, 4], xlabel="x (a.u.)", ylabel="y (a.u.)",
+             title="Im[G(x,y;E)]", aspect=DataAspect())
+
+# Start recording
+record(fig_video, output_file, enumerate(E_values); framerate=fps) do (iframe, E_current)
+    println("Frame $iframe/$(length(E_values)): E = $(round(E_current, digits=3))")
+    
+    # Clear axes
+    empty!(ax1_v)
+    empty!(ax2_v)
+    empty!(ax3_v)
+    
+    # Recompute h_values and Green's function for this E
+    h_vals = DFTK.compute_h_values(basis, eigres, E_current, alpha, deltaE)
+    
+    # Compute Green's function
+    result_video = compute_periodic_green_function(basis, y, E_current;
+                                                   alpha=alpha, deltaE=deltaE, n_bands=n_bands,
+                                                   tol=1e-6, maxiter=100,
+                                                   Rmin=Rmin, Rmax=Rmax_vec)
+    G_ext_video = result_video.G_extended[:, :, 1]
+    
+    # Update 3D band structure
+    surface!(ax1_v, k_unique_x, k_unique_y, E1_matrix', color=:red, alpha=0.9)
+    surface!(ax1_v, k_unique_x, k_unique_y, E2_matrix', color=:blue, alpha=0.9)
+    surface!(ax1_v, k_unique_x, k_unique_y, E3_matrix', color=:green, alpha=0.9)
+    
+    # Add horizontal plane at current E - using mesh as workaround for Makie issue #5266
+    xlims_v = extrema(k_unique_x)
+    ylims_v = extrema(k_unique_y)
+    E_plane = fill(E, 2, 2)
+    surface!(ax1_v, [xlims[1], xlims[2]], [ylims[1], ylims[2]], E_plane, 
+             color=:black, alpha=0.3)
+    
+    # Update Re[G]
+    hm2_v = heatmap!(ax2_v, x_coords_1d, y_coords_1d, real.(G_ext_video),
+                     colormap=:RdBu, interpolate=true)
+    Colorbar(fig_video[1, 3], hm2_v, label="Re[G]")
+    scatter!(ax2_v, [y[1]*a], [y[2]*a], color=:green, markersize=15, marker=:star5)
+    
+    # Update Im[G]
+    hm3_v = heatmap!(ax3_v, x_coords_1d, y_coords_1d, imag.(G_ext_video),
+                     colormap=:RdBu, interpolate=true)
+    Colorbar(fig_video[1, 5], hm3_v, label="Im[G]")
+    scatter!(ax3_v, [y[1]*a], [y[2]*a], color=:green, markersize=15, marker=:star5)
+    
+    # Update titles with current E
+    ax1_v.title = "First Three Bands (E = $(round(E_current, digits=2)))"
+    ax2_v.title = "Re[G(x,y;E = $(round(E_current, digits=2)))]"
+    ax3_v.title = "Im[G(x,y;E = $(round(E_current, digits=2)))]"
+end
+
+println("\nVideo saved to: $output_file")
+println("Duration: 10 seconds, $(length(E_values)) frames at $fps fps")
