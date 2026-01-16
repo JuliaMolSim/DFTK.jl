@@ -244,26 +244,11 @@ function compute_kinetic_correction(basis, kpt, h_k)
     return h_dot_kG .- 0.5 * h_squared
 end
 
-@doc raw"""
-    build_periodized_delta(basis, kpt, h_k, y)
-
-Build the source term for the Green's function equation in the periodic-part basis.
-
-In DFTK, we work with periodic parts u_k, not full Bloch functions ψ_k = e^{ik·r} u_k.
-The delta function source for the equation (E - H_k) g_k = b_k should be:
-  b_k(G) = e^{-iG·y} / Ω
-The e^{-ik·y} factor is handled in the assembly step.
-
-For the deformed k-point k̃ = k + im·h, we need an additional factor e^{h·y}
-from the im·h part of the shift.
-"""
 function build_periodized_delta(basis, kpt, h_k, y)
     Omega = basis.model.unit_cell_volume
-    recip_lattice = basis.model.recip_lattice
-    h_k_cart = recip_lattice * h_k
-    y_cart = basis.model.lattice * y
+    kdef = kpt.coordinate .+ im .* h_k
     
     G_vecs = G_vectors(basis, kpt)
     
-    return [cis2pi(-dot(G, y)) * exp(dot(h_k_cart, y_cart)) / Omega for G in G_vecs]
+    return [cis2pi(-sum((G+kdef) .* y)) / Omega for G in G_vecs]
 end
