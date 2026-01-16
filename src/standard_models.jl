@@ -153,7 +153,6 @@ function model_HF(lattice::AbstractMatrix, atoms::Vector{<:Element},
     _model_HF(lattice, atoms, positions; coulomb_kernel_model, kwargs...)
 end
 function _model_HF(args...; extra_terms=[], coulomb_kernel_model::CoulombKernelModel=ProbeCharge(), kwargs...)
-    @warn "Exact exchange in DFTK is hardly optimised and not yet production-ready."
     model_atomic(args...; extra_terms=[Hartree(), ExactExchange(coulomb_kernel_model=coulomb_kernel_model), extra_terms...],
                  model_name="HF", kwargs...)
 end
