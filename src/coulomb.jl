@@ -1,7 +1,7 @@
 using ProgressMeter
 
 raw"""
-    CoulombModel
+    CoulombKernelModel
 
 Abstract type for different methods of computing the 
 discretised Coulomb kernel ``v(G+q) = 4π/|G+q|²``.
@@ -14,11 +14,11 @@ Available models:
 
 See also: [`compute_coulomb_kernel`](@ref)
 """
-abstract type CoulombModel end
+abstract type CoulombKernelModel end
 
 
 raw"""
-    compute_coulomb_kernel(basis; q=0, coulomb_model=ProbeCharge())
+    compute_coulomb_kernel(basis; q=0, coulomb_kernel_model=ProbeCharge())
 
 Compute Coulomb kernel, i.e. essentially ``v(G+q) = 4π/|G+q|²``, on spherical plane-wave grid.
 
@@ -32,17 +32,17 @@ evaluated only on the spherical cutoff |G+q|² < 2Ecut (not the full cubic FFT g
 # Arguments
 - `basis::PlaneWaveBasis`: Plane-wave basis defining the grid
 - `q=zero(Vec3)`: Momentum transfer vector in fractional coordinates
-- `coulomb_model::CoulombModel=ProbeCharge()`: Method for treating singularity
+- `coulomb_kernel_model::CoulombKernelModel=ProbeCharge()`: Method for treating singularity
 
 # Returns
 Vector of Coulomb kernel values for each G-vector in the spherical cutoff.
 """
 function compute_coulomb_kernel(basis::PlaneWaveBasis{T};
                                 q=zero(Vec3{T}),
-                                coulomb_model::CoulombModel) where {T}
+                                coulomb_kernel_model::CoulombKernelModel) where {T}
     # currently only works for Gamma-only (need correct q-point otherwise)
     qpt = basis.kpoints[1] 
-    coulomb_kernel =  _compute_coulomb_kernel(basis, qpt, q, coulomb_model)
+    coulomb_kernel =  _compute_coulomb_kernel(basis, qpt, q, coulomb_kernel_model)
 
     # TODO: if q=0, symmetrize Fourier coeffs to have real iFFT 
 
@@ -51,7 +51,7 @@ end
 
 
 """
-    ProbeCharge <: CoulombModel
+    ProbeCharge <: CoulombKernelModel
 
 Probe charge Ewald method for treating the Coulomb singularity.
 
@@ -61,11 +61,11 @@ the G+q=0 component. Well-tested in VASP for production calculations.
 # Reference
 Phys. Rev. B 48, 5058 (1993), doi.org/10.1103/PhysRevB.48.5058
 """
-struct ProbeCharge <: CoulombModel end
+struct ProbeCharge <: CoulombKernelModel end
 function _compute_coulomb_kernel(basis::PlaneWaveBasis{T},
                                  qpt::Kpoint,
                                  q::Vec3{T},
-                                 coulomb_model::ProbeCharge) where {T}
+                                 coulomb_kernel_model::ProbeCharge) where {T}
     model = basis.model
     NG = length(qpt.G_vectors)
     coulomb_kernel = zeros(T, NG)
@@ -96,18 +96,18 @@ function _compute_coulomb_kernel(basis::PlaneWaveBasis{T},
 end
 
 """
-    NeglectSingularity <: CoulombModel
+    NeglectSingularity <: CoulombKernelModel
 
 Simply set the G+q=0 Coulomb kernel component to zero.
 
 This is the simplest approach but leads to brutally slow convergence with system size.
 Useful for testing or comparison purposes.
 """
-struct NeglectSingularity <: CoulombModel end
+struct NeglectSingularity <: CoulombKernelModel end
 function _compute_coulomb_kernel(basis::PlaneWaveBasis{T},
                                  qpt::Kpoint,
                                  q::Vec3{T},
-                                 coulomb_model::NeglectSingularity) where {T}
+                                 coulomb_kernel_model::NeglectSingularity) where {T}
     model = basis.model
     NG = length(qpt.G_vectors)
     coulomb_kernel = zeros(T, NG)
@@ -124,7 +124,7 @@ end
 
 
 """
-    SphericallyTruncated(; Rcut=nothing) <: CoulombModel
+    SphericallyTruncated(; Rcut=nothing) <: CoulombKernelModel
 
 Spherical truncation of Coulomb interaction at radius Rcut.
 
@@ -134,19 +134,19 @@ where V is the BvK cell volume.
 # Reference
 Phys. Rev. B 77, 193110 (2008), doi.org/10.1103/PhysRevB.77.193110
 """
-struct SphericallyTruncated <: CoulombModel 
+struct SphericallyTruncated <: CoulombKernelModel 
     Rcut::Union{Float64, Nothing}
 end
 SphericallyTruncated(; Rcut=nothing) = SphericallyTruncated(Rcut)
 function _compute_coulomb_kernel(basis::PlaneWaveBasis{T},
                                  qpt::Kpoint,
                                  q::Vec3{T},
-                                 coulomb_model::SphericallyTruncated) where {T}
+                                 coulomb_kernel_model::SphericallyTruncated) where {T}
     model = basis.model
     NG = length(qpt.G_vectors)
     coulomb_kernel = zeros(T, NG)
 
-    Rcut = @something(coulomb_model.Rcut, cbrt(basis.model.unit_cell_volume*3/4/π))
+    Rcut = @something(coulomb_kernel_model.Rcut, cbrt(basis.model.unit_cell_volume*3/4/π))
     for (iG, G) in enumerate(to_cpu(qpt.G_vectors))
         G_cart = model.recip_lattice * (G+q)
         Gnorm2 = sum(abs2, G_cart)
@@ -161,18 +161,18 @@ function _compute_coulomb_kernel(basis::PlaneWaveBasis{T},
 end
 
 """
-    WignerSeitzTruncated <: CoulombModel
+    WignerSeitzTruncated <: CoulombKernelModel
 
 Truncate Coulomb interaction at the Wigner-Seitz cell boundary.
 
 # Reference
 Phys. Rev. B 87, 165122, 2013 (doi.org/10.1103/PhysRevB.87.165122)
 """
-struct WignerSeitzTruncated <: CoulombModel end
+struct WignerSeitzTruncated <: CoulombKernelModel end
 function _compute_coulomb_kernel(basis::PlaneWaveBasis{T},
                                  qpt::Kpoint,
                                  q::Vec3{T},
-                                 coulomb_model::WignerSeitzTruncated) where {T}
+                                 coulomb_kernel_model::WignerSeitzTruncated) where {T}
     model = basis.model
     NG = length(qpt.G_vectors)
     coulomb_kernel = zeros(T, NG)

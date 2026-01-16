@@ -6,20 +6,20 @@ Exact exchange term: the Hartree-Exact exchange energy of the orbitals
 """
 struct ExactExchange
     scaling_factor::Real  # to scale the term
-    coulomb_model::CoulombModel
+    coulomb_kernel_model::CoulombKernelModel
 end
-ExactExchange(; scaling_factor=1, coulomb_model=ProbeCharge()) = ExactExchange(scaling_factor, coulomb_model)
-(exchange::ExactExchange)(basis) = TermExactExchange(basis, exchange.scaling_factor, exchange.coulomb_model)
+ExactExchange(; scaling_factor=1, coulomb_kernel_model=ProbeCharge()) = ExactExchange(scaling_factor, coulomb_kernel_model)
+(exchange::ExactExchange)(basis) = TermExactExchange(basis, exchange.scaling_factor, exchange.coulomb_kernel_model)
 function Base.show(io::IO, exchange::ExactExchange)
     fac = isone(exchange.scaling_factor) ? "" : "scaling_factor=$(exchange.scaling_factor), "
-    print(io, "ExactExchange($coulomb_model=$(exchange.coulomb_model))")
+    print(io, "ExactExchange($coulomb_kernel_model=$(exchange.coulomb_kernel_model))")
 end
 struct TermExactExchange <: Term
     scaling_factor::Real  # scaling factor
     poisson_green_coeffs::AbstractArray
 end
-function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, coulomb_model::CoulombModel) where T
-    poisson_green_coeffs = compute_coulomb_kernel(basis; coulomb_model=coulomb_model) # TODO: we need this for every q-point
+function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, coulomb_kernel_model::CoulombKernelModel) where T
+    poisson_green_coeffs = compute_coulomb_kernel(basis; coulomb_kernel_model=coulomb_kernel_model) # TODO: we need this for every q-point
     TermExactExchange(T(scaling_factor), poisson_green_coeffs)
 end
 
