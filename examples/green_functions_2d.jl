@@ -98,71 +98,81 @@ h_values = DFTK.compute_h_values(basis, eigres, E, alpha, deltaE)
 h_x = [h[1] for h in h_values]
 h_y = [h[2] for h in h_values]
 
-# Get first eigenvalue at each k-point for contour
-eigenvalue_grid = zeros(length(k_x))
+# Get eigenvalues for first three bands
+eigenvalue_grid_1 = zeros(length(k_x))
+eigenvalue_grid_2 = zeros(length(k_x))
+eigenvalue_grid_3 = zeros(length(k_x))
 for ik in 1:length(basis.kpoints)
-    eigenvalue_grid[ik] = eigres.λ[ik][1]
+    eigenvalue_grid_1[ik] = eigres.λ[ik][1]
+    eigenvalue_grid_2[ik] = eigres.λ[ik][2]
+    eigenvalue_grid_3[ik] = eigres.λ[ik][3]
 end
 
 # ===== Create plots =====
 
-fig = Figure(size=(1200, 600))
+fig = Figure(size=(1800, 600))
 
-# Panel 1: Imaginary part of Green's function in (2*Rmax+1)×(2*Rmax+1) cells
-ncell = 2 * Rmax + 1
-ax1 = Axis(fig[1, 1], 
-          xlabel="x (a.u.)", 
-          ylabel="y (a.u.)",
-          title="Im[G(x,y;E)] in $(ncell)×$(ncell) cells",
-          aspect=DataAspect())
-
-hm1 = heatmap!(ax1, x_coords_1d, y_coords_1d, imag.(G_extended), 
-              colormap=:RdBu, colorrange=(-maximum(abs, imag.(G_extended)), 
-                                          maximum(abs, imag.(G_extended))), interpolate=true)
-Colorbar(fig[1, 2], hm1, label="Im[G]")
-
-# Mark source position
-scatter!(ax1, [y[1]*a], [y[2]*a], color=:green, markersize=15, marker=:star5, label="source")
-
-# Panel 2: First eigenvalue heatmap with contour at E and h(k) quiver
-ax2 = Axis(fig[1, 3], 
-          xlabel="kₓ (fractional)", 
-          ylabel="kᵧ (fractional)",
-          title="First band λ(k), contour at E, and h(k)",
-          aspect=DataAspect())
-
-# Create regular grid for interpolation
+# Panel 1: 3D band structure (first three bands)
 k_unique_x = sort(unique(k_x))
 k_unique_y = sort(unique(k_y))
-eigenvalue_matrix = zeros(length(k_unique_x), length(k_unique_y))
+
+# Create matrices for three bands
+E1_matrix = zeros(length(k_unique_x), length(k_unique_y))
+E2_matrix = zeros(length(k_unique_x), length(k_unique_y))
+E3_matrix = zeros(length(k_unique_x), length(k_unique_y))
 
 for ik in 1:length(basis.kpoints)
     ix = findfirst(==(k_x[ik]), k_unique_x)
     iy = findfirst(==(k_y[ik]), k_unique_y)
-    eigenvalue_matrix[ix, iy] = eigenvalue_grid[ik]
+    E1_matrix[ix, iy] = eigenvalue_grid_1[ik]
+    E2_matrix[ix, iy] = eigenvalue_grid_2[ik]
+    E3_matrix[ix, iy] = eigenvalue_grid_3[ik]
 end
 
-# Heatmap of eigenvalues (with interpolation)
-hm2 = heatmap!(ax2, k_unique_x, k_unique_y, eigenvalue_matrix', colormap=:viridis, interpolate=true)
-Colorbar(fig[1, 4], hm2, label="λ₁(k)")
+ax1 = Axis3(fig[1, 1], xlabel="kₓ", ylabel="kᵧ", zlabel="Energy (Ha)",
+            title="First Three Bands", azimuth=0.8π, elevation=0.03π)
 
-# Contour at energy E
-contour!(ax2, k_unique_x, k_unique_y, eigenvalue_matrix', 
-        levels=[E], color=:red, linewidth=2, label="E contour")
+# Plot three bands as surfaces
+surface!(ax1, k_unique_x, k_unique_y, E1_matrix', color=:red, alpha=0.7)
+surface!(ax1, k_unique_x, k_unique_y, E2_matrix', color=:blue, alpha=0.7)
+surface!(ax1, k_unique_x, k_unique_y, E3_matrix', color=:green, alpha=0.7)
 
-# Quiver plot for h(k)
-# Scale arrows for visibility
-scale_factor = 0.5# / maximum(sqrt.(real.(h_x).^2 + real.(h_y).^2))
-arrows2d!(ax2, k_x, k_y, 
-          scale_factor .* real.(h_x), scale_factor .* real.(h_y),
-          lengthscale=1.0, color=:white)
+# Add horizontal plane at E with more transparency
+xlims = extrema(k_unique_x)
+ylims = extrema(k_unique_y)
+E_plane = fill(E, 2, 2)
+surface!(ax1, [xlims[1], xlims[2]], [ylims[1], ylims[2]], E_plane, 
+         color=:black, alpha=0.3)
 
-# Add legend
-Legend(fig[2, 1:4], ax2, "Legend", orientation=:horizontal)
+# Panel 2: Real part of Green's function
+ax2 = Axis(fig[1, 2], 
+          xlabel="x (a.u.)", 
+          ylabel="y (a.u.)",
+          title="Re[G(x,y;E)]",
+          aspect=DataAspect())
+
+hm2 = heatmap!(ax2, x_coords_1d, y_coords_1d, real.(G_extended), 
+              colormap=:RdBu, interpolate=true)
+Colorbar(fig[1, 3], hm2, label="Re[G]")
+scatter!(ax2, [y[1]*a], [y[2]*a], color=:green, markersize=15, marker=:star5)
+
+# Panel 3: Imaginary part of Green's function
+ax3 = Axis(fig[1, 4], 
+          xlabel="x (a.u.)", 
+          ylabel="y (a.u.)",
+          title="Im[G(x,y;E)]",
+          aspect=DataAspect())
+
+hm3 = heatmap!(ax3, x_coords_1d, y_coords_1d, imag.(G_extended), 
+              colormap=:RdBu, interpolate=true)
+Colorbar(fig[1, 5], hm3, label="Im[G]")
+scatter!(ax3, [y[1]*a], [y[2]*a], color=:green, markersize=15, marker=:star5)
 
 println("\nDisplaying plot...")
 display(fig)
 
 println("\nPlot complete!")
-println("Panel 1: Imaginary part of G(x,y;E) over $(ncell)×$(ncell) unit cells")
-println("Panel 2: First eigenvalue λ₁(k), contour at E=$(round(E, digits=3)), and h(k) quiver")
+println("Panel 1: First three bands in 3D with plane at E=$(round(E, digits=3))")
+println("Panel 2: Real part of G(x,y;E)")
+println("Panel 3: Imaginary part of G(x,y;E)")
+
