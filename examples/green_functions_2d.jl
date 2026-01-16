@@ -1,6 +1,6 @@
 using DFTK
 using LinearAlgebra
-using CairoMakie
+using WGLMakie
 
 # Setup 2D system 
 a = 1.0  # Box size in atomic units
@@ -21,7 +21,7 @@ function potential(r)
 end
 
 # Build model
-n_electrons = 0  # 2D needs at least 2 electrons
+n_electrons = 0
 terms = [
     Kinetic(),
     ExternalFromReal(r -> potential(r)),
@@ -184,25 +184,47 @@ println("Creating video with E sweep from -10 to 20...")
 println("="^60)
 
 # Video parameters
-nframes = 10
-duration = 10 #seconds
+nframes = 400
+duration = 300 #seconds
 E_values = range(-10, 20, length=nframes)
 fps = nframes/duration  # frames per second for 10s duration
 output_file = "green_function_E_sweep.mp4"
 
-# Pre-compute data that doesn't change with E
-# h_values and G will be recomputed for each E
+# Pre-compute global color ranges by sampling a few energies
+println("Pre-computing color ranges...")
+sample_energies = [E_values[1], E_values[end÷2], E_values[end]]
+G_samples = []
+for E_sample in sample_energies
+    result_sample = compute_periodic_green_function(basis, y, E_sample;
+                                                   alpha=alpha, deltaE=deltaE, n_bands=n_bands,
+                                                   tol=1e-6, maxiter=100,
+                                                   Rmin=Rmin, Rmax=Rmax_vec)
+    push!(G_samples, result_sample.G_extended[:, :, 1])
+end
+
+# Compute global color ranges
+all_real_vals = vcat([vec(real.(G)) for G in G_samples]...)
+all_imag_vals = vcat([vec(imag.(G)) for G in G_samples]...)
+colorrange_re = (minimum(all_real_vals), maximum(all_real_vals))
+colorrange_im = (minimum(all_imag_vals), maximum(all_imag_vals))
+
+println("  Re[G] range: $colorrange_re")
+println("  Im[G] range: $colorrange_im")
 
 # Create figure for video
 fig_video = Figure(size=(1800, 600))
 
 # Setup axes (reuse structure)
 ax1_v = Axis3(fig_video[1, 1], xlabel="kₓ", ylabel="kᵧ", zlabel="Energy (Ha)",
-              title="First Three Bands", azimuth=0.5π, elevation=0.3π)
+              title="First Three Bands", azimuth=0.8π, elevation=0.03π)
 ax2_v = Axis(fig_video[1, 2], xlabel="x (a.u.)", ylabel="y (a.u.)",
              title="Re[G(x,y;E)]", aspect=DataAspect())
 ax3_v = Axis(fig_video[1, 4], xlabel="x (a.u.)", ylabel="y (a.u.)",
              title="Im[G(x,y;E)]", aspect=DataAspect())
+
+# Create colorbars once with fixed ranges
+cb2 = Colorbar(fig_video[1, 3], colormap=:RdBu, colorrange=colorrange_re, label="Re[G]")
+cb3 = Colorbar(fig_video[1, 5], colormap=:RdBu, colorrange=colorrange_im, label="Im[G]")
 
 # Start recording
 record(fig_video, output_file, enumerate(E_values); framerate=fps) do (iframe, E_current)
@@ -223,28 +245,29 @@ record(fig_video, output_file, enumerate(E_values); framerate=fps) do (iframe, E
                                                    Rmin=Rmin, Rmax=Rmax_vec)
     G_ext_video = result_video.G_extended[:, :, 1]
     
-    # Update 3D band structure
-    surface!(ax1_v, k_unique_x, k_unique_y, E1_matrix', color=:red, alpha=0.9)
-    surface!(ax1_v, k_unique_x, k_unique_y, E2_matrix', color=:blue, alpha=0.9)
-    surface!(ax1_v, k_unique_x, k_unique_y, E3_matrix', color=:green, alpha=0.9)
-    
-    # Add horizontal plane at current E - using mesh as workaround for Makie issue #5266
-    xlims_v = extrema(k_unique_x)
-    ylims_v = extrema(k_unique_y)
-    E_plane = fill(E, 2, 2)
+
+    # Plot three bands as surfaces
+    surface!(ax1_v, k_unique_x, k_unique_y, E1_matrix', color=:red, alpha=0.7)
+    surface!(ax1_v, k_unique_x, k_unique_y, E2_matrix', color=:blue, alpha=0.7)
+    surface!(ax1_v, k_unique_x, k_unique_y, E3_matrix', color=:green, alpha=0.7)
+
+    # Add horizontal plane at E
+    xlims = extrema(k_unique_x)
+    ylims = extrema(k_unique_y)
+    E_plane = fill(E_current, 2, 2)
     surface!(ax1_v, [xlims[1], xlims[2]], [ylims[1], ylims[2]], E_plane, 
              color=:black, alpha=0.3)
+
     
-    # Update Re[G]
-    hm2_v = heatmap!(ax2_v, x_coords_1d, y_coords_1d, real.(G_ext_video),
-                     colormap=:RdBu, interpolate=true)
-    Colorbar(fig_video[1, 3], hm2_v, label="Re[G]")
+    
+    # Update Re[G] with fixed colorrange
+    heatmap!(ax2_v, x_coords_1d, y_coords_1d, real.(G_ext_video),
+             colormap=:RdBu, colorrange=colorrange_re, interpolate=true)
     scatter!(ax2_v, [y[1]*a], [y[2]*a], color=:green, markersize=15, marker=:star5)
     
-    # Update Im[G]
-    hm3_v = heatmap!(ax3_v, x_coords_1d, y_coords_1d, imag.(G_ext_video),
-                     colormap=:RdBu, interpolate=true)
-    Colorbar(fig_video[1, 5], hm3_v, label="Im[G]")
+    # Update Im[G] with fixed colorrange
+    heatmap!(ax3_v, x_coords_1d, y_coords_1d, imag.(G_ext_video),
+             colormap=:RdBu, colorrange=colorrange_im, interpolate=true)
     scatter!(ax3_v, [y[1]*a], [y[2]*a], color=:green, markersize=15, marker=:star5)
     
     # Update titles with current E
