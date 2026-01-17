@@ -1,5 +1,3 @@
-using ProgressMeter
-
 raw"""
     CoulombKernelModel
 
