@@ -184,17 +184,17 @@ function optimize_operators(ops)
     [nonRSmults..., combined_RSmults]
 end
 
-struct ExchangeOperator{T <: Real,Tocc,Tpsi} <: RealFourierOperator
+struct ExchangeOperator{T <: Real,Tocc,Tpsi,TpsiReal} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
     kpoint::Kpoint{T}
     poisson_green_coeffs::Array{T}
     occk::Tocc
     ψk::Tpsi
+    ψk_real::TpsiReal
 end
 function apply!(Hψ, op::ExchangeOperator, ψ)
     # Hψ = - ∑_n f_n ψ_n(r) ∫ (ψ_n)†(r') * ψ(r') / |r-r'| dr'
-    for (n, ψnk) in enumerate(eachcol(op.ψk))
-        ψnk_real = ifft(op.basis, op.kpoint, ψnk)
+    for (n, ψnk_real) in enumerate(eachslice(op.ψk_real, dims=4))
         x_real   = conj(ψnk_real) .* ψ.real
         # TODO Some symmetrisation of x_real might be needed here ...
 

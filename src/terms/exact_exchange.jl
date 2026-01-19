@@ -45,13 +45,17 @@ end
     kpt  = basis.kpoints[ik]
     occk = occupation[ik]
     ψk   = ψ[ik]
+   
+    nocc = size(ψk, 2) 
+    ψk_real = similar(ψk, complex(T), basis.fft_size..., nocc)
+    for i = 1:nocc
+        ifft!(view(ψk_real,:,:,:,i), basis, kpt, ψk[:,i])
+    end
 
-    for (n, ψn) in enumerate(eachcol(ψk))
-        ψn_real = ifft(basis, kpt, ψn)
-        for (m, ψm) in enumerate(eachcol(ψk)) 
+    for (n, ψnk_real) in enumerate(eachslice(ψk_real, dims=4))
+        for (m, ψmk_real) in enumerate(eachslice(ψk_real, dims=4))
             if m > n continue end
-            ψm_real  = ifft(basis, kpt, ψm) 
-            ρnm_real = conj(ψn_real) .* ψm_real
+            ρnm_real = conj(ψnk_real) .* ψmk_real
             ρnm_fourier = fft(basis, kpt, ρnm_real) # actually we need a q-point here
 
             fac_mn = occk[n] * occk[m] / T(2)
@@ -60,7 +64,8 @@ end
         end
     end
 
-    ops = [ExchangeOperator(basis, kpt, term.poisson_green_coeffs, occk, ψk)]
+    ops = [ExchangeOperator(basis, kpt, term.poisson_green_coeffs, occk, ψk, ψk_real)]
+
     (; E, ops)
 end
 
