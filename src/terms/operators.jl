@@ -209,3 +209,15 @@ function apply!(Hψ, op::ExchangeOperator, ψ)
     end
 end
 
+struct ACExchangeOperator{T <: Real, TW, TB} <: RealFourierOperator
+    basis::PlaneWaveBasis{T}
+    kpoint::Kpoint{T}
+    W::TW
+    B::TB
+end
+
+function apply!(Hψ, op::ACExchangeOperator, ψ)
+    coeffs = op.W' * ψ.fourier
+    coeffs = op.B * coeffs
+    mul!(Hψ.fourier, op.W, coeffs, -1, 1)
+end
