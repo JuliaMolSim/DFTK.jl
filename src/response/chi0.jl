@@ -109,8 +109,8 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 # included).
 @timing function sternheimer_solver(Hk, ψk, ε, rhs;
                                     callback=identity,
-                                    ψk_extra=zeros_like(ψk, size(ψk, 1), 0), εk_extra=zeros(0),
-                                    Hψk_extra=zeros_like(ψk, size(ψk, 1), 0), tol=1e-9,
+                                    ψk_extra=zeros_like(ψk), εk_extra=zeros_like(ε),
+                                    Hψk_extra=zeros_like(ψk), tol=1e-9,
                                     miniter=1, maxiter=100)
     # TODO This whole projector business allocates a lot, which is rather slow.
     #      We should optimise this a bit to avoid allocations where possible.
@@ -134,6 +134,12 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
     # R = 1-P_computed is the projector onto the orthogonal of computed states
     R(ϕ) = ϕ - P_computed(ϕ)
 
+    function R!(Pϕ, ϕ)
+        mul!(Pϕ, ψk, ψk' * ϕ)
+        mul!(Pϕ, ψk_extra, ψk_extra' * ϕ, -1, -1)
+        Pϕ .+= ϕ
+    end
+
     # We put things into the form
     # δψkn = ψk_extra * αkn + δψknᴿ ∈ Ran(Q)
     # where δψknᴿ ∈ Ran(R).
@@ -152,8 +158,8 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
     # ψk_extra are not converged but have been Rayleigh-Ritzed (they are NOT
     # eigenvectors of H) so H(ψk_extra) = ψk_extra' (Hk-ε) ψk_extra should be a
     # real diagonal matrix.
-    H(ϕ) = Hk * ϕ - ε * ϕ
-    ψk_exHψk_ex = Diagonal(real.(εk_extra .- ε))
+    H(ϕ) = Hk * ϕ - ϕ .* ε'
+    inv_ψk_exHψk_ex = 1 ./(real.(εk_extra) .- ε')
 
     # 1) solve for δψknᴿ
     # ----------------------------
@@ -166,29 +172,30 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
     # is defined above and b is the projection of -rhs onto Ran(Q).
     #
     b = -Q(rhs)
-    bb = R(b -  Hψk_extra * (ψk_exHψk_ex \ ψk_extra'b))
-    @timing function RAR(ϕ)
-        Rϕ = R(ϕ)
+    bb = R(b -  Hψk_extra * (ψk_extra'b .* inv_ψk_exHψk_ex))
+    @timing function RAR!(RARϕ, ϕ)
+        R!(RARϕ, ϕ)
         # Schur complement of (1-P) (H-ε) (1-P)
         # with the splitting Ran(1-P) = Ran(P_extra) ⊕ Ran(R)
-        R(H(Rϕ) - Hψk_extra * (ψk_exHψk_ex \ Hψk_extra'Rϕ))
+        HRϕ = H(RARϕ)
+        R!(RARϕ, mul!(HRϕ, Hψk_extra, Hψk_extra'RARϕ .* inv_ψk_exHψk_ex, -1, 1))
     end
     precon = PreconditionerTPA(basis, kpoint)
     # First column of ψk as there is no natural kinetic energy.
     # We take care of the (rare) cases when ψk is empty.
-    precondprep!(precon, size(ψk, 2) ≥ 1 ? ψk[:, 1] : nothing)
+    precondprep!(precon, size(ψk, 2) ≥ 1 ? ψk : nothing)
     @timing function R_ldiv!(x, y)
-        x .= R(precon \ R(y))
+        #x .= R(precon \ R(y))
+        R!(x, precon \ y) #TODO: is the projection R(y) necessary?
     end
-    J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
-    cg_res = cg(J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
+    cg_res = cg(RAR!, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj! =R!,
                 callback=info -> callback(merge(info, (; basis, kpoint))),
                 miniter, maxiter)
     δψknᴿ = cg_res.x
 
     # 2) solve for αkn now that we know δψknᴿ
     # Note that αkn is an empty array if there is no extra bands.
-    αkn = ψk_exHψk_ex \ (ψk_extra' * (b - H(δψknᴿ)))
+    αkn = (ψk_extra' * (b - H(δψknᴿ))) .* inv_ψk_exHψk_ex
 
     δψkn = ψk_extra * αkn + δψknᴿ
 
@@ -359,6 +366,7 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
             Hψk_extra = Hk * ψk_extra
             εk_extra  = diag(real.(ψk_extra' * Hψk_extra))
         end
+        α = zeros_like(εk, length(εk), length(εk_minus_q))
         for n = 1:length(εk_minus_q)
             fnk_minus_q = filled_occ * Smearing.occupation(smearing, (εk_minus_q[n]-εF) / temperature)
 
@@ -370,22 +378,24 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
                 fmk = filled_occ * Smearing.occupation(smearing, (εk[m]-εF) / temperature)
                 ddiff = Smearing.occupation_divided_difference
                 ratio = filled_occ * ddiff(smearing, εk[m], εk_minus_q[n], εF, temperature)
-                αmn = compute_αmn(fmk, fnk_minus_q, ratio)  # fnk_minus_q * αmn + fmk * αnm = ratio
-                δψk[:, n] .+= ψk[:, m] .* αmn .* dot(ψk[:, m], δHψ[ik][:, n])
+                α[m, n] = compute_αmn(fmk, fnk_minus_q, ratio)  # fnk_minus_q * αmn + fmk * αnm = ratio
             end
-
-            # Sternheimer contribution
-            res = sternheimer_solver(Hk, ψk, εk_minus_q[n], δHψ[ik][:, n]; ψk_extra,
-                                     εk_extra, Hψk_extra, tol=tolk_minus_q[n], kwargs_sternheimer...)
-
-            !res.converged && @warn("Sternheimer CG not converged", ik, n, res.n_iter,
-                                    res.tol, res.residual_norm)
-
-            δψk[:, n] .+= res.δψkn
-            push!(residual_norms[ik], res.residual_norm)
-            push!(n_iter[ik], res.n_iter)
-            converged = converged && res.converged
         end
+        dot_prods = ψk' * δHψ[ik]
+        dot_prods .*= to_device(basis.architecture, α)
+        mul!(δψk, ψk, dot_prods, 1, 1)
+
+        # Sternheimer contribution
+        res = sternheimer_solver(Hk, ψk, to_device(basis.architecture, εk_minus_q), δHψ[ik]; ψk_extra, #TODO: tol per n
+                                 εk_extra, Hψk_extra, tol=tolk_minus_q[1], kwargs_sternheimer...)
+
+        !res.converged && @warn("Sternheimer CG not converged", ik, n, res.n_iter,
+                                res.tol, res.residual_norm)
+
+        δψk .+= res.δψkn
+        append!(residual_norms[ik], res.residual_norm)
+        push!(n_iter[ik], res.n_iter)
+        converged = converged && res.converged
     end
 
     (; δψ, n_iter, residual_norms, converged)

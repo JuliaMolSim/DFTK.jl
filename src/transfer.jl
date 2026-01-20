@@ -211,15 +211,17 @@ element of `basis.kpoints` equivalent to ``k-q``.
 """
 @views function multiply_ψ_by_blochwave(basis::PlaneWaveBasis{T}, ψ, f_real, q=zero(Vec3{T})) where {T}
     fψ = zero.(ψ)
+    real_buffer = similar(f_real, Complex{T}, basis.fft_size...)
+    norm = basis.fft_grid.fft_normalization * basis.fft_grid.ifft_normalization
     # First, express ψ_{[k-q]} in the basis of k-q points…
     ψ_minus_q = transfer_blochwave_equivalent_to_actual(basis, ψ, -q)
     for (ik, kpt) in enumerate(basis.kpoints)
         # … then perform the multiplication with f in real space and get the Fourier
         # coefficients.
         for n = 1:size(ψ[ik], 2)
-            fψ[ik][:, n] = fft(basis, kpt,
-                               ifft(basis, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk[:, n])
-                                 .* f_real[:, :, :, kpt.spin])
+            ifft!(real_buffer, basis, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk[:, n]; normalize=false)
+            real_buffer .*= f_real[:, :, :, kpt.spin] .* norm
+            fft!(fψ[ik][:, n], basis, kpt, real_buffer; normalize=false)
         end
     end
     fψ
