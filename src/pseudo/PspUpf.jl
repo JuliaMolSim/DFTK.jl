@@ -15,8 +15,8 @@ struct PspUpf{T,I} <: NormConservingPsp
     # Kleinman-Bylander energies. Stored per AM channel `h[l+1][i,j]`.
     # UPF: `PP_DIJ`
     h::Vector{Matrix{T}}
-    # (UNUSED) Pseudo-wavefunctions on the radial grid. Can be used for wavefunction
-    # initialization and as projectors for PDOS and DFT+U(+V).
+    # Pseudo-wavefunctions on the radial grid. Used as projectors for PDOS
+    # and DFT+U(+V), could be used for wavefunction initialization as well.
     # r^2 * χ where χ are pseudo-atomic wavefunctions on the radial grid.
     # UPF: `PP_PSWFC/PP_CHI.i`
     r2_pswfcs::Vector{Vector{Vector{T}}}
@@ -26,7 +26,8 @@ struct PspUpf{T,I} <: NormConservingPsp
     # (UNUSED) Energies of the pseudo-atomic wavefunctions.
     # UPF: `PP_PSWFC/PP_CHI.i['pseudo_energy']`
     pswfc_energies::Vector{Vector{T}}
-    # (UNUSED) Labels of the pseudo-atomic wavefunctions.
+    # Labels of the pseudo-atomic wavefunctions.
+    # Used for projector selection in PDOS and DFT+U(+V).
     # UPF: `PP_PSWFC/PP_CHI.i['label']`
     pswfc_labels::Vector{Vector{String}}
     # 4πr^2 ρion where ρion is the pseudo-atomic (valence) charge density on the
@@ -178,14 +179,6 @@ function eval_psp_pswfc_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     # larger radial grid than their psp8 counterparts.
     # If issues arise, try cutting them off too.
     return hankel(psp.rgrid, psp.r2_pswfcs[l+1][i], l, p)
-    # / (2π)^3 ??
-
-    # normalisation constant for the atomic wave functions
-    R = (psp.r2_pswfcs[l+1][i]) .^ 2 ./ psp.rgrid .^ 2
-    R[1] = 0
-    N = DFTK.simpson(R, psp.rgrid)
-
-
 end
 
 eval_psp_local_real(psp::PspUpf, r::T) where {T<:Real} = psp.vloc_interp(r)
