@@ -94,6 +94,7 @@ PAGES = [
         "developer/symmetries.md",
         "developer/gpu_computations.md",
     ],
+    "Extensions" => "extensions/index.md",
     "api.md",
     "publications.md",
 ]
@@ -122,7 +123,6 @@ DFTKREPO   = DFTKGH * ".git"
 # Setup julia dependencies for docs generation if not yet done
 Pkg.activate(@__DIR__)
 if !isfile(joinpath(@__DIR__, "Manifest.toml"))
-    Pkg.develop(Pkg.PackageSpec(; path=ROOTPATH))
     Pkg.instantiate()
 end
 
@@ -134,8 +134,10 @@ ENV["PLOTS_TEST"] = "true"
 # Import packages for docs generation
 using DFTK
 using Documenter
+using DocumenterCitations, DocumenterInterLinks
 using Literate
-
+# For documentation in extensions:
+using Manifolds, Manopt, RecursiveArrayTools
 #
 # Generate the docs
 #
@@ -188,7 +190,7 @@ for file in literate_files
         badges = [
             "[![](https://mybinder.org/badge_logo.svg)]" *
                 "(@__BINDER_ROOT_URL__/$subfolder/@__NAME__.ipynb)",
-            "[![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)]" * 
+            "[![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)]" *
                 "(@__NBVIEWER_ROOT_URL__/$subfolder/@__NAME__.ipynb)",
         ]
     else
@@ -218,8 +220,18 @@ mathengine  = Documenter.MathJax3(Dict(
     ),
 ))
 
+#Setup Citations and InterLinks
+links = InterLinks(
+    "Manopt" => ("https://manoptjl.org/stable/"),
+    "ManifoldsBase" => ("https://juliamanifolds.github.io/ManifoldsBase.jl/stable/"),
+    "Manifolds" => ("https://juliamanifolds.github.io/Manifolds.jl/stable/"),
+)
+bib = CitationBibliography(joinpath(@__DIR__, "src", "references.bib"); style=:alpha)
 makedocs(;
-    modules=[DFTK],
+    modules=[
+        DFTK,
+        Base.get_extension(DFTK, :DFTKManifoldsManoptRATExt),
+    ],
     format=Documenter.HTML(;
         # Use clean URLs, unless built as a "local" build
         prettyurls=CONTINUOUS_INTEGRATION,
@@ -233,6 +245,7 @@ makedocs(;
     authors = "Michael F. Herbst, Antoine Levitt and contributors.",
     pages=transform_to_md(PAGES),
     checkdocs=:exports,
+    plugins=[bib, links],
     warnonly=DEBUG,
     remote_args...,
 )

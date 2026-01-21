@@ -9,6 +9,7 @@
 using DFTK
 using StaticArrays
 using Plots
+using Manifolds, Manopt, RecursiveArrayTools
 
 ## Unit cell. Having one of the lattice vectors as zero means a 2D system
 a = 15

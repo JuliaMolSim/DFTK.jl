@@ -8,6 +8,7 @@ using AtomsBuilder
 using DFTK
 using LinearAlgebra
 using PseudoPotentialData
+using Manopt, Manifolds, RecursiveArrayTools
 
 pseudopotentials = PseudoFamily("dojo.nc.sr.pbesol.v0_4_1.standard.upf")
 model = model_DFT(bulk(:Si); functionals=PBEsol(), pseudopotentials)
