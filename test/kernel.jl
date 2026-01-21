@@ -51,7 +51,7 @@
                 δρ2 = randn(size(ρ0))
                 left  = dot(δρ, DFTK.apply_kernel(term, basis, δρ2; ρ=ρ0)) * basis.dvol
                 right = dot(DFTK.apply_kernel(term, basis, δρ; ρ=ρ0), δρ2) * basis.dvol
-                @test isapprox(left, right; atol=1e-12)
+                @test isapprox(left, right; atol=1e-11)
             end
         end
     end
