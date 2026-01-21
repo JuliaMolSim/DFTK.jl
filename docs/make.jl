@@ -76,6 +76,7 @@ PAGES = [
     "Error control" => [
         "examples/arbitrary_floattype.jl",
         "examples/error_estimates_forces.jl",
+        "examples/error_balancing.jl",
     ],
     "Theoretical Background" => [
         "guide/periodic_problems.jl",
@@ -188,7 +189,7 @@ for file in literate_files
         badges = [
             "[![](https://mybinder.org/badge_logo.svg)]" *
                 "(@__BINDER_ROOT_URL__/$subfolder/@__NAME__.ipynb)",
-            "[![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)]" * 
+            "[![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)]" *
                 "(@__NBVIEWER_ROOT_URL__/$subfolder/@__NAME__.ipynb)",
         ]
     else

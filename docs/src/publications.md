@@ -78,7 +78,9 @@ Feel free to drop us a line if you want your work to be added here.
   ([Implementation](https://github.com/jonas-pueschel/RCG_DFTK/)).
 
 - A. Bordignon, G. Dusson, E. Cancès, G. Kemlin, R. A. L. Reyes and B. Stamm.
-  [*Fully guaranteed and computable error bounds on the energy for periodic Kohn-Sham equations with convex density functionals*](http://arxiv.org/abs/2409.11769v1) (2024).
+  [*Fully guaranteed and computable error bounds on the energy for periodic Kohn-Sham equations with convex density functionals*](https://doi.org/10.1137/25M1735676) (2025).
+  SIAM Journal on Scientific Computing, **47**, A2881 (2025).
+  [ArXiV:2409.11769](http://arxiv.org/abs/2409.11769)
   ([Supplementary material and computational scripts](https://doi.org/10.18419/darus-4469)).
 
 - M. F. Herbst, V. H. Bakkestuen, A. Laestadius.
