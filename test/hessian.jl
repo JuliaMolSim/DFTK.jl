@@ -7,17 +7,22 @@ using LinearAlgebra
 using PseudoPotentialData
 using Test
 
+
+function weighted_kdot(basis::PlaneWaveBasis, ϕ, ψ)
+    DFTK.weighted_ksum(basis, [dot(ϕk, ψk) for (ϕk, ψk) in zip(ϕ, ψ)])
+end
+
 function setup_quantities(testcase)
     model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
                       functionals=[:lda_xc_teter93])
-    basis = PlaneWaveBasis(model; Ecut=3, kgrid=(3, 3, 3), fft_size=[9, 9, 9])
+    basis = PlaneWaveBasis(model; Ecut=3, kgrid=(3, 3, 3))
     scfres = self_consistent_field(basis; tol=10)
 
     ψ, occupation = select_occupied_orbitals(basis, scfres.ψ, scfres.occupation)
 
     ρ = compute_density(basis, ψ, occupation)
     rhs = compute_projected_gradient(basis, ψ, occupation)
-    ϕ = rhs + ψ
+    ϕ = [randn(ComplexF64, size(ψk)) for ψk in ψ]
 
     (; scfres, basis, ψ, occupation, ρ, rhs, ϕ)
 end
@@ -101,8 +106,8 @@ end
     (; basis, ψ, occupation, rhs, ϕ) = Hessian.setup_quantities(TestCases.silicon)
 
     @test isapprox(
-        real(dot(ϕ, solve_ΩplusK(basis, ψ, rhs, occupation).δψ)),
-        real(dot(solve_ΩplusK(basis, ψ, ϕ, occupation).δψ, rhs)),
+        real(Hessian.weighted_kdot(basis, ϕ, solve_ΩplusK(basis, ψ, rhs, occupation).δψ)),
+        real(Hessian.weighted_kdot(basis, solve_ΩplusK(basis, ψ, ϕ, occupation).δψ, rhs)),
         atol=1e-7
     )
 end
@@ -120,9 +125,9 @@ end
 
     # Ω is complex-linear and so self-adjoint as a complex operator.
     @test isapprox(
-        dot(ϕ, apply_Ω(rhs, ψ, H, Λ)),
-        dot(apply_Ω(ϕ, ψ, H, Λ), rhs),
-        atol=1e-7
+        Hessian.weighted_kdot(basis, ϕ, apply_Ω(rhs, ψ, H, Λ)),
+        Hessian.weighted_kdot(basis, apply_Ω(ϕ, ψ, H, Λ), rhs),
+        atol=1e-14
     )
 end
 
@@ -135,13 +140,13 @@ end
     # K involves conjugates and is only a real-linear operator,
     # hence we test using the real dot product.
     @test isapprox(
-        real(dot(ϕ, apply_K(basis, rhs, ψ, ρ, occupation))),
-        real(dot(apply_K(basis, ϕ, ψ, ρ, occupation), rhs)),
-        atol=1e-7
+        real(Hessian.weighted_kdot(basis, ϕ, apply_K(basis, rhs, ψ, ρ, occupation))),
+        real(Hessian.weighted_kdot(basis, apply_K(basis, ϕ, ψ, ρ, occupation), rhs)),
+        atol=1e-14
     )
 end
 
-@testitem "ΩplusK_split, 0K" tags=[:dont_test_mpi] setup=[TestCases] begin
+@testitem "ΩplusK_split, 0K" tags=[:dont_test_mpi] setup=[Hessian, TestCases] begin
     using DFTK
     using DFTK: compute_projected_gradient
     using DFTK: select_occupied_orbitals, solve_ΩplusK, solve_ΩplusK_split
@@ -154,12 +159,14 @@ end
     scfres = self_consistent_field(basis; tol=10)
 
     rhs = compute_projected_gradient(basis, scfres.ψ, scfres.occupation)
-    ϕ = rhs + scfres.ψ
+    ϕ = [randn(ComplexF64, size(ψk)) for ψk in scfres.ψ]
 
     @testset "self-adjointness of solve_ΩplusK_split" begin
-        @test isapprox(real(dot(ϕ, solve_ΩplusK_split(scfres, rhs).δψ)),
-                       real(dot(solve_ΩplusK_split(scfres, ϕ).δψ, rhs)),
-                       atol=1e-7)
+        @test isapprox(
+            real(Hessian.weighted_kdot(basis, ϕ, solve_ΩplusK_split(scfres, rhs).δψ)),
+            real(Hessian.weighted_kdot(basis, solve_ΩplusK_split(scfres, ϕ).δψ, rhs)),
+            atol=1e-7
+        )
     end
 
     @testset "solve_ΩplusK_split agrees with solve_ΩplusK" begin
@@ -187,12 +194,14 @@ end
 
     ψ = scfres.ψ
     rhs = compute_projected_gradient(basis, scfres.ψ, scfres.occupation)
-    ϕ = rhs + ψ
+    ϕ = [randn(ComplexF64, size(ψk)) for ψk in ψ]
 
     @testset "self-adjointness of solve_ΩplusK_split" begin
-        @test isapprox(real(dot(ϕ, solve_ΩplusK_split(scfres, -rhs).δψ)),
-                        real(dot(solve_ΩplusK_split(scfres, -ϕ).δψ, rhs)),
-                        atol=1e-7)
+        @test isapprox(
+            real(Hessian.weighted_kdot(basis, ϕ, solve_ΩplusK_split(scfres, -rhs).δψ)),
+            real(Hessian.weighted_kdot(basis, solve_ΩplusK_split(scfres, -ϕ).δψ, rhs)),
+            atol=1e-7
+        )
     end
 end
 
