@@ -4,8 +4,9 @@ The following lists the functionality of DFTK
 achieved in **less than 10 000 lines** of code.
 Our code has a performance comparable to standard DFT codes
 and runs out of the box on Linux, Windows and macOS, see [Installation](@ref).
-We obtain similar results to standard codes, see
-[the recent verification dataset by Bosoni and others](https://acwf-verification.materialscloud.org/).
+DFTK agrees very well with standard codes,
+see [the recent verification dataset by Bosoni and others](https://acwf-verification.materialscloud.org/)
+on unary compounds and oxides cross the periodic table.
 
 ## Standard methods and models
 - Any DFT exchange-correlation functional from the [libxc](https://libxc.gitlab.io/) library
