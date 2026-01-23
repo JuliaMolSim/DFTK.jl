@@ -9,7 +9,7 @@ function DFTK.save_scfres(::Val{:vts}, filename::AbstractString, scfres::NamedTu
                           save_ψ=false, extra_data=Dict{String,Any}(), kwargs...)
     # Initialise the grid and open the file on master
     vtkfile = nothing
-    if mpi_master()
+    if mpi_master(scfres.basis.comm_kpts)
         grid = zeros(3, scfres.basis.fft_size...)
         for (idcs, r) in zip(CartesianIndices(scfres.basis.fft_size),
                              r_vectors_cart(scfres.basis))
@@ -23,7 +23,7 @@ function DFTK.save_scfres(::Val{:vts}, filename::AbstractString, scfres::NamedTu
         ψblock_dist = blockify_ψ(scfres.basis, scfres.ψ).ψ
         ψblock = gather_kpts_block(scfres.basis, ψblock_dist)
 
-        if mpi_master()
+        if mpi_master(scfres.basis.comm_kpts)
             for ik = 1:length(basis.kpoints), n = 1:size(ψblock, 2)
                 kpt_n_G = length(G_vectors(basis, basis.kpoints[ik]))
                 ψnk_real = ifft(basis, basis.kpoints[ik], ψblock[1:kpt_n_G, n, ik])
@@ -34,7 +34,7 @@ function DFTK.save_scfres(::Val{:vts}, filename::AbstractString, scfres::NamedTu
         end
     end
 
-    if mpi_master()
+    if mpi_master(scfres.basis.comm_kpts)
         ρtotal, ρspin = total_density(scfres.ρ), spin_density(scfres.ρ)
         vtkfile["ρtotal"] = ρtotal
         if !isnothing(ρspin)
@@ -46,7 +46,7 @@ function DFTK.save_scfres(::Val{:vts}, filename::AbstractString, scfres::NamedTu
         WriteVTK.vtk_save(vtkfile)
     end
 
-    MPI.Barrier(MPI.COMM_WORLD)
+    MPI.Barrier(scfres.basis.comm_kpts)
     nothing
 end
 

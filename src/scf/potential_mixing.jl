@@ -186,7 +186,7 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
     if !isnothing(ψ)
         @assert length(ψ) == length(basis.kpoints)
     end
-    seed = seed_task_local_rng!(seed, MPI.COMM_WORLD)
+    seed = seed_task_local_rng!(seed, basis.comm_kpts)
 
     # Initial guess for V (if none given)
     ham = energy_hamiltonian(basis, nothing, nothing; ρ).ham
@@ -223,7 +223,7 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
         info = merge(info, (; stage=:iterate, algorithm="SCF", converged,
                             runtime_ns=time_ns() - start_ns, history_Etot, history_Δρ))
         callback(info)
-        if MPI.bcast(is_converged(info), 0, MPI.COMM_WORLD)
+        if MPI.bcast(is_converged(info), 0, basis.comm_kpts)
             # TODO Debug why these MPI broadcasts are needed
             converged = true
             break
@@ -232,7 +232,7 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
         info = merge(info, (; n_iter, ))
 
         # Ensure same α on all processors
-        α_trial = MPI.bcast(α_trial, 0, MPI.COMM_WORLD)
+        α_trial = MPI.bcast(α_trial, 0, basis.comm_kpts)
         δV = (acceleration(info.Vin, α_trial, info.Pinv_δV) - info.Vin) / α_trial
 
         # Determine damping and take next step
@@ -255,7 +255,7 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
                                           Pinv_δV=Pinv_δV_next, history_Δρ, history_Etot ))
 
             successful = accept_step(info, info_next)
-            successful = MPI.bcast(successful, 0, MPI.COMM_WORLD)  # Ensure same successful
+            successful = MPI.bcast(successful, 0, basis.comm_kpts)  # Ensure same successful
             if successful || n_backtrack ≥ max_backtracks
                 break
             end
@@ -263,7 +263,7 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
 
             # Adjust α to try again ...
             α_next = propose_backtrack_damping(damping, info, info_next)
-            α_next = MPI.bcast(α_next, 0, MPI.COMM_WORLD)  # Ensure same α on all processors
+            α_next = MPI.bcast(α_next, 0, basis.comm_kpts)  # Ensure same α on all processors
             if α_next == α  # Backtracking further not useful ...
                 break
             end

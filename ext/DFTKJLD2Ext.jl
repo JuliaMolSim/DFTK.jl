@@ -8,7 +8,7 @@ DFTK.make_subdict!(jld::Union{JLD2.Group,JLD2.JLDFile}, name::AbstractString) = 
 
 function save_jld2(to_dict_function!, file::AbstractString, scfres::NamedTuple;
                    save_ψ=true, save_ρ=true, extra_data=Dict{String,Any}(), compress=false)
-    if mpi_master()
+    if mpi_master(scfres.basis.comm_kpts)
         JLD2.jldopen(file * ".new", "w"; compress) do jld
             to_dict_function!(jld, scfres; save_ψ, save_ρ)
             for (k, v) in pairs(extra_data)
@@ -25,7 +25,7 @@ function save_jld2(to_dict_function!, file::AbstractString, scfres::NamedTuple;
         dummy = Dict{String,Any}()
         to_dict_function!(dummy, scfres; save_ψ)
     end
-    MPI.Barrier(MPI.COMM_WORLD)
+    MPI.Barrier(scfres.basis.comm_kpts)
     nothing
 end
 function DFTK.save_scfres(::Val{:jld2}, file::AbstractString, scfres::NamedTuple; kwargs...)
@@ -35,8 +35,8 @@ function DFTK.save_bands(::Val{:jld2}, file::AbstractString, band_data::NamedTup
     save_jld2(DFTK.band_data_to_dict!, file, band_data; kwargs...)
 end
 
-function load_basis(jld)
-    if mpi_master()
+function load_basis(jld; comm=MPI.COMM_WORLD)
+    if mpi_master(comm)
         basis_args = (jld["model"],
                       jld["Ecut"],
                       jld["fft_size"],
@@ -47,29 +47,30 @@ function load_basis(jld)
     else
         basis_args = nothing
     end
-    basis_args = MPI.bcast(basis_args, 0, MPI.COMM_WORLD)
-    PlaneWaveBasis(basis_args..., MPI.COMM_WORLD, DFTK.CPU())
+    basis_args = MPI.bcast(basis_args, 0, comm)
+    PlaneWaveBasis(basis_args..., comm, DFTK.CPU())
 end
 
 
-function DFTK.load_scfres(::Val{:jld2}, filename::AbstractString, basis=nothing; kwargs...)
-    if mpi_master()
+function DFTK.load_scfres(::Val{:jld2}, filename::AbstractString, basis=nothing;
+                          comm=MPI.COMM_WORLD, kwargs...)
+    if mpi_master(comm)
         scfres = JLD2.jldopen(filename, "r") do jld
-            load_scfres_jld2(jld, basis; kwargs...)
+            load_scfres_jld2(jld, basis; comm, kwargs...)
         end
     else
-        scfres = load_scfres_jld2(nothing, basis; kwargs...)
+        scfres = load_scfres_jld2(nothing, basis; comm, kwargs...)
     end
-    MPI.Barrier(MPI.COMM_WORLD)
+    MPI.Barrier(comm)
     scfres
 end
-function load_scfres_jld2(jld, basis; skip_hamiltonian, strict)
+function load_scfres_jld2(jld, basis; skip_hamiltonian, strict, comm=MPI.COMM_WORLD)
     consistent_kpts = true
     if isnothing(basis)
-        basis = load_basis(jld)
+        basis = load_basis(jld; comm)
     else
         errormsg = ""
-        if mpi_master()
+        if mpi_master(comm)
             # Check custom basis for consistency with the data extracted here
             if !(basis.architecture isa DFTK.CPU)  # TODO Else need to put things on the GPU
                 errormsg = "Only CPU architectures supported for now."
@@ -91,12 +92,12 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict)
                             "($(basis.model.n_spin_components))")
             end
         end
-        errormsg = MPI.bcast(errormsg, 0, MPI.COMM_WORLD)
+        errormsg = MPI.bcast(errormsg, 0, comm)
         isempty(errormsg) || error(errormsg)
     end
 
     propmap = Dict(:damping_value => :α, )  # compatibility mapping
-    if mpi_master()
+    if mpi_master(comm)
         # Setup default energies
         e_keys   = filter!(!isequal("total"), collect(keys(jld["energies"])))
         e_values = [jld["energies"][k] for k in e_keys]
@@ -114,11 +115,11 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict)
     else
         scfdict = nothing
     end
-    scfdict = MPI.bcast(scfdict, 0, MPI.COMM_WORLD)
+    scfdict = MPI.bcast(scfdict, 0, comm)
     scfdict[:basis] = basis
 
     function reshape_and_scatter(jld, key)
-        if mpi_master()
+        if mpi_master(comm)
             data = jld[key]
             n = ndims(data)
             data = reshape(data, size(data)[1:n-2]..., size(data, n-1) * size(data, n))
@@ -135,8 +136,8 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict)
         scfdict[:occupation]  = reshape_and_scatter(jld, "occupation")
     end
 
-    has_ψ = mpi_master() ? (consistent_kpts && haskey(jld, "ψ")) : nothing
-    has_ψ = MPI.bcast(has_ψ, 0, MPI.COMM_WORLD)
+    has_ψ = mpi_master(comm) ? (consistent_kpts && haskey(jld, "ψ")) : nothing
+    has_ψ = MPI.bcast(has_ψ, 0, comm)
     if has_ψ
         n_G_vectors = reshape_and_scatter(jld, "kpt_n_G_vectors")
         basisok = all(n_G_vectors[ik] == length(DFTK.G_vectors(basis, kpt))
@@ -162,7 +163,7 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict)
         scfdict[:ham]      = ham
     end
 
-    MPI.Barrier(MPI.COMM_WORLD)
+    MPI.Barrier(comm)
     (; scfdict...)
 end
 

@@ -356,7 +356,7 @@ function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true, save_ρ=true)
                :optim_res, # from direct_minimization, ignore it as it can be huge
                )
     propmap = Dict(:α => :damping_value, )  # compatibility mapping
-    if mpi_master()
+    if mpi_master(scfres.basis.comm_kpts)
         if save_ρ
             dict["ρ"] = scfres.ρ
             dict["τ"] = get(scfres, :τ, nothing)

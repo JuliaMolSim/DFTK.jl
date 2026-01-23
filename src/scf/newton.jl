@@ -84,7 +84,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
                 is_converged=ScfConvergenceDensity(tol),
                 seed=nothing) where {T}
 
-    seed = seed_task_local_rng!(seed, MPI.COMM_WORLD)
+    seed = seed_task_local_rng!(seed, basis.comm_kpts)
     # setting parameters
     model = basis.model
     @assert iszero(model.temperature)  # temperature is not yet supported

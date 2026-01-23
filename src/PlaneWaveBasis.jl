@@ -539,7 +539,7 @@ function gather_kpts(basis::PlaneWaveBasis)
     # No need to allocate and setup a new basis object
     mpi_nprocs(basis.comm_kpts) == 1 && return basis
 
-    if mpi_master()
+    if mpi_master(basis.comm_kpts)
         PlaneWaveBasis(basis.model,
                        basis.Ecut,
                        basis.fft_size,

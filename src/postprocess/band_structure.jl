@@ -31,7 +31,7 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
               "quantity to compute_bands as the τ keyword argument or use the " *
               "compute_bands(scfres) function.")
     end
-    seed = seed_task_local_rng!(seed, MPI.COMM_WORLD)
+    seed = seed_task_local_rng!(seed, basis.comm_kpts)
 
     # Create new basis with new kpoints
     bs_basis = PlaneWaveBasis(basis, kgrid)
@@ -302,7 +302,7 @@ of [`compute_bands`](@ref) and [`self_consistent_field`](@ref).
     (including patch versions).
 """
 function save_bands(filename::AbstractString, band_data::NamedTuple; save_ψ=false)
-    filename = MPI.bcast(filename, 0, MPI.COMM_WORLD)
+    filename = MPI.bcast(filename, 0, band_data.basis.comm_kpts)
     _, ext = splitext(filename)
     ext = Symbol(ext[2:end])
 
