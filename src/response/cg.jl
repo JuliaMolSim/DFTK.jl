@@ -13,6 +13,7 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
              precon=I, proj=identity, callback=identity,
              tol=1e-10, maxiter=100, miniter=1,
              my_dot=dot) where {T}
+    my_norm(x) = sqrt(real(my_dot(x, x)))
 
     # initialisation
     # r = b - Ax is the residual
@@ -30,7 +31,7 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
     # p is the descent direction
     p = copy(c)
     n_iter = 0
-    residual_norm = sqrt(my_dot(r, r))
+    residual_norm = my_norm(r)
 
     # convergence history
     converged = false
@@ -51,7 +52,7 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
         # update iterate and residual while ensuring they stay in Ran(proj)
         x .= proj(x .+ α .* p)
         r .= proj(r .- α .* c)
-        residual_norm = sqrt(my_dot(r, r))
+        residual_norm = my_norm(r)
 
         # apply preconditioner and prepare next iteration
         ldiv!(c, precon, r)
