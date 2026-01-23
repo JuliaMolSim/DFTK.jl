@@ -11,7 +11,8 @@ and projection operations along iterations.
 function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
              precon=I, proj=identity, callback=identity,
              tol=1e-10, maxiter=100, miniter=1,
-             comm::MPI.Comm=MPI.COMM_SELF) where {T}
+             comm::MPI.Comm=MPI.COMM_SELF,
+             dot=(x, y) -> mpi_dot(x, y, comm)) where {T}
 
     # initialisation
     # r = b - Ax is the residual
@@ -25,7 +26,7 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
         r .-= c
     end
     ldiv!(c, precon, r)
-    γ = mpi_dot(r, c, comm)
+    γ = dot(r, c)
     # p is the descent direction
     p = copy(c)
     n_iter = 0
@@ -45,7 +46,7 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
             break
         end
         mul!(c, A, p)
-        α = γ / mpi_dot(p, c, comm)
+        α = γ / dot(p, c)
 
         # update iterate and residual while ensuring they stay in Ran(proj)
         x .= proj(x .+ α .* p)
@@ -54,7 +55,7 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
 
         # apply preconditioner and prepare next iteration
         ldiv!(c, precon, r)
-        γ_prev, γ = γ, mpi_dot(r, c, comm)
+        γ_prev, γ = γ, dot(r, c)
         β = γ / γ_prev
         p .= proj(c .+ β .* p)
     end
