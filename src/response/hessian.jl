@@ -153,13 +153,15 @@ that is return δψ where (Ω+K) δψ = -δHextψ.
         proj_tangent!(δψ, ψ)
         pack(δψ)
     end
-    # k-weighted dot product for packed vectors
+    # k-weighted dot product for packed vectors:
+    # unpacks vectors, computes per-k-point dot products, and sums with k-weights
     function weighted_dot(x, y)
         δψx = unsafe_unpack(x)
         δψy = unsafe_unpack(y)
         weighted_ksum(basis, [dot(δψx[ik], δψy[ik]) for ik in 1:length(basis.kpoints)])
     end
-    # k-weighted norm for packed vectors
+    # k-weighted norm for packed vectors:
+    # unpacks vector, computes per-k-point squared norms, and takes sqrt of weighted sum
     function weighted_norm(x)
         δψx = unsafe_unpack(x)
         sqrt(weighted_ksum(basis, [norm2(δψx[ik]) for ik in 1:length(basis.kpoints)]))
