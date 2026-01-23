@@ -26,27 +26,4 @@
 
     test_cg(Float32)
     test_cg(Float64)
-
-    @testset "Test CG with custom dot product" begin
-        n = 10
-        A = rand(ComplexF64, n, n)
-        A = A' * A + I
-        b = rand(ComplexF64, n)
-        tol = 1e-10
-
-        # Test with custom dot product (should give same result as default)
-        custom_dot(x, y) = LinearAlgebra.dot(x, y)
-        custom_norm(x) = LinearAlgebra.norm(x)
-        res1 = DFTK.cg(A, b; tol, maxiter=2n)
-        res2 = DFTK.cg(A, b; tol, maxiter=2n, dot=custom_dot)
-        res3 = DFTK.cg(A, b; tol, maxiter=2n, dot=custom_dot, norm=custom_norm)
-
-        @test res1.converged
-        @test res2.converged
-        @test res3.converged
-        @test res1.x ≈ res2.x
-        @test res1.x ≈ res3.x
-        @test norm(A*res2.x - b) ≤ 2tol
-        @test norm(A*res3.x - b) ≤ 2tol
-    end
 end
