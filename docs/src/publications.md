@@ -21,7 +21,7 @@ The current DFTK reference paper to cite is
 Additionally the following publications describe DFTK or one of its algorithms:
 
 - N. F. Schmitz, B. Ploumhans and M. F. Herbst.
-  [*Algorithmic differentiation for plane-wave DFT: materials design, error control and learning model parameters.*](https://arxiv.org/abs/2509.07785) (2025).
+  [*Algorithmic differentiation for plane-wave DFT: materials design, error control and learning model parameters.*](https://doi.org/10.1038/s41524-025-01880-3) npj Computational Materials **12**, 6 (2026).
   ([Supplementary material and computational scripts](https://github.com/niklasschmitz/ad-dfpt)).
 
 - M. F. Herbst, B. Sun.
@@ -62,7 +62,7 @@ The following publications report research employing DFTK as a core component.
 Feel free to drop us a line if you want your work to be added here.
 
 - X. Gonze, C. Tantardini, A. Levitt.
-  [*Low-temperature behavior of density-functional theory for metals based on density-functional perturbation theory and Sommerfeld expansion*](https://arxiv.org/abs/2512.14438) (2025).
+  [*Low-temperature behavior of density-functional theory for metals based on density-functional perturbation theory and Sommerfeld expansion*](https://doi.org/10.1103/yj83-j9p1) Physical Review B **113**, 035125 (2026). ([Computational script](https://github.com/antoine-levitt/temperature_perturbation_theory))
 
 - X. Quan, H. Chen.
   [*Stochastic Density Functional Theory Through the Lens of Multilevel Monte Carlo Method*](https://arxiv.org/abs/2512.04860v2) (2025).
