@@ -159,8 +159,13 @@ that is return δψ where (Ω+K) δψ = -δHextψ.
         δψy = unsafe_unpack(y)
         weighted_ksum(basis, [dot(δψx[ik], δψy[ik]) for ik in 1:length(basis.kpoints)])
     end
+    # k-weighted norm for packed vectors
+    function weighted_norm(x)
+        δψx = unsafe_unpack(x)
+        sqrt(weighted_ksum(basis, [norm2(δψx[ik]) for ik in 1:length(basis.kpoints)]))
+    end
     res = cg(J, -δHextψ_pack; precon=FunctionPreconditioner(f_ldiv!), proj, tol,
-             callback, comm=basis.comm_kpts, dot=weighted_dot)
+             callback, comm=basis.comm_kpts, dot=weighted_dot, norm=weighted_norm)
     (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norm,
      res.n_iter)
 end
