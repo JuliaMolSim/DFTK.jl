@@ -20,7 +20,7 @@ ExactExchange(; scaling_factor=1, coulomb_kernel_model=ProbeCharge(), approximat
 
 function Base.show(io::IO, exchange::ExactExchange)
     fac = isone(exchange.scaling_factor) ? "" : "scaling_factor=$(exchange.scaling_factor), "
-    print(io, "ExactExchange($coulomb_kernel_model=$(exchange.coulomb_kernel_model))")
+    print(io, "ExactExchange(coulomb_kernel_model=$(exchange.coulomb_kernel_model), approximation=$(exchange.approximation))")
 end
 struct TermExactExchange <: Term
     scaling_factor::Real  # scaling factor
@@ -40,7 +40,7 @@ end
                                                   kwargs...) where {T}
     # check for the inconsistency first (ψ given but no occupation)
     if !isnothing(ψ) && isnothing(occupation)
-        @warn "ψ provided but occupation is missing; cannot set up calculate exact exchange."
+        @warn "ψ provided but occupation is missing; cannot set up exact exchange."
     end
     # If either is missing, we cannot proceed
     if isnothing(ψ) || isnothing(occupation)
@@ -88,7 +88,7 @@ end
             if term.approximation == :ace
                 Vmn_fourier = ρmn_fourier .* term.coulomb_kernel
                 Vmn_real = ifft(basis, kpt, Vmn_fourier)
-                Wnk_real .+= 0.5*occk[m]/T(2) .* ψmk_real .* Vmn_real
+                Wnk_real .+= occk[m]/T(2) .* ψmk_real .* Vmn_real
             end
             #############
 

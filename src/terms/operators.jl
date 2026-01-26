@@ -205,7 +205,7 @@ function apply!(Hψ, op::ExchangeOperator, ψ)
 
         # Real-space multiply and accumulate
         fac_nk = op.occk[n] / 2
-        Hψ.real .-= 0.5 * fac_nk .* ψnk_real .* Vx_real 
+        Hψ.real .-= fac_nk .* ψnk_real .* Vx_real 
     end
 end
 
