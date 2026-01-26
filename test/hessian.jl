@@ -22,7 +22,7 @@ function setup_quantities(testcase)
 
     ρ = compute_density(basis, ψ, occupation)
     rhs = compute_projected_gradient(basis, ψ, occupation)
-    ϕ = [randn(ComplexF64, size(ψk)) for ψk in ψ]
+    ϕ = DFTK.random_orbitals(basis, size(ψ[1], 2))
 
     (; scfres, basis, ψ, occupation, ρ, rhs, ϕ)
 end
@@ -155,11 +155,11 @@ end
 
     model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
                       functionals=[:lda_xc_teter93])
-    basis = PlaneWaveBasis(model; Ecut=3, kgrid=(3, 3, 3), fft_size=[9, 9, 9])
+    basis = PlaneWaveBasis(model; Ecut=3, kgrid=(3, 3, 3))
     scfres = self_consistent_field(basis; tol=10)
 
     rhs = compute_projected_gradient(basis, scfres.ψ, scfres.occupation)
-    ϕ = [randn(ComplexF64, size(ψk)) for ψk in scfres.ψ]
+    ϕ = DFTK.random_orbitals(basis, size(scfres.ψ[1], 2))
 
     @testset "self-adjointness of solve_ΩplusK_split" begin
         @test isapprox(
@@ -188,13 +188,13 @@ end
 
     model = model_DFT(magnesium.lattice, magnesium.atoms, magnesium.positions;
                       functionals=[:lda_xc_teter93], magnesium.temperature)
-    basis = PlaneWaveBasis(model; Ecut=5, kgrid=(3, 3, 3), fft_size=[9, 9, 9])
+    basis = PlaneWaveBasis(model; Ecut=5, kgrid=(3, 3, 3))
     nbandsalg = AdaptiveBands(basis.model; occupation_threshold=1e-10)
     scfres = self_consistent_field(basis; tol=1e-12, nbandsalg)
 
     ψ = scfres.ψ
     rhs = compute_projected_gradient(basis, scfres.ψ, scfres.occupation)
-    ϕ = [randn(ComplexF64, size(ψk)) for ψk in ψ]
+    ϕ = DFTK.random_orbitals(basis, size(ψ[1], 2))
 
     @testset "self-adjointness of solve_ΩplusK_split" begin
         @test isapprox(
