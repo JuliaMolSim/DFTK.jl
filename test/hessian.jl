@@ -22,7 +22,7 @@ function setup_quantities(testcase)
 
     ρ = compute_density(basis, ψ, occupation)
     rhs = compute_projected_gradient(basis, ψ, occupation)
-    ϕ = [randn(ComplexF64, size(ψk)) for ψk in ψ]
+    ϕ = DFTK.random_orbitals(basis, size(ψ[1], 2))
 
     (; scfres, basis, ψ, occupation, ρ, rhs, ϕ)
 end
@@ -159,7 +159,7 @@ end
     scfres = self_consistent_field(basis; tol=10)
 
     rhs = compute_projected_gradient(basis, scfres.ψ, scfres.occupation)
-    ϕ = [randn(ComplexF64, size(ψk)) for ψk in scfres.ψ]
+    ϕ = DFTK.random_orbitals(basis, size(scfres.ψ[1], 2))
 
     @testset "self-adjointness of solve_ΩplusK_split" begin
         @test isapprox(
@@ -194,7 +194,7 @@ end
 
     ψ = scfres.ψ
     rhs = compute_projected_gradient(basis, scfres.ψ, scfres.occupation)
-    ϕ = [randn(ComplexF64, size(ψk)) for ψk in ψ]
+    ϕ = DFTK.random_orbitals(basis, size(ψ[1], 2))
 
     @testset "self-adjointness of solve_ΩplusK_split" begin
         @test isapprox(
