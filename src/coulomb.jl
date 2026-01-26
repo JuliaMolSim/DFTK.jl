@@ -205,6 +205,9 @@ function _compute_coulomb_kernel(basis::PlaneWaveBasis{T},
     ε_target = 1e-12
     ε_min = exp(-0.5*G_Nyquist*R_in)  # required: G_Nyquist > -2*log(ε)/R_in (Appendix A.1 in paper)
     ε = max(ε_target, ε_min)
+    if ε > 1e-8
+        @warn "Grid too coarse for Wigner-Seitz truncation. Effective truncation error: $ε"
+    end
     α = sqrt(-log(ε)) / R_in          # range separation parameter
 
     # FFT of long-range term erf(αr)/r restricted to Wigner-Seitz cell 
@@ -215,7 +218,8 @@ function _compute_coulomb_kernel(basis::PlaneWaveBasis{T},
         r_centered = r_frac .- round.(r_frac) # MIC
         r_cart = model.lattice * r_centered
         d_min = norm(r_cart)
-        for dx in -1:1, dy in -1:1, dz in -1:1 # Check neighbors for non-orthorhombic cells
+        for dx in -nx:nx, dy in -ny:ny, dz in -nz:nz # Check neighbors for non-orthorhombic cells
+            dx == 0 && dy == 0 && dz == 0 && continue 
             r_shifted = r_centered - T[dx, dy, dz]
             d = norm(model.lattice * r_shifted)
             d_min = min(d_min, d)
