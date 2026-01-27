@@ -7,10 +7,10 @@ Exact exchange term: the Hartree-Exact exchange energy of the orbitals
 
 abstract type EXXstrategy end
 
-struct ExactExchange{S <: EXXstrategy}
+struct ExactExchange
     scaling_factor::Real
     coulomb_kernel_model::CoulombKernelModel
-    exx_strategy::S
+    exx_strategy::EXXstrategy
 end
 
 ExactExchange(; scaling_factor=1, 
