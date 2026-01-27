@@ -132,12 +132,18 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
     # Q = 1-P is the projector onto the orthogonal of converged states
     Q(ϕ) = ϕ - P(ϕ)
     # R = 1-P_computed is the projector onto the orthogonal of computed states
-    R(ϕ) = ϕ - P_computed(ϕ)
+    #R(ϕ) = ϕ - P_computed(ϕ)
 
-    function R!(Pϕ, ϕ)
-        mul!(Pϕ, ψk, ψk' * ϕ)
-        mul!(Pϕ, ψk_extra, ψk_extra' * ϕ, -1, -1)
-        Pϕ .+= ϕ
+    function R(ϕ)
+        Rϕ = ψk * (ψk' * ϕ)
+        mul!(Rϕ, ψk_extra, ψk_extra' * ϕ, -1, -1)
+        Rϕ .+= ϕ
+    end
+
+    function R!(Rϕ, ϕ)
+        mul!(Rϕ, ψk, ψk' * ϕ)
+        mul!(Rϕ, ψk_extra, ψk_extra' * ϕ, -1, -1)
+        Rϕ .+= ϕ
     end
 
     # We put things into the form
@@ -158,7 +164,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
     # ψk_extra are not converged but have been Rayleigh-Ritzed (they are NOT
     # eigenvectors of H) so H(ψk_extra) = ψk_extra' (Hk-ε) ψk_extra should be a
     # real diagonal matrix.
-    H(ϕ) = Hk * ϕ - ϕ .* ε'
+    H(ϕ; active=1:size(ϕ, 2)) = Hk * ϕ - ϕ .* ε[active]'
     inv_ψk_exHψk_ex = 1 ./(real.(εk_extra) .- ε')
 
     # 1) solve for δψknᴿ
@@ -173,12 +179,12 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
     #
     b = -Q(rhs)
     bb = R(b -  Hψk_extra * (ψk_extra'b .* inv_ψk_exHψk_ex))
-    @timing function RAR!(RARϕ, ϕ)
+    @timing function RAR!(RARϕ, ϕ; active=1:size(ϕ, 2))
         R!(RARϕ, ϕ)
         # Schur complement of (1-P) (H-ε) (1-P)
         # with the splitting Ran(1-P) = Ran(P_extra) ⊕ Ran(R)
-        HRϕ = H(RARϕ)
-        R!(RARϕ, mul!(HRϕ, Hψk_extra, Hψk_extra'RARϕ .* inv_ψk_exHψk_ex, -1, 1))
+        HRϕ = H(RARϕ; active)
+        R!(RARϕ, mul!(HRϕ, Hψk_extra, Hψk_extra'RARϕ .* inv_ψk_exHψk_ex[:, active], -1, 1))
     end
     precon = PreconditionerTPA(basis, kpoint)
     # First column of ψk as there is no natural kinetic energy.
@@ -186,7 +192,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
     precondprep!(precon, size(ψk, 2) ≥ 1 ? ψk : nothing)
     @timing function R_ldiv!(x, y)
         #x .= R(precon \ R(y))
-        R!(x, precon \ y) #TODO: is the projection R(y) necessary?
+        R!(x, precon \ R(y))
     end
     cg_res = cg(RAR!, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj! =R!,
                 callback=info -> callback(merge(info, (; basis, kpoint))),
@@ -199,7 +205,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 
     δψkn = ψk_extra * αkn + δψknᴿ
 
-    (; δψkn, cg_res.n_iter, cg_res.residual_norm, cg_res.converged, cg_res, tol)
+    (; δψkn, cg_res.n_iter, cg_res.residual_norms, cg_res.converged, cg_res, tol)
 end
 
 # Apply the four-point polarizability operator χ0_4P = -Ω^-1
@@ -386,14 +392,13 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
         mul!(δψk, ψk, dot_prods, 1, 1)
 
         # Sternheimer contribution
-        res = sternheimer_solver(Hk, ψk, to_device(basis.architecture, εk_minus_q), δHψ[ik]; ψk_extra, #TODO: tol per n
-                                 εk_extra, Hψk_extra, tol=tolk_minus_q[1], kwargs_sternheimer...)
+        res = sternheimer_solver(Hk, ψk, to_device(basis.architecture, εk_minus_q), δHψ[ik]; ψk_extra,
+                                 εk_extra, Hψk_extra, tol=tolk_minus_q, kwargs_sternheimer...)
 
-        !res.converged && @warn("Sternheimer CG not converged", ik, n, res.n_iter,
-                                res.tol, res.residual_norm)
+        !res.converged && @warn("Sternheimer CG not converged", res.tol, res.residual_norms)
 
         δψk .+= res.δψkn
-        append!(residual_norms[ik], res.residual_norm)
+        append!(residual_norms[ik], res.residual_norms)
         push!(n_iter[ik], res.n_iter)
         converged = converged && res.converged
     end
