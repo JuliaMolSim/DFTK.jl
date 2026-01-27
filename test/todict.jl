@@ -1,6 +1,7 @@
 @testmodule DictAgreement begin
 using Test
 using DFTK
+using DFTK: mpi_bcast
 using MPI
 using AtomsBase
 
@@ -32,7 +33,7 @@ function test_agreement_bands(band_data, dict; explicit_reshape=false, test_ψ=t
     n_G_resh         = nothing
     G_vecs_resh      = nothing
     ψ_resh           = nothing
-    if mpi_master()
+    if mpi_master(basis.comm_kpts)
         # Tests that data required downstream (e.g. in Aiida) is present in the dict
         # and behaves as expected.
 
@@ -72,13 +73,13 @@ function test_agreement_bands(band_data, dict; explicit_reshape=false, test_ψ=t
             ψ_resh      = condreshape(dict["ψ"], (max_n_G, n_bands, n_kpoints, n_spin))
         end
     end
-    n_iter_resh      = MPI.bcast(n_iter_resh,      0, MPI.COMM_WORLD)
-    resid_resh       = MPI.bcast(resid_resh,       0, MPI.COMM_WORLD)
-    eigenvalues_resh = MPI.bcast(eigenvalues_resh, 0, MPI.COMM_WORLD)
-    occupation_resh  = MPI.bcast(occupation_resh,  0, MPI.COMM_WORLD)
-    n_G_resh         = MPI.bcast(n_G_resh,         0, MPI.COMM_WORLD)
-    G_vecs_resh      = MPI.bcast(G_vecs_resh,      0, MPI.COMM_WORLD)
-    ψ_resh           = MPI.bcast(ψ_resh,           0, MPI.COMM_WORLD)
+    n_iter_resh      = mpi_bcast(n_iter_resh,      0, basis.comm_kpts)
+    resid_resh       = mpi_bcast(resid_resh,       0, basis.comm_kpts)
+    eigenvalues_resh = mpi_bcast(eigenvalues_resh, 0, basis.comm_kpts)
+    occupation_resh  = mpi_bcast(occupation_resh,  0, basis.comm_kpts)
+    n_G_resh         = mpi_bcast(n_G_resh,         0, basis.comm_kpts)
+    G_vecs_resh      = mpi_bcast(G_vecs_resh,      0, basis.comm_kpts)
+    ψ_resh           = mpi_bcast(ψ_resh,           0, basis.comm_kpts)
 
     for σ = 1:n_spin, ik = DFTK.krange_spin(basis, σ)
         ikgl = mod1(basis.krange_thisproc_allspin[ik], n_kpoints)  # global k-point index
@@ -109,7 +110,7 @@ function test_agreement_scfres(scfres, dict; explicit_reshape=false, test_ψ=tru
         end
     end
 
-    if mpi_master()
+    if mpi_master(scfres.basis.comm_kpts)
         ρ_resh = condreshape(dict["ρ"], scfres.basis.fft_size...,
                              scfres.basis.model.n_spin_components)
         @test ρ_resh                ≈ scfres.ρ atol=1e-12
@@ -144,6 +145,7 @@ end  # module
 @testitem "todict" setup=[TestCases, DictAgreement] tags=[:serialisation, :minimal] begin
 using Test
 using DFTK
+using MPI
 testcase = TestCases.silicon
 
 function test_todict(label; spin_polarization=:none, Ecut=7, temperature=0.0, kgrid)
@@ -177,7 +179,7 @@ function test_todict(label; spin_polarization=:none, Ecut=7, temperature=0.0, kg
 end
 
 test_todict("nospin notemp";  spin_polarization=:none,
-            kgrid=MonkhorstPack(1, max(2, mpi_nprocs()), 1))  # At least one k-point per MPI proc.
+            kgrid=MonkhorstPack(1, max(2, mpi_nprocs(MPI.COMM_WORLD)), 1))  # At least one k-point per MPI proc.
 test_todict("collinear temp"; spin_polarization=:collinear,
             kgrid=MonkhorstPack(2, 1, 3), temperature=1e-3)
 end

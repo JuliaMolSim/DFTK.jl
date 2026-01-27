@@ -302,7 +302,7 @@ of [`compute_bands`](@ref) and [`self_consistent_field`](@ref).
     (including patch versions).
 """
 function save_bands(filename::AbstractString, band_data::NamedTuple; save_ψ=false)
-    filename = MPI.bcast(filename, 0, band_data.basis.comm_kpts)
+    filename = mpi_bcast(filename, 0, band_data.basis.comm_kpts)
     _, ext = splitext(filename)
     ext = Symbol(ext[2:end])
 

@@ -1,6 +1,7 @@
 using LinearMaps
 using KrylovKit: OrthonormalBasis, Orthogonalizer
 using LinearAlgebra: Givens
+using MPI
 
 """
 Matrix-vector product function used by `inexact_gmres`. The intention is that an
@@ -12,7 +13,7 @@ define a method for this function to provide faster approximate versions for `A*
 mul_approximate(A, X; rtol=0.0) = (; Ax=A * X, info=(; rtol))
 
 function default_gmres_print(info)
-    !mpi_master() && return info  # Rest is printing => only do on master
+    !mpi_master(info.comm) && return info  # Rest is printing => only do on master
 
     n_iter = info.n_iter
     if info.stage == :iterate
@@ -63,7 +64,8 @@ Parameters specific to inexact GMRES:
 @timing function inexact_gmres!(x, A, b::AbstractVector{T};
                                 precon=I, maxiter=100, krylovdim=20, tol=1e-6, s=1.0,
                                 callback=identity,
-                                orth::Orthogonalizer=KrylovKit.ModifiedGramSchmidt2()) where {T}
+                                orth::Orthogonalizer=KrylovKit.ModifiedGramSchmidt2(),
+                                comm::MPI.Comm=MPI.COMM_WORLD) where {T}
     m = krylovdim
     r = zero(b)  # Storage for residual vector
     w = zero(b)  # Storage for intermediates (precon\Ax or precon\r)
@@ -133,7 +135,7 @@ Parameters specific to inexact GMRES:
 
             info = (; y, V, H, R, resid_history=resid_history[1:n_iter], converged, n_iter,
                      residual_norm, maxiter, tol, s,
-                     restart_history, stage=:iterate, krylovdim, k, Axinfos)
+                     restart_history, stage=:iterate, krylovdim, k, Axinfos, comm)
             callback(info)
             Axinfos = []
 
@@ -160,7 +162,7 @@ Parameters specific to inexact GMRES:
         if converged || n_iter ≥ maxiter
             info = (; x, resid_history=resid_history[1:n_iter], converged, n_iter,
                      residual_norm, maxiter, tol, s,
-                     restart_history, stage=:finalize, krylovdim, y, V, H, R)
+                     restart_history, stage=:finalize, krylovdim, y, V, H, R, comm)
             callback(info)
             return info
         end

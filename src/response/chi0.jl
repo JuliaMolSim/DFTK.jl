@@ -182,7 +182,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
     cg_res = cg(J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
-                callback=info -> callback(merge(info, (; basis, kpoint))),
+                callback=info -> callback(merge(info, (; basis, kpoint, comm=basis.comm_kpts))),
                 miniter, maxiter)
     δψknᴿ = cg_res.x
 

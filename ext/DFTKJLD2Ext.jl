@@ -1,6 +1,7 @@
 module DFTKJLD2Ext
 using DftFunctionals
 using DFTK
+using DFTK: mpi_barrier
 using JLD2
 using MPI
 
@@ -25,7 +26,7 @@ function save_jld2(to_dict_function!, file::AbstractString, scfres::NamedTuple;
         dummy = Dict{String,Any}()
         to_dict_function!(dummy, scfres; save_ψ)
     end
-    MPI.Barrier(scfres.basis.comm_kpts)
+    mpi_barrier(scfres.basis.comm_kpts)
     nothing
 end
 function DFTK.save_scfres(::Val{:jld2}, file::AbstractString, scfres::NamedTuple; kwargs...)
@@ -47,7 +48,7 @@ function load_basis(jld; comm=MPI.COMM_WORLD)
     else
         basis_args = nothing
     end
-    basis_args = MPI.bcast(basis_args, 0, comm)
+    basis_args = DFTK.mpi_bcast(basis_args, 0, comm)
     PlaneWaveBasis(basis_args..., comm, DFTK.CPU())
 end
 
@@ -61,7 +62,7 @@ function DFTK.load_scfres(::Val{:jld2}, filename::AbstractString, basis=nothing;
     else
         scfres = load_scfres_jld2(nothing, basis; comm, kwargs...)
     end
-    MPI.Barrier(comm)
+    DFTK.mpi_barrier(comm)
     scfres
 end
 function load_scfres_jld2(jld, basis; skip_hamiltonian, strict, comm=MPI.COMM_WORLD)
@@ -92,7 +93,7 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict, comm=MPI.COMM_WO
                             "($(basis.model.n_spin_components))")
             end
         end
-        errormsg = MPI.bcast(errormsg, 0, comm)
+        errormsg = DFTK.mpi_bcast(errormsg, 0, comm)
         isempty(errormsg) || error(errormsg)
     end
 
@@ -115,7 +116,7 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict, comm=MPI.COMM_WO
     else
         scfdict = nothing
     end
-    scfdict = MPI.bcast(scfdict, 0, comm)
+    scfdict = DFTK.mpi_bcast(scfdict, 0, comm)
     scfdict[:basis] = basis
 
     function reshape_and_scatter(jld, key)
@@ -137,7 +138,7 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict, comm=MPI.COMM_WO
     end
 
     has_ψ = mpi_master(comm) ? (consistent_kpts && haskey(jld, "ψ")) : nothing
-    has_ψ = MPI.bcast(has_ψ, 0, comm)
+    has_ψ = DFTK.mpi_bcast(has_ψ, 0, comm)
     if has_ψ
         n_G_vectors = reshape_and_scatter(jld, "kpt_n_G_vectors")
         basisok = all(n_G_vectors[ik] == length(DFTK.G_vectors(basis, kpt))
@@ -163,7 +164,7 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict, comm=MPI.COMM_WO
         scfdict[:ham]      = ham
     end
 
-    MPI.Barrier(comm)
+    DFTK.mpi_barrier(comm)
     (; scfdict...)
 end
 

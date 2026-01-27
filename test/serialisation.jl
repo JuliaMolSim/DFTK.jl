@@ -47,7 +47,7 @@ end
 
 @testitem "SCF checkpointing" setup=[ScfresAgreement, TestCases] tags=[:serialisation] begin
     using DFTK
-    using DFTK: ScfDefaultCallback, ScfSaveCheckpoints
+    using DFTK: ScfDefaultCallback, ScfSaveCheckpoints, mpi_bcast
     using JLD2  # needed for ScfSaveCheckpoints
     using MPI
     using LinearAlgebra
@@ -58,14 +58,14 @@ end
                       functionals=PBE(), temperature=0.02, smearing=Smearing.Gaussian(),
                       magnetic_moments, symmetries=false)
 
-    kgrid = [1, mpi_nprocs(), 1]   # Ensure at least 1 kpt per process
+    kgrid = [1, mpi_nprocs(MPI.COMM_WORLD), 1]   # Ensure at least 1 kpt per process
     basis  = PlaneWaveBasis(model; Ecut=4, kgrid)
     ρ = guess_density(basis, magnetic_moments)
 
     # Run SCF and do checkpointing along the way
     mktempdir() do tmpdir
         filename = joinpath(tmpdir, "scfres.jld2")
-        filename = MPI.bcast(filename, 0, MPI.COMM_WORLD)  # master -> everyone
+        filename = mpi_bcast(filename, 0, MPI.COMM_WORLD)  # master -> everyone
         kwargs = kwargs_scf_checkpoints(basis; filename, ρ)
         nbandsalg = FixedBands(; n_bands_converge=20)
         scfres = self_consistent_field(basis; tol=1e-2, nbandsalg, kwargs...)
@@ -82,9 +82,9 @@ end
 @testitem "Serialisation" setup=[ScfresAgreement, DictAgreement, TestCases] #=
                        =# tags=[:serialisation] begin
     using DFTK
+    using DFTK: mpi_bcast
     using JLD2
     using JSON3
-    using MPI
     using Test
     using WriteVTK
     testcase = TestCases.silicon
@@ -103,7 +103,7 @@ end
 
         @testset "JLD2 ($label)" begin
             mktempdir() do tmpdir
-                dumpfile = MPI.bcast(joinpath(tmpdir, "scfres.jld2"), 0, MPI.COMM_WORLD)
+                dumpfile = mpi_bcast(joinpath(tmpdir, "scfres.jld2"), 0, basis.comm_kpts)
                 save_scfres(dumpfile, scfres)
                 @test isfile(dumpfile)
                 ScfresAgreement.test_scfres_agreement(scfres, load_scfres(dumpfile))
@@ -113,7 +113,7 @@ end
 
         @testset "VTK ($label)" begin
             mktempdir() do tmpdir
-                dumpfile = MPI.bcast(joinpath(tmpdir, "scfres.vts"), 0, MPI.COMM_WORLD)
+                dumpfile = mpi_bcast(joinpath(tmpdir, "scfres.vts"), 0, basis.comm_kpts)
                 save_scfres(dumpfile, scfres; save_ψ=true)
                 @test isfile(dumpfile)
             end
@@ -121,7 +121,7 @@ end
 
         @testset "JSON ($label)" begin
             mktempdir() do tmpdir
-                dumpfile = MPI.bcast(joinpath(tmpdir, "scfres.json"), 0, MPI.COMM_WORLD)
+                dumpfile = mpi_bcast(joinpath(tmpdir, "scfres.json"), 0, basis.comm_kpts)
                 save_scfres(dumpfile, scfres)
                 @test isfile(dumpfile)
                 data = open(JSON3.read, dumpfile)  # Get data back as dict

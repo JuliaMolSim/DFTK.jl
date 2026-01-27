@@ -1,7 +1,6 @@
 module DFTKJSON3Ext
 using DFTK
 using JSON3
-using MPI
 
 function save_json(todict_function, filename::AbstractString, scfres::NamedTuple;
                    save_ψ=false, extra_data=Dict{String,Any}(), save_ρ=true, kwargs...)
@@ -18,7 +17,7 @@ function save_json(todict_function, filename::AbstractString, scfres::NamedTuple
         end
         mv(filename * ".new", filename; force=true)
     end
-    MPI.Barrier(scfres.basis.comm_kpts)
+    DFTK.mpi_barrier(scfres.basis.comm_kpts)
     nothing
 end
 function DFTK.save_scfres(::Val{:json}, filename::AbstractString, scfres::NamedTuple; kwargs...)

@@ -46,7 +46,7 @@ function DFTK.save_scfres(::Val{:vts}, filename::AbstractString, scfres::NamedTu
         WriteVTK.vtk_save(vtkfile)
     end
 
-    MPI.Barrier(scfres.basis.comm_kpts)
+    DFTK.mpi_barrier(scfres.basis.comm_kpts)
     nothing
 end
 
