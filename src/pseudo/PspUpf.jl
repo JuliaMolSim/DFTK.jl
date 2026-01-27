@@ -1,6 +1,6 @@
 using LinearAlgebra
 using Interpolations: linear_interpolation
-import PseudoPotentialIO: load_psp_file
+import PseudoPotentialIO: load_psp_file, UpfFile, Psp8File
 
 struct PspUpf{T,I} <: NormConservingPsp
     ## From file
@@ -59,9 +59,9 @@ struct PspUpf{T,I} <: NormConservingPsp
 end
 
 """
-    PspUpf(path[, identifier])
+    PspUpf(path[; identifier])
 
-Construct a Unified Pseudopotential Format pseudopotential from file.
+Construct a Unified Pseudopotential Format pseudopotential by reading a file.
 
 Does not support:
 - Fully-realtivistic / spin-orbit pseudos
@@ -71,9 +71,26 @@ Does not support:
 - Projector-augmented wave potentials
 - GIPAW reconstruction data
 """
-function PspUpf(path; identifier=path, rcut=nothing)
-    pseudo = load_psp_file(path)
+function PspUpf(path::AbstractString; identifier=path, rcut=nothing)
+    PspUpf(load_psp_file(path); identifier=identifier, rcut=rcut)
+end
 
+"""
+    PspUpf(pseudo::Psp8File; identifier)
+
+Construct a Unified Pseudopotential Format pseudopotential from a parsed psp8 file.
+Internally, the pseudo is first converted to a `UpfFile` using `PseudoPotentialIO`.
+"""
+function PspUpf(pseudo::Psp8File; identifier, rcut=nothing)
+    PspUpf(UpfFile(pseudo); identifier=identifier, rcut=rcut)
+end
+
+"""
+    PspUpf(pseudo::UpfFile; identifier)
+
+Construct a Unified Pseudopotential Format pseudopotential from a parsed upf file.
+"""
+function PspUpf(pseudo::UpfFile; identifier, rcut=nothing)
     unsupported = []
     pseudo.header.has_so                && push!(unsupported, "spin-orbit coupling")
     pseudo.header.pseudo_type == "SL"   && push!(unsupported, "semilocal potential")

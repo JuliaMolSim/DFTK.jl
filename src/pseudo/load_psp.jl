@@ -76,6 +76,9 @@ function load_psp(key::AbstractString; kwargs...)
     elseif endswith(lowercase(key), ".upf")
         pseudo_type = PspUpf
         extension = ".upf"
+    elseif endswith(lowercase(key), ".psp8")
+        pseudo_type = PspUpf
+        extension = ".psp8"
     elseif startswith(lowercase(key), "hgh/") || endswith(lowercase(key), ".hgh")
         # TODO Legacy block still needed for GTH pseudos bundled with DFTK
         pseudo_type = PspHgh
