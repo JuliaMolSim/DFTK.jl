@@ -15,7 +15,7 @@ function ScfAcceptImprovingStep(;max_energy_change=1e-12, max_relative_residual=
 
         # Accept if energy goes down or residual decreases
         accept = energy_change < max_energy_change || relative_residual < max_relative_residual
-        mpi_master(info.basis.comm_kpts) && 
+        mpi_master(info.basis.comm_kpts)
             @debug "Step $(accept ? "accepted" : "discarded")" energy_change relative_residual
         accept
     end
@@ -72,7 +72,7 @@ function scf_damping_quadratic_model(info, info_next; modeltol=0.1)
         mpi_master(info.basis.comm_kpts) && @debug "Quadratic model accepted" model_relerror slope curv α_model
         (α=α_model, relerror=model_relerror)
     else
-        mpi_master(info.basis.comm_kpt) && @debug "Quadratic model discarded" model_relerror slope curv α_model
+        mpi_master(info.basis.comm_kpts) && @debug "Quadratic model discarded" model_relerror slope curv α_model
         (α=nothing, relerror=model_relerror) # Model not trustworthy ...
     end
 end
