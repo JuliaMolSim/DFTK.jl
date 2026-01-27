@@ -123,12 +123,12 @@ function _model_DFT(functionals::AbstractVector, args...; kwargs...)
 end
 function _model_DFT(xc::Xc, args...; extra_terms=[],
                     coulomb_kernel_model::CoulombKernelModel=ProbeCharge(),
-                    exx_approximation=:none,
+                    exx_strategy=CanonicalEXX(),
                     kwargs...)
     model_name = isempty(xc.functionals) ? "rHF" : join(string.(xc.functionals), "+")
     
     # handle exact exchange
-    exx = [ExactExchange(; scaling_factor=exx_coefficient(f), coulomb_kernel_model, exx_approximation)
+    exx = [ExactExchange(; scaling_factor=exx_coefficient(f), coulomb_kernel_model, exx_strategy)
            for f in xc.functionals if !isnothing(exx_coefficient(f))]
     if !isempty(exx)
         @assert length(exx) == 1
@@ -157,9 +157,9 @@ function model_HF(lattice::AbstractMatrix, atoms::Vector{<:Element},
 end
 function _model_HF(args...; extra_terms=[], 
                    coulomb_kernel_model::CoulombKernelModel=ProbeCharge(), 
-                   exx_approximation=:none, 
+                   exx_strategy=CanonicalEXX(), 
                    kwargs...)
-    model_atomic(args...; extra_terms=[Hartree(), ExactExchange(; coulomb_kernel_model, approximation=exx_approximation), extra_terms...],
+    model_atomic(args...; extra_terms=[Hartree(), ExactExchange(; coulomb_kernel_model, exx_strategy), extra_terms...],
                  model_name="HF", kwargs...)
 end
 

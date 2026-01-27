@@ -103,6 +103,7 @@ export HamiltonianBlock
 export energy_hamiltonian
 export Kinetic
 export ExactExchange
+export CanonicalEXX, ACEXX
 export ExternalFromFourier
 export ExternalFromReal
 export AtomicLocal
