@@ -65,9 +65,13 @@ end
 
 """
 Load a pseudopotential file. The file extension is used to determine
-the type of the pseudopotential file format and a respective class
-(e.g. `PspHgh` or `PspUpf`) is returned. Most users will want to use
-other methods of the `load_psp` function.
+the type of the pseudopotential file format and a corresponding class is returned.
+The following formats are supported:
+- Goedecker-Teter-Hutter (.gth / .hgh files), yielding a `PspHgh`;
+- Unified Pseudopotential Format (.upf files), yielding a `PspUpf`;
+- Abinit pseudopotential format 8 (.psp8 files), yielding a `PspUpf`.
+
+Most users will want to use other methods of the `load_psp` function.
 """
 function load_psp(key::AbstractString; kwargs...)
     if endswith(lowercase(key), ".gth")
@@ -77,6 +81,7 @@ function load_psp(key::AbstractString; kwargs...)
         pseudo_type = PspUpf
         extension = ".upf"
     elseif endswith(lowercase(key), ".psp8")
+        # PspUpf has a constructor that will convert from a Psp8File to a UpfFile
         pseudo_type = PspUpf
         extension = ".psp8"
     elseif startswith(lowercase(key), "hgh/") || endswith(lowercase(key), ".hgh")
