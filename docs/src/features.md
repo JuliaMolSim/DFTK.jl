@@ -10,7 +10,7 @@ and runs out of the box on Linux, Windows and macOS, see [Installation](@ref).
   at the LDA, GGA, meta-GGA level.
 - [Hubbard correction (DFT+U)](@ref).
 - **Norm-conserving pseudopotentials**: Goedecker-type (GTH)
-  or numerical (in UPF pseudopotential format),
+  or numerical (in UPF or PSP8 pseudopotential format),
   see [Pseudopotentials](@ref).
 - Collinear spin, see [Collinear spin and magnetic systems](@ref).
 - **Black-box self-consistent field approaches**, such as
