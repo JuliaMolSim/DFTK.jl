@@ -204,7 +204,7 @@ function apply!(Hψ, op::ExchangeOperator, ψ)
         Vx_real = ifft(op.basis, op.kpoint, Vx_four) # actually we need q-point here
 
         # Real-space multiply and accumulate
-        fac_nk = op.occk[n] / 2
+        fac_nk = op.occk[n] / (3-op.basis.model.n_spin_components)
         Hψ.real .-= fac_nk .* ψnk_real .* Vx_real 
     end
 end
