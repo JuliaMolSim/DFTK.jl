@@ -130,10 +130,6 @@ function _model_DFT(xc::Xc, args...; extra_terms=[],
     # handle exact exchange
     exx = [ExactExchange(; scaling_factor=exx_coefficient(f), coulomb_kernel_model, exx_strategy)
            for f in xc.functionals if !isnothing(exx_coefficient(f))]
-    if !isempty(exx)
-        @assert length(exx) == 1
-        @warn "Exact exchange in DFTK is hardly optimised and not yet production-ready."
-    end
     
     model_atomic(args...; extra_terms=[Hartree(), xc, exx..., extra_terms...], 
                  model_name, kwargs...)
