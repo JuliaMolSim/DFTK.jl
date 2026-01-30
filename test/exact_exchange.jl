@@ -27,7 +27,7 @@
     T = Float64
     model  = model_HF(lattice, atoms, positions; 
                       coulomb_kernel_model=WignerSeitzTruncated(), 
-                      exx_strategy=ACEXX())
+                      exx_strategy=CanonicalEXX())
     basis  = PlaneWaveBasis(model, Ecut=40; kgrid=[1, 1, 1])
     
     RunSCF.run_scf_and_compare(T, basis, ref_hf, ref_etot; scf_ene_tol=1e-7, test_tol=5e-5,
