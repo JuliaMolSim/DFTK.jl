@@ -112,9 +112,6 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
                                     ψk_extra=zeros_like(ψk), εk_extra=zeros_like(ε),
                                     Hψk_extra=zeros_like(ψk), tol=1e-9,
                                     miniter=1, maxiter=100)
-    # TODO This whole projector business allocates a lot, which is rather slow.
-    #      We should optimise this a bit to avoid allocations where possible.
-
     basis  = Hk.basis
     kpoint = Hk.kpoint
 
@@ -131,13 +128,13 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
     P_computed(ϕ) = P(ϕ) + P_extra(ϕ)
     # Q = 1-P is the projector onto the orthogonal of converged states
     Q(ϕ) = ϕ - P(ϕ)
-    # R = 1-P_computed is the projector onto the orthogonal of computed states
-    #R(ϕ) = ϕ - P_computed(ϕ)
 
+    # R = 1-P_computed is the projector onto the orthogonal of computed states
+    # Implement allocation light and in-place versions for performance
     function R(ϕ)
-        Rϕ = ψk * (ψk' * ϕ)
-        mul!(Rϕ, ψk_extra, ψk_extra' * ϕ, -1, -1)
-        Rϕ .+= ϕ
+        Rϕ = ψk * (ψk' * ϕ) # P(ϕ)
+        mul!(Rϕ, ψk_extra, ψk_extra' * ϕ, -1, -1) # -P(ϕ) - P_extra(ϕ)
+        Rϕ .+= ϕ # R = ϕ -P(ϕ) - P_extra(ϕ)
     end
 
     function R!(Rϕ, ϕ)
@@ -164,6 +161,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
     # ψk_extra are not converged but have been Rayleigh-Ritzed (they are NOT
     # eigenvectors of H) so H(ψk_extra) = ψk_extra' (Hk-ε) ψk_extra should be a
     # real diagonal matrix.
+    # Allow for application on an active range only
     H(ϕ; active=1:size(ϕ, 2)) = Hk * ϕ - ϕ .* ε[active]'
     inv_ψk_exHψk_ex = 1 ./(real.(εk_extra) .- ε')
 
@@ -189,9 +187,8 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
     precon = PreconditionerTPA(basis, kpoint)
     # First column of ψk as there is no natural kinetic energy.
     # We take care of the (rare) cases when ψk is empty.
-    precondprep!(precon, size(ψk, 2) ≥ 1 ? ψk : nothing)
+    precondprep!(precon, size(ψk, 2) ≥ 1 ? repeat(ψk[:, 1], 1, size(bb, 2)) : nothing)
     @timing function R_ldiv!(x, y)
-        #x .= R(precon \ R(y))
         R!(x, precon \ R(y))
     end
     cg_res = cg(RAR!, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj! =R!,
