@@ -94,7 +94,9 @@ function (cb::ResponseCallback)(info)
     runtime_ns = current_time - cb.prev_time[]
     cb.prev_time[] = current_time
 
-    resnorm = @sprintf "%20.2f" log10(info.residual_norm)
+    # expect a scalar from solve_ΩplusK
+    @assert length(info.residual_norms) == 1
+    resnorm = @sprintf "%20.2f" log10(info.residual_norms[1])
     time = @sprintf "% 6s" TimerOutputs.prettytime(runtime_ns)
     @printf "% 3d   %s   %s\n" info.n_iter resnorm time
     flush(stdout)
@@ -140,30 +142,29 @@ that is return δψ where (Ω+K) δψ = -δHextψ.
     Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ, H * ψ)]
 
     # mapping of the linear system on the tangent space
-    function ΩpK(x)
+    function ΩpK!(ΩpKx, x)
         δψ = unsafe_unpack(x)
         Kδψ = apply_K(basis, δψ, ψ, ρ, occupation)
         Ωδψ = apply_Ω(δψ, ψ, H, Λ)
-        pack(Ωδψ + Kδψ)
+        ΩpKx .= pack(Ωδψ + Kδψ)
     end
-    J = LinearMap{T}(ΩpK, size(δHextψ_pack, 1))
 
     # solve (Ω+K) δψ = -δHextψ on the tangent space with CG
-    function proj(x)
+    function proj!(Px, x)
         δψ = unpack(x)
         proj_tangent!(δψ, ψ)
-        pack(δψ)
+        Px .= pack(δψ)
     end
     # custom inner product that Ω+K is self-adjoint with respect to
-    function weighted_dot(x, y)
+    function weighted_dots(x, y)
         δψx = unsafe_unpack(x)
         δψy = unsafe_unpack(y)
         # real(dot) here because we work in R^2N rather than C^N
-        weighted_ksum(basis, [real(dot(δψx[ik], δψy[ik])) for ik in 1:length(basis.kpoints)])
+        [weighted_ksum(basis, [real(dot(δψx[ik], δψy[ik])) for ik in 1:length(basis.kpoints)])]
     end
-    res = cg(J, -δHextψ_pack; precon=FunctionPreconditioner(f_ldiv!), proj, tol,
-             callback, my_dot=weighted_dot)
-    (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norm,
+    res = cg(ΩpK!, -δHextψ_pack; precon=FunctionPreconditioner(f_ldiv!), proj!, tol=tol,
+             callback, my_dots=weighted_dots)
+    (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norms,
      res.n_iter)
 end
 
