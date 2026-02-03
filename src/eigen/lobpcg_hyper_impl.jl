@@ -343,7 +343,8 @@ end
 # but X and the history on the device (for GPU runs)
 @timing function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100;
                         miniter=1, ortho_tol=2eps(real(eltype(X))),
-                        n_conv_check=nothing, display_progress=false)
+                        n_conv_check=nothing, display_progress=false,
+                        callback=nothing)
     N, M = size(X)
 
     # If N is too small, we will likely get in trouble
@@ -395,12 +396,6 @@ end
     full_AX = AX
     full_BX = BX
     full_λs = λs
-
-    if display_progress
-        @printf "Iter     Converged     log10(resid)    Δtime\n"
-        @printf "----   -------------   ------------   -------\n"
-        prev_time = time()
-    end
 
     while true
         if niter > 0  # first iteration is just to compute the residuals (no X update)
@@ -463,15 +458,15 @@ end
             end
         end
 
+        ### TODO Can principally be replaced by callback below
         if display_progress
-            current_time = time()
-            Δt = current_time - prev_time
-            tstr = @sprintf "% 6s" TimerOutputs.prettytime(Δt * 1e9)  # Convert to ns
-            resid_norm = norm(resid_history[1:n_conv_check, niter+1])
-            resid_str = " " * format_log8(resid_norm)
-            @printf "% 4d   %5d / %5d   %s       %s\n" niter nlocked n_conv_check resid_str tstr
-            flush(stdout)
-            prev_time = current_time
+            println("Iter $niter, converged $(nlocked)/$(n_conv_check), resid ",
+                    norm(resid_history[1:n_conv_check, niter+1]))
+        end
+
+        ### Callback
+        if !isnothing(callback)
+            callback((; niter, n_matvec, nlocked, resid_history, n_conv_check, λs, X, AX, BX))
         end
 
         if nlocked >= n_conv_check  # Converged!
@@ -566,4 +561,33 @@ end
     end
 
     final_retval(full_X, full_AX, full_BX, full_λs, resid_history, maxiter, n_matvec)
+end
+
+
+# default callback function for LOBPCG
+function make_LOBPCG_debug_callback()
+    prev_time = time()
+
+    @printf "Iter     Converged     log10(resid)    Δtime\n"
+    @printf "----   -------------   ------------   -------\n"
+    
+    return function(info)
+        current_time = time()
+        Δt = current_time - prev_time
+        
+        niter = info.niter
+        resid_history = info.resid_history
+        n_conv_check = info.n_conv_check
+        nlocked = info.nlocked
+
+        tstr = @sprintf "% 6s" TimerOutputs.prettytime(Δt * 1e9)
+        
+        resid_norm = norm(resid_history[1:n_conv_check, niter+1])
+        resid_str = " " * format_log8(resid_norm)
+        
+        @printf "% 4d   %5d / %5d   %s       %s\n" niter nlocked n_conv_check resid_str tstr
+        flush(stdout)
+        
+        prev_time = current_time
+    end
 end
