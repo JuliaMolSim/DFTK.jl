@@ -203,31 +203,41 @@ end
 
 eval_psp_local_real(psp::PspUpf, r::T) where {T<:Real} = psp.vloc_interp(r)
 
-function eval_psp_local_fourier(psp::PspUpf, ps::AbstractArray{T}) where {T<:Real}
+# Low-level function for the local part of the pseudopotential in reciprocal space
+function eval_psp_local_fourier(rgrid, vloc, Zion, p::T;
+                                integration_function=simpson)::T where {T<:Real}
     # QE style C(r) = -Zerf(r)/r Coulomb tail correction used to ensure
     # exponential decay of `f` so that the Hankel transform is accurate.
     # H[Vloc(r)] = H[Vloc(r) - C(r)] + H[C(r)],
     # where H[-Zerf(r)/r] = -Z/p^2 exp(-p^2 /4)
     # ABINIT uses a more 'pure' Coulomb term with the same asymptotic behavior
     # C(r) = -Z/r; H[-Z/r] = -Z/p^2
+    p == 0 && return zero(T)  # Compensating charge background
+    I = integration_function(rgrid) do i, r
+         r * (r * vloc[i] - -Zion * erf(r)) * sphericalbesselj_fast(0, p * r)
+    end
+    4T(π) * (I + -Zion / p^2 * exp(-p^2 / T(4)))
+end
+
+function eval_psp_local_fourier(psp::PspUpf, p::T)::T where {T<:Real}
+    rgrid = @view psp.rgrid[1:psp.ircut]
+    vloc  = @view psp.vloc[1:psp.ircut]
+    eval_psp_local_fourier(rgrid, vloc, psp.Zion, p)
+end
+
+# Vectorized version of the above, GPU compatible
+function eval_psp_local_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Real}
     x = @view psp.rgrid[1:3]
-    uniform_grid = (x[2] - x[1]) ≈ (x[3] - x[2]) ? true : false
+    integration_function = get_integration_function(x)
 
     arch = get_architecture(ps)
     rgrid = to_device(arch, @view psp.rgrid[1:psp.ircut])
     vloc  = to_device(arch, @view psp.vloc[1:psp.ircut])
     Zion = psp.Zion
     map(ps) do p
-        method = uniform_grid ? simpson_uniform : simpson_nonuniform
-        if p == 0
-            zero(T)
-        else
-            # GPU compilation error if branching done in generic simpson()
-            I = method(rgrid) do i, r
-                r * (r * vloc[i] - -Zion * erf(r)) * sphericalbesselj_fast(0, p * r)
-            end
-            4T(π) * (I + -Zion / p^2 * exp(-p^2 / T(4)))
-        end
+        # GPU kernels with dynamic function calls do not compile,
+        # hence the pre-determined explicit integration function
+        eval_psp_local_fourier(rgrid, vloc, Zion, p; integration_function)
     end
 end
 

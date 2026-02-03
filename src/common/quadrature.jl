@@ -114,3 +114,16 @@ end
 
     return I
 end
+
+"""
+Return the approproate integration finction given a quadrature
+"""
+function get_integration_function(x::AbstractArray)
+    n = length(x)
+    n <= 4 && return trapezoidal
+    if (x[2] - x[1]) ≈ (x[3] - x[2])
+        simpson_uniform
+    else
+        simpson_nonuniform
+    end
+end
