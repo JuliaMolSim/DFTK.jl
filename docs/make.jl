@@ -198,8 +198,9 @@ end
 @debug "Processing literate files"
 for file in literate_files
     @debug "Processing" file.src file.dest
-    # Skip all flies that did not change since last build
-    if mtime(file.src) <= mtime(file.dest) && !DEBUG
+    # Skip files that did not change since last build
+    output_md = joinpath(file.dest, splitext(basename(file.src))[1] * ".md")
+    if isfile(output_md) && mtime(file.src) <= mtime(output_md) && !DEBUG
         @debug "Skipping up-to-date file"
         continue
     end
