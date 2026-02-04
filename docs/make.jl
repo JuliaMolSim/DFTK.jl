@@ -252,16 +252,6 @@ end
 @debug "Deploying docs to GitHub Pages with `Documenter.deploydocs`"
 deploydocs(; repo=DFTKREPO, devbranch="master", forcepush=true)
 
-# Remove generated example files
-# if !DEBUG
-#     for file in literate_files
-#         base = splitext(basename(file.src))[1]
-#         for ext in [".ipynb", ".md"]
-#             rm(joinpath(file.dest, base * ext), force=true)
-#         end
-#     end
-# end
-
 if !CONTINUOUS_INTEGRATION
     println("\nDocs generated, try $(joinpath(BUILDPATH, "index.html"))")
 end
