@@ -29,13 +29,11 @@ function cg!(x::AbstractArray{T}, A!, b::AbstractArray{T};
     # cases, all columns are always considered. Allows to use the same cg! implementation
     # across the board, without extra complication. For performance, when x and b are not
     # single column vectors, active ranges should be implemented.
-    op_supports_active = false
-    try
-        A!(zeros_like(b), b; active=1:size(b, 2))
-        op_supports_active = true
-    catch MethodError
-        op_supports_active = false
-    end
+    op_supports_active = hasmethod(
+        A!,
+        Tuple{typeof(x), typeof(x)},
+        (:active,)
+    )
     function apply_op!(Ax, x; active=nothing)
         if op_supports_active
             A!(Ax, x; active)
