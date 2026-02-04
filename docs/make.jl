@@ -182,19 +182,14 @@ end
 # Run Literate on them all
 @debug "Processing literate files"
 for file in literate_files
-    @debug "Processing" file.src file.dest
     # Skip files that did not change since last build
     output_md = joinpath(file.dest, splitext(basename(file.src))[1] * ".md")
     if isfile(output_md) && mtime(file.src) <= mtime(output_md) && !DEBUG
-        @debug "Skipping up-to-date file"
+        @debug "Skipping (up-to-date)" file.src
         continue
     end
     execute = JL_FILES_TO_EXECUTE == :ALL || file.original_src in JL_FILES_TO_EXECUTE
-    if execute
-        @debug "Executing code"
-    else
-        @debug "Not executing code"
-    end
+    @debug "Processing" file.src execute
     Literate.markdown(
         file.src, file.dest;
         flavor=Literate.DocumenterFlavor(),
