@@ -179,21 +179,6 @@ literate_files = map(filter!(endswith(".jl"), extract_paths(PAGES))) do file
     end
 end
 
-# Function to insert badges to markdown files
-function add_badges(badges)
-    function preprocess(str)
-        # Find the Header and insert the badges right below
-        splitted = split(str, "\n")
-        idx = findfirst(startswith.(splitted, "# # "))
-        isnothing(idx) && error("Literate files must start with # #")
-        for (i, bad) in enumerate(badges)
-            insert!(splitted, idx + i, "#md # " * bad)
-        end
-        insert!(splitted, idx + length(badges) + 1, "#md #")
-        join(splitted, "\n")
-    end
-end
-
 # Run Literate on them all
 @debug "Processing literate files"
 for file in literate_files
@@ -203,17 +188,6 @@ for file in literate_files
     if isfile(output_md) && mtime(file.src) <= mtime(output_md) && !DEBUG
         @debug "Skipping up-to-date file"
         continue
-    end
-    subfolder = relpath(file.dest, SRCPATH)
-    if CONTINUOUS_INTEGRATION
-        badges = [
-            "[![](https://mybinder.org/badge_logo.svg)]" *
-            "(@__BINDER_ROOT_URL__/$subfolder/@__NAME__.ipynb)",
-            "[![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)]" *
-            "(@__NBVIEWER_ROOT_URL__/$subfolder/@__NAME__.ipynb)",
-        ]
-    else
-        badges = ["Binder links to `/$subfolder/@__NAME__.ipynb`"]
     end
     execute = JL_FILES_TO_EXECUTE == :ALL || file.original_src in JL_FILES_TO_EXECUTE
     if execute
@@ -225,8 +199,7 @@ for file in literate_files
         file.src, file.dest;
         flavor=Literate.DocumenterFlavor(),
         credit=false,
-        preprocess=add_badges(badges),
-        execute=execute,
+        execute,
         codefence="````julia" => "````",
     )
 end
