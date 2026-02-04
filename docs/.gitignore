@@ -11,5 +11,6 @@ src/guide/periodic_problems.md
 src/guide/self_consistent_field.md
 src/guide/tutorial.md
 src/guide/tutorialmath.md
+src/tricks/gpu.md
 src/tricks/scf_checkpoints.md
 /Artifacts.toml
