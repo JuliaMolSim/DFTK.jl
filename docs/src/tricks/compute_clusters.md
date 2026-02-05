@@ -27,7 +27,7 @@ the `JULIA_DEPOT_PATH` to be a subdirectory of `/scratch`.
 **EPFL scitas.**
 On scitas the right thing to do is to insert
 ```
-export JULIA_DEPOT_PATH="$JULIA_DEPOT_PATH:/scratch/$USER/.julia"
+export JULIA_DEPOT_PATH="/scratch/$USER/.julia"
 ```
 into your `~/.bashrc`.
 
@@ -176,7 +176,7 @@ Based on a `model` this information can be obtained before constructing a basis 
 estimate = estimate_memory_usage(model::Model; Ecut=15, kgrid=(1, 1, 1), other_basis_kwargs...)
 ```
 which takes exactly the same kind of arguments and keyword arguments as a
-`PlaneWaveBasis` constructor. The `estimate` object provides the estimated memory consumption,
+[`PlaneWaveBasis`](@ref) constructor. The `estimate` object provides the estimated memory consumption,
 which in a script can be pretty-printed to `stdout` as follows
 ```julia
 show(stdout, "text/plain", estimate)

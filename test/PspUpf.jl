@@ -22,6 +22,9 @@
         (; gth=load_psp(joinpath(@__DIR__, "gth_pseudos", "Si-q4.gth")),  upf=upf_pseudos[:Si]),
         (; gth=load_psp(joinpath(@__DIR__, "gth_pseudos", "Tl-q13.gth")), upf=upf_pseudos[:Tl]),
     ]
+    psp8_pseudos = Dict(
+        :Li_pbe => load_psp(joinpath(@__DIR__, "psp8_pseudos", "Li.psp8")),
+    )
 end
 
 
@@ -39,6 +42,22 @@ end
     @test psp.vloc[1] ≈ -1.2501238567E+01 / 2
     @test psp.h[1][1,1] ≈ -9.7091222353E+0 * 2
     @test psp.r2_projs[1][1][1] ≈ psp.rgrid[1] * -7.5698070034E-10 / 2
+end
+
+@testitem "Check reading PseudoDojo Li PSP8" tags=[:psp] setup=[mPspUpf] begin
+    psp = mPspUpf.psp8_pseudos[:Li_pbe]
+
+    @test psp.lmax == 1
+    @test psp.Zion == 3
+    @test length(psp.rgrid) == 400
+    @test length(psp.vloc) == 400
+    for m in psp.h
+        @test size(m) == (2, 2)
+    end
+
+    @test psp.vloc[1] ≈ -6.2945684552403
+    @test psp.h[1][1,1] ≈ -4.9515440588302 * 4
+    @test psp.r2_projs[1][1][1] ≈ psp.rgrid[1] * -6.2444638349035e-10
 end
 
 @testitem "Real potentials are consistent with HGH" tags=[:psp] setup=[mPspUpf] begin

@@ -114,6 +114,7 @@ that is return δψ where (Ω+K) δψ = -δHextψ.
     ρ = compute_density(basis, ψ, occupation)
     H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
 
+    # K is not C-linear, so we work in R^2N instead of C^N via the pack/unpack routines
     pack(ψ) = reinterpret_real(pack_ψ(ψ))
     unpack(x) = unpack_ψ(reinterpret_complex(x), size.(ψ))
     unsafe_unpack(x) = unsafe_unpack_ψ(reinterpret_complex(x), size.(ψ))
@@ -153,8 +154,15 @@ that is return δψ where (Ω+K) δψ = -δHextψ.
         proj_tangent!(δψ, ψ)
         pack(δψ)
     end
+    # custom inner product that Ω+K is self-adjoint with respect to
+    function weighted_dot(x, y)
+        δψx = unsafe_unpack(x)
+        δψy = unsafe_unpack(y)
+        # real(dot) here because we work in R^2N rather than C^N
+        weighted_ksum(basis, [real(dot(δψx[ik], δψy[ik])) for ik in 1:length(basis.kpoints)])
+    end
     res = cg(J, -δHextψ_pack; precon=FunctionPreconditioner(f_ldiv!), proj, tol,
-             callback, comm=basis.comm_kpts)
+             callback, my_dot=weighted_dot)
     (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norm,
      res.n_iter)
 end
