@@ -464,16 +464,23 @@ end
                     norm(resid_history[1:n_conv_check, niter+1]))
         end
 
+        if nlocked >= n_conv_check  # Converged!
+            X  .= new_X  # Update the part of X which is still active
+            AX .= new_AX
+
+            # Last callback
+            if !isnothing(callback)
+                callback((; niter, n_matvec, nlocked, resid_history, n_conv_check, λs, X, AX, BX))
+            end
+
+            return final_retval(full_X, full_AX, full_BX, full_λs, resid_history, niter, n_matvec)
+        end
+
         ### Callback
         if !isnothing(callback)
             callback((; niter, n_matvec, nlocked, resid_history, n_conv_check, λs, X, AX, BX))
         end
-
-        if nlocked >= n_conv_check  # Converged!
-            X  .= new_X  # Update the part of X which is still active
-            AX .= new_AX
-            return final_retval(full_X, full_AX, full_BX, full_λs, resid_history, niter, n_matvec)
-        end
+ 
         newly_locked = nlocked - prev_nlocked
         active = newly_locked+1:size(X,2)  # newly active vectors
 
@@ -566,14 +573,14 @@ end
 
 # default callback function for LOBPCG
 function make_LOBPCG_debug_callback()
-    prev_time = time()
+    start_time = time()
 
-    @printf "Iter     Converged     log10(resid)    Δtime\n"
+    @printf "Iter     Converged     log10(resid)    time \n"
     @printf "----   -------------   ------------   -------\n"
     
     return function(info)
         current_time = time()
-        Δt = current_time - prev_time
+        Δt = current_time - start_time
         
         niter = info.niter
         resid_history = info.resid_history
@@ -588,6 +595,6 @@ function make_LOBPCG_debug_callback()
         @printf "% 4d   %5d / %5d   %s       %s\n" niter nlocked n_conv_check resid_str tstr
         flush(stdout)
         
-        prev_time = current_time
+        start_time = current_time
     end
 end
