@@ -19,11 +19,7 @@ for details. In Voigt notation one would use the vector
     function HF_energy(lattice::AbstractMatrix{T}) where {T}
         basis = scfres.basis
         new_model = Model(basis.model; lattice)
-        new_basis = PlaneWaveBasis(new_model,
-                                   basis.Ecut, basis.fft_size, basis.variational,
-                                   basis.kgrid, basis.symmetries_respect_rgrid,
-                                   basis.use_symmetries_for_kpoint_reduction,
-                                   basis.comm_kpts, basis.architecture)
+        new_basis = PlaneWaveBasis(basis, new_model)
         ρ = compute_density(new_basis, scfres.ψ, scfres.occupation)
         (; energies) = energy(new_basis, scfres.ψ, scfres.occupation;
                               ρ, scfres.eigenvalues, scfres.εF)

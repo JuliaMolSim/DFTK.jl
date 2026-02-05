@@ -383,6 +383,21 @@ e.g. a [`MonkhorstPack`](@ref) or a [`ExplicitKpoints`](@ref) grid.
                    basis.comm_kpts, basis.architecture)
 end
 
+"""
+    PlaneWaveBasis(basis::PlaneWaveBasis, model::Model)
+
+Creates a new basis identical to `basis`, but with a different [`Model`](@ref)
+(e.g. a model with a strained lattice). All discretization parameters
+(`Ecut`, `fft_size`, `kgrid`, `architecture`, ...) are preserved from `basis`.
+"""
+@timing function PlaneWaveBasis(basis::PlaneWaveBasis, model::Model)
+    PlaneWaveBasis(model, basis.Ecut,
+                   basis.fft_size, basis.variational,
+                   basis.kgrid, basis.symmetries_respect_rgrid,
+                   basis.use_symmetries_for_kpoint_reduction,
+                   basis.comm_kpts, basis.architecture)
+end
+
 
 @doc raw"""
     G_vectors(basis::PlaneWaveBasis)

@@ -6,18 +6,22 @@ function _stress_from_strain(basis0::PlaneWaveBasis, voigt_strain; symmetries=tr
     model0 = basis0.model
     lattice = DFTK.voigt_strain_to_full(voigt_strain) * model0.lattice
     new_model = Model(model0; lattice, symmetries)
-    new_basis = PlaneWaveBasis(new_model,
-                               basis0.Ecut, basis0.fft_size, basis0.variational,
-                               basis0.kgrid, basis0.symmetries_respect_rgrid,
-                               basis0.use_symmetries_for_kpoint_reduction,
-                               basis0.comm_kpts, basis0.architecture)
+    new_basis = PlaneWaveBasis(basis0, new_model)
     scfres = self_consistent_field(new_basis; tol)
     DFTK.full_stress_to_voigt(compute_stresses_cart(scfres))
 end
 
 """
-Computes the *clamped-ion* elastic tensor (without ionic relaxation).
-Returns the elastic tensor in Voigt notation as the matrix C[i,j] = ∂σᵢ/∂ηⱼ.
+    elastic_tensor(scfres; magnetic_moments=[], tol=scfres.history_Δρ[end])
+
+Computes the *clamped-ion* elastic tensor (without ionic relaxation) via
+automatic differentiation of the stress tensor with respect to strain.
+Returns a named tuple `(; voigt_stress, C)` where `C[i,j] = ∂σᵢ/∂ηⱼ` is
+the 6×6 elastic tensor in Voigt notation.
+
+For cubic systems the three independent constants (C11, C12, C44) are
+obtained from a single directional derivative; for other symmetries the
+full Jacobian is computed.
 """
 function elastic_tensor(scfres::NamedTuple;
                         magnetic_moments=[],
