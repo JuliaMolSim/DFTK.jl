@@ -98,6 +98,17 @@ PAGES = [
     "publications.md",
 ]
 
+# .jl files to execute with Literate.jl. This can be helpful when working on
+# the documentation to not run all the code examples, e.g. when working on a
+# particular file or even when working just on the text or the structure of
+# the documentation. When set to :ALL, all files are executed (except if they
+# did not change since last build).
+JL_FILES_TO_EXECUTE = :ALL
+# JL_FILES_TO_EXECUTE = [
+#     "guide/tutorial.jl",
+#     "examples/arbitrary_floattype.jl",
+# ]
+
 # Files from the /examples folder that need to be copied over to the docs
 # (typically images, input or data files etc.)
 EXAMPLE_ASSETS = []  # Specify e.g. as "examples/Fe_afm.pwi"
@@ -106,6 +117,7 @@ EXAMPLE_ASSETS = []  # Specify e.g. as "examples/Fe_afm.pwi"
 # Configuration and setup
 #
 DEBUG = false  # Set to true to disable some checks and cleanup
+DEBUG && (ENV["JULIA_DEBUG"] = "make") # Activate @debug logs
 
 import LibGit2
 import Pkg
@@ -139,6 +151,7 @@ using Literate
 #
 # Generate the docs
 #
+@debug "Generating docs in $(BUILDPATH)"
 
 # Get list of files from PAGES
 extract_paths(file::AbstractString) = [file]
@@ -160,45 +173,30 @@ end
 # The examples go to docs/literate_build/examples, the .jl files stay where they are
 literate_files = map(filter!(endswith(".jl"), extract_paths(PAGES))) do file
     if startswith(file, "examples/")
-        (; src=joinpath(ROOTPATH, file), dest=joinpath(SRCPATH, "examples"), example=true)
+        (; src=joinpath(ROOTPATH, file), dest=joinpath(SRCPATH, "examples"), example=true, original_src=file)
     else
-        (; src=joinpath(SRCPATH, file), dest=joinpath(SRCPATH, dirname(file)), example=false)
-    end
-end
-
-# Function to insert badges to markdown files
-function add_badges(badges)
-    function preprocess(str)
-        # Find the Header and insert the badges right below
-        splitted = split(str, "\n")
-        idx = findfirst(startswith.(splitted, "# # "))
-        isnothing(idx) && error("Literate files must start with # #")
-        for (i, bad) in enumerate(badges)
-            insert!(splitted, idx + i, "#md # " * bad)
-        end
-        insert!(splitted, idx + length(badges) + 1, "#md #")
-        join(splitted, "\n")
+        (; src=joinpath(SRCPATH, file), dest=joinpath(SRCPATH, dirname(file)), example=false, original_src=file)
     end
 end
 
 # Run Literate on them all
+@debug "Processing literate files"
 for file in literate_files
-    subfolder = relpath(file.dest, SRCPATH)
-    if CONTINUOUS_INTEGRATION
-        badges = [
-            "[![](https://mybinder.org/badge_logo.svg)]" *
-                "(@__BINDER_ROOT_URL__/$subfolder/@__NAME__.ipynb)",
-            "[![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)]" * 
-                "(@__NBVIEWER_ROOT_URL__/$subfolder/@__NAME__.ipynb)",
-        ]
-    else
-        badges = ["Binder links to `/$subfolder/@__NAME__.ipynb`"]
+    # Skip files that did not change since last build
+    output_md = joinpath(file.dest, splitext(basename(file.src))[1] * ".md")
+    if isfile(output_md) && mtime(file.src) <= mtime(output_md) && !DEBUG
+        @debug "Skipping (up-to-date)" file.src
+        continue
     end
-    Literate.markdown(file.src, file.dest;
-                      flavor=Literate.DocumenterFlavor(),
-                      credit=false, preprocess=add_badges(badges))
-    Literate.notebook(file.src, file.dest; credit=false,
-                      execute=CONTINUOUS_INTEGRATION || DEBUG)
+    execute = JL_FILES_TO_EXECUTE == :ALL || file.original_src in JL_FILES_TO_EXECUTE
+    @debug "Processing" file.src execute
+    Literate.markdown(
+        file.src, file.dest;
+        flavor=Literate.DocumenterFlavor(),
+        credit=false,
+        execute,
+        codefence="````julia" => "````",
+    )
 end
 
 # Generate the docs in BUILDPATH
@@ -218,6 +216,7 @@ mathengine  = Documenter.MathJax3(Dict(
     ),
 ))
 
+@debug "Generating docs with `Documenter.makedocs`"
 makedocs(;
     modules=[DFTK],
     format=Documenter.HTML(;
@@ -225,7 +224,7 @@ makedocs(;
         prettyurls=CONTINUOUS_INTEGRATION,
         canonical="https://docs.dftk.org/stable/",
         edit_link="master",
-        assets=["assets/favicon.ico"],
+        assets=["assets/favicon.ico", "assets/custom.css"],
         size_threshold=nothing,  # do not fail build if large HTML outputs
         mathengine,
     ),
@@ -234,6 +233,7 @@ makedocs(;
     pages=transform_to_md(PAGES),
     checkdocs=:exports,
     warnonly=DEBUG,
+    # draft=true, # set this to tell Documenter not to execute julia code in the .md files
     remote_args...,
 )
 
@@ -244,17 +244,8 @@ end
 
 # Deploy docs to gh-pages branch
 # Note: Overwrites the commit history via a force push (saves storage space)
+@debug "Deploying docs to GitHub Pages with `Documenter.deploydocs`"
 deploydocs(; repo=DFTKREPO, devbranch="master", forcepush=true)
-
-# Remove generated example files
-if !DEBUG
-    for file in literate_files
-        base = splitext(basename(file.src))[1]
-        for ext in [".ipynb", ".md"]
-            rm(joinpath(file.dest, base * ext), force=true)
-        end
-    end
-end
 
 if !CONTINUOUS_INTEGRATION
     println("\nDocs generated, try $(joinpath(BUILDPATH, "index.html"))")
