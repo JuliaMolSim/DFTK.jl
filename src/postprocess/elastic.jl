@@ -1,7 +1,7 @@
 import DifferentiationInterface as DI
 
 
-function _stress_from_strain(basis0::PlaneWaveBasis, voigt_strain; symmetries, tol)
+function _stress_from_strain(basis0::PlaneWaveBasis, voigt_strain; symmetries=true, tol)
     # TODO restart SCF from previous
     model0 = basis0.model
     lattice = DFTK.voigt_strain_to_full(voigt_strain) * model0.lattice

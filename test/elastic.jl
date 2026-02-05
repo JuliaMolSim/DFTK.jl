@@ -28,8 +28,6 @@
     @test size(voigt_stress) == (6,)
     @test size(C) == (6, 6)
 
-    @show C
-
     # AD-DFPT numbers from this same test (only useful for regression testing)
     C11 = 0.010145339323700887
     C12 = 0.003622281868389229
@@ -48,9 +46,7 @@
     h = 1e-5
     strain_pattern = [1, 0, 0, 1, 0, 0]
     strained_lattice = DFTK.voigt_strain_to_full(0.01 * strain_pattern) * model0.lattice
-    symmetries_strain = DFTK.symmetry_operations(strained_lattice,
-                                                  model0.atoms, model0.positions)
-    stress_fn(η) = DFTK._stress_from_strain(basis, η; symmetries=symmetries_strain, tol=1e-10)
+    stress_fn(η) = DFTK._stress_from_strain(basis, η; tol=1e-10)
     dstress_fd = (stress_fn(h * strain_pattern) - stress_fn(-h * strain_pattern)) / 2h
 
     @test C * strain_pattern ≈ dstress_fd   atol=h
