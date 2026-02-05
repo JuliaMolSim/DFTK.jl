@@ -587,7 +587,5 @@ function make_LOBPCG_debug_callback()
         
         @printf "% 4d   %5d / %5d   %s       %s\n" niter nlocked n_conv_check resid_str tstr
         flush(stdout)
-        
-        start_time = current_time
     end
 end
