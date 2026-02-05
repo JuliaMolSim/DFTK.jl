@@ -464,23 +464,16 @@ end
                     norm(resid_history[1:n_conv_check, niter+1]))
         end
 
-        if nlocked >= n_conv_check  # Converged!
-            X  .= new_X  # Update the part of X which is still active
-            AX .= new_AX
-
-            # Last callback
-            if !isnothing(callback)
-                callback((; niter, n_matvec, nlocked, resid_history, n_conv_check, λs, X, AX, BX))
-            end
-
-            return final_retval(full_X, full_AX, full_BX, full_λs, resid_history, niter, n_matvec)
-        end
-
         ### Callback
         if !isnothing(callback)
             callback((; niter, n_matvec, nlocked, resid_history, n_conv_check, λs, X, AX, BX))
         end
- 
+
+        if nlocked >= n_conv_check  # Converged!
+            X  .= new_X  # Update the part of X which is still active
+            AX .= new_AX
+            return final_retval(full_X, full_AX, full_BX, full_λs, resid_history, niter, n_matvec)
+        end
         newly_locked = nlocked - prev_nlocked
         active = newly_locked+1:size(X,2)  # newly active vectors
 
