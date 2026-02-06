@@ -5,7 +5,7 @@
     function test_kernel(spin_polarization, termtype; test_compute=true, psp=TestCases.silicon.psp_gth)
         kgrid  = MonkhorstPack([2, 2, 2]; kshift = ones(3) / 2)
         testcase = TestCases.silicon
-        Si = ElementPsp(TestCases.silicon.atnum; psp=load_psp(psp))
+        Si = ElementPsp(TestCases.silicon.atnum, load_psp(psp))
         atoms = [Si, Si]
         ε   = 1e-8
         tol = 1e-5
@@ -45,6 +45,13 @@
                 kernel = DFTK.compute_kernel(term, basis; ρ=ρ0)
                 δV_matrix = reshape(kernel * vec(δρ), size(δρ))
                 @test norm(δV - δV_matrix) < tol
+            end
+
+            @testset "Self-adjointness" begin
+                δρ2 = randn(size(ρ0))
+                left  = dot(δρ, DFTK.apply_kernel(term, basis, δρ2; ρ=ρ0)) * basis.dvol
+                right = dot(DFTK.apply_kernel(term, basis, δρ; ρ=ρ0), δρ2) * basis.dvol
+                @test isapprox(left, right; atol=1e-11)
             end
         end
     end

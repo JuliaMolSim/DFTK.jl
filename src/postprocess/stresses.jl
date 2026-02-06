@@ -35,9 +35,11 @@ for details. In Voigt notation one would use the vector
     # Note that both strain and stress are symmetric, therefore we only do
     # AD with respect to the 6 free Voigt strain components. Note, that the
     # conversion from Voigt strain to 3x3 strain adds the ones on the diagonal
-    stress_voigt = 1/Ω * ForwardDiff.gradient(
-        v -> HF_energy(voigt_strain_to_full(v) * L), zeros(eltype(L), 6)
-    )::Vector{eltype(L)}
+    f = v -> HF_energy(voigt_strain_to_full(v) * L)
+    x = zeros(eltype(L), 6)
+    # Use chunk size of 1 to limit memory usage
+    config = ForwardDiff.GradientConfig(f, x, ForwardDiff.Chunk{1}())
+    stress_voigt = 1/Ω * ForwardDiff.gradient(f, x, config)::Vector{eltype(L)}
     symmetrize_stresses(scfres.basis, voigt_stress_to_full(stress_voigt))
 end
 function voigt_stress_to_full(v::AbstractVector{T}) where {T}

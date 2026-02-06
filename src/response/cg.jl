@@ -1,4 +1,5 @@
 using LinearMaps
+using LinearAlgebra: dot
 
 function default_cg_print(info)
     @printf("%3d\t%1.2e\n", info.n_iter, info.residual_norm)
@@ -11,7 +12,8 @@ and projection operations along iterations.
 function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
              precon=I, proj=identity, callback=identity,
              tol=1e-10, maxiter=100, miniter=1,
-             comm::MPI.Comm=MPI.COMM_SELF) where {T}
+             my_dot=dot) where {T}
+    my_norm(x) = sqrt(real(my_dot(x, x)))
 
     # initialisation
     # r = b - Ax is the residual
@@ -25,11 +27,11 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
         r .-= c
     end
     ldiv!(c, precon, r)
-    γ = mpi_dot(r, c, comm)
+    γ = my_dot(r, c)
     # p is the descent direction
     p = copy(c)
     n_iter = 0
-    residual_norm = mpi_norm(r, comm)
+    residual_norm = my_norm(r)
 
     # convergence history
     converged = false
@@ -45,16 +47,16 @@ function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
             break
         end
         mul!(c, A, p)
-        α = γ / mpi_dot(p, c, comm)
+        α = γ / my_dot(p, c)
 
         # update iterate and residual while ensuring they stay in Ran(proj)
         x .= proj(x .+ α .* p)
         r .= proj(r .- α .* c)
-        residual_norm = mpi_norm(r, comm)
+        residual_norm = my_norm(r)
 
         # apply preconditioner and prepare next iteration
         ldiv!(c, precon, r)
-        γ_prev, γ = γ, mpi_dot(r, c, comm)
+        γ_prev, γ = γ, my_dot(r, c)
         β = γ / γ_prev
         p .= proj(c .+ β .* p)
     end

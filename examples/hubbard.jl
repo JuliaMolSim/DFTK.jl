@@ -58,7 +58,10 @@ U = 10u"eV"
 manifold = OrbitalManifold(Ni, "3D")
 
 # Run SCF with a DFT+U setup, notice the `extra_terms` keyword argument, setting up the Hubbard +U term.
-model = model_DFT(lattice, atoms, positions; extra_terms=[Hubbard(manifold, U)],
+# It is also possible to set up multiple manifolds with different U values by passing each pair
+# as a separate entry in the `Hubbard` constructor (i.e. `Hubbard(manifold1 => U1, manifold2 => U2, etc.)`)
+# or as two vectors (i.e. `Hubbard([manifold1, manifold2, etc.], [U1, U2, etc.])`).
+model = model_DFT(lattice, atoms, positions; extra_terms=[Hubbard(manifold => U)],
                   functionals=PBE(), temperature=5e-3, magnetic_moments)
 basis = PlaneWaveBasis(model; Ecut=20, kgrid=[2, 2, 2])
 scfres = self_consistent_field(basis; tol=1e-6, ρ=guess_density(basis, magnetic_moments));

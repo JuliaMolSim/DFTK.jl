@@ -26,7 +26,7 @@ function DftFunctionals.has_energy(func::LibxcFunctional)
     0 in Libxc.supported_derivatives(Libxc.Functional(func.identifier))
 end
 
-function libxc_unfold_spin(data::Matrix, n_spin::Int)
+function libxc_unfold_spin(data::AbstractMatrix, n_spin::Int)
     n_p = size(data, 2)
     if n_spin == 1
         data  # Only one spin component

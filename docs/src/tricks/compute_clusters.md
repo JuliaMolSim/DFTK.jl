@@ -27,7 +27,7 @@ the `JULIA_DEPOT_PATH` to be a subdirectory of `/scratch`.
 **EPFL scitas.**
 On scitas the right thing to do is to insert
 ```
-export JULIA_DEPOT_PATH="$JULIA_DEPOT_PATH:/scratch/$USER/.julia"
+export JULIA_DEPOT_PATH="/scratch/$USER/.julia"
 ```
 into your `~/.bashrc`.
 
