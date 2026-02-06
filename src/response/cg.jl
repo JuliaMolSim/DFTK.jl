@@ -14,16 +14,12 @@ functions. A basic locking meachnism for converged columns is implemented.
 """
 function cg!(x::AbstractArray{T}, A!, b::AbstractArray{T};
              precon=I, proj! =copy!, callback=identity,
-             tol=1e-10*ones(T, size(b, 2)), maxiter=100, miniter=1,
-             my_dots=nothing) where {T}
+             tol=1e-10*ones(real(T), size(b, 2)), maxiter=100, miniter=1,
+             my_columnwise_dots=columnwise_dots) where {T}
 
     # Columnwise dot products and norms, possibly custom
-    if isnothing(my_dots)
-        my_dots = columnwise_dots
-        my_norms = columnwise_norms
-    else
-        my_norms(x) = sqrt.(real.(my_dots(x, x)))
-    end
+    # Write results of dot products and norms into existing array to allow type specialization
+    my_columnwise_norms(x) = sqrt.(real.(my_columnwise_dots(x, x)))
 
     # Utility to accept operators that do not implement active ranges for locking. In such
     # cases, all columns are always considered. Allows to use the same cg! implementation
@@ -57,12 +53,13 @@ function cg!(x::AbstractArray{T}, A!, b::AbstractArray{T};
         r .-= c
     end
     ldiv!(c, precon, r)
-    γ = my_dots(r, c)
+    γ = similar(b, T, size(b, 2))
+    γ .= my_columnwise_dots(r, c)
     # p is the descent direction
     p = copy(c)
     n_iter = 0
     residual_norms = zeros(real(T), size(b, 2)) # explicit typing for output type inference
-    residual_norms .= to_cpu(my_norms(r))
+    residual_norms .= to_cpu(my_columnwise_norms(r))
     converged_cols = falses(size(b, 2))
 
     # convergence history
@@ -112,21 +109,23 @@ function cg!(x::AbstractArray{T}, A!, b::AbstractArray{T};
         end
 
         apply_op!(c, p; active)
-        α = γ ./ my_dots(p, c)
+        tmp = zeros_like(γ)
+        tmp .= my_columnwise_dots(p, c)
+        α = γ ./ tmp
 
         # update iterate and residual while ensuring they stay in Ran(proj)
         proj_buffer .= x .+ p .* α'
         proj!(x, proj_buffer)
         proj_buffer .= r .- c .* α'
         proj!(r, proj_buffer)
-        residual_norms .= to_cpu(my_norms(r))
+        residual_norms .= to_cpu(my_columnwise_norms(r))
 
         # apply preconditioner and prepare next iteration. Preconditioner applied to full arrays,
         # because the FunctionPreconditioner type makes it hard to change the active set (cheap enough).
         ldiv!(full_c, precon, full_r)
-        γ_prev = copy(γ)
-        γ .= my_dots(r, c)
-        β = γ ./ γ_prev
+        copy!(tmp, γ) # previous γ stored in tmp array 
+        γ .= my_columnwise_dots(r, c)
+        β = γ ./ tmp
         proj_buffer .= c .+ p .* β'
         proj!(p, proj_buffer)
     end

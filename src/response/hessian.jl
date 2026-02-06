@@ -163,7 +163,7 @@ that is return δψ where (Ω+K) δψ = -δHextψ.
         [weighted_ksum(basis, [real(dot(δψx[ik], δψy[ik])) for ik in 1:length(basis.kpoints)])]
     end
     res = cg(ΩpK!, -δHextψ_pack; precon=FunctionPreconditioner(f_ldiv!), proj!, tol=tol,
-             callback, my_dots=weighted_dots)
+             callback, my_columnwise_dots=weighted_dots)
     (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norms,
      res.n_iter)
 end
