@@ -76,7 +76,7 @@ function run_test(; architecture)
 end
 end
 
-@testitem "Force derivatives using ForwardDiff" tags=[:dont_test_mpi, :minimal] #=
+@testitem "Force derivatives using ForwardDiff" tags=[:minimal] #=
     =#    setup=[TestCases, ForwardDiffWrappers, ForceDerivatives] begin
     using DFTK
     ForceDerivatives.run_test(; architecture=DFTK.CPU())
@@ -147,7 +147,7 @@ function run_test(; architecture)
 end
 end
 
-@testitem "Anisotropic strain sensitivity using ForwardDiff" tags=[:dont_test_mpi, :minimal] #=
+@testitem "Anisotropic strain sensitivity using ForwardDiff" tags=[:minimal] #=
     =#    setup=[TestCases, ForwardDiffWrappers, StrainSensitivity] begin
     using DFTK
     StrainSensitivity.run_test(; architecture=DFTK.CPU())
@@ -250,7 +250,7 @@ function run_test()
 end
 end
 
-@testitem "Symmetries broken by perturbation are filtered out" tags=[:dont_test_mpi, :minimal] #=
+@testitem "Symmetries broken by perturbation are filtered out" tags=[:minimal] #=
     =#    setup=[FilterBrokenSymmetries] begin
     using DFTK
     FilterBrokenSymmetries.run_test()
@@ -301,7 +301,7 @@ function run_test(; architecture)
 end
 end
 
-@testitem "Symmetry-breaking perturbation using ForwardDiff" tags=[:dont_test_mpi, :minimal] #=
+@testitem "Symmetry-breaking perturbation using ForwardDiff" tags=[:minimal] #=
     =#    setup=[TestCases, ForwardDiffWrappers, SymmetryBreakingPerturbation] begin
     using DFTK
    SymmetryBreakingPerturbation.run_test(; architecture=DFTK.CPU())
