@@ -119,14 +119,14 @@ function compute_exx_ene_ops(::ACEXX,
                              basis::PlaneWaveBasis{T}, ψ, occupation) where {T}
     E = zero(T)
     ops = Vector{ACExchangeOperator}(undef, length(basis.kpoints))
-    for (ik, kpt) in enumerate(basis.kpoints)
+    @views for (ik, kpt) in enumerate(basis.kpoints)
         occk = occupation[ik]
         ψk   = ψ[ik]
    
         nocc = size(ψk, 2) 
         ψk_real = similar(ψk, complex(T), basis.fft_size..., nocc)
         for i = 1:nocc
-            ifft!(view(ψk_real,:,:,:,i), basis, kpt, ψk[:,i])
+            ifft!(ψk_real[:,:,:,i], basis, kpt, ψk[:,i])
         end
 
         Wk = similar(ψk)
@@ -134,7 +134,7 @@ function compute_exx_ene_ops(::ACEXX,
         for (n, ψnk_real) in enumerate(eachslice(ψk_real, dims=4))
             Wnk_real = zeros(complex(T), basis.fft_size...)
             for (m, ψmk_real) in enumerate(eachslice(ψk_real, dims=4))
-                ρmn_real = conj(ψmk_real) .* ψnk_real
+                ρmn_real = conj.(ψmk_real) .* ψnk_real
                 ρmn_fourier = fft(basis, kpt, ρmn_real) # actually we need a q-point here
 
                 Vmn_fourier = ρmn_fourier .* coulomb_kernel
