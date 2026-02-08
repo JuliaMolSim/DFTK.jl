@@ -6,36 +6,27 @@
 # Mathematical background:
 # ========================
 #
-# A symmetry operation (W, w) transforms atomic positions as:
+# A symmetry operation (W, w) in real space transforms atomic positions as:
 #   r' = W*r + w  (in reduced coordinates)
 #
-# For a displacement of atom s in direction α with wave vector q:
-#   u_{s,α}(r) = e^{iq·r} e_α δ_{r,s}
+# In reciprocal space, this induces the transformation:
+#   S = W', τ = -W^{-1}*w
+# such that q' = S*q and the phase transformation is e^{iq·τ}.
 #
-# Under symmetry, this transforms to:
-#   u'(r') = u(W^{-1}(r' - w)) = e^{iq·W^{-1}(r' - w)} e_α δ_{W^{-1}(r' - w), s}
-#         = e^{i(W'^{-1}q)·r'} e^{-iq·W^{-1}w} e_α δ_{r', W*s + w}
-#         = e^{i(S^{-1}q)·r'} e^{-iq·τ} e_α δ_{r', s'}
+# The dynamical matrix D^q relates atomic displacement u to force F:
+#   F_β(t) = D^q_β t, α s * u_α(s) * e^{iq·r_t}
 #
-# where S = W' and τ = -W^{-1}w (reciprocal space symmetry parameters)
-# and s' is the atom to which s is mapped by the symmetry.
+# Under the symmetry operation:
+# - Positions transform: s -> s' where r_s' = W*r_s + w
+# - Displacements (vectors) in reduced coords: u'(s') = W * u(s)
+# - Forces (covectors) in reduced coords: F'(t') = W^{-T} * F(t)  
+# - q-point transforms: q' = S*q = W'*q
+# - Phase: e^{iq'·τ} appears
 #
-# The dynamical matrix D^q_{s,α;t,β} relates the displacement of atom s in direction α
-# to the force on atom t in direction β, both with wave vector q.
+# The dynamical matrix transformation in reduced coordinates becomes:
+#   D^{q'}_{β t', α s'} = e^{iq·τ} * W^{-T}_{βγ} * D^q_{γ t, δ s} * W_{δα}
 #
-# Under a symmetry operation (W, w), we have:
-#   D^{Sq}_{s',α';t',β'} = e^{iq·τ} W^{-T}_{α'α} D^q_{s,α;t,β} W^{-1}_{ββ'}
-#
-# where s' = symop(s), t' = symop(t), and the indices are transformed by the rotation.
-# The phase factor e^{iq·τ} comes from the translation part of the symmetry.
-#
-# In reduced coordinates, the transformation is:
-#   D^{Sq}_{s',α';t',β'} = e^{iq·τ} W^{-T}_{α'α} D^q_{s,α;t,β} W^{-1}_{ββ'}
-#
-# This allows us to:
-# 1. Compute D^q for q in the irreducible BZ
-# 2. Use symmetry to obtain D^{Sq} for any S that maps q to another point
-# 3. Build the full dynamical matrix for all q-points from irreducible computations
+# where s' = W*s+w and t' = W*t+w are the images of atoms s and t under symmetry.
 
 using LinearAlgebra
 
@@ -45,8 +36,8 @@ using LinearAlgebra
 Apply a symmetry operation to a dynamical matrix computed at q-point `q`.
 Returns the dynamical matrix at the symmetry-transformed q-point `Sq = symop.S * q`.
 
-The dynamical matrix is expected in the format `dynmat[α, s, β, t]` where
-`α, β` are Cartesian directions (1:3) and `s, t` are atom indices.
+The dynamical matrix is indexed as `dynmat[α, s, β, t]` where  
+`(α, s)` is displacement component and atom, `(β, t)` is force component and atom.
 
 # Arguments
 - `symop::SymOp`: The symmetry operation to apply
@@ -65,16 +56,16 @@ function apply_symop_dynmat(symop::SymOp, model::Model, dynmat, q)
     W = symop.W
     τ = symop.τ
     
-    # The dynamical matrix transforms as a map from vectors to covectors
-    # In reduced coordinates: D' = W^{-T} D W^{-1}
-    # But we also need to account for:
-    # 1. The atom permutation induced by the symmetry
-    # 2. The phase factor from the translation part
+    # The dynamical matrix in reduced coordinates transforms as:
+    # D'^{Sq}[α', s', β', t'] = e^{iq·τ} * W_{α',α} * D^q[α, s, β, t] * W^{-T}_{β,β'}
+    # where s' = W*s + w and t' = W*t + w
     
     dynmat_symm = zero(dynmat)
     
     # Phase factor from translation: e^{iq·τ}
     phase = cis(2π * dot(q, τ))
+    
+    W_inv_T = Matrix(inv(W)')
     
     # For each pair of atoms in the transformed system
     for s_prime = 1:n_atoms
@@ -85,13 +76,10 @@ function apply_symop_dynmat(symop::SymOp, model::Model, dynmat, q)
             t = find_symmetry_preimage(model.positions, model.positions[t_prime],
                                       symop; tol_symmetry=SYMMETRY_TOLERANCE)
             
-            # Transform the matrix block: W^{-T} * D_{s,t} * W^{-1}
-            # This transformation is in reduced coordinates
-            W_inv = inv(W)
-            W_inv_T = W_inv'
-            
             # Apply transformation to the 3×3 block
-            dynmat_symm[:, s_prime, :, t_prime] = phase * W_inv_T * dynmat[:, s, :, t] * W_inv
+            # D'[α', s', β', t'] = phase * W[α', α] * D[α, s, β, t] * W^{-T}[β, β']
+            # This is equivalent to: W * D[:, s, :, t] * W^{-T}
+            dynmat_symm[:, s_prime, :, t_prime] = phase * W * dynmat[:, s, :, t] * W_inv_T
         end
     end
     
