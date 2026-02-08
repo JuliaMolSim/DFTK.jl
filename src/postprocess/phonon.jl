@@ -153,12 +153,8 @@ function transform_phonon_modes(phonon_modes, symop::SymOp, model, q, basis)
         end
     end
     
-    # Phase factor: exp(-2πi q·τ)
-    phase = cis2pi(-dot(q, τ))
-    phase2 = phase * phase  # For the dynamical matrix transformation
-    
     # Transform the dynamical matrix in reduced coordinates
-    # D'_jl = W D_ik W^{-1} * phase^2 where i maps to j and k maps to l
+    # D'_jl = W D_ik W^{-1} where atom i maps to j and atom k maps to l
     dynmat = phonon_modes.dynmat
     W_inv = inv(W)
     dynmat_transformed = zero(dynmat)
@@ -169,7 +165,7 @@ function transform_phonon_modes(phonon_modes, symop::SymOp, model, q, basis)
         # Transform D[α, k, β, i] -> D'[α, l, β, j]
         for α = 1:3, β = 1:3
             dynmat_transformed[α, l, β, j] += sum(W[α, γ] * dynmat[γ, k, δ, i] * W_inv[δ, β] 
-                                                    for γ = 1:3, δ = 1:3) * phase2
+                                                    for γ = 1:3, δ = 1:3)
         end
     end
     
