@@ -90,7 +90,7 @@ function phonon_modes(basis::PlaneWaveBasis{T}, ψ, occupation; q=nothing, qpoin
         q = zero(Vec3{T})
     end
     
-    dynmat = compute_dynmat(basis::PlaneWaveBasis, ψ, occupation; q, kwargs...)
+    dynmat = compute_dynmat(basis, ψ, occupation; q, kwargs...)
     dynmat_cart = dynmat_red_to_cart(basis.model, dynmat)
 
     modes = _phonon_modes(basis, dynmat_cart)
