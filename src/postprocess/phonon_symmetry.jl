@@ -36,8 +36,9 @@ using LinearAlgebra
 Apply a symmetry operation to a dynamical matrix computed at q-point `q`.
 Returns the dynamical matrix at the symmetry-transformed q-point `Sq = symop.S * q`.
 
-The dynamical matrix is indexed as `dynmat[α, s, β, t]` where  
+The dynamical matrix is indexed as `dynmat[β, t, α, s]` where  
 `(α, s)` is displacement component and atom, `(β, t)` is force component and atom.
+The relation is: F_β(t) = ∑_{α,s} dynmat[β, t, α, s] * u_α(s)
 
 # Arguments
 - `symop::SymOp`: The symmetry operation to apply
@@ -56,16 +57,25 @@ function apply_symop_dynmat(symop::SymOp, model::Model, dynmat, q)
     W = symop.W
     τ = symop.τ
     
-    # The dynamical matrix in reduced coordinates transforms as:
-    # D'^{Sq}[α', s', β', t'] = e^{iq·τ} * W_{α',α} * D^q[α, s, β, t] * W^{-T}_{β,β'}
-    # where s' = W*s + w and t' = W*t + w
+    # Under symmetry W:
+    # - Displacements (vectors): u'(s') = W * u(s) where s' = W*s + w
+    # - Forces (covectors): F'(t') = W^{-T} * F(t) where t' = W*t + w
+    #
+    # Since F_β(t) = ∑_{α,s} D[β, t, α, s] * u_α(s), we have:
+    # F'_β'(t') = W^{-T}_{β',β} * F_β(t)
+    #           = W^{-T}_{β',β} * ∑_{α,s} D[β, t, α, s] * u_α(s)
+    #           = W^{-T}_{β',β} * ∑_{α,s} D[β, t, α, s] * W^{-1}_{α,α'} * u'_α'(s')
+    #
+    # Therefore: D'[β', t', α', s'] = W^{-T}_{β',β} * D[β, t, α, s] * W^{-1}_{α,α'}
     
     dynmat_symm = zero(dynmat)
     
-    # Phase factor from translation: e^{iq·τ}
-    phase = cis(2π * dot(q, τ))
+    # Phase factor from translation: e^{iq'·τ} where q' = S*q
+    q_prime = symop.S * q
+    phase = cis(2π * dot(q_prime, τ))
     
-    W_inv_T = Matrix(inv(W)')
+    W_inv = Matrix(inv(W))
+    W_inv_T = W_inv'
     
     # For each pair of atoms in the transformed system
     for s_prime = 1:n_atoms
@@ -77,9 +87,8 @@ function apply_symop_dynmat(symop::SymOp, model::Model, dynmat, q)
                                       symop; tol_symmetry=SYMMETRY_TOLERANCE)
             
             # Apply transformation to the 3×3 block
-            # D'[α', s', β', t'] = phase * W[α', α] * D[α, s, β, t] * W^{-T}[β, β']
-            # This is equivalent to: W * D[:, s, :, t] * W^{-T}
-            dynmat_symm[:, s_prime, :, t_prime] = phase * W * dynmat[:, s, :, t] * W_inv_T
+            # D'[β', t', α', s'] = phase * W^{-T}[β', β] * D[β, t, α, s] * W^{-1}[α, α']
+            dynmat_symm[:, t_prime, :, s_prime] = phase * W_inv_T * dynmat[:, t, :, s] * W_inv
         end
     end
     
