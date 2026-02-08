@@ -234,6 +234,8 @@ export compute_current
 include("postprocess/current.jl")
 export phonon_modes
 include("postprocess/phonon.jl")
+export apply_symop_dynmat, get_irreducible_qpoints
+include("postprocess/phonon_symmetry.jl")
 export refine_scfres
 export refine_energies
 export refine_forces
