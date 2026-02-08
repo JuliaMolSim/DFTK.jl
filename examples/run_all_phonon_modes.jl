@@ -7,7 +7,7 @@ using PseudoPotentialData
 # Setup: Silicon with LDA, 2x2x2 k-grid (same as phonons.jl example)
 pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
 model = model_DFT(bulk(:Si); pseudopotentials, functionals=LDA())
-basis = PlaneWaveBasis(model; Ecut=10, kgrid=[2, 2, 2])
+basis = PlaneWaveBasis(model; Ecut=10, kgrid=[2, 1, 1])
 
 println("Performing SCF calculation...")
 scfres = self_consistent_field(basis, tol=1e-12)
@@ -37,7 +37,7 @@ max_freq_diff = 0.0
 for i = 1:length(all_modes)
     freq_diff = maximum(abs.(all_modes[i].modes.frequencies - 
                               all_modes_unfold[i].modes.frequencies))
-    max_freq_diff = max(max_freq_diff, freq_diff)
+    global max_freq_diff = max(max_freq_diff, freq_diff)
 end
 
 println("Maximum frequency difference: $max_freq_diff")

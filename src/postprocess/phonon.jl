@@ -28,24 +28,19 @@ end
 mass_matrix(model::Model{T}) where {T} = mass_matrix(T, model.atoms)
 
 """
-Get phonon quantities. We return the frequencies, the mass matrix and reduced and Cartesian
-eigenvectors and dynamical matrices.
+    dynmat_to_phonon_modes(basis::PlaneWaveBasis, dynmat)
+
+Convert a dynamical matrix in reduced coordinates to phonon modes.
+
+Returns the frequencies, mass matrix, and reduced and Cartesian eigenvectors and dynamical
+matrices as a named tuple with fields: `mass_matrix`, `frequencies`, `dynmat`, `dynmat_cart`, 
+`vectors`, `vectors_cart`.
 """
-function phonon_modes(basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where {T}
-    dynmat = compute_dynmat(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
+function dynmat_to_phonon_modes(basis::PlaneWaveBasis{T}, dynmat) where {T}
+    # Convert dynamical matrix to Cartesian coordinates
     dynmat_cart = dynmat_red_to_cart(basis.model, dynmat)
-
-    modes = _phonon_modes(basis, dynmat_cart)
-    vectors = similar(modes.vectors_cart)
-    for s = 1:size(vectors, 2), t = 1:size(vectors, 4)
-        vectors[:, s, :, t] = vector_cart_to_red(basis.model, modes.vectors_cart[:, s, :, t])
-    end
-
-    (; modes.mass_matrix, modes.frequencies, dynmat, dynmat_cart, vectors, modes.vectors_cart)
-end
-# Compute the frequencies and vectors. Internal because of the potential misuse:
-# the diagonalization of the phonon modes has to be done in Cartesian coordinates.
-function _phonon_modes(basis::PlaneWaveBasis{T}, dynmat_cart) where {T}
+    
+    # Diagonalize in Cartesian coordinates
     n_atoms = length(basis.model.positions)
     M = reshape(mass_matrix(T, basis.model.atoms), 3*n_atoms, 3*n_atoms)
 
@@ -55,8 +50,24 @@ function _phonon_modes(basis::PlaneWaveBasis{T}, dynmat_cart) where {T}
 
     signs = sign.(real(res.values))
     frequencies = signs .* sqrt.(abs.(real(res.values)))
+    vectors_cart = reshape(res.vectors, 3, n_atoms, 3, n_atoms)
+    
+    # Convert eigenvectors to reduced coordinates
+    vectors = similar(vectors_cart)
+    for s = 1:size(vectors, 2), t = 1:size(vectors, 4)
+        vectors[:, s, :, t] = vector_cart_to_red(basis.model, vectors_cart[:, s, :, t])
+    end
 
-    (; mass_matrix=M, frequencies, vectors_cart=reshape(res.vectors, 3, n_atoms, 3, n_atoms))
+    (; mass_matrix=M, frequencies, dynmat, dynmat_cart, vectors, vectors_cart)
+end
+
+"""
+Get phonon quantities. We return the frequencies, the mass matrix and reduced and Cartesian
+eigenvectors and dynamical matrices.
+"""
+function phonon_modes(basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where {T}
+    dynmat = compute_dynmat(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
+    dynmat_to_phonon_modes(basis, dynmat)
 end
 function phonon_modes(scfres::NamedTuple; kwargs...)
     # TODO Pass down mixing and similar things to solve_ΩplusK_split
@@ -109,19 +120,19 @@ end
 
 
 """
-Transform phonon eigenvectors under a symmetry operation.
+Transform phonon modes under a symmetry operation.
 
 Given phonon modes at q-point `q`, transform them to obtain modes at `Sq = S*q`
 using symmetry operation `symop`.
 
 The transformation works as follows:
 - For each atom i, find the atom j such that positions[j] ≈ W*positions[i] + w (mod 1)
-- The displacement transforms as: u'_j(Sq) = W * u_i(q) * exp(-2πi q·τ)
+- The dynamical matrix transforms as: D'_jl = W D_ik W^{-1} * phase^2 where i->j, k->l
 
 Here, W is the real-space rotation matrix and τ is the reciprocal translation
 from the symmetry operation.
 """
-function transform_phonon_modes(phonon_modes, symop::SymOp, model, q)
+function transform_phonon_modes(phonon_modes, symop::SymOp, model, q, basis)
     n_atoms = length(model.positions)
     W, w, S, τ = symop.W, symop.w, symop.S, symop.τ
     
@@ -144,43 +155,26 @@ function transform_phonon_modes(phonon_modes, symop::SymOp, model, q)
     
     # Phase factor: exp(-2πi q·τ)
     phase = cis2pi(-dot(q, τ))
+    phase2 = phase * phase  # For the dynamical matrix transformation
     
-    # Work with flattened representation for clarity
-    # Eigenvectors are stored as (3n_atoms, 3n_atoms) where each column is one eigenvector
-    vectors_flat = reshape(phonon_modes.vectors, 3*n_atoms, 3*n_atoms)
-    vectors_transformed_flat = similar(vectors_flat)
+    # Transform the dynamical matrix in reduced coordinates
+    # D'_jl = W D_ik W^{-1} * phase^2 where i maps to j and k maps to l
+    dynmat = phonon_modes.dynmat
+    W_inv = inv(W)
+    dynmat_transformed = zero(dynmat)
     
-    # Transform each eigenvector (each column)
-    for imode = 1:size(vectors_flat, 2)
-        eigenvec = vectors_flat[:, imode]
-        eigenvec_reshaped = reshape(eigenvec, 3, n_atoms)  # (3, n_atoms): displacement of each atom
-        
-        # Transform the eigenvector
-        eigenvec_transformed = zeros(eltype(eigenvec), 3, n_atoms)
-        for i = 1:n_atoms
-            j = atom_mapping[i]
-            # Displacement at atom i in reduced coords transforms as: v'_j = W * v_i * phase
-            for β = 1:3
-                eigenvec_transformed[β, j] = sum(W[β, γ] * eigenvec_reshaped[γ, i] for γ in 1:3) * phase
-            end
+    for i = 1:n_atoms, k = 1:n_atoms
+        j = atom_mapping[i]
+        l = atom_mapping[k]
+        # Transform D[α, k, β, i] -> D'[α, l, β, j]
+        for α = 1:3, β = 1:3
+            dynmat_transformed[α, l, β, j] += sum(W[α, γ] * dynmat[γ, k, δ, i] * W_inv[δ, β] 
+                                                    for γ = 1:3, δ = 1:3) * phase2
         end
-        
-        vectors_transformed_flat[:, imode] = vec(eigenvec_transformed)
     end
     
-    # Reshape back
-    vectors_transformed = reshape(vectors_transformed_flat, 3, n_atoms, 3, n_atoms)
-    
-    # Re-compute Cartesian vectors from reduced coordinates
-    vectors_cart_transformed = similar(phonon_modes.vectors_cart)
-    for s = 1:size(vectors_cart_transformed, 2), t = 1:size(vectors_cart_transformed, 4)
-        vectors_cart_transformed[:, s, :, t] = 
-            vector_red_to_cart(model, vectors_transformed[:, s, :, t])
-    end
-    
-    (; phonon_modes.mass_matrix, phonon_modes.frequencies, 
-       phonon_modes.dynmat, phonon_modes.dynmat_cart,
-       vectors=vectors_transformed, vectors_cart=vectors_cart_transformed)
+    # Use dynmat_to_phonon_modes to compute the modes from the transformed dynmat
+    dynmat_to_phonon_modes(basis, dynmat_transformed)
 end
 
 
@@ -280,7 +274,7 @@ function all_phonon_modes(scfres::NamedTuple; kwargs...)
             # Transform the phonon modes
             q_irred = q_irred_unique[iirred]
             modes_transformed = transform_phonon_modes(phonon_modes_irred[iirred], 
-                                                       symop, model, q_irred)
+                                                       symop, model, q_irred, basis_unfold)
             all_modes[iq] = (; q, modes=modes_transformed)
         end
     end
