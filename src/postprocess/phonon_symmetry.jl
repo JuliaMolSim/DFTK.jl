@@ -107,22 +107,18 @@ along with the symmetry operation that maps the irreducible q to q.
 
 # Returns
 - `(q_irred, symop)`: The irreducible q-point and the symmetry operation such that `symop.S * q_irred ≈ q`
+
+# Note
+This is a placeholder implementation. A proper implementation should find the lexicographically
+smallest equivalent q-point to serve as the irreducible representative.
+TODO: Implement proper irreducible q-point selection, possibly using spglib
 """
 function find_irreducible_qpoint(q, symmetries)
     q_normalized = normalize_kpoint_coordinate(q)
     
-    # For now, use a simple approach: return the first equivalent q-point
-    # TODO: Could be optimized by using spglib's irreducible q-point mesh
-    for symop in symmetries
-        q_candidate = normalize_kpoint_coordinate(symop.S * q_normalized)
-        # Check if this is the original q-point
-        if norm(q_candidate - q_normalized) < SYMMETRY_TOLERANCE
-            return (q_normalized, symop)
-        end
-    end
-    
-    # If we get here, q is already irreducible or no symmetry maps to it
-    # Return q itself with identity operation
+    # Placeholder: Just return q itself with identity operation
+    # A proper implementation would find the canonical (lexicographically smallest) 
+    # representative among all symmetry-equivalent q-points
     return (q_normalized, SymOp(Mat3{Int}(I), Vec3(zeros(eltype(q), 3))))
 end
 

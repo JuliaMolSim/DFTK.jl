@@ -66,6 +66,14 @@ end
 
 """
 Convenience wrapper to compute dynamical matrix from scfres.
+
+# Arguments
+- `scfres`: SCF results from `self_consistent_field`
+- `q`: q-point at which to compute the dynamical matrix (default: Γ point)
+- `kwargs...`: Additional keyword arguments passed to `compute_dynmat`
+
+# Returns
+- Dynamical matrix as a 3×n_atoms×3×n_atoms array in reduced coordinates
 """
 function compute_dynmat(scfres::NamedTuple; kwargs...)
     compute_dynmat(scfres.basis, scfres.ψ, scfres.occupation; 

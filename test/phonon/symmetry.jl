@@ -57,14 +57,18 @@
     dynmat_Sq_direct_cart = DFTK.dynmat_red_to_cart(model, dynmat_Sq_direct)
     dynmat_Sq_symm_cart = DFTK.dynmat_red_to_cart(model, dynmat_Sq_symm)
     
-    # Test that they're close (allow for numerical tolerances in DFPT)
+    # Test that they're close
+    # Note: Tolerances are loose (rtol=0.1) because DFPT numerical precision
+    # can vary between different q-points. The key is that phonon frequencies
+    # (the physical observables) agree well.
     @test dynmat_Sq_direct_cart ≈ dynmat_Sq_symm_cart rtol=0.1 atol=1e-1
     
-    # Also check that phonon frequencies are the same
+    # Check phonon frequencies (more stringent test)
     modes_direct = DFTK._phonon_modes(basis, dynmat_Sq_direct_cart)
     modes_symm = DFTK._phonon_modes(basis, dynmat_Sq_symm_cart)
     
-    @test modes_direct.frequencies ≈ modes_symm.frequencies rtol=0.1 atol=1e-3
+    # Frequency comparison is more meaningful than raw matrix comparison
+    @test modes_direct.frequencies ≈ modes_symm.frequencies rtol=0.01 atol=1e-3
 end
 
 @testitem "Phonon: Irreducible q-point reduction" #=
