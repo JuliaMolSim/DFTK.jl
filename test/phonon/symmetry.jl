@@ -71,43 +71,53 @@
     @test modes_direct.frequencies ≈ modes_symm.frequencies rtol=0.01 atol=1e-3
 end
 
-@testitem "Phonon: Compute phonons on grid with symmetries" #=
+@testitem "Phonon: Symmetry-reduced vs unfolded BZ equivalence" #=
     =#    tags=[:phonon, :dont_test_mpi, :slow] setup=[Phonon, TestCases] begin
     using DFTK
-    using DFTK: normalize_kpoint_coordinate
     using LinearAlgebra
 
-    # Test with silicon (simple, well-tested system)
+    # Test with silicon (has good symmetry)
     lattice = TestCases.silicon.lattice
     atoms = TestCases.silicon.atoms
     positions = TestCases.silicon.positions
     
-    # Create model with symmetries (use Kinetic + Ewald with temperature for simplicity)
+    # Create model with symmetries
     terms = [Kinetic(), Ewald()]
     model = Model(lattice, atoms, positions; model_name="atomic", terms, temperature=0.01)
-    basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
     
-    # Run SCF (fast for atomic model)
-    scfres = self_consistent_field(basis; tol=1e-6)
+    # SCF with symmetries
+    basis_sym = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
+    @test length(basis_sym.symmetries) > 1  # Should use symmetries
+    scfres_sym = self_consistent_field(basis_sym; tol=1e-6)
     
-    # Test with a small q-grid
+    # Unfold the BZ
+    scfres_nosym = unfold_bz(scfres_sym)
+    @test length(scfres_nosym.basis.symmetries) == 1  # Should have no symmetries
+    
+    # Define q-points to test
     qgrid = MonkhorstPack([2, 2, 2])
     
-    result = compute_phonons_on_grid(scfres, qgrid; tol=1e-8)
+    # Compute phonons with symmetry-reduced calculation
+    @info "Computing phonons with symmetry reduction..."
+    result_sym = phonon_modes(scfres_sym; qpoints=qgrid, tol=1e-8)
     
-    @test length(result.qcoords) == 8  # 2x2x2 grid
-    @test result.n_irred < 8  # Should use symmetries to reduce
-    @test size(result.dynmats) == (3, 2, 3, 2, 8)  # 3×n_atoms×3×n_atoms×n_q
-    @test length(result.qcoords_irred) == result.n_irred
+    # Compute phonons with unfolded BZ (no symmetry reduction)
+    @info "Computing phonons without symmetry reduction..."
+    result_nosym = phonon_modes(scfres_nosym; qpoints=qgrid, tol=1e-8)
     
-    @info "Phonon grid test: $(result.n_irred) irreducible q-points out of $(length(result.qcoords))"
+    # Verify results are equivalent
+    @test length(result_sym.frequencies) == length(result_nosym.frequencies)
+    @test result_sym.qcoords ≈ result_nosym.qcoords
     
-    # Test with explicit q-points
-    qcoords = [Vec3([0.0, 0.0, 0.0]), Vec3([0.25, 0.25, 0.25]), Vec3([0.5, 0.5, 0.5])]
+    # Check that frequencies match for each q-point
+    for iq = 1:length(result_sym.qcoords)
+        @test result_sym.frequencies[iq] ≈ result_nosym.frequencies[iq] rtol=0.01
+    end
     
-    result2 = compute_phonons_on_grid(scfres, qcoords; tol=1e-8)
+    # Verify symmetry reduction actually happened
+    @test result_sym.n_irred < length(result_sym.qcoords)
+    @info "Phonon computation used $(result_sym.n_irred) irreducible q-points out of $(length(result_sym.qcoords))"
     
-    @test length(result2.qcoords) == 3
-    @test result2.n_irred <= 3  # Should use symmetries to reduce
-    @test size(result2.dynmats) == (3, 2, 3, 2, 3)
+    # For unfolded BZ, all q-points should be "irreducible" (no reduction)
+    @test result_nosym.n_irred == length(result_nosym.qcoords)
 end

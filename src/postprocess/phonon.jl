@@ -30,9 +30,67 @@ mass_matrix(model::Model{T}) where {T} = mass_matrix(T, model.atoms)
 """
 Get phonon quantities. We return the frequencies, the mass matrix and reduced and Cartesian
 eigenvectors and dynamical matrices.
+
+If `qpoints` is provided, computes phonons for multiple q-points using symmetries to reduce
+computation when possible. Returns results for all q-points.
 """
-function phonon_modes(basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where {T}
-    dynmat = compute_dynmat(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
+function phonon_modes(basis::PlaneWaveBasis{T}, ψ, occupation; q=nothing, qpoints=nothing, 
+                      kwargs...) where {T}
+    # Handle multiple q-points using symmetries
+    if !isnothing(qpoints)
+        if !isnothing(q)
+            error("Cannot specify both q and qpoints")
+        end
+        # Build scfres-like named tuple for compute_phonons_on_grid
+        scfres = (; basis, ψ, occupation, 
+                   ρ=get(kwargs, :ρ, nothing),
+                   ham=get(kwargs, :ham, nothing),
+                   εF=get(kwargs, :εF, nothing),
+                   eigenvalues=get(kwargs, :eigenvalues, nothing),
+                   occupation_threshold=get(kwargs, :occupation_threshold, 1e-10))
+        
+        # Use compute_phonons_on_grid if qpoints is a MonkhorstPack or vector
+        result = compute_phonons_on_grid(scfres, qpoints; kwargs...)
+        
+        # Convert dynmats to the format expected by phonon_modes
+        n_atoms = length(basis.model.positions)
+        M = reshape(mass_matrix(T, basis.model.atoms), 3*n_atoms, 3*n_atoms)
+        
+        # Process each q-point's dynamical matrix
+        n_q = length(result.qcoords)
+        all_frequencies = Vector{Vector{T}}(undef, n_q)
+        all_vectors_cart = Vector{Array{Complex{T}, 4}}(undef, n_q)
+        all_vectors = Vector{Array{Complex{T}, 4}}(undef, n_q)
+        all_dynmat_cart = Vector{Array{Complex{T}, 4}}(undef, n_q)
+        
+        for iq = 1:n_q
+            dynmat = result.dynmats[:, :, :, :, iq]
+            dynmat_cart = dynmat_red_to_cart(basis.model, dynmat)
+            modes_iq = _phonon_modes(basis, dynmat_cart)
+            
+            all_frequencies[iq] = modes_iq.frequencies
+            all_vectors_cart[iq] = modes_iq.vectors_cart
+            all_dynmat_cart[iq] = dynmat_cart
+            
+            vectors = similar(modes_iq.vectors_cart)
+            for s = 1:size(vectors, 2), t = 1:size(vectors, 4)
+                vectors[:, s, :, t] = vector_cart_to_red(basis.model, modes_iq.vectors_cart[:, s, :, t])
+            end
+            all_vectors[iq] = vectors
+        end
+        
+        return (; mass_matrix=M, qcoords=result.qcoords, frequencies=all_frequencies,
+                 dynmat=result.dynmats, dynmat_cart=all_dynmat_cart,
+                 vectors=all_vectors, vectors_cart=all_vectors_cart,
+                 qcoords_irred=result.qcoords_irred, n_irred=result.n_irred)
+    end
+    
+    # Single q-point computation (original behavior)
+    if isnothing(q)
+        q = zero(Vec3{T})
+    end
+    
+    dynmat = compute_dynmat(basis::PlaneWaveBasis, ψ, occupation; q, kwargs...)
     dynmat_cart = dynmat_red_to_cart(basis.model, dynmat)
 
     modes = _phonon_modes(basis, dynmat_cart)
