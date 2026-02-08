@@ -64,6 +64,15 @@ function phonon_modes(scfres::NamedTuple; kwargs...)
                  scfres.occupation_threshold, scfres.εF, scfres.eigenvalues, kwargs...)
 end
 
+"""
+Convenience wrapper to compute dynamical matrix from scfres.
+"""
+function compute_dynmat(scfres::NamedTuple; kwargs...)
+    compute_dynmat(scfres.basis, scfres.ψ, scfres.occupation; 
+                   scfres.ρ, scfres.ham, scfres.εF, scfres.eigenvalues, 
+                   scfres.occupation_threshold, kwargs...)
+end
+
 @doc raw"""
 Compute the dynamical matrix in the form of a ``3×n_{\rm atoms}×3×n_{\rm atoms}`` tensor
 in reduced coordinates.
