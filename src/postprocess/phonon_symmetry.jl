@@ -96,56 +96,106 @@ function apply_symop_dynmat(symop::SymOp, model::Model, dynmat, q)
 end
 
 """
-    find_irreducible_qpoint(q, symmetries)
+    compute_phonons_on_grid(scfres, qgrid::MonkhorstPack; kwargs...)
+    
+Compute phonons on a Monkhorst-Pack q-point grid, using symmetries to reduce computation.
 
-Find a q-point in the irreducible Brillouin zone that is equivalent to `q` under symmetries,
-along with the symmetry operation that maps the irreducible q to q.
+Only computes dynamical matrices for irreducible q-points and unfolds to full grid using
+symmetry operations. This provides speedup proportional to the number of symmetries.
 
 # Arguments
-- `q`: The q-point to reduce
-- `symmetries`: Vector of symmetry operations
-
-# Returns
-- `(q_irred, symop)`: The irreducible q-point and the symmetry operation such that `symop.S * q_irred ≈ q`
-
-# Note
-This is a placeholder implementation. A proper implementation should find the lexicographically
-smallest equivalent q-point to serve as the irreducible representative.
-TODO: Implement proper irreducible q-point selection, possibly using spglib
-"""
-function find_irreducible_qpoint(q, symmetries)
-    q_normalized = normalize_kpoint_coordinate(q)
-    
-    # Placeholder: Just return q itself with identity operation
-    # A proper implementation would find the canonical (lexicographically smallest) 
-    # representative among all symmetry-equivalent q-points
-    return (q_normalized, SymOp(Mat3{Int}(I), Vec3(zeros(eltype(q), 3))))
-end
-
-"""
-    get_irreducible_qpoints(qpoints, symmetries)
-
-Get the irreducible set of q-points and the mapping from the full set to the irreducible set.
-
-# Arguments  
-- `qpoints`: Vector of all q-points
-- `symmetries`: Vector of symmetry operations
+- `scfres`: SCF results from `self_consistent_field`
+- `qgrid`: Monkhorst-Pack grid specification for q-points
+- `kwargs...`: Additional keyword arguments passed to `compute_dynmat`
 
 # Returns
 Named tuple with:
-- `qpoints_irred`: Vector of irreducible q-points
-- `mapping`: Vector of tuples (index_irred, symop) for each q-point in `qpoints`
+- `qcoords`: All q-point coordinates (full grid)
+- `dynmats`: Dynamical matrices at all q-points (3×n_atoms×3×n_atoms×n_qpoints array)
+- `qcoords_irred`: Irreducible q-point coordinates
+- `n_irred`: Number of irreducible q-points computed
 """
-function get_irreducible_qpoints(qpoints, symmetries)
-    # Group q-points by symmetry equivalence
-    qpoints_normalized = normalize_kpoint_coordinate.(qpoints)
-    qpoints_irred = eltype(qpoints)[]
-    mapping = Vector{Tuple{Int, SymOp}}(undef, length(qpoints))
+function compute_phonons_on_grid(scfres, qgrid::MonkhorstPack; kwargs...)
+    model = scfres.basis.model
+    symmetries = scfres.basis.symmetries
     
-    for (iq, q) in enumerate(qpoints_normalized)
-        # Check if q is equivalent to any already-found irreducible q-point
+    # Get all reducible q-points
+    qcoords_full = reducible_kcoords(qgrid).kcoords
+    
+    # Get irreducible q-points using spglib (similar to k-point reduction)
+    qdata_irred = irreducible_kcoords(qgrid, symmetries)
+    qcoords_irred = qdata_irred.kcoords
+    
+    @info "Computing phonons: $(length(qcoords_irred)) irreducible q-points out of $(length(qcoords_full)) total"
+    
+    # Compute dynamical matrices for irreducible q-points
+    n_atoms = length(model.positions)
+    T = eltype(model.lattice)
+    dynmats_irred = Vector{Array{Complex{T}, 4}}(undef, length(qcoords_irred))
+    
+    for (iq, q) in enumerate(qcoords_irred)
+        dynmats_irred[iq] = compute_dynmat(scfres; q, kwargs...)
+    end
+    
+    # Unfold to all q-points using symmetries
+    dynmats_full = Vector{Array{Complex{T}, 4}}(undef, length(qcoords_full))
+    
+    for (iq_full, q_full) in enumerate(qcoords_full)
+        # Find which irreducible q-point and symmetry to use
         found = false
-        for (iq_irred, q_irred) in enumerate(qpoints_irred)
+        for (iq_irred, q_irred) in enumerate(qcoords_irred)
+            for symop in symmetries
+                q_symm = normalize_kpoint_coordinate(symop.S * q_irred)
+                if norm(q_symm - q_full) < SYMMETRY_TOLERANCE
+                    # Transform dynamical matrix from q_irred to q_full
+                    dynmats_full[iq_full] = apply_symop_dynmat(symop, model, 
+                                                               dynmats_irred[iq_irred], q_irred)
+                    found = true
+                    break
+                end
+            end
+            found && break
+        end
+        @assert found "Could not map q-point $q_full to any irreducible q-point"
+    end
+    
+    # Stack into a single array
+    dynmats = cat(dynmats_full..., dims=5)
+    
+    (; qcoords=qcoords_full, dynmats, qcoords_irred, n_irred=length(qcoords_irred))
+end
+
+"""
+    compute_phonons_on_grid(scfres, qcoords::AbstractVector; kwargs...)
+    
+Compute phonons on explicit q-points, using symmetries to reduce computation.
+
+# Arguments
+- `scfres`: SCF results from `self_consistent_field`
+- `qcoords`: Vector of q-point coordinates  
+- `kwargs...`: Additional keyword arguments passed to `compute_dynmat`
+
+# Returns
+Named tuple with:
+- `qcoords`: All input q-point coordinates
+- `dynmats`: Dynamical matrices at all q-points (3×n_atoms×3×n_atoms×n_qpoints array)
+- `qcoords_irred`: Irreducible q-point coordinates that were computed
+- `n_irred`: Number of irreducible q-points computed
+"""
+function compute_phonons_on_grid(scfres, qcoords::AbstractVector; kwargs...)
+    model = scfres.basis.model
+    symmetries = scfres.basis.symmetries
+    
+    # Normalize q-points
+    qcoords_normalized = normalize_kpoint_coordinate.(qcoords)
+    
+    # Find irreducible set by grouping symmetry-equivalent q-points
+    qcoords_irred = eltype(qcoords)[]
+    mapping = Vector{Tuple{Int, SymOp}}(undef, length(qcoords))
+    
+    for (iq, q) in enumerate(qcoords_normalized)
+        found = false
+        for (iq_irred, q_irred) in enumerate(qcoords_irred)
             for symop in symmetries
                 q_symm = normalize_kpoint_coordinate(symop.S * q_irred)
                 if norm(q_symm - q) < SYMMETRY_TOLERANCE
@@ -158,11 +208,32 @@ function get_irreducible_qpoints(qpoints, symmetries)
         end
         
         if !found
-            # This is a new irreducible q-point
-            push!(qpoints_irred, q)
-            mapping[iq] = (length(qpoints_irred), SymOp(Mat3{Int}(I), Vec3(zeros(eltype(q), 3))))
+            push!(qcoords_irred, q)
+            mapping[iq] = (length(qcoords_irred), SymOp(Mat3{Int}(I), Vec3(zeros(eltype(q), 3))))
         end
     end
     
-    (; qpoints_irred, mapping)
+    @info "Computing phonons: $(length(qcoords_irred)) irreducible q-points out of $(length(qcoords)) total"
+    
+    # Compute dynamical matrices for irreducible q-points
+    n_atoms = length(model.positions)
+    T = eltype(model.lattice)
+    dynmats_irred = Vector{Array{Complex{T}, 4}}(undef, length(qcoords_irred))
+    
+    for (iq, q) in enumerate(qcoords_irred)
+        dynmats_irred[iq] = compute_dynmat(scfres; q, kwargs...)
+    end
+    
+    # Unfold to all q-points using stored mapping
+    dynmats_full = Vector{Array{Complex{T}, 4}}(undef, length(qcoords))
+    
+    for (iq, (iq_irred, symop)) in enumerate(mapping)
+        q_irred = qcoords_irred[iq_irred]
+        dynmats_full[iq] = apply_symop_dynmat(symop, model, dynmats_irred[iq_irred], q_irred)
+    end
+    
+    # Stack into a single array
+    dynmats = cat(dynmats_full..., dims=5)
+    
+    (; qcoords=qcoords_normalized, dynmats, qcoords_irred, n_irred=length(qcoords_irred))
 end

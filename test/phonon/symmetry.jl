@@ -71,37 +71,43 @@
     @test modes_direct.frequencies ≈ modes_symm.frequencies rtol=0.01 atol=1e-3
 end
 
-@testitem "Phonon: Irreducible q-point reduction" #=
-    =#    tags=[:phonon, :dont_test_mpi] setup=[TestCases] begin
+@testitem "Phonon: Compute phonons on grid with symmetries" #=
+    =#    tags=[:phonon, :dont_test_mpi, :slow] setup=[Phonon, TestCases] begin
     using DFTK
-    using DFTK: get_irreducible_qpoints, normalize_kpoint_coordinate
-    
-    # Test with silicon
-    lattice = TestCases.silicon.lattice  
+    using DFTK: normalize_kpoint_coordinate
+    using LinearAlgebra
+
+    # Test with silicon (simple, well-tested system)
+    lattice = TestCases.silicon.lattice
     atoms = TestCases.silicon.atoms
     positions = TestCases.silicon.positions
     
+    # Create model with symmetries (use Kinetic + Ewald with temperature for simplicity)
     terms = [Kinetic(), Ewald()]
-    model = Model(lattice, atoms, positions; model_name="atomic", terms)
+    model = Model(lattice, atoms, positions; model_name="atomic", terms, temperature=0.01)
     basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
     
-    symmetries = basis.symmetries
+    # Run SCF (fast for atomic model)
+    scfres = self_consistent_field(basis; tol=1e-6)
     
-    # Create a simple 2x2x2 grid of q-points
-    qpoints = [Vec3([i/2, j/2, k/2]) for i in 0:1, j in 0:1, k in 0:1] |> vec
-    qpoints = normalize_kpoint_coordinate.(qpoints)
+    # Test with a small q-grid
+    qgrid = MonkhorstPack([2, 2, 2])
     
-    # Get irreducible q-points
-    result = get_irreducible_qpoints(qpoints, symmetries)
+    result = compute_phonons_on_grid(scfres, qgrid; tol=1e-8)
     
-    @test length(result.qpoints_irred) <= length(qpoints)  # Should reduce or stay same
-    @test length(result.mapping) == length(qpoints)
+    @test length(result.qcoords) == 8  # 2x2x2 grid
+    @test result.n_irred < 8  # Should use symmetries to reduce
+    @test size(result.dynmats) == (3, 2, 3, 2, 8)  # 3×n_atoms×3×n_atoms×n_q
+    @test length(result.qcoords_irred) == result.n_irred
     
-    # Check that all q-points can be recovered from irreducible ones
-    for (iq, q) in enumerate(qpoints)
-        iq_irred, symop = result.mapping[iq]
-        q_irred = result.qpoints_irred[iq_irred]
-        q_recovered = normalize_kpoint_coordinate(symop.S * q_irred)
-        @test norm(q_recovered - q) < 1e-8
-    end
+    @info "Phonon grid test: $(result.n_irred) irreducible q-points out of $(length(result.qcoords))"
+    
+    # Test with explicit q-points
+    qcoords = [Vec3([0.0, 0.0, 0.0]), Vec3([0.25, 0.25, 0.25]), Vec3([0.5, 0.5, 0.5])]
+    
+    result2 = compute_phonons_on_grid(scfres, qcoords; tol=1e-8)
+    
+    @test length(result2.qcoords) == 3
+    @test result2.n_irred <= 3  # Should use symmetries to reduce
+    @test size(result2.dynmats) == (3, 2, 3, 2, 3)
 end
