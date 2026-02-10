@@ -117,7 +117,7 @@ the relevant papers when using DFTK in their research.
 - **PseudoPotentialData.jl**: Provides access to pseudopotential databases.
   Built upon [PseudoDojo](http://www.pseudo-dojo.org/) and other standard pseudopotential tables.
   M. J. van Setten, M. Giantomassi, E. Bousquet, M. J. Verstraete, D. R. Hamann, X. Gonze, and G.-M. Rignanese.
-  [*The PseudoDojo: Training and grading a 85 element optimized norm-conserving pseudopotential table*](https://doi.org/10.1016/j.cpc.2018.01.012).
+  [*The PseudoDojo: Training and grading an 85 element optimized norm-conserving pseudopotential table*](https://doi.org/10.1016/j.cpc.2018.01.012).
   Computer Physics Communications **226**, 39 (2018).
 
 ### Optimization and linear algebra
