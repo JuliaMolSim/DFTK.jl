@@ -57,6 +57,85 @@ Additionally the following publications describe DFTK or one of its algorithms:
   ([Supplementary material and computational scripts](https://github.com/mfherbst/supporting-ldos-preconditioning/)).
 
 
+## Dependencies and third-party software
+DFTK builds upon the work of many scientific libraries and computational tools.
+We are grateful to the developers of these packages and encourage users to cite
+the relevant papers when using DFTK in their research.
+
+### Core numerical libraries
+
+- **Libxc**: Library of exchange-correlation functionals for density-functional theory.
+  S. Lehtola, C. Steigemann, M. J. T. Oliveira, and M. A. L. Marques.
+  [*Recent developments in libxc — A comprehensive library of functionals for density functional theory*](https://doi.org/10.1016/j.softx.2017.11.002).
+  SoftwareX **7**, 1 (2018).
+  ```bibtex
+  @article{Lehtola2018,
+    author = {Lehtola, Susi and Steigemann, Conrad and Oliveira, Micael J.T. and Marques, Miguel A.L.},
+    title = {Recent developments in libxc --- A comprehensive library of functionals for density functional theory},
+    journal = {SoftwareX},
+    volume = {7},
+    pages = {1--5},
+    year = {2018},
+    doi = {10.1016/j.softx.2017.11.002}
+  }
+  ```
+
+- **FFTW**: Fastest Fourier Transform in the West.
+  M. Frigo and S. G. Johnson.
+  [*The design and implementation of FFTW3*](https://doi.org/10.1109/JPROC.2004.840301).
+  Proceedings of the IEEE **93**, 216 (2005).
+  ```bibtex
+  @article{FFTW05,
+    author = {Frigo, Matteo and Johnson, Steven G.},
+    title = {The design and implementation of {FFTW3}},
+    journal = {Proceedings of the IEEE},
+    volume = {93},
+    number = {2},
+    pages = {216--231},
+    year = {2005},
+    doi = {10.1109/JPROC.2004.840301}
+  }
+  ```
+
+- **Spglib**: Library for finding and handling crystal symmetries.
+  A. Togo and I. Tanaka.
+  [*Spglib: a software library for crystal symmetry search*](https://arxiv.org/abs/1808.01590).
+  [ArXiv:1808.01590](https://arxiv.org/abs/1808.01590) (2018).
+  ```bibtex
+  @misc{Spglib,
+    title = {{Spglib}: a software library for crystal symmetry search},
+    author = {Atsushi Togo and Isao Tanaka},
+    year = {2018},
+    eprint = {1808.01590},
+    archivePrefix = {arXiv},
+    primaryClass = {cond-mat.mtrl-sci}
+  }
+  ```
+
+### Pseudopotentials and structure databases
+
+- **PseudoPotentialData.jl**: Provides access to pseudopotential databases.
+  Built upon [PseudoDojo](http://www.pseudo-dojo.org/) and other standard pseudopotential tables.
+  M. J. van Setten, M. Giantomassi, E. Bousquet, M. J. Verstraete, D. R. Hamann, X. Gonze, and G.-M. Rignanese.
+  [*The PseudoDojo: Training and grading a 85 element optimized norm-conserving pseudopotential table*](https://doi.org/10.1016/j.cpc.2018.01.012).
+  Computer Physics Communications **226**, 39 (2018).
+
+### Optimization and linear algebra
+
+- **Optim.jl**: Optimization algorithms for Julia.
+  P. K. Mogensen and A. N. Riseth.
+  [*Optim: A mathematical optimization package for Julia*](https://doi.org/10.21105/joss.00615).
+  Journal of Open Source Software **3**, 615 (2018).
+
+- **KrylovKit.jl**: Krylov-based algorithms for linear problems, singular value and eigenvalue problems.
+  [https://github.com/Jutho/KrylovKit.jl](https://github.com/Jutho/KrylovKit.jl)
+
+### Additional resources
+
+For a complete list of DFTK's dependencies and their version information,
+you can call `DFTK.versioninfo()` in your Julia session or examine
+the `Project.toml` file in the DFTK repository.
+
 ## Research conducted with DFTK
 The following publications report research employing DFTK as a core component.
 Feel free to drop us a line if you want your work to be added here.
