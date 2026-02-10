@@ -58,9 +58,9 @@ Additionally the following publications describe DFTK or one of its algorithms:
 
 
 ## Dependencies and third-party software
-DFTK builds upon the work of many scientific libraries and computational tools.
-We are grateful to the developers of these packages and encourage users to cite
-the relevant papers when using DFTK in their research.
+DFTK builds upon the work of many scientific libraries and computational tools,
+some of which are listed below. We are grateful to the developers of these packages
+and encourage users to cite the relevant papers when using DFTK in their research.
 
 ### Core numerical libraries
 
@@ -129,12 +129,6 @@ the relevant papers when using DFTK in their research.
 
 - **KrylovKit.jl**: Krylov-based algorithms for linear problems, singular value and eigenvalue problems.
   [https://github.com/Jutho/KrylovKit.jl](https://github.com/Jutho/KrylovKit.jl)
-
-### Additional resources
-
-For a complete list of DFTK's dependencies and their version information,
-you can call `DFTK.versioninfo()` in your Julia session or examine
-the `Project.toml` file in the DFTK repository.
 
 ## Research conducted with DFTK
 The following publications report research employing DFTK as a core component.
