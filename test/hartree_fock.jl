@@ -59,7 +59,7 @@ end
 #
 # Regression tests on HF against DFTK itself (TODO: Remove these once we have better tests here)
 #
-@testitem "LiH Hartree-Fock energy" tags=[:exx] setup=[RunSCF] begin
+@testitem "LiH Hartree-Fock energy" tags=[:exx,:slow] setup=[RunSCF] begin
     using DFTK
     using LinearAlgebra
     using PseudoPotentialData
