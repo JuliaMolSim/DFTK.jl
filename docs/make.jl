@@ -96,6 +96,7 @@ PAGES = [
     ],
     "api.md",
     "publications.md",
+    "research.md",
 ]
 
 # .jl files to execute with Literate.jl. This can be helpful when working on
