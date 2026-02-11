@@ -113,7 +113,7 @@ Adaptively Compressed Exchange (ACE) implementation of the Fock exchange.
 # Reference
 JCTC 2016, 12, 5, 2242–2249, doi.org/10.1021/acs.jctc.6b00092
 """
-struct ACEXX <: EXXstrategy end
+struct ACEXX <: EXXstrategy end  # TODO: Rename to ExxAlgorithm
 function compute_exx_ene_ops(::ACEXX,
                              coulomb_kernel::AbstractArray,
                              basis::PlaneWaveBasis{T}, ψ, occupation) where {T}
