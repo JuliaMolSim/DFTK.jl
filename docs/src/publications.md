@@ -4,7 +4,8 @@ Since DFTK is mostly developed as part of academic research,
 we would greatly appreciate if you cite our research papers as appropriate.
 See the [CITATION.bib](https://github.com/JuliaMolSim/DFTK.jl/blob/master/CITATION.bib)
 in the root of the DFTK repo and the publication list
-on this page for relevant citations.
+on this page for relevant citations. See also the [research page](research.md) for
+research conducted with DFTK.
 
 ## DFTK reference paper
 
@@ -66,8 +67,6 @@ DFTK builds upon the work of many scientific libraries and computational tools,
 some of which are listed below. We are grateful to the developers of these packages
 and encourage users to cite the relevant papers when using DFTK in their research.
 
-### Core numerical libraries
-
 - **Libxc**: Library of exchange-correlation functionals for density-functional theory.
   S. Lehtola, C. Steigemann, M. J. T. Oliveira, and M. A. L. Marques.
   [*Recent developments in libxc — A comprehensive library of functionals for density functional theory*](https://doi.org/10.1016/j.softx.2017.11.002).
@@ -115,16 +114,6 @@ and encourage users to cite the relevant papers when using DFTK in their researc
     primaryClass = {cond-mat.mtrl-sci}
   }
   ```
-
-### Pseudopotentials and structure databases
-
-- **PseudoPotentialData.jl**: Provides access to pseudopotential databases.
-  Built upon [PseudoDojo](http://www.pseudo-dojo.org/) and other standard pseudopotential tables.
-  M. J. van Setten, M. Giantomassi, E. Bousquet, M. J. Verstraete, D. R. Hamann, X. Gonze, and G.-M. Rignanese.
-  [*The PseudoDojo: Training and grading an 85 element optimized norm-conserving pseudopotential table*](https://doi.org/10.1016/j.cpc.2018.01.012).
-  Computer Physics Communications **226**, 39 (2018).
-
-### Optimization and linear algebra
 
 - **Optim.jl**: Optimization algorithms for Julia.
   P. K. Mogensen and A. N. Riseth.
