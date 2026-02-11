@@ -343,8 +343,7 @@ end
 # but X and the history on the device (for GPU runs)
 @timing function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100;
                         miniter=1, ortho_tol=2eps(real(eltype(X))),
-                        n_conv_check=nothing, display_progress=false,
-                        callback=nothing)
+                        n_conv_check=nothing, callback=identity)
     N, M = size(X)
 
     # If N is too small, we will likely get in trouble
@@ -458,16 +457,11 @@ end
             end
         end
 
-        ### TODO Can principally be replaced by callback below
-        if display_progress
-            println("Iter $niter, converged $(nlocked)/$(n_conv_check), resid ",
-                    norm(resid_history[1:n_conv_check, niter+1]))
-        end
-
-        ### Callback
-        if !isnothing(callback)
-            callback((; niter, n_matvec, nlocked, resid_history, n_conv_check, λs, X, AX, BX))
-        end
+        # TODO: Some of these info field have not so canonical names compared to the
+        #       rest of DFTK, we should change this in the future.
+        info = (; n_iter=niter, n_matvec, n_locked=nlocked, resid_history,
+                  n_conv_check, λs, X, AX, BX, stage=:iterate)
+        callback(info)
 
         if nlocked >= n_conv_check  # Converged!
             X  .= new_X  # Update the part of X which is still active
@@ -563,29 +557,33 @@ end
     final_retval(full_X, full_AX, full_BX, full_λs, resid_history, maxiter, n_matvec)
 end
 
+struct DefaultLobpcgCallback
+    prev_time::Ref{UInt64}
+end
+DefaultLobpcgCallback() = DefaultLobpcgCallback(Ref(zero(UInt64)))
 
-# default callback function for LOBPCG
-function make_LOBPCG_debug_callback()
-    start_time = time()
-
-    @printf "Iter     Converged     log10(resid)    time \n"
-    @printf "----   -------------   ------------   -------\n"
-    
-    return function(info)
-        current_time = time()
-        Δt = current_time - start_time
-        
-        niter = info.niter
-        resid_history = info.resid_history
-        n_conv_check = info.n_conv_check
-        nlocked = info.nlocked
-
-        tstr = @sprintf "% 6s" TimerOutputs.prettytime(Δt * 1e9)
-        
-        resid_norm = norm(resid_history[1:n_conv_check, niter+1])
-        resid_str = " " * format_log8(resid_norm)
-        
-        @printf "% 4d   %5d / %5d   %s       %s\n" niter nlocked n_conv_check resid_str tstr
-        flush(stdout)
+function (cb::DefaultLobpcgCallback)(info)
+    if info.stage == :finalize
+        info.converged || @warn "Lobpcg not converged."
+        return info
     end
+
+    if info.n_iter == 0
+        cb.prev_time[] = time_ns()
+        println("Iter     Converged     log10(resid)    time  \n")
+        println("----   -------------   ------------   -------\n")
+    end
+
+    current_time = time_ns()
+    runtime_ns = current_time - cb.prev_time[]
+    cb.prev_time[] = current_time
+
+    time = @sprintf "% 6s" TimerOutputs.prettytime(runtime_ns)
+    resid_norm = norm(info.resid_history[1:info.n_conv_check, info.n_iter+1])
+    resid_str = " " * format_log8(resid_norm)
+
+    @printf("% 4d   %5d / %5d   %s       %s\n",
+            info.n_iter, info.n_locked, info.n_conv_check, resid_str, time)
+    flush(stdout)
+    info
 end
