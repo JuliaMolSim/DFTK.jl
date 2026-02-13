@@ -15,15 +15,15 @@ function compute_λ(X::AbstractGPUArray{T}, AX::AbstractGPUArray{T}, BX::Abstrac
 end
 
 function columnwise_dots(A::AbstractGPUArray{T}, B::AbstractGPUArray{T}) where {T}
-    sum(conj(A) .* B; dims=1)
+    vec(sum(conj(A) .* B; dims=1))
 end
 
 function columnwise_dots(A::AbstractGPUArray{T}, M, B::AbstractGPUArray{T}) where {T}
-    sum(conj(A) .* (M * B); dims=1)
+    vec(sum(conj(A) .* (M * B); dims=1))
 end
 
 function columnwise_dots(A::AbstractGPUArray{T}, D::Diagonal, B::AbstractGPUArray{T}) where {T}
-    sum(conj(A) .* (D.diag .* B); dims=1)
+    vec(sum(conj(A) .* (D.diag .* B); dims=1))
 end
 
 function ldiv!(Y::AbstractGPUArray{T}, P::PreconditionerTPA, R::AbstractGPUArray{T}) where {T}
