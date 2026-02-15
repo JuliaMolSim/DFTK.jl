@@ -149,9 +149,8 @@ function compute_exx_ene_ops(::AceExx,
             end
             Wk[:, n] .= fft(basis, kpt, Wnk_real)
         end
-        M = ψk' * Wk
-        M = Hermitian(0.5*(M+M'))
-        B = inv(M)
+        M = Hermitian(ψk' * Wk)
+        B = inv(cholesky(M))
         ops[ik] = ACExchangeOperator(basis, kpt, Wk, B)
     end
     (; E, ops)
