@@ -5,39 +5,39 @@ Exact exchange term: the Hartree-Exact exchange energy of the orbitals
 ```
 """
 
-abstract type EXXstrategy end
+abstract type ExxAlgorithm end
 
 struct ExactExchange
     scaling_factor::Real
     coulomb_kernel_model::CoulombKernelModel
-    exx_strategy::EXXstrategy
+    exx_algorithm::ExxAlgorithm
 end
 
 ExactExchange(; scaling_factor=1, 
                 coulomb_kernel_model=ProbeCharge(), 
-                exx_strategy=CanonicalEXX()) = 
-    ExactExchange(scaling_factor, coulomb_kernel_model, exx_strategy)
+                exx_algorithm=TextbookExx()) = 
+    ExactExchange(scaling_factor, coulomb_kernel_model, exx_algorithm)
 
 (exchange::ExactExchange)(basis) = TermExactExchange(basis, 
                                                      exchange.scaling_factor, 
                                                      exchange.coulomb_kernel_model,
-                                                     exchange.exx_strategy)
+                                                     exchange.exx_algorithm)
 
 function Base.show(io::IO, exchange::ExactExchange)
     fac = isone(exchange.scaling_factor) ? "" : "scaling_factor=$(exchange.scaling_factor), "
-    print(io, "ExactExchange(coulomb_kernel_model=$(exchange.coulomb_kernel_model), exx_strategy=$(exchange.exx_strategy))")
+    print(io, "ExactExchange(coulomb_kernel_model=$(exchange.coulomb_kernel_model), exx_algorithm=$(exchange.exx_algorithm))")
 end
 struct TermExactExchange <: Term
     scaling_factor::Real  # scaling factor
     coulomb_kernel::AbstractArray
-    exx_strategy::EXXstrategy 
+    exx_algorithm::ExxAlgorithm 
 end
 function TermExactExchange(basis::PlaneWaveBasis{T}, 
                            scaling_factor, 
                            coulomb_kernel_model::CoulombKernelModel, 
-                           exx_strategy::EXXstrategy) where T
+                           exx_algorithm::ExxAlgorithm) where T
     coulomb_kernel = compute_coulomb_kernel(basis; coulomb_kernel_model) # TODO: we need this for every q-point
-    TermExactExchange(T(scaling_factor), coulomb_kernel, exx_strategy)
+    TermExactExchange(T(scaling_factor), coulomb_kernel, exx_algorithm)
 end
 
 @timing "ene_ops: ExactExchange" function ene_ops(term::TermExactExchange,
@@ -63,17 +63,17 @@ end
     # TODO Occupation threshold
     ψ, occupation = select_occupied_orbitals(basis, ψ, occupation; threshold=1e-8)
 
-    compute_exx_ene_ops(term.exx_strategy, term.coulomb_kernel, basis, ψ, occupation)
+    compute_exx_ene_ops(term.exx_algorithm, term.coulomb_kernel, basis, ψ, occupation)
 end
 
 
 """
-    CanonicalEXX
+    TextbookExx
 
 Canonical Fock exchange implementation.
 """
-struct CanonicalEXX <: EXXstrategy end
-function compute_exx_ene_ops(::CanonicalEXX,
+struct TextbookExx <: ExxAlgorithm end
+function compute_exx_ene_ops(::TextbookExx,
                              coulomb_kernel::AbstractArray,
                              basis::PlaneWaveBasis{T}, ψ, occupation) where {T}
     E = zero(T)
@@ -106,15 +106,15 @@ end
 
 
 """
-    ACEXX
+    AceExx
 
 Adaptively Compressed Exchange (ACE) implementation of the Fock exchange.
 
 # Reference
 JCTC 2016, 12, 5, 2242–2249, doi.org/10.1021/acs.jctc.6b00092
 """
-struct ACEXX <: EXXstrategy end  # TODO: Rename to ExxAlgorithm
-function compute_exx_ene_ops(::ACEXX,
+struct AceExx <: ExxAlgorithm end  # TODO: Rename to ExxAlgorithm
+function compute_exx_ene_ops(::AceExx,
                              coulomb_kernel::AbstractArray,
                              basis::PlaneWaveBasis{T}, ψ, occupation) where {T}
     E = zero(T)

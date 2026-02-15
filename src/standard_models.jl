@@ -139,19 +139,19 @@ Build an Hartree-Fock model from the specified atoms.
 """
 function model_HF(system::AbstractSystem; pseudopotentials, 
                   coulomb_kernel_model::CoulombKernelModel=ProbeCharge(),
-                  exx_strategy::EXXstrategy=ACEXX(), extra_terms=[], kwargs...)
+                  exx_algorithm::ExxAlgorithm=AceExx(), extra_terms=[], kwargs...)
     # Note: We are deliberately enforcing the user to specify pseudopotentials here.
     # See the implementation of model_atomic for a rationale why
     #
-    exx = ExactExchange(; coulomb_kernel_model, exx_strategy)
+    exx = ExactExchange(; coulomb_kernel_model, exx_algorithm)
     model_atomic(system; pseudopotentials,
                  model_name="HF", extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
 end
 function model_HF(lattice::AbstractMatrix, atoms::Vector{<:Element},
                   positions::Vector{<:AbstractVector}; 
                   coulomb_kernel_model::CoulombKernelModel=ProbeCharge(), 
-                  exx_strategy::EXXstrategy=ACEXX(), extra_terms=[], kwargs...)
-    exx = ExactExchange(; coulomb_kernel_model, exx_strategy)
+                  exx_algorithm::ExxAlgorithm=AceExx(), extra_terms=[], kwargs...)
+    exx = ExactExchange(; coulomb_kernel_model, exx_algorithm)
     model_atomic(lattice, atoms, positions;
                  model_name="HF", extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
 end
