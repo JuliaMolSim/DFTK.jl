@@ -118,7 +118,7 @@ function compute_exx_ene_ops(::AceExx,
                              coulomb_kernel::AbstractArray,
                              basis::PlaneWaveBasis{T}, ψ, occupation) where {T}
     E = zero(T)
-    ops = Vector{ACExchangeOperator}(undef, length(basis.kpoints))
+    ops = Vector{NonlocalOperator}(undef, length(basis.kpoints))
     @views for (ik, kpt) in enumerate(basis.kpoints)
         occk = occupation[ik]
         ψk   = ψ[ik]
@@ -151,7 +151,7 @@ function compute_exx_ene_ops(::AceExx,
         end
         M = Hermitian(ψk' * Wk)
         B = inv(cholesky(M))
-        ops[ik] = ACExchangeOperator(basis, kpt, Wk, B)
+        ops[ik] = NonlocalOperator(basis, kpt, Wk, -B) 
     end
     (; E, ops)
 end

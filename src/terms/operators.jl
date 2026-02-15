@@ -204,20 +204,8 @@ function apply!(Hψ, op::ExchangeOperator, ψ)
         Vx_real = ifft(op.basis, op.kpoint, Vx_four) # actually we need q-point here
 
         # Real-space multiply and accumulate
-        fac_nk = op.occk[n] / filled_occupation(basis.model) # divide 2 (spin-paired) or 1 (spin-polarized)
+        fac_nk = op.occk[n] / filled_occupation(op.basis.model) # divide 2 (spin-paired) or 1 (spin-polarized)
         Hψ.real .-= fac_nk .* ψnk_real .* Vx_real 
     end
 end
 
-struct ACExchangeOperator{T <: Real, TW, TB} <: RealFourierOperator
-    basis::PlaneWaveBasis{T}
-    kpoint::Kpoint{T}
-    W::TW
-    B::TB
-end
-
-function apply!(Hψ, op::ACExchangeOperator, ψ)
-    coeffs = op.W' * ψ.fourier
-    coeffs = op.B * coeffs
-    mul!(Hψ.fourier, op.W, coeffs, -1, 1)
-end
