@@ -94,7 +94,7 @@ function compute_exx_ene_ops(::TextbookExx,
                 ρmn_real = conj(ψmk_real) .* ψnk_real
                 ρmn_fourier = fft(basis, kpt, ρmn_real) # actually we need a q-point here
                 fac_mn = occk[n] * occk[m] 
-                fac_mn /= T(3-basis.model.n_spin_components) # divide 2 (spin-paired) or 1 (spin-polarized)
+                fac_mn /= filled_occupation(basis.model) # divide 2 (spin-paired) or 1 (spin-polarized)
                 fac_mn *= (m != n ? 2 : 1) # factor 2 because we skipped m>n
                 E -= 0.5 * fac_mn * real(dot(ρmn_fourier .* coulomb_kernel, ρmn_fourier)) 
             end
@@ -139,11 +139,11 @@ function compute_exx_ene_ops(::AceExx,
 
                 Vmn_fourier = ρmn_fourier .* coulomb_kernel
                 Vmn_real = ifft(basis, kpt, Vmn_fourier)
-                fac_mk = occk[m] / (3-basis.model.n_spin_components)
+                fac_mk = occk[m] / filled_occupation(basis.model)
                 Wnk_real .+= fac_mk .* ψmk_real .* Vmn_real
                 
                 fac_mn = occk[n] * occk[m] 
-                fac_mn /= T(3-basis.model.n_spin_components) # divide 2 (spin-paired) or 1 (spin-polarized)
+                fac_mn /= filled_occupation(basis.model) # divide 2 (spin-paired) or 1 (spin-polarized)
 
                 E -= 0.5 * fac_mn * real(dot(ρmn_fourier .* coulomb_kernel, ρmn_fourier)) 
             end
