@@ -119,7 +119,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
         # compute Newton step and next iteration
         res = compute_projected_gradient(basis, ψ, occupation)
         # solve (Ω+K) δψ = -res so that the Newton step is ψ <- ψ + δψ
-        δψ = solve_ΩplusK(basis, ψ, res, occupation; tol=tol_cg, callback=identity).δψ
+        δψ = solve_ΩplusK(basis, ψ, res, occupation; atol=tol_cg, callback=identity).δψ
         ψ  = [ortho_qr(ψ[ik] + δψ[ik]) for ik = 1:Nk]
 
         ρout        = compute_density(basis, ψ, occupation)

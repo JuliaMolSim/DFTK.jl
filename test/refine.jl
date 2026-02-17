@@ -20,7 +20,7 @@ scfres = self_consistent_field(basis; tol)
 Ecut_ref = 35
 basis_ref = PlaneWaveBasis(model; Ecut=Ecut_ref, kgrid)
 
-refinement = refine_scfres(scfres, basis_ref; tol)
+refinement = refine_scfres(scfres, basis_ref)
 (; E, dE) = refine_energies(refinement)
 (; F, dF) = refine_forces(refinement)
 

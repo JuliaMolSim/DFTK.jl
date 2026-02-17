@@ -48,7 +48,7 @@ This is for example satisfied by ONCVPSP-generated pseudopotentials.
 """
 # TODO: there is a bunch of type instability in this function, mostly coming from the psps
 @timing function select_refinement_Ecutref(basis::PlaneWaveBasis{T}, ψ, occ;
-                                   η=10, Ecut=basis.Ecut,
+                                   η=20, Ecut=basis.Ecut,
                                    # Max Ecutref we will consider selecting
                                    Ecutrefmax = T(4) * Ecut,
                                    # (Somewhat arbitrary) upper bound for the numerical integration
@@ -216,7 +216,7 @@ Returns a [`RefinementResult`](@ref) instance that can be used to refine quantit
 through [`refine_energies`](@ref) and [`refine_forces`](@ref).
 """
 @timing function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T};
-                               tol=1e-6,
+                               atol=T(1e-12), rtol=T(1e-4),
                                occ_threshold=default_occupation_threshold(T),
                                kwargs...) where {T}
     basis = scfres.basis
@@ -256,7 +256,7 @@ through [`refine_energies`](@ref) and [`refine_forces`](@ref).
     rhs = ΩpKe2 - resLF
 
     # Invert Ω+K on the small space
-    ΩpK_res = solve_ΩplusK(basis, ψ, rhs, occ; tol, kwargs...)
+    ΩpK_res = solve_ΩplusK(basis, ψ, rhs, occ; atol, rtol, kwargs...)
 
     e1 = transfer_blochwave(ΩpK_res.δψ, basis, basis_ref)
     schur_residual = e1 + e2
