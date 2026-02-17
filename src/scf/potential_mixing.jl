@@ -245,7 +245,9 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
         info_next = info
         while n_backtrack ≤ max_backtracks
             diagtol = determine_diagtol(diagtolalg, info_next)
-            mpi_master(basis.comm_kpts) && @debug "Iteration $n_iter linesearch step $n_backtrack   α=$α diagtol=$diagtol"
+            if mpi_master(basis.comm_kpts)
+                @debug "Iteration $n_iter linesearch step $n_backtrack   α=$α diagtol=$diagtol"
+            end
             Vnext = info.Vin .+ α .* δV
 
             info_next    = EVρ(Vnext; ψ=guess, diagtol, info.eigenvalues, info.occupation)

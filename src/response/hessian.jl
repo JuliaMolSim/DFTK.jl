@@ -76,7 +76,7 @@ function ResponseCallback()
     ResponseCallback(Ref(zero(UInt64)))
 end
 function (cb::ResponseCallback)(info)
-    mpi_master(info.comm) && return info  # Only print on master
+    mpi_master(info.basis.comm_kpts) && return info  # Only print on master
 
     if info.stage == :finalize
         info.converged || @warn "solve_ΩplusK not converged."
@@ -162,7 +162,7 @@ that is return δψ where (Ω+K) δψ = -δHextψ.
         weighted_ksum(basis, [real(dot(δψx[ik], δψy[ik])) for ik in 1:length(basis.kpoints)])
     end
     res = cg(J, -δHextψ_pack; precon=FunctionPreconditioner(f_ldiv!), proj, tol,
-             callback=info -> callback(merge(info, (; comm=basis.comm_kpts))), my_dot=weighted_dot)
+             callback=info -> callback(merge(info, (; basis=basis))), my_dot=weighted_dot)
     (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norm,
      res.n_iter)
 end
@@ -177,6 +177,10 @@ function OmegaPlusKDefaultCallback(; show_σmin=false, show_time=true)
 end
 function (cb::OmegaPlusKDefaultCallback)(info)
     io = stdout
+    # Default to MPI.COMM_WORLD for logging if basis not provided
+    comm = MPI.COMM_WORLD
+    haskey(info, :basis) && (comm = info.basis.comm_kpts)
+
     avgCG = 0.0
     if haskey(info, :Axinfos) && haskey(first(info.Axinfos), :n_iter)
         # Axinfo: NamedTuple returned by mul_inexact(::DielectricAdjoint, ...)
@@ -186,10 +190,10 @@ function (cb::OmegaPlusKDefaultCallback)(info)
         avgCG = sum(info.Axinfos) do Axinfo
             mean(sum, Axinfo.n_iter)
         end
-        avgCG = mpi_mean(avgCG, first(info.Axinfos).basis.comm_kpts)
+        avgCG = mpi_mean(avgCG, comm)
     end
 
-    !mpi_master(info.comm) && return info  # Rest is printing => only do on master
+    !mpi_master(comm) && return info  # Rest is printing => only do on master
 
     show_time  = (hasproperty(info, :runtime_ns) && cb.show_time)
     label_time = show_time    ? ("  Δtime ", "  ------", " "^8) : ("", "", "")
@@ -296,8 +300,8 @@ Input parameters:
                            bandtolalg, occupation_threshold,
                            q, kwargs...)  # = χ04P * δHext
         callback((; stage=:noninteracting, runtime_ns=time_ns() - start_ns,
-                    Axinfos=[(; basis, tol=tol*factor_initial, res0...)],
-                    comm=ham.basis.comm_kpts))
+                    Axinfos=[(; tol=tol*factor_initial, res0...)],
+                    basis=basis))
         compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
                    occupation_threshold, q)
     end
@@ -310,11 +314,10 @@ Input parameters:
         Pδρ .= vec(mix_density(mixing, basis, reshape(δρ, size(ρ));
                                ham, basis, ρin=ρ, εF, eigenvalues, ψ))
     end
-    callback_inner(info) = callback(merge(info, (; runtime_ns=time_ns() - start_ns)))
+    callback_inner(info) = callback(merge(info, (; runtime_ns=time_ns() - start_ns, basis=basis)))
     info_gmres = inexact_gmres(ε_adj, vec(δρ0);
                                tol, precon, krylovdim, maxiter, s,
-                               callback=callback_inner, comm=ham.basis.comm_kpts,
-                               kwargs...)
+                               callback=callback_inner, kwargs...)
     δρ = reshape(info_gmres.x, size(ρ))
     if !info_gmres.converged
         @warn "Solve_ΩplusK_split solver not converged"
@@ -340,8 +343,8 @@ Input parameters:
                            maxiter=maxiter_sternheimer, tol=tol * factor_final,
                            bandtolalg, occupation_threshold, q, kwargs...)
     callback((; stage=:final, runtime_ns=time_ns() - start_ns,
-                Axinfos=[(; basis, tol=tol*factor_final, resfinal...)],
-                comm=ham.basis.comm_kpts))
+                Axinfos=[(; tol=tol*factor_final, resfinal...)],
+                basis=basis))
     # Compute total change in eigenvalues
     δeigenvalues = map(ψ, δHtotψ) do ψk, δHtotψk
         map(eachcol(ψk), eachcol(δHtotψk)) do ψnk, δHtotψnk
@@ -395,7 +398,7 @@ end
                    ε_adj.bandtolalg, ε_adj.q, ε_adj.maxiter, kwargs...)
     χ0δV = res.δρ
     Ax = vec(δρ - χ0δV)  # (1 - χ0 K) δρ
-    (; Ax, info=(; rtol, basis, res...))
+    (; Ax, info=(; rtol, res...))
 end
 function size(ε_adj::DielectricAdjoint, i::Integer)
     if 1 ≤ i ≤ 2
