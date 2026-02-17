@@ -15,7 +15,7 @@ end
 
 ExactExchange(; scaling_factor=1, 
                 coulomb_kernel_model=ProbeCharge(), 
-                exx_algorithm=TextbookExx()) = 
+                exx_algorithm=VanillaExx()) = 
     ExactExchange(scaling_factor, coulomb_kernel_model, exx_algorithm)
 
 (exchange::ExactExchange)(basis) = TermExactExchange(basis, 
@@ -43,18 +43,8 @@ end
 @timing "ene_ops: ExactExchange" function ene_ops(term::TermExactExchange,
                                                   basis::PlaneWaveBasis{T}, ψ, occupation;
                                                   kwargs...) where {T}
-    # calculate occupation if missing
-    if isnothing(occupation) && !isnothing(get(kwargs, :eigenvalues, nothing))
-        eigenvalues = kwargs[:eigenvalues]
-        occupation, _ = DFTK.compute_occupation(basis, eigenvalues)
-    end
-    # check for the inconsistency first (ψ given but no occupation)
-    if !isnothing(ψ) && isnothing(occupation)
-        @warn "ψ provided but occupation is missing; cannot set up exact exchange. \
-               Provide eigenvalues or occupation to solve this problem."
-    end
-    # If either is missing, we cannot proceed
     if isnothing(ψ) || isnothing(occupation)
+        @warn "Exact exchange requires orbitals and occupation, return NoopOperator." 
         return (; E=zero(T), ops=NoopOperator.(basis, basis.kpoints))
     end
 
@@ -68,12 +58,12 @@ end
 
 
 """
-    TextbookExx
+    VanillaExx
 
-Canonical Fock exchange implementation.
+Plain vanilla Fock exchange implementation without any tricks.
 """
-struct TextbookExx <: ExxAlgorithm end
-function compute_exx_ene_ops(::TextbookExx,
+struct VanillaExx <: ExxAlgorithm end
+function compute_exx_ene_ops(::VanillaExx,
                              coulomb_kernel::AbstractArray,
                              basis::PlaneWaveBasis{T}, ψ, occupation) where {T}
     E = zero(T)
