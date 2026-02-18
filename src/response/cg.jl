@@ -2,6 +2,7 @@ using LinearMaps
 using LinearAlgebra: dot
 
 function default_cg_print(info)
+    # Default callback prints on all MPI ranks
     @printf("%3d\t%1.2e\n", info.n_iter, info.residual_norm)
 end
 

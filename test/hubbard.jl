@@ -119,7 +119,7 @@ end
         @test scfres.energies.Hubbard ≈ ref_hub
    end
    # The unfolding of the kpoints is not supported with MPI
-   if mpi_nprocs() == 1
+   if mpi_nprocs(basis.comm_kpts) == 1
         @testset "Test symmetry consistency" begin
              n_hub = scfres.hubbard_n
              scfres_nosym = DFTK.unfold_bz(scfres)

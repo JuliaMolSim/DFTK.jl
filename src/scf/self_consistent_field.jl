@@ -159,7 +159,7 @@ Overview of parameters:
     end
     start_ns = time_ns()
     timeout_date = Dates.now() + maxtime
-    seed = seed_task_local_rng!(seed, MPI.COMM_WORLD)
+    seed = seed_task_local_rng!(seed, basis.comm_kpts)
 
     # We do density mixing in the real representation
     # TODO support other mixing types
@@ -209,10 +209,10 @@ Overview of parameters:
         ρnext = ρin .+ T(damping) .* mix_density(mixing, basis, Δρ; info_next...)
 
         converged = n_iter ≥ miniter && is_converged(info_next)
-        converged = MPI.bcast(converged, 0, MPI.COMM_WORLD)
+        converged = mpi_bcast(converged, 0, basis.comm_kpts)
         info_next = merge(info_next, (; converged))
 
-        timedout = MPI.bcast(Dates.now() ≥ timeout_date, MPI.COMM_WORLD)
+        timedout = mpi_bcast(Dates.now() ≥ timeout_date, basis.comm_kpts)
         info_next = merge(info_next, (; timedout))
 
         callback(info_next)
