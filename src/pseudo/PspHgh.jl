@@ -134,11 +134,6 @@ function eval_psp_local_fourier(psp::PspHgh, p::T) where {T <: Real}
     psp_local_polynomial(T, psp, t) * exp(-t^2 / 2) / t^2
 end
 
-# Vectorized version of the above
-function eval_psp_local_fourier(psp::PspHgh, ps::AbstractVector{T}) where {T <: Real}
-    map(p -> eval_psp_local_fourier(psp, p), ps)
-end
-
 @doc raw"""
 Estimate an upper bound for the argument `p` after which
 `abs(eval_psp_local_fourier(psp, p))` is a strictly decreasing function.

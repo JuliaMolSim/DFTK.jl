@@ -38,9 +38,9 @@ point `i` (not necessarily in order).
 """
 simpson
 @inbounds function simpson(integrand, x::AbstractVector)
-    n = length(x)
-    n <= 4 && return trapezoidal(integrand, x)
-    if (x[2] - x[1]) ≈ (x[3] - x[2])
+    if length(x) <= 4
+        trapezoidal(integrand, x)
+    elseif (x[2] - x[1]) ≈ (x[3] - x[2])
         simpson_uniform(integrand, x)
     else
         simpson_nonuniform(integrand, x)
@@ -116,12 +116,12 @@ end
 end
 
 """
-Return the approproate integration finction given a quadrature
+Return the approproate integration function given a PSP quadrature
 """
-function get_integration_function(x::AbstractArray)
-    n = length(x)
-    n <= 4 && return trapezoidal
-    if (x[2] - x[1]) ≈ (x[3] - x[2])
+function default_psp_quadrature(x::AbstractArray)
+    if length(x) <= 4
+        trapezoidal
+    elseif (x[2] - x[1]) ≈ (x[3] - x[2])
         simpson_uniform
     else
         simpson_nonuniform

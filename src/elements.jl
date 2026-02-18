@@ -52,6 +52,12 @@ function core_charge_density_fourier(::Element, ::T)::T where {T <: Real}
     error("Abstract elements do not necesesarily provide core charge density.")
 end
 
+# Generic vectorized version of local_potential_fourier, GPU-safe
+function local_potential_fourier(el::Element, ps::AbstractVector{T}) where {T <: Real}
+    arch = architecture(ps)
+    to_device(arch, map(p -> local_potential_fourier(el, p), to_cpu(ps)))
+end
+
 Base.show(io::IO, el::Element) = print(io, "$(typeof(el))(:$(species(el)))")
 
 #
@@ -83,9 +89,7 @@ function local_potential_fourier(el::ElementCoulomb, p::T) where {T <: Real}
     Z = charge_nuclear(el)
     return -4T(π) * Z / p^2
 end
-function local_potential_fourier(el::ElementCoulomb, ps::AbstractVector{T}) where {T <: Real}
-    map(p -> local_potential_fourier(el, p), ps)
-end
+
 local_potential_real(el::ElementCoulomb, r::Real) = -charge_nuclear(el) / r
 
 
@@ -165,7 +169,7 @@ eval_psp_energy_correction(T, el::ElementPsp) = eval_psp_energy_correction(T, el
 function local_potential_fourier(el::ElementPsp, p::T) where {T <: Real}
     eval_psp_local_fourier(el.psp, p)
 end
-# Vectorized, GPU compatible version
+# Vectorized version of the above
 function local_potential_fourier(el::ElementPsp, ps::AbstractVector{T}) where {T <: Real}
     eval_psp_local_fourier(el.psp, ps)
 end
@@ -249,9 +253,6 @@ function local_potential_fourier(el::ElementCohenBergstresser, p::T) where {T <:
     psq_pi = Int(round(p^2 / (2π / el.lattice_constant)^2, digits=2))
     T(get(el.V_sym, psq_pi, 0.0))
 end
-function local_potential_fourier(el::ElementCohenBergstresser, ps::AbstractVector{T}) where {T <: Real}
-    map(p -> local_potential_fourier(el, p), ps)
-end
 # TODO Strictly speaking needs a eval_psp_energy_correction
 
 
@@ -284,9 +285,6 @@ function local_potential_real(el::ElementGaussian, r)
 end
 function local_potential_fourier(el::ElementGaussian, p::Real)
     -el.α * exp(- (p * el.L)^2 / 2)  # = ∫_ℝ³ V(x) exp(-ix⋅p) dx
-end
-function local_potential_fourier(el::ElementGaussian, ps::AbstractVector{T}) where {T <: Real}
-    map(p -> local_potential_fourier(el, p), ps)
 end
 # TODO Strictly speaking needs a eval_psp_energy_correction
 

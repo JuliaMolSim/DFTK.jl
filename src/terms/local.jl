@@ -84,8 +84,8 @@ function atomic_local_form_factors(basis::PlaneWaveBasis{T}; q=zero(Vec3{T})) wh
     iG2ifnorm = to_device(basis.architecture, iG2ifnorm_cpu)
 
     ni_pairs = collect(pairs(norm_indices))
-    ps = to_device(basis.architecture, [p for (p, idx) in ni_pairs])
-    indices = to_device(basis.architecture, [idx for (p, idx) in ni_pairs])
+    ps = to_device(basis.architecture, first.(ni_pairs))
+    indices = to_device(basis.architecture, last.(ni_pairs))
 
     form_factors = similar(ps, length(norm_indices), length(basis.model.atom_groups))
     for (igroup, group) in enumerate(basis.model.atom_groups)

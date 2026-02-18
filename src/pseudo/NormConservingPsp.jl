@@ -18,7 +18,7 @@ abstract type NormConservingPsp end
 # eval_psp_projector_fourier(psp, i, l, p::Real)
 # eval_psp_local_real(psp, r::Real)
 # eval_psp_local_fourier(psp, p::Real)
-# eval_psp_local_fourier(psp, ps::AbstractArray{Real})
+# eval_psp_local_fourier(psp, ps::AbstractArray{<Real})
 # eval_psp_energy_correction(T::Type, psp)
 
 #### Optional methods:
@@ -85,6 +85,12 @@ V_{\rm loc}(p) &= ∫_{ℝ^3} (V_{\rm loc}(r) - C(r)) e^{-ip·r} dr + F[C(r)] \\
 """
 eval_psp_local_fourier(psp::NormConservingPsp, p::AbstractVector) =
     eval_psp_local_fourier(psp, norm(p))
+
+# Fallback vectorized implementation for non GPU-optimized code.
+function eval_psp_local_fourier(psp::NormConservingPsp, ps::AbstractVector{T}) where {T <: Real}
+    arch = architecture(ps)
+    to_device(arch, map(p -> eval_psp_local_fourier(psp, p), to_cpu(ps)))
+end
 
 @doc raw"""
     eval_psp_energy_correction([T=Float64,] psp::NormConservingPsp)

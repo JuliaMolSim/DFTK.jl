@@ -50,4 +50,4 @@ end
 """
 Returns the architecture of the given array.
 """
-get_architecture(x::AbstractArray) = x isa AbstractGPUArray ? GPU{typeof(x)}() : CPU()
+architecture(x::AbstractArray) = x isa AbstractGPUArray ? GPU{typeof(x)}() : CPU()
