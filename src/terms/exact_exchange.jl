@@ -131,8 +131,12 @@ function ene_ops(
     E = zero(T)
     ops = Vector{NonlocalOperator}(undef, length(basis.kpoints))
     @views for (ik, kpt) in enumerate(basis.kpoints)
-        occk = occupation[ik]
-        ψk   = ψ[ik]
+         
+        # mask of occupied indices
+        mask_occ = findall(occ -> abs(occ) >= occupation_threshold, occupation[ik])
+        occk = occupation[ik][mask_occ]
+        ψk = view(ψ[ik], :, mask_occ) 
+        nocc = length(mask_occ)
    
         nocc = size(ψk, 2) 
         ψk_real = similar(ψk, complex(T), basis.fft_size..., nocc)
