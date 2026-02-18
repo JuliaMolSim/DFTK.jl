@@ -124,6 +124,13 @@ Adaptively Compressed Exchange (ACE) implementation of the Fock exchange.
 JCTC 2016, 12, 5, 2242–2249, doi.org/10.1021/acs.jctc.6b00092
 """
 struct AceExx <: ExxAlgorithm end 
+
+# helper struct to let M*x act as M\x
+struct InverseMultiplier{T}
+    M::T
+end
+Base.:*(Op::InverseMultiplier, x) = Op.M \ x
+
 function ene_ops(
     ::AceExx,
     basis::PlaneWaveBasis{T}, 
@@ -155,7 +162,8 @@ function ene_ops(
         Wk[:, n] .= fft(basis, kpt, Wnk_real)
     end
     M = Hermitian(ψk' * Wk)
-    B = inv(cholesky(M))
-    op = NonlocalOperator(basis, kpt, Wk, -B) 
+    B = InverseMultiplier(-M)
+    op = NonlocalOperator(basis, kpt, Wk, B) 
     (; E, op)
 end
+
