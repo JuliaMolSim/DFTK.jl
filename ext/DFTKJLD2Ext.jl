@@ -66,7 +66,7 @@ function DFTK.load_scfres(::Val{:jld2}, filename::AbstractString, basis=nothing;
     DFTK.mpi_barrier(comm)
     scfres
 end
-function load_scfres_jld2(jld, basis; skip_hamiltonian, strict, comm=MPI.COMM_WORLD)
+function load_scfres_jld2(jld, basis; skip_hamiltonian, strict, comm)
     consistent_kpts = true
     if isnothing(basis)
         basis = load_basis(jld; comm)
