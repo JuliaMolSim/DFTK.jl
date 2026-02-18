@@ -98,7 +98,7 @@ function exx_operator(::AceExx, basis::PlaneWaveBasis{T}, kpt, coulomb_kernel::A
         Wk[:, n] .= fft(basis, kpt, Wnk_real_tmp)
     end
 
-    # In ACE Wnk = V_x * ψnk  for all occupied ψnk.
+    # In ACE Wnk = Vx * ψnk  for all occupied ψnk.
     # Therefore [Mk]_{nm} is just < ψ_{nk}, V_x ψmk>, which means that the
     # energy contribution from this k-point can be computed as
     #     ∑_n occ_{nk} [Mk]_{nn}
