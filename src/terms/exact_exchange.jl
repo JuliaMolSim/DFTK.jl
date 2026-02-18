@@ -7,17 +7,11 @@ Exact exchange term: the Hartree-Exact exchange energy of the orbitals
 
 abstract type ExxAlgorithm end
 
-struct ExactExchange
-    scaling_factor::Real
-    coulomb_kernel_model::CoulombKernelModel
-    exx_algorithm::ExxAlgorithm
+@kwdef struct ExactExchange
+    scaling_factor::Real = 1.0
+    coulomb_kernel_model::CoulombKernelModel = ProbeCharge()
+    exx_algorithm::ExxAlgorithm = VanillaExx()
 end
-
-ExactExchange(;
-    scaling_factor=1, 
-    coulomb_kernel_model=ProbeCharge(), 
-    exx_algorithm=VanillaExx()
-) = ExactExchange(scaling_factor, coulomb_kernel_model, exx_algorithm)
 
 (exchange::ExactExchange)(basis) = TermExactExchange(
     basis, 
@@ -45,14 +39,9 @@ function TermExactExchange(
     TermExactExchange(T(scaling_factor), coulomb_kernel, exx_algorithm)
 end
 
-@timing "ene_ops: ExactExchange" function ene_ops(
-    term::TermExactExchange,
-    basis::PlaneWaveBasis{T}, 
-    ψ, 
-    occupation;
-    occupation_threshold = zero(T),
-    kwargs...
-) where {T}
+@timing "ene_ops: ExactExchange" function ene_ops(term::TermExactExchange, basis::PlaneWaveBasis{T},
+                                                  ψ, occupation; occupation_threshold=zero(T),
+                                                  kwargs...) where {T}
     if isnothing(ψ) || isnothing(occupation)
         @warn "Exact exchange requires orbitals and occupation, return NoopOperator." 
         return (; E=zero(T), ops=NoopOperator.(basis, basis.kpoints))
@@ -61,7 +50,6 @@ end
     @assert length(basis.kpoints) == basis.model.n_spin_components # no k-points, only spin
 
     ops_and_E = map(enumerate(basis.kpoints)) do (ik, kpt)
-        
         # mask of occupied indices
         mask_occ = findall(occ -> abs(occ) >= occupation_threshold, occupation[ik])
         occk = occupation[ik][mask_occ]
@@ -77,51 +65,53 @@ end
         # compute E and op for this kpt
         ene_ops(term.exx_algorithm, basis, kpt, term.coulomb_kernel, ψk, ψk_real, occk)
     end
+
+    # TODO: Need kweight here later for energy
+    #       See non-local term for inspiration
     E = sum(item.E for item in ops_and_E)
     ops = [item.op for item in ops_and_E]
     (; E, ops)
 end
 
+# TODO: Should probably define an energy-only function, which directly calls into
+#       energy_only_exact_exchange for both ACE and Vanilla version.
 
-"""
-    VanillaExx
+function exact_exchange_energy(basis::PlaneWaveBasis{T}, kpt, coulomb_kernel, ψk_real, occk) where {T}
+    # Naive algorithm for computing the exact exchange energy only.
 
-Plain vanilla Fock exchange implementation without any tricks.
-"""
-struct VanillaExx <: ExxAlgorithm end
-function ene_ops(
-    ::VanillaExx,
-    basis::PlaneWaveBasis{T}, 
-    kpt,
-    coulomb_kernel::AbstractArray,
-    ψk, 
-    ψk_real, 
-    occk
-) where {T}
-    E = zero(T)
+    Ek = zero(T)
     for (n, ψnk_real) in enumerate(eachslice(ψk_real, dims=4))
         for (m, ψmk_real) in enumerate(eachslice(ψk_real, dims=4))
             if m > n continue end
             ρmn_real = conj(ψmk_real) .* ψnk_real
             ρmn_fourier = fft(basis, kpt, ρmn_real) # actually we need a q-point here
-            fac_mn = occk[n] * occk[m] 
-            fac_mn /= filled_occupation(basis.model) # divide 2 (spin-paired) or 1 (spin-polarized)
+
+            # XXX: Not clear to me why we need to divide by the filled occupation here
+            fac_mn = occk[n] * occk[m] / filled_occupation(basis.model)
             fac_mn *= (m != n ? 2 : 1) # factor 2 because we skipped m>n
-            E -= 0.5 * fac_mn * real(dot(ρmn_fourier .* coulomb_kernel, ρmn_fourier)) 
+            Ek -= 0.5 * fac_mn * real(dot(ρmn_fourier .* coulomb_kernel, ρmn_fourier))
         end
     end
+    Ek
+end
+
+
+"""
+Plain vanilla Fock exchange implementation without any tricks.
+"""
+struct VanillaExx <: ExxAlgorithm end
+function ene_ops(::VanillaExx, basis::PlaneWaveBasis{T}, kpt, coulomb_kernel, ψk, ψk_real, occk) where {T}
+    E  = exact_exchange_energy(basis, kpt, coulomb_kernel, ψk_real, occk)
     op = ExchangeOperator(basis, kpt, coulomb_kernel, occk, ψk, ψk_real)
     (; E, op)
 end
 
 
 """
-    AceExx
-
 Adaptively Compressed Exchange (ACE) implementation of the Fock exchange.
 
 # Reference
-JCTC 2016, 12, 5, 2242–2249, doi.org/10.1021/acs.jctc.6b00092
+JCTC 2016, 12, 5, 2242-2249, doi.org/10.1021/acs.jctc.6b00092
 """
 struct AceExx <: ExxAlgorithm end 
 

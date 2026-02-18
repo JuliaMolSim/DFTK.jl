@@ -190,8 +190,9 @@ function apply!(Hψ, op::ExchangeOperator, ψ)
         Vx_four = x_four .* op.coulomb_kernel
         Vx_real = ifft(op.basis, op.kpoint, Vx_four) # actually we need q-point here
 
+        # XXX: Not clear to me why we need to divide by the filled occupation here
         # Real-space multiply and accumulate
-        fac_nk = op.occk[n] / filled_occupation(op.basis.model) # divide 2 (spin-paired) or 1 (spin-polarized)
+        fac_nk = op.occk[n] / filled_occupation(op.basis.model)
         Hψ.real .-= fac_nk .* ψnk_real .* Vx_real 
     end
 end
