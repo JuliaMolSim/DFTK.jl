@@ -60,28 +60,8 @@ end
 
     @assert length(basis.kpoints) == basis.model.n_spin_components # no k-points, only spin
 
-    ene_ops(term.exx_algorithm, term.coulomb_kernel, basis, ψ, occupation, occupation_threshold)
-end
-
-
-"""
-    VanillaExx
-
-Plain vanilla Fock exchange implementation without any tricks.
-"""
-struct VanillaExx <: ExxAlgorithm end
-function ene_ops(
-    ::VanillaExx,
-    coulomb_kernel::AbstractArray,
-    basis::PlaneWaveBasis{T}, 
-    ψ, 
-    occupation,
-    occupation_threshold
-) where {T}
-    E = zero(T)
-    ops = Vector{ExchangeOperator}(undef, length(basis.kpoints))
-    for (ik, kpt) in enumerate(basis.kpoints)
-
+    ops_and_E = map(enumerate(basis.kpoints)) do (ik, kpt)
+        
         # mask of occupied indices
         mask_occ = findall(occ -> abs(occ) >= occupation_threshold, occupation[ik])
         occk = occupation[ik][mask_occ]
@@ -93,21 +73,45 @@ function ene_ops(
         for i = 1:nocc
             ifft!(view(ψk_real,:,:,:,i), basis, kpt, ψk[:,i])
         end
-
-        for (n, ψnk_real) in enumerate(eachslice(ψk_real, dims=4))
-            for (m, ψmk_real) in enumerate(eachslice(ψk_real, dims=4))
-                if m > n continue end
-                ρmn_real = conj(ψmk_real) .* ψnk_real
-                ρmn_fourier = fft(basis, kpt, ρmn_real) # actually we need a q-point here
-                fac_mn = occk[n] * occk[m] 
-                fac_mn /= filled_occupation(basis.model) # divide 2 (spin-paired) or 1 (spin-polarized)
-                fac_mn *= (m != n ? 2 : 1) # factor 2 because we skipped m>n
-                E -= 0.5 * fac_mn * real(dot(ρmn_fourier .* coulomb_kernel, ρmn_fourier)) 
-            end
-        end
-        ops[ik] = ExchangeOperator(basis, kpt, coulomb_kernel, occk, ψk, ψk_real)
+        
+        # compute E and op for this kpt
+        ene_ops(term.exx_algorithm, basis, kpt, term.coulomb_kernel, ψk, ψk_real, occk)
     end
+    E = sum(item.E for item in ops_and_E)
+    ops = [item.op for item in ops_and_E]
     (; E, ops)
+end
+
+
+"""
+    VanillaExx
+
+Plain vanilla Fock exchange implementation without any tricks.
+"""
+struct VanillaExx <: ExxAlgorithm end
+function ene_ops(
+    ::VanillaExx,
+    basis::PlaneWaveBasis{T}, 
+    kpt,
+    coulomb_kernel::AbstractArray,
+    ψk, 
+    ψk_real, 
+    occk
+) where {T}
+    E = zero(T)
+    for (n, ψnk_real) in enumerate(eachslice(ψk_real, dims=4))
+        for (m, ψmk_real) in enumerate(eachslice(ψk_real, dims=4))
+            if m > n continue end
+            ρmn_real = conj(ψmk_real) .* ψnk_real
+            ρmn_fourier = fft(basis, kpt, ρmn_real) # actually we need a q-point here
+            fac_mn = occk[n] * occk[m] 
+            fac_mn /= filled_occupation(basis.model) # divide 2 (spin-paired) or 1 (spin-polarized)
+            fac_mn *= (m != n ? 2 : 1) # factor 2 because we skipped m>n
+            E -= 0.5 * fac_mn * real(dot(ρmn_fourier .* coulomb_kernel, ρmn_fourier)) 
+        end
+    end
+    op = ExchangeOperator(basis, kpt, coulomb_kernel, occk, ψk, ψk_real)
+    (; E, op)
 end
 
 
@@ -119,54 +123,39 @@ Adaptively Compressed Exchange (ACE) implementation of the Fock exchange.
 # Reference
 JCTC 2016, 12, 5, 2242–2249, doi.org/10.1021/acs.jctc.6b00092
 """
-struct AceExx <: ExxAlgorithm end  # TODO: Rename to ExxAlgorithm
+struct AceExx <: ExxAlgorithm end 
 function ene_ops(
     ::AceExx,
-    coulomb_kernel::AbstractArray,
     basis::PlaneWaveBasis{T}, 
-    ψ, 
-    occupation,
-    occupation_threshold
+    kpt,
+    coulomb_kernel::AbstractArray,
+    ψk, 
+    ψk_real, 
+    occk
 ) where {T}
     E = zero(T)
-    ops = Vector{NonlocalOperator}(undef, length(basis.kpoints))
-    @views for (ik, kpt) in enumerate(basis.kpoints)
-         
-        # mask of occupied indices
-        mask_occ = findall(occ -> abs(occ) >= occupation_threshold, occupation[ik])
-        occk = occupation[ik][mask_occ]
-        ψk = view(ψ[ik], :, mask_occ) 
-        nocc = length(mask_occ)
-   
-        nocc = size(ψk, 2) 
-        ψk_real = similar(ψk, complex(T), basis.fft_size..., nocc)
-        for i = 1:nocc
-            ifft!(ψk_real[:,:,:,i], basis, kpt, ψk[:,i])
+    Wk = similar(ψk)
+    Vn_real = zeros(complex(T), basis.fft_size...) 
+    for (n, ψnk_real) in enumerate(eachslice(ψk_real, dims=4))
+        Wnk_real = zeros(complex(T), basis.fft_size...)
+        for (m, ψmk_real) in enumerate(eachslice(ψk_real, dims=4))
+            ρmn_real = conj.(ψmk_real) .* ψnk_real
+            ρmn_fourier = fft(basis, kpt, ρmn_real) # actually we need a q-point here
+
+            Vmn_fourier = ρmn_fourier .* coulomb_kernel
+            Vmn_real = ifft(basis, kpt, Vmn_fourier)
+            fac_mk = occk[m] / filled_occupation(basis.model)
+            Wnk_real .+= fac_mk .* ψmk_real .* Vmn_real
+            
+            fac_mn = occk[n] * occk[m] 
+            fac_mn /= filled_occupation(basis.model) # divide 2 (spin-paired) or 1 (spin-polarized)
+
+            E -= 0.5 * fac_mn * real(dot(ρmn_fourier .* coulomb_kernel, ρmn_fourier)) 
         end
-
-        Wk = similar(ψk)
-        Vn_real = zeros(complex(T), basis.fft_size...) 
-        for (n, ψnk_real) in enumerate(eachslice(ψk_real, dims=4))
-            Wnk_real = zeros(complex(T), basis.fft_size...)
-            for (m, ψmk_real) in enumerate(eachslice(ψk_real, dims=4))
-                ρmn_real = conj.(ψmk_real) .* ψnk_real
-                ρmn_fourier = fft(basis, kpt, ρmn_real) # actually we need a q-point here
-
-                Vmn_fourier = ρmn_fourier .* coulomb_kernel
-                Vmn_real = ifft(basis, kpt, Vmn_fourier)
-                fac_mk = occk[m] / filled_occupation(basis.model)
-                Wnk_real .+= fac_mk .* ψmk_real .* Vmn_real
-                
-                fac_mn = occk[n] * occk[m] 
-                fac_mn /= filled_occupation(basis.model) # divide 2 (spin-paired) or 1 (spin-polarized)
-
-                E -= 0.5 * fac_mn * real(dot(ρmn_fourier .* coulomb_kernel, ρmn_fourier)) 
-            end
-            Wk[:, n] .= fft(basis, kpt, Wnk_real)
-        end
-        M = Hermitian(ψk' * Wk)
-        B = inv(cholesky(M))
-        ops[ik] = NonlocalOperator(basis, kpt, Wk, -B) 
+        Wk[:, n] .= fft(basis, kpt, Wnk_real)
     end
-    (; E, ops)
+    M = Hermitian(ψk' * Wk)
+    B = inv(cholesky(M))
+    op = NonlocalOperator(basis, kpt, Wk, -B) 
+    (; E, op)
 end
