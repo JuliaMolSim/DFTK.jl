@@ -167,7 +167,9 @@ Overview of parameters:
 
         # Note that ρin is not the density of ψ, and the eigenvalues
         # are not the self-consistent ones, which makes this energy non-variational
-        energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρin, τ, hubbard_n, eigenvalues, εF)
+        energies, ham = energy_hamiltonian(basis, ψ, occupation; 
+                                           ρ=ρin, τ, hubbard_n, eigenvalues, εF, 
+                                           occupation_threshold=nbandsalg.occupation_threshold)
 
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
@@ -196,7 +198,9 @@ Overview of parameters:
 
         # Compute the energy of the new state
         if compute_consistent_energies
-            (; energies) = energy(basis, ψ, occupation; ρ=ρout, τ, hubbard_n, eigenvalues, εF)
+            (; energies) = energy(basis, ψ, occupation; 
+                                  ρ=ρout, τ, hubbard_n, eigenvalues, εF,
+                                  occupation_threshold=nbandsalg.occupation_threshold)
         end
         history_Etot = vcat(info.history_Etot, energies.total)
         history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
@@ -229,7 +233,9 @@ Overview of parameters:
     # ψ is consistent with ρout, so we return that. We also perform a last energy computation
     # to return a correct variational energy
     (; ρin, ρout, τ, hubbard_n, ψ, occupation, eigenvalues, εF, converged) = info
-    energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρout, τ, hubbard_n, eigenvalues, εF)
+    energies, ham = energy_hamiltonian(basis, ψ, occupation; 
+                                       ρ=ρout, τ, hubbard_n, eigenvalues, εF, 
+                                       occupation_threshold=nbandsalg.occupation_threshold)
 
     # Callback is run one last time with final state to allow callback to clean up
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,

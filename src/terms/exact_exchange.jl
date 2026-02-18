@@ -13,15 +13,18 @@ struct ExactExchange
     exx_algorithm::ExxAlgorithm
 end
 
-ExactExchange(; scaling_factor=1, 
-                coulomb_kernel_model=ProbeCharge(), 
-                exx_algorithm=VanillaExx()) = 
-    ExactExchange(scaling_factor, coulomb_kernel_model, exx_algorithm)
+ExactExchange(;
+    scaling_factor=1, 
+    coulomb_kernel_model=ProbeCharge(), 
+    exx_algorithm=VanillaExx()
+) = ExactExchange(scaling_factor, coulomb_kernel_model, exx_algorithm)
 
-(exchange::ExactExchange)(basis) = TermExactExchange(basis, 
-                                                     exchange.scaling_factor, 
-                                                     exchange.coulomb_kernel_model,
-                                                     exchange.exx_algorithm)
+(exchange::ExactExchange)(basis) = TermExactExchange(
+    basis, 
+    exchange.scaling_factor, 
+    exchange.coulomb_kernel_model,
+    exchange.exx_algorithm
+)
 
 function Base.show(io::IO, exchange::ExactExchange)
     fac = isone(exchange.scaling_factor) ? "" : "scaling_factor=$(exchange.scaling_factor), "
@@ -32,17 +35,24 @@ struct TermExactExchange <: Term
     coulomb_kernel::AbstractArray
     exx_algorithm::ExxAlgorithm 
 end
-function TermExactExchange(basis::PlaneWaveBasis{T}, 
-                           scaling_factor, 
-                           coulomb_kernel_model::CoulombKernelModel, 
-                           exx_algorithm::ExxAlgorithm) where T
+function TermExactExchange(
+    basis::PlaneWaveBasis{T}, 
+    scaling_factor, 
+    coulomb_kernel_model::CoulombKernelModel, 
+    exx_algorithm::ExxAlgorithm
+) where T
     coulomb_kernel = compute_coulomb_kernel(basis; coulomb_kernel_model) # TODO: we need this for every q-point
     TermExactExchange(T(scaling_factor), coulomb_kernel, exx_algorithm)
 end
 
-@timing "ene_ops: ExactExchange" function ene_ops(term::TermExactExchange,
-                                                  basis::PlaneWaveBasis{T}, ψ, occupation;
-                                                  kwargs...) where {T}
+@timing "ene_ops: ExactExchange" function ene_ops(
+    term::TermExactExchange,
+    basis::PlaneWaveBasis{T}, 
+    ψ, 
+    occupation;
+    occupation_threshold = zero(T),
+    kwargs...
+) where {T}
     if isnothing(ψ) || isnothing(occupation)
         @warn "Exact exchange requires orbitals and occupation, return NoopOperator." 
         return (; E=zero(T), ops=NoopOperator.(basis, basis.kpoints))
@@ -50,10 +60,7 @@ end
 
     @assert length(basis.kpoints) == basis.model.n_spin_components # no k-points, only spin
 
-    # TODO Occupation threshold
-    ψ, occupation = select_occupied_orbitals(basis, ψ, occupation; threshold=1e-8)
-
-    compute_exx_ene_ops(term.exx_algorithm, term.coulomb_kernel, basis, ψ, occupation)
+    ene_ops(term.exx_algorithm, term.coulomb_kernel, basis, ψ, occupation, occupation_threshold)
 end
 
 
@@ -63,16 +70,25 @@ end
 Plain vanilla Fock exchange implementation without any tricks.
 """
 struct VanillaExx <: ExxAlgorithm end
-function compute_exx_ene_ops(::VanillaExx,
-                             coulomb_kernel::AbstractArray,
-                             basis::PlaneWaveBasis{T}, ψ, occupation) where {T}
+function ene_ops(
+    ::VanillaExx,
+    coulomb_kernel::AbstractArray,
+    basis::PlaneWaveBasis{T}, 
+    ψ, 
+    occupation,
+    occupation_threshold
+) where {T}
     E = zero(T)
     ops = Vector{ExchangeOperator}(undef, length(basis.kpoints))
     for (ik, kpt) in enumerate(basis.kpoints)
-        occk = occupation[ik]
-        ψk   = ψ[ik]
+
+        # mask of occupied indices
+        mask_occ = findall(occ -> abs(occ) >= occupation_threshold, occupation[ik])
+        occk = occupation[ik][mask_occ]
+        ψk = view(ψ[ik], :, mask_occ) 
+        nocc = length(mask_occ)
    
-        nocc = size(ψk, 2) 
+        # pre-calculate real space orbitals
         ψk_real = similar(ψk, complex(T), basis.fft_size..., nocc)
         for i = 1:nocc
             ifft!(view(ψk_real,:,:,:,i), basis, kpt, ψk[:,i])
@@ -104,9 +120,14 @@ Adaptively Compressed Exchange (ACE) implementation of the Fock exchange.
 JCTC 2016, 12, 5, 2242–2249, doi.org/10.1021/acs.jctc.6b00092
 """
 struct AceExx <: ExxAlgorithm end  # TODO: Rename to ExxAlgorithm
-function compute_exx_ene_ops(::AceExx,
-                             coulomb_kernel::AbstractArray,
-                             basis::PlaneWaveBasis{T}, ψ, occupation) where {T}
+function ene_ops(
+    ::AceExx,
+    coulomb_kernel::AbstractArray,
+    basis::PlaneWaveBasis{T}, 
+    ψ, 
+    occupation,
+    occupation_threshold
+) where {T}
     E = zero(T)
     ops = Vector{NonlocalOperator}(undef, length(basis.kpoints))
     @views for (ik, kpt) in enumerate(basis.kpoints)
