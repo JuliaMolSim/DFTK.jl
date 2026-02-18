@@ -12,31 +12,21 @@ abstract type ExxAlgorithm end
     coulomb_kernel_model::CoulombKernelModel = ProbeCharge()
     exx_algorithm::ExxAlgorithm = VanillaExx()
 end
-
-(exchange::ExactExchange)(basis) = TermExactExchange(
-    basis, 
-    exchange.scaling_factor, 
-    exchange.coulomb_kernel_model,
-    exchange.exx_algorithm
-)
-
-function Base.show(io::IO, exchange::ExactExchange)
-    fac = isone(exchange.scaling_factor) ? "" : "scaling_factor=$(exchange.scaling_factor), "
-    print(io, "ExactExchange($(fac)coulomb_kernel_model=$(exchange.coulomb_kernel_model), exx_algorithm=$(exchange.exx_algorithm))")
+function (exchange::ExactExchange)(basis)
+    TermExactExchange(basis, exchange.scaling_factor,
+    exchange.coulomb_kernel_model, exchange.exx_algorithm)
 end
+
 struct TermExactExchange <: Term
-    scaling_factor::Real  # scaling factor
+    scaling_factor::Real  # scaling factor, absorbed into coulomb_kernel
     coulomb_kernel::AbstractArray
-    exx_algorithm::ExxAlgorithm 
-end
-function TermExactExchange(
-    basis::PlaneWaveBasis{T}, 
-    scaling_factor, 
-    coulomb_kernel_model::CoulombKernelModel, 
     exx_algorithm::ExxAlgorithm
-) where T
-    coulomb_kernel = compute_coulomb_kernel(basis; coulomb_kernel_model) # TODO: we need this for every q-point
-    TermExactExchange(T(scaling_factor), coulomb_kernel, exx_algorithm)
+end
+function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, coulomb_kernel_model, exx_algorithm) where {T}
+    # TODO: we need this for every q-point
+    fac::T = scaling_factor
+    coulomb_kernel = fac .* compute_coulomb_kernel(basis; coulomb_kernel_model)
+    TermExactExchange(fac, coulomb_kernel, exx_algorithm)
 end
 
 @timing "ene_ops: ExactExchange" function ene_ops(term::TermExactExchange, basis::PlaneWaveBasis{T},
@@ -50,58 +40,40 @@ end
     @assert length(basis.kpoints) == basis.model.n_spin_components # no k-points, only spin
 
     ops_and_E = map(enumerate(basis.kpoints)) do (ik, kpt)
-        # mask of occupied indices
+        # TODO: Check with the most recent GPU changes if this is still the way
+        #       how to do this
         mask_occ = findall(occ -> abs(occ) >= occupation_threshold, occupation[ik])
         occk = occupation[ik][mask_occ]
         ψk = view(ψ[ik], :, mask_occ) 
         nocc = length(mask_occ)
-   
-        # pre-calculate real space orbitals
+
         ψk_real = similar(ψk, complex(T), basis.fft_size..., nocc)
         for i = 1:nocc
             ifft!(view(ψk_real,:,:,:,i), basis, kpt, ψk[:,i])
         end
 
-        # compute E and op for this kpt
-        ene_ops(term.exx_algorithm, basis, kpt, term.coulomb_kernel, ψk, ψk_real, occk)
+        (; Ek, op) = exx_operator(term.exx_algorithm, basis, kpt,
+                                  term.coulomb_kernel, ψk, ψk_real, occk)
+        (; Ek, op)
     end
 
     # TODO: Need kweight here later for energy
     #       See non-local term for inspiration
     E = sum(item.Ek for item in ops_and_E)
-    ops = [item.op for item in ops_and_E]
-    (; E, ops)
+    (; E, ops=[item.op for item in ops_and_E])
 end
 
 # TODO: Should probably define an energy-only function, which directly calls into
-#       energy_only_exact_exchange for both ACE and Vanilla version.
-
-function exact_exchange_energy(basis::PlaneWaveBasis{T}, kpt, coulomb_kernel, ψk_real, occk) where {T}
-    # Naive algorithm for computing the exact exchange energy only.
-
-    Ek = zero(T)
-    for (n, ψnk_real) in enumerate(eachslice(ψk_real, dims=4))
-        for (m, ψmk_real) in enumerate(eachslice(ψk_real, dims=4))
-            if m > n continue end
-            ρmn_real = conj(ψmk_real) .* ψnk_real
-            ρmn_fourier = fft(basis, kpt, ρmn_real) # actually we need a q-point here
-
-            # XXX: Not clear to me why we need to divide by the filled occupation here
-            fac_mn = occk[n] * occk[m] / filled_occupation(basis.model)
-            fac_mn *= (m != n ? 2 : 1) # factor 2 because we skipped m>n
-            Ek -= 0.5 * fac_mn * real(dot(ρmn_fourier .* coulomb_kernel, ρmn_fourier))
-        end
-    end
-    Ek
-end
+#       exx_energy_only for both ACE and Vanilla version.
 
 
 """
 Plain vanilla Fock exchange implementation without any tricks.
 """
 struct VanillaExx <: ExxAlgorithm end
-function ene_ops(::VanillaExx, basis::PlaneWaveBasis{T}, kpt, coulomb_kernel, ψk, ψk_real, occk) where {T}
-    Ek = exact_exchange_energy(basis, kpt, coulomb_kernel, ψk_real, occk)
+function exx_operator(::VanillaExx, basis::PlaneWaveBasis{T}, kpt, coulomb_kernel,
+                      ψk, ψk_real, occk) where {T}
+    Ek = exx_energy_only(basis, kpt, coulomb_kernel, ψk_real, occk)
     op = ExchangeOperator(basis, kpt, coulomb_kernel, occk, ψk, ψk_real)
     (; Ek, op)
 end
@@ -109,19 +81,12 @@ end
 
 """
 Adaptively Compressed Exchange (ACE) implementation of the Fock exchange.
-
 # Reference
 JCTC 2016, 12, 5, 2242-2249, doi.org/10.1021/acs.jctc.6b00092
 """
 struct AceExx <: ExxAlgorithm end 
-
-struct InverseNegatedMap{T}
-    B::T
-end
-Base.:*(op::InverseNegatedMap, x) = -(op.B \ x)
-
-function ene_ops(::AceExx, basis::PlaneWaveBasis{T}, kpt, coulomb_kernel::AbstractArray,
-                 ψk, ψk_real, occk) where {T}
+function exx_operator(::AceExx, basis::PlaneWaveBasis{T}, kpt, coulomb_kernel::AbstractArray,
+                      ψk, ψk_real, occk) where {T}
     Wk = similar(ψk)
 
     Wnk_real_tmp = similar(ψk_real[:, :, :, 1])
@@ -144,3 +109,28 @@ function ene_ops(::AceExx, basis::PlaneWaveBasis{T}, kpt, coulomb_kernel::Abstra
     (; Ek, op)
 end
 
+
+struct InverseNegatedMap{T}
+    B::T
+end
+Base.:*(op::InverseNegatedMap, x) = -(op.B \ x)
+
+
+function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, coulomb_kernel, ψk_real, occk) where {T}
+    # Naive algorithm for computing the exact exchange energy only.
+
+    Ek = zero(T)
+    for (n, ψnk_real) in enumerate(eachslice(ψk_real, dims=4))
+        for (m, ψmk_real) in enumerate(eachslice(ψk_real, dims=4))
+            if m > n continue end
+            ρmn_real = conj(ψmk_real) .* ψnk_real
+            ρmn_fourier = fft(basis, kpt, ρmn_real) # actually we need a q-point here
+
+            # XXX: Not clear to me why we need to divide by the filled occupation here
+            fac_mn = occk[n] * occk[m] / filled_occupation(basis.model)
+            fac_mn *= (m != n ? 2 : 1) # factor 2 because we skipped m>n
+            Ek -= 0.5 * fac_mn * real(dot(ρmn_fourier .* coulomb_kernel, ρmn_fourier))
+        end
+    end
+    Ek
+end
