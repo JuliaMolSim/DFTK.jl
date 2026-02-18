@@ -1,7 +1,6 @@
 using LinearMaps
 using KrylovKit: OrthonormalBasis, Orthogonalizer
 using LinearAlgebra: Givens
-using MPI
 
 """
 Matrix-vector product function used by `inexact_gmres`. The intention is that an

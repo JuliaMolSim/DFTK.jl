@@ -6,12 +6,10 @@ Number of processors used in MPI. Can be called without ensuring initialization.
 """
 mpi_nprocs(comm::MPI.Comm) = (MPI.Init(); MPI.Comm_size(comm))
 mpi_master(comm::MPI.Comm) = (MPI.Init(); MPI.Comm_rank(comm) == 0)
-mpi_nprocs() = (MPI.Init(); MPI.Comm_size(MPI.COMM_WORLD))
-mpi_master() = (MPI.Init(); MPI.Comm_rank(MPI.COMM_WORLD) == 0)
 
 # Calling MPI without explicit communcator is deprecated
-@deprecate mpi_nprocs() mpi_nprocs(comm::MPI.Comm)
-@deprecate mpi_master() mpi_master(comm::MPI.Comm)
+@deprecate mpi_nprocs() mpi_nprocs(MPI.COMM_WORLD)
+@deprecate mpi_master() mpi_master(MPI.COMM_WORLD)
 
 # Wrappers around standarf MPI operations. Avoid using MPI.COMM_WORLD unless strictly necessary.
 mpi_sum(  arr, comm::MPI.Comm) = MPI.Allreduce( arr,   +, comm)

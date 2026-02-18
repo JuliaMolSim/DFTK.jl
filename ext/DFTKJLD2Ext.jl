@@ -54,7 +54,8 @@ end
 
 
 function DFTK.load_scfres(::Val{:jld2}, filename::AbstractString, basis=nothing;
-                          comm=MPI.COMM_WORLD, kwargs...)
+                          comm=isnothing(basis) ? MPI.COMM_WORLD : basis.comm_kpts,
+                          kwargs...)
     if mpi_master(comm)
         scfres = JLD2.jldopen(filename, "r") do jld
             load_scfres_jld2(jld, basis; comm, kwargs...)

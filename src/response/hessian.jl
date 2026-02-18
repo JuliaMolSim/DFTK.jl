@@ -299,9 +299,8 @@ Input parameters:
                            maxiter=maxiter_sternheimer, tol=tol * factor_initial,
                            bandtolalg, occupation_threshold,
                            q, kwargs...)  # = χ04P * δHext
-        callback((; stage=:noninteracting, runtime_ns=time_ns() - start_ns,
-                    Axinfos=[(; tol=tol*factor_initial, res0...)],
-                    basis=basis))
+        callback((; stage=:noninteracting, runtime_ns=time_ns() - start_ns, basis,
+                    Axinfos=[(; tol=tol*factor_initial, res0...)]))
         compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
                    occupation_threshold, q)
     end
@@ -342,9 +341,8 @@ Input parameters:
                            δtemperature,
                            maxiter=maxiter_sternheimer, tol=tol * factor_final,
                            bandtolalg, occupation_threshold, q, kwargs...)
-    callback((; stage=:final, runtime_ns=time_ns() - start_ns,
-                Axinfos=[(; tol=tol*factor_final, resfinal...)],
-                basis=basis))
+    callback((; stage=:final, runtime_ns=time_ns() - start_ns, basis,
+                Axinfos=[(; tol=tol*factor_final, resfinal...)]))
     # Compute total change in eigenvalues
     δeigenvalues = map(ψ, δHtotψ) do ψk, δHtotψk
         map(eachcol(ψk), eachcol(δHtotψk)) do ψnk, δHtotψnk
