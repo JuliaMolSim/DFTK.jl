@@ -49,7 +49,7 @@ end
         occk = occ_occ[ik]
         ψk   = ψ_occ[ik]
 
-        n_occ = length(mask_occ)
+        n_occ = length(occk)
         ψk_real = similar(ψk, complex(T), basis.fft_size..., n_occ)
         @views for n = 1:n_occ
             ifft!(ψk_real[:, :, :, n], basis, kpt, ψk[:, n])
