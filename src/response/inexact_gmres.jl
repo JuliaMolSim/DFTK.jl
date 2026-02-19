@@ -12,8 +12,7 @@ define a method for this function to provide faster approximate versions for `A*
 mul_approximate(A, X; rtol=0.0) = (; Ax=A * X, info=(; rtol))
 
 function default_gmres_print(info)
-    !mpi_master() && return info  # Rest is printing => only do on master
-
+    # Default callback prints on all MPI ranks
     n_iter = info.n_iter
     if info.stage == :iterate
         if n_iter == 1

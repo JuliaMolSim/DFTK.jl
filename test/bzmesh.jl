@@ -27,8 +27,9 @@ end
 # PythonCall does not play nicely with MPI.
 @testitem "MonkhorstPack irreducible_kcoords is correct reduction" #=
     =#    tags=[:dont_test_mpi] setup=[TestCases] begin
-    using Logging
     using AtomsBuilder
+    using DFTK
+    using Logging
     (; silicon, magnesium, platinum_hcp) = TestCases.all_testcases
 
     function test_reduction(testcase, kgrid_size, kirredsize;
@@ -58,6 +59,8 @@ end
         @test all_kcoords == red_kcoords
     end
 
+    test_reduction(silicon, [ 1,  1,  1],   1)
+    test_reduction(silicon, [ 1,  1,  5],   3)
     test_reduction(silicon, [ 2,  3,  2],   6)
     test_reduction(silicon, [ 3,  3,  3],   4)
     test_reduction(silicon, [ 2,  3,  4],  14)

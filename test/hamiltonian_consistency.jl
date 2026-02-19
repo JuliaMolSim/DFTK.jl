@@ -108,9 +108,13 @@ end
     test_consistency_term(Hartree())
     let
         Si = ElementPsp(14, load_psp(testcase.psp_upf))
-        test_consistency_term(Hubbard(OrbitalManifold([1, 2], "3P"), 0.01), atom=Si)
-        test_consistency_term(Hubbard(OrbitalManifold([1, 2], "3P"), 0.01), atom=Si,
+        test_consistency_term(Hubbard(OrbitalManifold([1, 2], "3P") => 0.01), atom=Si)
+        test_consistency_term(Hubbard(OrbitalManifold([1, 2], "3P") => 0.01), atom=Si,
                               spin_polarization=:collinear)
+        test_consistency_term(Hubbard(OrbitalManifold([1, 2], "3S") => 0.01,
+                                      OrbitalManifold([1, 2], "3P") => 0.02), atom=Si)
+        test_consistency_term(Hubbard([OrbitalManifold(Si, "3S"), OrbitalManifold(Si, "3P")],
+                                      [0.01, 0.02]), atom=Si)
     end
 
     for psp in [testcase.psp_gth, testcase.psp_upf]

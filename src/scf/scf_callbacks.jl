@@ -25,17 +25,17 @@ function (cb::ScfSaveCheckpoints)(info)
     info
 end
 
+const SCF_CALLBACK_SHOW_MEMORY = convert(Bool, @load_preference("SCF_CALLBACK_SHOW_MEMORY", false))
+
 """
 Default callback function for `self_consistent_field` methods,
 which prints a convergence table.
 """
-struct ScfDefaultCallback
-    show_damping::Bool
-    show_time::Bool
-    prev_time::Ref{UInt64}
-end
-function ScfDefaultCallback(; show_damping=true, show_time=true)
-    ScfDefaultCallback(show_damping, show_time, Ref(zero(UInt64)))
+@kwdef struct ScfDefaultCallback
+    show_damping::Bool     = true
+    show_time::Bool        = true
+    show_memory::Bool      = SCF_CALLBACK_SHOW_MEMORY
+    prev_time::Ref{UInt64} = Ref(zero(UInt64))
 end
 function (cb::ScfDefaultCallback)(info)
     # If first iteration clear a potentially cached previous time
@@ -45,6 +45,7 @@ function (cb::ScfDefaultCallback)(info)
     show_diag = hasproperty(info, :diagonalization)
     show_damp = hasproperty(info, :α) && cb.show_damping
     show_time = hasproperty(info, :runtime_ns) && cb.show_time
+    show_memory = cb.show_memory
 
     if show_diag
         # Gather MPI-distributed information
@@ -55,7 +56,14 @@ function (cb::ScfDefaultCallback)(info)
                             info.basis.comm_kpts)
     end
 
-    !mpi_master() && return info  # Rest is printing => only do on master
+    show_gpumem = false
+    if show_memory
+        # Gather memory information and maximise over MPI processes
+        mem_usage = mpi_max(memory_usage(info.basis.architecture), info.basis.comm_kpts)
+        show_gpumem = hasproperty(mem_usage, :gpu)
+    end
+
+    !mpi_master(info.basis.comm_kpts) && return info  # Rest is printing => only do on master
     if info.stage == :finalize
         info.converged || @warn "$(info.algorithm) not converged."
         return info
@@ -63,24 +71,34 @@ function (cb::ScfDefaultCallback)(info)
 
     # TODO We should really do this properly ... this is really messy
     if info.n_iter == 1
-        label_magn = show_magn ? ("   Magnet   |Magn|", "   ------   ------") : ("", "")
-        label_damp = show_damp ? ("   α   ",   "   ----") : ("", "")
-        label_diag = show_diag ? ("   Diag",   "   ----") : ("", "")
-        label_time = show_time ? ("   Δtime",  "   ------") : ("", "")
+        label_magn = show_magn   ? ("   Magnet   |Magn|", "   ------   ------") : ("", "")
+        label_damp = show_damp   ? ("   α   ",   "   ----")   : ("", "")
+        label_diag = show_diag   ? ("   Diag",   "   ----")   : ("", "")
+        label_time = show_time   ? ("   Δtime ",  "   ------") : ("", "")
+        label_memo = show_memory ? ("   Memory",  "   ------") : ("", "")
+        label_dmem = show_gpumem ? ("   GPUmem",  "   ------") : ("", "")
         @printf "n     Energy            log10(ΔE)   log10(Δρ)"
-        println(label_magn[1], label_damp[1], label_diag[1], label_time[1])
+        println(label_magn[1], label_damp[1], label_diag[1], label_time[1], label_memo[1], label_dmem[1])
         @printf "---   ---------------   ---------   ---------"
-        println(label_magn[2], label_damp[2], label_diag[2], label_time[2])
+        println(label_magn[2], label_damp[2], label_diag[2], label_time[2], label_memo[2], label_dmem[2])
     end
     E    = isnothing(info.energies) ? Inf : info.energies.total
     magn = sum(spin_density(info.ρout)) * info.basis.dvol
     abs_magn = sum(abs, spin_density(info.ρout)) * info.basis.dvol
 
-    tstr = " "^9
+    tstr = cb.show_time ? " "^9 : ""
     if show_time
         tstr = @sprintf "   % 6s" TimerOutputs.prettytime(info.runtime_ns - cb.prev_time[])
     end
     cb.prev_time[] = info.runtime_ns
+
+    memstr = ""
+    if show_memory
+        memstr = @sprintf "  % 6s" TimerOutputs.prettymemory(mem_usage.gc_bytes)
+        if show_gpumem
+            memstr *= @sprintf "  % 6s" TimerOutputs.prettymemory(mem_usage.gpu)
+        end
+    end
 
     Estr    = (@sprintf "%+15.12f" round(E, sigdigits=13))[1:15]
     if info.n_iter < 2
@@ -99,7 +117,7 @@ function (cb::ScfDefaultCallback)(info)
     show_damp && (αstr = isnan(info.α) ? "       " : @sprintf "  % 4.2f" info.α)
 
     @printf "% 3d   %s   %s   %s" info.n_iter Estr ΔE Δρstr
-    println(Mstr, absMstr, αstr, diagstr, tstr)
+    println(Mstr, absMstr, αstr, diagstr, tstr, memstr)
 
     flush(stdout)
     info
