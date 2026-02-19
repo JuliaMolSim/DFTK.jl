@@ -139,9 +139,13 @@ function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, coulomb_kernel, ψk_real
             ρmn_real = conj(ψmk_real) .* ψnk_real
             ρmn_fourier = fft(basis, kpt, ρmn_real) # actually we need a q-point here
 
-            # XXX: Not clear to me why we need to divide by the filled occupation here
+            # Exact exchange is quadratic in occupations but linear in spin,
+            # hence we have to divide by 1 (spin-polarized) or 2 (non-polarized)
             fac_mn = occk[n] * occk[m] / filled_occupation(basis.model)
-            fac_mn *= (m != n ? 2 : 1) # factor 2 because we skipped m>n
+            
+            # factor 2 because we skipped m>n
+            fac_mn *= (m != n ? 2 : 1)  
+
             Ek -= 1/T(2) * fac_mn * real(dot(ρmn_fourier .* coulomb_kernel, ρmn_fourier))
         end
     end
