@@ -200,10 +200,12 @@ function apply!(Hψ, op::ExchangeOperator, ψ)
         Vx_four = x_four .* op.coulomb_kernel
         Vx_real = ifft(op.basis, op.kpoint, Vx_four) # actually we need q-point here
 
-        # XXX: Not clear to me why we need to divide by the filled occupation here
-        # Real-space multiply and accumulate
+        # Exact exchange is quadratic in occupations but linear in spin,
+        # hence we need to undo the fact that in DFTK for non-spin-polarized calcuations
+        # orbitals are considered as spin orbitals and thus occupations run from 0 to 2
+        # We do this by dividing by the filled_occupation.
         fac_nk = op.occk[n] / filled_occupation(op.basis.model)
-        Hψ.real .-= fac_nk .* ψnk_real .* Vx_real 
+        Hψ.real .-= fac_nk .* ψnk_real .* Vx_real  # Real-space multiply and accumulate
     end
 end
 

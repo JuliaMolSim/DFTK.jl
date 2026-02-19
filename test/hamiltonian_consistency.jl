@@ -106,6 +106,7 @@ end
     test_consistency_term(ExternalFromFourier(X -> abs(norm(X))))
     test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
     test_consistency_term(Hartree())
+
     let
         Si = ElementPsp(14, load_psp(testcase.psp_upf))
         test_consistency_term(Hubbard(OrbitalManifold([1, 2], "3P") => 0.01), atom=Si)
@@ -124,6 +125,7 @@ end
         test_consistency_term(Xc([:lda_xc_teter93]), atom=Si)
         test_consistency_term(Xc([:lda_xc_teter93]), atom=Si, spin_polarization=:collinear)
         test_consistency_term(Xc([:gga_x_pbe]), atom=Si, spin_polarization=:collinear)
+
         # TODO: for use_nlcc=true need to fix consistency for meta-GGA with NLCC
         #       (see JuliaMolSim/DFTK.jl#1180)
         test_consistency_term(Xc([:mgga_x_tpss]; use_nlcc=false), atom=Si)
@@ -139,6 +141,8 @@ end
         test_consistency_term(ExactExchange(; coulomb_kernel_model=ProbeCharge(), exx_algorithm);
                               kgrid=(1, 1, 1), kshift=(0, 0, 0))
     end
+    test_consistency_term(ExactExchange(); spin_polarization=:collinear,
+                          kgrid=(1, 1, 1), kshift=(0, 0, 0))
 
     let
         a = 6
