@@ -12,7 +12,7 @@ lattice = a / 2 * [[0 1 1.];
 atoms     = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
 
-model  = model_PBE(lattice, atoms, positions)
+model  = model_DFT(lattice, atoms, positions; functionals=PBE())
 basis  = PlaneWaveBasis(model; Ecut=20, kgrid=[1, 1, 1])
 scfres = self_consistent_field(basis; tol=1e-6)
 
