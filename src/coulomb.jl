@@ -38,6 +38,13 @@ Vector of Coulomb kernel values for each G-vector in the spherical cutoff.
 function compute_coulomb_kernel(basis::PlaneWaveBasis{T};
                                 q=zero(Vec3{T}),
                                 coulomb_kernel_model::CoulombKernelModel=ProbeCharge()) where {T}
+    if length(basis.kpoints) > 1 || !iszero(basis.kpoints[1].coordinate)
+        throw(ArgumentError(
+            "Currently only Gamma-point calculations are supported in " *
+            "compute_coulomb_kernel, respectively Hartree-Fock and " *
+            "calculations involving exact exchange."))
+    end
+
     # currently only works for Gamma-only (need correct q-point otherwise)
     qpt = basis.kpoints[1] 
     coulomb_kernel =  _compute_coulomb_kernel(basis, qpt, q, coulomb_kernel_model)

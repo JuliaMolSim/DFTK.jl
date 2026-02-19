@@ -86,8 +86,6 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, test_for_constant=fal
             @test abs(diff) > atol
 
             err = abs(diff - diff_predicted)
-            @show E0.total
-            @show err
             @test err < rtol * abs(E0.total) || err < atol
         end
     end
@@ -134,9 +132,8 @@ end
     end
 
     for exx_algorithm in (VanillaExx(), AceExx())
-        # NOTE: The AceExx test may fail due to the additional approximation, if yes, then we may remove it.
         test_consistency_term(ExactExchange(; coulomb_kernel_model=ProbeCharge(), exx_algorithm);
-                              kgrid=(1, 1, 1))
+                              kgrid=(1, 1, 1), kshift=(0, 0, 0))
     end
 
     let
