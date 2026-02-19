@@ -52,6 +52,12 @@ function core_charge_density_fourier(::Element, ::T)::T where {T <: Real}
     error("Abstract elements do not necesesarily provide core charge density.")
 end
 
+# Generic vectorized version of local_potential_fourier, GPU-safe
+function local_potential_fourier(el::Element, ps::AbstractVector{T}) where {T <: Real}
+    arch = architecture(ps)
+    to_device(arch, map(p -> local_potential_fourier(el, p), to_cpu(ps)))
+end
+
 Base.show(io::IO, el::Element) = print(io, "$(typeof(el))(:$(species(el)))")
 
 #
@@ -83,6 +89,7 @@ function local_potential_fourier(el::ElementCoulomb, p::T) where {T <: Real}
     Z = charge_nuclear(el)
     return -4T(π) * Z / p^2
 end
+
 local_potential_real(el::ElementCoulomb, r::Real) = -charge_nuclear(el) / r
 
 
@@ -160,8 +167,11 @@ has_core_density(el::ElementPsp)  = has_core_density(el.psp)
 eval_psp_energy_correction(T, el::ElementPsp) = eval_psp_energy_correction(T, el.psp)
 
 function local_potential_fourier(el::ElementPsp, p::T) where {T <: Real}
-    p == 0 && return zero(T)  # Compensating charge background
     eval_psp_local_fourier(el.psp, p)
+end
+# Vectorized version of the above
+function local_potential_fourier(el::ElementPsp, ps::AbstractVector{T}) where {T <: Real}
+    eval_psp_local_fourier(el.psp, ps)
 end
 local_potential_real(el::ElementPsp, r::Real) = eval_psp_local_real(el.psp, r)
 

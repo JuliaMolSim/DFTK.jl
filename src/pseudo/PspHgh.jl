@@ -129,10 +129,10 @@ end
 
 # [GTH98] (6) except they do it with plane waves normalized by 1/sqrt(Ω).
 function eval_psp_local_fourier(psp::PspHgh, p::T) where {T <: Real}
+    p == 0 && return zero(T)  # Compensating charge background
     t::T = p * psp.rloc
     psp_local_polynomial(T, psp, t) * exp(-t^2 / 2) / t^2
 end
-
 
 @doc raw"""
 Estimate an upper bound for the argument `p` after which
