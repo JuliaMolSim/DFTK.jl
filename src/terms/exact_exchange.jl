@@ -7,52 +7,31 @@ Exact exchange term: the Hartree-Exact exchange energy of the orbitals
 
 abstract type ExxAlgorithm end
 
-struct ExactExchange
-    scaling_factor::Real
-    coulomb_kernel_model::CoulombKernelModel
-    exx_algorithm::ExxAlgorithm
+@kwdef struct ExactExchange
+    scaling_factor::Real = 1.0
+    coulomb_kernel_model::CoulombKernelModel = ProbeCharge()
+    exx_algorithm::ExxAlgorithm = VanillaExx()
+end
+function (exchange::ExactExchange)(basis)
+    TermExactExchange(basis, exchange.scaling_factor,
+    exchange.coulomb_kernel_model, exchange.exx_algorithm)
 end
 
-ExactExchange(;
-    scaling_factor=1, 
-    coulomb_kernel_model=ProbeCharge(), 
-    exx_algorithm=VanillaExx()
-) = ExactExchange(scaling_factor, coulomb_kernel_model, exx_algorithm)
-
-(exchange::ExactExchange)(basis) = TermExactExchange(
-    basis, 
-    exchange.scaling_factor, 
-    exchange.coulomb_kernel_model,
-    exchange.exx_algorithm
-)
-
-function Base.show(io::IO, exchange::ExactExchange)
-    fac = isone(exchange.scaling_factor) ? "" : "scaling_factor=$(exchange.scaling_factor), "
-    print(io, "ExactExchange(coulomb_kernel_model=$(exchange.coulomb_kernel_model), exx_algorithm=$(exchange.exx_algorithm))")
-end
 struct TermExactExchange <: Term
-    scaling_factor::Real  # scaling factor
+    scaling_factor::Real  # scaling factor, absorbed into coulomb_kernel
     coulomb_kernel::AbstractArray
-    exx_algorithm::ExxAlgorithm 
-end
-function TermExactExchange(
-    basis::PlaneWaveBasis{T}, 
-    scaling_factor, 
-    coulomb_kernel_model::CoulombKernelModel, 
     exx_algorithm::ExxAlgorithm
-) where T
-    coulomb_kernel = compute_coulomb_kernel(basis; coulomb_kernel_model) # TODO: we need this for every q-point
-    TermExactExchange(T(scaling_factor), coulomb_kernel, exx_algorithm)
+end
+function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, coulomb_kernel_model, exx_algorithm) where {T}
+    # TODO: we need this for every q-point
+    fac::T = scaling_factor
+    coulomb_kernel = fac .* compute_coulomb_kernel(basis; coulomb_kernel_model)
+    TermExactExchange(fac, coulomb_kernel, exx_algorithm)
 end
 
-@timing "ene_ops: ExactExchange" function ene_ops(
-    term::TermExactExchange,
-    basis::PlaneWaveBasis{T}, 
-    ψ, 
-    occupation;
-    occupation_threshold = zero(T),
-    kwargs...
-) where {T}
+@timing "ene_ops: ExactExchange" function ene_ops(term::TermExactExchange, basis::PlaneWaveBasis{T},
+                                                  ψ, occupation; occupation_threshold=zero(T),
+                                                  kwargs...) where {T}
     if isnothing(ψ) || isnothing(occupation)
         @warn "Exact exchange requires orbitals and occupation, return NoopOperator." 
         return (; E=zero(T), ops=NoopOperator.(basis, basis.kpoints))
@@ -61,109 +40,97 @@ end
     @assert length(basis.kpoints) == basis.model.n_spin_components # no k-points, only spin
 
     ops_and_E = map(enumerate(basis.kpoints)) do (ik, kpt)
-        
-        # mask of occupied indices
+        # TODO: Check with the most recent GPU changes if this is still the way
+        #       how to do this
         mask_occ = findall(occ -> abs(occ) >= occupation_threshold, occupation[ik])
         occk = occupation[ik][mask_occ]
         ψk = view(ψ[ik], :, mask_occ) 
         nocc = length(mask_occ)
-   
-        # pre-calculate real space orbitals
+
         ψk_real = similar(ψk, complex(T), basis.fft_size..., nocc)
         for i = 1:nocc
             ifft!(view(ψk_real,:,:,:,i), basis, kpt, ψk[:,i])
         end
-        
-        # compute E and op for this kpt
-        ene_ops(term.exx_algorithm, basis, kpt, term.coulomb_kernel, ψk, ψk_real, occk)
+
+        (; Ek, op) = exx_operator(term.exx_algorithm, basis, kpt,
+                                  term.coulomb_kernel, ψk, ψk_real, occk)
+        (; Ek, op)
     end
-    E = sum(item.E for item in ops_and_E)
-    ops = [item.op for item in ops_and_E]
-    (; E, ops)
+
+    # TODO: Need kweight here later for energy
+    #       See non-local term for inspiration
+    E = sum(item.Ek for item in ops_and_E)
+    (; E, ops=[item.op for item in ops_and_E])
+end
+
+# TODO: Should probably define an energy-only function, which directly calls into
+#       exx_energy_only for both ACE and Vanilla version.
+
+
+"""
+Plain vanilla Fock exchange implementation without any tricks.
+"""
+struct VanillaExx <: ExxAlgorithm end
+function exx_operator(::VanillaExx, basis::PlaneWaveBasis{T}, kpt, coulomb_kernel,
+                      ψk, ψk_real, occk) where {T}
+    Ek = exx_energy_only(basis, kpt, coulomb_kernel, ψk_real, occk)
+    op = ExchangeOperator(basis, kpt, coulomb_kernel, occk, ψk, ψk_real)
+    (; Ek, op)
 end
 
 
 """
-    VanillaExx
-
-Plain vanilla Fock exchange implementation without any tricks.
+Adaptively Compressed Exchange (ACE) implementation of the Fock exchange.
+# Reference
+JCTC 2016, 12, 5, 2242-2249, doi.org/10.1021/acs.jctc.6b00092
 """
-struct VanillaExx <: ExxAlgorithm end
-function ene_ops(
-    ::VanillaExx,
-    basis::PlaneWaveBasis{T}, 
-    kpt,
-    coulomb_kernel::AbstractArray,
-    ψk, 
-    ψk_real, 
-    occk
-) where {T}
-    E = zero(T)
+struct AceExx <: ExxAlgorithm end 
+function exx_operator(::AceExx, basis::PlaneWaveBasis{T}, kpt, coulomb_kernel::AbstractArray,
+                      ψk, ψk_real, occk) where {T}
+    Wk = similar(ψk)
+
+    Wnk_real_tmp = similar(ψk_real[:, :, :, 1])
+    Vx = ExchangeOperator(basis, kpt, coulomb_kernel, occk, ψk, ψk_real)
+    for (n, ψnk_real) in enumerate(eachslice(ψk_real, dims=4))
+        # Compute Wnk = Vx * ψnk by applying exchange operator Vx to ψk
+        Wnk_real_tmp .= 0
+        apply!((; real=Wnk_real_tmp), Vx, (; real=ψnk_real))
+        Wk[:, n] .= fft(basis, kpt, Wnk_real_tmp)
+    end
+
+    # In ACE Wnk = Vx * ψnk  for all occupied ψnk.
+    # Therefore [Mk]_{nm} is just < ψ_{nk}, V_x ψmk>, which means that the
+    # energy contribution from this k-point can be computed as
+    #     ∑_n occ_{nk} [Mk]_{nn}
+    Mk = Hermitian(ψk' * Wk)
+    Ek = 0.5 * real(tr(Diagonal(Mk) * Diagonal(occk)))
+    Bk = InverseNegatedMap(cholesky(-Mk))
+    op = NonlocalOperator(basis, kpt, Wk, Bk)
+    (; Ek, op)
+end
+
+
+struct InverseNegatedMap{T}
+    B::T
+end
+Base.:*(op::InverseNegatedMap, x) = -(op.B \ x)
+
+
+function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, coulomb_kernel, ψk_real, occk) where {T}
+    # Naive algorithm for computing the exact exchange energy only.
+
+    Ek = zero(T)
     for (n, ψnk_real) in enumerate(eachslice(ψk_real, dims=4))
         for (m, ψmk_real) in enumerate(eachslice(ψk_real, dims=4))
             if m > n continue end
             ρmn_real = conj(ψmk_real) .* ψnk_real
             ρmn_fourier = fft(basis, kpt, ρmn_real) # actually we need a q-point here
-            fac_mn = occk[n] * occk[m] 
-            fac_mn /= filled_occupation(basis.model) # divide 2 (spin-paired) or 1 (spin-polarized)
+
+            # XXX: Not clear to me why we need to divide by the filled occupation here
+            fac_mn = occk[n] * occk[m] / filled_occupation(basis.model)
             fac_mn *= (m != n ? 2 : 1) # factor 2 because we skipped m>n
-            E -= 0.5 * fac_mn * real(dot(ρmn_fourier .* coulomb_kernel, ρmn_fourier)) 
+            Ek -= 0.5 * fac_mn * real(dot(ρmn_fourier .* coulomb_kernel, ρmn_fourier))
         end
     end
-    op = ExchangeOperator(basis, kpt, coulomb_kernel, occk, ψk, ψk_real)
-    (; E, op)
+    Ek
 end
-
-
-"""
-    AceExx
-
-Adaptively Compressed Exchange (ACE) implementation of the Fock exchange.
-
-# Reference
-JCTC 2016, 12, 5, 2242–2249, doi.org/10.1021/acs.jctc.6b00092
-"""
-struct AceExx <: ExxAlgorithm end 
-
-# helper struct to let M*x act as M\x
-struct InverseMultiplier{T}
-    M::T
-end
-Base.:*(Op::InverseMultiplier, x) = Op.M \ x
-
-function ene_ops(
-    ::AceExx,
-    basis::PlaneWaveBasis{T}, 
-    kpt,
-    coulomb_kernel::AbstractArray,
-    ψk, 
-    ψk_real, 
-    occk
-) where {T}
-    E = zero(T)
-    Wk = similar(ψk)
-    Vn_real = zeros(complex(T), basis.fft_size...) 
-    for (n, ψnk_real) in enumerate(eachslice(ψk_real, dims=4))
-        Wnk_real = zeros(complex(T), basis.fft_size...)
-        for (m, ψmk_real) in enumerate(eachslice(ψk_real, dims=4))
-            ρmn_real = conj.(ψmk_real) .* ψnk_real
-            ρmn_fourier = fft(basis, kpt, ρmn_real) # actually we need a q-point here
-
-            Vmn_fourier = ρmn_fourier .* coulomb_kernel
-            Vmn_real = ifft(basis, kpt, Vmn_fourier)
-            fac_mk = occk[m] / filled_occupation(basis.model)
-            Wnk_real .+= fac_mk .* ψmk_real .* Vmn_real
-            
-            fac_mn = occk[n] * occk[m] 
-            fac_mn /= filled_occupation(basis.model) # divide 2 (spin-paired) or 1 (spin-polarized)
-
-            E -= 0.5 * fac_mn * real(dot(ρmn_fourier .* coulomb_kernel, ρmn_fourier)) 
-        end
-        Wk[:, n] .= fft(basis, kpt, Wnk_real)
-    end
-    M = Hermitian(ψk' * Wk)
-    B = InverseMultiplier(-M)
-    op = NonlocalOperator(basis, kpt, Wk, B) 
-    (; E, op)
-end
-

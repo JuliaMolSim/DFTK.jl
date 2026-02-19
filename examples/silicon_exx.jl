@@ -16,17 +16,6 @@ model  = model_PBE(lattice, atoms, positions)
 basis  = PlaneWaveBasis(model; Ecut=20, kgrid=[1, 1, 1])
 scfres = self_consistent_field(basis; tol=1e-6)
 
-## Run hybrid-DFT tuning some DFTK defaults
-## (Anderson does not work well right now as orbitals not taken into account)
-#model  = PBE0(lattice, atoms, positions;
-#              coulomb_kernel_model=WignerSeitzTruncated(), exx_algorithm=AceExx())
-#basis  = PlaneWaveBasis(model; basis.Ecut, basis.kgrid)
-#scfres = self_consistent_field(basis;
-#                               solver=DFTK.scf_damping_solver(damping=1.0),
-#                               is_converged=ScfConvergenceEnergy(1e-7), 
-#                               scfres.ρ, scfres.ψ, scfres.eigenvalues,
-#                               diagtolalg=DFTK.AdaptiveDiagtol(; ratio_ρdiff=5e-4))
-
 # Run Hartree-Fock
 model  = model_HF(lattice, atoms, positions; 
                   coulomb_kernel_model=WignerSeitzTruncated(), exx_algorithm=AceExx())

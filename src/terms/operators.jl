@@ -171,23 +171,10 @@ function apply!(Hψ, op::DivAgradOperator, ψ;
 end
 # TODO Implement  Base.Matrix(op::DivAgradOperator)
 
-
-# Optimize RFOs by combining terms that can be combined
-function optimize_operators(ops)
-    ops = [op for op in ops if !(op isa NoopOperator)]
-    RSmults = [op for op in ops if op isa RealSpaceMultiplication]
-    isempty(RSmults) && return ops
-    nonRSmults = [op for op in ops if !(op isa RealSpaceMultiplication)]
-    combined_RSmults = RealSpaceMultiplication(RSmults[1].basis,
-                                               RSmults[1].kpoint,
-                                               sum([op.potential for op in RSmults]))
-    [nonRSmults..., combined_RSmults]
-end
-
 struct ExchangeOperator{T <: Real,Tocc,Tpsi,TpsiReal} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
     kpoint::Kpoint{T}
-    poisson_green_coeffs::Array{T}
+    coulomb_kernel::Array{T}
     occk::Tocc
     ψk::Tpsi
     ψk_real::TpsiReal
@@ -200,12 +187,24 @@ function apply!(Hψ, op::ExchangeOperator, ψ)
 
         # Compute integral by Poisson solve
         x_four  = fft(op.basis, op.kpoint, x_real) # actually we need q-point here
-        Vx_four = x_four .* op.poisson_green_coeffs
+        Vx_four = x_four .* op.coulomb_kernel
         Vx_real = ifft(op.basis, op.kpoint, Vx_four) # actually we need q-point here
 
+        # XXX: Not clear to me why we need to divide by the filled occupation here
         # Real-space multiply and accumulate
-        fac_nk = op.occk[n] / filled_occupation(op.basis.model) # divide 2 (spin-paired) or 1 (spin-polarized)
+        fac_nk = op.occk[n] / filled_occupation(op.basis.model)
         Hψ.real .-= fac_nk .* ψnk_real .* Vx_real 
     end
 end
 
+# Optimize RFOs by combining terms that can be combined
+function optimize_operators(ops)
+    ops = [op for op in ops if !(op isa NoopOperator)]
+    RSmults = [op for op in ops if op isa RealSpaceMultiplication]
+    isempty(RSmults) && return ops
+    nonRSmults = [op for op in ops if !(op isa RealSpaceMultiplication)]
+    combined_RSmults = RealSpaceMultiplication(RSmults[1].basis,
+                                               RSmults[1].kpoint,
+                                               sum([op.potential for op in RSmults]))
+    [nonRSmults..., combined_RSmults]
+end
