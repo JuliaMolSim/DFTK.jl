@@ -101,6 +101,10 @@ include("supercell.jl")
 export Energies
 include("Energies.jl")
 
+export NeglectSingularity, ProbeCharge, SphericallyTruncated
+export WignerSeitzTruncated, VoxelAveraged
+include("coulomb.jl")
+
 export Hamiltonian
 export HamiltonianBlock
 export energy_hamiltonian
@@ -127,8 +131,6 @@ export compute_kernel
 export BlowupIdentity
 export BlowupCHV
 export BlowupAbinit
-export WignerSeitzTruncated, SphericallyTruncated, NeglectSingularity, ProbeCharge, VoxelAveraged
-include("coulomb.jl")
 include("DispatchFunctional.jl")
 include("terms/terms.jl")
 

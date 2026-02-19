@@ -150,8 +150,8 @@ function model_HF(system::AbstractSystem; pseudopotentials,
                  model_name="HF", extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
 end
 function model_HF(lattice::AbstractMatrix, atoms::Vector{<:Element},
-                  positions::Vector{<:AbstractVector}; 
-                  coulomb_kernel_model::CoulombKernelModel=ProbeCharge(), 
+                  positions::Vector{<:AbstractVector};
+                  coulomb_kernel_model::CoulombKernelModel=ProbeCharge(),
                   exx_algorithm::ExxAlgorithm=AceExx(), extra_terms=[], kwargs...)
     exx = ExactExchange(; coulomb_kernel_model, exx_algorithm)
     model_atomic(lattice, atoms, positions;
