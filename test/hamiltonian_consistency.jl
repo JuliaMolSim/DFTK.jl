@@ -5,33 +5,33 @@ using Logging
 using DFTK: mpi_sum
 using LinearAlgebra
 using ..TestCases: silicon
-testcase = silicon
 
-function test_consistency_term(term; rtol=1e-4, atol=1e-8, test_for_constant=false,
+function test_consistency_term(term; rtol=1e-4, atol=1e-8, test_for_constant=false, n_empty=3,
                                ε=1e-6, kgrid=[1, 2, 3], kshift=[0, 1, 0]/2, Ecut=10,
-                               lattice=testcase.lattice, atom=nothing, spin_polarization=:none)
+                               lattice=silicon.lattice, atom=nothing, spin_polarization=:none)
     sspol = spin_polarization != :none ? " ($spin_polarization)" : ""
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
     @testset "$(typeof(term))$xc $sspol" begin
         n_dim = 3 - count(iszero, eachcol(lattice))
         if isnothing(atom)
-            atom = n_dim == 3 ? ElementPsp(14, load_psp(testcase.psp_gth)) : ElementCoulomb(:Si)
+            atom = n_dim == 3 ? ElementPsp(14, load_psp(silicon.psp_gth)) : ElementCoulomb(:Si)
         end
         atoms = [atom, atom]
-        model = Model(lattice, atoms, testcase.positions; terms=[term], spin_polarization,
+        model = Model(lattice, atoms, silicon.positions; terms=[term], spin_polarization,
                       symmetries=true)
         basis = PlaneWaveBasis(model; Ecut, kgrid=MonkhorstPack(kgrid; kshift))
         @assert length(basis.terms) == 1
 
-        n_electrons = testcase.n_electrons
+        n_electrons = silicon.n_electrons
         n_bands = div(n_electrons, 2, RoundUp)
         filled_occ = DFTK.filled_occupation(model)
 
-        ψ = [Matrix(qr(randn(ComplexF64, length(G_vectors(basis, kpt)), n_bands)).Q)
+        ψ = [Matrix(qr(randn(ComplexF64, length(G_vectors(basis, kpt)), n_bands + n_empty)).Q)
              for kpt in basis.kpoints]
-        occupation = [filled_occ * rand(n_bands) for _ = 1:length(basis.kpoints)]
-        occ_scaling = n_electrons / sum(sum(occupation))
-        occupation = [occ * occ_scaling for occ in occupation]
+        occupation  = [filled_occ * append!(rand(n_bands), zeros(n_empty))
+                       for _ = 1:length(basis.kpoints)]
+        occ_scaling = length(basis.kpoints) * n_electrons / sum(sum(occupation))
+        occupation  = [occ * occ_scaling for occ in occupation]
         ρ = with_logger(NullLogger()) do
             compute_density(basis, ψ, occupation)
         end
@@ -96,7 +96,7 @@ end
 @testitem "Hamiltonian consistency" setup=[TestCases, HamConsistency] tags=[:dont_test_mpi] begin
     using DFTK
     using LinearAlgebra
-    using .HamConsistency: test_consistency_term, testcase
+    using .HamConsistency: test_consistency_term, silicon
 
     test_consistency_term(Ewald(); test_for_constant=true)
     test_consistency_term(PspCorrection(); test_for_constant=true)
@@ -108,7 +108,7 @@ end
     test_consistency_term(Hartree())
 
     let
-        Si = ElementPsp(14, load_psp(testcase.psp_upf))
+        Si = ElementPsp(14, load_psp(silicon.psp_upf))
         test_consistency_term(Hubbard(OrbitalManifold([1, 2], "3P") => 0.01), atom=Si)
         test_consistency_term(Hubbard(OrbitalManifold([1, 2], "3P") => 0.01), atom=Si,
                               spin_polarization=:collinear)
@@ -118,7 +118,7 @@ end
                                       [0.01, 0.02]), atom=Si)
     end
 
-    for psp in [testcase.psp_gth, testcase.psp_upf]
+    for psp in [silicon.psp_gth, silicon.psp_upf]
         Si = ElementPsp(14, load_psp(psp))
         test_consistency_term(AtomicLocal(), atom=Si)
         test_consistency_term(AtomicNonlocal(), atom=Si)
@@ -137,12 +137,14 @@ end
                               spin_polarization=:collinear)
     end
 
-    for exx_algorithm in (VanillaExx(), AceExx())
-        test_consistency_term(ExactExchange(; coulomb_kernel_model=ProbeCharge(), exx_algorithm);
+    @testset "Exact exchange" begin
+        for exx_algorithm in (VanillaExx(), AceExx())
+            test_consistency_term(ExactExchange(; coulomb_kernel_model=ProbeCharge(), exx_algorithm);
+                                  kgrid=(1, 1, 1), kshift=(0, 0, 0))
+        end
+        test_consistency_term(ExactExchange(); spin_polarization=:collinear,
                               kgrid=(1, 1, 1), kshift=(0, 0, 0))
     end
-    test_consistency_term(ExactExchange(); spin_polarization=:collinear,
-                          kgrid=(1, 1, 1), kshift=(0, 0, 0))
 
     let
         a = 6
