@@ -103,8 +103,10 @@ LinearAlgebra.ldiv!(y::T, P::FunctionPreconditioner, x) where {T} = P.preconditi
 LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.precondition!(similar(x), x))
 precondprep!(P::FunctionPreconditioner, ::Any) = P
 
-# Solves (1-P) (H-ε) (1-P) δψn = - (1-P) rhs
+# Solves (1-P) (H-ε) (1-P) δψ = - (1-P) rhs
 # where 1-P is the projector on the orthogonal of ψk
+# The solver simultaneously solves for multiple right-hand sides, i.e.:
+# (1-P) (H-ε) (1-P) δψ[:, i] = - (1-P) rhs[:, i] for all columns i.
 # /!\ It is assumed (and not checked) that ψk'Hk*ψk = Diagonal(εk) (extra states
 # included).
 @timing function sternheimer_solver(Hk, ψk, ε, rhs;
@@ -144,10 +146,10 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
     end
 
     # We put things into the form
-    # δψkn = ψk_extra * αkn + δψknᴿ ∈ Ran(Q)
-    # where δψknᴿ ∈ Ran(R).
+    # δψk = ψk_extra * αk + δψkᴿ ∈ Ran(Q)
+    # where δψkᴿ ∈ Ran(R).
     # Note that, if ψk_extra = [], then 1-P = 1-P_computed and
-    # δψkn = δψknᴿ is obtained by inverting the full Sternheimer
+    # δψk = δψkᴿ is obtained by inverting the full Sternheimer
     # equations in Ran(Q) = Ran(R)
     #
     # This can be summarized as the following:
@@ -161,16 +163,19 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
     # ψk_extra are not converged but have been Rayleigh-Ritzed (they are NOT
     # eigenvectors of H) so H(ψk_extra) = ψk_extra' (Hk-ε) ψk_extra should be a
     # real diagonal matrix.
-    # Allow for application on an active range only
-    H(ϕ; active=1:size(ϕ, 2)) = Hk * ϕ - ϕ .* ε[active]'
     inv_ψk_exHψk_ex = 1 ./(real.(εk_extra) .- ε')
 
-    # 1) solve for δψknᴿ
+    # Apply H - εI to a given vector as a Sylvester equation:
+    # c = Ax - xB, where A is the Hamilitonian, and B a diagonal matrix of eigenvalues.
+    # Application can be restriced to a given active range of columns of x
+    H(ϕ; active=1:size(ϕ, 2)) = Hk * ϕ - ϕ * Diagonal(ε[active])
+
+    # 1) solve for δψkᴿ
     # ----------------------------
-    # writing αkn as a function of δψknᴿ, we get that δψknᴿ
+    # writing αk as a function of δψkᴿ, we get that δψkᴿ
     # solves the system (in Ran(1-P_computed))
     #
-    # R * (H - ε) * (1 - M * (H - ε)) * R * δψknᴿ = R * (1 - M) * b
+    # R * (H - ε) * (1 - M * (H - ε)) * R * δψkᴿ = R * (1 - M) * b
     #
     # where M = ψk_extra * (ψk_extra' (H-ε) ψk_extra)^{-1} * ψk_extra'
     # is defined above and b is the projection of -rhs onto Ran(Q).
@@ -194,15 +199,15 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
     cg_res = cg(RAR!, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj! =R!,
                 callback=info -> callback(merge(info, (; basis, kpoint))),
                 miniter, maxiter)
-    δψknᴿ = cg_res.x
+    δψkᴿ = cg_res.x
 
-    # 2) solve for αkn now that we know δψknᴿ
-    # Note that αkn is an empty array if there is no extra bands.
-    αkn = (ψk_extra' * (b - H(δψknᴿ))) .* inv_ψk_exHψk_ex
+    # 2) solve for αk now that we know δψkᴿ
+    # Note that αk is an empty array if there is no extra bands.
+    αk = (ψk_extra' * (b - H(δψkᴿ))) .* inv_ψk_exHψk_ex
 
-    δψkn = ψk_extra * αkn + δψknᴿ
+    δψk = ψk_extra * αk + δψkᴿ
 
-    (; δψkn, cg_res.n_iter, cg_res.residual_norms, cg_res.converged, cg_res, tol)
+    (; δψk, cg_res.n_iter, cg_res.residual_norms, cg_res.converged, cg_res, tol)
 end
 
 # Apply the four-point polarizability operator χ0_4P = -Ω^-1
@@ -335,7 +340,7 @@ in `basis.kpoints[ik]` from which `δψ` is computed (but expressed in `basis.kp
 function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε_minus_q=ε;
                      ψ_extra=[zeros_like(ψk, size(ψk,1), 0) for ψk in ψ],
                      q=zero(Vec3{T}), bandtol_minus_q, kwargs_sternheimer...) where {T}
-    # We solve the Sternheimer equation
+    # We solve the Sternheimer equation for all columns n at once
     #   (H_k - ε_{n,k-q}) δψ_{n,k} = - (1 - P_{k}) δHψ_{n, k-q},
     # where P_{k} is the projector on ψ_{k} and with the conventions:
     # * δψ_{k} is the variation of ψ_{k-q}, which implies (for ℬ_{k} the `basis.kpoints`)
@@ -352,7 +357,7 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
     n_iter = [Vector{Int}() for _ in 1:length(ψ)]
     converged = true
 
-    # Compute δψnk band per band
+    # Compute δψk band per band
     for ik = 1:length(ψ)
         Hk   = H[ik]
         ψk   = ψ[ik]
@@ -384,17 +389,18 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
                 α[m, n] = compute_αmn(fmk, fnk_minus_q, ratio)  # fnk_minus_q * αmn + fmk * αnm = ratio
             end
         end
+        # Array operations for GPU efficiency
         dot_prods = ψk' * δHψ[ik]
         dot_prods .*= to_device(basis.architecture, α)
         mul!(δψk, ψk, dot_prods, 1, 1)
 
-        # Sternheimer contribution
+        # Sternheimer contribution, for all columns of δψk at once.
         res = sternheimer_solver(Hk, ψk, to_device(basis.architecture, εk_minus_q), δHψ[ik]; ψk_extra,
                                  εk_extra, Hψk_extra, tol=tolk_minus_q, kwargs_sternheimer...)
 
         !res.converged && @warn("Sternheimer CG not converged", res.tol, res.residual_norms)
 
-        δψk .+= res.δψkn
+        δψk .+= res.δψk
         append!(residual_norms[ik], res.residual_norms)
         push!(n_iter[ik], res.n_iter)
         converged = converged && res.converged

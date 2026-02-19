@@ -8,17 +8,19 @@ end
 """
 Implementation of the conjugate gradient method which allows for preconditioning
 and projection operations along iterations. The solver is optimized for generic
-input arrays with multiple columns, although vector inputs are also supported.
-To reduce allocations, operator A! and projector proj! are expected to be in-place
-functions. A basic locking meachnism for converged columns is implemented.
+input arrays with multiple columns, i.e. solutions of A x[:, i] = b[:, i] for all
+columns i are sought simultaneously. Single column vectors, i.e. size(x, 2) == 1,
+are also supported. To reduce allocations, operator A! and projector proj! are
+expected to be in-place. A basic locking meachnism for converged columns is implemented.
 """
 function cg!(x::AbstractArray{T}, A!, b::AbstractArray{T};
              precon=I, proj! =copy!, callback=identity,
              tol=1e-10*ones(real(T), size(b, 2)), maxiter=100, miniter=1,
              my_columnwise_dots=columnwise_dots) where {T}
 
-    # Columnwise dot products and norms, possibly custom
-    # Write results of dot products and norms into existing array to allow type specialization
+    # Columnwise dot products and norms. A custom definition of the dot product can be provided,
+    # from which the norms are derived. The default is the standard dot porduct: 
+    # [dot(x[:, i], x[:, i])] for all columns i.
     my_columnwise_norms(x) = sqrt.(real.(my_columnwise_dots(x, x)))
 
     # Utility to accept operators that do not implement active ranges for locking. In such
@@ -49,16 +51,16 @@ function cg!(x::AbstractArray{T}, A!, b::AbstractArray{T};
 
     # save one matrix-vector product
     if !iszero(x)
-        apply_op!(c, x)
+        apply_op!(c, x) # mul!(c, A, x)
         r .-= c
     end
     ldiv!(c, precon, r)
-    γ = similar(b, T, size(b, 2))
+    γ = similar(b, T, size(b, 2)) # explicit type for stability
     γ .= my_columnwise_dots(r, c)
     # p is the descent direction
     p = copy(c)
     n_iter = 0
-    residual_norms = zeros(real(T), size(b, 2)) # explicit typing for output type inference
+    residual_norms = zeros(real(T), size(b, 2)) # explicit type stability
     residual_norms .= to_cpu(my_columnwise_norms(r))
     converged_cols = falses(size(b, 2))
 
@@ -89,7 +91,7 @@ function cg!(x::AbstractArray{T}, A!, b::AbstractArray{T};
         end
 
         # Lock columns that are already converged. Because we can only take views with
-        # contiguous ranges in GPU arrays, we lock the first and last columns.
+        # contiguous ranges in GPU arrays, we lock the first and last converged columns.
         active = 1:size(b, 2)
         if op_supports_active
             locked_lb = findfirst(!, converged_cols)
@@ -108,26 +110,27 @@ function cg!(x::AbstractArray{T}, A!, b::AbstractArray{T};
             residual_norms = full_residuals[active]
         end
 
-        apply_op!(c, p; active)
+        apply_op!(c, p; active) # mul!(c, A, p)
         tmp = zeros_like(γ)
         tmp .= my_columnwise_dots(p, c)
         α = γ ./ tmp
 
         # update iterate and residual while ensuring they stay in Ran(proj)
         proj_buffer .= x .+ p .* α'
-        proj!(x, proj_buffer)
+        proj!(x, proj_buffer) # x .= proj(x .+ p .* α')
         proj_buffer .= r .- c .* α'
-        proj!(r, proj_buffer)
+        proj!(r, proj_buffer) # r .= proj(r .- c .* α')
         residual_norms .= to_cpu(my_columnwise_norms(r))
 
         # apply preconditioner and prepare next iteration. Preconditioner applied to full arrays,
         # because the FunctionPreconditioner type makes it hard to change the active set (cheap enough).
+        # c is also updated, as it is a view into full_c
         ldiv!(full_c, precon, full_r)
         copy!(tmp, γ) # previous γ stored in tmp array 
         γ .= my_columnwise_dots(r, c)
         β = γ ./ tmp
         proj_buffer .= c .+ p .* β'
-        proj!(p, proj_buffer)
+        proj!(p, proj_buffer) # p .= proj(c .+ p .* β')/
     end
     info = (; x=full_x, converged, tol, residual_norms=full_residuals, n_iter, maxiter, stage=:finalize)
     callback(info)
