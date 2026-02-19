@@ -115,7 +115,7 @@ function exx_operator(::AceExx, basis::PlaneWaveBasis{T}, kpt, coulomb_kernel::A
     # energy contribution from this k-point can be computed as
     #     ∑_n occ_{nk} [Mk]_{nn}
     Mk = Hermitian(ψk' * Wk)
-    Ek = 0.5 * real(tr(Diagonal(Mk) * Diagonal(occk)))
+    Ek = 1/T(2) * real(tr(Diagonal(Mk) * Diagonal(occk)))
     Bk = InverseNegatedMap(cholesky(-Mk))
     op = NonlocalOperator(basis, kpt, Wk, Bk)
     (; Ek, op)
@@ -141,7 +141,7 @@ function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, coulomb_kernel, ψk_real
             # XXX: Not clear to me why we need to divide by the filled occupation here
             fac_mn = occk[n] * occk[m] / filled_occupation(basis.model)
             fac_mn *= (m != n ? 2 : 1) # factor 2 because we skipped m>n
-            Ek -= 0.5 * fac_mn * real(dot(ρmn_fourier .* coulomb_kernel, ρmn_fourier))
+            Ek -= 1/T(2) * fac_mn * real(dot(ρmn_fourier .* coulomb_kernel, ρmn_fourier))
         end
     end
     Ek
