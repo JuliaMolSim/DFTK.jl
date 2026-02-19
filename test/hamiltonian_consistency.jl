@@ -7,10 +7,9 @@ using LinearAlgebra
 using ..TestCases: silicon
 testcase = silicon
 
-function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2, 3],
-                               kshift=[0, 1, 0]/2, lattice=testcase.lattice,
-                               atom=nothing, Ecut=10, integer_occupation=false,
-                               spin_polarization=:none)
+function test_consistency_term(term; rtol=1e-4, atol=1e-8, test_for_constant=false,
+                               ε=1e-6, kgrid=[1, 2, 3], kshift=[0, 1, 0]/2, Ecut=10,
+                               lattice=testcase.lattice, atom=nothing, spin_polarization=:none)
     sspol = spin_polarization != :none ? " ($spin_polarization)" : ""
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
     @testset "$(typeof(term))$xc $sspol" begin
@@ -60,8 +59,8 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
             τ_trial = compute_kinetic_energy_density(basis, ψ_trial, occupation)
             hubbard_n_trial = nothing
             if term isa Hubbard
-                hubbard_n_trial = DFTK.compute_hubbard_n(only(basis.terms), basis,
-                                                         ψ_trial, occupation)
+                thub = only(basis.terms)
+                hubbard_n_trial = DFTK.compute_hubbard_n(thub, basis, ψ_trial, occupation)
             end
             (; energies) = energy_hamiltonian(basis, ψ_trial, occupation;
                                               ρ=ρ_trial, τ=τ_trial,
@@ -79,11 +78,18 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6, kgrid=[1, 2,
         end
         diff_predicted = mpi_sum(diff_predicted, basis.comm_kpts)
 
-        # Make sure that we don't accidentally test 0 == 0
-        @test abs(diff) > atol
+        if test_for_constant
+            @test abs(diff) < atol
+            @test abs(diff_predicted) < atol
+        else
+            # Make sure that we don't accidentally test 0 == 0
+            @test abs(diff) > atol
 
-        err = abs(diff - diff_predicted)
-        @test err < rtol * abs(E0.total) || err < atol
+            err = abs(diff - diff_predicted)
+            @show E0.total
+            @show err
+            @test err < rtol * abs(E0.total) || err < atol
+        end
     end
 end
 end
@@ -93,6 +99,9 @@ end
     using DFTK
     using LinearAlgebra
     using .HamConsistency: test_consistency_term, testcase
+
+    test_consistency_term(Ewald(); test_for_constant=true)
+    test_consistency_term(PspCorrection(); test_for_constant=true)
 
     test_consistency_term(Kinetic())
     test_consistency_term(ExternalFromReal(X -> cos(X[1])))
@@ -105,9 +114,7 @@ end
         test_consistency_term(Hubbard(OrbitalManifold([1, 2], "3P"), 0.01), atom=Si,
                               spin_polarization=:collinear)
     end
-    # Disabled since the energy is constant, and the test guards against 0 differences
-    # test_consistency_term(Ewald())
-    # test_consistency_term(PspCorrection())
+
     for psp in [testcase.psp_gth, testcase.psp_upf]
         Si = ElementPsp(14, load_psp(psp))
         test_consistency_term(AtomicLocal(), atom=Si)
@@ -124,6 +131,12 @@ end
         test_consistency_term(Xc([:mgga_x_b00]; use_nlcc=false), atom=Si)
         test_consistency_term(Xc([:mgga_c_b94]; use_nlcc=false), atom=Si,
                               spin_polarization=:collinear)
+    end
+
+    for exx_algorithm in (VanillaExx(), AceExx())
+        # NOTE: The AceExx test may fail due to the additional approximation, if yes, then we may remove it.
+        test_consistency_term(ExactExchange(; coulomb_kernel_model=ProbeCharge(), exx_algorithm);
+                              kgrid=(1, 1, 1))
     end
 
     let
