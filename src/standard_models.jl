@@ -136,6 +136,8 @@ Build an Hartree-Fock model from the specified atoms.
 
 !!! warn "Hartree-Fock is experimental"
          The interface may change at any moment, which is not considered a breaking change.
+         Note further that at this stage (Feb 2026) there are still known performance bottle
+         necks in the code.
 """
 function model_HF(system::AbstractSystem; pseudopotentials, 
                   coulomb_kernel_model::CoulombKernelModel=ProbeCharge(),

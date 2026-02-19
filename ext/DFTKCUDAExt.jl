@@ -1,12 +1,17 @@
 module DFTKCUDAExt
 using CUDA
 using PrecompileTools
-import DFTK: GPU, DispatchFunctional, precompilation_workflow
+import DFTK: CPU, GPU, DispatchFunctional, precompilation_workflow
 using DftFunctionals
 using DFTK
 using Libxc
+import ForwardDiff: Dual
 
 DFTK.synchronize_device(::GPU{<:CUDA.CuArray}) = CUDA.synchronize()
+
+function DFTK.memory_usage(::GPU{<:CUDA.CuArray})
+    merge(DFTK.memory_usage(CPU()), (; gpu=CUDA.memory_stats().live))
+end
 
 for fun in (:potential_terms, :kernel_terms)
     @eval function DftFunctionals.$fun(fun::DispatchFunctional,
@@ -14,6 +19,13 @@ for fun in (:potential_terms, :kernel_terms)
         @assert Libxc.has_cuda()
         $fun(fun.inner, ρ, args...)
     end
+end
+
+# Ensure DFTK's custom ForwardDiff rule for FFTs is used.
+# See: https://github.com/JuliaGPU/CUDA.jl/issues/3018
+function Base.:*(p::CUFFT.CuFFTPlan{T,S,K,false},
+                 x::CuArray{<:Complex{<:Dual{Tg}}}) where {T,S,K,Tg}
+    DFTK.dual_fft_mul(p, x)
 end
 
 # Insure pre-compilation can proceed without error (old Julia/packages versions)

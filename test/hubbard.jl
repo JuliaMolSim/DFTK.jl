@@ -102,7 +102,7 @@ end
    manifold = OrbitalManifold(Ni, "3D")
    
    model = model_DFT(lattice, atoms, positions; 
-                     extra_terms=[Hubbard(manifold, U)],
+                     extra_terms=[Hubbard(manifold => U)],
                      temperature=0.01, functionals=PBE(),
                      smearing=DFTK.Smearing.Gaussian(), magnetic_moments=magnetic_moments)
    basis = PlaneWaveBasis(model; Ecut = 15, kgrid = [2, 2, 2])
@@ -119,7 +119,7 @@ end
         @test scfres.energies.Hubbard ≈ ref_hub
    end
    # The unfolding of the kpoints is not supported with MPI
-   if mpi_nprocs() == 1
+   if mpi_nprocs(basis.comm_kpts) == 1
         @testset "Test symmetry consistency" begin
              n_hub = scfres.hubbard_n
              scfres_nosym = DFTK.unfold_bz(scfres)

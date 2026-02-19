@@ -205,7 +205,8 @@ normest(M) = maximum(abs, diag(M)) + norm(M - Diagonal(diag(M)))
 # Returns the new X, the number of Cholesky factorizations algorithm, and the
 # growth factor by which small perturbations of X can have been magnified
 @timing function ortho!(X::AbstractArray{T}; tol=2eps(real(T))) where {T}
-    growth_factor = one(real(T))
+    growth_factor   = one(real(T))
+    estimated_error = one(real(T))
 
     nchol_total = 0
     while true

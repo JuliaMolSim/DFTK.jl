@@ -3,7 +3,7 @@
     using Test
     using AtomsBase
     using DFTK
-    using MPI
+    using DFTK: mpi_bcast
     using PseudoPotentialData
     using Unitful
     using UnitfulAtomic
@@ -21,8 +21,8 @@
         scfres = self_consistent_field(basis; ρ, tol=1e-12, mixing)
 
         # must be identical on all processes
-        test_atom = MPI.bcast(rand(1:length(model.atoms)), 0, MPI.COMM_WORLD)
-        test_dir  = MPI.bcast(rand(3), 0, MPI.COMM_WORLD)
+        test_atom = mpi_bcast(rand(1:length(model.atoms)), 0, basis.comm_kpts)
+        test_dir  = mpi_bcast(rand(3), 0, basis.comm_kpts)
         normalize!(test_dir)
 
         for iterm in 1:length(basis.terms)
@@ -80,9 +80,9 @@
 
         dx = [zeros(3) * u"Å" for _ in 1:length(system)]
         δx = @something δx rand(3)
-        δx    = MPI.bcast(δx, 0, MPI.COMM_WORLD)
+        δx    = mpi_bcast(δx, 0, scfres.basis.comm_kpts)
         normalize!(δx)
-        iatom = MPI.bcast(iatom, 0, MPI.COMM_WORLD)
+        iatom = mpi_bcast(iatom, 0, scfres.basis.comm_kpts)
         dx[iatom]  = δx * u"Å"
 
         Fε_ref = sum(map(forces, dx) do Fi, dxi
@@ -191,4 +191,18 @@ end
     TestForces.test_forces(system; kgrid=[2, 2, 3], Ecut=25,
                            mixing=DielectricMixing(εr=10),
                            atol=1e-7, temperature=1e-3)
+end
+
+@testitem "Forces silicon SCAN" setup=[TestCases,TestForces] tags=[:forces] begin
+    using DFTK
+    using PseudoPotentialData
+    silicon = TestCases.silicon
+    test_forces = TestForces.test_forces
+
+    positions = [([1.01, 1.02, 1.03]) / 8, -ones(3) / 8]  # displace a bit from equilibrium
+    system = atomic_system(silicon.lattice, silicon.atoms, positions)
+
+    pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
+    test_forces(system; pseudopotentials, functionals=SCAN(),
+                temperature=0.01, Ecut=10, kgrid=[2, 2, 2], atol=1e-7)
 end
