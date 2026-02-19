@@ -249,3 +249,129 @@ function _compute_coulomb_kernel(basis::PlaneWaveBasis{T},
     coulomb_kernel
 end
 
+"""
+    VoxelAveraged <: CoulombKernelModel
+
+Calculates the average of the Coulomb kernel over the Brillouin zone voxel associated
+with each grid point. It is particularly well suited for highly anisotropic cells.
+
+- **G=0 (Singularity):** Uses an exact mathematical reduction of the volume integral 
+  ``∫ 1/G^2 dV`` to a smooth surface integral over the voxel faces (surface reduction).
+- **G≠0 (Smooth):** Uses high-order Gaussian quadrature.
+
+It is conceptually equivalent to the HFMEANPOT flag in VASP but uses improved integration
+techniques to calcualte the average in the voxel.
+
+# Reference
+J. Chem. Phys. 160, 051101 (2024) (doi.org/10.1063/5.0182729)
+"""
+struct VoxelAveraged <: CoulombKernelModel end
+function _compute_coulomb_kernel(basis::PlaneWaveBasis{T},
+                                 qpt::Kpoint,
+                                 q::Vec3{T},
+                                 ::VoxelAveraged) where {T}
+    model = basis.model
+    
+    # Get kgrid_size
+    if isnothing(basis.kgrid)
+        kgrid_size = Vec3{Int}(1, 1, 1)
+    elseif basis.kgrid isa AbstractVector
+        kgrid_size = Vec3{Int}(basis.kgrid)
+    elseif basis.kgrid isa MonkhorstPack
+        kgrid_size = Vec3{Int}(basis.kgrid.kgrid_size)
+    else
+        @error "Cannot determine kgrid_size for VoxelAveraged Coulomb model."
+    end
+
+    # Define Voxels as reciprocal cell deivided by k-mesh
+    voxel_basis = model.recip_lattice * Diagonal(1 ./ Vec3{T}(kgrid_size))
+    voxel_vol = abs(det(voxel_basis))
+    
+    # Hard coded: 12-point Gauss-Legendre nodes and weights
+    nodes, weights = gauss_legendre_nodes_weights(T, 12)
+    
+    coulomb_kernel = zeros(T, length(qpt.G_vectors))
+
+    for (iG, G) in enumerate(to_cpu(qpt.G_vectors))
+        G_cart = model.recip_lattice * (G+q)
+
+        found_singularity = (iG==1 && iszero(q))
+        
+        if found_singularity 
+            # === At Singularity (G+q=0) use surface reduction method ===
+            
+            # Transforms volume integral ∫ 1/G^2 dV to surface integral Σ h * ∫ 1/G^2 dS
+            integral = zero(T)
+            for i in 1:3
+                u_i = voxel_basis[:, i]
+                u_j = voxel_basis[:, mod1(i+1, 3)]
+                u_k = voxel_basis[:, mod1(i+2, 3)]
+                
+                # Height of the face from origin
+                normal = cross(u_j, u_k)
+                area_norm = norm(normal)
+                
+                # Calculate distance h from center to face.
+                # Since face is at u_i/2, h = |(u_i/2) . n|
+                h = abs(dot(u_i, normal)) / (2 * area_norm)
+                
+                # Integrate 1/G^2 over the face parallelogram
+                face_integral = zero(T)
+                for (wa, a) in zip(weights, nodes)
+                    for (wb, b) in zip(weights, nodes)
+                        # Parametrization of the face: r = u_i/2 + a*u_j + b*u_k
+                        r_vec = 0.5f0 * u_i + a * u_j + b * u_k 
+                        r_sq  = dot(r_vec, r_vec)
+                        face_integral += wa * wb / r_sq
+                    end
+                end
+                
+                # Add contribution: 2 faces * h * Area * Mean(1/r^2)
+                # Area factor (area_norm) comes from the Jacobian.
+                integral += 2 * h * area_norm * face_integral
+            end
+            
+            coulomb_kernel[iG] = 4T(π) * (integral / voxel_vol)
+
+        else
+            # === Otherwise use smooth 3D Gaussian Quadrature ===
+            integral = zero(T)
+            for (wx, x) in zip(weights, nodes)
+                for (wy, y) in zip(weights, nodes)
+                    for (wz, z) in zip(weights, nodes)
+                        # q vector inside voxel
+                        q_local = x * voxel_basis[:, 1] + 
+                                  y * voxel_basis[:, 2] + 
+                                  z * voxel_basis[:, 3]
+                        
+                        G_total = G_cart + q_local
+                        integral += wx * wy * wz / dot(G_total, G_total)
+                    end
+                end
+            end
+            coulomb_kernel[iG] = 4T(π) * integral
+        end
+    end
+    
+    return coulomb_kernel
+end
+# Hard coded Gauss-Legendre nodes and weights (12-point, scaled to [-0.5, 0.5])
+function gauss_legendre_nodes_weights(::Type{T}, N::Int) where T
+    x_std = [
+        0.1252334085114689, 0.3678314989981802, 0.5873179542866683,
+        0.7699026741943050, 0.9037070154876170, 0.9815606342467191
+    ]
+    w_std = [
+        0.2491470458134029, 0.2334925365383547, 0.2031674267230659,
+        0.1600783285433464, 0.1069393259953183, 0.0471753363865117
+    ]
+    nodes   = zeros(T, 12)
+    weights = zeros(T, 12)
+    for i in 1:6
+        nodes[i]      = -x_std[i] / 2
+        nodes[13-i]   =  x_std[i] / 2
+        weights[i]    = w_std[i]  / 2
+        weights[13-i] = w_std[i]  / 2
+    end
+    (nodes, weights)
+end
