@@ -37,21 +37,22 @@ end
         return (; E=zero(T), ops=NoopOperator.(basis, basis.kpoints))
     end
 
+    mask_occ = occupied_empty_masks(occupation, occupation_threshold).mask_occ
+    ψ_occ    = @views [ψ[ik][:, maskk]        for (ik, maskk) in enumerate(mask_occ)]
+    occ_occ  = @views [occupation[ik][maskk]  for (ik, maskk) in enumerate(mask_occ)]
+
     @assert length(basis.kpoints) == basis.model.n_spin_components # no k-points, only spin
 
     E = zero(T)
     ops = []
     for (ik, kpt) in enumerate(basis.kpoints)
-        # TODO: Check with the most recent GPU changes if this is still the way
-        #       how to do this
-        mask_occ = findall(occ -> abs(occ) >= occupation_threshold, occupation[ik])
-        occk = occupation[ik][mask_occ]
-        ψk = view(ψ[ik], :, mask_occ) 
-        nocc = length(mask_occ)
+        occk = occ_occ[ik]
+        ψk   = ψ_occ[ik]
 
-        ψk_real = similar(ψk, complex(T), basis.fft_size..., nocc)
-        for i = 1:nocc
-            ifft!(view(ψk_real,:,:,:,i), basis, kpt, ψk[:,i])
+        n_occ = length(mask_occ)
+        ψk_real = similar(ψk, complex(T), basis.fft_size..., n_occ)
+        @views for n = 1:n_occ
+            ifft!(ψk_real[:, :, :, n], basis, kpt, ψk[:, n])
         end
 
         # TODO: Actually for ACE it probably makes sense to pass *all* orbitals for sketching
