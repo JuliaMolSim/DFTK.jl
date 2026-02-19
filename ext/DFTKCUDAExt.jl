@@ -13,12 +13,10 @@ function DFTK.memory_usage(::GPU{<:CUDA.CuArray})
     merge(DFTK.memory_usage(CPU()), (; gpu=CUDA.memory_stats().live))
 end
 
-for fun in (:potential_terms, :kernel_terms)
-    @eval function DftFunctionals.$fun(fun::DispatchFunctional,
-                                       ρ::CUDA.CuMatrix{Float64}, args...)
-        @assert Libxc.has_cuda()
-        $fun(fun.inner, ρ, args...)
-    end
+function DftFunctionals.potential_terms(fun::DispatchFunctional,
+                                        ρ::CUDA.CuMatrix{Float64}, args...)
+    @assert Libxc.has_cuda()
+    potential_terms(fun.inner, ρ, args...)
 end
 
 # Ensure DFTK's custom ForwardDiff rule for FFTs is used.

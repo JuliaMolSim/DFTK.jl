@@ -57,7 +57,7 @@ function libxc_unfold_spin(data::AbstractMatrix, n_spin::Int)
     end
 end
 
-libxc_energy(terms, ρ) = haskey(terms, :zk) ? reshape(terms.zk, 1, size(ρ, 2)) .* ρ : false
+libxc_energy(terms, ρ) = haskey(terms, :zk) ? reshape(terms.zk, 1, size(ρ, 2)) .* sum(ρ, dims=1) : false
 
 function DftFunctionals.potential_terms(func::LibxcFunctional{:lda}, ρ::AbstractMatrix{Float64})
     s_ρ, n_p = size(ρ)
@@ -109,31 +109,95 @@ function DftFunctionals.potential_terms(func::LibxcFunctional{:mggal}, ρ::Abstr
     (; e, Vρ, Vσ, Vτ, Vl)
 end
 
-function DftFunctionals.kernel_terms(func::LibxcFunctional{:lda}, ρ::AbstractMatrix{Float64})
+# Kernel support via automatic differentiation
+
+import ForwardDiff: Dual
+
+map_to_dual(T, x, δxs...) = map(x, δxs...) do xi, δxi...
+    Dual{T}(xi, δxi...)
+end
+combine_spins(xs...) = vcat(transpose.(xs)...)
+
+@views function DftFunctionals.potential_terms(func::LibxcFunctional{:lda},
+                                               ρ_δρ::AbstractMatrix{DT}) where {N,T,DT<:Dual{T,Float64,N}}
+    ρ = ForwardDiff.value.(ρ_δρ)
     s_ρ, n_p = size(ρ)
     fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
     derivatives = filter(in(Libxc.supported_derivatives(fun)), 0:2)
     terms = Libxc.evaluate(fun; rho=ρ, derivatives)
-    e   = libxc_energy(terms, ρ)
-    Vρ  = reshape(terms.vrho,   s_ρ, n_p)
-    Vρρ = libxc_unfold_spin(terms.v2rho2, s_ρ)
-    (; e, Vρ, Vρρ)
+    e = libxc_energy(terms, ρ)
+    Vρ = reshape(terms.vrho, s_ρ, n_p)
+
+    δe = ntuple(Val(N)) do n
+        sum(Vρ .* ForwardDiff.partials.(ρ_δρ, n); dims=1)
+    end
+    δVρ = ntuple(Val(N)) do n
+        δρ = ForwardDiff.partials.(ρ_δρ, n)
+        if s_ρ == 1
+            terms.v2rho2 .* δρ
+        else
+            combine_spins(
+                terms.v2rho2[1,:] .* δρ[1,:] .+ terms.v2rho2[2,:] .* δρ[2,:],
+                terms.v2rho2[2,:] .* δρ[1,:] .+ terms.v2rho2[3,:] .* δρ[2,:],
+            )
+        end
+    end
+    (; e=map_to_dual(T, e, δe...),
+       Vρ=map_to_dual(T, Vρ, δVρ...))
 end
-function DftFunctionals.kernel_terms(func::LibxcFunctional{:gga}, ρ::AbstractMatrix{Float64},
-                                     σ::AbstractMatrix{Float64})
+@views function DftFunctionals.potential_terms(func::LibxcFunctional{:gga},
+                                               ρ_δρ::AbstractMatrix{DT},
+                                               σ_δσ::AbstractMatrix{DT}) where {N,T,DT<:Dual{T,Float64,N}}
+    ρ = ForwardDiff.value.(ρ_δρ)
+    σ = ForwardDiff.value.(σ_δσ)
     s_ρ, n_p = size(ρ)
     s_σ = size(σ, 1)
     fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
     derivatives = filter(in(Libxc.supported_derivatives(fun)), 0:2)
     terms = Libxc.evaluate(fun; rho=ρ, sigma=σ, derivatives)
-    e   = libxc_energy(terms, ρ)
-    Vρ  = reshape(terms.vrho,   s_ρ, n_p)
-    Vσ  = reshape(terms.vsigma, s_σ, n_p)
-    Vρρ = libxc_unfold_spin(terms.v2rho2, s_ρ)
-    Vρσ = permutedims(reshape(terms.v2rhosigma, s_σ, s_ρ, n_p), (2, 1, 3))
-    Vσσ = libxc_unfold_spin(terms.v2sigma2, s_σ)
-    (; e, Vρ, Vσ, Vρρ, Vρσ, Vσσ)
+    e  = libxc_energy(terms, ρ)
+    Vρ = reshape(terms.vrho,   s_ρ, n_p)
+    Vσ = reshape(terms.vsigma, s_σ, n_p)
+
+    δe = ntuple(Val(N)) do n
+        sum(Vρ .* ForwardDiff.partials.(ρ_δρ, n); dims=1) + sum(Vσ .* ForwardDiff.partials.(σ_δσ, n); dims=1)
+    end
+    δVρ = ntuple(Val(N)) do n
+        δρ = ForwardDiff.partials.(ρ_δρ, n)
+        δσ = ForwardDiff.partials.(σ_δσ, n)
+        if s_ρ == 1
+            terms.v2rho2 .* δρ .+ terms.v2rhosigma .* δσ
+        else
+            combine_spins(
+                terms.v2rho2[1,:] .* δρ[1,:] .+ terms.v2rho2[2,:] .* δρ[2,:]
+                .+ terms.v2rhosigma[1,:] .* δσ[1,:] .+ terms.v2rhosigma[2,:] .* δσ[2,:] .+ terms.v2rhosigma[3,:] .* δσ[3,:],
+                terms.v2rho2[2,:] .* δρ[1,:] .+ terms.v2rho2[3,:] .* δρ[2,:]
+                .+ terms.v2rhosigma[4,:] .* δσ[1,:] .+ terms.v2rhosigma[5,:] .* δσ[2,:] .+ terms.v2rhosigma[6,:] .* δσ[3,:],
+            )
+        end
+    end
+    δVσ = ntuple(Val(N)) do n
+        δρ = ForwardDiff.partials.(ρ_δρ, n)
+        δσ = ForwardDiff.partials.(σ_δσ, n)
+        if s_σ == 1
+            terms.v2rhosigma .* δρ .+ terms.v2sigma2 .* δσ
+        else
+            combine_spins(
+                terms.v2rhosigma[1,:] .* δρ[1,:] .+ terms.v2rhosigma[4,:] .* δρ[2,:]
+                .+ terms.v2sigma2[1,:] .* δσ[1,:] .+ terms.v2sigma2[2,:] .* δσ[2,:] .+ terms.v2sigma2[3,:] .* δσ[3,:],
+                terms.v2rhosigma[2,:] .* δρ[1,:] .+ terms.v2rhosigma[5,:] .* δρ[2,:]
+                .+ terms.v2sigma2[2,:] .* δσ[1,:] .+ terms.v2sigma2[4,:] .* δσ[2,:] .+ terms.v2sigma2[5,:] .* δσ[3,:],
+                terms.v2rhosigma[3,:] .* δρ[1,:] .+ terms.v2rhosigma[6,:] .* δρ[2,:]
+                .+ terms.v2sigma2[3,:] .* δσ[1,:] .+ terms.v2sigma2[5,:] .* δσ[2,:] .+ terms.v2sigma2[6,:] .* δσ[3,:],
+            )
+        end
+    end
+
+    (; e=map_to_dual(T, e, δe...),
+       Vρ=map_to_dual(T, Vρ, δVρ...),
+       Vσ=map_to_dual(T, Vσ, δVσ...))
 end
+# TODO mgga and mggal derivatives
 
 #
 # Automatic dispatching between Libxc (where possible) and the generic implementation
@@ -148,16 +212,13 @@ DispatchFunctional(identifier::Symbol) = DispatchFunctional(LibxcFunctional(iden
 DftFunctionals.identifier(fun::DispatchFunctional) = identifier(fun.inner)
 DftFunctionals.has_energy(fun::DispatchFunctional) = has_energy(fun.inner)
 
-for fun in (:potential_terms, :kernel_terms)
-    @eval begin
-        # Note: CuMatrix dispatch to Libxc.jl is defined in src/workarounds/cuda_arrays.jl
-        function DftFunctionals.$fun(fun::DispatchFunctional, ρ::Matrix{Float64}, args...)
-            $fun(fun.inner, ρ, args...)
-        end
-        function DftFunctionals.$fun(fun::DispatchFunctional, ρ::AbstractMatrix, args...)
-            $fun(DftFunctional(identifier(fun)), ρ, args...)
-        end
-    end
+# Note: CuMatrix dispatch to Libxc.jl is defined in src/workarounds/cuda_arrays.jl
+function DftFunctionals.potential_terms(fun::DispatchFunctional,
+                                        ρ::Matrix{<:Union{Float64,Dual{<:Any,Float64}}}, args...)
+    potential_terms(fun.inner, ρ, args...)
+end
+function DftFunctionals.potential_terms(fun::DispatchFunctional, ρ::AbstractMatrix, args...)
+    potential_terms(DftFunctional(identifier(fun)), ρ, args...)
 end
 
 # TODO This is hackish for now until Libxc has fully picked up the DftFunctionals.jl interface
