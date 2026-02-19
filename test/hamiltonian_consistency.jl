@@ -42,7 +42,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, test_for_constant=fal
         end
         E0, ham = energy_hamiltonian(basis, ψ, occupation; ρ, τ, hubbard_n)
 
-        # Test operator is derivative of the energy
+        # Test operator agrees with matrix form
         for ik = 1:length(basis.kpoints)
             for operator in ham.blocks[ik].operators
                 @test norm(Matrix(operator) * ψ[ik] - operator * ψ[ik]) < atol
