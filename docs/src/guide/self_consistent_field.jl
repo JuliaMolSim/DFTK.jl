@@ -83,7 +83,7 @@
 #
 # It turns out that for the largest chunk of cases the eigenvalues of
 # $\varepsilon^\dagger$ are positive. Moreover near a local minimiser
-# $\varepsilon^\dagger$ always has non-degative spectrum.
+# $\varepsilon^\dagger$ always has non-negative spectrum.
 #
 # To make the SCF converge one can therefore:
 # - Choose $\alpha$ small enough. Even for $P = I$ this always works, but convergence can be painfully slow. (see e.g. the proof in [^HL2022])
@@ -309,7 +309,7 @@ end;
 # ```math
 # \lim_{q\to0} \chi_0(q) \simeq -D.
 # ```
-# Therefore as one treats larger and larger metallic systems, smaller wavelengths $q$ become accessible in the discretised problem, which causes $\lambda_\text{max}$ to increase --- in theory quadratically with system size. This phaenomenon, known as **charge sloshing** makes it difficult to treat large metallic systems without proper preconditioning.
+# Therefore as one treats larger and larger metallic systems, smaller wavelengths $q$ become accessible in the discretised problem, which causes $\lambda_\text{max}$ to increase --- in theory quadratically with system size. This phenomenon, known as **charge sloshing** makes it difficult to treat large metallic systems without proper preconditioning.
 # 
 # In contrast for **insulators** and **semiconductors** a good approximation of $\chi_0(q)$ for small $q$ is $-q^T \sigma_0 q$, where $\sigma_0$ is a material-dependent symmetric positive matrix. Therefore the $1/q^2$ instability is compensated and treating larger cells is less difficult.
 
