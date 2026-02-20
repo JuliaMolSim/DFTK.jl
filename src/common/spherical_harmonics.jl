@@ -45,7 +45,7 @@ function ylm_real(l::Integer, m::Integer, rvec::AbstractVector{T}) where {T}
         (m ==  3) && return sqrt( 35 / 32T(π)) * (x^2 - 3y^2) * x / r^3
     end
 
-    error("The case l = $l and m = $m is not implemented")
+    throw(BoundsError()) # specific (l,m) pair not implemented
 end
 
 """

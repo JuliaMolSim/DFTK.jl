@@ -68,10 +68,9 @@ end
         C = to_device(basis.architecture, build_projection_coefficients(T, element.psp))
         for (ik, kpt) in enumerate(basis.kpoints)
             # We compute the forces from the irreductible BZ; they are symmetrized later.
-            G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
+            G_plus_k_cart = Gplusk_vectors_cart(basis, kpt)
             G_plus_k = Gplusk_vectors(basis, kpt)
-            form_factors = to_device(basis.architecture,
-                                     build_projector_form_factors(element.psp, G_plus_k_cart))
+            form_factors = build_projector_form_factors(element.psp, G_plus_k_cart)
 
             # Pre-allocation of large arrays (Noticable performance improvements on
             # CPU and GPU here)
@@ -170,8 +169,8 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     unit_cell_volume = basis.model.unit_cell_volume
     n_proj = count_n_proj(psps, psp_positions)
     n_G    = length(G_vectors(basis, kpt))
-    proj_vectors = zeros(Complex{eltype(psp_positions[1][1])}, n_G, n_proj)
-    G_plus_k = to_cpu(Gplusk_vectors(basis, kpt))
+    G_plus_k = Gplusk_vectors(basis, kpt)
+    proj_vectors = zeros_like(G_plus_k, Complex{eltype(psp_positions[1][1])}, n_G, n_proj)
 
     # Compute the columns of proj_vectors = 1/√Ω \hat proj_i(k+G)
     # Since the proj_i are translates of each others, \hat proj_i(k+G) decouples as
@@ -180,7 +179,7 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     offset = 0  # offset into proj_vectors
     for (psp, positions) in zip(psps, psp_positions)
         # Compute position-independent form factors
-        G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
+        G_plus_k_cart = Gplusk_vectors_cart(basis, kpt)
         form_factors = build_projector_form_factors(psp, G_plus_k_cart)
 
         # Combine with structure factors
@@ -196,30 +195,51 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     end
     @assert offset == n_proj
 
-    # Offload potential values to a device (like a GPU)
-    to_device(basis.architecture, proj_vectors)
+    proj_vectors
 end
 
 """
 Build form factors (Fourier transforms of projectors) for all orbitals of an atom centered at 0.
+This is a highly optimized, GPU compatible function.
 """
 function build_projector_form_factors(psp::NormConservingPsp,
-                                      G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
-    G_plus_ks = [G_plus_k]
+                                      G_plus_k::AbstractVector{Vec3{T}}) where {T}
+    Gpk = to_cpu(G_plus_k)
+    arch = architecture(G_plus_k)
+
+    iG2ifnorm_cpu = zeros(Int, length(Gpk))
+    norm_indices = IdDict{T, Int}()
+    for (iG, G) in enumerate(Gpk)
+        p = norm(G)
+        iG2ifnorm_cpu[iG] = get!(norm_indices, p, length(norm_indices) + 1)
+    end
+    iG2ifnorm = to_device(arch, iG2ifnorm_cpu)
+
+    ni_pairs = collect(pairs(norm_indices))
+    ps = to_device(arch, first.(ni_pairs))
+    p_indices = to_device(arch, last.(ni_pairs))
 
     n_proj = count_n_proj(psp)
-    form_factors = zeros(Complex{TT}, length(G_plus_k), n_proj)
+    form_factors = similar(G_plus_k, Complex{T}, length(G_plus_k), n_proj)
+    G_indices = to_device(arch, collect(1:length(G_plus_k)))
+    proj_li = similar(G_indices, Complex{T}, length(G_indices))
     for l = 0:psp.lmax, 
         n_proj_l = count_n_proj_radial(psp, l)
         offset = sum(x -> count_n_proj(psp, x), 0:l-1; init=0) .+ 
                  n_proj_l .* (collect(1:2l+1) .- 1) # offset about m for a given l 
         for i = 1:n_proj_l
-            proj_li(p) = eval_psp_projector_fourier(psp, i, l, p)
-            form_factors_li = build_form_factors(proj_li, l, G_plus_ks)
-            @views form_factors[:, offset.+i] = form_factors_li[1]
+            # Performs same computation as build_form_factors(eval_psp_projector_fourier, l, [G_plus_k]),
+            # but in a highly optimized, vectorized, and GPU compatible way. Also saves on allocations,
+            # and many recomputations of unique |G+k|.
+            proj_li[p_indices] .= eval_psp_projector_fourier(psp, i, l, ps)
+            for m = -l:l
+                map!(@view(form_factors[:, offset[m + l + 1] + i]), G_indices) do iG
+                    angular = (-im)^l * ylm_real(l, m, G_plus_k[iG])
+                    proj_li[iG2ifnorm[iG]] * angular
+                end
+            end
         end
     end
-
     form_factors
 end
 
