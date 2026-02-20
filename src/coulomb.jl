@@ -1,5 +1,3 @@
-using FastGaussQuadrature
-
 @doc raw"""
 Abstract type for different methods of computing the 
 discretised Coulomb kernel ``v(G+q) = 4π/|G+q|²``.
