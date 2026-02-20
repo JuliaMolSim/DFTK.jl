@@ -1,3 +1,5 @@
+using FastGaussQuadrature
+
 @doc raw"""
 Abstract type for different methods of computing the 
 discretised Coulomb kernel ``v(G+q) = 4π/|G+q|²``.
@@ -251,8 +253,11 @@ techniques to calcualte the average in the voxel.
 ## Reference
 J. Chem. Phys. 160, 051101 (2024) (doi.org/10.1063/5.0182729)
 """
-struct VoxelAveraged <: CoulombKernelModel end
-function _compute_coulomb_kernel(::VoxelAveraged, basis::PlaneWaveBasis{T},
+struct VoxelAveraged <: CoulombKernelModel 
+    N_quadrature_points::Int
+end
+VoxelAveraged(; quadrature_points=12) = VoxelAveraged(quadrature_points)
+function _compute_coulomb_kernel(kernel::VoxelAveraged, basis::PlaneWaveBasis{T},
                                  qpt::Kpoint, q::Vec3{T}) where {T}
     model = basis.model
     
@@ -271,8 +276,11 @@ function _compute_coulomb_kernel(::VoxelAveraged, basis::PlaneWaveBasis{T},
     voxel_basis = model.recip_lattice * Diagonal(1 ./ Vec3{T}(kgrid_size))
     voxel_vol = abs(det(voxel_basis))
     
-    # Hard coded: 12-point Gauss-Legendre nodes and weights
-    nodes, weights = gauss_legendre_nodes_weights(T, 12)
+    # get Gauss-Legendre nodes and weights
+    nodes_std, weights_std = gausslegendre(kernel.N_quadrature_points)
+    # Scale from [-1, 1] to [-0.5, 0.5]
+    nodes = T.(nodes_std ./ 2)
+    weights = T.(weights_std ./ 2)
     
     coulomb_kernel = zeros(T, length(qpt.G_vectors))
 
