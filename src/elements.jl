@@ -185,6 +185,10 @@ end
 function core_charge_density_fourier(el::ElementPsp, p::T) where {T <: Real}
     eval_psp_density_core_fourier(el.psp, p)
 end
+# Vectorized version of the above
+function core_charge_density_fourier(el::ElementPsp, ps::AbstractVector{T}) where {T <: Real}
+    eval_psp_density_core_fourier(el.psp, ps)
+end
 
 
 #

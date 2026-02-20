@@ -26,6 +26,7 @@ abstract type NormConservingPsp end
 # eval_psp_density_valence_fourier(psp, p::Real)
 # eval_psp_density_core_real(psp, r::Real)
 # eval_psp_density_core_fourier(psp, p::Real)
+# eval_psp_density_core_fourier(psp, ps::AbstractArray{<Real})
 # eval_psp_pswfc_real(psp, i::Int, l::Int, p::Real)
 # eval_psp_pswfc_fourier(psp, i::Int, l::Int, p::Real)
 # count_n_pswfc(psp, l::Integer)
@@ -164,6 +165,12 @@ Evaluate the atomic core charge density in reciprocal space:
 eval_psp_density_core_fourier(::NormConservingPsp, ::T) where {T <: Real} = zero(T)
 eval_psp_density_core_fourier(psp::NormConservingPsp, p::AbstractVector) = 
     eval_psp_density_core_fourier(psp, norm(p))
+
+# Fallback vectorized implementation for non GPU-optimized code.
+function eval_density_core_fourier(psp::NormConservingPsp, ps::AbstractVector{T}) where {T <: Real}
+    arch = architecture(ps)
+    to_device(arch, map(p -> eval_psp_density_core_fourier(psp, p), to_cpu(ps)))
+end
 
 
 #### Methods defined on a NormConservingPsp

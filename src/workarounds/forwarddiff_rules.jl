@@ -302,6 +302,13 @@ end
 end
 
 function hankel(r::AbstractVector, r2_f::AbstractVector, l::Integer, p::TT) where {TT <: ForwardDiff.Dual}
+    quadrature = default_psp_quadrature(r)
+    hankel(quadrature, r, r2_f, l, p)
+end
+
+# For GPU kernels to compile, dynamic function calls must be avoided. Therefore, the quadrature
+# must be known and passed ahead of time, and the Dual type explicitly parametrized.
+function hankel(quadrature, r::AbstractVector, r2_f::AbstractVector, l::Integer, p::Dual{Tg,V,N}) where {Tg,V,N}
     # This custom rule uses two properties of the hankel transform:
     #   d H[f] / dp = 4\pi \int_0^∞ r^2 f(r) j_l'(p⋅r)⋅r dr
     # and that
@@ -312,20 +319,17 @@ function hankel(r::AbstractVector, r2_f::AbstractVector, l::Integer, p::TT) wher
     # the tricky bit is to exploit that one needs both the j_l'(p⋅r) and j_l(p⋅r) values
     # but one does not want to precompute and allocate them into arrays
     # TODO Investigate custom rules for bessels and integration
-
-    T  = ForwardDiff.valtype(TT)
     pv = ForwardDiff.value(p)
 
-    jl = sphericalbesselj_fast.(l, pv .* r)
-    value = 4T(π) * simpson((i, r) -> r2_f[i] * jl[i], r)
-
-    if iszero(pv)
-        return TT(value, zero(T) * ForwardDiff.partials(p))
+    # To reduce allocations, compute value and derivative simultaneously, using a SVector as integrand
+    res = 4V(π) * quadrature(r) do i, r
+        jl_i = sphericalbesselj_fast(l, pv * r)
+        val = r2_f[i] * jl_i
+        deriv = iszero(pv) ? zero(V) : r2_f[i] * (l * jl_i / pv - r * sphericalbesselj_fast(l+1, pv * r))
+        SVector(val, deriv)
     end
-    derivative = 4T(π) * simpson(r) do i, r
-        (r2_f[i] * (l * jl[i] / pv - r * sphericalbesselj_fast(l+1, pv * r)))
-    end
-    TT(value, derivative * ForwardDiff.partials(p))
+    value, derivative = res[1], res[2]
+    Dual{Tg,V,N}(value, derivative * ForwardDiff.partials(p))
 end
 
 # other workarounds
