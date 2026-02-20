@@ -102,7 +102,6 @@ export Energies
 include("Energies.jl")
 
 export NeglectSingularity, ProbeCharge, SphericallyTruncated
-export WignerSeitzTruncated, VoxelAveraged
 include("coulomb.jl")
 
 export Hamiltonian

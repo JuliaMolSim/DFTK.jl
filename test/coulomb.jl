@@ -45,17 +45,23 @@
     end
 
     @testset "WignerSeitzTruncated" begin
+        #= TODO: This methods will follow in a follow-up PR
         k_wtrunc = compute_coulomb_kernel(basis; coulomb_kernel_model=WignerSeitzTruncated())
         E_wtrunc = exx_energy_only(basis, kpt, k_wtrunc, ψk_real, occk)
         E_ref = -2.345681352379346
         @test abs(E_ref - E_wtrunc) < 1e-6
+        =#
+        @test_broken false
     end
 
     @testset "VoxelAveraged" begin
+        #= TODO: This methods will follow in a follow-up PR
         k_wtrunc = compute_coulomb_kernel(basis; coulomb_kernel_model=VoxelAveraged())
         E_wtrunc = exx_energy_only(basis, kpt, k_wtrunc, ψk_real, occk)
         E_ref = -2.2491082534455376
         @test abs(E_ref - E_wtrunc) < 1e-6
+        =#
+        @test_broken false
     end
 end
 
