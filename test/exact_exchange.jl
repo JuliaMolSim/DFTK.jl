@@ -1,7 +1,6 @@
 @testitem "Comparison of VanillaExx to AceExx" tags=[:exx] setup=[TestCases] begin
     using DFTK
     using LinearAlgebra
-    using Logging
     using .TestCases: silicon
 
     function test_acexx_consistency(; kgrid=[1, 2, 3], kshift=[0, 1, 0]/2, Ecut=10,

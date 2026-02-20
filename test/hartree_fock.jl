@@ -36,7 +36,7 @@
                            functionals=PBE(), temperature=0.001,
                            smearing=DFTK.Smearing.Gaussian())
     basis_pbe  = PlaneWaveBasis(model_pbe; Ecut=20, kgrid=[1, 1, 1])
-    scfres_pbe = self_consistent_field(basis_pbe; tol=1e-4)
+    scfres_pbe = self_consistent_field(basis_pbe; tol=1e-4, seed=0xadcdb6c21c47beb1)
 
     # Then run Hartree-Fock
     model = model_HF(lattice, atoms, positions;
