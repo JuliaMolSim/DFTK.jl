@@ -17,8 +17,7 @@ basis  = PlaneWaveBasis(model; Ecut=20, kgrid=[1, 1, 1])
 scfres = self_consistent_field(basis; tol=1e-6)
 
 # Run Hartree-Fock
-model  = model_HF(lattice, atoms, positions; 
-                  coulomb_kernel_model=WignerSeitzTruncated(), exx_algorithm=AceExx())
+model  = model_HF(lattice, atoms, positions)
 basis  = PlaneWaveBasis(model; basis.Ecut, basis.kgrid)
 scfres = self_consistent_field(basis;
                                solver=DFTK.scf_damping_solver(damping=1.0),
