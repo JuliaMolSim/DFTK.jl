@@ -101,6 +101,46 @@ end
 end
 
 
+@testitem "LiH Hartree-Fock energy" tags=[:exx,:slow] setup=[RunSCF] begin
+    using DFTK
+    using LinearAlgebra
+    using PseudoPotentialData
+
+    pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_5.stringent.upf") 
+    Li = ElementPsp(:Li, pseudopotentials)
+    H  = ElementPsp(:H,  pseudopotentials)
+    atoms = [Li, Li, Li, Li, H, H, H, H]
+    a = 7.504
+    lattice = a * I(3)
+    positions = [[0.0, 0.0, 0.0], 
+                 [0.5, 0.5, 0.0],
+                 [0.0, 0.5, 0.5],
+                 [0.5, 0.0, 0.5],
+                 [0.5, 0.0, 0.0],
+                 [0.0, 0.5, 0.0],
+                 [0.0, 0.0, 0.5],
+                 [0.5, 0.5, 0.5]]
+
+    # This created using the very first EXX implementation in DFTK
+    ref_hf = [[-2.174882010778448, -2.174882010778414, -2.1748820107783646, -2.1735162108610098,
+               -0.4105286062295621, -0.1498412274416261, -0.14984122744054515,
+               -0.1498412274386093, 0.39476442887789986, 0.3947644288779635,
+               0.39476442887837615]]
+    ref_etot = -31.240766149174128
+
+    model  = model_HF(lattice, atoms, positions; 
+                      coulomb_kernel_model=SphericallyTruncated(), 
+                      exx_algorithm=AceExx())
+    basis  = PlaneWaveBasis(model, Ecut=40; kgrid=[1, 1, 1])
+    
+    RunSCF.run_scf_and_compare(Float64, basis, ref_hf, ref_etot;
+                               scf_ene_tol=1e-10, test_tol=5e-5, n_ignored=0,
+                               # TODO: Anderson right does not yet work well for Hartree-Fock
+                               damping=0.4, solver=DFTK.scf_damping_solver(),
+                               # TODO: The default diagtolalg does not yet work well for Hartree-Fock
+                               diagtolalg=DFTK.AdaptiveDiagtol(; ratio_ρdiff=1e-5))
+end
+
 @testitem "AFM H chain Hartree-Fock energy" tags=[:exx] setup=[RunSCF] begin
     using DFTK
     using LinearAlgebra
