@@ -24,10 +24,18 @@ abstract type NormConservingPsp end
 # eval_psp_energy_correction(T::Type, psp)
 
 #### Optional methods:
+#TODO: check that the new core_kinetic functions are well listed (i.e. vectorized)
 # eval_psp_valence_density_real(psp, r::Real)
 # eval_psp_valence_density_fourier(psp, p::Real)
 # eval_psp_core_density_real(psp, r::Real)
 # eval_psp_core_density_fourier(psp, p::Real)
+# eval_psp_core_kinetic_energy_density_real(psp, r::Real)
+# eval_psp_core_kinetic_energy_density_fourier(psp, p::Real)
+# eval_psp_density_valence_real(psp, r::Real)
+# eval_psp_density_valence_fourier(psp, p::Real)
+# eval_psp_density_core_real(psp, r::Real)
+# eval_psp_density_core_fourier(psp, p::Real)
+# eval_psp_density_core_fourier(psp, ps::AbstractArray{<Real})
 # eval_psp_core_kinetic_energy_density_real(psp, r::Real)
 # eval_psp_core_kinetic_energy_density_fourier(psp, p::Real)
 # eval_psp_pswfc_real(psp, i::Int, l::Int, p::Real)
@@ -183,6 +191,12 @@ eval_psp_core_kinetic_energy_density_real(psp::NormConservingPsp, r::AbstractVec
 eval_psp_core_kinetic_energy_density_fourier(::NormConservingPsp, ::T) where {T <: Real} = zero(T)
 eval_psp_core_kinetic_energy_density_fourier(psp::NormConservingPsp, p::AbstractVector) =
     eval_psp_core_kinetic_energy_density_fourier(psp, norm(p))
+
+# Fallback vectorized implementation for non GPU-optimized code.
+function eval_density_core_fourier(psp::NormConservingPsp, ps::AbstractVector{T}) where {T <: Real}
+    arch = architecture(ps)
+    to_device(arch, map(p -> eval_psp_density_core_fourier(psp, p), to_cpu(ps)))
+end
 
 
 #### Methods defined on a NormConservingPsp
