@@ -241,6 +241,9 @@ function build_form_factors(fun::Function, l::Int,
     #       I think we need to follow the same approach as the Local term, where form_factors are
     #       computed for unique |p|, and a mapping is provided too. Maybe we need to do that first,
     #       and then think about GPUs
+    #       But actually, since this functions is called many times, and G_plus_k remains the same,
+    #       the unique norm analysis should be done 1 level above, and passed down.
+
     radials = IdDict{T,T}()  # IdDict for Dual compatibility
     for G_plus_k in G_plus_ks
         for p in G_plus_k
