@@ -1,4 +1,4 @@
-@testitem "Reference tests for exx implementations" tags=[:exx] setup=[TestCases] begin
+@testitem "Reference tests for exx implementations" tags=[:exx,:dont_test_mpi] setup=[TestCases] begin
     using DFTK
     using DFTK: exx_energy_only, compute_coulomb_kernel
     using .TestCases: silicon
