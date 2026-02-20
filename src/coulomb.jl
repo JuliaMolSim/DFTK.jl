@@ -9,7 +9,7 @@ Available models:
 - [`NeglectSingularity`](@ref): Set G+q=0 component to zero
 - [`SphericallyTruncated`](@ref): Spherical truncation at radius Rcut
 - [`WignerSeitzTruncated`](@ref): Wigner-Seitz cell truncation
-- [`VoxelAveraged`](@ref): Average kernel over a Voxec
+- [`VoxelAveraged`](@ref): Replacing 1/(G+q)^2 by its average over the voxel
 
 See also: [`compute_coulomb_kernel`](@ref)
 """
@@ -250,6 +250,11 @@ with each grid point. It is particularly well suited for highly anisotropic cell
 It is conceptually equivalent to the HFMEANPOT flag in VASP but uses improved integration
 techniques to calcualte the average in the voxel.
 
+# Arguments
+- `N_quadrature_points::Int`: The number of Gauss-Legendre quadrature points used per dimension. 
+  Defaults to 12. For highly anisotropic cells or rigorous Thermodynamic Limit (TDL) extrapolations, 
+    it is advisable to check if higher values (e.g., to 18 or 24) eliminate numerical noise.
+
 ## Reference
 J. Chem. Phys. 160, 051101 (2024) (doi.org/10.1063/5.0182729)
 """
@@ -346,24 +351,4 @@ function _compute_coulomb_kernel(kernel::VoxelAveraged, basis::PlaneWaveBasis{T}
     end
     
     return coulomb_kernel
-end
-# Hard coded Gauss-Legendre nodes and weights (12-point, scaled to [-0.5, 0.5])
-function gauss_legendre_nodes_weights(::Type{T}, N::Int) where T
-    x_std = [
-        0.1252334085114689, 0.3678314989981802, 0.5873179542866683,
-        0.7699026741943050, 0.9037070154876170, 0.9815606342467191
-    ]
-    w_std = [
-        0.2491470458134029, 0.2334925365383547, 0.2031674267230659,
-        0.1600783285433464, 0.1069393259953183, 0.0471753363865117
-    ]
-    nodes   = zeros(T, 12)
-    weights = zeros(T, 12)
-    for i in 1:6
-        nodes[i]      = -x_std[i] / 2
-        nodes[13-i]   =  x_std[i] / 2
-        weights[i]    = w_std[i]  / 2
-        weights[13-i] = w_std[i]  / 2
-    end
-    (nodes, weights)
 end
