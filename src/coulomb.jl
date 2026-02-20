@@ -42,6 +42,9 @@ function compute_coulomb_kernel(basis::PlaneWaveBasis{T}; q=zero(Vec3{T}),
                             "compute_coulomb_kernel, respectively Hartree-Fock and " *
                             "calculations involving exact exchange."))
     end
+    if mpi_nprocs(basis.comm_kpts) > 1
+        error("MPI parallelisation not yet supported for coulomb kernel")
+    end
     @assert iszero(q)
 
     # currently only works for Gamma-only (need correct q-point otherwise)

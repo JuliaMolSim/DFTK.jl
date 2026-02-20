@@ -1,7 +1,7 @@
 #
 # Test the most simplistic HF model on one k-point against QuantumEspresso reference data
 #
-@testitem "Silicon Hartree-Fock" tags=[:minimal, :exx] setup=[RunSCF] begin
+@testitem "Silicon Hartree-Fock" tags=[:minimal, :exx, :dont_test_mpi] setup=[RunSCF] begin
     using DFTK
     using PseudoPotentialData
     using .RunSCF: run_scf_and_compare
@@ -46,7 +46,7 @@
     basis = PlaneWaveBasis(model; Ecut=20, kgrid=[1, 1, 1])
 
     run_scf_and_compare(Float64, basis, ref_hf, ref_etot; 
-                        scf_ene_tol=1e-7, test_tol=1e-4,
+                        scf_ene_tol=1e-7, test_tol=1e-4, maxiter=20,
                         scfres_pbe.ψ, scfres_pbe.ρ,
                         scfres_pbe.eigenvalues, scfres_pbe.occupation,
                         # TODO: Anderson right does not yet work well for Hartree-Fock
@@ -61,7 +61,7 @@ end
 #
 # Regression tests on HF against DFTK itself (TODO: Remove these once we have better tests here)
 #
-@testitem "LiH Hartree-Fock energy" tags=[:exx,:slow] setup=[RunSCF] begin
+@testitem "LiH Hartree-Fock energy" tags=[:exx,:slow, :dont_test_mpi] setup=[RunSCF] begin
     using DFTK
     using LinearAlgebra
     using PseudoPotentialData
@@ -105,7 +105,7 @@ end
 end
 
 
-@testitem "LiH Hartree-Fock energy" tags=[:exx,:slow] setup=[RunSCF] begin
+@testitem "LiH Hartree-Fock energy" tags=[:exx,:slow, :dont_test_mpi] setup=[RunSCF] begin
     using DFTK
     using LinearAlgebra
     using PseudoPotentialData
@@ -145,7 +145,7 @@ end
                                diagtolalg=DFTK.AdaptiveDiagtol(; ratio_ρdiff=1e-5))
 end
 
-@testitem "AFM H chain Hartree-Fock energy" tags=[:exx] setup=[RunSCF] begin
+@testitem "AFM H chain Hartree-Fock energy" tags=[:exx, :dont_test_mpi] setup=[RunSCF] begin
     using DFTK
     using LinearAlgebra
     using PseudoPotentialData

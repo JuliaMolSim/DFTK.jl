@@ -1,4 +1,4 @@
-@testitem "Comparison of VanillaExx to AceExx" tags=[:exx] setup=[TestCases] begin
+@testitem "Comparison of VanillaExx to AceExx" tags=[:exx,:dont_test_mpi] setup=[TestCases] begin
     using DFTK
     using LinearAlgebra
     using .TestCases: silicon
