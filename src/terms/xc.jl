@@ -60,7 +60,7 @@ struct TermXc{T,CT} <: TermNonlinear where {T,CT}
 end
 DftFunctionals.needs_τ(term::TermXc) = any(needs_τ, term.functionals)
 
-@timing function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupation;
+function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupation;
                            ρ, τ=nothing) where {T}
     @assert !isempty(term.functionals)
 
@@ -105,9 +105,7 @@ DftFunctionals.needs_τ(term::TermXc) = any(needs_τ, term.functionals)
 
     # Evaluate terms and energy contribution
     # If the XC functional is not supported for an architecture, terms is on the CPU
-    @timing "potential_terms" begin
-        terms = potential_terms(term.functionals, density)
-    end
+    terms = potential_terms(term.functionals, density)
     @assert haskey(terms, :Vρ) && haskey(terms, :e)
     E = term.scaling_factor * sum(terms.e) * basis.dvol
 
@@ -308,7 +306,7 @@ end
 """
 Compute density in real space and its derivatives starting from ρ
 """
-@timing function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
+function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
     model = basis.model
     @assert max_derivative in (0, 1, 2)
 
@@ -377,6 +375,7 @@ function compute_kernel(term::TermXc, basis::PlaneWaveBasis{T}; ρ, kwargs...) w
         δpotential = ForwardDiff.derivative(f_spinless, zero(T))
         Diagonal(vec(δpotential))
     else
+        # We could use chunking instead, but this is simpler and not performance-critical.
         function f_collinear(ε)
             dρ1 = reshape([ε, 0], 1, 1, 1, 2)
             dρ2 = reshape([0, ε], 1, 1, 1, 2)
@@ -391,15 +390,30 @@ end
 
 
 function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArray{Tδρ};
-                      ρ, q=zero(Vec3{T}), kwargs...) where {T, Tδρ}
+                      ρ, q=zero(Vec3{T}), kwargs...) where {T, Tδρ<:Union{T,Complex{T}}}
     isempty(term.functionals) && return nothing
     @assert all(family(xc) in (:lda, :gga) for xc in term.functionals)
+
     if !iszero(q) && !isnothing(term.ρcore)
-        error("Phonon computations are not supported for models using nonlinear " *
-              "core correction.")
+        error("Phonon computations are not supported for models using nonlinear core \
+              correction.")
     end
-    f(ε) = xc_potential_real(term, basis, nothing, nothing; ρ=ρ+ε*δρ).potential
-    ForwardDiff.derivative(f, zero(T))
+
+    # Key insight: kernel application is just a Hessian-vector product,
+    # which is computed with a push-forward of the gradient.
+    f(ρ_eval) = xc_potential_real(term, basis, nothing, nothing; ρ=ρ_eval).potential
+    Tag = typeof(ForwardDiff.Tag(f, T))
+    if Tδρ <: T
+        # Usually δρ has the same type, so we do a standard push-forward
+        ε = Dual{Tag}(zero(T), one(T))
+        ForwardDiff.partials.(f(ρ .+ ε .* δρ), 1)
+    else
+        # But for complex δρ (phonons) we need to push the real and imaginary parts forward separately
+        ε1 = Dual{Tag}(zero(T), one(T), zero(T))
+        ε2 = Dual{Tag}(zero(T), zero(T), one(T))
+        potential = f(ρ .+ ε1 .* real.(δρ) .+ ε2 .* imag.(δρ))
+        ForwardDiff.partials.(potential, 1) .+ im .* ForwardDiff.partials.(potential, 2)
+    end
 end
 
 function mergesum(nt1::NamedTuple{An}, nt2::NamedTuple{Bn}) where {An, Bn}
