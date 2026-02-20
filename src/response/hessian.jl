@@ -267,6 +267,10 @@ Input parameters:
                                     maxiter=100, krylovdim=20, s=100,
                                     callback=verbose ? OmegaPlusKDefaultCallback() : identity,
                                     kwargs...) where {T}
+    if mpi_master(MPI.COMM_WORLD)
+        show(stdout, "text/plain", stacktrace())
+        println()
+    end
     # TODO mixing=LdosMixing(; adjust_temperature=UseScfTemperature()) would be a better
     #      default in theory, but does not work out of the box, so not done for now
     # TODO Debug why and enable LdosMixing by default
