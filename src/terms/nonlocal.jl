@@ -234,6 +234,13 @@ function build_form_factors(fun::Function, l::Int,
     # Pre-compute the radial parts of the non-local atomic functions at unique |p| to speed up
     # the form factor calculation (by a lot). Using a hash map gives O(1) lookup.
 
+    #TODO: for now, assume we get a CPU G_plus_ks, but in the future, might not be the case,
+    #      because there is probably some unnecessary back and forth
+
+    # TODO: the very expensive bit is fun(p_norm), so we want to compute it in the main parallel loop
+    #       I think we need to follow the same approach as the Local term, where form_factors are
+    #       computed for unique |p|, and a mapping is provided too. Maybe we need to do that first,
+    #       and then think about GPUs
     radials = IdDict{T,T}()  # IdDict for Dual compatibility
     for G_plus_k in G_plus_ks
         for p in G_plus_k
@@ -248,6 +255,7 @@ function build_form_factors(fun::Function, l::Int,
     form_factors = Vector{Matrix{Complex{T}}}(undef, length(G_plus_ks))
     for (ik, G_plus_k) in enumerate(G_plus_ks)
         form_factors_ik = Matrix{Complex{T}}(undef, length(G_plus_k), 2l + 1)
+        #TODO: this is the loop to parallelize
         for (ip, p) in enumerate(G_plus_k)
             radials_p = radials[norm(p)]
             for m = -l:l
