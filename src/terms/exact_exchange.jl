@@ -10,7 +10,7 @@ abstract type ExxAlgorithm end
 @kwdef struct ExactExchange
     scaling_factor::Real = 1.0
     coulomb_kernel_model::CoulombKernelModel = ProbeCharge()
-    exx_algorithm::ExxAlgorithm = VanillaExx()
+    exx_algorithm::ExxAlgorithm = AceExx()
 end
 function (exchange::ExactExchange)(basis)
     TermExactExchange(basis, exchange.scaling_factor,
