@@ -256,7 +256,7 @@ J. Chem. Phys. 160, 051101 (2024) (doi.org/10.1063/5.0182729)
 struct VoxelAveraged <: CoulombKernelModel 
     N_quadrature_points::Int
 end
-VoxelAveraged(; quadrature_points=12) = VoxelAveraged(quadrature_points)
+VoxelAveraged(; N_quadrature_points=12) = VoxelAveraged(N_quadrature_points)
 function _compute_coulomb_kernel(kernel::VoxelAveraged, basis::PlaneWaveBasis{T},
                                  qpt::Kpoint, q::Vec3{T}) where {T}
     model = basis.model
