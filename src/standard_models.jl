@@ -122,8 +122,40 @@ function _model_DFT(functionals::AbstractVector, args...; kwargs...)
     _model_DFT(Xc(functionals), args...; kwargs...)
 end
 function _model_DFT(xc::Xc, args...; extra_terms=[], kwargs...)
+    if any(f -> (f isa Libxc.Functional && Libxc.is_hybrid(f)), xc.functionals)
+        @warn "Hybrid functionals currently require the user to manually add the exact exchange term."
+    end
     model_name = isempty(xc.functionals) ? "rHF" : join(string.(xc.functionals), "+")
     model_atomic(args...; extra_terms=[Hartree(), xc, extra_terms...], model_name, kwargs...)
+end
+
+
+
+"""
+Build an Hartree-Fock model from the specified atoms.
+
+!!! warn "Hartree-Fock is experimental"
+         The interface may change at any moment, which is not considered a breaking change.
+         Note further that at this stage (Feb 2026) there are still known performance bottle
+         necks in the code.
+"""
+function model_HF(system::AbstractSystem; pseudopotentials, 
+                  coulomb_kernel_model::CoulombKernelModel=ProbeCharge(),
+                  exx_algorithm::ExxAlgorithm=AceExx(), extra_terms=[], kwargs...)
+    # Note: We are deliberately enforcing the user to specify pseudopotentials here.
+    # See the implementation of model_atomic for a rationale why
+    #
+    exx = ExactExchange(; coulomb_kernel_model, exx_algorithm)
+    model_atomic(system; pseudopotentials,
+                 model_name="HF", extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
+end
+function model_HF(lattice::AbstractMatrix, atoms::Vector{<:Element},
+                  positions::Vector{<:AbstractVector};
+                  coulomb_kernel_model::CoulombKernelModel=ProbeCharge(),
+                  exx_algorithm::ExxAlgorithm=AceExx(), extra_terms=[], kwargs...)
+    exx = ExactExchange(; coulomb_kernel_model, exx_algorithm)
+    model_atomic(lattice, atoms, positions;
+                 model_name="HF", extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
 end
 
 
@@ -142,6 +174,12 @@ Specify an PBE GGA model in conjunction with [`model_DFT`](@ref)
 <https://doi.org/10.1103/PhysRevLett.77.3865>
 """
 PBE(; kwargs...) = Xc([:gga_x_pbe, :gga_c_pbe]; kwargs...)
+
+"""
+Specify a PBE0 hybrid functional in conjunction with [`model_DFT`](@ref)
+<https://doi.org/10.1063/1.478522>
+"""
+PBE0(; kwargs...) = Xc([:hyb_gga_xc_pbeh]; kwargs...)
 
 """
 Specify an PBEsol GGA model in conjunction with [`model_DFT`](@ref)
