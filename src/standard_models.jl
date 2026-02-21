@@ -106,29 +106,63 @@ function model_DFT(system::AbstractSystem; pseudopotentials, functionals, kwargs
     _model_DFT(functionals, parsed.lattice, parsed.atoms, parsed.positions;
                parsed.magnetic_moments, kwargs...)
 end
-function model_DFT(lattice::AbstractMatrix,
-                   atoms::Vector{<:Element},
-                   positions::Vector{<:AbstractVector};
-                   functionals, kwargs...)
+function model_DFT(lattice::AbstractMatrix, atoms::Vector{<:Element},
+                   positions::Vector{<:AbstractVector}; functionals, kwargs...)
+    _model_DFT(functionals, lattice, atoms, positions; kwargs...)
+end
+function _model_DFT(functionals::AbstractVector, args...; extra_terms=[], kwargs...)
+    (; model_name, dftterms) = _parse_functionals(functionals)
+    model_atomic(args...;
+                 extra_terms=[Hartree(), dftterms..., extra_terms...], model_name, kwargs...)
+end
+_model_DFT(xc::Xc, args...; kwargs...) = _model_DFT([xc], args...; kwargs...)
+
+function _parse_functionals(functionals::AbstractVector)
     # The idea is for the functionals keyword argument to be pretty smart in the long run,
     # such that things like
     #  - `model_DFT(system; functionals=B3LYP())`
     #  - `model_DFT(system; functionals=[LibxcFunctional(:lda_x)])`
     #  - `model_DFT(system; functionals=[:lda_x, :lda_c_pw, HubbardU(data)])`
+    #  - `model_DFT(system; functionals=[:hyb_gga_xc_pbeh])'
     # will all work.
-    _model_DFT(functionals, lattice, atoms, positions; kwargs...)
-end
-function _model_DFT(functionals::AbstractVector, args...; kwargs...)
-    _model_DFT(Xc(functionals), args...; kwargs...)
-end
-function _model_DFT(xc::Xc, args...; extra_terms=[], kwargs...)
-    if any(f -> (f isa Libxc.Functional && Libxc.is_hybrid(f)), xc.functionals)
-        @warn "Hybrid functionals currently require the user to manually add the exact exchange term."
-    end
-    model_name = isempty(xc.functionals) ? "rHF" : join(string.(xc.functionals), "+")
-    model_atomic(args...; extra_terms=[Hartree(), xc, extra_terms...], model_name, kwargs...)
-end
+    # This function does the parsing and returns the terms and model_name to be used
+    # with model_atomic
 
+    exx  = nothing
+    xc   = nothing
+    rest = eltype(functionals)[]
+    for fun in functionals
+        if fun isa ExactExchange
+            exx = fun
+        elseif fun isa Xc
+            xc = fun
+        else
+            push!(rest, fun)
+        end
+    end
+
+    if !isnothing(xc) && !isempty(rest)
+        throw(ArgumentError("Cannot provide both xc object and constituent functionals " *
+        "to functionals keyword."))
+    end
+    xc = @something xc Xc(functionals)
+
+    # Add hybrid functional if functional is hybrid, but no EXX given so far.
+    exx_coeffs = filter(!isnothing, map(exx_coefficient, xc.functionals))
+    if isnothing(exx) && !isempty(exx_coeffs)
+        exx = ExactExchange(; scaling_factor=only(exx_coeffs))
+    end
+
+    if !isempty(xc.functionals)
+        model_name = join(string.(xc.functionals), "+")
+    elseif isnothing(exx)
+        model_name = "rHF"
+    else
+        model_name = "HF"
+    end
+
+    (; model_name, dftterms=filter(!isnothing, [exx, xc]))
+end
 
 
 """
@@ -179,7 +213,7 @@ PBE(; kwargs...) = Xc([:gga_x_pbe, :gga_c_pbe]; kwargs...)
 Specify a PBE0 hybrid functional in conjunction with [`model_DFT`](@ref)
 <https://doi.org/10.1063/1.478522>
 """
-PBE0(; kwargs...) = Xc([:hyb_gga_xc_pbeh]; kwargs...)
+PBE0(; kwargs...) = HybridFunctional([:hyb_gga_xc_pbeh]; kwargs...)
 
 """
 Specify an PBEsol GGA model in conjunction with [`model_DFT`](@ref)
@@ -199,6 +233,20 @@ Specify a r2SCAN meta-GGA model in conjunction with [`model_DFT`](@ref)
 """
 r2SCAN(; kwargs...) = Xc([:mgga_x_r2scan, :mgga_c_r2scan]; kwargs...)
 
+
+# Internal function to help define hybrid functional shorthands
+function HybridFunctional(libxc_symbols;
+                          exx_fraction=nothing,
+                          coulomb_kernel_model::CoulombKernelModel=ProbeCharge(),
+                          exx_algorithm::ExxAlgorithm=AceExx(), kwargs...)
+    xc  = Xc(libxc_symbols; kwargs...)
+    scaling_factor = @something(exx_fraction, begin
+        only(filter(!isnothing, map(exx_coefficient, xc.functionals)))
+    end)
+
+    exx = ExactExchange(; scaling_factor, coulomb_kernel_model, exx_algorithm)
+    [xc, exx]
+end
 
 @deprecate(model_LDA(lattice::AbstractMatrix, atoms::Vector{<:Element},
                      positions::Vector{<:AbstractVector}; kwargs...),
