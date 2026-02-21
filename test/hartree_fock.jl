@@ -132,7 +132,7 @@ end
                       coulomb_kernel_model=SphericallyTruncated(), 
                       exx_algorithm=AceExx())
     basis  = PlaneWaveBasis(model, Ecut=40; kgrid=[1, 1, 1])
-    
+
     RunSCF.run_scf_and_compare(Float64, basis, ref_hf, ref_etot;
                                scf_ene_tol=1e-10, test_tol=5e-5, n_ignored=0,
                                # TODO: Anderson right does not yet work well for Hartree-Fock
@@ -145,6 +145,8 @@ end
     using DFTK
     using LinearAlgebra
     using PseudoPotentialData
+
+    # TODO: Use system interface here in order to test it once in tests
 
     pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_5.stringent.upf") 
     H = ElementPsp(:H, pseudopotentials)
