@@ -81,6 +81,12 @@ argument is mandatory to specify pseudopotential information. This can be easily
 achieved for example using the `PseudoFamily` struct from the `PseudoPotentialData`
 package as shown below:
 
+!!! warn "Hybrid DFT is experimental"
+         The interface for Hybrid DFT models may change at any moment,
+         which is not considered a breaking change.
+         Note further that at this stage (Feb 2026) there are still
+         known performance bottle necks in the code.
+
 # Examples
 ```julia-repl
 julia> model_DFT(system; functionals=LDA(), temperature=0.01,
@@ -212,6 +218,11 @@ PBE(; kwargs...) = Xc([:gga_x_pbe, :gga_c_pbe]; kwargs...)
 """
 Specify a PBE0 hybrid functional in conjunction with [`model_DFT`](@ref)
 <https://doi.org/10.1063/1.478522>
+
+!!! warn "Hybrid DFT is experimental"
+         The interface may change at any moment, which is not considered a breaking change.
+         Note further that at this stage (Feb 2026) there are still known performance bottle
+         necks in the code.
 """
 PBE0(; kwargs...) = HybridFunctional([:hyb_gga_xc_pbeh]; kwargs...)
 
