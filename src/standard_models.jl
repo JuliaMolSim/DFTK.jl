@@ -173,7 +173,7 @@ function _parse_functionals(functionals::AbstractVector)
     else
         model_name = join(string.(xc.functionals), "+")
     end
-    (; model_name, dftterms=filter(!isnothing, [exx, xc]))
+    (; model_name, dftterms=filter(!isnothing, [xc, exx]))
 end
 
 
