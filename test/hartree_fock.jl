@@ -9,7 +9,7 @@
     # These values were computed using QuantumEspresso with one kpoint and Ecut = 20
     # using exactly the same settings (no ACE, no treatment of Coulomb singularity)
     #
-    ref_εF =  0.565145985516737
+    ref_εF = 0.565145985516737
     ref_hf = [
         [2.833325458164758E-002, 5.122487481436300E-001, 5.122487481437534E-001,
          5.122487481437670E-001, 5.880655155002166E-001, 5.880655155002978E-001,
