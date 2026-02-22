@@ -120,7 +120,7 @@ function Hubbard(manifolds::Vector{OrbitalManifold}, U::Vector{T}) where {T}
     U = austrip.(U)
     Hubbard{eltype(U)}(manifolds, U)
 end
-function Hubbard(manifold_to_U::Vararg{<:Pair})
+function Hubbard(manifold_to_U::Vararg{T}) where {T <: Pair}
     Hubbard([m[1] for m in manifold_to_U], [m[2] for m in manifold_to_U])
 end
 
