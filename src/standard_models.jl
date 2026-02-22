@@ -69,6 +69,10 @@ a list of objects subtyping `DftFunctionals.Functional` or a list of
 can be specified, see examples below.
 Note, that most DFT models require two symbols in the `functionals` list
 (one for the exchange and one for the correlation part).
+For the most important standard functionals, convenience wrappers can be
+used to directly pass the right set of arguments to the `functionals` keyword.
+See for example [`LDA`](@ref), [`PBE`](@ref), [`PBEsol`](@ref), [`SCAN`](@ref),
+[`r2SCAN`](@ref), [`PBE0`](@ref).
 
 If `functionals=[]` (empty list), then a reduced Hartree-Fock model is constructed.
 
@@ -151,6 +155,10 @@ function _parse_functionals(functionals::AbstractVector)
         throw(ArgumentError("Cannot provide both xc object and constituent functionals " *
         "to functionals keyword."))
     end
+    if isempty(functionals) && isnothing(exx)
+        throw(ArgumentError("Cannot use model_DFT to construct Hartree-Fock models. " * 
+                            "Use model_HF for this purpose."))
+    end
     xc = @something xc Xc(functionals)
 
     # Add hybrid functional if functional is hybrid, but no EXX given so far.
@@ -159,14 +167,12 @@ function _parse_functionals(functionals::AbstractVector)
         exx = ExactExchange(; scaling_factor=only(exx_coeffs))
     end
 
-    if !isempty(xc.functionals)
-        model_name = join(string.(xc.functionals), "+")
-    elseif isnothing(exx)
+    if isempty(xc.functionals)
+        @assert isnothing(exx)
         model_name = "rHF"
     else
-        model_name = "HF"
+        model_name = join(string.(xc.functionals), "+")
     end
-
     (; model_name, dftterms=filter(!isnothing, [exx, xc]))
 end
 
@@ -179,23 +185,23 @@ Build an Hartree-Fock model from the specified atoms.
          Note further that at this stage (Feb 2026) there are still known performance bottle
          necks in the code.
 """
-function model_HF(system::AbstractSystem; pseudopotentials, 
+function model_HF(system::AbstractSystem; pseudopotentials,
                   coulomb_kernel_model::CoulombKernelModel=ProbeCharge(),
                   exx_algorithm::ExxAlgorithm=AceExx(), extra_terms=[], kwargs...)
     # Note: We are deliberately enforcing the user to specify pseudopotentials here.
     # See the implementation of model_atomic for a rationale why
     #
     exx = ExactExchange(; coulomb_kernel_model, exx_algorithm)
-    model_atomic(system; pseudopotentials,
-                 model_name="HF", extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
+    model_atomic(system; pseudopotentials, model_name="HF",
+                 extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
 end
 function model_HF(lattice::AbstractMatrix, atoms::Vector{<:Element},
                   positions::Vector{<:AbstractVector};
                   coulomb_kernel_model::CoulombKernelModel=ProbeCharge(),
                   exx_algorithm::ExxAlgorithm=AceExx(), extra_terms=[], kwargs...)
     exx = ExactExchange(; coulomb_kernel_model, exx_algorithm)
-    model_atomic(lattice, atoms, positions;
-                 model_name="HF", extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
+    model_atomic(lattice, atoms, positions; model_name="HF",
+                 extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
 end
 
 
@@ -205,19 +211,45 @@ end
 
 """
 Specify an LDA model (Perdew & Wang parametrization) in conjunction with [`model_DFT`](@ref)
-<https://doi.org/10.1103/PhysRevB.45.13244>
+<https://doi.org/10.1103/PhysRevB.45.13244>.
+Possible keyword arguments are those accepted by [`Xc`](@ref).
 """
 LDA(; kwargs...) = Xc([:lda_x, :lda_c_pw]; kwargs...)
 
 """
 Specify an PBE GGA model in conjunction with [`model_DFT`](@ref)
-<https://doi.org/10.1103/PhysRevLett.77.3865>
+<https://doi.org/10.1103/PhysRevLett.77.3865>.
+Possible keyword arguments are those accepted by [`Xc`](@ref).
 """
 PBE(; kwargs...) = Xc([:gga_x_pbe, :gga_c_pbe]; kwargs...)
 
 """
+Specify an PBEsol GGA model in conjunction with [`model_DFT`](@ref)
+<https://doi.org/10.1103/physrevlett.100.136406>.
+Possible keyword arguments are those accepted by [`Xc`](@ref).
+"""
+PBEsol(; kwargs...) = Xc([:gga_x_pbe_sol, :gga_c_pbe_sol]; kwargs...)
+
+"""
+Specify a SCAN meta-GGA model in conjunction with [`model_DFT`](@ref)
+<https://doi.org/10.1103/PhysRevLett.115.036402>.
+Possible keyword arguments are those accepted by [`Xc`](@ref).
+"""
+SCAN(; kwargs...) = Xc([:mgga_x_scan, :mgga_c_scan]; kwargs...)
+
+"""
+Specify a r2SCAN meta-GGA model in conjunction with [`model_DFT`](@ref)
+<http://doi.org/10.1021/acs.jpclett.0c02405>.
+Possible keyword arguments are those accepted by [`Xc`](@ref).
+"""
+r2SCAN(; kwargs...) = Xc([:mgga_x_r2scan, :mgga_c_r2scan]; kwargs...)
+
+"""
 Specify a PBE0 hybrid functional in conjunction with [`model_DFT`](@ref)
-<https://doi.org/10.1063/1.478522>
+<https://doi.org/10.1063/1.478522>.
+Possible keyword arguments are those accepted by [`Xc`](@ref) and by
+[`ExactExchange`](@ref). Use the keyword argument `exx_fraction` to specify a
+custom exact exchange fraction.
 
 !!! warn "Hybrid DFT is experimental"
          The interface may change at any moment, which is not considered a breaking change.
@@ -225,24 +257,6 @@ Specify a PBE0 hybrid functional in conjunction with [`model_DFT`](@ref)
          necks in the code.
 """
 PBE0(; kwargs...) = HybridFunctional([:hyb_gga_xc_pbeh]; kwargs...)
-
-"""
-Specify an PBEsol GGA model in conjunction with [`model_DFT`](@ref)
-<https://doi.org/10.1103/physrevlett.100.136406>
-"""
-PBEsol(; kwargs...) = Xc([:gga_x_pbe_sol, :gga_c_pbe_sol]; kwargs...)
-
-"""
-Specify a SCAN meta-GGA model in conjunction with [`model_DFT`](@ref)
-<https://doi.org/10.1103/PhysRevLett.115.036402>
-"""
-SCAN(; kwargs...) = Xc([:mgga_x_scan, :mgga_c_scan]; kwargs...)
-
-"""
-Specify a r2SCAN meta-GGA model in conjunction with [`model_DFT`](@ref)
-<http://doi.org/10.1021/acs.jpclett.0c02405>
-"""
-r2SCAN(; kwargs...) = Xc([:mgga_x_r2scan, :mgga_c_r2scan]; kwargs...)
 
 
 # Internal function to help define hybrid functional shorthands
