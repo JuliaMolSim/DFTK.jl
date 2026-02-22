@@ -155,11 +155,11 @@ function _parse_functionals(functionals::AbstractVector)
         throw(ArgumentError("Cannot provide both xc object and constituent functionals " *
         "to functionals keyword."))
     end
-    if isempty(functionals) && isnothing(exx)
+    xc = @something xc Xc(rest)
+    if isempty(xc.functionals) && !isnothing(exx)
         throw(ArgumentError("Cannot use model_DFT to construct Hartree-Fock models. " * 
                             "Use model_HF for this purpose."))
     end
-    xc = @something xc Xc(functionals)
 
     # Add hybrid functional if functional is hybrid, but no EXX given so far.
     exx_coeffs = filter(!isnothing, map(exx_coefficient, xc.functionals))
