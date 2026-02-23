@@ -171,7 +171,7 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     n_proj = count_n_proj(psps, psp_positions)
     n_G    = length(G_vectors(basis, kpt))
     proj_vectors = zeros(Complex{eltype(psp_positions[1][1])}, n_G, n_proj)
-    G_plus_k = to_cpu(Gplusk_vectors(basis, kpt))
+    G_plus_k = to_cpu(Gplusk_vectors(basis, kpt)) #TODO: sort out all CPU/GPU locations
 
     # Compute the columns of proj_vectors = 1/√Ω \hat proj_i(k+G)
     # Since the proj_i are translates of each others, \hat proj_i(k+G) decouples as
@@ -204,74 +204,108 @@ end
 Build form factors (Fourier transforms of projectors) for all orbitals of an atom centered at 0.
 """
 function build_projector_form_factors(psp::NormConservingPsp,
-                                      G_plus_k::AbstractVector{Vec3{TT}}) where {TT}
-    G_plus_ks = [G_plus_k]
+                                      G_plus_k::AbstractVector{Vec3{T}}) where {T}
+
+    #TODO: clean-up and add comments
+    Gpk = to_cpu(G_plus_k)
+    arch = architecture(G_plus_k)
+
+    iG2ifnorm_cpu = zeros(Int, length(Gpk))
+    norm_indices = IdDict{T, Int}()
+    p_norms = zeros(T, length(Gpk))
+    for (iG, G) in enumerate(Gpk)
+        p = norm(G)
+        iG2ifnorm_cpu[iG] = get!(norm_indices, p, length(norm_indices) + 1)
+    end
+    iG2ifnorm = to_device(arch, iG2ifnorm_cpu)
+
+    ni_pairs = collect(pairs(norm_indices))
+    ps = to_device(arch, first.(ni_pairs))
+    p_indices = to_device(arch, last.(ni_pairs))
 
     n_proj = count_n_proj(psp)
-    form_factors = zeros(Complex{TT}, length(G_plus_k), n_proj)
+    form_factors = similar(G_plus_k, Complex{T}, length(G_plus_k), n_proj)
+    G_indices = to_device(arch, collect(1:length(G_plus_k)))
+    proj_li = similar(G_indices, Complex{T}, length(G_indices))
     for l = 0:psp.lmax, 
         n_proj_l = count_n_proj_radial(psp, l)
         offset = sum(x -> count_n_proj(psp, x), 0:l-1; init=0) .+ 
                  n_proj_l .* (collect(1:2l+1) .- 1) # offset about m for a given l 
         for i = 1:n_proj_l
-            proj_li(p) = eval_psp_projector_fourier(psp, i, l, p)
-            form_factors_li = build_form_factors(proj_li, l, G_plus_ks)
-            @views form_factors[:, offset.+i] = form_factors_li[1]
-        end
-    end
-
-    form_factors
-end
-
-"""
-Build Fourier transform factors of an atomic function centered at 0 for a given l.
-"""
-function build_form_factors(fun::Function, l::Int,
-                            G_plus_ks::AbstractVector{<:AbstractVector{Vec3{TT}}}) where {TT}
-    # TODO this function can be generally useful, should refactor to a separate file eventually
-    T = real(TT)
-
-    # Pre-compute the radial parts of the non-local atomic functions at unique |p| to speed up
-    # the form factor calculation (by a lot). Using a hash map gives O(1) lookup.
-
-    #TODO: for now, assume we get a CPU G_plus_ks, but in the future, might not be the case,
-    #      because there is probably some unnecessary back and forth
-
-    # TODO: the very expensive bit is fun(p_norm), so we want to compute it in the main parallel loop
-    #       I think we need to follow the same approach as the Local term, where form_factors are
-    #       computed for unique |p|, and a mapping is provided too. Maybe we need to do that first,
-    #       and then think about GPUs
-    #       But actually, since this functions is called many times, and G_plus_k remains the same,
-    #       the unique norm analysis should be done 1 level above, and passed down.
-
-    radials = IdDict{T,T}()  # IdDict for Dual compatibility
-    for G_plus_k in G_plus_ks
-        for p in G_plus_k
-            p_norm = norm(p)
-            if !haskey(radials, p_norm)
-                radials_p = fun(p_norm)
-                radials[p_norm] = radials_p
-            end
-        end
-    end
-
-    form_factors = Vector{Matrix{Complex{T}}}(undef, length(G_plus_ks))
-    for (ik, G_plus_k) in enumerate(G_plus_ks)
-        form_factors_ik = Matrix{Complex{T}}(undef, length(G_plus_k), 2l + 1)
-        #TODO: this is the loop to parallelize
-        for (ip, p) in enumerate(G_plus_k)
-            radials_p = radials[norm(p)]
+            proj_li[p_indices] .= eval_psp_projector_fourier(psp, i, l, ps) # integrate for all norms at once
             for m = -l:l
-                # see "Fourier transforms of centered functions" in the docs for the formula
-                angular = (-im)^l * ylm_real(l, m, p)
-                form_factors_ik[ip, m+l+1] = radials_p * angular
+                #TODO: why does map! fail (zeros in output array)
+                tmp = map(G_indices) do iG
+                #map!(form_factors[:, offset[m + l + 1] + i], G_indices) do iG
+                    angular = (-im)^l * ylm_real(l, m, G_plus_k[iG])
+                    proj_li[iG2ifnorm[iG]] * angular # or iG2ifnorm[i] ?, prob not
+                end
+                form_factors[:, offset[m + l + 1] + i] .= tmp
             end
         end
-        form_factors[ik] = form_factors_ik
     end
-
     form_factors
 end
+
+# TODO: tmp implementations, before clean-up and GPU opt
+function eval_psp_projector_fourier(psp::NormConservingPsp, i::Int, l::Int,
+                                    ps::AbstractVector{T}) where {T}
+    arch = architecture(ps)
+    to_device(arch, map(p -> eval_psp_projector_fourier(psp, i, l, p), to_cpu(ps)))
+end
+
+#"""
+#Build Fourier transform factors of an atomic function centered at 0 for a given l.
+#"""
+#function build_form_factors(fun::Function, l::Int,
+#                            G_plus_ks::AbstractVector{<:AbstractVector{Vec3{TT}}}) where {TT}
+#    # TODO this function can be generally useful, should refactor to a separate file eventually
+#    T = real(TT)
+#
+#    # Pre-compute the radial parts of the non-local atomic functions at unique |p| to speed up
+#    # the form factor calculation (by a lot). Using a hash map gives O(1) lookup.
+#
+#    #TODO: for now, assume we get a CPU G_plus_ks, but in the future, might not be the case,
+#    #      because there is probably some unnecessary back and forth
+#
+#    # TODO: the very expensive bit is fun(p_norm), so we want to compute it in the main parallel loop
+#    #       I think we need to follow the same approach as the Local term, where form_factors are
+#    #       computed for unique |p|, and a mapping is provided too. Maybe we need to do that first,
+#    #       and then think about GPUs
+#    #       But actually, since this functions is called many times, and G_plus_k remains the same,
+#    #       the unique norm analysis should be done 1 level above, and passed down.
+#
+#    #TODO: actually, the refactoring needs to take place one level up punkt schluss, because we can
+#    #      follow the usual pattern for the integration on the GPU
+#
+#    radials = IdDict{T,T}()  # IdDict for Dual compatibility
+#    for G_plus_k in G_plus_ks
+#        for p in G_plus_k
+#            p_norm = norm(p)
+#            if !haskey(radials, p_norm)
+#                radials_p = fun(p_norm)
+#                radials[p_norm] = radials_p
+#            end
+#        end
+#    end
+#
+#    form_factors = Vector{Matrix{Complex{T}}}(undef, length(G_plus_ks))
+#    for (ik, G_plus_k) in enumerate(G_plus_ks)
+#        form_factors_ik = Matrix{Complex{T}}(undef, length(G_plus_k), 2l + 1)
+#        #TODO: this is the loop to parallelize
+#        for (ip, p) in enumerate(G_plus_k)
+#            radials_p = radials[norm(p)]
+#            for m = -l:l
+#                # see "Fourier transforms of centered functions" in the docs for the formula
+#                angular = (-im)^l * ylm_real(l, m, p)
+#                form_factors_ik[ip, m+l+1] = radials_p * angular
+#            end
+#        end
+#        form_factors[ik] = form_factors_ik
+#    end
+#
+#    form_factors
+#end
 
 # Helpers for phonon computations.
 function build_projection_coefficients(basis::PlaneWaveBasis{T}, psp_groups) where {T}
