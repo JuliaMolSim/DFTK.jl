@@ -7,6 +7,12 @@ Exact exchange term: the Hartree-Exact exchange energy of the orbitals
 
 abstract type ExxAlgorithm end
 
+"""
+Unscreened exact exchange (exx) term. Keyword arguments:
+- `scaling_factor::Real`: Bulk scaling of the entire term
+- `singularity_treatment::CoulombSingulartyTreatment`: Method for treating Coulomb singularity
+- `exx_algorithm::ExxAlgorithm`: Algorithm for evaluating the exx contribution
+"""
 @kwdef struct ExactExchange
     scaling_factor::Real = 1.0
     singularity_treatment::CoulombSingulartyTreatment = ProbeCharge()

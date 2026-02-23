@@ -13,7 +13,7 @@ abstract type RealFourierOperator end
 Base.Array(op::RealFourierOperator) = Matrix(op)
 
 # Slow fallback for getting operator as a dense matrix
-function Matrix(op::RealFourierOperator)
+function Base.Matrix(op::RealFourierOperator)
     T = complex(eltype(op.basis))
     n_G = length(G_vectors(op.basis, op.kpoint))
     H = zeros(T, n_G, n_G)
