@@ -5,16 +5,16 @@
 
     function test_acexx_consistency(; kgrid=[1, 2, 3], kshift=[0, 1, 0]/2, Ecut=10,
                                       n_empty=3, atol=1e-8, spin_polarization=:none,
-                                      coulomb_kernel_model=ProbeCharge())
+                                      singularity_treatment=ProbeCharge())
         Si = ElementPsp(14, load_psp(silicon.psp_upf))
         model_ref = Model(silicon.lattice, [Si, Si], silicon.positions;
                           spin_polarization, symmetries=true,
-                          terms=[ExactExchange(; exx_algorithm=VanillaExx(), coulomb_kernel_model)])
+                          terms=[ExactExchange(; exx_algorithm=VanillaExx(), singularity_treatment)])
         basis_ref = PlaneWaveBasis(model_ref; Ecut, kgrid=MonkhorstPack(kgrid; kshift))
 
         model_ace = Model(silicon.lattice, [Si, Si], silicon.positions;
                           spin_polarization, symmetries=true,
-                          terms=[ExactExchange(; exx_algorithm=AceExx(), coulomb_kernel_model)])
+                          terms=[ExactExchange(; exx_algorithm=AceExx(), singularity_treatment)])
         basis_ace = PlaneWaveBasis(model_ace; Ecut, kgrid=MonkhorstPack(kgrid; kshift))
 
         n_bands = div(silicon.n_electrons, 2, RoundUp)

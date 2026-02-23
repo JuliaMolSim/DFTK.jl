@@ -140,22 +140,22 @@ Build an Hartree-Fock model from the specified atoms.
          necks in the code.
 """
 function model_HF(system::AbstractSystem; pseudopotentials, 
-                  coulomb_kernel_model::CoulombKernelModel=ProbeCharge(),
+                  singularity_treatment::CoulombSingulartyTreatment=ProbeCharge(),
                   exx_algorithm::ExxAlgorithm=AceExx(), extra_terms=[], kwargs...)
     # Note: We are deliberately enforcing the user to specify pseudopotentials here.
     # See the implementation of model_atomic for a rationale why
     #
-    exx = ExactExchange(; coulomb_kernel_model, exx_algorithm)
-    model_atomic(system; pseudopotentials,
-                 model_name="HF", extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
+    exx = ExactExchange(; singularity_treatment, exx_algorithm)
+    model_atomic(system; pseudopotentials, model_name="HF",
+                 extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
 end
 function model_HF(lattice::AbstractMatrix, atoms::Vector{<:Element},
                   positions::Vector{<:AbstractVector};
-                  coulomb_kernel_model::CoulombKernelModel=ProbeCharge(),
+                  singularity_treatment::CoulombSingulartyTreatment=ProbeCharge(),
                   exx_algorithm::ExxAlgorithm=AceExx(), extra_terms=[], kwargs...)
-    exx = ExactExchange(; coulomb_kernel_model, exx_algorithm)
-    model_atomic(lattice, atoms, positions;
-                 model_name="HF", extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
+    exx = ExactExchange(; singularity_treatment, exx_algorithm)
+    model_atomic(lattice, atoms, positions; model_name="HF",
+                 extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
 end
 
 
@@ -198,7 +198,6 @@ Specify a r2SCAN meta-GGA model in conjunction with [`model_DFT`](@ref)
 <http://doi.org/10.1021/acs.jpclett.0c02405>
 """
 r2SCAN(; kwargs...) = Xc([:mgga_x_r2scan, :mgga_c_r2scan]; kwargs...)
-
 
 @deprecate(model_LDA(lattice::AbstractMatrix, atoms::Vector{<:Element},
                      positions::Vector{<:AbstractVector}; kwargs...),

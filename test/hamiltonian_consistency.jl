@@ -139,7 +139,7 @@ end
 
     @testset "Exact exchange" begin
         for exx_algorithm in (VanillaExx(), AceExx())
-            test_consistency_term(ExactExchange(; coulomb_kernel_model=ProbeCharge(), exx_algorithm);
+            test_consistency_term(ExactExchange(; singularity_treatment=ProbeCharge(), exx_algorithm);
                                   kgrid=(1, 1, 1), kshift=(0, 0, 0))
         end
         test_consistency_term(ExactExchange(); spin_polarization=:collinear,
