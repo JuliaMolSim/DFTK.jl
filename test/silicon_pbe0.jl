@@ -15,7 +15,7 @@
     ref_etot = -7.299027688178781
 
     # Adjust bands to Fermi level changes between QE and DFTK
-    δεF = 0.49594239176094174
+    δεF = 0.31987742795556495
     ref_hf = [e .+ (- ref_εF + δεF) for e in ref_hf]
 
     # First run PBE to get initial guess
@@ -33,17 +33,17 @@
                            functionals=PBE(), temperature=0.001,
                            smearing=DFTK.Smearing.Gaussian())
     basis_pbe  = PlaneWaveBasis(model_pbe; Ecut=20, kgrid=[1, 1, 1])
-    scfres_pbe = self_consistent_field(basis_pbe; tol=1e-4, seed=0xadcdb6c21c47beb1)
+    scfres_pbe = self_consistent_field(basis_pbe; tol=1e-4)
 
-    # Then run Hartree-Fock
-    model = model_HF(lattice, atoms, positions;
+    pbe0 = PBE0(exx_algorithm=AceExx(), coulomb_kernel_model=NeglectSingularity())
+    model = model_DFT(lattice, atoms, positions;
                      temperature=0.001, smearing=DFTK.Smearing.Gaussian(),
-                     exx_algorithm=AceExx(),
-                     coulomb_kernel_model=NeglectSingularity())
+                     functionals=pbe0)
     basis = PlaneWaveBasis(model; Ecut=20, kgrid=[1, 1, 1])
 
+    # Note: With ACE enabled, the unoccupied orbitals are represented rather poorly.
     run_scf_and_compare(Float64, basis, ref_hf, ref_etot; 
-                        scf_ene_tol=1e-7, test_tol=1e-4, maxiter=20,
+                        scf_ene_tol=1e-8, test_tol=1e-4, n_ignored=4,
                         scfres_pbe.ψ, scfres_pbe.ρ,
                         scfres_pbe.eigenvalues, scfres_pbe.occupation,
                         # TODO: Anderson right does not yet work well for Hartree-Fock
