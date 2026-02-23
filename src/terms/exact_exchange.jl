@@ -10,7 +10,7 @@ abstract type ExxAlgorithm end
 @kwdef struct ExactExchange
     scaling_factor::Real = 1.0
     singularity_treatment::CoulombSingulartyTreatment = ProbeCharge()
-    exx_algorithm::ExxAlgorithm = AceExx()
+    exx_algorithm::ExxAlgorithm = VanillaExx()
 end
 function (ex::ExactExchange)(basis)
     TermExactExchange(basis, ex.scaling_factor, ex.singularity_treatment, ex.exx_algorithm)
