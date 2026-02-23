@@ -14,7 +14,7 @@ function DFTK.memory_usage(::GPU{<:CUDA.CuArray})
 end
 
 function DftFunctionals.potential_terms(fun::DispatchFunctional,
-                                        ρ::CUDA.CuMatrix{Float64}, args...)
+                                        ρ::CUDA.CuMatrix{<:Union{Float64,Dual{<:Any,Float64}}}, args...)
     @assert Libxc.has_cuda()
     potential_terms(fun.inner, ρ, args...)
 end
