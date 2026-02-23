@@ -16,11 +16,11 @@ model  = model_DFT(lattice, atoms, positions; functionals=PBE())
 basis  = PlaneWaveBasis(model; Ecut=20, kgrid=[1, 1, 1])
 scfres = self_consistent_field(basis; tol=1e-6)
 
-# Run Hartree-Fock
-model  = model_HF(lattice, atoms, positions)
+# Run PBE0
+model  = model_DFT(lattice, atoms, positions; functionals=PBE0())
 basis  = PlaneWaveBasis(model; basis.Ecut, basis.kgrid)
 scfres = self_consistent_field(basis;
                                solver=DFTK.scf_damping_solver(damping=1.0),
                                is_converged=ScfConvergenceEnergy(1e-7), 
-                               scfres.ρ, scfres.ψ, scfres.eigenvalues, # all three needed: ρ, ψ, eigenvalues
+                               scfres.ρ, scfres.ψ, scfres.occupation,
                                diagtolalg=DFTK.AdaptiveDiagtol(; ratio_ρdiff=5e-4))

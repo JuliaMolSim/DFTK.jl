@@ -9,7 +9,7 @@
     # These values were computed using QuantumEspresso with one kpoint and Ecut = 20
     # using exactly the same settings (no ACE, no treatment of Coulomb singularity)
     #
-    ref_εF =  0.565145985516737
+    ref_εF = 0.565145985516737
     ref_hf = [
         [2.833325458164758E-002, 5.122487481436300E-001, 5.122487481437534E-001,
          5.122487481437670E-001, 5.880655155002166E-001, 5.880655155002978E-001,
@@ -42,7 +42,7 @@
     model = model_HF(lattice, atoms, positions;
                      temperature=0.001, smearing=DFTK.Smearing.Gaussian(),
                      exx_algorithm=VanillaExx(),
-                     coulomb_kernel_model=NeglectSingularity())
+                     singularity_treatment=NeglectSingularity())
     basis = PlaneWaveBasis(model; Ecut=20, kgrid=[1, 1, 1])
 
     run_scf_and_compare(Float64, basis, ref_hf, ref_etot; 
@@ -91,7 +91,7 @@ end
 
     #= TODO: This test will be enabled once the WignerSeitz feature is available 
     model  = model_HF(lattice, atoms, positions; 
-                      coulomb_kernel_model=WignerSeitzTruncated(), 
+                      singularity_treatment=WignerSeitzTruncated(), 
                       exx_algorithm=VanillaExx())
     basis  = PlaneWaveBasis(model, Ecut=40; kgrid=[1, 1, 1])
 
@@ -133,7 +133,7 @@ end
     ref_etot = -31.240766149174128
 
     model  = model_HF(lattice, atoms, positions; 
-                      coulomb_kernel_model=SphericallyTruncated(), 
+                      singularity_treatment=SphericallyTruncated(), 
                       exx_algorithm=AceExx())
     basis  = PlaneWaveBasis(model, Ecut=40; kgrid=[1, 1, 1])
     
@@ -160,6 +160,8 @@ end
                  [0.25, 0.00, 0.00],
                  [0.50, 0.00, 0.00],
                  [0.75, 0.00, 0.00]] 
+    system = DFTK.periodic_system(lattice, atoms, positions)
+
     Ecut = 32
 
     # This created using the very first EXX implementation in DFTK
@@ -170,17 +172,14 @@ end
     ref_etot=-2.023997562144
     
     magnetic_moments = [+1.0, -1.0, +1.0, -1.0]
-    model  = model_DFT(lattice, atoms, positions;
-                       magnetic_moments, temperature=0.01, functionals=PBE())
+    model  = model_DFT(system; pseudopotentials, magnetic_moments,
+                       temperature=0.01, functionals=PBE())
     basis  = PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])
     ρ = guess_density(basis, magnetic_moments)
     scfres_pbe = self_consistent_field(basis; ρ, tol=1e-3)
     
-    model  = model_HF(lattice, atoms, positions; 
-                      coulomb_kernel_model=ProbeCharge(), 
-                      exx_algorithm=AceExx(),
-                      magnetic_moments,
-                      temperature=0.01)
+    model  = model_HF(system; pseudopotentials, magnetic_moments, temperature=0.01,
+                      singularity_treatment=ProbeCharge(), exx_algorithm=AceExx())
     basis  = PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])
     RunSCF.run_scf_and_compare(Float64, basis, ref_hf, ref_etot;
                                scf_ene_tol=1e-10, test_tol=5e-5, n_ignored=0,

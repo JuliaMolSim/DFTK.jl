@@ -7,14 +7,19 @@ Exact exchange term: the Hartree-Exact exchange energy of the orbitals
 
 abstract type ExxAlgorithm end
 
+"""
+Unscreened exact exchange (exx) term. Keyword arguments:
+- `scaling_factor::Real`: Bulk scaling of the entire term
+- `singularity_treatment::CoulombSingulartyTreatment`: Method for treating Coulomb singularity
+- `exx_algorithm::ExxAlgorithm`: Algorithm for evaluating the exx contribution
+"""
 @kwdef struct ExactExchange
     scaling_factor::Real = 1.0
-    coulomb_kernel_model::CoulombKernelModel = ProbeCharge()
-    exx_algorithm::ExxAlgorithm = AceExx()
+    singularity_treatment::CoulombSingulartyTreatment = ProbeCharge()
+    exx_algorithm::ExxAlgorithm = VanillaExx()
 end
-function (exchange::ExactExchange)(basis)
-    TermExactExchange(basis, exchange.scaling_factor,
-    exchange.coulomb_kernel_model, exchange.exx_algorithm)
+function (ex::ExactExchange)(basis)
+    TermExactExchange(basis, ex.scaling_factor, ex.singularity_treatment, ex.exx_algorithm)
 end
 
 struct TermExactExchange <: Term
@@ -22,10 +27,10 @@ struct TermExactExchange <: Term
     coulomb_kernel::AbstractArray
     exx_algorithm::ExxAlgorithm
 end
-function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, coulomb_kernel_model, exx_algorithm) where {T}
+function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, singularity_treatment, exx_algorithm) where {T}
     # TODO: we need this for every q-point
     fac::T = scaling_factor
-    coulomb_kernel = fac .* compute_coulomb_kernel(basis; coulomb_kernel_model)
+    coulomb_kernel = fac .* compute_coulomb_kernel(basis; singularity_treatment)
     TermExactExchange(fac, coulomb_kernel, exx_algorithm)
 end
 
@@ -85,7 +90,9 @@ end
 """
 Adaptively Compressed Exchange (ACE) implementation of the Fock exchange.
 Note, that this sketches the exchange operator using the occupied orbitals. ACE is therefore
-inaccurate when applying the compressed exchange operator to virtual orbitals.
+inaccurate when applying the compressed exchange operator to virtual orbitals. Therefore
+an SCF performed with ACE enabled does *not* yield good virtual orbitals or virtual orbital
+energies.
 
 # Reference
 JCTC 2016, 12, 5, 2242-2249, doi.org/10.1021/acs.jctc.6b00092
