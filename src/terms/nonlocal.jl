@@ -68,10 +68,9 @@ end
         C = to_device(basis.architecture, build_projection_coefficients(T, element.psp))
         for (ik, kpt) in enumerate(basis.kpoints)
             # We compute the forces from the irreductible BZ; they are symmetrized later.
-            G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
+            G_plus_k_cart = Gplusk_vectors_cart(basis, kpt)
             G_plus_k = Gplusk_vectors(basis, kpt)
-            form_factors = to_device(basis.architecture,
-                                     build_projector_form_factors(element.psp, G_plus_k_cart))
+            form_factors = build_projector_form_factors(element.psp, G_plus_k_cart)
 
             # Pre-allocation of large arrays (Noticable performance improvements on
             # CPU and GPU here)
@@ -170,8 +169,8 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     unit_cell_volume = basis.model.unit_cell_volume
     n_proj = count_n_proj(psps, psp_positions)
     n_G    = length(G_vectors(basis, kpt))
-    proj_vectors = zeros(Complex{eltype(psp_positions[1][1])}, n_G, n_proj)
-    G_plus_k = to_cpu(Gplusk_vectors(basis, kpt)) #TODO: sort out all CPU/GPU locations
+    G_plus_k = Gplusk_vectors(basis, kpt)
+    proj_vectors = zeros_like(G_plus_k, Complex{eltype(psp_positions[1][1])}, n_G, n_proj)
 
     # Compute the columns of proj_vectors = 1/√Ω \hat proj_i(k+G)
     # Since the proj_i are translates of each others, \hat proj_i(k+G) decouples as
@@ -180,7 +179,7 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     offset = 0  # offset into proj_vectors
     for (psp, positions) in zip(psps, psp_positions)
         # Compute position-independent form factors
-        G_plus_k_cart = to_cpu(Gplusk_vectors_cart(basis, kpt))
+        G_plus_k_cart = Gplusk_vectors_cart(basis, kpt)
         form_factors = build_projector_form_factors(psp, G_plus_k_cart)
 
         # Combine with structure factors
@@ -196,8 +195,7 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     end
     @assert offset == n_proj
 
-    # Offload potential values to a device (like a GPU)
-    to_device(basis.architecture, proj_vectors)
+    proj_vectors
 end
 
 """
@@ -212,7 +210,6 @@ function build_projector_form_factors(psp::NormConservingPsp,
 
     iG2ifnorm_cpu = zeros(Int, length(Gpk))
     norm_indices = IdDict{T, Int}()
-    p_norms = zeros(T, length(Gpk))
     for (iG, G) in enumerate(Gpk)
         p = norm(G)
         iG2ifnorm_cpu[iG] = get!(norm_indices, p, length(norm_indices) + 1)
@@ -243,66 +240,6 @@ function build_projector_form_factors(psp::NormConservingPsp,
     end
     form_factors
 end
-
-# TODO: tmp implementations, before clean-up and GPU opt
-function eval_psp_projector_fourier(psp::NormConservingPsp, i::Int, l::Int,
-                                    ps::AbstractVector{T}) where {T}
-    arch = architecture(ps)
-    to_device(arch, map(p -> eval_psp_projector_fourier(psp, i, l, p), to_cpu(ps)))
-end
-
-#"""
-#Build Fourier transform factors of an atomic function centered at 0 for a given l.
-#"""
-#function build_form_factors(fun::Function, l::Int,
-#                            G_plus_ks::AbstractVector{<:AbstractVector{Vec3{TT}}}) where {TT}
-#    # TODO this function can be generally useful, should refactor to a separate file eventually
-#    T = real(TT)
-#
-#    # Pre-compute the radial parts of the non-local atomic functions at unique |p| to speed up
-#    # the form factor calculation (by a lot). Using a hash map gives O(1) lookup.
-#
-#    #TODO: for now, assume we get a CPU G_plus_ks, but in the future, might not be the case,
-#    #      because there is probably some unnecessary back and forth
-#
-#    # TODO: the very expensive bit is fun(p_norm), so we want to compute it in the main parallel loop
-#    #       I think we need to follow the same approach as the Local term, where form_factors are
-#    #       computed for unique |p|, and a mapping is provided too. Maybe we need to do that first,
-#    #       and then think about GPUs
-#    #       But actually, since this functions is called many times, and G_plus_k remains the same,
-#    #       the unique norm analysis should be done 1 level above, and passed down.
-#
-#    #TODO: actually, the refactoring needs to take place one level up punkt schluss, because we can
-#    #      follow the usual pattern for the integration on the GPU
-#
-#    radials = IdDict{T,T}()  # IdDict for Dual compatibility
-#    for G_plus_k in G_plus_ks
-#        for p in G_plus_k
-#            p_norm = norm(p)
-#            if !haskey(radials, p_norm)
-#                radials_p = fun(p_norm)
-#                radials[p_norm] = radials_p
-#            end
-#        end
-#    end
-#
-#    form_factors = Vector{Matrix{Complex{T}}}(undef, length(G_plus_ks))
-#    for (ik, G_plus_k) in enumerate(G_plus_ks)
-#        form_factors_ik = Matrix{Complex{T}}(undef, length(G_plus_k), 2l + 1)
-#        #TODO: this is the loop to parallelize
-#        for (ip, p) in enumerate(G_plus_k)
-#            radials_p = radials[norm(p)]
-#            for m = -l:l
-#                # see "Fourier transforms of centered functions" in the docs for the formula
-#                angular = (-im)^l * ylm_real(l, m, p)
-#                form_factors_ik[ip, m+l+1] = radials_p * angular
-#            end
-#        end
-#        form_factors[ik] = form_factors_ik
-#    end
-#
-#    form_factors
-#end
 
 # Helpers for phonon computations.
 function build_projection_coefficients(basis::PlaneWaveBasis{T}, psp_groups) where {T}
