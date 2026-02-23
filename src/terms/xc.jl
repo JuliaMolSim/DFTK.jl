@@ -383,6 +383,7 @@ function compute_kernel(term::TermXc, basis::PlaneWaveBasis{T}; ρ, kwargs...) w
                    xc_potential_real(term, basis, nothing, nothing; ρ=ρ.+dρ2).potential])
         end
         δpotential = ForwardDiff.derivative(f_collinear, zero(T))
+        # Blocks in the kernel matrix mapping (ρα, ρβ) ↦ (Vα, Vβ)
         @views [Diagonal(vec(δpotential[:, :, :, 1, 1])) Diagonal(vec(δpotential[:, :, :, 1, 2]));
                 Diagonal(vec(δpotential[:, :, :, 2, 1])) Diagonal(vec(δpotential[:, :, :, 2, 2]))]
     end

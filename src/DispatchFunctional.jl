@@ -1,4 +1,5 @@
 using DftFunctionals
+import ForwardDiff: Dual
 import Libxc
 
 #
@@ -110,13 +111,20 @@ function DftFunctionals.potential_terms(func::LibxcFunctional{:mggal}, ρ::Abstr
 end
 
 # Kernel support via automatic differentiation
+#
+# We invoke Libxc.evaluate at the same point, but ask for one more derivative.
+# Then we manually multiply the second derivatives by the given perturbation (δρ etc)
+# to compute δVs to return.
+# For collinear spins:
+# - ρ has s_ρ == 2 components and σ has s_σ == 3 components.
+# - There are cross-spin-component derivatives which we sum up manually.
+#   For example in LDA the change in Vρ₁ is ∂²E_xc/∂ρ₁² * δρ₁ + ∂²E_xc/∂ρ₁∂ρ₂ * δρ₂,
+#   and similarly for Vρ₂.
+#   For GGA, there are also cross-derivatives with σ, e.g. ∂²E_xc/∂ρ₁∂σ₁ * δσ₁, etc.
+# - libxc returns the cross-spin derivatives in a compact form, see https://libxc.gitlab.io/manual/libxc-5.1.x/
 
-import ForwardDiff: Dual
-
-map_to_dual(T, x, δxs...) = map(x, δxs...) do xi, δxi...
-    Dual{T}(xi, δxi...)
-end
-combine_spins(xs...) = vcat(transpose.(xs)...)
+# Combine N vectors of size (n_p) into one (N, n_p) array
+libxc_combine_spins(xs...) = reduce(vcat, transpose.(xs))
 
 @views function DftFunctionals.potential_terms(func::LibxcFunctional{:lda},
                                                ρ_δρ::AbstractMatrix{DT}) where {N,T,DT<:Dual{T,Float64,N}}
@@ -136,14 +144,14 @@ combine_spins(xs...) = vcat(transpose.(xs)...)
         if s_ρ == 1
             terms.v2rho2 .* δρ
         else
-            combine_spins(
+            libxc_combine_spins(
                 terms.v2rho2[1,:] .* δρ[1,:] .+ terms.v2rho2[2,:] .* δρ[2,:],
                 terms.v2rho2[2,:] .* δρ[1,:] .+ terms.v2rho2[3,:] .* δρ[2,:],
             )
         end
     end
-    (; e=map_to_dual(T, e, δe...),
-       Vρ=map_to_dual(T, Vρ, δVρ...))
+    (; e=map(Dual{T}, e, δe...),
+       Vρ=map(Dual{T}, Vρ, δVρ...))
 end
 @views function DftFunctionals.potential_terms(func::LibxcFunctional{:gga},
                                                ρ_δρ::AbstractMatrix{DT},
@@ -160,7 +168,8 @@ end
     Vσ = reshape(terms.vsigma, s_σ, n_p)
 
     δe = ntuple(Val(N)) do n
-        sum(Vρ .* ForwardDiff.partials.(ρ_δρ, n); dims=1) + sum(Vσ .* ForwardDiff.partials.(σ_δσ, n); dims=1)
+        ( sum(Vρ .* ForwardDiff.partials.(ρ_δρ, n); dims=1)
+        + sum(Vσ .* ForwardDiff.partials.(σ_δσ, n); dims=1))
     end
     δVρ = ntuple(Val(N)) do n
         δρ = ForwardDiff.partials.(ρ_δρ, n)
@@ -168,7 +177,8 @@ end
         if s_ρ == 1
             terms.v2rho2 .* δρ .+ terms.v2rhosigma .* δσ
         else
-            combine_spins(
+            libxc_combine_spins(
+                # For all 2 ρ components: one line for ∂²/∂ρ², one line for ∂²/∂ρ∂σ
                 terms.v2rho2[1,:] .* δρ[1,:] .+ terms.v2rho2[2,:] .* δρ[2,:]
                 .+ terms.v2rhosigma[1,:] .* δσ[1,:] .+ terms.v2rhosigma[2,:] .* δσ[2,:] .+ terms.v2rhosigma[3,:] .* δσ[3,:],
                 terms.v2rho2[2,:] .* δρ[1,:] .+ terms.v2rho2[3,:] .* δρ[2,:]
@@ -182,7 +192,8 @@ end
         if s_σ == 1
             terms.v2rhosigma .* δρ .+ terms.v2sigma2 .* δσ
         else
-            combine_spins(
+            libxc_combine_spins(
+                # For all 3 σ components: one line for ∂²/∂σ∂ρ, one line for ∂²/∂σ²
                 terms.v2rhosigma[1,:] .* δρ[1,:] .+ terms.v2rhosigma[4,:] .* δρ[2,:]
                 .+ terms.v2sigma2[1,:] .* δσ[1,:] .+ terms.v2sigma2[2,:] .* δσ[2,:] .+ terms.v2sigma2[3,:] .* δσ[3,:],
                 terms.v2rhosigma[2,:] .* δρ[1,:] .+ terms.v2rhosigma[5,:] .* δρ[2,:]
@@ -193,9 +204,9 @@ end
         end
     end
 
-    (; e=map_to_dual(T, e, δe...),
-       Vρ=map_to_dual(T, Vρ, δVρ...),
-       Vσ=map_to_dual(T, Vσ, δVσ...))
+    (; e=map(Dual{T}, e, δe...),
+       Vρ=map(Dual{T}, Vρ, δVρ...),
+       Vσ=map(Dual{T}, Vσ, δVσ...))
 end
 # TODO mgga and mggal derivatives
 
