@@ -9,10 +9,7 @@ Available models:
 
 See also: [`compute_coulomb_kernel`](@ref)
 """
-abstract type CoulombKernelModel end
-
-# TODO: Rename to CoulombKernel ???
-
+abstract type CoulombSingulartyTreatment end
 
 @doc raw"""
 Compute Coulomb kernel, i.e. essentially ``v(G+q) = 4π/|G+q|²``, on spherical plane-wave grid.
@@ -27,13 +24,13 @@ evaluated only on the spherical cutoff |G+q|² < 2Ecut (not the full cubic FFT g
 ## Arguments
 - `basis::PlaneWaveBasis`: Plane-wave basis defining the grid
 - `q`: Momentum transfer vector in fractional coordinates
-- `coulomb_kernel_model::CoulombKernelModel`: Method for treating singularity
+- `singularity_treatment::CoulombSingulartyTreatment`: Method for treating singularity
 
 ## Returns
 Vector of Coulomb kernel values for each G-vector in the spherical cutoff.
 """
 function compute_coulomb_kernel(basis::PlaneWaveBasis{T}; q=zero(Vec3{T}),
-                                coulomb_kernel_model::CoulombKernelModel=ProbeCharge()) where {T}
+                                singularity_treatment::CoulombSingulartyTreatment=ProbeCharge()) where {T}
     is_gamma_only = all(iszero(kpt.coordinate) for kpt in basis.kpoints)
     if !is_gamma_only
         throw(ArgumentError("Currently only Gamma-point calculations are supported in " *
@@ -47,7 +44,7 @@ function compute_coulomb_kernel(basis::PlaneWaveBasis{T}; q=zero(Vec3{T}),
 
     # currently only works for Gamma-only (need correct q-point otherwise)
     qpt = basis.kpoints[1] 
-    coulomb_kernel =  _compute_coulomb_kernel(coulomb_kernel_model, basis, qpt)
+    coulomb_kernel =  _compute_coulomb_kernel(singularity_treatment, basis, qpt)
 
     # TODO: if q=0, symmetrize Fourier coeffs to have real iFFT 
 
@@ -61,7 +58,7 @@ This is the simplest approach but leads to slow `O(1/L) = O(1 / ∛(Nk))` conver
 where `L` is the size of the supercell,`Nk` is the number of k-points.
 Useful for testing or comparison purposes.
 """
-struct NeglectSingularity <: CoulombKernelModel end
+struct NeglectSingularity <: CoulombSingulartyTreatment end
 function _compute_coulomb_kernel(::NeglectSingularity, basis::PlaneWaveBasis{T}, qpt::Kpoint) where {T}
     # Compute truncated Coulomb kernel without special-casing singularity at G+q=0 
     coulomb_kernel = map(Gplusk_vectors_cart(basis, qpt)) do Gpq
@@ -93,7 +90,7 @@ charges, which can be computed using an Ewald sum.
 ## References
 - [S. Massidda, M. Posternak, A. Baldereschi. Phys. Rev. B **48**, 5058 (1993)](https://doi.org/10.1103/PhysRevB.48.5058)
 """
-@kwdef struct ProbeCharge <: CoulombKernelModel
+@kwdef struct ProbeCharge <: CoulombSingulartyTreatment
     α::Union{Float64, Nothing} = nothing  # Width of the probe charge
 end
 @views function _compute_coulomb_kernel(kernel::ProbeCharge, basis::PlaneWaveBasis{T},
@@ -130,7 +127,7 @@ If Rcut is nothing, it uses `Rcut = cbrt(3Ω / (4π))` where `Ω` is the unit ce
 ## References
 - [J. Spencer, A. Alavi. Phys. Rev. B **77**, 193110 (2008)](https://doi.org/10.1103/PhysRevB.77.193110)
 """
-@kwdef struct SphericallyTruncated <: CoulombKernelModel 
+@kwdef struct SphericallyTruncated <: CoulombSingulartyTreatment 
     Rcut::Union{Float64, Nothing} = nothing  # Cutoff after which Coulomb operator is set to zero
 end
 function _compute_coulomb_kernel(kernel::SphericallyTruncated, basis::PlaneWaveBasis{T},

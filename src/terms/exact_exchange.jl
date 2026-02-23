@@ -9,12 +9,12 @@ abstract type ExxAlgorithm end
 
 @kwdef struct ExactExchange
     scaling_factor::Real = 1.0
-    coulomb_kernel_model::CoulombKernelModel = ProbeCharge()
+    singularity_treatment::CoulombSingulartyTreatment = ProbeCharge()
     exx_algorithm::ExxAlgorithm = AceExx()
 end
 function (exchange::ExactExchange)(basis)
     TermExactExchange(basis, exchange.scaling_factor,
-    exchange.coulomb_kernel_model, exchange.exx_algorithm)
+    exchange.singularity_treatment, exchange.exx_algorithm)
 end
 
 struct TermExactExchange <: Term
@@ -22,10 +22,10 @@ struct TermExactExchange <: Term
     coulomb_kernel::AbstractArray
     exx_algorithm::ExxAlgorithm
 end
-function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, coulomb_kernel_model, exx_algorithm) where {T}
+function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, singularity_treatment, exx_algorithm) where {T}
     # TODO: we need this for every q-point
     fac::T = scaling_factor
-    coulomb_kernel = fac .* compute_coulomb_kernel(basis; coulomb_kernel_model)
+    coulomb_kernel = fac .* compute_coulomb_kernel(basis; singularity_treatment)
     TermExactExchange(fac, coulomb_kernel, exx_algorithm)
 end
 

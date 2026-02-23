@@ -20,7 +20,7 @@
         ifft!(ψk_real[:, :, :, n], basis, kpt, ψk[:, n])
     end
 
-    k_probe = compute_coulomb_kernel(basis; coulomb_kernel_model=ProbeCharge())
+    k_probe = compute_coulomb_kernel(basis; singularity_treatment=ProbeCharge())
     @testset "ProbeCharge" begin
         E_probe = exx_energy_only(basis, kpt, k_probe, ψk_real, occk)
         E_ref = -2.3383063575660987
@@ -28,7 +28,7 @@
     end
 
     @testset "NeglectSingularity" begin
-        k_neglect = compute_coulomb_kernel(basis; coulomb_kernel_model=NeglectSingularity())
+        k_neglect = compute_coulomb_kernel(basis; singularity_treatment=NeglectSingularity())
         E_neglect = exx_energy_only(basis, kpt, k_neglect, ψk_real, occk)
         E_ref = -0.7349457693125514
         @test abs(E_ref - E_neglect) < 1e-6
@@ -36,7 +36,7 @@
     end
 
     @testset "SphericallyTruncated" begin
-        k_strunc = compute_coulomb_kernel(basis; coulomb_kernel_model=SphericallyTruncated())
+        k_strunc = compute_coulomb_kernel(basis; singularity_treatment=SphericallyTruncated())
         E_strunc = exx_energy_only(basis, kpt, k_strunc, ψk_real, occk)
         E_ref = -2.360166200435632
         @test abs(E_ref - E_strunc) < 1e-6
@@ -46,7 +46,7 @@
 
     @testset "WignerSeitzTruncated" begin
         #= TODO: This methods will follow in a follow-up PR
-        k_wtrunc = compute_coulomb_kernel(basis; coulomb_kernel_model=WignerSeitzTruncated())
+        k_wtrunc = compute_coulomb_kernel(basis; singularity_treatment=WignerSeitzTruncated())
         E_wtrunc = exx_energy_only(basis, kpt, k_wtrunc, ψk_real, occk)
         E_ref = -2.345681352379346
         @test abs(E_ref - E_wtrunc) < 1e-6
@@ -56,7 +56,7 @@
 
     @testset "VoxelAveraged" begin
         #= TODO: This methods will follow in a follow-up PR
-        k_wtrunc = compute_coulomb_kernel(basis; coulomb_kernel_model=VoxelAveraged())
+        k_wtrunc = compute_coulomb_kernel(basis; singularity_treatment=VoxelAveraged())
         E_wtrunc = exx_energy_only(basis, kpt, k_wtrunc, ψk_real, occk)
         E_ref = -2.2491082534455376
         @test abs(E_ref - E_wtrunc) < 1e-6

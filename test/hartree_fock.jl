@@ -42,7 +42,7 @@
     model = model_HF(lattice, atoms, positions;
                      temperature=0.001, smearing=DFTK.Smearing.Gaussian(),
                      exx_algorithm=VanillaExx(),
-                     coulomb_kernel_model=NeglectSingularity())
+                     singularity_treatment=NeglectSingularity())
     basis = PlaneWaveBasis(model; Ecut=20, kgrid=[1, 1, 1])
 
     run_scf_and_compare(Float64, basis, ref_hf, ref_etot; 
@@ -91,7 +91,7 @@ end
 
     #= TODO: This test will be enabled once the WignerSeitz feature is available 
     model  = model_HF(lattice, atoms, positions; 
-                      coulomb_kernel_model=WignerSeitzTruncated(), 
+                      singularity_treatment=WignerSeitzTruncated(), 
                       exx_algorithm=VanillaExx())
     basis  = PlaneWaveBasis(model, Ecut=40; kgrid=[1, 1, 1])
 
@@ -133,7 +133,7 @@ end
     ref_etot = -31.240766149174128
 
     model  = model_HF(lattice, atoms, positions; 
-                      coulomb_kernel_model=SphericallyTruncated(), 
+                      singularity_treatment=SphericallyTruncated(), 
                       exx_algorithm=AceExx())
     basis  = PlaneWaveBasis(model, Ecut=40; kgrid=[1, 1, 1])
     
@@ -177,7 +177,7 @@ end
     scfres_pbe = self_consistent_field(basis; ρ, tol=1e-3)
     
     model  = model_HF(lattice, atoms, positions; 
-                      coulomb_kernel_model=ProbeCharge(), 
+                      singularity_treatment=ProbeCharge(), 
                       exx_algorithm=AceExx(),
                       magnetic_moments,
                       temperature=0.01)
