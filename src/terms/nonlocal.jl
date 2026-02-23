@@ -234,13 +234,10 @@ function build_projector_form_factors(psp::NormConservingPsp,
         for i = 1:n_proj_l
             proj_li[p_indices] .= eval_psp_projector_fourier(psp, i, l, ps) # integrate for all norms at once
             for m = -l:l
-                #TODO: why does map! fail (zeros in output array)
-                tmp = map(G_indices) do iG
-                #map!(form_factors[:, offset[m + l + 1] + i], G_indices) do iG
+                map!(@view(form_factors[:, offset[m + l + 1] + i]), G_indices) do iG
                     angular = (-im)^l * ylm_real(l, m, G_plus_k[iG])
-                    proj_li[iG2ifnorm[iG]] * angular # or iG2ifnorm[i] ?, prob not
+                    proj_li[iG2ifnorm[iG]] * angular
                 end
-                form_factors[:, offset[m + l + 1] + i] .= tmp
             end
         end
     end
