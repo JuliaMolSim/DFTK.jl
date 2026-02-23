@@ -12,9 +12,8 @@ abstract type ExxAlgorithm end
     singularity_treatment::CoulombSingulartyTreatment = ProbeCharge()
     exx_algorithm::ExxAlgorithm = AceExx()
 end
-function (exchange::ExactExchange)(basis)
-    TermExactExchange(basis, exchange.scaling_factor,
-    exchange.singularity_treatment, exchange.exx_algorithm)
+function (ex::ExactExchange)(basis)
+    TermExactExchange(basis, ex.scaling_factor, ex.singularity_treatment, ex.exx_algorithm)
 end
 
 struct TermExactExchange <: Term
@@ -85,7 +84,9 @@ end
 """
 Adaptively Compressed Exchange (ACE) implementation of the Fock exchange.
 Note, that this sketches the exchange operator using the occupied orbitals. ACE is therefore
-inaccurate when applying the compressed exchange operator to virtual orbitals.
+inaccurate when applying the compressed exchange operator to virtual orbitals. Therefore
+an SCF performed with ACE enabled does *not* yield good virtual orbitals or virtual orbital
+energies.
 
 # Reference
 JCTC 2016, 12, 5, 2242-2249, doi.org/10.1021/acs.jctc.6b00092
