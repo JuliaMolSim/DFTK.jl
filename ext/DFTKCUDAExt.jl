@@ -1,7 +1,7 @@
 module DFTKCUDAExt
 using CUDA
 using PrecompileTools
-import DFTK: CPU, GPU, DispatchFunctional, precompilation_workflow
+import DFTK: CPU, GPU, DispatchFunctional, precompilation_workflow, DispatchFloat
 using DftFunctionals
 using DFTK
 using Libxc
@@ -14,7 +14,7 @@ function DFTK.memory_usage(::GPU{<:CUDA.CuArray})
 end
 
 function DftFunctionals.potential_terms(fun::DispatchFunctional,
-                                        ρ::CUDA.CuMatrix{<:Union{Float64,Dual{<:Any,Float64}}}, args...)
+                                        ρ::CUDA.CuMatrix{<:DispatchFloat}, args...)
     @assert Libxc.has_cuda()
     potential_terms(fun.inner, ρ, args...)
 end

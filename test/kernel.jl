@@ -117,10 +117,11 @@ end
 @testitem "ForwardDiff potential_terms for libxc" tags=[:minimal] setup=[TestCases] begin
     using DFTK
     using DftFunctionals
+    using DftFunctionals: potential_terms
     using ForwardDiff
     using LinearAlgebra
     import ForwardDiff
-    import ForwardDiff: Dual
+    import ForwardDiff: Dual, partials
 
     for spin in [:none, :collinear]
         @testset "Spin polarization: $spin" begin
@@ -138,19 +139,19 @@ end
             ρ = reshape(density.ρ_real, size(density.ρ_real, 1), :)  # (n_spin, n_p)
             σ = reshape(density.σ_real, size(density.σ_real, 1), :)  # (n_spin_σ, n_p)
 
-            ε      = 1e-5
+            ε = 1e-5
             ε_dual = Dual{typeof(ForwardDiff.Tag(nothing, Float64))}(0.0, 1.0)
 
             @testset "LDA" begin
                 func = DFTK.LibxcFunctional(:lda_xc_teter93)
                 δρ = randn(size(ρ)) / model.unit_cell_volume
 
-                terms_ad    = DftFunctionals.potential_terms(func, ρ .+ ε_dual .* δρ)
-                δe_ad       = ForwardDiff.partials.(terms_ad.e,  1)
-                δVρ_ad      = ForwardDiff.partials.(terms_ad.Vρ, 1)
+                terms_ad    = potential_terms(func, ρ .+ ε_dual .* δρ)
+                δe_ad       = partials.(terms_ad.e,  1)
+                δVρ_ad      = partials.(terms_ad.Vρ, 1)
 
-                terms_plus  = DftFunctionals.potential_terms(func, ρ .+ ε .* δρ)
-                terms_minus = DftFunctionals.potential_terms(func, ρ .- ε .* δρ)
+                terms_plus  = potential_terms(func, ρ .+ ε .* δρ)
+                terms_minus = potential_terms(func, ρ .- ε .* δρ)
                 δe_fd       = (terms_plus.e  - terms_minus.e)  / 2ε
                 δVρ_fd      = (terms_plus.Vρ - terms_minus.Vρ) / 2ε
 
@@ -162,17 +163,18 @@ end
                 func = DFTK.LibxcFunctional(:gga_x_pbe)
                 # Produce a δσ that is consistent with the δρ
                 δρ0 = randn(size(ρ0)) / model.unit_cell_volume
-                δσ_real = ForwardDiff.partials.(DFTK.LibxcDensities(basis, 1, ρ0.+ε_dual.*δρ0, nothing).σ_real, 1)
+                σ_real = DFTK.LibxcDensities(basis, 1, ρ0.+ε_dual.*δρ0, nothing).σ_real
+                δσ_real = partials.(σ_real, 1)
                 δρ = reshape(δρ0, size(ρ)...)
                 δσ = reshape(δσ_real, size(σ)...)
 
-                terms_ad    = DftFunctionals.potential_terms(func, ρ .+ ε_dual .* δρ, σ .+ ε_dual .* δσ)
-                δe_ad       = ForwardDiff.partials.(terms_ad.e,  1)
-                δVρ_ad      = ForwardDiff.partials.(terms_ad.Vρ, 1)
-                δVσ_ad      = ForwardDiff.partials.(terms_ad.Vσ, 1)
+                terms_ad    = potential_terms(func, ρ .+ ε_dual .* δρ, σ .+ ε_dual .* δσ)
+                δe_ad       = partials.(terms_ad.e,  1)
+                δVρ_ad      = partials.(terms_ad.Vρ, 1)
+                δVσ_ad      = partials.(terms_ad.Vσ, 1)
 
-                terms_plus  = DftFunctionals.potential_terms(func, ρ .+ ε .* δρ, σ .+ ε .* δσ)
-                terms_minus = DftFunctionals.potential_terms(func, ρ .- ε .* δρ, σ .- ε .* δσ)
+                terms_plus  = potential_terms(func, ρ .+ ε .* δρ, σ .+ ε .* δσ)
+                terms_minus = potential_terms(func, ρ .- ε .* δρ, σ .- ε .* δσ)
                 δe_fd       = (terms_plus.e  - terms_minus.e)  / 2ε
                 δVρ_fd      = (terms_plus.Vρ - terms_minus.Vρ) / 2ε
                 δVσ_fd      = (terms_plus.Vσ - terms_minus.Vσ) / 2ε

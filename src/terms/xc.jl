@@ -335,7 +335,8 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
             end
         end
 
-        tσ = DftFunctionals.spinindex_σ  # Spin index transformation (s, t) => st as expected by Libxc
+        # Spin index transformation (s, t) => st as expected by Libxc
+        tσ = DftFunctionals.spinindex_σ
         σ_real .= 0
         @views for α = 1:3
             σ_real[tσ(1, 1), :, :, :] .+= ∇ρ_real[1, :, :, :, α] .* ∇ρ_real[1, :, :, :, α]
@@ -383,9 +384,14 @@ function compute_kernel(term::TermXc, basis::PlaneWaveBasis{T}; ρ, kwargs...) w
                    xc_potential_real(term, basis, nothing, nothing; ρ=ρ.+dρ2).potential])
         end
         δpotential = ForwardDiff.derivative(f_collinear, zero(T))
+
         # Blocks in the kernel matrix mapping (ρα, ρβ) ↦ (Vα, Vβ)
-        @views [Diagonal(vec(δpotential[:, :, :, 1, 1])) Diagonal(vec(δpotential[:, :, :, 1, 2]));
-                Diagonal(vec(δpotential[:, :, :, 2, 1])) Diagonal(vec(δpotential[:, :, :, 2, 2]))]
+        Kαα = @view δpotential[:, :, :, 1, 1]
+        Kαβ = @view δpotential[:, :, :, 1, 2]
+        Kβα = @view δpotential[:, :, :, 2, 1]
+        Kββ = @view δpotential[:, :, :, 2, 2]
+        [Diagonal(vec(Kαα)) Diagonal(vec(Kαβ));
+         Diagonal(vec(Kβα)) Diagonal(vec(Kββ))]
     end
 end
 
@@ -409,7 +415,8 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArra
         ε = Dual{Tag}(zero(T), one(T))
         ForwardDiff.partials.(f(ρ .+ ε .* δρ), 1)
     else
-        # But for complex δρ (phonons) we need to push the real and imaginary parts forward separately
+        # But for complex δρ (phonons) we need to push the real and imaginary
+        # parts forward separately
         ε1 = Dual{Tag}(zero(T), one(T), zero(T))
         ε2 = Dual{Tag}(zero(T), zero(T), one(T))
         potential = f(ρ .+ ε1 .* real.(δρ) .+ ε2 .* imag.(δρ))

@@ -58,7 +58,9 @@ function libxc_unfold_spin(data::AbstractMatrix, n_spin::Int)
     end
 end
 
-libxc_energy(terms, ρ) = haskey(terms, :zk) ? reshape(terms.zk, 1, size(ρ, 2)) .* sum(ρ, dims=1) : false
+function libxc_energy(terms, ρ)
+    haskey(terms, :zk) ? reshape(terms.zk, 1, size(ρ, 2)) .* sum(ρ; dims=1) : false
+end
 
 function DftFunctionals.potential_terms(func::LibxcFunctional{:lda}, ρ::AbstractMatrix{Float64})
     s_ρ, n_p = size(ρ)
@@ -121,13 +123,15 @@ end
 #   For example in LDA the change in Vρ₁ is ∂²E_xc/∂ρ₁² * δρ₁ + ∂²E_xc/∂ρ₁∂ρ₂ * δρ₂,
 #   and similarly for Vρ₂.
 #   For GGA, there are also cross-derivatives with σ, e.g. ∂²E_xc/∂ρ₁∂σ₁ * δσ₁, etc.
-# - libxc returns the cross-spin derivatives in a compact form, see https://libxc.gitlab.io/manual/libxc-5.1.x/
+# - libxc returns the cross-spin derivatives in a compact form,
+#   see https://libxc.gitlab.io/manual/libxc-5.1.x/
 
 # Combine N vectors of size (n_p) into one (N, n_p) array
 libxc_combine_spins(xs...) = reduce(vcat, transpose.(xs))
 
 @views function DftFunctionals.potential_terms(func::LibxcFunctional{:lda},
-                                               ρ_δρ::AbstractMatrix{DT}) where {N,T,DT<:Dual{T,Float64,N}}
+                                               ρ_δρ::AbstractMatrix{DT}
+                                               ) where {N,T,DT<:Dual{T,Float64,N}}
     ρ = ForwardDiff.value.(ρ_δρ)
     s_ρ, n_p = size(ρ)
     fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
@@ -155,7 +159,8 @@ libxc_combine_spins(xs...) = reduce(vcat, transpose.(xs))
 end
 @views function DftFunctionals.potential_terms(func::LibxcFunctional{:gga},
                                                ρ_δρ::AbstractMatrix{DT},
-                                               σ_δσ::AbstractMatrix{DT}) where {N,T,DT<:Dual{T,Float64,N}}
+                                               σ_δσ::AbstractMatrix{DT}
+                                               ) where {N,T,DT<:Dual{T,Float64,N}}
     ρ = ForwardDiff.value.(ρ_δρ)
     σ = ForwardDiff.value.(σ_δσ)
     s_ρ, n_p = size(ρ)
@@ -177,12 +182,14 @@ end
         if s_ρ == 1
             terms.v2rho2 .* δρ .+ terms.v2rhosigma .* δσ
         else
+            # For both ρ spin components: one line for ∂²/∂ρ², one line for ∂²/∂ρ∂σ
             libxc_combine_spins(
-                # For all 2 ρ components: one line for ∂²/∂ρ², one line for ∂²/∂ρ∂σ
-                terms.v2rho2[1,:] .* δρ[1,:] .+ terms.v2rho2[2,:] .* δρ[2,:]
-                .+ terms.v2rhosigma[1,:] .* δσ[1,:] .+ terms.v2rhosigma[2,:] .* δσ[2,:] .+ terms.v2rhosigma[3,:] .* δσ[3,:],
-                terms.v2rho2[2,:] .* δρ[1,:] .+ terms.v2rho2[3,:] .* δρ[2,:]
-                .+ terms.v2rhosigma[4,:] .* δσ[1,:] .+ terms.v2rhosigma[5,:] .* δσ[2,:] .+ terms.v2rhosigma[6,:] .* δσ[3,:],
+                (@. terms.v2rho2[1,:]     * δρ[1,:] + terms.v2rho2[2,:]     * δρ[2,:]
+                 +  terms.v2rhosigma[1,:] * δσ[1,:] + terms.v2rhosigma[2,:] * δσ[2,:]
+                 +  terms.v2rhosigma[3,:] * δσ[3,:]),
+                (@. terms.v2rho2[2,:]     * δρ[1,:] + terms.v2rho2[3,:]     * δρ[2,:]
+                 +  terms.v2rhosigma[4,:] * δσ[1,:] + terms.v2rhosigma[5,:] * δσ[2,:]
+                 +  terms.v2rhosigma[6,:] * δσ[3,:]),
             )
         end
     end
@@ -192,19 +199,22 @@ end
         if s_σ == 1
             terms.v2rhosigma .* δρ .+ terms.v2sigma2 .* δσ
         else
+            # For all three σ components: one line for ∂²/∂σ∂ρ, one line for ∂²/∂σ²
             libxc_combine_spins(
-                # For all 3 σ components: one line for ∂²/∂σ∂ρ, one line for ∂²/∂σ²
-                terms.v2rhosigma[1,:] .* δρ[1,:] .+ terms.v2rhosigma[4,:] .* δρ[2,:]
-                .+ terms.v2sigma2[1,:] .* δσ[1,:] .+ terms.v2sigma2[2,:] .* δσ[2,:] .+ terms.v2sigma2[3,:] .* δσ[3,:],
-                terms.v2rhosigma[2,:] .* δρ[1,:] .+ terms.v2rhosigma[5,:] .* δρ[2,:]
-                .+ terms.v2sigma2[2,:] .* δσ[1,:] .+ terms.v2sigma2[4,:] .* δσ[2,:] .+ terms.v2sigma2[5,:] .* δσ[3,:],
-                terms.v2rhosigma[3,:] .* δρ[1,:] .+ terms.v2rhosigma[6,:] .* δρ[2,:]
-                .+ terms.v2sigma2[3,:] .* δσ[1,:] .+ terms.v2sigma2[5,:] .* δσ[2,:] .+ terms.v2sigma2[6,:] .* δσ[3,:],
+                (@. terms.v2rhosigma[1,:] * δρ[1,:] + terms.v2rhosigma[4,:] * δρ[2,:]
+                 +  terms.v2sigma2[1,:]   * δσ[1,:] + terms.v2sigma2[2,:]   * δσ[2,:]
+                 +  terms.v2sigma2[3,:]   * δσ[3,:]),
+                (@. terms.v2rhosigma[2,:] * δρ[1,:] + terms.v2rhosigma[5,:] * δρ[2,:]
+                 +  terms.v2sigma2[2,:]   * δσ[1,:] + terms.v2sigma2[4,:]   * δσ[2,:]
+                 +  terms.v2sigma2[5,:]   * δσ[3,:]),
+                (@. terms.v2rhosigma[3,:] * δρ[1,:] + terms.v2rhosigma[6,:] * δρ[2,:]
+                 + terms.v2sigma2[3,:]    * δσ[1,:] + terms.v2sigma2[5,:]   * δσ[2,:]
+                 + terms.v2sigma2[6,:]    * δσ[3,:]),
             )
         end
     end
 
-    (; e=map(Dual{T}, e, δe...),
+    (; e=map(Dual{T},   e, δe...),
        Vρ=map(Dual{T}, Vρ, δVρ...),
        Vσ=map(Dual{T}, Vσ, δVσ...))
 end
@@ -224,8 +234,8 @@ DftFunctionals.identifier(fun::DispatchFunctional) = identifier(fun.inner)
 DftFunctionals.has_energy(fun::DispatchFunctional) = has_energy(fun.inner)
 
 # Note: CuMatrix dispatch to Libxc.jl is defined in src/workarounds/cuda_arrays.jl
-function DftFunctionals.potential_terms(fun::DispatchFunctional,
-                                        ρ::Matrix{<:Union{Float64,Dual{<:Any,Float64}}}, args...)
+const DispatchFloat = Union{Float64,Dual{<:Any,Float64}}
+function DftFunctionals.potential_terms(fun::DispatchFunctional, ρ::Matrix{<:DispatchFloat}, args...)
     potential_terms(fun.inner, ρ, args...)
 end
 function DftFunctionals.potential_terms(fun::DispatchFunctional, ρ::AbstractMatrix, args...)
