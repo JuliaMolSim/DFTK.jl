@@ -101,15 +101,10 @@ include("supercell.jl")
 export Energies
 include("Energies.jl")
 
-export NeglectSingularity, ProbeCharge, SphericallyTruncated
-include("coulomb.jl")
-
 export Hamiltonian
 export HamiltonianBlock
 export energy_hamiltonian
 export Kinetic
-export ExactExchange
-export VanillaExx, AceExx
 export ExternalFromFourier
 export ExternalFromReal
 export AtomicLocal
@@ -155,8 +150,8 @@ export diagonalize_all_kblocks
 include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
 
-export model_atomic, model_DFT, model_HF
-export LDA, PBE, PBE0, PBEsol, SCAN, r2SCAN
+export model_atomic, model_DFT
+export LDA, PBE, PBEsol, SCAN, r2SCAN
 include("standard_models.jl")
 
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing
@@ -251,6 +246,22 @@ include("workarounds/forwarddiff_rules.jl")
 # Optimized generic GPU functions and GPU workarounds
 include("gpu/linalg.jl")
 include("gpu/gpu_arrays.jl")
+
+#\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+# Added for DFTKMakieExt.jl plot & subplot
+export plot_bandstructure!  
+export plot_dos!
+export plot_unfolded_bands
+export plot_unfolded_bands!
+export plot_folded_bands
+export plot_folded_bands!
+export plot_dos_rotated!
+
+# Added for postprocess of BandsUnfold.jl
+export unfold_bands
+export compute_folded_bands
+include("postprocess/BandsUnfold.jl")
+#\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
 # Precompilation block with a basic workflow
 
