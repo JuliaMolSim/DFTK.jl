@@ -139,6 +139,7 @@ libxc_combine_spins(xs...) = reduce(vcat, transpose.(xs))
     terms = Libxc.evaluate(fun; rho=ρ, derivatives)
     e = libxc_energy(terms, ρ)
     Vρ = reshape(terms.vrho, s_ρ, n_p)
+    Vρρ = terms.v2rho2
 
     δe = ntuple(Val(N)) do n
         sum(Vρ .* ForwardDiff.partials.(ρ_δρ, n); dims=1)
@@ -146,12 +147,10 @@ libxc_combine_spins(xs...) = reduce(vcat, transpose.(xs))
     δVρ = ntuple(Val(N)) do n
         δρ = ForwardDiff.partials.(ρ_δρ, n)
         if s_ρ == 1
-            terms.v2rho2 .* δρ
+            Vρρ .* δρ
         else
-            libxc_combine_spins(
-                terms.v2rho2[1,:] .* δρ[1,:] .+ terms.v2rho2[2,:] .* δρ[2,:],
-                terms.v2rho2[2,:] .* δρ[1,:] .+ terms.v2rho2[3,:] .* δρ[2,:],
-            )
+            libxc_combine_spins(Vρρ[1,:] .* δρ[1,:] .+ Vρρ[2,:] .* δρ[2,:],
+                                Vρρ[2,:] .* δρ[1,:] .+ Vρρ[3,:] .* δρ[2,:])
         end
     end
     (; e=map(Dual{T}, e, δe...),
@@ -171,25 +170,27 @@ end
     e  = libxc_energy(terms, ρ)
     Vρ = reshape(terms.vrho,   s_ρ, n_p)
     Vσ = reshape(terms.vsigma, s_σ, n_p)
+    Vρρ = terms.v2rho2
+    Vρσ = terms.v2rhosigma
+    Vσσ = terms.v2sigma2
 
     δe = ntuple(Val(N)) do n
         ( sum(Vρ .* ForwardDiff.partials.(ρ_δρ, n); dims=1)
         + sum(Vσ .* ForwardDiff.partials.(σ_δσ, n); dims=1))
     end
+
     δVρ = ntuple(Val(N)) do n
         δρ = ForwardDiff.partials.(ρ_δρ, n)
         δσ = ForwardDiff.partials.(σ_δσ, n)
         if s_ρ == 1
-            terms.v2rho2 .* δρ .+ terms.v2rhosigma .* δσ
+            Vρρ .* δρ .+ Vρσ .* δσ
         else
             # For both ρ spin components: one line for ∂²/∂ρ², one line for ∂²/∂ρ∂σ
             libxc_combine_spins(
-                (@. terms.v2rho2[1,:]     * δρ[1,:] + terms.v2rho2[2,:]     * δρ[2,:]
-                 +  terms.v2rhosigma[1,:] * δσ[1,:] + terms.v2rhosigma[2,:] * δσ[2,:]
-                 +  terms.v2rhosigma[3,:] * δσ[3,:]),
-                (@. terms.v2rho2[2,:]     * δρ[1,:] + terms.v2rho2[3,:]     * δρ[2,:]
-                 +  terms.v2rhosigma[4,:] * δσ[1,:] + terms.v2rhosigma[5,:] * δσ[2,:]
-                 +  terms.v2rhosigma[6,:] * δσ[3,:]),
+                (@. Vρρ[1,:] * δρ[1,:] + Vρρ[2,:] * δρ[2,:]
+                 +  Vρσ[1,:] * δσ[1,:] + Vρσ[2,:] * δσ[2,:] + Vρσ[3,:] * δσ[3,:]),
+                (@. Vρρ[2,:] * δρ[1,:] + Vρρ[3,:] * δρ[2,:]
+                 +  Vρσ[4,:] * δσ[1,:] + Vρσ[5,:] * δσ[2,:] + Vρσ[6,:] * δσ[3,:]),
             )
         end
     end
@@ -197,19 +198,16 @@ end
         δρ = ForwardDiff.partials.(ρ_δρ, n)
         δσ = ForwardDiff.partials.(σ_δσ, n)
         if s_σ == 1
-            terms.v2rhosigma .* δρ .+ terms.v2sigma2 .* δσ
+            Vρσ .* δρ .+ Vσσ .* δσ
         else
             # For all three σ components: one line for ∂²/∂σ∂ρ, one line for ∂²/∂σ²
             libxc_combine_spins(
-                (@. terms.v2rhosigma[1,:] * δρ[1,:] + terms.v2rhosigma[4,:] * δρ[2,:]
-                 +  terms.v2sigma2[1,:]   * δσ[1,:] + terms.v2sigma2[2,:]   * δσ[2,:]
-                 +  terms.v2sigma2[3,:]   * δσ[3,:]),
-                (@. terms.v2rhosigma[2,:] * δρ[1,:] + terms.v2rhosigma[5,:] * δρ[2,:]
-                 +  terms.v2sigma2[2,:]   * δσ[1,:] + terms.v2sigma2[4,:]   * δσ[2,:]
-                 +  terms.v2sigma2[5,:]   * δσ[3,:]),
-                (@. terms.v2rhosigma[3,:] * δρ[1,:] + terms.v2rhosigma[6,:] * δρ[2,:]
-                 + terms.v2sigma2[3,:]    * δσ[1,:] + terms.v2sigma2[5,:]   * δσ[2,:]
-                 + terms.v2sigma2[6,:]    * δσ[3,:]),
+                (@. Vρσ[1,:] * δρ[1,:] + Vρσ[4,:] * δρ[2,:]
+                 +  Vσσ[1,:] * δσ[1,:] + Vσσ[2,:] * δσ[2,:] + Vσσ[3,:] * δσ[3,:]),
+                (@. Vρσ[2,:] * δρ[1,:] + Vρσ[5,:] * δρ[2,:]
+                 +  Vσσ[2,:] * δσ[1,:] + Vσσ[4,:] * δσ[2,:] + Vσσ[5,:] * δσ[3,:]),
+                (@. Vρσ[3,:] * δρ[1,:] + Vρσ[6,:] * δρ[2,:]
+                 +  Vσσ[3,:] * δσ[1,:] + Vσσ[5,:] * δσ[2,:] + Vσσ[6,:] * δσ[3,:]),
             )
         end
     end
