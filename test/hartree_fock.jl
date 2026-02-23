@@ -160,7 +160,7 @@ end
                  [0.25, 0.00, 0.00],
                  [0.50, 0.00, 0.00],
                  [0.75, 0.00, 0.00]] 
-    system = DFTK.periodic_system(atoms, lattice, positions)
+    system = DFTK.periodic_system(lattice, atoms, positions)
 
     Ecut = 32
 
