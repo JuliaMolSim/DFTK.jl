@@ -160,6 +160,8 @@ end
                  [0.25, 0.00, 0.00],
                  [0.50, 0.00, 0.00],
                  [0.75, 0.00, 0.00]] 
+    system = DFTK.periodic_system(atoms, lattice, positions)
+
     Ecut = 32
 
     # This created using the very first EXX implementation in DFTK
@@ -170,17 +172,14 @@ end
     ref_etot=-2.023997562144
     
     magnetic_moments = [+1.0, -1.0, +1.0, -1.0]
-    model  = model_DFT(lattice, atoms, positions;
-                       magnetic_moments, temperature=0.01, functionals=PBE())
+    model  = model_DFT(system; pseudopotentials, magnetic_moments,
+                       temperature=0.01, functionals=PBE())
     basis  = PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])
     ρ = guess_density(basis, magnetic_moments)
     scfres_pbe = self_consistent_field(basis; ρ, tol=1e-3)
     
-    model  = model_HF(lattice, atoms, positions; 
-                      singularity_treatment=ProbeCharge(), 
-                      exx_algorithm=AceExx(),
-                      magnetic_moments,
-                      temperature=0.01)
+    model  = model_HF(system; pseudopotentials, magnetic_moments, temperature=0.01,
+                      singularity_treatment=ProbeCharge(), exx_algorithm=AceExx())
     basis  = PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])
     RunSCF.run_scf_and_compare(Float64, basis, ref_hf, ref_etot;
                                scf_ene_tol=1e-10, test_tol=5e-5, n_ignored=0,
