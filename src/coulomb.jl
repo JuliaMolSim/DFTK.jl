@@ -178,7 +178,7 @@ end
     basis::PlaneWaveBasis{T}, 
     qpt, 
     q, 
-    ::InteractionModel, 
+    interaction_model::InteractionModel, 
     regularization::VoxelAveraged
 ) where {T}
     model = basis.model
@@ -215,6 +215,9 @@ end
         if found_singularity 
             # === At Singularity (G+q=0) use surface reduction method ===
             
+            # We only do that for the 4π/(G+q)^2 kernel, hence the quadrature below
+            # covers the rest if interaction_model is different from Coulomb().
+            
             # Transforms volume integral ∫ 1/G^2 dV to surface integral Σ h * ∫ 1/G^2 dS
             integral = zero(T)
             for i in 1:3
@@ -247,25 +250,34 @@ end
             end
             
             interaction_kernel[iG] = 4T(π) * (integral / voxel_vol)
+        end
 
-        else
-            # === Otherwise use smooth 3D Gaussian Quadrature ===
-            integral = zero(T)
-            for (wx, x) in zip(weights, nodes)
-                for (wy, y) in zip(weights, nodes)
-                    for (wz, z) in zip(weights, nodes)
-                        # q vector inside voxel
-                        q_local = x * voxel_basis[:, 1] + 
-                                  y * voxel_basis[:, 2] + 
-                                  z * voxel_basis[:, 3]
-                        
-                        G_total = G_cart + q_local
-                        integral += wx * wy * wz / dot(G_total, G_total)
+        # === Use smooth 3D Gaussian Quadrature ===
+        integral = zero(T)
+        for (wx, x) in zip(weights, nodes)
+            for (wy, y) in zip(weights, nodes)
+                for (wz, z) in zip(weights, nodes)
+                    # q vector inside voxel
+                    q_local = x * voxel_basis[:, 1] + 
+                              y * voxel_basis[:, 2] + 
+                              z * voxel_basis[:, 3]
+                    
+                    G_total = G_cart + q_local
+                    Gsq = dot(G_total, G_total)
+                    val = evaluate_kernel(interaction_model, Gsq)
+
+                    # At singularity, already captured the 4π/(G+q)^2 contribution above: subtract
+                    if found_singularity
+                        # For Float64 this is numerically safe for BvK cells with 
+                        # edge lengths up to 10^4 bohr and 30 quadrature points
+                        val -= 4T(π)/Gsq  
                     end
+
+                    integral += wx * wy * wz * val
                 end
             end
-            interaction_kernel[iG] = 4T(π) * integral
         end
+        interaction_kernel[iG] += integral
     end
     
     interaction_kernel
