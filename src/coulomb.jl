@@ -61,9 +61,8 @@ diverging G+q=0 fourier componentn of interaction models.
 
 Available models:
 - [`ProbeCharge`](@ref): Gygi-Baldereschi probe charge method
-- [`NeglectSingularity`](@ref): Set G+q=0 component to zero
+- [`ReplaceSingularity`](@ref): Set G+q=0 component to given value (default is zero)
 - [`VoxelAveraged`](@ref): Replacing 1/(G+q)^2 by its average over the voxel
-- [`NoSingularity`](@ref): Leave G+q=0 untouched
 
 See also: [`InteractionModel`](@ref)
 """
@@ -124,18 +123,21 @@ end
 
 
 """
-Simply set the G+q=0 Coulomb kernel component to zero.
-This is the simplest approach but leads to slow `O(1/L) = O(1 / ∛(Nk))` convergence
-where `L` is the size of the supercell,`Nk` is the number of k-points.
+Simply set the G+q=0 Coulomb kernel component to Gpq_zero_value.
+
+In case of Gpq_zero_value=0 this leads to slow `O(1/L) = O(1 / ∛(Nk))` 
+convergence where `L` is the size of the supercell,`Nk` is the number of k-points.
 Useful for testing or comparison purposes.
 """
-struct NeglectSingularity <: KernelRegularization end
+@kwdef struct ReplaceSingularity{V <: Real} <: KernelRegularization
+    Gpq_zero_value::V = 0.0
+end
 @views function _compute_kernel(
     basis::PlaneWaveBasis{T}, 
     qpt, 
     q, 
     interaction_model::InteractionModel, 
-    ::NeglectSingularity
+    regularization::ReplaceSingularity
 ) where {T}
     # Compute truncated Coulomb kernel without special-casing singularity at G+q=0 
     interaction_kernel = map(Gplusk_vectors_cart(basis, qpt)) do Gpq
@@ -143,26 +145,8 @@ struct NeglectSingularity <: KernelRegularization end
     end
 
     if iszero(qpt.coordinate)  # Neglect the singularity
-        GPUArraysCore.@allowscalar interaction_kernel[1] = zero(T)
-    end
-    interaction_kernel
-end
-
-
-"""
-Leave the G+q=0 component untouched.
-Usefull if evaluate_kernel provides the correct value.
-"""
-struct NoSingularity <: KernelRegularization end
-@views function _compute_kernel(
-    basis::PlaneWaveBasis{T}, 
-    qpt, 
-    q, 
-    interaction_model::InteractionModel, 
-    ::NoSingularity
-) where {T}
-    interaction_kernel = map(Gplusk_vectors_cart(basis, qpt)) do Gpq
-        evaluate_kernel(interaction_model, sum(abs2, Gpq))
+        GPUArraysCore.@allowscalar interaction_kernel[1] = 
+            T(regularization.Gpq_zero_value)
     end
     interaction_kernel
 end
@@ -453,8 +437,8 @@ Short-range Coulomb interaction via error function: erfc(αr)/r
 @kwdef struct ErfShortRangeCoulomb <: InteractionModel 
     α = 0.2
 end
-evaluate_kernel(m::ErfShortRangeCoulomb, Gsq::T) where {T} = iszero(Gsq) ? T(π) / m.α^2 : -(4T(π) / Gsq) * expm1(-Gsq / (4 * m.α^2))
-_compute_kernel(basis, qpt, q, m::ErfShortRangeCoulomb) = _compute_kernel(basis, qpt, q, m, NoSingularity())
+evaluate_kernel(m::ErfShortRangeCoulomb, Gsq::T) where {T} = -(4T(π) / Gsq) * expm1(-Gsq / (4 * m.α^2))
+_compute_kernel(basis, qpt, q, m::ErfShortRangeCoulomb) = _compute_kernel(basis, qpt, q, m, ReplaceSingularity(π/m.α^2))
 
 
 """

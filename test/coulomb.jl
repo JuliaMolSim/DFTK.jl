@@ -27,8 +27,8 @@
         @test abs(E_ref - E_probe) < 1e-6
     end
 
-    @testset "NeglectSingularity" begin
-        k_neglect = compute_interaction_kernel(basis; interaction_model=Coulomb(NeglectSingularity()))
+    @testset "ReplaceSingularity" begin
+        k_neglect = compute_interaction_kernel(basis; interaction_model=Coulomb(ReplaceSingularity()))
         E_neglect = exx_energy_only(basis, kpt, k_neglect, ψk_real, occk)
         E_ref = -0.7349457693125514
         @test abs(E_ref - E_neglect) < 1e-6

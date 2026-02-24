@@ -42,7 +42,7 @@
     model = model_HF(lattice, atoms, positions;
                      temperature=0.001, smearing=DFTK.Smearing.Gaussian(),
                      exx_algorithm=VanillaExx(),
-                     interaction_model=Coulomb(NeglectSingularity()))
+                     interaction_model=Coulomb(ReplaceSingularity()))
     basis = PlaneWaveBasis(model; Ecut=20, kgrid=[1, 1, 1])
 
     run_scf_and_compare(Float64, basis, ref_hf, ref_etot; 

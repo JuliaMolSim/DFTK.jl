@@ -105,7 +105,7 @@ export Coulomb, TruncatedCoulomb
 export ErfShortRangeCoulomb, ErfLongRangeCoulomb
 export Spherically, WignerSeitz
 export ProbeCharge, VoxelAveraged
-export NeglectSingularity, NoSingularity
+export ReplaceSingularity, ReplaceSingularity
 include("coulomb.jl")
 
 export Hamiltonian
