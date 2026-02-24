@@ -256,17 +256,17 @@ custom exact exchange fraction.
          necks in the code.
 """
 # PBE0 (https://doi.org/10.1063/1.478522)
-PBE0(; kwargs...)  = HybridFunctional([:hyb_gga_xc_pbeh]; exx_fraction=0.25, kwargs...)
+PBE0(; kwargs...)  = HybridFunctional([:hyb_gga_xc_pbeh]; kwargs...)
 
 # Heyd-Scuseria-Ernzerhof (HSE03: https://doi.org/10.1063/1.2204597
 # range separation parameter ω chosen to match VASP (no QuantumESPRESSO implementaion)
-HSE03(; kwargs...) = HybridFunctional([:hyb_gga_xc_pbeh]; exx_fraction=0.25, 
+HSE03(; kwargs...) = HybridFunctional([:hyb_gga_xc_hse03]; 
                                       interaction_model=ErfShortRangeCoulomb(ω=0.159),  
                                       kwargs...)
 
 # Heyd-Scuseria-Ernzerhof (HSE06): https://doi.org/10.1063/1.2404663
 # range separation parameter ω chosen to match QuantumESPRESSO & VASP
-HSE06(; kwargs...) = HybridFunctional([:hyb_gga_xc_pbeh]; exx_fraction=0.25, 
+HSE06(; kwargs...) = HybridFunctional([:hyb_gga_xc_hse06]; exx_fraction=0.25, 
                                       interaction_model=ErfShortRangeCoulomb(ω=0.106),  
                                       kwargs...)
 
