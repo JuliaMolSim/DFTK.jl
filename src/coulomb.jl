@@ -264,14 +264,18 @@ end
                     
                     G_total = G_cart + q_local
                     Gsq = dot(G_total, G_total)
-                    val = evaluate_kernel(interaction_model, Gsq)
+
+                    # switch temporarily to BigFloat
+                    Gsq_big = BigFloat(Gsq)
+                    val_big = evaluate_kernel(interaction_model, Gsq_big)
 
                     # At singularity, already captured the 4π/(G+q)^2 contribution above: subtract
                     if found_singularity
-                        # For Float64 this is numerically safe for BvK cells with 
-                        # edge lengths up to 10^4 bohr and 30 quadrature points
-                        val -= 4T(π)/Gsq  
+                        val_big -= 4π/Gsq_big
                     end
+
+                    # back to type T
+                    val = T(val_big)
 
                     integral += wx * wy * wz * val
                 end
