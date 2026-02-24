@@ -85,11 +85,13 @@ end
         (ik, n) = kn
 
         kpt = basis.kpoints[ik]
-        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n])
+        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n]; normalize=false)
         # … and then we compute the real Fourier transform in the adequate basis.
-        ifft!(storage.δψnk_real, basis, δψ_plus_k[ik].kpt, δψ_plus_k[ik].ψk[:, n])
+        ifft!(storage.δψnk_real, basis, δψ_plus_k[ik].kpt, δψ_plus_k[ik].ψk[:, n]; normalize=false)
+        # use unnormalized plans for extra speed, normalize at the end
+        ifft_normalization = basis.fft_grid.ifft_normalization
 
-        storage.δρ[:, :, :, kpt.spin] .+= real_qzero.(
+        storage.δρ[:, :, :, kpt.spin] .+= ifft_normalization^2 .* real_qzero.(
             2 .* occupation[ik][n]  .* basis.kweights[ik] .* conj.(storage.ψnk_real)
                                                           .* storage.δψnk_real
               .+ δoccupation[ik][n] .* basis.kweights[ik] .* abs2.(storage.ψnk_real))
