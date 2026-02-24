@@ -5,8 +5,8 @@ Abstract type for different interaction models
 
 Available models:
 - [`Coulomb`](@ref): 1/r
-- [`ErfShortRange`](@ref): erfc(αr)/r
-- [`ErfLongRange`](@ref): erf(αr)/r
+- [`ErfShortRangeCoulomb`](@ref): erfc(αr)/r
+- [`ErfLongRangeCoulomb`](@ref): erf(αr)/r
 - [`TruncatedCoulomb`](@ref): spatially truncated 1/r
 
 See also: [`compute_interaction_kernel`](@ref)
@@ -63,6 +63,7 @@ Available models:
 - [`ProbeCharge`](@ref): Gygi-Baldereschi probe charge method
 - [`NeglectSingularity`](@ref): Set G+q=0 component to zero
 - [`VoxelAveraged`](@ref): Replacing 1/(G+q)^2 by its average over the voxel
+- [`NoSingularity`](@ref): Leave G+q=0 untouched
 
 See also: [`InteractionModel`](@ref)
 """
@@ -94,7 +95,7 @@ end
     basis::PlaneWaveBasis{T}, 
     qpt, 
     q, 
-    ::InteractionModel, 
+    interaction_model::InteractionModel, 
     regularization::ProbeCharge
 ) where {T}
     # Default value well-tested in VASP; ensures that e^(-α*G²) is localized 
@@ -104,14 +105,14 @@ end
     Ω = basis.model.unit_cell_volume  # volume of unit cell 
     Gpq = map(Gpq -> sum(abs2, Gpq), Gplusk_vectors_cart(basis, qpt))
 
-    interaction_kernel = 4T(π) ./ Gpq  # Note: q+G = 0 component is not special-cased, i.e. wrong here
+    interaction_kernel = evaluate_kernel.(Ref(interaction_model), Gpq) # Note: q+G = 0 component is not special-cased, i.e. wrong here
 
     # Potential of Gaussian charges (skipping term at G+q=0)
     probe_charge_sum = sum((interaction_kernel .* exp.(-α*Gpq))[2:end])
 
     # Interaction of Gaussian charges with uniform background (i.e. integral of charges)
     #  = Ω/(2π)^3 ∫ 4π/q² ρ(q) dq  with  ρ(q)=e^(-αq²)
-    probe_charge_integral = 8*π^2*sqrt(π/α) * Ω/(2π)^3 
+    probe_charge_integral = evaluate_probe_charge_integral(interaction_model, α, Ω)
 
     if iszero(qpt.coordinate)
         GPUArraysCore.@allowscalar begin
@@ -133,16 +134,35 @@ struct NeglectSingularity <: KernelRegularization end
     basis::PlaneWaveBasis{T}, 
     qpt, 
     q, 
-    ::InteractionModel, 
+    interaction_model::InteractionModel, 
     ::NeglectSingularity
 ) where {T}
     # Compute truncated Coulomb kernel without special-casing singularity at G+q=0 
     interaction_kernel = map(Gplusk_vectors_cart(basis, qpt)) do Gpq
-        4T(π) / sum(abs2, Gpq)
+        evaluate_kernel(interaction_model, sum(abs2, Gpq))
     end
 
     if iszero(qpt.coordinate)  # Neglect the singularity
         GPUArraysCore.@allowscalar interaction_kernel[1] = zero(T)
+    end
+    interaction_kernel
+end
+
+
+"""
+Leave the G+q=0 component untouched.
+Usefull if evaluate_kernel provides the correct value.
+"""
+struct NoSingularity <: KernelRegularization end
+@views function _compute_kernel(
+    basis::PlaneWaveBasis{T}, 
+    qpt, 
+    q, 
+    interaction_model::InteractionModel, 
+    ::NoSingularity
+) where {T}
+    interaction_kernel = map(Gplusk_vectors_cart(basis, qpt)) do Gpq
+        evaluate_kernel(interaction_model, sum(abs2, Gpq))
     end
     interaction_kernel
 end
@@ -410,30 +430,42 @@ end
 """
 Coulomb interaction 1/r requires regularization
 """
-@kwdef struct Coulomb <: InteractionModel 
-    regularization::KernelRegularization = ProbeCharge()
+@kwdef struct Coulomb{KR <: KernelRegularization} <: InteractionModel 
+    regularization::KR = ProbeCharge()
 end
+evaluate_kernel(::Coulomb, Gsq::T) where {T} = 4T(π) / Gsq
+evaluate_probe_charge_integral(::Coulomb, α_probe, Ω) = 8π^2 * sqrt(π / α_probe) * Ω / (2π)^3
 _compute_kernel(basis, qpt, q, m::Coulomb) = _compute_kernel(basis, qpt, q, m, m.regularization)
 
 
 """
 Spatially truncated Coulomb interaction requires truncation strategy
 """
-@kwdef struct TruncatedCoulomb <: InteractionModel 
-    truncation::TruncationStrategy = WignerSeitz()
+@kwdef struct TruncatedCoulomb{TS <: TruncationStrategy} <: InteractionModel 
+    truncation::TS = WignerSeitz()
 end
 _compute_kernel(basis, qpt, q, m::TruncatedCoulomb) = _compute_kernel(basis, qpt, q, m.truncation)
 
 
-#@kwdef struct ErfLongRange <: InteractionModel 
-#    α = 0.3   
-#    regularization::KernelRegularization = ProbeCharge()
-#end
-#_compute_kernel(basis, qpt, q, m::ErfLongRange) = _compute_kernel(basis, qpt, q, m, m.regularization)
-#
-#
-#@kwdef struct ErfShortRange <: InteractionModel 
-#    α = 0.3   
-#end
-#@views function _compute_kernel(basis, qpt, q, m::ErfShortRange) println("ErfShortRange not yet implemented"); exit() end
+"""
+Short-range Coulomb interaction via error function: erfc(αr)/r
+"""
+@kwdef struct ErfShortRangeCoulomb <: InteractionModel 
+    α = 0.2
+end
+evaluate_kernel(m::ErfShortRangeCoulomb, Gsq::T) where {T} = iszero(Gsq) ? T(π) / m.α^2 : -(4T(π) / Gsq) * expm1(-Gsq / (4 * m.α^2))
+_compute_kernel(basis, qpt, q, m::ErfShortRangeCoulomb) = _compute_kernel(basis, qpt, q, m, NoSingularity())
+
+
+"""
+Long-range Coulomb interaction via error function: erf(αr)/r
+"""
+@kwdef struct ErfLongRangeCoulomb{KR <: KernelRegularization} <: InteractionModel 
+    α = 0.2   
+    regularization::KR = ProbeCharge()
+end
+evaluate_kernel(m::ErfLongRangeCoulomb, Gsq::T) where {T} = (4T(π) / Gsq) * exp(-Gsq / (4 * m.α^2))
+evaluate_probe_charge_integral(m::ErfLongRangeCoulomb, α_probe, Ω) = 8π^2 * sqrt(π / (α_probe + 1/(4 * m.α^2))) * Ω / (2π)^3
+_compute_kernel(basis, qpt, q, m::ErfLongRangeCoulomb) = _compute_kernel(basis, qpt, q, m, m.regularization)
+
 
