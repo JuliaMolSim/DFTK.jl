@@ -10,7 +10,7 @@
                                # Type piracies we do for FFT stuff
                                *, \, mul!, dot, ldiv!,
                                # Libxc stuff
-                               DFTK.potential_terms, DFTK.kernel_terms]),
+                               DFTK.potential_terms]),
                   piracies=false,
                   deps_compat=(; check_extras=(; ignore=[:CUDA_Runtime_jll])),
                  )
