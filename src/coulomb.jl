@@ -351,13 +351,14 @@ struct WignerSeitz <: TruncationStrategy end
     NG = length(qpt.G_vectors)
     interaction_kernel = zeros(T, NG)
     q = qpt.coordinate
-    # calculate inradius R_in of Wigner-Seitz cell
-    # R_in is given by the largest possible 
-    # R_in = (sum_i n_i * a*i) / 2 
-    # with integers n_i and |R_in| <= a_min where a_min is the length of the smallest lattice vector.
-    # The inequality allows us to restrict n_i by exploiting Cauchy-Schwarz, leading to 
-    # |n_i| <= a_min * |b_i| / 2π 
-    # where b_i are the reciprocal lattice vectors.
+    
+    # === Calculate inradius R_in of Wigner-Seitz cell ===
+    
+    # R_in is largest possible R_in = (sum_i n_i * a*i) / 2 with integers n_i 
+    # and |R_in| <= a_min where a_min is the length of the smallest lattice vector. 
+    # The inequality allows to restrict n_i by exploiting Cauchy-Schwarz, leading 
+    # to |n_i| <= a_min * |b_i| / 2π where b_i are reciprocal lattice vectors.
+
     L_min = minimum(norm, eachcol(model.lattice))
     n_bounds = zeros(Int, 3)
     for i in 1:3
@@ -367,9 +368,10 @@ struct WignerSeitz <: TruncationStrategy end
         n_bounds[i] = ceil(Int, N)
     end
     nx, ny, nz = n_bounds # in case of a cubic cell nx=ny=nz=1
-    # construct R_in
+
+    # finally compute R_in
     R_in = T(Inf)
-    for ix in -nx:nx, iy in -ny:ny, iz in -nz:nz # loop through all necessary integers 
+    for ix in -nx:nx, iy in -ny:ny, iz in -nz:nz 
         ix == 0 && iy == 0 && iz == 0 && continue
         R = model.lattice * [ix, iy, iz]
         d = norm(R) / 2 # distance from origin to perpendicular bisector plane = |R|/2
@@ -387,7 +389,7 @@ struct WignerSeitz <: TruncationStrategy end
     end
     ω = sqrt(-log(ε)) / R_in  # range separation parameter
 
-    # FFT of long-range term erf(ωr)/r restricted to Wigner-Seitz cell 
+    # == FFT of long-range term erf(ωr)/r restricted to Wigner-Seitz cell ===
     r_vectors = DFTK.r_vectors(basis)
     V_lr_real = zeros(Complex{T}, basis.fft_size...)
     for idx in CartesianIndices(V_lr_real)
@@ -411,7 +413,7 @@ struct WignerSeitz <: TruncationStrategy end
     interaction_kernel_lr = real.(fft(basis, qpt, V_lr_real))
     interaction_kernel_lr .*= sqrt(model.unit_cell_volume)
     
-    # analytic short-range term + long-range term 
+    # === Analytic short-range term + long-range term ===
     for (iG, G) in enumerate(to_cpu(qpt.G_vectors))
         G_cart = model.recip_lattice * (G+q)
         Gnorm2 = sum(abs2, G_cart)
