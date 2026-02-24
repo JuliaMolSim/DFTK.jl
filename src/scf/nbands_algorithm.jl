@@ -81,7 +81,7 @@ function determine_n_bands(bands::AdaptiveBands, occupation::Nothing, eigenvalue
     (; n_bands_converge, n_bands_compute)
 end
 function determine_n_bands(bands::AdaptiveBands, occupation::AbstractVector,
-                           eigenvalues::AbstractVector, ψ::AbstractVector)
+                           eigenvalues::Union{Nothing,AbstractVector}, ψ::AbstractVector)
     # Determine number of bands to be actually converged
     # Bring occupation on the CPU, or findlast will fail
     occupation = [to_cpu(occk) for occk in occupation]
@@ -92,15 +92,18 @@ function determine_n_bands(bands::AdaptiveBands, occupation::AbstractVector,
     n_bands_converge = max(bands.n_bands_converge, n_bands_occ)
 
     # Determine number of bands to be computed
-    n_bands_compute_ε = maximum(eigenvalues) do εk
-        n_bands_converge > length(εk) && return length(εk) + 1
-        something(findlast(εnk -> εnk ≤ εk[n_bands_converge] + bands.gap_min, εk),
-                  length(εk) + 1)
+    if isnothing(eigenvalues)
+        n_bands_compute_ε = 0
+    else
+        n_bands_compute_ε = maximum(eigenvalues) do εk
+            n_bands_converge > length(εk) && return length(εk) + 1
+            something(findlast(εnk -> εnk ≤ εk[n_bands_converge] + bands.gap_min, εk),
+                      length(εk) + 1)
+        end
     end
     n_bands_compute = max(bands.n_bands_compute, n_bands_compute_ε, n_bands_converge + 3)
-    if !isnothing(ψ)
-        n_bands_compute = max(n_bands_compute, maximum(ψk -> size(ψk, 2), ψ))
-    end
+
+    n_bands_compute = max(n_bands_compute, maximum(ψk -> size(ψk, 2), ψ))
     @debug "determine_n_bands" n_bands_converge n_bands_compute n_bands_occ n_bands_compute_ε
     (; n_bands_converge, n_bands_compute)
 end

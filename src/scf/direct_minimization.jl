@@ -77,11 +77,11 @@ function direct_minimization(basis::PlaneWaveBasis{T};
                              linesearch=LineSearches.BackTracking(),
                              seed=nothing,
                              kwargs...) where {T}
-    if mpi_nprocs() > 1
+    if mpi_nprocs(basis.comm_kpts) > 1
         # need synchronization in Optim
         error("Direct minimization with MPI is not supported yet")
     end
-    seed = seed_task_local_rng!(seed, MPI.COMM_WORLD)
+    seed = seed_task_local_rng!(seed, basis.comm_kpts)
     model = basis.model
     @assert iszero(model.temperature)  # temperature is not yet supported
     @assert isnothing(model.εF)        # neither are computations with fixed Fermi level

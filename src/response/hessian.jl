@@ -29,8 +29,12 @@ from ψ and Λ is the set of Rayleigh coefficients ψk' * Hk * ψk at each k-poi
 """
 @timing function apply_Ω(δψ, ψ, H::Hamiltonian, Λ)
     δψ = proj_tangent(δψ, ψ)
-    Ωδψ = [H.blocks[ik] * δψk - δψk * Λ[ik] for (ik, δψk) in enumerate(δψ)]
-    proj_tangent!(Ωδψ, ψ)
+    map(enumerate(δψ)) do (ik, δψk)
+        Ωδψ = H.blocks[ik] * δψk
+        mul!(Ωδψ, δψk, Λ[ik], -1, 1)
+        proj_tangent_kpt!(Ωδψ, ψ[ik])
+        Ωδψ
+    end
 end
 
 """
@@ -48,6 +52,8 @@ Compute the application of K defined at ψ to δψ. ρ is the density issued fro
     δψ = proj_tangent(δψ, ψ)
     δρ = compute_δρ(basis, ψ, δψ, occupation)
     δV = apply_kernel(basis, δρ; ρ)
+    # normalize here so we can use unnormalized FFTs for extra speed
+    δV .*= basis.fft_grid.ifft_normalization * basis.fft_grid.fft_normalization
 
     ψnk_real = similar(G_vectors(basis), promote_type(T, eltype(ψ[1])))
     Kδψ = map(enumerate(ψ)) do (ik, ψk)
@@ -55,9 +61,9 @@ Compute the application of K defined at ψ to δψ. ρ is the density issued fro
         δVψk = similar(ψk)
 
         for n = 1:size(ψk, 2)
-            ifft!(ψnk_real, basis, kpt, ψk[:, n])
+            ifft!(ψnk_real, basis, kpt, ψk[:, n]; normalize=false)
             ψnk_real .*= δV[:, :, :, kpt.spin]
-            fft!(δVψk[:, n], basis, kpt, ψnk_real)
+            fft!(δVψk[:, n], basis, kpt, ψnk_real; normalize=false)
         end
         δVψk
     end
@@ -76,7 +82,7 @@ function ResponseCallback()
     ResponseCallback(Ref(zero(UInt64)))
 end
 function (cb::ResponseCallback)(info)
-    mpi_master() || return info  # Only print on master
+    mpi_master(info.basis.comm_kpts) && return info  # Only print on master
 
     if info.stage == :finalize
         info.converged || @warn "solve_ΩplusK not converged."
@@ -164,7 +170,7 @@ that is return δψ where (Ω+K) δψ = -δHextψ.
     end
     tol = max(atol, rtol * sqrt(real(weighted_dot(δHextψ_pack, δHextψ_pack))))
     res = cg(J, -δHextψ_pack; precon=FunctionPreconditioner(f_ldiv!), proj, tol,
-             callback, my_dot=weighted_dot, kwargs...)
+             callback=info -> callback(merge(info, (; basis=basis))), my_dot=weighted_dot, kwargs...)
     (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norm,
      res.n_iter)
 end
@@ -179,6 +185,10 @@ function OmegaPlusKDefaultCallback(; show_σmin=false, show_time=true)
 end
 function (cb::OmegaPlusKDefaultCallback)(info)
     io = stdout
+    # Default to MPI.COMM_WORLD for logging if basis not provided
+    comm = MPI.COMM_WORLD
+    haskey(info, :basis) && (comm = info.basis.comm_kpts)
+
     avgCG = 0.0
     if haskey(info, :Axinfos) && haskey(first(info.Axinfos), :n_iter)
         # Axinfo: NamedTuple returned by mul_inexact(::DielectricAdjoint, ...)
@@ -188,10 +198,10 @@ function (cb::OmegaPlusKDefaultCallback)(info)
         avgCG = sum(info.Axinfos) do Axinfo
             mean(sum, Axinfo.n_iter)
         end
-        avgCG = mpi_mean(avgCG, first(info.Axinfos).basis.comm_kpts)
+        avgCG = mpi_mean(avgCG, comm)
     end
 
-    !mpi_master() && return info  # Rest is printing => only do on master
+    !mpi_master(comm) && return info  # Rest is printing => only do on master
 
     show_time  = (hasproperty(info, :runtime_ns) && cb.show_time)
     label_time = show_time    ? ("  Δtime ", "  ------", " "^8) : ("", "", "")
@@ -297,8 +307,8 @@ Input parameters:
                            maxiter=maxiter_sternheimer, tol=tol * factor_initial,
                            bandtolalg, occupation_threshold,
                            q, kwargs...)  # = χ04P * δHext
-        callback((; stage=:noninteracting, runtime_ns=time_ns() - start_ns,
-                    Axinfos=[(; basis, tol=tol*factor_initial, res0...)]))
+        callback((; stage=:noninteracting, runtime_ns=time_ns() - start_ns, basis,
+                    Axinfos=[(; tol=tol*factor_initial, res0...)]))
         compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
                    occupation_threshold, q)
     end
@@ -311,7 +321,7 @@ Input parameters:
         Pδρ .= vec(mix_density(mixing, basis, reshape(δρ, size(ρ));
                                ham, basis, ρin=ρ, εF, eigenvalues, ψ))
     end
-    callback_inner(info) = callback(merge(info, (; runtime_ns=time_ns() - start_ns)))
+    callback_inner(info) = callback(merge(info, (; runtime_ns=time_ns() - start_ns, basis=basis)))
     info_gmres = inexact_gmres(ε_adj, vec(δρ0);
                                tol, precon, krylovdim, maxiter, s,
                                callback=callback_inner, kwargs...)
@@ -339,8 +349,8 @@ Input parameters:
                            δtemperature,
                            maxiter=maxiter_sternheimer, tol=tol * factor_final,
                            bandtolalg, occupation_threshold, q, kwargs...)
-    callback((; stage=:final, runtime_ns=time_ns() - start_ns,
-                Axinfos=[(; basis, tol=tol*factor_final, resfinal...)]))
+    callback((; stage=:final, runtime_ns=time_ns() - start_ns, basis,
+                Axinfos=[(; tol=tol*factor_final, resfinal...)]))
     # Compute total change in eigenvalues
     δeigenvalues = map(ψ, δHtotψ) do ψk, δHtotψk
         map(eachcol(ψk), eachcol(δHtotψk)) do ψnk, δHtotψnk
@@ -394,7 +404,7 @@ end
                    ε_adj.bandtolalg, ε_adj.q, ε_adj.maxiter, kwargs...)
     χ0δV = res.δρ
     Ax = vec(δρ - χ0δV)  # (1 - χ0 K) δρ
-    (; Ax, info=(; rtol, basis, res...))
+    (; Ax, info=(; rtol, res...))
 end
 function size(ε_adj::DielectricAdjoint, i::Integer)
     if 1 ≤ i ≤ 2
