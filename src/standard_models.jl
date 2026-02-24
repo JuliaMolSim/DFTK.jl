@@ -245,8 +245,7 @@ Possible keyword arguments are those accepted by [`Xc`](@ref).
 r2SCAN(; kwargs...) = Xc([:mgga_x_r2scan, :mgga_c_r2scan]; kwargs...)
 
 """
-Specify a PBE0 hybrid functional in conjunction with [`model_DFT`](@ref)
-<https://doi.org/10.1063/1.478522>.
+Specify hybrid functional in conjunction with [`model_DFT`](@ref)
 Possible keyword arguments are those accepted by [`Xc`](@ref) and by
 [`ExactExchange`](@ref). Use the keyword argument `exx_fraction` to specify a
 custom exact exchange fraction.
@@ -256,8 +255,20 @@ custom exact exchange fraction.
          Note further that at this stage (Feb 2026) there are still known performance bottle
          necks in the code.
 """
-PBE0(; kwargs...) = HybridFunctional([:hyb_gga_xc_pbeh]; kwargs...)
+# PBE0 (https://doi.org/10.1063/1.478522)
+PBE0(; kwargs...)  = HybridFunctional([:hyb_gga_xc_pbeh]; exx_fraction=0.25, kwargs...)
 
+# Heyd-Scuseria-Ernzerhof (HSE03: https://doi.org/10.1063/1.2204597
+# range separation parameter ω chosen to match VASP (no QuantumESPRESSO implementaion)
+HSE03(; kwargs...) = HybridFunctional([:hyb_gga_xc_pbeh]; exx_fraction=0.25, 
+                                      interaction_model=ErfShortRangeCoulomb(ω=0.159),  
+                                      kwargs...)
+
+# Heyd-Scuseria-Ernzerhof (HSE06): https://doi.org/10.1063/1.2404663
+# range separation parameter ω chosen to match QuantumESPRESSO & VASP
+HSE06(; kwargs...) = HybridFunctional([:hyb_gga_xc_pbeh]; exx_fraction=0.25, 
+                                      interaction_model=ErfShortRangeCoulomb(ω=0.106),  
+                                      kwargs...)
 
 # Internal function to help define hybrid functional shorthands
 function HybridFunctional(libxc_symbols;

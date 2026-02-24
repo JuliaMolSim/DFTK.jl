@@ -5,8 +5,8 @@ Abstract type for different interaction models
 
 Available models:
 - [`Coulomb`](@ref): 1/r
-- [`ErfShortRangeCoulomb`](@ref): erfc(αr)/r
-- [`ErfLongRangeCoulomb`](@ref): erf(αr)/r
+- [`ErfShortRangeCoulomb`](@ref): erfc(ωr)/r
+- [`ErfLongRangeCoulomb`](@ref): erf(ωr)/r
 - [`TruncatedCoulomb`](@ref): spatially truncated 1/r
 
 See also: [`compute_interaction_kernel`](@ref)
@@ -369,9 +369,9 @@ struct WignerSeitz <: TruncationStrategy end
     if ε > 1e-8
         @warn "Grid too coarse for Wigner-Seitz truncation. Effective truncation error: $ε"
     end
-    α = sqrt(-log(ε)) / R_in          # range separation parameter
+    ω = sqrt(-log(ε)) / R_in  # range separation parameter
 
-    # FFT of long-range term erf(αr)/r restricted to Wigner-Seitz cell 
+    # FFT of long-range term erf(ωr)/r restricted to Wigner-Seitz cell 
     r_vectors = DFTK.r_vectors(basis)
     V_lr_real = zeros(Complex{T}, basis.fft_size...)
     for idx in CartesianIndices(V_lr_real)
@@ -386,9 +386,9 @@ struct WignerSeitz <: TruncationStrategy end
             d_min = min(d_min, d)
         end
         if d_min > sqrt(eps(T))
-            V_lr_real[idx] = erf(α * d_min) / d_min
+            V_lr_real[idx] = erf(ω * d_min) / d_min
         else
-            V_lr_real[idx] = 2*α / sqrt(T(π))
+            V_lr_real[idx] = 2*ω / sqrt(T(π))
         end
         V_lr_real[idx] *= exp(-im * 2*T(π) * dot(q, r_frac)) # add phase e^{-2πiqr}
     end
@@ -402,9 +402,9 @@ struct WignerSeitz <: TruncationStrategy end
         found_singularity = (iG==1 && iszero(q))
         Rcut = cbrt(basis.model.unit_cell_volume*3/4/π)
         if !found_singularity
-            interaction_kernel[iG] = 4T(π) / Gnorm2 * (1 - exp(-Gnorm2/(4α^2))) + interaction_kernel_lr[iG]
+            interaction_kernel[iG] = 4T(π) / Gnorm2 * (1 - exp(-Gnorm2/(4ω^2))) + interaction_kernel_lr[iG]
         else
-            interaction_kernel[iG] = T(π)/α^2 + interaction_kernel_lr[iG]
+            interaction_kernel[iG] = T(π)/ω^2 + interaction_kernel_lr[iG]
         end
     end
     interaction_kernel
@@ -418,7 +418,7 @@ Coulomb interaction 1/r requires regularization
     regularization::KR = ProbeCharge()
 end
 evaluate_kernel(::Coulomb, Gsq::T) where {T} = 4T(π) / Gsq
-evaluate_probe_charge_integral(::Coulomb, α_probe, Ω) = 8π^2 * sqrt(π / α_probe) * Ω / (2π)^3
+evaluate_probe_charge_integral(::Coulomb, α, Ω) = 8π^2 * sqrt(π / α) * Ω / (2π)^3
 _compute_kernel(basis, qpt, q, m::Coulomb) = _compute_kernel(basis, qpt, q, m, m.regularization)
 
 
@@ -432,24 +432,24 @@ _compute_kernel(basis, qpt, q, m::TruncatedCoulomb) = _compute_kernel(basis, qpt
 
 
 """
-Short-range Coulomb interaction via error function: erfc(αr)/r
+Short-range Coulomb interaction via error function: erfc(ωr)/r
 """
 @kwdef struct ErfShortRangeCoulomb <: InteractionModel 
-    α = 0.2
+    ω = 0.106  # ≈ 0.2 / Angstrom
 end
-evaluate_kernel(m::ErfShortRangeCoulomb, Gsq::T) where {T} = -(4T(π) / Gsq) * expm1(-Gsq / (4 * m.α^2))
-_compute_kernel(basis, qpt, q, m::ErfShortRangeCoulomb) = _compute_kernel(basis, qpt, q, m, ReplaceSingularity(π/m.α^2))
+evaluate_kernel(m::ErfShortRangeCoulomb, Gsq::T) where {T} = -(4T(π) / Gsq) * expm1(-Gsq / (4 * m.ω^2))
+_compute_kernel(basis, qpt, q, m::ErfShortRangeCoulomb) = _compute_kernel(basis, qpt, q, m, ReplaceSingularity(π/m.ω^2))
 
 
 """
-Long-range Coulomb interaction via error function: erf(αr)/r
+Long-range Coulomb interaction via error function: erf(ωr)/r
 """
 @kwdef struct ErfLongRangeCoulomb{KR <: KernelRegularization} <: InteractionModel 
-    α = 0.2   
+    ω = 0.106 # ≈ 0.2 / Angstrom
     regularization::KR = ProbeCharge()
 end
-evaluate_kernel(m::ErfLongRangeCoulomb, Gsq::T) where {T} = (4T(π) / Gsq) * exp(-Gsq / (4 * m.α^2))
-evaluate_probe_charge_integral(m::ErfLongRangeCoulomb, α_probe, Ω) = 8π^2 * sqrt(π / (α_probe + 1/(4 * m.α^2))) * Ω / (2π)^3
+evaluate_kernel(m::ErfLongRangeCoulomb, Gsq::T) where {T} = (4T(π) / Gsq) * exp(-Gsq / (4 * m.ω^2))
+evaluate_probe_charge_integral(m::ErfLongRangeCoulomb, α, Ω) = 8π^2 * sqrt(π / (α + 1/(4 * m.α^2))) * Ω / (2π)^3
 _compute_kernel(basis, qpt, q, m::ErfLongRangeCoulomb) = _compute_kernel(basis, qpt, q, m, m.regularization)
 
 
