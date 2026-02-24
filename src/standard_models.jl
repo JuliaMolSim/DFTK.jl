@@ -186,20 +186,20 @@ Build an Hartree-Fock model from the specified atoms.
          necks in the code.
 """
 function model_HF(system::AbstractSystem; pseudopotentials,
-                  singularity_treatment::CoulombSingulartyTreatment=ProbeCharge(),
+                  interaction_model::InteractionModel=Coulomb(),
                   exx_algorithm::ExxAlgorithm=VanillaExx(), extra_terms=[], kwargs...)
     # Note: We are deliberately enforcing the user to specify pseudopotentials here.
     # See the implementation of model_atomic for a rationale why
     #
-    exx = ExactExchange(; singularity_treatment, exx_algorithm)
+    exx = ExactExchange(; interaction_model, exx_algorithm)
     model_atomic(system; pseudopotentials, model_name="HF",
                  extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
 end
 function model_HF(lattice::AbstractMatrix, atoms::Vector{<:Element},
                   positions::Vector{<:AbstractVector};
-                  singularity_treatment::CoulombSingulartyTreatment=ProbeCharge(),
+                  interaction_model::InteractionModel=Coulomb(),
                   exx_algorithm::ExxAlgorithm=VanillaExx(), extra_terms=[], kwargs...)
-    exx = ExactExchange(; singularity_treatment, exx_algorithm)
+    exx = ExactExchange(; interaction_model, exx_algorithm)
     model_atomic(lattice, atoms, positions; model_name="HF",
                  extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
 end
@@ -262,14 +262,14 @@ PBE0(; kwargs...) = HybridFunctional([:hyb_gga_xc_pbeh]; kwargs...)
 # Internal function to help define hybrid functional shorthands
 function HybridFunctional(libxc_symbols;
                           exx_fraction=nothing,
-                          singularity_treatment::CoulombSingulartyTreatment=ProbeCharge(),
+                          interaction_model::InteractionModel=Coulomb(),
                           exx_algorithm::ExxAlgorithm=VanillaExx(), kwargs...)
     xc  = Xc(libxc_symbols; kwargs...)
     scaling_factor = @something(exx_fraction, begin
         only(filter(!isnothing, map(exx_coefficient, xc.functionals)))
     end)
 
-    exx = ExactExchange(; scaling_factor, singularity_treatment, exx_algorithm)
+    exx = ExactExchange(; scaling_factor, interaction_model, exx_algorithm)
     [xc, exx]
 end
 

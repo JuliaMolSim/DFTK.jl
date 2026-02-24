@@ -1,19 +1,18 @@
 using FastGaussQuadrature
 
 @doc raw"""
-Abstract type for different methods of computing the 
-discretised Coulomb kernel ``v(G+q) = 4π/|G+q|²``.
+Abstract type for different interaction models
 
 Available models:
-- [`ProbeCharge`](@ref): Gygi-Baldereschi probe charge method
-- [`NeglectSingularity`](@ref): Set G+q=0 component to zero
-- [`SphericallyTruncated`](@ref): Spherical truncation at radius Rcut
-- [`WignerSeitzTruncated`](@ref): Wigner-Seitz cell truncation
-- [`VoxelAveraged`](@ref): Replacing 1/(G+q)^2 by its average over the voxel
+- [`Coulomb`](@ref): 1/r
+- [`ErfShortRange`](@ref): erfc(αr)/r
+- [`ErfLongRange`](@ref): erf(αr)/r
+- [`TruncatedCoulomb`](@ref): spatially truncated 1/r
 
-See also: [`compute_coulomb_kernel`](@ref)
+See also: [`compute_interaction_kernel`](@ref)
 """
-abstract type CoulombSingulartyTreatment end
+abstract type InteractionModel end
+
 
 @doc raw"""
 Compute Coulomb kernel, i.e. essentially ``v(G+q) = 4π/|G+q|²``, on spherical plane-wave grid.
@@ -28,17 +27,17 @@ evaluated only on the spherical cutoff |G+q|² < 2Ecut (not the full cubic FFT g
 ## Arguments
 - `basis::PlaneWaveBasis`: Plane-wave basis defining the grid
 - `q`: Momentum transfer vector in fractional coordinates
-- `singularity_treatment::CoulombSingulartyTreatment`: Method for treating singularity
+- `interaction_model::InteractionModel`: Method for treating singularity
 
 ## Returns
 Vector of Coulomb kernel values for each G-vector in the spherical cutoff.
 """
-function compute_coulomb_kernel(basis::PlaneWaveBasis{T}; q=zero(Vec3{T}),
-                                singularity_treatment::CoulombSingulartyTreatment=ProbeCharge()) where {T}
+function compute_interaction_kernel(basis::PlaneWaveBasis{T}; q=zero(Vec3{T}),
+                                interaction_model::InteractionModel=ProbeCharge()) where {T}
     is_gamma_only = all(iszero(kpt.coordinate) for kpt in basis.kpoints)
     if !is_gamma_only
         throw(ArgumentError("Currently only Gamma-point calculations are supported in " *
-                            "compute_coulomb_kernel, respectively Hartree-Fock and " *
+                            "compute_interaction_kernel, respectively Hartree-Fock and " *
                             "calculations involving exact exchange."))
     end
     if mpi_nprocs(basis.comm_kpts) > 1
@@ -48,32 +47,26 @@ function compute_coulomb_kernel(basis::PlaneWaveBasis{T}; q=zero(Vec3{T}),
 
     # currently only works for Gamma-only (need correct q-point otherwise)
     qpt = basis.kpoints[1] 
-    coulomb_kernel =  _compute_coulomb_kernel(singularity_treatment, basis, qpt)
+    fourier_kernel =  _compute_kernel(basis, qpt, q, interaction_model)
 
     # TODO: if q=0, symmetrize Fourier coeffs to have real iFFT 
 
-    coulomb_kernel = to_device(basis.architecture, coulomb_kernel)
+    fourier_kernel = to_device(basis.architecture, fourier_kernel)
 end
 
 
-"""
-Simply set the G+q=0 Coulomb kernel component to zero.
-This is the simplest approach but leads to slow `O(1/L) = O(1 / ∛(Nk))` convergence
-where `L` is the size of the supercell,`Nk` is the number of k-points.
-Useful for testing or comparison purposes.
-"""
-struct NeglectSingularity <: CoulombSingulartyTreatment end
-function _compute_coulomb_kernel(::NeglectSingularity, basis::PlaneWaveBasis{T}, qpt::Kpoint) where {T}
-    # Compute truncated Coulomb kernel without special-casing singularity at G+q=0 
-    coulomb_kernel = map(Gplusk_vectors_cart(basis, qpt)) do Gpq
-        4T(π) / sum(abs2, Gpq)
-    end
+@doc raw"""
+Abstract type for different strategies to regularize the
+diverging G+q=0 fourier componentn of interaction models.
 
-    if iszero(qpt.coordinate)  # Neglect the singularity
-        GPUArraysCore.@allowscalar coulomb_kernel[1] = zero(T)
-    end
-    coulomb_kernel
-end
+Available models:
+- [`ProbeCharge`](@ref): Gygi-Baldereschi probe charge method
+- [`NeglectSingularity`](@ref): Set G+q=0 component to zero
+- [`VoxelAveraged`](@ref): Replacing 1/(G+q)^2 by its average over the voxel
+
+See also: [`InteractionModel`](@ref)
+"""
+abstract type KernelRegularization end
 
 
 """
@@ -94,22 +87,27 @@ charges, which can be computed using an Ewald sum.
 ## References
 - [S. Massidda, M. Posternak, A. Baldereschi. Phys. Rev. B **48**, 5058 (1993)](https://doi.org/10.1103/PhysRevB.48.5058)
 """
-@kwdef struct ProbeCharge <: CoulombSingulartyTreatment
+@kwdef struct ProbeCharge <: KernelRegularization 
     α::Union{Float64, Nothing} = nothing  # Width of the probe charge
 end
-@views function _compute_coulomb_kernel(kernel::ProbeCharge, basis::PlaneWaveBasis{T},
-                                        qpt::Kpoint) where {T}
+@views function _compute_kernel(
+    basis::PlaneWaveBasis{T}, 
+    qpt, 
+    q, 
+    ::InteractionModel, 
+    regularization::ProbeCharge
+) where {T}
     # Default value well-tested in VASP; ensures that e^(-α*G²) is localized 
     # charge with full support on G grid
-    α = @something kernel.α T(π)^2 / basis.Ecut
+    α = @something regularization.α T(π)^2 / basis.Ecut
 
     Ω = basis.model.unit_cell_volume  # volume of unit cell 
     Gpq = map(Gpq -> sum(abs2, Gpq), Gplusk_vectors_cart(basis, qpt))
 
-    coulomb_kernel = 4T(π) ./ Gpq  # Note: q+G = 0 component is not special-cased, i.e. wrong here
+    interaction_kernel = 4T(π) ./ Gpq  # Note: q+G = 0 component is not special-cased, i.e. wrong here
 
     # Potential of Gaussian charges (skipping term at G+q=0)
-    probe_charge_sum = sum((coulomb_kernel .* exp.(-α*Gpq))[2:end])
+    probe_charge_sum = sum((interaction_kernel .* exp.(-α*Gpq))[2:end])
 
     # Interaction of Gaussian charges with uniform background (i.e. integral of charges)
     #  = Ω/(2π)^3 ∫ 4π/q² ρ(q) dq  with  ρ(q)=e^(-αq²)
@@ -117,11 +115,169 @@ end
 
     if iszero(qpt.coordinate)
         GPUArraysCore.@allowscalar begin
-            coulomb_kernel[1] = probe_charge_integral - probe_charge_sum
+            interaction_kernel[1] = probe_charge_integral - probe_charge_sum
         end
     end
-    coulomb_kernel
+    interaction_kernel
 end
+
+
+"""
+Simply set the G+q=0 Coulomb kernel component to zero.
+This is the simplest approach but leads to slow `O(1/L) = O(1 / ∛(Nk))` convergence
+where `L` is the size of the supercell,`Nk` is the number of k-points.
+Useful for testing or comparison purposes.
+"""
+struct NeglectSingularity <: KernelRegularization end
+@views function _compute_kernel(
+    basis::PlaneWaveBasis{T}, 
+    qpt, 
+    q, 
+    ::InteractionModel, 
+    ::NeglectSingularity
+) where {T}
+    # Compute truncated Coulomb kernel without special-casing singularity at G+q=0 
+    interaction_kernel = map(Gplusk_vectors_cart(basis, qpt)) do Gpq
+        4T(π) / sum(abs2, Gpq)
+    end
+
+    if iszero(qpt.coordinate)  # Neglect the singularity
+        GPUArraysCore.@allowscalar interaction_kernel[1] = zero(T)
+    end
+    interaction_kernel
+end
+
+
+"""
+Calculates the average of the Coulomb kernel over the Brillouin zone voxel associated
+with each grid point. It is particularly well suited for highly anisotropic cells.
+
+- **G=0 (Singularity):** Uses an exact mathematical reduction of the volume integral 
+  ``∫ 1/G^2 dV`` to a smooth surface integral over the voxel faces (surface reduction).
+- **G≠0 (Smooth):** Uses high-order Gaussian quadrature.
+
+It is conceptually equivalent to the HFMEANPOT flag in VASP but uses improved integration
+techniques to calcualte the average in the voxel.
+
+# Arguments
+- `N_quadrature_points::Int`: The number of Gauss-Legendre quadrature points used per dimension. 
+  Defaults to 12. For highly anisotropic cells or rigorous Thermodynamic Limit (TDL) extrapolations, 
+    it is advisable to check if higher values (e.g., to 18 or 24) eliminate numerical noise.
+
+## Reference
+J. Chem. Phys. 160, 051101 (2024) (doi.org/10.1063/5.0182729)
+"""
+@kwdef struct VoxelAveraged <: KernelRegularization 
+    n_quadrature_points::Int = 12
+end
+@views function _compute_kernel(
+    basis::PlaneWaveBasis{T}, 
+    qpt, 
+    q, 
+    ::InteractionModel, 
+    regularization::VoxelAveraged
+) where {T}
+    model = basis.model
+    q = qpt.coordinate
+    
+    # Get kgrid_size
+    if isnothing(basis.kgrid)
+        kgrid_size = Vec3{Int}(1, 1, 1)
+    elseif basis.kgrid isa AbstractVector
+        kgrid_size = Vec3{Int}(basis.kgrid)
+    elseif basis.kgrid isa MonkhorstPack
+        kgrid_size = Vec3{Int}(basis.kgrid.kgrid_size)
+    else
+        @error "Cannot determine kgrid_size for VoxelAveraged Coulomb model."
+    end
+
+    # Define Voxels as reciprocal cell deivided by k-mesh
+    voxel_basis = model.recip_lattice * Diagonal(1 ./ Vec3{T}(kgrid_size))
+    voxel_vol = abs(det(voxel_basis))
+    
+    # get Gauss-Legendre nodes and weights
+    nodes_std, weights_std = gausslegendre(regularization.n_quadrature_points)
+    # Scale from [-1, 1] to [-0.5, 0.5]
+    nodes = T.(nodes_std ./ 2)
+    weights = T.(weights_std ./ 2)
+    
+    interaction_kernel = zeros(T, length(qpt.G_vectors))
+
+    for (iG, G) in enumerate(to_cpu(qpt.G_vectors))
+        G_cart = model.recip_lattice * (G+q)
+
+        found_singularity = (iG==1 && iszero(q))
+        
+        if found_singularity 
+            # === At Singularity (G+q=0) use surface reduction method ===
+            
+            # Transforms volume integral ∫ 1/G^2 dV to surface integral Σ h * ∫ 1/G^2 dS
+            integral = zero(T)
+            for i in 1:3
+                u_i = voxel_basis[:, i]
+                u_j = voxel_basis[:, mod1(i+1, 3)]
+                u_k = voxel_basis[:, mod1(i+2, 3)]
+                
+                # Height of the face from origin
+                normal = cross(u_j, u_k)
+                area_norm = norm(normal)
+                
+                # Calculate distance h from center to face.
+                # Since face is at u_i/2, h = |(u_i/2) . n|
+                h = abs(dot(u_i, normal)) / (2 * area_norm)
+                
+                # Integrate 1/G^2 over the face parallelogram
+                face_integral = zero(T)
+                for (wa, a) in zip(weights, nodes)
+                    for (wb, b) in zip(weights, nodes)
+                        # Parametrization of the face: r = u_i/2 + a*u_j + b*u_k
+                        r_vec = 0.5f0 * u_i + a * u_j + b * u_k 
+                        r_sq  = dot(r_vec, r_vec)
+                        face_integral += wa * wb / r_sq
+                    end
+                end
+                
+                # Add contribution: 2 faces * h * Area * Mean(1/r^2)
+                # Area factor (area_norm) comes from the Jacobian.
+                integral += 2 * h * area_norm * face_integral
+            end
+            
+            interaction_kernel[iG] = 4T(π) * (integral / voxel_vol)
+
+        else
+            # === Otherwise use smooth 3D Gaussian Quadrature ===
+            integral = zero(T)
+            for (wx, x) in zip(weights, nodes)
+                for (wy, y) in zip(weights, nodes)
+                    for (wz, z) in zip(weights, nodes)
+                        # q vector inside voxel
+                        q_local = x * voxel_basis[:, 1] + 
+                                  y * voxel_basis[:, 2] + 
+                                  z * voxel_basis[:, 3]
+                        
+                        G_total = G_cart + q_local
+                        integral += wx * wy * wz / dot(G_total, G_total)
+                    end
+                end
+            end
+            interaction_kernel[iG] = 4T(π) * integral
+        end
+    end
+    
+    interaction_kernel
+end
+
+
+@doc raw"""
+Abstract type for truncation strategies of interaction models.
+
+Available models:
+- [`Spherically`](@ref): Spherical truncation at radius Rcut
+- [`WignerSeitz`](@ref): Wigner-Seitz cell truncation
+
+See also: [`InteractionModel`](@ref)
+"""
+abstract type TruncationStrategy end
 
 
 """
@@ -131,27 +287,32 @@ If Rcut is nothing, it uses `Rcut = cbrt(3Ω / (4π))` where `Ω` is the unit ce
 ## References
 - [J. Spencer, A. Alavi. Phys. Rev. B **77**, 193110 (2008)](https://doi.org/10.1103/PhysRevB.77.193110)
 """
-@kwdef struct SphericallyTruncated <: CoulombSingulartyTreatment 
-    Rcut::Union{Float64, Nothing} = nothing  # Cutoff after which Coulomb operator is set to zero
-end
-function _compute_coulomb_kernel(kernel::SphericallyTruncated, basis::PlaneWaveBasis{T},
-                                 qpt::Kpoint) where {T}
+@kwdef struct Spherically <: TruncationStrategy 
+    Rcut::Union{Float64, Nothing} = nothing
+end   
+@views function _compute_kernel(
+    basis::PlaneWaveBasis{T}, 
+    qpt, 
+    q, 
+    truncation::Spherically, 
+) where {T}
     Ω = basis.model.unit_cell_volume  # volume of unit cell 
-    Rcut = @something kernel.Rcut cbrt(3Ω / T(4π))
+    Rcut = @something truncation.Rcut cbrt(3Ω / T(4π))
 
     # Compute truncated Coulomb kernel without special-casing singularity at G+q=0 
-    coulomb_kernel = map(Gplusk_vectors_cart(basis, qpt)) do Gpq
+    interaction_kernel = map(Gplusk_vectors_cart(basis, qpt)) do Gpq
         Gnorm2 = sum(abs2, Gpq)
         4T(π) / Gnorm2 * (1 - cos(Rcut * sqrt(Gnorm2)))
     end
 
     if iszero(qpt.coordinate)
         GPUArraysCore.@allowscalar begin
-            coulomb_kernel[1] = 2T(π)*Rcut^2
+            interaction_kernel[1] = 2T(π)*Rcut^2
         end
     end
-    coulomb_kernel
+    interaction_kernel
 end
+
 
 """
 Truncate Coulomb interaction at the Wigner-Seitz cell boundary.
@@ -159,12 +320,16 @@ Truncate Coulomb interaction at the Wigner-Seitz cell boundary.
 ## Reference
 - [R. Sundararaman, T. A. Arias. Phys. Rev. B **87**, 165122 (2013)](https://doi.org/10.1103/PhysRevB.87.165122)
 """
-struct WignerSeitzTruncated <: CoulombKernelModel end
-function _compute_coulomb_kernel(::WignerSeitzTruncated, basis::PlaneWaveBasis{T},
-                                 qpt::Kpoint) where {T}
+struct WignerSeitz <: TruncationStrategy end 
+@views function _compute_kernel(
+    basis::PlaneWaveBasis{T}, 
+    qpt, 
+    q, 
+    truncation::WignerSeitz
+) where {T}
     model = basis.model
     NG = length(qpt.G_vectors)
-    coulomb_kernel = zeros(T, NG)
+    interaction_kernel = zeros(T, NG)
     q = qpt.coordinate
     # calculate inradius R_in of Wigner-Seitz cell
     # R_in is given by the largest possible 
@@ -223,8 +388,8 @@ function _compute_coulomb_kernel(::WignerSeitzTruncated, basis::PlaneWaveBasis{T
         end
         V_lr_real[idx] *= exp(-im * 2*T(π) * dot(q, r_frac)) # add phase e^{-2πiqr}
     end
-    coulomb_kernel_lr = real.(fft(basis, qpt, V_lr_real))
-    coulomb_kernel_lr .*= sqrt(model.unit_cell_volume)
+    interaction_kernel_lr = real.(fft(basis, qpt, V_lr_real))
+    interaction_kernel_lr .*= sqrt(model.unit_cell_volume)
     
     # analytic short-range term + long-range term 
     for (iG, G) in enumerate(to_cpu(qpt.G_vectors))
@@ -233,124 +398,42 @@ function _compute_coulomb_kernel(::WignerSeitzTruncated, basis::PlaneWaveBasis{T
         found_singularity = (iG==1 && iszero(q))
         Rcut = cbrt(basis.model.unit_cell_volume*3/4/π)
         if !found_singularity
-            coulomb_kernel[iG] = 4T(π) / Gnorm2 * (1 - exp(-Gnorm2/(4α^2))) + coulomb_kernel_lr[iG]
+            interaction_kernel[iG] = 4T(π) / Gnorm2 * (1 - exp(-Gnorm2/(4α^2))) + interaction_kernel_lr[iG]
         else
-            coulomb_kernel[iG] = T(π)/α^2 + coulomb_kernel_lr[iG]
+            interaction_kernel[iG] = T(π)/α^2 + interaction_kernel_lr[iG]
         end
     end
-    coulomb_kernel
+    interaction_kernel
 end
+
 
 """
-Calculates the average of the Coulomb kernel over the Brillouin zone voxel associated
-with each grid point. It is particularly well suited for highly anisotropic cells.
-
-- **G=0 (Singularity):** Uses an exact mathematical reduction of the volume integral 
-  ``∫ 1/G^2 dV`` to a smooth surface integral over the voxel faces (surface reduction).
-- **G≠0 (Smooth):** Uses high-order Gaussian quadrature.
-
-It is conceptually equivalent to the HFMEANPOT flag in VASP but uses improved integration
-techniques to calcualte the average in the voxel.
-
-# Arguments
-- `N_quadrature_points::Int`: The number of Gauss-Legendre quadrature points used per dimension. 
-  Defaults to 12. For highly anisotropic cells or rigorous Thermodynamic Limit (TDL) extrapolations, 
-    it is advisable to check if higher values (e.g., to 18 or 24) eliminate numerical noise.
-
-## Reference
-J. Chem. Phys. 160, 051101 (2024) (doi.org/10.1063/5.0182729)
+Coulomb interaction 1/r requires regularization
 """
-@kwdef struct VoxelAveraged <: CoulombKernelModel 
-    n_quadrature_points::Int = 12
+@kwdef struct Coulomb <: InteractionModel 
+    regularization::KernelRegularization = ProbeCharge()
 end
-function _compute_coulomb_kernel(kernel::VoxelAveraged, basis::PlaneWaveBasis{T},
-                                 qpt::Kpoint) where {T}
-    model = basis.model
-    q = qpt.coordinate
-    
-    # Get kgrid_size
-    if isnothing(basis.kgrid)
-        kgrid_size = Vec3{Int}(1, 1, 1)
-    elseif basis.kgrid isa AbstractVector
-        kgrid_size = Vec3{Int}(basis.kgrid)
-    elseif basis.kgrid isa MonkhorstPack
-        kgrid_size = Vec3{Int}(basis.kgrid.kgrid_size)
-    else
-        @error "Cannot determine kgrid_size for VoxelAveraged Coulomb model."
-    end
+_compute_kernel(basis, qpt, q, m::Coulomb) = _compute_kernel(basis, qpt, q, m, m.regularization)
 
-    # Define Voxels as reciprocal cell deivided by k-mesh
-    voxel_basis = model.recip_lattice * Diagonal(1 ./ Vec3{T}(kgrid_size))
-    voxel_vol = abs(det(voxel_basis))
-    
-    # get Gauss-Legendre nodes and weights
-    nodes_std, weights_std = gausslegendre(kernel.n_quadrature_points)
-    # Scale from [-1, 1] to [-0.5, 0.5]
-    nodes = T.(nodes_std ./ 2)
-    weights = T.(weights_std ./ 2)
-    
-    coulomb_kernel = zeros(T, length(qpt.G_vectors))
 
-    for (iG, G) in enumerate(to_cpu(qpt.G_vectors))
-        G_cart = model.recip_lattice * (G+q)
-
-        found_singularity = (iG==1 && iszero(q))
-        
-        if found_singularity 
-            # === At Singularity (G+q=0) use surface reduction method ===
-            
-            # Transforms volume integral ∫ 1/G^2 dV to surface integral Σ h * ∫ 1/G^2 dS
-            integral = zero(T)
-            for i in 1:3
-                u_i = voxel_basis[:, i]
-                u_j = voxel_basis[:, mod1(i+1, 3)]
-                u_k = voxel_basis[:, mod1(i+2, 3)]
-                
-                # Height of the face from origin
-                normal = cross(u_j, u_k)
-                area_norm = norm(normal)
-                
-                # Calculate distance h from center to face.
-                # Since face is at u_i/2, h = |(u_i/2) . n|
-                h = abs(dot(u_i, normal)) / (2 * area_norm)
-                
-                # Integrate 1/G^2 over the face parallelogram
-                face_integral = zero(T)
-                for (wa, a) in zip(weights, nodes)
-                    for (wb, b) in zip(weights, nodes)
-                        # Parametrization of the face: r = u_i/2 + a*u_j + b*u_k
-                        r_vec = 0.5f0 * u_i + a * u_j + b * u_k 
-                        r_sq  = dot(r_vec, r_vec)
-                        face_integral += wa * wb / r_sq
-                    end
-                end
-                
-                # Add contribution: 2 faces * h * Area * Mean(1/r^2)
-                # Area factor (area_norm) comes from the Jacobian.
-                integral += 2 * h * area_norm * face_integral
-            end
-            
-            coulomb_kernel[iG] = 4T(π) * (integral / voxel_vol)
-
-        else
-            # === Otherwise use smooth 3D Gaussian Quadrature ===
-            integral = zero(T)
-            for (wx, x) in zip(weights, nodes)
-                for (wy, y) in zip(weights, nodes)
-                    for (wz, z) in zip(weights, nodes)
-                        # q vector inside voxel
-                        q_local = x * voxel_basis[:, 1] + 
-                                  y * voxel_basis[:, 2] + 
-                                  z * voxel_basis[:, 3]
-                        
-                        G_total = G_cart + q_local
-                        integral += wx * wy * wz / dot(G_total, G_total)
-                    end
-                end
-            end
-            coulomb_kernel[iG] = 4T(π) * integral
-        end
-    end
-    
-    coulomb_kernel
+"""
+Spatially truncated Coulomb interaction requires truncation strategy
+"""
+@kwdef struct TruncatedCoulomb <: InteractionModel 
+    truncation::TruncationStrategy = WignerSeitz()
 end
+_compute_kernel(basis, qpt, q, m::TruncatedCoulomb) = _compute_kernel(basis, qpt, q, m.truncation)
+
+
+#@kwdef struct ErfLongRange <: InteractionModel 
+#    α = 0.3   
+#    regularization::KernelRegularization = ProbeCharge()
+#end
+#_compute_kernel(basis, qpt, q, m::ErfLongRange) = _compute_kernel(basis, qpt, q, m, m.regularization)
+#
+#
+#@kwdef struct ErfShortRange <: InteractionModel 
+#    α = 0.3   
+#end
+#@views function _compute_kernel(basis, qpt, q, m::ErfShortRange) println("ErfShortRange not yet implemented"); exit() end
+

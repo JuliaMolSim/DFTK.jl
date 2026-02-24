@@ -1,6 +1,6 @@
 @testitem "Reference tests for exx implementations" tags=[:exx,:dont_test_mpi] setup=[TestCases] begin
     using DFTK
-    using DFTK: exx_energy_only, compute_coulomb_kernel
+    using DFTK: exx_energy_only, compute_interaction_kernel
     using .TestCases: silicon
     using LinearAlgebra
 
@@ -20,7 +20,7 @@
         ifft!(ψk_real[:, :, :, n], basis, kpt, ψk[:, n])
     end
 
-    k_probe = compute_coulomb_kernel(basis; singularity_treatment=ProbeCharge())
+    k_probe = compute_interaction_kernel(basis; interaction_model=Coulomb(ProbeCharge()))
     @testset "ProbeCharge" begin
         E_probe = exx_energy_only(basis, kpt, k_probe, ψk_real, occk)
         E_ref = -2.3383063575660987
@@ -28,15 +28,15 @@
     end
 
     @testset "NeglectSingularity" begin
-        k_neglect = compute_coulomb_kernel(basis; singularity_treatment=NeglectSingularity())
+        k_neglect = compute_interaction_kernel(basis; interaction_model=Coulomb(NeglectSingularity()))
         E_neglect = exx_energy_only(basis, kpt, k_neglect, ψk_real, occk)
         E_ref = -0.7349457693125514
         @test abs(E_ref - E_neglect) < 1e-6
         @test norm(k_neglect[2:end] - k_probe[2:end]) < 1e-6
     end
 
-    @testset "SphericallyTruncated" begin
-        k_strunc = compute_coulomb_kernel(basis; singularity_treatment=SphericallyTruncated())
+    @testset "Spherically" begin
+        k_strunc = compute_interaction_kernel(basis; interaction_model=TruncatedCoulomb(Spherically()))
         E_strunc = exx_energy_only(basis, kpt, k_strunc, ψk_real, occk)
         E_ref = -2.360166200435632
         @test abs(E_ref - E_strunc) < 1e-6
@@ -44,17 +44,17 @@
         # TODO: Test this gives a spherically truncated function.
     end
 
-    @testset "WignerSeitzTruncated" begin
-        k_wtrunc = compute_coulomb_kernel(basis; singularity_treatment=WignerSeitzTruncated())
+    @testset "WignerSeitz" begin
+        k_wtrunc = compute_interaction_kernel(basis; interaction_model=TruncatedCoulomb(WignerSeitz()))
         E_wtrunc = exx_energy_only(basis, kpt, k_wtrunc, ψk_real, occk)
         E_ref = -2.345681352379346
         @test abs(E_ref - E_wtrunc) < 1e-6
     end
 
     @testset "VoxelAveraged" begin
-        k_wtrunc = compute_coulomb_kernel(basis; singularity_treatment=VoxelAveraged())
+        k_wtrunc = compute_interaction_kernel(basis; interaction_model=Coulomb(VoxelAveraged()))
         E_wtrunc = exx_energy_only(basis, kpt, k_wtrunc, ψk_real, occk)
-        E_ref = -2.2491082534455376
+        E_ref = -2.249032672407079
         @test abs(E_ref - E_wtrunc) < 1e-6
     end
 end

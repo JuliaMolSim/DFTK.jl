@@ -101,8 +101,9 @@ include("supercell.jl")
 export Energies
 include("Energies.jl")
 
-export NeglectSingularity, ProbeCharge, SphericallyTruncated
-export WignerSeitzTruncated, VoxelAveraged
+export Coulomb, TruncatedCoulomb
+export Spherically, WignerSeitz
+export ProbeCharge, VoxelAveraged, NeglectSingularity
 include("coulomb.jl")
 
 export Hamiltonian
