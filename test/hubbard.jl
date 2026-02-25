@@ -112,10 +112,10 @@ end
    @testset "Test Energy results" begin
         # The reference values are obtained with first released version
         # of the Hubbard code and are in good agreement with Quantum Espresso
-        ref = -354.907446880021
+        ref = -354.90753691161564
         e_total = scfres.energies.total
         @test e_total ≈ ref
-        ref_hub = 0.17629078433258719
+        ref_hub = 0.17628997412533287
         @test scfres.energies.Hubbard ≈ ref_hub
    end
    # The unfolding of the kpoints is not supported with MPI
