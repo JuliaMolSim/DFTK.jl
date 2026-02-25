@@ -1,94 +1,194 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Creating and modelling metallic supercells · DFTK.jl</title><meta name="title" content="Creating and modelling metallic supercells · DFTK.jl"/><meta property="og:title" content="Creating and modelling metallic supercells · DFTK.jl"/><meta property="twitter:title" content="Creating and modelling metallic supercells · DFTK.jl"/><meta name="description" content="Documentation for DFTK.jl."/><meta property="og:description" content="Documentation for DFTK.jl."/><meta property="twitter:description" content="Documentation for DFTK.jl."/><meta property="og:url" content="https://docs.dftk.org/stable/examples/supercells/"/><meta property="twitter:url" content="https://docs.dftk.org/stable/examples/supercells/"/><link rel="canonical" href="https://docs.dftk.org/stable/examples/supercells/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="DFTK.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">DFTK.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../features/">DFTK features</a></li><li><span class="tocitem">Getting started</span><ul><li><a class="tocitem" href="../../guide/installation/">Installation</a></li><li><a class="tocitem" href="../../guide/tutorial/">Tutorial</a></li><li><a class="tocitem" href="../../guide/periodic_problems/">Problems and plane-wave discretisations</a></li><li><a class="tocitem" href="../../guide/introductory_resources/">Introductory resources</a></li><li><a class="tocitem" href="../../school2022/">DFTK School 2022</a></li></ul></li><li><span class="tocitem">Basic DFT calculations</span><ul><li><a class="tocitem" href="../metallic_systems/">Temperature and metallic systems</a></li><li><a class="tocitem" href="../collinear_magnetism/">Collinear spin and magnetic systems</a></li><li><a class="tocitem" href="../convergence_study/">Performing a convergence study</a></li><li><a class="tocitem" href="../pseudopotentials/">Pseudopotentials</a></li><li class="is-active"><a class="tocitem" href>Creating and modelling metallic supercells</a></li><li><a class="tocitem" href="../gaas_surface/">Modelling a gallium arsenide surface</a></li><li><a class="tocitem" href="../graphene/">Graphene band structure</a></li><li><a class="tocitem" href="../geometry_optimization/">Geometry optimization</a></li><li><a class="tocitem" href="../energy_cutoff_smearing/">Energy cutoff smearing</a></li></ul></li><li><span class="tocitem">Response and properties</span><ul><li><a class="tocitem" href="../polarizability/">Polarizability by linear response</a></li><li><a class="tocitem" href="../forwarddiff/">Polarizability using automatic differentiation</a></li><li><a class="tocitem" href="../dielectric/">Eigenvalues of the dielectric matrix</a></li></ul></li><li><span class="tocitem">Ecosystem integration</span><ul><li><a class="tocitem" href="../atomsbase/">AtomsBase integration</a></li><li><a class="tocitem" href="../input_output/">Input and output formats</a></li><li><a class="tocitem" href="../wannier/">Wannierization using Wannier.jl or Wannier90</a></li></ul></li><li><span class="tocitem">Tipps and tricks</span><ul><li><a class="tocitem" href="../../tricks/parallelization/">Timings and parallelization</a></li><li><a class="tocitem" href="../../tricks/scf_checkpoints/">Saving SCF results on disk and SCF checkpoints</a></li></ul></li><li><span class="tocitem">Solvers</span><ul><li><a class="tocitem" href="../custom_solvers/">Custom solvers</a></li><li><a class="tocitem" href="../scf_callbacks/">Monitoring self-consistent field calculations</a></li><li><a class="tocitem" href="../compare_solvers/">Comparison of DFT solvers</a></li></ul></li><li><span class="tocitem">Nonstandard models</span><ul><li><a class="tocitem" href="../gross_pitaevskii/">Gross-Pitaevskii equation in one dimension</a></li><li><a class="tocitem" href="../gross_pitaevskii_2D/">Gross-Pitaevskii equation with external magnetic field</a></li><li><a class="tocitem" href="../custom_potential/">Custom potential</a></li><li><a class="tocitem" href="../cohen_bergstresser/">Cohen-Bergstresser model</a></li><li><a class="tocitem" href="../anyons/">Anyonic models</a></li></ul></li><li><span class="tocitem">Error control</span><ul><li><a class="tocitem" href="../arbitrary_floattype/">Arbitrary floating-point types</a></li><li><a class="tocitem" href="../error_estimates_forces/">Practical error bounds for the forces</a></li></ul></li><li><span class="tocitem">Developer resources</span><ul><li><a class="tocitem" href="../../developer/setup/">Developer setup</a></li><li><a class="tocitem" href="../../developer/conventions/">Notation and conventions</a></li><li><a class="tocitem" href="../../developer/data_structures/">Data structures</a></li><li><a class="tocitem" href="../../developer/useful_formulas/">Useful formulas</a></li><li><a class="tocitem" href="../../developer/symmetries/">Crystal symmetries</a></li><li><a class="tocitem" href="../../developer/gpu_computations/">GPU computations</a></li></ul></li><li><a class="tocitem" href="../../api/">API reference</a></li><li><a class="tocitem" href="../../publications/">Publications</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Basic DFT calculations</a></li><li class="is-active"><a href>Creating and modelling metallic supercells</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Creating and modelling metallic supercells</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaMolSim/DFTK.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaMolSim/DFTK.jl/blob/master/examples/supercells.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Creating-and-modelling-metallic-supercells"><a class="docs-heading-anchor" href="#Creating-and-modelling-metallic-supercells">Creating and modelling metallic supercells</a><a id="Creating-and-modelling-metallic-supercells-1"></a><a class="docs-heading-anchor-permalink" href="#Creating-and-modelling-metallic-supercells" title="Permalink"></a></h1><p><a href="https://mybinder.org/v2/gh/JuliaMolSim/DFTK.jl/gh-pages?filepath=dev/examples/supercells.ipynb"><img src="https://mybinder.org/badge_logo.svg" alt/></a> <a href="https://nbviewer.jupyter.org/github/JuliaMolSim/DFTK.jl/blob/gh-pages/dev/examples/supercells.ipynb"><img src="https://img.shields.io/badge/show-nbviewer-579ACA.svg" alt/></a></p><p>In this section we will be concerned with modelling supercells of aluminium. When dealing with periodic problems there is no unique definition of the lattice: Clearly any duplication of the lattice along an axis is also a valid repetitive unit to describe exactly the same system. This is exactly what a <strong>supercell</strong> is: An <span>$n$</span>-fold repetition along one of the axes of the original lattice.</p><p>The following code achieves this for aluminium:</p><pre><code class="language-julia hljs">using DFTK
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Creating and modelling metallic supercells · DFTK.jl</title><meta name="title" content="Creating and modelling metallic supercells · DFTK.jl"/><meta property="og:title" content="Creating and modelling metallic supercells · DFTK.jl"/><meta property="twitter:title" content="Creating and modelling metallic supercells · DFTK.jl"/><meta name="description" content="Documentation for DFTK.jl."/><meta property="og:description" content="Documentation for DFTK.jl."/><meta property="twitter:description" content="Documentation for DFTK.jl."/><meta property="og:url" content="https://docs.dftk.org/stable/examples/supercells/"/><meta property="twitter:url" content="https://docs.dftk.org/stable/examples/supercells/"/><link rel="canonical" href="https://docs.dftk.org/stable/examples/supercells/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/><link href="../../assets/custom.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="DFTK.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">DFTK.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../features/">DFTK features</a></li><li><span class="tocitem">Getting started</span><ul><li><a class="tocitem" href="../../guide/installation/">Installation</a></li><li><a class="tocitem" href="../../guide/tutorial/">General Tutorial</a></li><li><a class="tocitem" href="../../guide/tutorialmath/">Mathematical Tutorial</a></li><li><a class="tocitem" href="../../guide/introductory_resources/">Introductory resources</a></li></ul></li><li><span class="tocitem">Basic DFT calculations</span><ul><li><a class="tocitem" href="../metallic_systems/">Temperature and metallic systems</a></li><li><a class="tocitem" href="../collinear_magnetism/">Collinear spin and magnetic systems</a></li><li><a class="tocitem" href="../convergence_study/">Performing a convergence study</a></li><li><a class="tocitem" href="../pseudopotentials/">Pseudopotentials</a></li><li class="is-active"><a class="tocitem" href>Creating and modelling metallic supercells</a></li><li><a class="tocitem" href="../gaas_surface/">Modelling a gallium arsenide surface</a></li><li><a class="tocitem" href="../graphene/">Graphene band structure</a></li><li><a class="tocitem" href="../geometry_optimization/">Geometry optimization</a></li><li><a class="tocitem" href="../energy_cutoff_smearing/">Energy cutoff smearing</a></li><li><a class="tocitem" href="../hubbard/">Hubbard correction (DFT+U)</a></li></ul></li><li><span class="tocitem">Response and properties</span><ul><li><a class="tocitem" href="../elastic_constants/">Elastic constants</a></li><li><a class="tocitem" href="../polarizability/">Polarizability by linear response</a></li><li><a class="tocitem" href="../forwarddiff/">Polarizability using automatic differentiation</a></li><li><a class="tocitem" href="../phonons/">Phonon computations</a></li></ul></li><li><span class="tocitem">Ecosystem integration</span><ul><li><a class="tocitem" href="../../ecosystem/atomsbase/">AtomsBase integration</a></li><li><a class="tocitem" href="../../ecosystem/atomscalculators/">AtomsCalculators integration</a></li><li><a class="tocitem" href="../../ecosystem/input_output/">Input and output formats</a></li><li><a class="tocitem" href="../../ecosystem/atomistic_simulation_environment/">Atomistic simulation environment (ASE)</a></li><li><a class="tocitem" href="../../ecosystem/wannier/">Wannierization using Wannier.jl or Wannier90</a></li></ul></li><li><span class="tocitem">Tips and tricks</span><ul><li><a class="tocitem" href="../../tricks/achieving_convergence/">Achieving DFT convergence</a></li><li><a class="tocitem" href="../../tricks/parallelization/">Timings and parallelization</a></li><li><a class="tocitem" href="../../tricks/gpu/">Using DFTK on GPUs</a></li><li><a class="tocitem" href="../../tricks/scf_checkpoints/">Saving SCF results on disk and SCF checkpoints</a></li><li><a class="tocitem" href="../../tricks/compute_clusters/">Using DFTK on compute clusters</a></li></ul></li><li><span class="tocitem">Solvers</span><ul><li><a class="tocitem" href="../custom_solvers/">Custom solvers</a></li><li><a class="tocitem" href="../scf_callbacks/">Monitoring self-consistent field calculations</a></li><li><a class="tocitem" href="../compare_solvers/">Comparison of DFT solvers</a></li><li><a class="tocitem" href="../analysing_scf_convergence/">Analysing SCF convergence</a></li></ul></li><li><span class="tocitem">Nonstandard models</span><ul><li><a class="tocitem" href="../gross_pitaevskii/">Gross-Pitaevskii equation in one dimension</a></li><li><a class="tocitem" href="../gross_pitaevskii_2D/">Gross-Pitaevskii equation with external magnetic field</a></li><li><a class="tocitem" href="../custom_potential/">Custom potential</a></li><li><a class="tocitem" href="../cohen_bergstresser/">Cohen-Bergstresser model</a></li><li><a class="tocitem" href="../anyons/">Anyonic models</a></li></ul></li><li><span class="tocitem">Error control</span><ul><li><a class="tocitem" href="../arbitrary_floattype/">Arbitrary floating-point types</a></li><li><a class="tocitem" href="../error_estimates_forces/">Practical error bounds for the forces</a></li></ul></li><li><span class="tocitem">Theoretical Background</span><ul><li><a class="tocitem" href="../../guide/periodic_problems/">Periodic problems and plane-wave discretisations</a></li><li><a class="tocitem" href="../../guide/discretisation/">Comparing discretization techniques</a></li><li><a class="tocitem" href="../../guide/atomic_chains/">Modelling atomic chains</a></li><li><a class="tocitem" href="../../guide/density_functional_theory/">Introduction to density-functional theory</a></li><li><a class="tocitem" href="../../guide/self_consistent_field/">Self-consistent field methods</a></li></ul></li><li><span class="tocitem">Developer resources</span><ul><li><a class="tocitem" href="../../developer/setup/">Developer setup</a></li><li><a class="tocitem" href="../../developer/testsystem/">Unit test system</a></li><li><a class="tocitem" href="../../developer/conventions/">Notation and conventions</a></li><li><a class="tocitem" href="../../developer/style_guide/">Developer&#39;s style guide</a></li><li><a class="tocitem" href="../../developer/data_structures/">Data structures</a></li><li><a class="tocitem" href="../../developer/useful_formulas/">Useful formulas</a></li><li><a class="tocitem" href="../../developer/symmetries/">Crystal symmetries</a></li><li><a class="tocitem" href="../../developer/gpu_computations/">GPU computations</a></li></ul></li><li><a class="tocitem" href="../../api/">API reference</a></li><li><a class="tocitem" href="../../publications/">Publications</a></li><li><a class="tocitem" href="../../research/">Research conducted with DFTK</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Basic DFT calculations</a></li><li class="is-active"><a href>Creating and modelling metallic supercells</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Creating and modelling metallic supercells</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaMolSim/DFTK.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaMolSim/DFTK.jl/blob/master/examples/supercells.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Creating-and-modelling-metallic-supercells"><a class="docs-heading-anchor" href="#Creating-and-modelling-metallic-supercells">Creating and modelling metallic supercells</a><a id="Creating-and-modelling-metallic-supercells-1"></a><a class="docs-heading-anchor-permalink" href="#Creating-and-modelling-metallic-supercells" title="Permalink"></a></h1><p>In this section we will be concerned with modelling supercells of aluminium. When dealing with periodic problems there is no unique definition of the lattice: Clearly any duplication of the lattice along an axis is also a valid repetitive unit to describe exactly the same system. This is exactly what a <strong>supercell</strong> is: An <span>$n$</span>-fold repetition along one (or multiple) axes of the original lattice.</p><p>The following code achieves this for aluminium:</p><pre><code class="language-julia hljs">using AtomsBuilder
+using DFTK
 using LinearAlgebra
-using ASEconvert
+using Unitful
+using UnitfulAtomic
+using PseudoPotentialData
 
 function aluminium_setup(repeat=1; Ecut=7.0, kgrid=[2, 2, 2])
-    a = 7.65339
-    lattice = a * Matrix(I, 3, 3)
-    Al = ElementPsp(:Al; psp=load_psp(&quot;hgh/lda/al-q3&quot;))
-    atoms     = [Al, Al, Al, Al]
-    positions = [[0.0, 0.0, 0.0], [0.0, 0.5, 0.5], [0.5, 0.0, 0.5], [0.5, 0.5, 0.0]]
-    unit_cell = periodic_system(lattice, atoms, positions)
+    # Use AtomsBuilder to setup aluminium cubic unit cell (4 Al atoms)
+    # with provided lattice constant, see [AtomsBase integration](@ref) for details.
+    unit_cell = bulk(:Al; a=7.65339u&quot;bohr&quot;, cubic=true)
+    supercell = unit_cell * (repeat, 1, 1)  # Make a supercell
 
-    # Make supercell in ASE:
-    # We convert our lattice to the conventions used in ASE, make the supercell
-    # and then convert back ...
-    supercell_ase = convert_ase(unit_cell) * pytuple((repeat, 1, 1))
-    supercell     = pyconvert(AbstractSystem, supercell_ase)
-
-    # Unfortunately right now the conversion to ASE drops the pseudopotential information,
-    # so we need to reattach it:
-    supercell = attach_psp(supercell; Al=&quot;hgh/lda/al-q3&quot;)
-
-    # Construct an LDA model and discretise
+    # Select standard pseudodojo pseudopotentials, construct an LDA model, discretize
     # Note: We disable symmetries explicitly here. Otherwise the problem sizes
     #       we are able to run on the CI are too simple to observe the numerical
     #       instabilities we want to trigger here.
-    model = model_LDA(supercell; temperature=1e-3, symmetries=false)
+    pseudopotentials = PseudoFamily(&quot;dojo.nc.sr.lda.v0_4_1.standard.upf&quot;)
+    model = model_DFT(supercell; pseudopotentials, functionals=LDA(),
+                      temperature=1e-3, symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid)
-end;</code></pre><p>As part of the code we are using a routine inside the ASE, the <a href="https://wiki.fysik.dtu.dk/ase/index.html">atomistic simulation environment</a> for creating the supercell and make use of the two-way interoperability of DFTK and ASE. For more details on this aspect see the documentation on <a href="../input_output/#Input-and-output-formats">Input and output formats</a>.</p><p>Write an example supercell structure to a file to plot it:</p><pre><code class="language-julia hljs">setup = aluminium_setup(5)
-convert_ase(periodic_system(setup.model)).write(&quot;al_supercell.png&quot;)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Python: None</code></pre><img src="../al_supercell.png" width=500 height=500 /><p>As we will see in this notebook the modelling of a system generally becomes harder if the system becomes larger.</p><ul><li>This sounds like a trivial statement as <em>per se</em> the cost per SCF step increases as the system (and thus <span>$N$</span>) gets larger.</li><li>But there is more to it: If one is not careful also the <em>number of SCF iterations</em> increases as the system gets larger.</li><li>The aim of a proper computational treatment of such supercells is therefore to ensure that the <strong>number of SCF iterations remains constant</strong> when the system size increases.</li></ul><p>For achieving the latter DFTK by default employs the <code>LdosMixing</code> preconditioner <sup class="footnote-reference"><a id="citeref-HL2021" href="#footnote-HL2021">[HL2021]</a></sup> during the SCF iterations. This mixing approach is completely parameter free, but still automatically adapts to the treated system in order to efficiently prevent charge sloshing. As a result, modelling aluminium slabs indeed takes roughly the same number of SCF iterations irrespective of the supercell size:</p><p>M. F. Herbst and A. Levitt.    <em>Black-box inhomogeneous preconditioning for self-consistent field iterations in density functional theory.</em>    J. Phys. Cond. Matt <em>33</em> 085503 (2021). <a href="https://arxiv.org/abs/2009.01665">ArXiv:2009.01665</a></p><pre><code class="language-julia hljs">self_consistent_field(aluminium_setup(1); tol=1e-4);</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr33"><span class="sgr1">┌ Warning: </span></span>Skipping atomic property pseudopotential, which is not supported in ASE.
-<span class="sgr33"><span class="sgr1">└ </span></span><span class="sgr90">@ ASEconvert ~/.julia/packages/ASEconvert/CNQ1A/src/ASEconvert.jl:123</span>
-n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime
+end;</code></pre><p>As expected we obtain the unit cell for <code>repeat=1</code>:</p><pre><code class="language-julia hljs">aluminium_setup(1)</code></pre><pre><code class="nohighlight hljs">PlaneWaveBasis discretization:
+    architecture         : DFTK.CPU()
+    num. mpi processes   : 1
+    num. julia threads   : 1
+    num. DFTK  threads   : 1
+    num. blas  threads   : 2
+    num. fft   threads   : 1
+
+    Ecut                 : 7.0 Ha
+    fft_size             : (24, 24, 24), 13824 total points
+    kgrid                : MonkhorstPack([2, 2, 2])
+    num.   red. kpoints  : 8
+    num. irred. kpoints  : 8
+
+    Estimated memory usage (per MPI process):
+        nonlocal projectors  :   3.42MiB
+        single ψ             :    486KiB
+        single ρ             :    108KiB
+        peak memory (SCF)    :   5.99MiB
+    
+    Discretized Model(lda_x+lda_c_pw, 3D):
+        lattice (in Bohr)    : [7.65339   , 0         , 0         ]
+                               [0         , 7.65339   , 0         ]
+                               [0         , 0         , 7.65339   ]
+        unit cell volume     : 448.29 Bohr³
+    
+        atoms                : Al₄
+        pseudopot. family    : PseudoFamily(&quot;dojo.nc.sr.lda.v0_4_1.standard.upf&quot;)
+    
+        num. electrons       : 12
+        spin polarization    : none
+        temperature          : 0.001 Ha
+        smearing             : DFTK.Smearing.FermiDirac()
+    
+        terms                : Kinetic()
+                               AtomicLocal()
+                               AtomicNonlocal()
+                               Ewald(nothing)
+                               PspCorrection()
+                               Hartree()
+                               Xc(lda_x, lda_c_pw)
+                               Entropy()</code></pre><p>and 5-fold as large supercell with <code>repeat=5</code>:</p><pre><code class="language-julia hljs">aluminium_setup(5)</code></pre><pre><code class="nohighlight hljs">PlaneWaveBasis discretization:
+    architecture         : DFTK.CPU()
+    num. mpi processes   : 1
+    num. julia threads   : 1
+    num. DFTK  threads   : 1
+    num. blas  threads   : 2
+    num. fft   threads   : 1
+
+    Ecut                 : 7.0 Ha
+    fft_size             : (96, 24, 24), 55296 total points
+    kgrid                : MonkhorstPack([2, 2, 2])
+    num.   red. kpoints  : 8
+    num. irred. kpoints  : 8
+
+    Estimated memory usage (per MPI process):
+        nonlocal projectors  :   88.3MiB
+        single ψ             :   8.83MiB
+        single ρ             :    432KiB
+        peak memory (SCF)    :    118MiB
+    
+    Discretized Model(lda_x+lda_c_pw, 3D):
+        lattice (in Bohr)    : [38.267    , 0         , 0         ]
+                               [0         , 7.65339   , 0         ]
+                               [0         , 0         , 7.65339   ]
+        unit cell volume     : 2241.5 Bohr³
+    
+        atoms                : Al₂₀
+        pseudopot. family    : PseudoFamily(&quot;dojo.nc.sr.lda.v0_4_1.standard.upf&quot;)
+    
+        num. electrons       : 60
+        spin polarization    : none
+        temperature          : 0.001 Ha
+        smearing             : DFTK.Smearing.FermiDirac()
+    
+        terms                : Kinetic()
+                               AtomicLocal()
+                               AtomicNonlocal()
+                               Ewald(nothing)
+                               PspCorrection()
+                               Hartree()
+                               Xc(lda_x, lda_c_pw)
+                               Entropy()</code></pre><p>As we will see in this notebook the modelling of a system generally becomes harder if the system becomes larger.</p><ul><li>This sounds like a trivial statement as <em>per se</em> the cost per SCF step increases as the system (and thus <span>$N$</span>) gets larger.</li><li>But there is more to it: If one is not careful also the <em>number of SCF iterations</em> increases as the system gets larger.</li><li>The aim of a proper computational treatment of such supercells is therefore to ensure that the <strong>number of SCF iterations remains constant</strong> when the system size increases.</li></ul><p>For achieving the latter DFTK by default employs the <code>LdosMixing</code> preconditioner <sup class="footnote-reference"><a id="citeref-HL2021" href="#footnote-HL2021">[HL2021]</a></sup> during the SCF iterations. This mixing approach is completely parameter free, but still automatically adapts to the treated system in order to efficiently prevent charge sloshing. As a result, modelling aluminium slabs indeed takes roughly the same number of SCF iterations irrespective of the supercell size:</p><p>M. F. Herbst and A. Levitt.    <em>Black-box inhomogeneous preconditioning for self-consistent field iterations in density functional theory.</em>    J. Phys. Cond. Matt <em>33</em> 085503 (2021). <a href="https://arxiv.org/abs/2009.01665">ArXiv:2009.01665</a></p><pre><code class="language-julia hljs">self_consistent_field(aluminium_setup(1); tol=1e-4);</code></pre><pre><code class="nohighlight hljs">n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime 
 ---   ---------------   ---------   ---------   ----   ------
-  1   -8.298423781992                   -0.85    4.8
-  2   -8.300196346477       -2.75       -1.26    1.2   96.2ms
-  3   -8.300432477581       -3.63       -1.89    2.8    194ms
-  4   -8.300461844811       -4.53       -2.71    2.4    116ms
-  5   -8.300464321230       -5.61       -3.23    2.4    125ms
-  6   -8.300464474068       -6.82       -3.35   11.0    238ms
-  7   -8.300464550358       -7.12       -3.49    3.1    132ms
-  8   -8.300464597301       -7.33       -3.62    1.4    116ms
-  9   -8.300464632023       -7.46       -3.83    4.1    163ms
- 10   -8.300464640744       -8.06       -4.01    1.5    177ms</code></pre><pre><code class="language-julia hljs">self_consistent_field(aluminium_setup(2); tol=1e-4);</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr33"><span class="sgr1">┌ Warning: </span></span>Skipping atomic property pseudopotential, which is not supported in ASE.
-<span class="sgr33"><span class="sgr1">└ </span></span><span class="sgr90">@ ASEconvert ~/.julia/packages/ASEconvert/CNQ1A/src/ASEconvert.jl:123</span>
-n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime
+  1   -9.355141275603                   -1.10    6.1    169ms
+  2   -9.356781698294       -2.79       -1.43    1.0   80.3ms
+  3   -9.357063866920       -3.55       -2.78    2.4   94.9ms
+  4   -9.357110880876       -4.33       -3.01    6.6    187ms
+  5   -9.357111230559       -6.46       -3.16    1.0   77.9ms
+  6   -9.357111376407       -6.84       -3.31    1.0   75.4ms
+  7   -9.357111459660       -7.08       -3.48    2.2   89.7ms
+  8   -9.357111490582       -7.51       -3.64    1.0   77.1ms
+  9   -9.357111504473       -7.86       -3.91    1.2   78.1ms
+ 10   -9.357111507848       -8.47       -4.15    1.9   91.7ms
+</code></pre><pre><code class="language-julia hljs">self_consistent_field(aluminium_setup(2); tol=1e-4);</code></pre><pre><code class="nohighlight hljs">n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime 
 ---   ---------------   ---------   ---------   ----   ------
-  1   -16.67397821255                   -0.70    6.5
-  2   -16.67851987256       -2.34       -1.14    1.4    243ms
-  3   -16.67920359857       -3.17       -1.87    2.8    370ms
-  4   -16.67927684115       -4.14       -2.76    2.8    295ms
-  5   -16.67928588000       -5.04       -3.17    5.2    421ms
-  6   -16.67928620528       -6.49       -3.48    3.1    391ms
-  7   -16.67928621940       -7.85       -3.96    2.2    254ms
-  8   -16.67928622162       -8.65       -4.58    2.6    301ms</code></pre><pre><code class="language-julia hljs">self_consistent_field(aluminium_setup(4); tol=1e-4);</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr33"><span class="sgr1">┌ Warning: </span></span>Skipping atomic property pseudopotential, which is not supported in ASE.
-<span class="sgr33"><span class="sgr1">└ </span></span><span class="sgr90">@ ASEconvert ~/.julia/packages/ASEconvert/CNQ1A/src/ASEconvert.jl:123</span>
-n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime
+  1   -18.75254920491                   -0.97    7.0    854ms
+┌ Warning: Eigensolver not converged
+│   n_iter =
+│    8-element Vector{Int64}:
+│     1
+│     1
+│     1
+│     6
+│     1
+│     1
+│     1
+│     6
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/scf/self_consistent_field.jl:80
+  2   -18.79177674994       -1.41       -1.33    2.2    322ms
+  3   -18.79249420256       -3.14       -2.45    6.1    346ms
+  4   -18.79260355534       -3.96       -2.94    5.1    381ms
+  5   -18.79260604519       -5.60       -3.23    2.9    267ms
+  6   -18.79260631296       -6.57       -3.52    3.0    261ms
+  7   -18.79260637925       -7.18       -4.17    2.0    225ms
+</code></pre><pre><code class="language-julia hljs">self_consistent_field(aluminium_setup(4); tol=1e-4);</code></pre><pre><code class="nohighlight hljs">n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime 
 ---   ---------------   ---------   ---------   ----   ------
-  1   -33.32489700325                   -0.56    7.0
-  2   -33.33255817445       -2.12       -1.00    1.2    792ms
-  3   -33.33411198567       -2.81       -1.74    4.2    1.08s
-  4   -33.33613398593       -2.69       -2.28    6.9    1.05s
-  5   -33.33691855008       -3.11       -2.54    9.4    1.45s
-  6   -33.33693865405       -4.70       -2.90    1.5    775ms
-  7   -33.33694370923       -5.30       -3.78    4.0    1.09s
-  8   -33.33694376578       -7.25       -4.08    3.9    952ms</code></pre><p>When switching off explicitly the <code>LdosMixing</code>, by selecting <code>mixing=SimpleMixing()</code>, the performance of number of required SCF steps starts to increase as we increase the size of the modelled problem:</p><pre><code class="language-julia hljs">self_consistent_field(aluminium_setup(1); tol=1e-4, mixing=SimpleMixing());</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr33"><span class="sgr1">┌ Warning: </span></span>Skipping atomic property pseudopotential, which is not supported in ASE.
-<span class="sgr33"><span class="sgr1">└ </span></span><span class="sgr90">@ ASEconvert ~/.julia/packages/ASEconvert/CNQ1A/src/ASEconvert.jl:123</span>
-n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime
+  1   -37.53419786843                   -0.84    9.4    2.03s
+  2   -37.53903077979       -2.32       -1.22    1.6    780ms
+  3   -37.55978043625       -1.68       -2.06    7.5    1.23s
+  4   -37.56440286313       -2.34       -1.86   13.2    1.56s
+  5   -37.56441504977       -4.91       -1.86    4.6    1.43s
+  6   -37.56448911306       -4.13       -1.89    1.0    802ms
+  7   -37.56344515626   +   -2.98       -1.73    4.4    1.19s
+  8   -37.56389524318       -3.35       -1.81    1.0    816ms
+  9   -37.56456442089       -3.17       -2.04    1.0    816ms
+ 10   -37.56492441976       -3.44       -2.71    1.0    1.24s
+ 11   -37.56492247553   +   -5.71       -2.59    2.9    931ms
+ 12   -37.56492081818   +   -5.78       -2.56    1.1    754ms
+ 13   -37.56492690346       -5.22       -2.61    1.0    744ms
+ 14   -37.56494684941       -4.70       -3.05    1.0    745ms
+ 15   -37.56494896770       -5.67       -3.25    2.1    1.30s
+ 16   -37.56494916371       -6.71       -3.27    2.0    824ms
+ 17   -37.56494963063       -6.33       -3.47    1.2    778ms
+ 18   -37.56494880624   +   -6.08       -3.30    2.4    945ms
+ 19   -37.56494867476   +   -6.88       -3.29    1.0    749ms
+ 20   -37.56494875543       -7.09       -3.33    1.0    1.20s
+ 21   -37.56494891212       -6.80       -3.43    1.0    724ms
+ 22   -37.56494926290       -6.45       -3.59    1.0    744ms
+ 23   -37.56494932781       -7.19       -3.63    1.0    743ms
+ 24   -37.56494937681       -7.31       -3.64    1.0    742ms
+ 25   -37.56494938321       -8.19       -3.65    1.0    746ms
+ 26   -37.56494945905       -7.12       -3.68    1.0    1.17s
+ 27   -37.56494944079   +   -7.74       -3.67    1.0    722ms
+ 28   -37.56494960258       -6.79       -3.76    1.0    745ms
+ 29   -37.56494986876       -6.57       -4.38    1.4    780ms
+</code></pre><p>When switching off explicitly the <code>LdosMixing</code>, by selecting <code>mixing=SimpleMixing()</code>, the performance of number of required SCF steps starts to increase as we increase the size of the modelled problem:</p><pre><code class="language-julia hljs">self_consistent_field(aluminium_setup(1); tol=1e-4, mixing=SimpleMixing());</code></pre><pre><code class="nohighlight hljs">n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime 
 ---   ---------------   ---------   ---------   ----   ------
-  1   -8.298632644442                   -0.85    5.2
-  2   -8.300279921653       -2.78       -1.58    1.0   79.4ms
-  3   -8.300390844104       -3.95       -2.35    3.1    107ms
-  4   -8.300325247965   +   -4.18       -2.18    2.4    168ms
-  5   -8.300463987342       -3.86       -3.45    1.0   78.5ms
-  6   -8.300464516387       -6.28       -3.69    3.5    136ms
-  7   -8.300464631062       -6.94       -4.07    1.2   65.4ms</code></pre><pre><code class="language-julia hljs">self_consistent_field(aluminium_setup(4); tol=1e-4, mixing=SimpleMixing());</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr33"><span class="sgr1">┌ Warning: </span></span>Skipping atomic property pseudopotential, which is not supported in ASE.
-<span class="sgr33"><span class="sgr1">└ </span></span><span class="sgr90">@ ASEconvert ~/.julia/packages/ASEconvert/CNQ1A/src/ASEconvert.jl:123</span>
-n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime
+  1   -9.355177496723                   -1.10    5.9    706ms
+  2   -9.356800850316       -2.79       -1.91    1.0    231ms
+  3   -9.357091236142       -3.54       -2.66    5.6    152ms
+  4   -9.357089536701   +   -5.77       -2.58    3.6    136ms
+  5   -9.357111081838       -4.67       -3.51    1.0   71.7ms
+  6   -9.357111416009       -6.48       -3.84    5.6    156ms
+  7   -9.357111505153       -7.05       -4.52    1.6   84.3ms
+</code></pre><pre><code class="language-julia hljs">self_consistent_field(aluminium_setup(4); tol=1e-4, mixing=SimpleMixing());</code></pre><pre><code class="nohighlight hljs">n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime 
 ---   ---------------   ---------   ---------   ----   ------
-  1   -33.32591987878                   -0.56    6.9
-  2   -33.33196755761       -2.22       -1.28    1.0    654ms
-  3   -32.99446795154   +   -0.47       -1.23    6.9    1.26s
-  4   -30.35044884728   +    0.42       -0.83    5.6    1.28s
-  5   -33.16428840987        0.45       -1.32    4.9    1.15s
-  6   -33.33179475206       -0.78       -2.07    2.5    846ms
-  7   -32.99147719730   +   -0.47       -1.29    4.0    1.21s
-  8   -33.32624456392       -0.48       -1.97    5.6    1.27s
-  9   -33.33485206260       -2.07       -2.20    2.2    804ms
- 10   -33.33663873373       -2.75       -2.58    2.4    799ms
- 11   -33.33688212977       -3.61       -2.91    2.8    858ms
- 12   -33.33693843113       -4.25       -3.24    2.9    953ms
- 13   -33.33694070770       -5.64       -3.43    2.9    719ms
- 14   -33.33694268428       -5.70       -3.70    1.6    716ms
- 15   -33.33694341257       -6.14       -4.10    2.4    835ms</code></pre><p>For completion let us note that the more traditional <code>mixing=KerkerMixing()</code> approach would also help in this particular setting to obtain a constant number of SCF iterations for an increasing system size (try it!). In contrast to <code>LdosMixing</code>, however, <code>KerkerMixing</code> is only suitable to model bulk metallic system (like the case we are considering here). When modelling metallic surfaces or mixtures of metals and insulators, <code>KerkerMixing</code> fails, while <code>LdosMixing</code> still works well. See the <a href="../gaas_surface/#Modelling-a-gallium-arsenide-surface">Modelling a gallium arsenide surface</a> example or <sup class="footnote-reference"><a id="citeref-HL2021" href="#footnote-HL2021">[HL2021]</a></sup> for details. Due to the general applicability of <code>LdosMixing</code> this method is the default mixing approach in DFTK.</p><section class="footnotes is-size-7"><ul><li class="footnote" id="footnote-HL2021"><a class="tag is-link" href="#citeref-HL2021">HL2021</a></li></ul></section></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../pseudopotentials/">« Pseudopotentials</a><a class="docs-footer-nextpage" href="../gaas_surface/">Modelling a gallium arsenide surface »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.1.2 on <span class="colophon-date" title="Monday 25 December 2023 09:10">Monday 25 December 2023</span>. Using Julia version 1.9.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+  1   -37.54961711203                   -0.84    9.6    2.07s
+  2   -37.53589753904   +   -1.86       -1.56    3.2    744ms
+  3   -17.34852105690   +    1.31       -0.41    9.6    1.87s
+  4   -37.53172591566        1.30       -1.64    7.9    2.05s
+  5   -37.52678148630   +   -2.31       -1.72    2.9    988ms
+  6   -37.47470568170   +   -1.28       -1.58    4.1    1.04s
+  7   -37.46850943584   +   -2.21       -1.56    3.8    1.08s
+  8   -37.56433247231       -1.02       -2.49    2.9    1.39s
+  9   -37.56361146172   +   -3.14       -2.17    3.6    1.15s
+ 10   -37.56490705869       -2.89       -2.87    2.8    1.06s
+ 11   -37.56494280939       -4.45       -3.22    2.8    981ms
+ 12   -37.56494791835       -5.29       -3.51    2.8    844ms
+ 13   -37.56494915773       -5.91       -3.82    3.0    1.41s
+ 14   -37.56494980940       -6.19       -4.22    2.5    929ms
+</code></pre><p>For completion let us note that the more traditional <code>mixing=KerkerMixing()</code> approach would also help in this particular setting to obtain a constant number of SCF iterations for an increasing system size (try it!). In contrast to <code>LdosMixing</code>, however, <code>KerkerMixing</code> is only suitable to model bulk metallic system (like the case we are considering here). When modelling metallic surfaces or mixtures of metals and insulators, <code>KerkerMixing</code> fails, while <code>LdosMixing</code> still works well. See the <a href="../gaas_surface/#Modelling-a-gallium-arsenide-surface">Modelling a gallium arsenide surface</a> example or <sup class="footnote-reference"><a id="citeref-HL2021" href="#footnote-HL2021">[HL2021]</a></sup> for details. Due to the general applicability of <code>LdosMixing</code> this method is the default mixing approach in DFTK.</p><section class="footnotes is-size-7"><ul><li class="footnote" id="footnote-HL2021"><a class="tag is-link" href="#citeref-HL2021">HL2021</a></li></ul></section></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../pseudopotentials/">« Pseudopotentials</a><a class="docs-footer-nextpage" href="../gaas_surface/">Modelling a gallium arsenide surface »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.8.1 on <span class="colophon-date" title="Wednesday 25 February 2026 20:14">Wednesday 25 February 2026</span>. Using Julia version 1.12.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

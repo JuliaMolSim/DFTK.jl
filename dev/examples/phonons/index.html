@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Phonon computations · DFTK.jl</title><meta name="title" content="Phonon computations · DFTK.jl"/><meta property="og:title" content="Phonon computations · DFTK.jl"/><meta property="twitter:title" content="Phonon computations · DFTK.jl"/><meta name="description" content="Documentation for DFTK.jl."/><meta property="og:description" content="Documentation for DFTK.jl."/><meta property="twitter:description" content="Documentation for DFTK.jl."/><meta property="og:url" content="https://docs.dftk.org/stable/examples/phonons/"/><meta property="twitter:url" content="https://docs.dftk.org/stable/examples/phonons/"/><link rel="canonical" href="https://docs.dftk.org/stable/examples/phonons/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/><link href="../../assets/custom.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="DFTK.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">DFTK.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../features/">DFTK features</a></li><li><span class="tocitem">Getting started</span><ul><li><a class="tocitem" href="../../guide/installation/">Installation</a></li><li><a class="tocitem" href="../../guide/tutorial/">General Tutorial</a></li><li><a class="tocitem" href="../../guide/tutorialmath/">Mathematical Tutorial</a></li><li><a class="tocitem" href="../../guide/introductory_resources/">Introductory resources</a></li></ul></li><li><span class="tocitem">Basic DFT calculations</span><ul><li><a class="tocitem" href="../metallic_systems/">Temperature and metallic systems</a></li><li><a class="tocitem" href="../collinear_magnetism/">Collinear spin and magnetic systems</a></li><li><a class="tocitem" href="../convergence_study/">Performing a convergence study</a></li><li><a class="tocitem" href="../pseudopotentials/">Pseudopotentials</a></li><li><a class="tocitem" href="../supercells/">Creating and modelling metallic supercells</a></li><li><a class="tocitem" href="../gaas_surface/">Modelling a gallium arsenide surface</a></li><li><a class="tocitem" href="../graphene/">Graphene band structure</a></li><li><a class="tocitem" href="../geometry_optimization/">Geometry optimization</a></li><li><a class="tocitem" href="../energy_cutoff_smearing/">Energy cutoff smearing</a></li><li><a class="tocitem" href="../hubbard/">Hubbard correction (DFT+U)</a></li></ul></li><li><span class="tocitem">Response and properties</span><ul><li><a class="tocitem" href="../elastic_constants/">Elastic constants</a></li><li><a class="tocitem" href="../polarizability/">Polarizability by linear response</a></li><li><a class="tocitem" href="../forwarddiff/">Polarizability using automatic differentiation</a></li><li class="is-active"><a class="tocitem" href>Phonon computations</a></li></ul></li><li><span class="tocitem">Ecosystem integration</span><ul><li><a class="tocitem" href="../../ecosystem/atomsbase/">AtomsBase integration</a></li><li><a class="tocitem" href="../../ecosystem/atomscalculators/">AtomsCalculators integration</a></li><li><a class="tocitem" href="../../ecosystem/input_output/">Input and output formats</a></li><li><a class="tocitem" href="../../ecosystem/atomistic_simulation_environment/">Atomistic simulation environment (ASE)</a></li><li><a class="tocitem" href="../../ecosystem/wannier/">Wannierization using Wannier.jl or Wannier90</a></li></ul></li><li><span class="tocitem">Tips and tricks</span><ul><li><a class="tocitem" href="../../tricks/achieving_convergence/">Achieving DFT convergence</a></li><li><a class="tocitem" href="../../tricks/parallelization/">Timings and parallelization</a></li><li><a class="tocitem" href="../../tricks/gpu/">Using DFTK on GPUs</a></li><li><a class="tocitem" href="../../tricks/scf_checkpoints/">Saving SCF results on disk and SCF checkpoints</a></li><li><a class="tocitem" href="../../tricks/compute_clusters/">Using DFTK on compute clusters</a></li></ul></li><li><span class="tocitem">Solvers</span><ul><li><a class="tocitem" href="../custom_solvers/">Custom solvers</a></li><li><a class="tocitem" href="../scf_callbacks/">Monitoring self-consistent field calculations</a></li><li><a class="tocitem" href="../compare_solvers/">Comparison of DFT solvers</a></li><li><a class="tocitem" href="../analysing_scf_convergence/">Analysing SCF convergence</a></li></ul></li><li><span class="tocitem">Nonstandard models</span><ul><li><a class="tocitem" href="../gross_pitaevskii/">Gross-Pitaevskii equation in one dimension</a></li><li><a class="tocitem" href="../gross_pitaevskii_2D/">Gross-Pitaevskii equation with external magnetic field</a></li><li><a class="tocitem" href="../custom_potential/">Custom potential</a></li><li><a class="tocitem" href="../cohen_bergstresser/">Cohen-Bergstresser model</a></li><li><a class="tocitem" href="../anyons/">Anyonic models</a></li></ul></li><li><span class="tocitem">Error control</span><ul><li><a class="tocitem" href="../arbitrary_floattype/">Arbitrary floating-point types</a></li><li><a class="tocitem" href="../error_estimates_forces/">Practical error bounds for the forces</a></li></ul></li><li><span class="tocitem">Theoretical Background</span><ul><li><a class="tocitem" href="../../guide/periodic_problems/">Periodic problems and plane-wave discretisations</a></li><li><a class="tocitem" href="../../guide/discretisation/">Comparing discretization techniques</a></li><li><a class="tocitem" href="../../guide/atomic_chains/">Modelling atomic chains</a></li><li><a class="tocitem" href="../../guide/density_functional_theory/">Introduction to density-functional theory</a></li><li><a class="tocitem" href="../../guide/self_consistent_field/">Self-consistent field methods</a></li></ul></li><li><span class="tocitem">Developer resources</span><ul><li><a class="tocitem" href="../../developer/setup/">Developer setup</a></li><li><a class="tocitem" href="../../developer/testsystem/">Unit test system</a></li><li><a class="tocitem" href="../../developer/conventions/">Notation and conventions</a></li><li><a class="tocitem" href="../../developer/style_guide/">Developer&#39;s style guide</a></li><li><a class="tocitem" href="../../developer/data_structures/">Data structures</a></li><li><a class="tocitem" href="../../developer/useful_formulas/">Useful formulas</a></li><li><a class="tocitem" href="../../developer/symmetries/">Crystal symmetries</a></li><li><a class="tocitem" href="../../developer/gpu_computations/">GPU computations</a></li></ul></li><li><a class="tocitem" href="../../api/">API reference</a></li><li><a class="tocitem" href="../../publications/">Publications</a></li><li><a class="tocitem" href="../../research/">Research conducted with DFTK</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Response and properties</a></li><li class="is-active"><a href>Phonon computations</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Phonon computations</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaMolSim/DFTK.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaMolSim/DFTK.jl/blob/master/examples/phonons.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Phonon-computations"><a class="docs-heading-anchor" href="#Phonon-computations">Phonon computations</a><a id="Phonon-computations-1"></a><a class="docs-heading-anchor-permalink" href="#Phonon-computations" title="Permalink"></a></h1><p>This is a quick sketch how to run a simple phonon calculation using DFTK.</p><div class="admonition is-warning"><header class="admonition-header">Preliminary implementation</header><div class="admonition-body"><p>Practical phonon computations have only seen rudimentary testing as of now. As of now we do not yet recommend relying on this feature for production calculations. We appreciate any issues, bug reports or PRs.</p></div></div><p>First we run an SCF calculation.</p><pre><code class="language-julia hljs">using AtomsBuilder
+using DFTK
+using PseudoPotentialData
+
+pseudopotentials = PseudoFamily(&quot;cp2k.nc.sr.lda.v0_1.semicore.gth&quot;)
+model  = model_DFT(bulk(:Si); pseudopotentials, functionals=LDA())
+basis  = PlaneWaveBasis(model; Ecut=10, kgrid=[4, 4, 4])
+scfres = self_consistent_field(basis, tol=1e-8);
+nothing  # hide</code></pre><pre><code class="nohighlight hljs">n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime 
+---   ---------------   ---------   ---------   ----   ------
+  1   -7.916449063987                   -0.69    4.9    146ms
+  2   -7.921204668594       -2.32       -1.51    1.0   57.2ms
+  3   -7.921402792775       -3.70       -2.49    1.2   60.5ms
+  4   -7.921440938442       -4.42       -2.82    2.4   78.1ms
+  5   -7.921441601908       -6.18       -2.98    1.0   57.6ms
+  6   -7.921442007089       -6.39       -4.53    1.0   57.7ms
+  7   -7.921442021846       -7.83       -4.63    2.9    112ms
+  8   -7.921442022130       -9.55       -5.35    1.0   58.4ms
+  9   -7.921442022140      -11.02       -5.47    1.6   66.5ms
+ 10   -7.921442022144      -11.43       -5.92    1.0   59.3ms
+ 11   -7.921442022144      -12.43       -6.60    1.2    226ms
+ 12   -7.921442022144      -13.43       -7.52    1.9   69.8ms
+ 13   -7.921442022144      -14.75       -7.94    1.9   93.4ms
+ 14   -7.921442022144   +    -Inf       -8.21    1.2   61.6ms
+</code></pre><p>Next we compute the phonon modes at the q-point <code>[1/4, 1/4, 1/4]</code>.</p><pre><code class="language-julia hljs">scfres = DFTK.unfold_bz(scfres)
+phret_q0 = @time DFTK.phonon_modes(scfres; q=[0.25, 0.25, 0.25]);
+nothing  # hide</code></pre><pre><code class="nohighlight hljs">Iter  Restart  Krydim  log10(res)  avg(CG)  Δtime   Comment
+----  -------  ------  ----------  -------  ------  ---------------
+                                      73.0   2.04s  Non-interacting
+   1        0       1        0.31     52.4   14.2s  
+   2        0       2       -0.52     47.0   1.35s  
+   3        0       3       -2.40     41.8   1.21s  
+   4        0       4       -4.46     29.8   965ms  
+   5        0       5       -6.46     17.4   693ms  
+   6        0       6       -8.91      4.0   411ms  
+   7        1       1       -7.87     55.4   1.96s  Restart
+   8        1       2       -9.03      5.5   442ms  
+                                      72.7   1.78s  Final orbitals
+Iter  Restart  Krydim  log10(res)  avg(CG)  Δtime   Comment
+----  -------  ------  ----------  -------  ------  ---------------
+                                      72.9   1.59s  Non-interacting
+   1        0       1        0.31     52.4   1.51s  
+   2        0       2       -0.52     47.0   1.31s  
+   3        0       3       -2.40     41.8   1.19s  
+   4        0       4       -4.46     29.8   940ms  
+   5        0       5       -6.46     17.4   686ms  
+   6        0       6       -8.91      4.0   404ms  
+   7        1       1       -7.87     55.4   2.50s  Restart
+   8        1       2       -9.03      5.5   430ms  
+                                      72.7   1.78s  Final orbitals
+Iter  Restart  Krydim  log10(res)  avg(CG)  Δtime   Comment
+----  -------  ------  ----------  -------  ------  ---------------
+                                      72.9   1.64s  Non-interacting
+   1        0       1        0.31     52.4   1.55s  
+   2        0       2       -0.52     47.0   1.34s  
+   3        0       3       -2.40     41.8   1.23s  
+   4        0       4       -4.46     29.8   968ms  
+   5        0       5       -6.46     17.4   707ms  
+   6        0       6       -8.91      4.0   415ms  
+   7        1       1       -7.87     55.4   1.86s  Restart
+   8        1       2       -9.03      5.5   438ms  
+                                      72.8   1.79s  Final orbitals
+Iter  Restart  Krydim  log10(res)  avg(CG)  Δtime   Comment
+----  -------  ------  ----------  -------  ------  ---------------
+                                      73.0   1.64s  Non-interacting
+   1        0       1        0.31     52.4   1.54s  
+   2        0       2       -0.52     47.0   2.04s  
+   3        0       3       -2.40     41.8   1.17s  
+   4        0       4       -4.46     29.8   983ms  
+   5        0       5       -6.46     17.4   704ms  
+   6        0       6       -8.91      4.0   427ms  
+   7        1       1       -7.86     55.4   1.86s  Restart
+   8        1       2       -9.00      5.5   449ms  
+                                      72.7   1.80s  Final orbitals
+Iter  Restart  Krydim  log10(res)  avg(CG)  Δtime   Comment
+----  -------  ------  ----------  -------  ------  ---------------
+                                      72.9   1.64s  Non-interacting
+   1        0       1        0.31     52.4   1.53s  
+   2        0       2       -0.52     47.0   1.33s  
+   3        0       3       -2.40     41.8   1.22s  
+   4        0       4       -4.46     29.8   962ms  
+   5        0       5       -6.46     17.4   703ms  
+   6        0       6       -8.91      4.0   409ms  
+   7        1       1       -7.86     55.4   2.59s  Restart
+   8        1       2       -9.00      5.5   410ms  
+                                      72.7   1.69s  Final orbitals
+Iter  Restart  Krydim  log10(res)  avg(CG)  Δtime   Comment
+----  -------  ------  ----------  -------  ------  ---------------
+                                      72.9   1.63s  Non-interacting
+   1        0       1        0.31     52.4   1.52s  
+   2        0       2       -0.52     47.0   1.33s  
+   3        0       3       -2.40     41.8   1.21s  
+   4        0       4       -4.46     29.8   949ms  
+   5        0       5       -6.46     17.4   694ms  
+   6        0       6       -8.91      4.0   418ms  
+   7        1       1       -7.86     55.4   1.82s  Restart
+   8        1       2       -9.00      5.5   440ms  
+                                      72.8   1.78s  Final orbitals
+115.402579 seconds (159.99 M allocations: 83.318 GiB, 8.23% gc time, 29.62% compilation time)
+</code></pre><p>These are the final phonon frequencies:</p><pre><code class="language-julia hljs">phret_q0.frequencies</code></pre><pre><code class="nohighlight hljs">6-element Vector{Float64}:
+ -0.0034981553593321983
+ -0.0029774511581928415
+ -0.0029774511580578185
+  0.004302230620866517
+  0.004302230621116968
+  0.004353201752854081</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../forwarddiff/">« Polarizability using automatic differentiation</a><a class="docs-footer-nextpage" href="../../ecosystem/atomsbase/">AtomsBase integration »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.8.1 on <span class="colophon-date" title="Wednesday 25 February 2026 20:14">Wednesday 25 February 2026</span>. Using Julia version 1.12.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
