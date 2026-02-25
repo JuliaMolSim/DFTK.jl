@@ -85,56 +85,6 @@ end
 
 end
 
-@testitem "Check pcut routines" tags=[:psp] begin
-    using LinearAlgebra
-    using DFTK: load_psp, eval_psp_projector_fourier, eval_psp_local_fourier
-    using DFTK: pcut_psp_projector, pcut_psp_local
-    using PseudoPotentialData
-
-    psp = load_psp(PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth"), :Au)
-    ε = 1e-6
-
-    let
-        pcut = pcut_psp_local(psp)
-        res = eval_psp_local_fourier.(psp, [pcut - ε, pcut, pcut + ε])
-        @test (res[1] < res[2]) == (res[3] < res[2])
-    end
-
-    for i = 1:2, l = 0:2
-        pcut = pcut_psp_projector(psp, i, l)
-        res = eval_psp_projector_fourier.(psp, i, l, [pcut - ε, pcut, pcut + ε])
-        @test (res[1] < res[2]) == (res[3] < res[2])
-    end
-end
-
-@testitem "Agreement of polynomial implementation and eval functions" tags=[:psp] begin
-    using LinearAlgebra
-    using DFTK: load_psp, eval_psp_projector_fourier, eval_psp_local_fourier
-    using DFTK: psp_local_polynomial, psp_projector_polynomial, count_n_proj_radial
-    using PseudoPotentialData
-
-    family = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
-    let
-        psp = load_psp(family, :Si)
-        Qloc = psp_local_polynomial(Float64, psp)
-        evalQloc(p) = let t = p * psp.rloc; Qloc(t) * exp(-t^2 / 2) / t^2; end
-        for p in abs.(randn(10))
-            @test evalQloc(p) ≈ eval_psp_local_fourier(psp, p)
-        end
-    end
-
-    for element in (:Au, :Ba)
-        psp = load_psp(family, element)
-        for l = 0:psp.lmax, i = 1:count_n_proj_radial(psp, l)
-            Qproj = psp_projector_polynomial(Float64, psp, i, l)
-            evalQproj(p) = let t = p * psp.rp[l + 1]; Qproj(t) * exp(-t^2 / 2); end
-            for p in abs.(randn(10))
-                @test evalQproj(p) ≈ eval_psp_projector_fourier(psp, i, l, p)
-            end
-        end
-    end
-end
-
 @testitem "Projectors are consistent in real and Fourier space" tags=[:psp] begin
     using LinearAlgebra
     using DFTK: load_psp, eval_psp_projector_fourier, eval_psp_projector_real

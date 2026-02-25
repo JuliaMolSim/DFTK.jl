@@ -134,21 +134,18 @@ function eval_psp_local_real(psp::PspHgh, r::T) where {T <: Real}
 end
 
 
-@doc raw"""
-The nonlocal projectors of a HGH pseudopotentials in reciprocal space
-can be brought to the form ``Q(t) exp(-t^2 / 2)`` where ``t = r_l p``
-and `Q` is a polynomial. This function returns `Q`.
-"""
-@inline function psp_projector_polynomial(T, psp::PspHgh, i, l, t=Polynomial(T[0, 1]))
+# [HGH98] (7-15) except they do it with plane waves normalized by 1/sqrt(Ω).
+function eval_psp_projector_fourier(psp::PspHgh, i, l, p::T) where {T <: Real}
     @assert 0 <= l <= length(psp.rp) - 1
     @assert i > 0
+    t::T  = p * psp.rp[l + 1]
     rp::T = psp.rp[l + 1]
-    common::T = 4T(π)^(5 / T(4)) * sqrt(T(2^(l + 1)) * rp^3)
+    common::T = 4T(π)^(5 / T(4)) * sqrt(T(2^(l + 1)) * rp^3) * exp(-t^2 / 2)
 
     # Note: In the (l == 0 && i == 2) case the HGH paper has an error.
     #       The first 8 in equation (8) should not be under the sqrt-sign
     #       This is the right version (as shown in the GTH paper)
-    (l == 0 && i == 1) && return convert(typeof(t), common)
+    (l == 0 && i == 1) && return common
     (l == 0 && i == 2) && return common * 2 /  sqrt(T(  15))       * ( 3 -   t^2      )
     (l == 0 && i == 3) && return common * 4 / 3sqrt(T( 105))       * (15 - 10t^2 + t^4)
     #
@@ -162,27 +159,6 @@ and `Q` is a polynomial. This function returns `Q`.
     (l == 3 && i == 1) && return common * 1 /  sqrt(T( 105)) * t^3
 
     error("Not implemented for l=$l and i=$i")
-end
-
-
-@doc raw"""
-Estimate an upper bound for the argument `p` after which
-`eval_psp_projector_fourier(psp, p)` is a strictly decreasing function.
-"""
-function pcut_psp_projector(psp::PspHgh{T}, i, l) where {T}
-    Q = psp_projector_polynomial(T, psp, i, l)  # polynomial in p * rp[l + 1]
-
-    # Find the roots of the derivative polynomial:
-    res = roots(derivative(Q) - Polynomial([0, 1]) * Q)
-    res = T[r for r in res if abs(imag(r)) < 100eps(T)]
-    maximum(res, init=zero(T)) / psp.rp[l + 1]
-end
-
-
-# [HGH98] (7-15) except they do it with plane waves normalized by 1/sqrt(Ω).
-function eval_psp_projector_fourier(psp::PspHgh, i, l, p::T) where {T <: Real}
-    t::T = p * psp.rp[l + 1]
-    psp_projector_polynomial(T, psp, i, l, t) * exp(-t^2 / 2)
 end
 
 
