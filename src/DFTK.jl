@@ -102,9 +102,8 @@ export Energies
 include("Energies.jl")
 
 export Coulomb, SphericallyTruncatedCoulomb
-export WignerSeitzTruncatedCoulomb
 export ErfShortRangeCoulomb, ErfLongRangeCoulomb
-export ProbeCharge, VoxelAveraged
+export ProbeCharge
 export ReplaceSingularity
 include("coulomb.jl")
 

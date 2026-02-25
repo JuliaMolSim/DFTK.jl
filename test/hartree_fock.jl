@@ -58,49 +58,6 @@
 end
 
 
-#
-# Regression tests on HF against DFTK itself (TODO: Remove these once we have better tests here)
-#
-@testitem "LiH Hartree-Fock energy" tags=[:exx,:slow, :dont_test_mpi] setup=[RunSCF] begin
-    using DFTK
-    using LinearAlgebra
-    using PseudoPotentialData
-
-    pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_5.stringent.upf") 
-    Li = ElementPsp(:Li, pseudopotentials)
-    H  = ElementPsp(:H,  pseudopotentials)
-    atoms = [Li, Li, Li, Li, H, H, H, H]
-    a = 7.504
-    lattice = a * I(3)
-    positions = [[0.0, 0.0, 0.0], 
-                 [0.5, 0.5, 0.0],
-                 [0.0, 0.5, 0.5],
-                 [0.5, 0.0, 0.5],
-                 [0.5, 0.0, 0.0],
-                 [0.0, 0.5, 0.0],
-                 [0.0, 0.0, 0.5],
-                 [0.5, 0.5, 0.5]]
-
-    # This created using the very first EXX implementation in DFTK
-    ref_hf = [[-2.176845488693204, -2.1753394031634743, -2.175339403160776, -2.1753394031568734, 
-               -0.374674555189293, -0.1456954541666593, -0.145695454150622, -0.1456954541354867,
-                0.309715131365165,  0.3097151313665529,  0.309715131367800]]
-    ref_etot = -31.195662141532114
-    
-    model  = model_HF(lattice, atoms, positions; 
-                      interaction_model=WignerSeitzTruncatedCoulomb(), 
-                      exx_algorithm=VanillaExx())
-    basis  = PlaneWaveBasis(model, Ecut=40; kgrid=[1, 1, 1])
-    
-    RunSCF.run_scf_and_compare(Float64, basis, ref_hf, ref_etot;
-                               scf_ene_tol=1e-10, test_tol=5e-5, n_ignored=0,
-                               # TODO: Anderson right does not yet work well for Hartree-Fock
-                               damping=0.4, solver=DFTK.scf_damping_solver(),
-                               # TODO: The default diagtolalg does not yet work well for Hartree-Fock
-                               diagtolalg=DFTK.AdaptiveDiagtol(; ratio_ρdiff=1e-5))
-end
-
-
 @testitem "LiH Hartree-Fock energy" tags=[:exx,:slow] setup=[RunSCF] begin
     using DFTK
     using LinearAlgebra

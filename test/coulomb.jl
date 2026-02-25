@@ -43,20 +43,6 @@
 
         # TODO: Test this gives a spherically truncated function.
     end
-
-    @testset "WignerSeitz" begin
-        k_wtrunc = compute_interaction_kernel(basis; interaction_model=WignerSeitzTruncatedCoulomb())
-        E_wtrunc = exx_energy_only(basis, kpt, k_wtrunc, ψk_real, occk)
-        E_ref = -2.345681352379346
-        @test abs(E_ref - E_wtrunc) < 1e-6
-    end
-
-    @testset "VoxelAveraged" begin
-        k_wtrunc = compute_interaction_kernel(basis; interaction_model=Coulomb(VoxelAveraged()))
-        E_wtrunc = exx_energy_only(basis, kpt, k_wtrunc, ψk_real, occk)
-        E_ref = -2.249032672407079
-        @test abs(E_ref - E_wtrunc) < 1e-6
-    end
 end
 
 # TODO: Tests ot include in the future are
