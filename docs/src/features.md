@@ -1,7 +1,6 @@
 # [DFTK features](@id package-features)
 
-The following lists the functionality of DFTK
-achieved in **less than 10 000 lines** of code.
+The following lists the functionality of DFTK achieved in about **10 000 lines** of code.
 Our code has a performance comparable to standard DFT codes
 and runs out of the box on Linux, Windows and macOS, see [Installation](@ref).
 
