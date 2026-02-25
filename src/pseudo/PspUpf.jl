@@ -259,6 +259,19 @@ function eval_psp_density_core_fourier(psp::PspUpf, p::T) where {T<:Real}
     return hankel(rgrid, r2_ρcore, 0, p)
 end
 
+# Vectorized version of the above, GPU compatible
+function eval_psp_density_core_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Real}
+    quadrature = default_psp_quadrature(psp.rgrid)
+    arch = architecture(ps)
+    rgrid = to_device(arch, @view psp.rgrid[1:psp.ircut])
+    r2_ρcore = to_device(arch, @view psp.r2_ρcore[1:psp.ircut])
+    map(ps) do p
+        # GPU kernels with dynamic function calls do not compile,
+        # hence the pre-determined explicit integration function
+        hankel(quadrature, rgrid, r2_ρcore, 0, p)
+    end
+end
+
 function eval_psp_energy_correction(T, psp::PspUpf)
     rgrid = @view psp.rgrid[1:psp.ircut]
     vloc = @view psp.vloc[1:psp.ircut]
