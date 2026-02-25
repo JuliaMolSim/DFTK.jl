@@ -186,20 +186,20 @@ Build an Hartree-Fock model from the specified atoms.
          necks in the code.
 """
 function model_HF(system::AbstractSystem; pseudopotentials,
-                  interaction_model::InteractionModel=Coulomb(),
+                  interaction_kernel::InteractionKernel=Coulomb(),
                   exx_algorithm::ExxAlgorithm=VanillaExx(), extra_terms=[], kwargs...)
     # Note: We are deliberately enforcing the user to specify pseudopotentials here.
     # See the implementation of model_atomic for a rationale why
     #
-    exx = ExactExchange(; interaction_model, exx_algorithm)
+    exx = ExactExchange(; interaction_kernel, exx_algorithm)
     model_atomic(system; pseudopotentials, model_name="HF",
                  extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
 end
 function model_HF(lattice::AbstractMatrix, atoms::Vector{<:Element},
                   positions::Vector{<:AbstractVector};
-                  interaction_model::InteractionModel=Coulomb(),
+                  interaction_kernel::InteractionKernel=Coulomb(),
                   exx_algorithm::ExxAlgorithm=VanillaExx(), extra_terms=[], kwargs...)
-    exx = ExactExchange(; interaction_model, exx_algorithm)
+    exx = ExactExchange(; interaction_kernel, exx_algorithm)
     model_atomic(lattice, atoms, positions; model_name="HF",
                  extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
 end
@@ -245,7 +245,8 @@ Possible keyword arguments are those accepted by [`Xc`](@ref).
 r2SCAN(; kwargs...) = Xc([:mgga_x_r2scan, :mgga_c_r2scan]; kwargs...)
 
 """
-Specify hybrid functional in conjunction with [`model_DFT`](@ref)
+Specify a PBE0 hybrid functional in conjunction with [`model_DFT`](@ref)
+<https://doi.org/10.1063/1.478522>
 Possible keyword arguments are those accepted by [`Xc`](@ref) and by
 [`ExactExchange`](@ref). Use the keyword argument `exx_fraction` to specify a
 custom exact exchange fraction.
@@ -255,32 +256,56 @@ custom exact exchange fraction.
          Note further that at this stage (Feb 2026) there are still known performance bottle
          necks in the code.
 """
-# PBE0 (https://doi.org/10.1063/1.478522)
 PBE0(; kwargs...)  = HybridFunctional([:hyb_gga_xc_pbeh]; kwargs...)
 
-# Heyd-Scuseria-Ernzerhof (HSE03: https://doi.org/10.1063/1.2204597
-# range separation parameter ω chosen to match VASP (no QuantumESPRESSO implementaion)
+"""
+Specify a HSE03 hybrid functional in conjunction with [`model_DFT`](@ref)
+<https://doi.org/10.1063/1.2204597>
+Possible keyword arguments are those accepted by [`Xc`](@ref) and by
+[`ExactExchange`](@ref). Use the keyword argument `exx_fraction` to specify a
+custom exact exchange fraction.
+
+The range separation parameter ω chosen to match VASP 
+(no QuantumESPRESSO implementaion of HSE03 availbale).
+
+!!! warn "Hybrid DFT is experimental"
+         The interface may change at any moment, which is not considered a breaking change.
+         Note further that at this stage (Feb 2026) there are still known performance bottle
+         necks in the code.
+"""
 HSE03(; kwargs...) = HybridFunctional([:hyb_gga_xc_hse03]; 
-                                      interaction_model=ErfShortRangeCoulomb(ω=0.159),  
+                                      interaction_kernel=ErfShortRangeCoulomb(ω=0.159),  
                                       kwargs...)
 
-# Heyd-Scuseria-Ernzerhof (HSE06): https://doi.org/10.1063/1.2404663
-# range separation parameter ω chosen to match QuantumESPRESSO & VASP
-HSE06(; kwargs...) = HybridFunctional([:hyb_gga_xc_hse06]; exx_fraction=0.25, 
-                                      interaction_model=ErfShortRangeCoulomb(ω=0.106),  
+"""
+Specify a HSE06 hybrid functional in conjunction with [`model_DFT`](@ref)
+<https://doi.org/10.1063/1.2404663>
+Possible keyword arguments are those accepted by [`Xc`](@ref) and by
+[`ExactExchange`](@ref). Use the keyword argument `exx_fraction` to specify a
+custom exact exchange fraction.
+
+The range separation parameter ω chosen to match QuantumEspresso & VASP 
+
+!!! warn "Hybrid DFT is experimental"
+         The interface may change at any moment, which is not considered a breaking change.
+         Note further that at this stage (Feb 2026) there are still known performance bottle
+         necks in the code.
+"""
+HSE06(; kwargs...) = HybridFunctional([:hyb_gga_xc_hse06];  
+                                      interaction_kernel=ErfShortRangeCoulomb(ω=0.106),  
                                       kwargs...)
 
 # Internal function to help define hybrid functional shorthands
 function HybridFunctional(libxc_symbols;
                           exx_fraction=nothing,
-                          interaction_model::InteractionModel=Coulomb(),
+                          interaction_kernel::InteractionKernel=Coulomb(),
                           exx_algorithm::ExxAlgorithm=VanillaExx(), kwargs...)
     xc  = Xc(libxc_symbols; kwargs...)
     scaling_factor = @something(exx_fraction, begin
         only(filter(!isnothing, map(exx_coefficient, xc.functionals)))
     end)
 
-    exx = ExactExchange(; scaling_factor, interaction_model, exx_algorithm)
+    exx = ExactExchange(; scaling_factor, interaction_kernel, exx_algorithm)
     [xc, exx]
 end
 

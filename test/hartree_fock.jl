@@ -42,7 +42,7 @@
     model = model_HF(lattice, atoms, positions;
                      temperature=0.001, smearing=DFTK.Smearing.Gaussian(),
                      exx_algorithm=VanillaExx(),
-                     interaction_model=Coulomb(ReplaceSingularity()))
+                     interaction_kernel=Coulomb(ReplaceSingularity()))
     basis = PlaneWaveBasis(model; Ecut=20, kgrid=[1, 1, 1])
 
     run_scf_and_compare(Float64, basis, ref_hf, ref_etot; 
@@ -86,7 +86,7 @@ end
     ref_etot = -31.240766149174128
 
     model  = model_HF(lattice, atoms, positions; 
-                      interaction_model=SphericallyTruncatedCoulomb(), 
+                      interaction_kernel=SphericallyTruncatedCoulomb(), 
                       exx_algorithm=AceExx())
     basis  = PlaneWaveBasis(model, Ecut=40; kgrid=[1, 1, 1])
 
@@ -134,7 +134,7 @@ end
     scfres_pbe = self_consistent_field(basis; ρ, tol=1e-3)
     
     model  = model_HF(system; pseudopotentials, magnetic_moments, temperature=0.01,
-                      interaction_model=Coulomb(ProbeCharge()), exx_algorithm=AceExx())
+                      interaction_kernel=Coulomb(ProbeCharge()), exx_algorithm=AceExx())
     basis  = PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])
     RunSCF.run_scf_and_compare(Float64, basis, ref_hf, ref_etot;
                                scf_ene_tol=1e-10, test_tol=5e-5, n_ignored=0,

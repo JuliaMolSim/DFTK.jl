@@ -35,7 +35,7 @@
     basis_pbe  = PlaneWaveBasis(model_pbe; Ecut=20, kgrid=[1, 1, 1])
     scfres_pbe = self_consistent_field(basis_pbe; tol=1e-4)
 
-    pbe0 = PBE0(exx_algorithm=AceExx(), interaction_model=Coulomb(ReplaceSingularity()))
+    pbe0 = PBE0(exx_algorithm=AceExx(), interaction_kernel=Coulomb(ReplaceSingularity()))
     model = model_DFT(lattice, atoms, positions;
                      temperature=0.001, smearing=DFTK.Smearing.Gaussian(),
                      functionals=pbe0)
