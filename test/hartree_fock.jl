@@ -88,7 +88,7 @@ end
     ref_etot = -31.195662141532114
     
     model  = model_HF(lattice, atoms, positions; 
-                      interaction_model=TruncatedCoulomb(WignerSeitz()), 
+                      interaction_model=WignerSeitzTruncatedCoulomb(), 
                       exx_algorithm=VanillaExx())
     basis  = PlaneWaveBasis(model, Ecut=40; kgrid=[1, 1, 1])
     
@@ -129,7 +129,7 @@ end
     ref_etot = -31.240766149174128
 
     model  = model_HF(lattice, atoms, positions; 
-                      interaction_model=TruncatedCoulomb(Spherically()), 
+                      interaction_model=SphericallyTruncatedCoulomb(), 
                       exx_algorithm=AceExx())
     basis  = PlaneWaveBasis(model, Ecut=40; kgrid=[1, 1, 1])
 

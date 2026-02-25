@@ -7,7 +7,8 @@ Available models:
 - [`Coulomb`](@ref): 1/r
 - [`ErfShortRangeCoulomb`](@ref): erfc(ωr)/r
 - [`ErfLongRangeCoulomb`](@ref): erf(ωr)/r
-- [`TruncatedCoulomb`](@ref): spatially truncated 1/r
+- [`SphericallyTruncatedCoulomb`](@ref): θ(R-r)/r
+- [`WignerSeitzTruncatedCoulomb`](@ref): 1/r inside the Wigner-Seitz cell only
 
 See also: [`compute_interaction_kernel`](@ref)
 """
@@ -33,7 +34,7 @@ evaluated only on the spherical cutoff |G+q|² < 2Ecut (not the full cubic FFT g
 Vector of Coulomb kernel values for each G-vector in the spherical cutoff.
 """
 function compute_interaction_kernel(basis::PlaneWaveBasis{T}; q=zero(Vec3{T}),
-                                interaction_model::InteractionModel=ProbeCharge()) where {T}
+                                    interaction_model::InteractionModel=Coulomb()) where {T}
     is_gamma_only = all(iszero(kpt.coordinate) for kpt in basis.kpoints)
     if !is_gamma_only
         throw(ArgumentError("Currently only Gamma-point calculations are supported in " *
@@ -57,7 +58,7 @@ end
 
 @doc raw"""
 Abstract type for different strategies to regularize the
-diverging G+q=0 fourier componentn of interaction models.
+diverging G+q=0 fourier component of interaction models.
 
 Available models:
 - [`ProbeCharge`](@ref): Gygi-Baldereschi probe charge method
@@ -125,9 +126,11 @@ end
 """
 Simply set the G+q=0 Coulomb kernel component to Gpq_zero_value.
 
+This is useful for interaction models with an analytic G+q=0 component
+or for testing/comparison purposes.
+
 In case of Gpq_zero_value=0 this leads to slow `O(1/L) = O(1 / ∛(Nk))` 
 convergence where `L` is the size of the supercell,`Nk` is the number of k-points.
-Useful for testing or comparison purposes.
 """
 @kwdef struct ReplaceSingularity{V <: Real} <: KernelRegularization
     Gpq_zero_value::V = 0.0
@@ -288,49 +291,55 @@ end
 end
 
 
-@doc raw"""
-Abstract type for truncation strategies of interaction models.
-
-Available models:
-- [`Spherically`](@ref): Spherical truncation at radius Rcut
-- [`WignerSeitz`](@ref): Wigner-Seitz cell truncation
-
-See also: [`InteractionModel`](@ref)
 """
-abstract type TruncationStrategy end
+Coulomb interaction: 1/r 
+"""
+@kwdef struct Coulomb{KR <: KernelRegularization} <: InteractionModel 
+    regularization::KR = ProbeCharge()
+end
+evaluate_kernel(::Coulomb, Gsq::T) where {T} = 4T(π) / Gsq
+evaluate_probe_charge_integral(::Coulomb, α, Ω) = 8π^2 * sqrt(π / α) * Ω / (2π)^3
+_compute_kernel(basis, qpt, q, m::Coulomb) = _compute_kernel(basis, qpt, q, m, m.regularization)
 
 
 """
-Spherical truncation of Coulomb interaction at radius Rcut.
+Short-range Coulomb interaction via error function: erfc(ωr)/r
+"""
+@kwdef struct ErfShortRangeCoulomb <: InteractionModel 
+    ω = 0.106  # ≈ 0.2 / Angstrom
+end
+evaluate_kernel(m::ErfShortRangeCoulomb, Gsq::T) where {T} = -(4T(π) / Gsq) * expm1(-Gsq / (4 * m.ω^2))
+_compute_kernel(basis, qpt, q, m::ErfShortRangeCoulomb) = _compute_kernel(basis, qpt, q, m, ReplaceSingularity(π/m.ω^2))
+
+
+"""
+Long-range Coulomb interaction via error function: erf(ωr)/r
+"""
+@kwdef struct ErfLongRangeCoulomb{KR <: KernelRegularization} <: InteractionModel 
+    ω = 0.106 # ≈ 0.2 / Angstrom
+    regularization::KR = ProbeCharge()
+end
+evaluate_kernel(m::ErfLongRangeCoulomb, Gsq::T) where {T} = (4T(π) / Gsq) * exp(-Gsq / (4 * m.ω^2))
+evaluate_probe_charge_integral(m::ErfLongRangeCoulomb, α, Ω) = 8π^2 * sqrt(π / (α + 1/(4 * m.α^2))) * Ω / (2π)^3
+_compute_kernel(basis, qpt, q, m::ErfLongRangeCoulomb) = _compute_kernel(basis, qpt, q, m, m.regularization)
+
+
+"""
+Spherically truncated Coulomb interaction: θ(Rcut-r)/r
 If Rcut is nothing, it uses `Rcut = cbrt(3Ω / (4π))` where `Ω` is the unit cell volume.
 
 ## References
 - [J. Spencer, A. Alavi. Phys. Rev. B **77**, 193110 (2008)](https://doi.org/10.1103/PhysRevB.77.193110)
 """
-@kwdef struct Spherically <: TruncationStrategy 
+@kwdef struct SphericallyTruncatedCoulomb <: InteractionModel
     Rcut::Union{Float64, Nothing} = nothing
 end   
-@views function _compute_kernel(
-    basis::PlaneWaveBasis{T}, 
-    qpt, 
-    q, 
-    truncation::Spherically, 
-) where {T}
-    Ω = basis.model.unit_cell_volume  # volume of unit cell 
-    Rcut = @something truncation.Rcut cbrt(3Ω / T(4π))
-
-    # Compute truncated Coulomb kernel without special-casing singularity at G+q=0 
-    interaction_kernel = map(Gplusk_vectors_cart(basis, qpt)) do Gpq
-        Gnorm2 = sum(abs2, Gpq)
-        4T(π) / Gnorm2 * (1 - cos(Rcut * sqrt(Gnorm2)))
-    end
-
-    if iszero(qpt.coordinate)
-        GPUArraysCore.@allowscalar begin
-            interaction_kernel[1] = 2T(π)*Rcut^2
-        end
-    end
-    interaction_kernel
+evaluate_kernel(m::SphericallyTruncatedCoulomb, Gsq::T) where {T} = 4T(π) / Gsq * (1 - cos(m.Rcut * sqrt(Gsq)))
+function _compute_kernel(basis, qpt, q, m::SphericallyTruncatedCoulomb) 
+    Ω = basis.model.unit_cell_volume  
+    Rcut = @something m.Rcut cbrt(3Ω/(4π))  # convert from potential `nothing` to specific Rcut
+    interaction_model_with_Rcut = SphericallyTruncatedCoulomb(Rcut)
+    _compute_kernel(basis, qpt, q, interaction_model_with_Rcut, ReplaceSingularity(2π*Rcut^2))
 end
 
 
@@ -340,13 +349,9 @@ Truncate Coulomb interaction at the Wigner-Seitz cell boundary.
 ## Reference
 - [R. Sundararaman, T. A. Arias. Phys. Rev. B **87**, 165122 (2013)](https://doi.org/10.1103/PhysRevB.87.165122)
 """
-struct WignerSeitz <: TruncationStrategy end 
-@views function _compute_kernel(
-    basis::PlaneWaveBasis{T}, 
-    qpt, 
-    q, 
-    truncation::WignerSeitz
-) where {T}
+struct WignerSeitzTruncatedCoulomb <: InteractionModel end 
+@views function _compute_kernel(basis::PlaneWaveBasis{T}, qpt, q, 
+                                interaction_model::WignerSeitzTruncatedCoulomb) where {T}
     model = basis.model
     NG = length(qpt.G_vectors)
     interaction_kernel = zeros(T, NG)
@@ -385,7 +390,7 @@ struct WignerSeitz <: TruncationStrategy end
     ε_min = exp(-0.5*G_Nyquist*R_in)  # required: G_Nyquist > -2*log(ε)/R_in (Appendix A.1 in paper)
     ε = max(ε_target, ε_min)
     if ε > 1e-8
-        @warn "Grid too coarse for Wigner-Seitz truncation. Effective truncation error: $ε"
+        @warn "Grid too coarse for Wigner-Seitz interaction_model. Effective interaction_model error: $ε"
     end
     ω = sqrt(-log(ε)) / R_in  # range separation parameter
 
@@ -427,47 +432,3 @@ struct WignerSeitz <: TruncationStrategy end
     end
     interaction_kernel
 end
-
-
-"""
-Coulomb interaction 1/r requires regularization
-"""
-@kwdef struct Coulomb{KR <: KernelRegularization} <: InteractionModel 
-    regularization::KR = ProbeCharge()
-end
-evaluate_kernel(::Coulomb, Gsq::T) where {T} = 4T(π) / Gsq
-evaluate_probe_charge_integral(::Coulomb, α, Ω) = 8π^2 * sqrt(π / α) * Ω / (2π)^3
-_compute_kernel(basis, qpt, q, m::Coulomb) = _compute_kernel(basis, qpt, q, m, m.regularization)
-
-
-"""
-Spatially truncated Coulomb interaction requires truncation strategy
-"""
-@kwdef struct TruncatedCoulomb{TS <: TruncationStrategy} <: InteractionModel 
-    truncation::TS = WignerSeitz()
-end
-_compute_kernel(basis, qpt, q, m::TruncatedCoulomb) = _compute_kernel(basis, qpt, q, m.truncation)
-
-
-"""
-Short-range Coulomb interaction via error function: erfc(ωr)/r
-"""
-@kwdef struct ErfShortRangeCoulomb <: InteractionModel 
-    ω = 0.106  # ≈ 0.2 / Angstrom
-end
-evaluate_kernel(m::ErfShortRangeCoulomb, Gsq::T) where {T} = -(4T(π) / Gsq) * expm1(-Gsq / (4 * m.ω^2))
-_compute_kernel(basis, qpt, q, m::ErfShortRangeCoulomb) = _compute_kernel(basis, qpt, q, m, ReplaceSingularity(π/m.ω^2))
-
-
-"""
-Long-range Coulomb interaction via error function: erf(ωr)/r
-"""
-@kwdef struct ErfLongRangeCoulomb{KR <: KernelRegularization} <: InteractionModel 
-    ω = 0.106 # ≈ 0.2 / Angstrom
-    regularization::KR = ProbeCharge()
-end
-evaluate_kernel(m::ErfLongRangeCoulomb, Gsq::T) where {T} = (4T(π) / Gsq) * exp(-Gsq / (4 * m.ω^2))
-evaluate_probe_charge_integral(m::ErfLongRangeCoulomb, α, Ω) = 8π^2 * sqrt(π / (α + 1/(4 * m.α^2))) * Ω / (2π)^3
-_compute_kernel(basis, qpt, q, m::ErfLongRangeCoulomb) = _compute_kernel(basis, qpt, q, m, m.regularization)
-
-

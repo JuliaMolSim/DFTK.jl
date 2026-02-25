@@ -36,7 +36,7 @@
     end
 
     @testset "Spherically" begin
-        k_strunc = compute_interaction_kernel(basis; interaction_model=TruncatedCoulomb(Spherically()))
+        k_strunc = compute_interaction_kernel(basis; interaction_model=SphericallyTruncatedCoulomb())
         E_strunc = exx_energy_only(basis, kpt, k_strunc, ψk_real, occk)
         E_ref = -2.360166200435632
         @test abs(E_ref - E_strunc) < 1e-6
@@ -45,7 +45,7 @@
     end
 
     @testset "WignerSeitz" begin
-        k_wtrunc = compute_interaction_kernel(basis; interaction_model=TruncatedCoulomb(WignerSeitz()))
+        k_wtrunc = compute_interaction_kernel(basis; interaction_model=WignerSeitzTruncatedCoulomb())
         E_wtrunc = exx_energy_only(basis, kpt, k_wtrunc, ψk_real, occk)
         E_ref = -2.345681352379346
         @test abs(E_ref - E_wtrunc) < 1e-6
