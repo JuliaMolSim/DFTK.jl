@@ -74,9 +74,19 @@ macro make_psplincomb_call(fn)
         end
     end
 end
+
+macro make_psplincomb_call_vectorized(fn)
+    quote
+        function $fn(psp::PspLinComb, arg::AbstractVector{<:Real})
+            sum(c * $fn(pp, arg) for (c, pp) in zip(psp.coefficients, psp.pseudos))
+        end
+    end
+end
+
 @make_psplincomb_call DFTK.eval_psp_local_real
 @make_psplincomb_call DFTK.eval_psp_local_fourier
 @make_psplincomb_call DFTK.eval_psp_density_valence_real
 @make_psplincomb_call DFTK.eval_psp_density_valence_fourier
 @make_psplincomb_call DFTK.eval_psp_density_core_real
 @make_psplincomb_call DFTK.eval_psp_density_core_fourier
+@make_psplincomb_call_vectorized DFTK.eval_psp_density_core_fourier

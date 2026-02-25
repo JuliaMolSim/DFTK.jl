@@ -322,13 +322,12 @@ function hankel(quadrature, r::AbstractVector, r2_f::AbstractVector, l::Integer,
     pv = ForwardDiff.value(p)
 
     # To reduce allocations, compute value and derivative simultaneously, using a SVector as integrand
-    res = 4V(π) * quadrature(r) do i, r
+    value, derivative = 4V(π) * quadrature(r) do i, r
         jl_i = sphericalbesselj_fast(l, pv * r)
         val = r2_f[i] * jl_i
         deriv = iszero(pv) ? zero(V) : r2_f[i] * (l * jl_i / pv - r * sphericalbesselj_fast(l+1, pv * r))
         SVector(val, deriv)
     end
-    value, derivative = res[1], res[2]
     Dual{Tg,V,N}(value, derivative * ForwardDiff.partials(p))
 end
 

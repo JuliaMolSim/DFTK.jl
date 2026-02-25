@@ -215,10 +215,10 @@ end
 
 # Generic vectoriezed version of the above
 function atomic_density(element::Element, Gnorms::AbstractVector{T},
-                        ::AtomicDensity) where {T <: Real}
+                        method::AtomicDensity) where {T <: Real}
     arch = architecture(Gnorms)
     to_device(arch,
-              map(Gnorm -> gaussian_valence_charge_density_fourier(element, Gnorm),
+              map(Gnorm -> atomic_density(element, Gnorm, method),
                   to_cpu(Gnorms)))
 end
 
