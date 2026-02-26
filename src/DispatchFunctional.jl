@@ -123,11 +123,71 @@ end
 #   For example in LDA the change in Vρ₁ is ∂²E_xc/∂ρ₁² * δρ₁ + ∂²E_xc/∂ρ₁∂ρ₂ * δρ₂,
 #   and similarly for Vρ₂.
 #   For GGA, there are also cross-derivatives with σ, e.g. ∂²E_xc/∂ρ₁∂σ₁ * δσ₁, etc.
+#   This is handled by the various libxc_assemble_δV functions below.
 # - libxc returns the cross-spin derivatives in a compact form,
 #   see https://libxc.gitlab.io/manual/libxc-5.1.x/
 
 # Combine N vectors of size (n_p) into one (N, n_p) array
 libxc_combine_spins(xs...) = reduce(vcat, transpose.(xs))
+
+# Helper functions to compute δVρ, δVσ, δVτ from the second derivatives
+# and the perturbations, by summing up all the spin combinations.
+@views function libxc_assemble_δVρ(Vρρ, δρ, Vρσ=nothing, δσ=nothing,
+                                            Vρτ=nothing, δτ=nothing)
+    if size(δρ, 1) == 1
+        δVρ = Vρρ .* δρ
+        isnothing(Vρσ) || (δVρ .+= Vρσ .* δσ)
+        isnothing(Vρτ) || (δVρ .+= Vρτ .* δτ)
+        δVρ
+    else
+        δVρ1 = @. Vρρ[1,:] * δρ[1,:] + Vρρ[2,:] * δρ[2,:]
+        δVρ2 = @. Vρρ[2,:] * δρ[1,:] + Vρρ[3,:] * δρ[2,:]
+        if !isnothing(Vρσ)
+            δVρ1 += @. Vρσ[1,:] * δσ[1,:] + Vρσ[2,:] * δσ[2,:] + Vρσ[3,:] * δσ[3,:]
+            δVρ2 += @. Vρσ[4,:] * δσ[1,:] + Vρσ[5,:] * δσ[2,:] + Vρσ[6,:] * δσ[3,:]
+        end
+        if !isnothing(Vρτ)
+            δVρ1 += @. Vρτ[1,:] * δτ[1,:] + Vρτ[2,:] * δτ[2,:]
+            δVρ2 += @. Vρτ[3,:] * δτ[1,:] + Vρτ[4,:] * δτ[2,:]
+        end
+        libxc_combine_spins(δVρ1, δVρ2)
+    end
+end
+@views function libxc_assemble_δVσ(Vρσ, δρ, Vσσ, δσ, Vστ=nothing, δτ=nothing)
+    if size(δρ, 1) == 1
+        δVσ = Vρσ .* δρ .+ Vσσ .* δσ
+        isnothing(Vστ) || (δVσ .+= Vστ .* δτ)
+        δVσ
+    else
+        δVσ1 = @. Vρσ[1,:] * δρ[1,:] + Vρσ[4,:] * δρ[2,:]
+        δVσ2 = @. Vρσ[2,:] * δρ[1,:] + Vρσ[5,:] * δρ[2,:]
+        δVσ3 = @. Vρσ[3,:] * δρ[1,:] + Vρσ[6,:] * δρ[2,:]
+        δVσ1 .+= @. Vσσ[1,:] * δσ[1,:] + Vσσ[2,:] * δσ[2,:] + Vσσ[3,:] * δσ[3,:]
+        δVσ2 .+= @. Vσσ[2,:] * δσ[1,:] + Vσσ[4,:] * δσ[2,:] + Vσσ[5,:] * δσ[3,:]
+        δVσ3 .+= @. Vσσ[3,:] * δσ[1,:] + Vσσ[5,:] * δσ[2,:] + Vσσ[6,:] * δσ[3,:]
+        if !isnothing(Vστ)
+            δVσ1 .+= @. Vστ[1,:]*δτ[1,:] + Vστ[2,:]*δτ[2,:]
+            δVσ2 .+= @. Vστ[3,:]*δτ[1,:] + Vστ[4,:]*δτ[2,:]
+            δVσ3 .+= @. Vστ[5,:]*δτ[1,:] + Vστ[6,:]*δτ[2,:]
+        end
+        libxc_combine_spins(δVσ1, δVσ2, δVσ3)
+    end
+end
+
+@views function libxc_assemble_δVτ(Vρτ, δρ, Vστ, δσ, Vττ, δτ)
+    if size(δρ, 1) == 1
+        δVτ = Vρτ .* δρ .+ Vστ .* δσ .+ Vττ .* δτ
+        δVτ
+    else
+        δVτ1 = @. Vρτ[1,:] * δρ[1,:] + Vρτ[3,:] * δρ[2,:]
+        δVτ2 = @. Vρτ[2,:] * δρ[1,:] + Vρτ[4,:] * δρ[2,:]
+        δVτ1 .+= @. Vστ[1,:] * δσ[1,:] + Vστ[3,:] * δσ[2,:] + Vστ[5,:] * δσ[3,:]
+        δVτ2 .+= @. Vστ[2,:] * δσ[1,:] + Vστ[4,:] * δσ[2,:] + Vστ[6,:] * δσ[3,:]
+        δVτ1 .+= @. Vττ[1,:] * δτ[1,:] + Vττ[2,:] * δτ[2,:]
+        δVτ2 .+= @. Vττ[2,:] * δτ[1,:] + Vττ[3,:] * δτ[2,:]
+        libxc_combine_spins(δVτ1, δVτ2)
+    end
+end
 
 @views function DftFunctionals.potential_terms(func::LibxcFunctional{:lda},
                                                ρ_δρ::AbstractMatrix{DT}
@@ -145,13 +205,7 @@ libxc_combine_spins(xs...) = reduce(vcat, transpose.(xs))
         sum(Vρ .* ForwardDiff.partials.(ρ_δρ, n); dims=1)
     end
     δVρ = ntuple(Val(N)) do n
-        δρ = ForwardDiff.partials.(ρ_δρ, n)
-        if s_ρ == 1
-            Vρρ .* δρ
-        else
-            libxc_combine_spins(Vρρ[1,:] .* δρ[1,:] .+ Vρρ[2,:] .* δρ[2,:],
-                                Vρρ[2,:] .* δρ[1,:] .+ Vρρ[3,:] .* δρ[2,:])
-        end
+        libxc_assemble_δVρ(Vρρ, ForwardDiff.partials.(ρ_δρ, n))
     end
     (; e=map(Dual{T}, e, δe...),
        Vρ=map(Dual{T}, Vρ, δVρ...))
@@ -178,40 +232,14 @@ end
         ( sum(Vρ .* ForwardDiff.partials.(ρ_δρ, n); dims=1)
         + sum(Vσ .* ForwardDiff.partials.(σ_δσ, n); dims=1))
     end
-
     δVρ = ntuple(Val(N)) do n
-        δρ = ForwardDiff.partials.(ρ_δρ, n)
-        δσ = ForwardDiff.partials.(σ_δσ, n)
-        if s_ρ == 1
-            Vρρ .* δρ .+ Vρσ .* δσ
-        else
-            # For both ρ spin components: one line for ∂²/∂ρ², one line for ∂²/∂ρ∂σ
-            libxc_combine_spins(
-                @.(  Vρρ[1,:] * δρ[1,:] + Vρρ[2,:] * δρ[2,:]
-                   + Vρσ[1,:] * δσ[1,:] + Vρσ[2,:] * δσ[2,:] + Vρσ[3,:] * δσ[3,:]),
-                @.(  Vρρ[2,:] * δρ[1,:] + Vρρ[3,:] * δρ[2,:]
-                   + Vρσ[4,:] * δσ[1,:] + Vρσ[5,:] * δσ[2,:] + Vρσ[6,:] * δσ[3,:]),
-            )
-        end
+        libxc_assemble_δVρ(Vρρ, ForwardDiff.partials.(ρ_δρ, n),
+                           Vρσ, ForwardDiff.partials.(σ_δσ, n))
     end
     δVσ = ntuple(Val(N)) do n
-        δρ = ForwardDiff.partials.(ρ_δρ, n)
-        δσ = ForwardDiff.partials.(σ_δσ, n)
-        if s_σ == 1
-            Vρσ .* δρ .+ Vσσ .* δσ
-        else
-            # For all three σ components: one line for ∂²/∂σ∂ρ, one line for ∂²/∂σ²
-            libxc_combine_spins(
-                @.(  Vρσ[1,:] * δρ[1,:] + Vρσ[4,:] * δρ[2,:]
-                   + Vσσ[1,:] * δσ[1,:] + Vσσ[2,:] * δσ[2,:] + Vσσ[3,:] * δσ[3,:]),
-                @.(  Vρσ[2,:] * δρ[1,:] + Vρσ[5,:] * δρ[2,:]
-                   + Vσσ[2,:] * δσ[1,:] + Vσσ[4,:] * δσ[2,:] + Vσσ[5,:] * δσ[3,:]),
-                @.(  Vρσ[3,:] * δρ[1,:] + Vρσ[6,:] * δρ[2,:]
-                   + Vσσ[3,:] * δσ[1,:] + Vσσ[5,:] * δσ[2,:] + Vσσ[6,:] * δσ[3,:]),
-            )
-        end
+        libxc_assemble_δVσ(Vρσ, ForwardDiff.partials.(ρ_δρ, n),
+                           Vσσ, ForwardDiff.partials.(σ_δσ, n))
     end
-
     (; e=map(Dual{T},   e, δe...),
        Vρ=map(Dual{T}, Vρ, δVρ...),
        Vσ=map(Dual{T}, Vσ, δVσ...))
@@ -245,65 +273,21 @@ end
         + sum(Vσ .* ForwardDiff.partials.(σ_δσ, n); dims=1)
         + sum(Vτ .* ForwardDiff.partials.(τ_δτ, n); dims=1))
     end
-
     δVρ = ntuple(Val(N)) do n
-        δρ = ForwardDiff.partials.(ρ_δρ, n)
-        δσ = ForwardDiff.partials.(σ_δσ, n)
-        δτ = ForwardDiff.partials.(τ_δτ, n)
-        if s_ρ == 1
-            Vρρ .* δρ .+ Vρσ .* δσ .+ Vρτ .* δτ
-        else
-            # For both ρ spin components: one line for ∂²/∂ρ², one line for ∂²/∂ρ∂σ, one line for ∂²/∂ρ∂τ
-            libxc_combine_spins(
-                @.(  Vρρ[1,:] * δρ[1,:] + Vρρ[2,:] * δρ[2,:]
-                   + Vρσ[1,:] * δσ[1,:] + Vρσ[2,:] * δσ[2,:] + Vρσ[3,:] * δσ[3,:]
-                   + Vρτ[1,:] * δτ[1,:] + Vρτ[2,:] * δτ[2,:]),
-                @.(  Vρρ[2,:] * δρ[1,:] + Vρρ[3,:] * δρ[2,:]
-                   + Vρσ[4,:] * δσ[1,:] + Vρσ[5,:] * δσ[2,:] + Vρσ[6,:] * δσ[3,:]
-                   + Vρτ[3,:] * δτ[1,:] + Vρτ[4,:] * δτ[2,:]),
-            )
-        end
+        libxc_assemble_δVρ(Vρρ, ForwardDiff.partials.(ρ_δρ, n),
+                           Vρσ, ForwardDiff.partials.(σ_δσ, n),
+                           Vρτ, ForwardDiff.partials.(τ_δτ, n))
     end
     δVσ = ntuple(Val(N)) do n
-        δρ = ForwardDiff.partials.(ρ_δρ, n)
-        δσ = ForwardDiff.partials.(σ_δσ, n)
-        δτ = ForwardDiff.partials.(τ_δτ, n)
-        if s_σ == 1
-            Vρσ .* δρ .+ Vσσ .* δσ .+ Vστ .* δτ
-        else
-            # For all three σ components: one line for ∂²/∂σ∂ρ, one line for ∂²/∂σ², one line for ∂²/∂σ∂τ
-            libxc_combine_spins(
-                @.(  Vρσ[1,:] * δρ[1,:] + Vρσ[4,:] * δρ[2,:]
-                   + Vσσ[1,:] * δσ[1,:] + Vσσ[2,:] * δσ[2,:] + Vσσ[3,:] * δσ[3,:]
-                   + Vστ[1,:] * δτ[1,:] + Vστ[2,:] * δτ[2,:]),
-                @.(  Vρσ[2,:] * δρ[1,:] + Vρσ[5,:] * δρ[2,:]
-                   + Vσσ[2,:] * δσ[1,:] + Vσσ[4,:] * δσ[2,:] + Vσσ[5,:] * δσ[3,:]
-                   + Vστ[3,:] * δτ[1,:] + Vστ[4,:] * δτ[2,:]),
-                @.(  Vρσ[3,:] * δρ[1,:] + Vρσ[6,:] * δρ[2,:]
-                   + Vσσ[3,:] * δσ[1,:] + Vσσ[5,:] * δσ[2,:] + Vσσ[6,:] * δσ[3,:]
-                   + Vστ[5,:] * δτ[1,:] + Vστ[6,:] * δτ[2,:]),
-            )
-        end
+        libxc_assemble_δVσ(Vρσ, ForwardDiff.partials.(ρ_δρ, n),
+                           Vσσ, ForwardDiff.partials.(σ_δσ, n),
+                           Vστ, ForwardDiff.partials.(τ_δτ, n))
     end
     δVτ = ntuple(Val(N)) do n
-        δρ = ForwardDiff.partials.(ρ_δρ, n)
-        δσ = ForwardDiff.partials.(σ_δσ, n)
-        δτ = ForwardDiff.partials.(τ_δτ, n)
-        if s_ρ == 1
-            Vρτ .* δρ .+ Vστ .* δσ .+ Vττ .* δτ
-        else
-            # For both ρ spin components: one line for ∂²/∂τ∂ρ, one line for ∂²/∂τ∂σ, one line for ∂²/∂τ²
-            libxc_combine_spins(
-                @.(  Vρτ[1,:] * δρ[1,:] + Vρτ[3,:] * δρ[2,:]
-                   + Vστ[1,:] * δσ[1,:] + Vστ[3,:] * δσ[2,:] + Vστ[5,:] * δσ[3,:]
-                   + Vττ[1,:] * δτ[1,:] + Vττ[2,:] * δτ[2,:]),
-                @.(  Vρτ[2,:] * δρ[1,:] + Vρτ[4,:] * δρ[2,:]
-                   + Vστ[2,:] * δσ[1,:] + Vστ[4,:] * δσ[2,:] + Vστ[6,:] * δσ[3,:]
-                   + Vττ[2,:] * δτ[1,:] + Vττ[3,:] * δτ[2,:]),
-            )
-        end
+        libxc_assemble_δVτ(Vρτ, ForwardDiff.partials.(ρ_δρ, n),
+                           Vστ, ForwardDiff.partials.(σ_δσ, n),
+                           Vττ, ForwardDiff.partials.(τ_δτ, n))
     end
-
     (; e=map(Dual{T},   e, δe...),
        Vρ=map(Dual{T}, Vρ, δVρ...),
        Vσ=map(Dual{T}, Vσ, δVσ...),
