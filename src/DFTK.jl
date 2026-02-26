@@ -238,6 +238,7 @@ include("response/hessian.jl")
 export compute_current
 include("postprocess/current.jl")
 export phonon_modes
+export all_phonon_modes
 include("postprocess/phonon.jl")
 export refine_scfres
 export refine_energies
