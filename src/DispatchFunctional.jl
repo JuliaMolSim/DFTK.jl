@@ -216,7 +216,100 @@ end
        Vρ=map(Dual{T}, Vρ, δVρ...),
        Vσ=map(Dual{T}, Vσ, δVσ...))
 end
-# TODO mgga and mggal derivatives
+@views function DftFunctionals.potential_terms(func::LibxcFunctional{:mgga},
+                                               ρ_δρ::AbstractMatrix{DT},
+                                               σ_δσ::AbstractMatrix{DT},
+                                               τ_δτ::AbstractMatrix{DT}
+                                               ) where {N,T,DT<:Dual{T,Float64,N}}
+    ρ = ForwardDiff.value.(ρ_δρ)
+    σ = ForwardDiff.value.(σ_δσ)
+    τ = ForwardDiff.value.(τ_δτ)
+    s_ρ, n_p = size(ρ)
+    s_σ = size(σ, 1)
+    fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
+    derivatives = filter(in(Libxc.supported_derivatives(fun)), 0:2)
+    terms = Libxc.evaluate(fun; rho=ρ, sigma=σ, tau=τ, derivatives)
+    e  = libxc_energy(terms, ρ)
+    Vρ = reshape(terms.vrho,   s_ρ, n_p)
+    Vσ = reshape(terms.vsigma, s_σ, n_p)
+    Vτ = reshape(terms.vtau,   s_ρ, n_p)
+    Vρρ = terms.v2rho2
+    Vρσ = terms.v2rhosigma
+    Vρτ = terms.v2rhotau
+    Vσσ = terms.v2sigma2
+    Vστ = terms.v2sigmatau
+    Vττ = terms.v2tau2
+
+    δe = ntuple(Val(N)) do n
+        ( sum(Vρ .* ForwardDiff.partials.(ρ_δρ, n); dims=1)
+        + sum(Vσ .* ForwardDiff.partials.(σ_δσ, n); dims=1)
+        + sum(Vτ .* ForwardDiff.partials.(τ_δτ, n); dims=1))
+    end
+
+    δVρ = ntuple(Val(N)) do n
+        δρ = ForwardDiff.partials.(ρ_δρ, n)
+        δσ = ForwardDiff.partials.(σ_δσ, n)
+        δτ = ForwardDiff.partials.(τ_δτ, n)
+        if s_ρ == 1
+            Vρρ .* δρ .+ Vρσ .* δσ .+ Vρτ .* δτ
+        else
+            # For both ρ spin components: one line for ∂²/∂ρ², one line for ∂²/∂ρ∂σ, one line for ∂²/∂ρ∂τ
+            libxc_combine_spins(
+                @.(  Vρρ[1,:] * δρ[1,:] + Vρρ[2,:] * δρ[2,:]
+                   + Vρσ[1,:] * δσ[1,:] + Vρσ[2,:] * δσ[2,:] + Vρσ[3,:] * δσ[3,:]
+                   + Vρτ[1,:] * δτ[1,:] + Vρτ[2,:] * δτ[2,:]),
+                @.(  Vρρ[2,:] * δρ[1,:] + Vρρ[3,:] * δρ[2,:]
+                   + Vρσ[4,:] * δσ[1,:] + Vρσ[5,:] * δσ[2,:] + Vρσ[6,:] * δσ[3,:]
+                   + Vρτ[3,:] * δτ[1,:] + Vρτ[4,:] * δτ[2,:]),
+            )
+        end
+    end
+    δVσ = ntuple(Val(N)) do n
+        δρ = ForwardDiff.partials.(ρ_δρ, n)
+        δσ = ForwardDiff.partials.(σ_δσ, n)
+        δτ = ForwardDiff.partials.(τ_δτ, n)
+        if s_σ == 1
+            Vρσ .* δρ .+ Vσσ .* δσ .+ Vστ .* δτ
+        else
+            # For all three σ components: one line for ∂²/∂σ∂ρ, one line for ∂²/∂σ², one line for ∂²/∂σ∂τ
+            libxc_combine_spins(
+                @.(  Vρσ[1,:] * δρ[1,:] + Vρσ[4,:] * δρ[2,:]
+                   + Vσσ[1,:] * δσ[1,:] + Vσσ[2,:] * δσ[2,:] + Vσσ[3,:] * δσ[3,:]
+                   + Vστ[1,:] * δτ[1,:] + Vστ[2,:] * δτ[2,:]),
+                @.(  Vρσ[2,:] * δρ[1,:] + Vρσ[5,:] * δρ[2,:]
+                   + Vσσ[2,:] * δσ[1,:] + Vσσ[4,:] * δσ[2,:] + Vσσ[5,:] * δσ[3,:]
+                   + Vστ[3,:] * δτ[1,:] + Vστ[4,:] * δτ[2,:]),
+                @.(  Vρσ[3,:] * δρ[1,:] + Vρσ[6,:] * δρ[2,:]
+                   + Vσσ[3,:] * δσ[1,:] + Vσσ[5,:] * δσ[2,:] + Vσσ[6,:] * δσ[3,:]
+                   + Vστ[5,:] * δτ[1,:] + Vστ[6,:] * δτ[2,:]),
+            )
+        end
+    end
+    δVτ = ntuple(Val(N)) do n
+        δρ = ForwardDiff.partials.(ρ_δρ, n)
+        δσ = ForwardDiff.partials.(σ_δσ, n)
+        δτ = ForwardDiff.partials.(τ_δτ, n)
+        if s_ρ == 1
+            Vρτ .* δρ .+ Vστ .* δσ .+ Vττ .* δτ
+        else
+            # For both ρ spin components: one line for ∂²/∂τ∂ρ, one line for ∂²/∂τ∂σ, one line for ∂²/∂τ²
+            libxc_combine_spins(
+                @.(  Vρτ[1,:] * δρ[1,:] + Vρτ[3,:] * δρ[2,:]
+                   + Vστ[1,:] * δσ[1,:] + Vστ[3,:] * δσ[2,:] + Vστ[5,:] * δσ[3,:]
+                   + Vττ[1,:] * δτ[1,:] + Vττ[2,:] * δτ[2,:]),
+                @.(  Vρτ[2,:] * δρ[1,:] + Vρτ[4,:] * δρ[2,:]
+                   + Vστ[2,:] * δσ[1,:] + Vστ[4,:] * δσ[2,:] + Vστ[6,:] * δσ[3,:]
+                   + Vττ[2,:] * δτ[1,:] + Vττ[3,:] * δτ[2,:]),
+            )
+        end
+    end
+
+    (; e=map(Dual{T},   e, δe...),
+       Vρ=map(Dual{T}, Vρ, δVρ...),
+       Vσ=map(Dual{T}, Vσ, δVσ...),
+       Vτ=map(Dual{T}, Vτ, δVτ...))
+end
+# TODO mggal derivatives
 
 #
 # Automatic dispatching between Libxc (where possible) and the generic implementation

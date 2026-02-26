@@ -130,21 +130,35 @@ end
             Si = ElementPsp(testcase.atnum, load_psp(testcase.psp_gth))
             magnetic_moments = spin == :collinear ? [0.5, -0.5] : []
             model = model_DFT(testcase.lattice, [Si, Si], testcase.positions;
-                              functionals=LDA(), magnetic_moments)
+                              functionals=r2SCAN(), magnetic_moments)
             basis = PlaneWaveBasis(model; Ecut=2, kgrid=MonkhorstPack([2, 2, 2]))
-            ρ0 = self_consistent_field(basis; ρ=guess_density(basis, magnetic_moments)).ρ
+            scfres = self_consistent_field(basis; ρ=guess_density(basis, magnetic_moments))
+            ρ0 = scfres.ρ
+            τ0 = scfres.τ
 
-            # LibxcDensities with max_derivative=1 gives both ρ and σ = |∇ρ|²
-            density = DFTK.LibxcDensities(basis, 1, ρ0, nothing)
-            ρ = reshape(density.ρ_real, size(density.ρ_real, 1), :)  # (n_spin, n_p)
-            σ = reshape(density.σ_real, size(density.σ_real, 1), :)  # (n_spin_σ, n_p)
+            # LibxcDensities with max_derivative=2 gives ρ, σ = |∇ρ|², and Δρ
+            density = DFTK.LibxcDensities(basis, 2, ρ0, τ0)
+            ρ  = reshape(density.ρ_real, size(density.ρ_real, 1), :)
+            σ  = reshape(density.σ_real, size(density.σ_real, 1), :)
+            Δρ = reshape(density.Δρ_real, size(density.Δρ_real, 1), :)
+            τ  = reshape(density.τ_real, size(density.τ_real, 1), :)
 
             ε = 1e-5
             ε_dual = Dual{typeof(ForwardDiff.Tag(nothing, Float64))}(0.0, 1.0)
 
+            # Random δρ with consistent δσ and δΔρ
+            δρ0 = randn(size(ρ0)) / model.unit_cell_volume
+            δdens = DFTK.LibxcDensities(basis, 2, ρ0.+ε_dual.*δρ0, nothing)
+            δσ_real = partials.(δdens.σ_real, 1)
+            δΔρ_real = partials.(δdens.Δρ_real, 1)
+            δρ = reshape(δρ0, size(ρ)...)
+            δσ = reshape(δσ_real, size(σ)...)
+            δΔρ = reshape(δΔρ_real, size(Δρ)...)
+            # And a random δτ
+            δτ = randn(size(τ)) / model.unit_cell_volume
+
             @testset "LDA" begin
                 func = DFTK.LibxcFunctional(:lda_xc_teter93)
-                δρ = randn(size(ρ)) / model.unit_cell_volume
 
                 terms_ad    = potential_terms(func, ρ .+ ε_dual .* δρ)
                 δe_ad       = partials.(terms_ad.e,  1)
@@ -161,12 +175,6 @@ end
 
             @testset "GGA" begin
                 func = DFTK.LibxcFunctional(:gga_x_pbe)
-                # Produce a δσ that is consistent with the δρ
-                δρ0 = randn(size(ρ0)) / model.unit_cell_volume
-                σ_real = DFTK.LibxcDensities(basis, 1, ρ0.+ε_dual.*δρ0, nothing).σ_real
-                δσ_real = partials.(σ_real, 1)
-                δρ = reshape(δρ0, size(ρ)...)
-                δσ = reshape(δσ_real, size(σ)...)
 
                 terms_ad    = potential_terms(func, ρ .+ ε_dual .* δρ, σ .+ ε_dual .* δσ)
                 δe_ad       = partials.(terms_ad.e,  1)
@@ -182,6 +190,28 @@ end
                 @test δe_ad  ≈ δe_fd  rtol=1e-4
                 @test δVρ_ad ≈ δVρ_fd rtol=1e-4
                 @test δVσ_ad ≈ δVσ_fd rtol=1e-4
+            end
+
+            @testset "MGGA" begin
+                func = DFTK.LibxcFunctional(:mgga_x_r2scan)
+
+                terms_ad    = potential_terms(func, ρ .+ ε_dual .* δρ, σ .+ ε_dual .* δσ, τ .+ ε_dual .* δτ)
+                δe_ad       = partials.(terms_ad.e,  1)
+                δVρ_ad      = partials.(terms_ad.Vρ, 1)
+                δVσ_ad      = partials.(terms_ad.Vσ, 1)
+                δVτ_ad      = partials.(terms_ad.Vτ, 1)
+
+                terms_plus  = potential_terms(func, ρ .+ ε .* δρ, σ .+ ε .* δσ, τ .+ ε .* δτ)
+                terms_minus = potential_terms(func, ρ .- ε .* δρ, σ .- ε .* δσ, τ .- ε .* δτ)
+                δe_fd       = (terms_plus.e  - terms_minus.e)  / 2ε
+                δVρ_fd      = (terms_plus.Vρ - terms_minus.Vρ) / 2ε
+                δVσ_fd      = (terms_plus.Vσ - terms_minus.Vσ) / 2ε
+                δVτ_fd      = (terms_plus.Vτ - terms_minus.Vτ) / 2ε
+
+                @test δe_ad  ≈ δe_fd  rtol=1e-4
+                @test δVρ_ad ≈ δVρ_fd rtol=1e-4
+                @test δVσ_ad ≈ δVσ_fd rtol=1e-4
+                @test δVτ_ad ≈ δVτ_fd rtol=1e-4
             end
         end
     end
