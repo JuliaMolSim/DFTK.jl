@@ -58,19 +58,6 @@ function compute_kernel_fourier(basis::PlaneWaveBasis{T}; q=zero(Vec3{T}),
 end
 
 
-@doc raw"""
-Abstract type for different strategies to regularize the
-diverging G+q=0 fourier component of interaction models.
-
-Available models:
-- [`ProbeCharge`](@ref): Gygi-Baldereschi probe charge method
-- [`ReplaceSingularity`](@ref): Set G+q=0 component to given value (default is zero)
-
-See also: [`InteractionKernel`](@ref)
-"""
-abstract type KernelRegularization end
-
-
 """
 Probe charge Ewald method for treating the Coulomb singularity.
 
