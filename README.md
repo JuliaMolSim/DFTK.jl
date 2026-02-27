@@ -39,7 +39,7 @@ In only around 10k lines of code DFTK already has
 a [sizeable set of features](https://docs.dftk.org/stable/features/)
 including GPU support or parallelisation using MPI.
 Our performance is of the same order of magnitude
-as more established packages and systems up to 1000 electrons
+as other plane-wave DFT packages and  systems of 1000 electrons
 can be routinely treated.
 
 For getting started with DFTK, see [our documentation](https://docs.dftk.org):
