@@ -252,6 +252,22 @@ include("workarounds/forwarddiff_rules.jl")
 include("gpu/linalg.jl")
 include("gpu/gpu_arrays.jl")
 
+#\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+# Added for DFTKMakieExt.jl plot & subplot
+export plot_bandstructure!  
+export plot_dos!
+export plot_unfolded_bands
+export plot_unfolded_bands!
+export plot_folded_bands
+export plot_folded_bands!
+export plot_dos_rotated!
+
+# Added for postprocess of BandsUnfold.jl
+export unfold_bands
+export compute_folded_bands
+include("postprocess/BandsUnfold.jl")
+#\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
 # Precompilation block with a basic workflow
 
 function precompilation_workflow(lattice, atoms, positions, magnetic_moments;
