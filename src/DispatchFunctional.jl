@@ -32,32 +32,6 @@ function DftFunctionals.has_energy(func::LibxcFunctional)
     0 in Libxc.supported_derivatives(Libxc.Functional(func.identifier))
 end
 
-function libxc_unfold_spin(data::AbstractMatrix, n_spin::Int)
-    n_p = size(data, 2)
-    if n_spin == 1
-        data  # Only one spin component
-    elseif n_spin == 2
-        unfolded = similar(data, 2, 2, n_p)
-        unfolded[1, 1, :] = data[1, :]
-        unfolded[2, 2, :] = data[3, :]
-
-        unfolded[1, 2, :] = unfolded[2, 1, :] = data[2, :]
-        unfolded
-    elseif n_spin == 3
-        unfolded = similar(data, 3, 3, n_p)
-        unfolded[1, 1, :] = data[1, :]
-        unfolded[2, 2, :] = data[4, :]
-        unfolded[3, 3, :] = data[6, :]
-
-        unfolded[1, 2, :] = unfolded[2, 1, :] = data[2, :]
-        unfolded[1, 3, :] = unfolded[3, 1, :] = data[3, :]
-        unfolded[2, 3, :] = unfolded[3, 2, :] = data[5, :]
-        unfolded
-    else
-        error("Unspoorted n_spin == $n_spin")
-    end
-end
-
 function libxc_energy(terms, ρ)
     haskey(terms, :zk) ? reshape(terms.zk, 1, size(ρ, 2)) .* sum(ρ; dims=1) : false
 end
