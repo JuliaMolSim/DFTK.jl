@@ -160,7 +160,7 @@ include("eigen/diag.jl")
 
 export model_atomic, model_DFT, model_HF
 export LDA, PBE, PBEsol, SCAN, r2SCAN
-export PBE0, HSE03, HSE06
+export PBE0, HSE
 include("standard_models.jl")
 
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing

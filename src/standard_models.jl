@@ -258,42 +258,30 @@ custom exact exchange fraction.
 """
 PBE0(; kwargs...)  = HybridFunctional([:hyb_gga_xc_pbeh]; kwargs...)
 
-"""
-Specify a HSE03 hybrid functional in conjunction with [`model_DFT`](@ref)
-<https://doi.org/10.1063/1.2204597>
-Possible keyword arguments are those accepted by [`Xc`](@ref) and by
-[`ExactExchange`](@ref). Use the keyword argument `exx_fraction` to specify a
-custom exact exchange fraction.
-
-The range separation parameter ω chosen to match VASP 
-(no QuantumESPRESSO implementaion of HSE03 availbale).
-
-!!! warn "Hybrid DFT is experimental"
-         The interface may change at any moment, which is not considered a breaking change.
-         Note further that at this stage (Feb 2026) there are still known performance bottle
-         necks in the code.
-"""
-HSE03(; kwargs...) = HybridFunctional([:hyb_gga_xc_hse03]; 
-                                      interaction_kernel=ErfShortRangeCoulomb(ω=0.159),  
-                                      kwargs...)
 
 """
-Specify a HSE06 hybrid functional in conjunction with [`model_DFT`](@ref)
+Specify a HSE hybrid functional in conjunction with [`model_DFT`](@ref)
 <https://doi.org/10.1063/1.2404663>
 Possible keyword arguments are those accepted by [`Xc`](@ref) and by
 [`ExactExchange`](@ref). Use the keyword argument `exx_fraction` to specify a
 custom exact exchange fraction.
 
-The range separation parameter ω chosen to match QuantumEspresso & VASP 
+This is the HSE06 hybrid functional with range-separation parameter μ=0.11/bohr.
+
+Note that other codes use slightly different μ:
+* VASP uses μ = 0.2/Angstrom = 0.105835/bohr
+* Quantum Espresso uses μ=0.106/bohr if input_dft='hse'
+* Quantum Espresso uses μ=0.11/bohr  if input_dft='xc-000i-000i-000i-428l'
 
 !!! warn "Hybrid DFT is experimental"
          The interface may change at any moment, which is not considered a breaking change.
          Note further that at this stage (Feb 2026) there are still known performance bottle
          necks in the code.
 """
-HSE06(; kwargs...) = HybridFunctional([:hyb_gga_xc_hse06];  
-                                      interaction_kernel=ErfShortRangeCoulomb(ω=0.106),  
-                                      kwargs...)
+HSE(; kwargs...) = HybridFunctional([:hyb_gga_xc_hse06]; 
+                                    exx_fraction=0.25,  # have to pass as range-separated hybrids don't provide exx fraction
+                                    interaction_kernel=ErfShortRangeCoulomb(μ=0.11),  
+                                    kwargs...)
 
 # Internal function to help define hybrid functional shorthands
 function HybridFunctional(libxc_symbols;

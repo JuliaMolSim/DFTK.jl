@@ -3,8 +3,8 @@ Abstract type for different interaction models
 
 Available models:
 - [`Coulomb`](@ref): 1/r
-- [`ErfShortRangeCoulomb`](@ref): erfc(ωr)/r
-- [`ErfLongRangeCoulomb`](@ref): erf(ωr)/r
+- [`ErfShortRangeCoulomb`](@ref): erfc(μr)/r
+- [`ErfLongRangeCoulomb`](@ref): erf(μr)/r
 - [`SphericallyTruncatedCoulomb`](@ref): θ(R-r)/r
 
 See also: [`compute_kernel_fourier`](@ref)
@@ -163,24 +163,24 @@ _compute_kernel(basis, qpt, q, m::Coulomb) = _compute_kernel(basis, qpt, q, m, m
 
 
 """
-Short-range Coulomb interaction via error function: erfc(ωr)/r
+Short-range Coulomb interaction via error function: erfc(μr)/r
 """
 @kwdef struct ErfShortRangeCoulomb <: InteractionKernel 
-    ω = 0.106  # ≈ 0.2 / Angstrom
+    μ = 0.11  # ≈ 0.2 / Angstrom
 end
-eval_kernel_fourier(m::ErfShortRangeCoulomb, Gsq::T) where {T} = -(4T(π) / Gsq) * expm1(-Gsq / (4 * m.ω^2))
-_compute_kernel(basis, qpt, q, m::ErfShortRangeCoulomb) = _compute_kernel(basis, qpt, q, m, ReplaceSingularity(π/m.ω^2))
+eval_kernel_fourier(m::ErfShortRangeCoulomb, Gsq::T) where {T} = -(4T(π) / Gsq) * expm1(-Gsq / (4 * m.μ^2))
+_compute_kernel(basis, qpt, q, m::ErfShortRangeCoulomb) = _compute_kernel(basis, qpt, q, m, ReplaceSingularity(π/m.μ^2))
 
 
 """
-Long-range Coulomb interaction via error function: erf(ωr)/r
+Long-range Coulomb interaction via error function: erf(μr)/r
 """
 @kwdef struct ErfLongRangeCoulomb{KR <: KernelRegularization} <: InteractionKernel 
-    ω = 0.106 # ≈ 0.2 / Angstrom
+    μ = 0.11  # ≈ 0.2 / Angstrom
     regularization::KR = ProbeCharge()
 end
-eval_kernel_fourier(m::ErfLongRangeCoulomb, Gsq::T) where {T} = (4T(π) / Gsq) * exp(-Gsq / (4 * m.ω^2))
-evaluate_probe_charge_integral(m::ErfLongRangeCoulomb, α, Ω) = 8π^2 * sqrt(π / (α + 1/(4 * m.ω^2))) * Ω / (2π)^3
+eval_kernel_fourier(m::ErfLongRangeCoulomb, Gsq::T) where {T} = (4T(π) / Gsq) * exp(-Gsq / (4 * m.μ^2))
+evaluate_probe_charge_integral(m::ErfLongRangeCoulomb, α, Ω) = 8π^2 * sqrt(π / (α + 1/(4 * m.μ^2))) * Ω / (2π)^3
 _compute_kernel(basis, qpt, q, m::ErfLongRangeCoulomb) = _compute_kernel(basis, qpt, q, m, m.regularization)
 
 
