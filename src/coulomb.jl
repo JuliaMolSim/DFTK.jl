@@ -7,16 +7,21 @@ Available models:
 - [`ErfLongRangeCoulomb`](@ref): erf(μr)/r
 - [`SphericallyTruncatedCoulomb`](@ref): θ(R-r)/r
 
+Available Regularization Strategies
+If an interaction model requires a singularity treatment, the following are available:
+- [`ProbeCharge`](@ref): Gygi-Baldereschi probe charge method
+- [`ReplaceSingularity`](@ref): Set G+q=0 component to given value (default is zero)
+
 See also: [`compute_kernel_fourier`](@ref)
 """
 abstract type InteractionKernel end
 
 
 @doc raw"""
-Compute Coulomb kernel, i.e. essentially ``v(G+q) = 4π/|G+q|²``, on spherical plane-wave grid.
-
-Returns the Fourier-space Coulomb interaction for momentum transfer `q`,
+Returns the Fourier-space Coulomb kernel for momentum transfer `q`,
 evaluated only on the spherical cutoff |G+q|² < 2Ecut (not the full cubic FFT grid).
+
+In the most simple case this is essentially 4π/(G+q)².
 
 !!! note "Gamma-point only"
     Currently only works for single k-point calculations (Gamma-only).
@@ -25,7 +30,7 @@ evaluated only on the spherical cutoff |G+q|² < 2Ecut (not the full cubic FFT g
 ## Arguments
 - `basis::PlaneWaveBasis`: Plane-wave basis defining the grid
 - `q`: Momentum transfer vector in fractional coordinates
-- `interaction_kernel::InteractionKernel`: Method for treating singularity
+- `interaction_kernel::InteractionKernel`: The physical operator defining the electron-electron interaction 
 
 ## Returns
 Vector of Coulomb kernel values for each G-vector in the spherical cutoff.
@@ -84,7 +89,7 @@ charges, which can be computed using an Ewald sum.
 ## References
 - [S. Massidda, M. Posternak, A. Baldereschi. Phys. Rev. B **48**, 5058 (1993)](https://doi.org/10.1103/PhysRevB.48.5058)
 """
-@kwdef struct ProbeCharge <: KernelRegularization 
+@kwdef struct ProbeCharge
     α::Union{Float64, Nothing} = nothing  # Width of the probe charge
 end
 @views function _compute_kernel(
@@ -128,7 +133,7 @@ or for testing/comparison purposes.
 In case of Gpq_zero_value=0 this leads to slow `O(1/L) = O(1 / ∛(Nk))` 
 convergence where `L` is the size of the supercell,`Nk` is the number of k-points.
 """
-@kwdef struct ReplaceSingularity{V <: Real} <: KernelRegularization
+@kwdef struct ReplaceSingularity{V <: Real} 
     Gpq_zero_value::V = 0.0
 end
 @views function _compute_kernel(
@@ -154,8 +159,8 @@ end
 """
 Coulomb interaction: 1/r 
 """
-@kwdef struct Coulomb{KR <: KernelRegularization} <: InteractionKernel 
-    regularization::KR = ProbeCharge()
+@kwdef struct Coulomb{R} <: InteractionKernel 
+    regularization::R = ProbeCharge()
 end
 eval_kernel_fourier(::Coulomb, Gsq::T) where {T} = 4T(π) / Gsq
 evaluate_probe_charge_integral(::Coulomb, α, Ω) = 8π^2 * sqrt(π / α) * Ω / (2π)^3
@@ -175,9 +180,9 @@ _compute_kernel(basis, qpt, q, m::ErfShortRangeCoulomb) = _compute_kernel(basis,
 """
 Long-range Coulomb interaction via error function: erf(μr)/r
 """
-@kwdef struct ErfLongRangeCoulomb{KR <: KernelRegularization} <: InteractionKernel 
+@kwdef struct ErfLongRangeCoulomb{R} <: InteractionKernel 
     μ = 0.11  # ≈ 0.2 / Angstrom
-    regularization::KR = ProbeCharge()
+    regularization::R = ProbeCharge()
 end
 eval_kernel_fourier(m::ErfLongRangeCoulomb, Gsq::T) where {T} = (4T(π) / Gsq) * exp(-Gsq / (4 * m.μ^2))
 evaluate_probe_charge_integral(m::ErfLongRangeCoulomb, α, Ω) = 8π^2 * sqrt(π / (α + 1/(4 * m.μ^2))) * Ω / (2π)^3
