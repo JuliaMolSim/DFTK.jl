@@ -36,10 +36,23 @@ end
     end
 
     E = zero(T)
+    is_full = basis.model.spin_polarization == :full
     for (ik, ψk) in enumerate(ψ)
-        Pψk = term.ops[ik].P' * ψk  # nproj x nband
-        band_enes = dropdims(sum(real.(conj.(Pψk) .* (term.ops[ik].D * Pψk)), dims=1), dims=1)
-        E += basis.kweights[ik] * sum(band_enes .* occupation[ik])
+        if is_full
+            n_G = size(term.ops[ik].P, 1)
+            # Apply projectors to up and down components separately
+            Pψk_up = term.ops[ik].P' * view(ψk, 1:n_G, :)
+            Pψk_dn = term.ops[ik].P' * view(ψk, n_G+1:2n_G, :)
+            
+            band_enes_up = dropdims(sum(real.(conj.(Pψk_up) .* (term.ops[ik].D * Pψk_up)), dims=1), dims=1)
+            band_enes_dn = dropdims(sum(real.(conj.(Pψk_dn) .* (term.ops[ik].D * Pψk_dn)), dims=1), dims=1)
+            
+            E += basis.kweights[ik] * sum((band_enes_up .+ band_enes_dn) .* occupation[ik])
+        else
+            Pψk = term.ops[ik].P' * ψk  # nproj x nband
+            band_enes = dropdims(sum(real.(conj.(Pψk) .* (term.ops[ik].D * Pψk)), dims=1), dims=1)
+            E += basis.kweights[ik] * sum(band_enes .* occupation[ik])
+        end
     end
     E = mpi_sum(E, basis.comm_kpts)
 
@@ -89,8 +102,23 @@ end
                 forces[idx] += map(1:3) do α
                     map!(p -> -2π*im*p[α], twoπp, G_plus_k)
                     dPdR .= twoπp .* P
-                    mul!(δHψk, P, C * (dPdR' * ψ[ik]))
-                    -basis.kweights[ik]*sum(occupation[ik] .* 2vec(real(columnwise_dots(ψ[ik], δHψk))))
+                    
+                    if basis.model.spin_polarization == :full
+                        n_G = length(G_plus_k)
+                        ψk_up = view(ψ[ik], 1:n_G, :)
+                        ψk_dn = view(ψ[ik], n_G+1:2n_G, :)
+                        
+                        δHψk_up = P * (C * (dPdR' * ψk_up))
+                        δHψk_dn = P * (C * (dPdR' * ψk_dn))
+                        
+                        force_up = sum(occupation[ik] .* 2vec(real(columnwise_dots(ψk_up, δHψk_up))))
+                        force_dn = sum(occupation[ik] .* 2vec(real(columnwise_dots(ψk_dn, δHψk_dn))))
+                        
+                        -basis.kweights[ik] * (force_up + force_dn)
+                    else
+                        mul!(δHψk, P, C * (dPdR' * ψ[ik]))
+                        -basis.kweights[ik]*sum(occupation[ik] .* 2vec(real(columnwise_dots(ψ[ik], δHψk))))
+                    end
                 end  # α
             end  # r
         end  # kpt

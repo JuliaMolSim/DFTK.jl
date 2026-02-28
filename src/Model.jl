@@ -32,11 +32,11 @@ struct Model{T <: Real, VT <: Real}
     #     :collinear  Spin is polarized, but everywhere in the same direction.
     #                 αα ̸= ββ, αβ = βα = 0, 2 spin components treated
     #     :full       Generic magnetization, non-uniform direction.
-    #                 αβ, βα, αα, ββ all nonzero, different (not supported)
+    #                 αβ, βα, αα, ββ all nonzero, different. Wavefunctions are 2-component spinors.
     #     :spinless   No spin at all ("spinless fermions", "mathematicians' electrons").
     #                 The difference with :none is that the occupations are 1 instead of 2
     spin_polarization::Symbol
-    n_spin_components::Int  # 2 if :collinear, 1 otherwise
+    n_spin_components::Int  # 2 if :collinear or :full, 1 otherwise
 
     # If temperature==0, no fractional occupations are used.
     # If temperature is nonzero, the occupations are
@@ -100,7 +100,7 @@ a [`PlaneWaveBasis`](@ref) from a `Model`.
     else `None()`):
     Smearing function used to compute occupations from Kohn-Sham eigenvalues.
 - `spin_polarization::Symbol` (default: `determine_spin_polarization(magnetic_moments)`):
-    Controls spin treatment; allowed values are `:none`, `:collinear`, `:spinless`.
+    Controls spin treatment; allowed values are `:none`, `:collinear`, `:full`, `:spinless`.
 - `symmetries` (default: `true`):
     - `true`: run automatic symmetry detection with [`default_symmetries`](@ref).
     - `false`: disable all symmetries.
@@ -189,7 +189,9 @@ function Model(lattice::AbstractMatrix{Tstatic},
     # Spin polarization
     spin_polarization in (:none, :collinear, :full, :spinless) ||
         error("Only :none, :collinear, :full and :spinless allowed for spin_polarization")
-    spin_polarization == :full && error("Full spin polarization not yet supported")
+    
+    # NOTE: The explicit block throwing an error for `:full` has been removed.
+    
     !isempty(magnetic_moments) && !(spin_polarization in (:collinear, :full)) && @warn(
         "Non-empty magnetic_moments on a Model without spin polarization detected."
     )
@@ -350,7 +352,7 @@ end
 Maximal occupation of a state (2 for non-spin-polarized electrons, 1 otherwise).
 """
 function filled_occupation(model)
-    if model.spin_polarization in (:spinless, :collinear)
+    if model.spin_polarization in (:spinless, :collinear, :full)
         return 1
     elseif model.spin_polarization == :none
         return 2
@@ -367,7 +369,7 @@ function spin_components(spin_polarization::Symbol)
     spin_polarization == :collinear && return (:up, :down  )
     spin_polarization == :none      && return (:both,      )
     spin_polarization == :spinless  && return (:spinless,  )
-    spin_polarization == :full      && return (:undefined, )
+    spin_polarization == :full      && return (:full,      )
 end
 spin_components(model::Model) = spin_components(model.spin_polarization)
 

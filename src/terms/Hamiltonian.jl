@@ -34,6 +34,21 @@ struct DftHamiltonianBlock <: HamiltonianBlock
 end
 
 function HamiltonianBlock(basis, kpoint, operators; scratch=nothing)
+    if basis.model.spin_polarization == :full
+        # Pad any 3D scalar potentials (like Hartree or Local) to 4D 
+        # so they can be safely summed with the 4D non-collinear XC potential.
+        for i in eachindex(operators)
+            if operators[i] isa RealSpaceMultiplication
+                V = operators[i].potential
+                if ndims(V) == 3
+                    V4 = zeros(eltype(V), size(V)..., 4)
+                    V4[:, :, :, 1] .= V
+                    operators[i] = RealSpaceMultiplication(basis, kpoint, V4)
+                end
+            end
+        end
+    end
+
     optimized_operators = optimize_operators(operators)
     fourier_ops  = filter(o -> o isa FourierMultiplication,   optimized_operators)
     real_ops     = filter(o -> o isa RealSpaceMultiplication, optimized_operators)
@@ -56,7 +71,8 @@ function HamiltonianBlock(basis, kpoint, operators; scratch=nothing)
     end
 end
 function _ham_allocate_scratch(basis::PlaneWaveBasis{T}) where {T}
-    [(; ψ_reals=zeros_like(G_vectors(basis), complex(T), basis.fft_size...))
+    n_spin_reals = basis.model.spin_polarization == :full ? 2 : 1
+    [(; ψ_reals=[zeros_like(G_vectors(basis), complex(T), basis.fft_size...) for _ = 1:n_spin_reals])
      for _ = 1:Threads.nthreads()]
 end
 
@@ -65,7 +81,8 @@ Base.eltype(block::HamiltonianBlock) = complex(eltype(block.basis))
 Base.size(block::HamiltonianBlock, i::Integer) = i < 3 ? size(block)[i] : 1
 function Base.size(block::HamiltonianBlock)
     n_G = length(G_vectors(block.basis, block.kpoint))
-    (n_G, n_G)
+    n_spin = block.basis.model.spin_polarization == :full ? 2 : 1
+    (n_G * n_spin, n_G * n_spin)
 end
 function random_orbitals(hamk::HamiltonianBlock, howmany::Integer)
     random_orbitals(hamk.basis, hamk.kpoint, howmany)
@@ -100,6 +117,9 @@ end
 @views @timing "Hamiltonian multiplication" function LinearAlgebra.mul!(Hψ::AbstractArray,
                                                                         H::GenericHamiltonianBlock,
                                                                         ψ::AbstractArray)
+    if H.basis.model.spin_polarization == :full
+        error("GenericHamiltonianBlock not implemented for :full spin")
+    end
     function allocate_local_storage()
         T = eltype(H.basis)
         (; Hψ_fourier = similar(Hψ[:, 1]),
@@ -139,8 +159,12 @@ end
                                                                            ψ::AbstractArray)
     n_bands = size(ψ, 2)
     iszero(n_bands) && return Hψ  # Nothing to do if ψ empty
+    n_G = length(G_vectors(H.basis, H.kpoint))
+    is_full = H.basis.model.spin_polarization == :full
+
     have_divAgrad = !isnothing(H.divAgrad_op)
     if have_divAgrad
+        is_full && error("divAgrad_op not implemented for :full")
         # TODO: It is very beneficial to precompute G_plus_k here, rather than for each band.
         #       Extra performance could probably be gained by storing this in the HamiltonianBlock
         #       as a scratch array. Is it worth the complication and extra memory use?
@@ -154,20 +178,53 @@ end
 
     parallel_loop_over_range(1:n_bands, H.scratch) do iband, storage
         to = TimerOutput()  # Thread-local timer output
-        ψ_real = storage.ψ_reals
 
-        @timeit to "local" begin
-            ifft!(ψ_real, H.basis, H.kpoint, ψ[:, iband]; normalize=false)
-            ψ_real .*= potential
-            fft!(Hψ[:, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
-        end
+        if is_full
+            ψ_real_1 = storage.ψ_reals[1]
+            ψ_real_2 = storage.ψ_reals[2]
 
-        if have_divAgrad
-            @timeit to "divAgrad" begin
-                apply!((; fourier=Hψ[:, iband], real=nothing),
-                       H.divAgrad_op,
-                       (; fourier=ψ[:, iband], real=nothing);
-                       ψ_real, G_plus_k) # overwrites ψ_real
+            @timeit to "local" begin
+                ifft!(ψ_real_1, H.basis, H.kpoint, ψ[1:n_G, iband]; normalize=false)
+                ifft!(ψ_real_2, H.basis, H.kpoint, ψ[n_G+1:end, iband]; normalize=false)
+
+                for I in CartesianIndices(ψ_real_1)
+                    Vn = potential[I, 1]
+                    Vx = potential[I, 2]
+                    Vy = potential[I, 3]
+                    Vz = potential[I, 4]
+
+                    # Construct the local 2x2 Pauli matrix
+                    V11 = Vn + Vz
+                    V22 = Vn - Vz
+                    V12 = Vx - im * Vy
+                    V21 = Vx + im * Vy
+
+                    c1 = ψ_real_1[I]
+                    c2 = ψ_real_2[I]
+
+                    # Apply it to the spinor
+                    ψ_real_1[I] = V11 * c1 + V12 * c2
+                    ψ_real_2[I] = V21 * c1 + V22 * c2
+                end
+
+                fft!(Hψ[1:n_G, iband], H.basis, H.kpoint, ψ_real_1; normalize=false)
+                fft!(Hψ[n_G+1:end, iband], H.basis, H.kpoint, ψ_real_2; normalize=false)
+            end
+        else
+            ψ_real = storage.ψ_reals[1]
+            @timeit to "local" begin
+                ifft!(ψ_real, H.basis, H.kpoint, ψ[:, iband]; normalize=false)
+                ψ_real .*= potential
+                fft!(Hψ[:, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
+            end
+
+            if have_divAgrad
+                @timeit to "divAgrad" begin
+                    apply!((; fourier=Hψ[:, iband], real=nothing),
+                           H.divAgrad_op,
+                           (; fourier=ψ[:, iband], real=nothing);
+                           ψ_real, G_plus_k) # overwrites ψ_real
+                end
             end
         end
 
@@ -177,14 +234,28 @@ end
     end
 
     # Kinetic term
-    Hψ .+= H.fourier_op.multiplier .* ψ
+    if is_full
+        Hψ[1:n_G, :] .+= H.fourier_op.multiplier .* ψ[1:n_G, :]
+        Hψ[n_G+1:end, :] .+= H.fourier_op.multiplier .* ψ[n_G+1:end, :]
+    else
+        Hψ .+= H.fourier_op.multiplier .* ψ
+    end
 
-    # Apply the nonlocal operator.
+    # Apply the nonlocal operator (spin-diagonal without SOC)
     if !isnothing(H.nonlocal_op)
         @timing "nonlocal" begin
-            apply!((; fourier=Hψ, real=nothing),
-                   H.nonlocal_op,
-                   (; fourier=ψ, real=nothing))
+            if is_full
+                apply!((; fourier=Hψ[1:n_G, :], real=nothing),
+                       H.nonlocal_op,
+                       (; fourier=ψ[1:n_G, :], real=nothing))
+                apply!((; fourier=Hψ[n_G+1:end, :], real=nothing),
+                       H.nonlocal_op,
+                       (; fourier=ψ[n_G+1:end, :], real=nothing))
+            else
+                apply!((; fourier=Hψ, real=nothing),
+                       H.nonlocal_op,
+                       (; fourier=ψ, real=nothing))
+            end
         end
     end
 
@@ -244,6 +315,9 @@ Get the total local potential of the given Hamiltonian, in real space
 in the spin components.
 """
 function total_local_potential(ham::Hamiltonian)
+    if ham.basis.model.spin_polarization == :full
+        return total_local_potential(ham.blocks[1])
+    end
     n_spin = ham.basis.model.n_spin_components
     pots = map(1:n_spin) do σ
         # Get the potential from the first Hamiltonian block of this spin component
@@ -262,6 +336,12 @@ end
 Returns a new Hamiltonian with local potential replaced by the given one
 """
 function hamiltonian_with_total_potential(ham::Hamiltonian, V)
+    if ham.basis.model.spin_polarization == :full
+        @assert size(V, 4) == 4
+        newblocks = [hamiltonian_with_total_potential(Hk, V) for Hk in ham.blocks]
+        return Hamiltonian(ham.basis, newblocks)
+    end
+    
     @assert size(V, 4) == ham.basis.model.n_spin_components
     newblocks = [hamiltonian_with_total_potential(Hk, V[:, :, :, Hk.kpoint.spin])
                  for Hk in ham.blocks]

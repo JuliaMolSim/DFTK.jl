@@ -3,10 +3,11 @@ using AtomsBase
 using Brillouin: KPath
 using DFTK
 using DFTK: is_metal, data_for_plotting, spin_components, default_band_εrange
-import DFTK: plot_dos, plot_bandstructure, plot_ldos, plot_pdos
+import DFTK: plot_dos, plot_bandstructure, plot_ldos, plot_pdos, plot_spin_slice
 using Plots
 using Unitful
 using UnitfulAtomic
+using LinearAlgebra
 
 
 function plot_bandstructure(basis::PlaneWaveBasis,
@@ -21,8 +22,7 @@ function plot_bandstructure(band_data::NamedTuple;
                             unit=u"hartree", kwargs_plot=(; ), kwargs...)
     # TODO Replace by a plot recipe once BandData is its own type.
 
-    mpi_nprocs(band_data.basis.comm_kpts) > 1 &&
-        error("Band structure plotting with MPI not supported yet")
+    mpi_nprocs() > 1 && error("Band structure plotting with MPI not supported yet")
 
     if !haskey(band_data, :kinter)
         @warn("Calling plot_bandstructure without first computing the band data " *
@@ -183,5 +183,111 @@ function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatom=nothing, lab
     p
 end
 plot_pdos(scfres; kwargs...) = plot_pdos(scfres.basis, scfres.eigenvalues, scfres.ψ; scfres.εF, kwargs...)
+
+"""
+    plot_spin_slice(scfres; axis=:z, slice_index=nothing, stride=1, scale=1.0, title="")
+
+Plots a 2D slice of the spin density.
+- `axis`: The normal axis to the slice (`:x`, `:y`, or `:z`).
+- `slice_index`: The grid index of the slice (defaults to the middle of the cell).
+- `stride`: Subsampling factor for arrows (use 2 or 3 to reduce clutter).
+- `scale`: Length multiplier for the magnetic arrows.
+"""
+function plot_spin_slice(basis, ρ; axis=:z, slice_index=nothing, scale=0.5, stride=1, title="", kwargs...)
+    model = basis.model
+    
+    # 1. Handle Non-Spin Cases
+    if model.spin_polarization in (:none, :spinless)
+        return Plots.plot(title="No Spin Polarization", grid=false, showaxis=false)
+    end
+
+    # 2. Extract Components
+    if model.spin_polarization == :collinear
+        # For collinear, we only have Z-component magnetization (Up - Down)
+        # We set Mx and My to zero so the code structure remains generic.
+        mx = zeros(size(ρ,1), size(ρ,2), size(ρ,3))
+        my = zeros(size(ρ,1), size(ρ,2), size(ρ,3))
+        mz = ρ[:, :, :, 1] .- ρ[:, :, :, 2]
+    else
+        mx, my, mz = ρ[:, :, :, 2], ρ[:, :, :, 3], ρ[:, :, :, 4]
+    end
+    
+    # 3. Slice the Data based on the requested axis
+    dims = size(mx)
+    
+    if axis == :z
+        k = isnothing(slice_index) ? dims[3]÷2 : slice_index
+        # Heatmap = Out-of-plane (Mz), Arrows = In-plane (Mx, My)
+        h_data = mz[:, :, k]
+        u_data = mx[:, :, k]
+        v_data = my[:, :, k]
+        xl, yl = "x (Bohr)", "y (Bohr)"
+        heatmap_title = "Color: Mz (Out-of-Plane)"
+        
+    elseif axis == :y
+        j = isnothing(slice_index) ? dims[2]÷2 : slice_index
+        # Heatmap = Out-of-plane (My), Arrows = In-plane (Mx, Mz)
+        h_data = my[:, j, :]
+        u_data = mx[:, j, :]
+        v_data = mz[:, j, :]
+        xl, yl = "x (Bohr)", "z (Bohr)"
+        heatmap_title = "Color: My (Out-of-Plane)"
+
+    elseif axis == :x
+        i = isnothing(slice_index) ? dims[1]÷2 : slice_index
+        # Heatmap = Out-of-plane (Mx), Arrows = In-plane (My, Mz)
+        h_data = mx[i, :, :]
+        u_data = my[i, :, :]
+        v_data = mz[i, :, :]
+        xl, yl = "y (Bohr)", "z (Bohr)"
+        heatmap_title = "Color: Mx (Out-of-Plane)"
+    end
+    
+    nx, ny = size(h_data)
+    
+    # 4. Generate the Heatmap (The "Background" Scalar Field)
+    # We use :balance (Blue-White-Red) to clearly show Positive vs Negative domains
+    limit = maximum(abs.(h_data))
+    if limit < 1e-6; limit = 1.0; end
+    
+    p = Plots.heatmap(1:nx, 1:ny, h_data', 
+        c=:balance, 
+        clims=(-limit, limit),
+        title=title, 
+        xlabel=xl, ylabel=yl, 
+        aspect_ratio=:equal,
+        colorbar_title=heatmap_title,
+        right_margin=15Plots.mm,
+        size=(800, 700),
+        dpi=300,
+        kwargs...
+    )
+
+    # 5. Generate the Quiver Arrows (The "In-Plane" Vector Field)
+    # We subsample using 'stride' to prevent the plot from becoming a black blob
+    X, Y, U, V = Float64[], Float64[], Float64[], Float64[]
+    
+    for x in 1:stride:nx, y in 1:stride:ny
+        u, v = u_data[x, y], v_data[x, y]
+        mag = sqrt(u^2 + v^2)
+        
+        # Only draw arrows if there is significant magnetization
+        if mag > 1e-4
+            push!(X, x)
+            push!(Y, y)
+            push!(U, u * scale * 5) # Scale factor for visibility
+            push!(V, v * scale * 5)
+        end
+    end
+
+    if !isempty(X)
+        Plots.quiver!(p, X, Y, quiver=(U, V), color=:black, linewidth=1.2)
+    end
+    
+    return p
+end
+
+# Tuple Catcher
+plot_spin_slice(scfres; kwargs...) = plot_spin_slice(scfres.basis, scfres.ρ; kwargs...)
 
 end
