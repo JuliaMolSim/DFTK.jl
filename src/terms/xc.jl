@@ -150,7 +150,7 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
                         .* Vσ[tσ(s, t), :, :, :] .* density.∇ρ_real[t, :, :, :, α]
                         for t = 1:n_spin)
                 end
-            end # <--- THIS IS THE MISSING END!
+            end
             
             if haskey(terms, :Vl) && any(x -> abs(x) > potential_threshold, terms.Vl)
                 @warn "Meta-GGAs with a Δρ term have not yet been thoroughly tested." maxlog=1
@@ -403,7 +403,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
 end
 
 
-function compute_kernel(term::TermXc, basis::PlaneWaveBasis; ρ, kwargs...)
+function compute_kernel(term::TermXc, basis::PlaneWaveBasis; ρ, kwargs...) where {T}
     basis.model.spin_polarization == :full && error("XC kernel not implemented for :full")
     @assert 1 ≤ n_spin ≤ 2
     if !all(family(xc) == :lda for xc in term.functionals)

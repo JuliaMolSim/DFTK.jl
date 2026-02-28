@@ -31,6 +31,12 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
               "quantity to compute_bands as the τ keyword argument or use the " *
               "compute_bands(scfres) function.")
     end
+
+    i_exx = findfirst(t -> t isa TermExactExchange, basis.terms)
+    if !isnothing(i_exx) && basis.terms[i_exx].exx_algorithm isa AceExx
+        @warn "Virtual orbitals and virtual orbital energies are off if using AceExx."
+    end
+
     seed = seed_task_local_rng!(seed, MPI.COMM_WORLD)
 
     # Create new basis with new kpoints
@@ -303,7 +309,7 @@ of [`compute_bands`](@ref) and [`self_consistent_field`](@ref).
     (including patch versions).
 """
 function save_bands(filename::AbstractString, band_data::NamedTuple; save_ψ=false)
-    filename = MPI.bcast(filename, 0, MPI.COMM_WORLD)
+    filename = mpi_bcast(filename, 0, MPI.COMM_WORLD)
     _, ext = splitext(filename)
     ext = Symbol(ext[2:end])
 

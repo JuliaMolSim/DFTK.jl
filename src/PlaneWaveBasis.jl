@@ -542,7 +542,7 @@ function gather_kpts(basis::PlaneWaveBasis)
     # No need to allocate and setup a new basis object
     mpi_nprocs(basis.comm_kpts) == 1 && return basis
 
-    if mpi_master()
+    if mpi_master(basis.comm_kpts)
         PlaneWaveBasis(basis.model,
                        basis.Ecut,
                        basis.fft_size,
@@ -565,7 +565,8 @@ and save it in `dest` as a dense `(size(kdata[1])..., n_kpoints)` array. On the 
 """
 @views function gather_kpts_block!(dest, basis::PlaneWaveBasis, kdata::AbstractVector{A}) where {A}
     # Number of elements stored per k-point in `kdata` (as vector of arrays)
-    n_chunk = MPI.Bcast(length(kdata[1]), 0, basis.comm_kpts)
+    # In gather_kpts_block!
+    n_chunk = mpi_bcast(length(kdata[1]), 0, basis.comm_kpts)
     @assert all(length(k) == n_chunk for k in kdata)
 
     # Note: This function assumes that k-points are stored contiguously in rank-increasing
@@ -613,7 +614,7 @@ is a list over all k-points. On non-master processes `nothing` may be passed.
 function scatter_kpts_block(basis::PlaneWaveBasis, data::Union{Nothing,AbstractArray})
     T, N = (mpi_master(basis.comm_kpts) ? (eltype(data), ndims(data))
                                         : (nothing, nothing))
-    T, N = MPI.bcast((T, N), 0, basis.comm_kpts)
+    T, N = mpi_bcast((T, N), 0, basis.comm_kpts)
     splitted = Vector{Array{T,N-1}}(undef, length(basis.kpoints))
 
     n_spin_kpts = basis.model.spin_polarization == :collinear ? 2 : 1
@@ -633,7 +634,7 @@ function scatter_kpts_block(basis::PlaneWaveBasis, data::Union{Nothing,AbstractA
             sendbuf = nothing
             chunkshape = nothing
         end
-        chunkshape = MPI.bcast(chunkshape, 0, basis.comm_kpts)
+        chunkshape = mpi_bcast(chunkshape, 0, basis.comm_kpts)
         destbuf = zeros(T, chunkshape..., length(basis.krange_thisproc[σ]))
 
         # Scatter and split
