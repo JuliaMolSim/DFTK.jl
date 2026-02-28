@@ -232,12 +232,23 @@ end
     # If no applies left, do not bother running GMRES and directly do simple mixing
     isempty(χ0applies) && return mix_density(SimpleMixing(), basis, δF)
 
+    is_full = basis.model.spin_polarization == :full
+
     # Solve (ε^†) δρ = δF with ε^† = (1 - χ₀ vc) and χ₀ given as the sum of the χ0terms
-    function dielectric_adjoint(δF)
+    function dielectric_adjoint(δF_in)
         # Apply Kernel (just vc for RPA and (vc + K_{xc}) if not RPA)
-        δV = apply_kernel(basis, δF; ρ=ρin, mixing.RPA)
+        if is_full
+            # Pad the 1-component charge perturbation to 4 components for the kernel
+            δF_full = zeros(T, size(ρin))
+            δF_full[:, :, :, 1] .= δF_in
+            δV_full = apply_kernel(basis, δF_full; ρ=ρin, mixing.RPA)
+            δV = δV_full[:, :, :, 1:1] # Extract only the charge response
+        else
+            δV = apply_kernel(basis, δF_in; ρ=ρin, mixing.RPA)
+        end
+        
         δV .-= mean(δV)
-        εδF = copy(δF)
+        εδF = copy(δF_in)
         for apply_term! in χ0applies
             apply_term!(εδF, δV, -1)  # εδF .-= χ₀ * δV
         end
