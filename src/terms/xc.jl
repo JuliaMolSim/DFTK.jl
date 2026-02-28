@@ -403,7 +403,7 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
 end
 
 
-function compute_kernel(term::TermXc, basis::PlaneWaveBasis; ρ, kwargs...) where {T}
+function compute_kernel(term::TermXc, basis::PlaneWaveBasis; ρ, kwargs...)
     basis.model.spin_polarization == :full && error("XC kernel not implemented for :full")
     @assert 1 ≤ n_spin ≤ 2
     if !all(family(xc) == :lda for xc in term.functionals)
