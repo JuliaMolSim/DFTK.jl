@@ -63,7 +63,7 @@ function (cb::ScfDefaultCallback)(info)
         show_gpumem = hasproperty(mem_usage, :gpu)
     end
 
-    !mpi_master() && return info  # Rest is printing => only do on master
+    !mpi_master(info.basis.comm_kpts) && return info  # Rest is printing => only do on master
     if info.stage == :finalize
         info.converged || @warn "$(info.algorithm) not converged."
         return info

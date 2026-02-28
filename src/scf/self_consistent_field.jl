@@ -229,7 +229,7 @@ Overview of parameters:
         end
 
         converged = n_iter ≥ miniter && is_converged(info_next)
-        converged = MPI.bcast(converged, 0, MPI.COMM_WORLD)
+        converged = mpi_bcast(converged, 0, basis.comm_kpts)
         info_next = merge(info_next, (; converged))
 
         timedout = mpi_bcast(Dates.now() ≥ timeout_date, basis.comm_kpts)
