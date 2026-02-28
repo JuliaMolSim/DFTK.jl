@@ -3,6 +3,7 @@
     using DFTK: exx_energy_only, compute_kernel_fourier
     using .TestCases: silicon
     using LinearAlgebra
+    using QuadGK
 
     # TODO: This is a bad test, better test properties, see details at the end of file
 
@@ -56,6 +57,24 @@
         @test abs(E_ref - E_strunc) < 1e-6
 
         # TODO: Test this gives a spherically truncated function.
+    end
+
+    @testset "Probe-charge integrals" begin
+        α = π^2 / basis.Ecut
+        Ω = basis.model.unit_cell_volume
+
+        # we want to compute ∫ f(G) from 0 to Gmax
+        Gmax = 4*sqrt(2*basis.Ecut)
+        f(kernel, Gsq) = DFTK.eval_kernel_fourier(kernel, Gsq) * Gsq * exp(-α*Gsq)
+
+        # loop through all kernels with evaluate_probe_charge_integral
+        for kernel in (Coulomb(), ErfLongRangeCoulomb())
+            numerical_integral, _ = quadgk(G -> f(kernel, G^2) , 0, Gmax)
+            numerical_integral *= Ω/(2π)^3 * 4π  # multipliy FFT factor and solid angle 
+            analytical_integral = DFTK.evaluate_probe_charge_integral(kernel, α, Ω)
+
+            @test abs(numerical_integral - analytical_integral) < 1e-12
+        end
     end
 end
 
