@@ -32,7 +32,7 @@ function (χ0::LdosModel)(basis::PlaneWaveBasis{T}; eigenvalues, ψ, εF, kwargs
     
     maximum(abs, ldos) < sqrt(eps(T)) && return nothing
 
-    tdos = sum(ldos) * basis.dvol  # Integrate LDOS to form total DOS
+    tdos = sum(sum, ldos) * basis.dvol   # Integrate LDOS to form total DOS
     function apply!(δρ, δV, α=1)
         δεF = dot(ldos, δV) .* basis.dvol
         δρ .+= α .* (-ldos .* δV .+ ldos .* δεF ./ tdos)
