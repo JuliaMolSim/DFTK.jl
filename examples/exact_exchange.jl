@@ -22,5 +22,5 @@ basis  = PlaneWaveBasis(model; basis.Ecut, basis.kgrid)
 scfres = self_consistent_field(basis;
                                solver=DFTK.scf_damping_solver(damping=1.0),
                                is_converged=ScfConvergenceEnergy(1e-7), 
-                               scfres.ρ, scfres.ψ, scfres.occupation,
+                               scfres.ρ, scfres.ψ, scfres.occupation, scfres.eigenvalues,
                                diagtolalg=DFTK.AdaptiveDiagtol(; ratio_ρdiff=5e-4))

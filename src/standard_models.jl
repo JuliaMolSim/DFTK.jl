@@ -186,20 +186,20 @@ Build an Hartree-Fock model from the specified atoms.
          necks in the code.
 """
 function model_HF(system::AbstractSystem; pseudopotentials,
-                  singularity_treatment::CoulombSingulartyTreatment=ProbeCharge(),
+                  interaction_kernel::InteractionKernel=Coulomb(),
                   exx_algorithm::ExxAlgorithm=VanillaExx(), extra_terms=[], kwargs...)
     # Note: We are deliberately enforcing the user to specify pseudopotentials here.
     # See the implementation of model_atomic for a rationale why
     #
-    exx = ExactExchange(; singularity_treatment, exx_algorithm)
+    exx = ExactExchange(; interaction_kernel, exx_algorithm)
     model_atomic(system; pseudopotentials, model_name="HF",
                  extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
 end
 function model_HF(lattice::AbstractMatrix, atoms::Vector{<:Element},
                   positions::Vector{<:AbstractVector};
-                  singularity_treatment::CoulombSingulartyTreatment=ProbeCharge(),
+                  interaction_kernel::InteractionKernel=Coulomb(),
                   exx_algorithm::ExxAlgorithm=VanillaExx(), extra_terms=[], kwargs...)
-    exx = ExactExchange(; singularity_treatment, exx_algorithm)
+    exx = ExactExchange(; interaction_kernel, exx_algorithm)
     model_atomic(lattice, atoms, positions; model_name="HF",
                  extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
 end
@@ -246,7 +246,7 @@ r2SCAN(; kwargs...) = Xc([:mgga_x_r2scan, :mgga_c_r2scan]; kwargs...)
 
 """
 Specify a PBE0 hybrid functional in conjunction with [`model_DFT`](@ref)
-<https://doi.org/10.1063/1.478522>.
+<https://doi.org/10.1063/1.478522>
 Possible keyword arguments are those accepted by [`Xc`](@ref) and by
 [`ExactExchange`](@ref). Use the keyword argument `exx_fraction` to specify a
 custom exact exchange fraction.
@@ -256,20 +256,44 @@ custom exact exchange fraction.
          Note further that at this stage (Feb 2026) there are still known performance bottle
          necks in the code.
 """
-PBE0(; kwargs...) = HybridFunctional([:hyb_gga_xc_pbeh]; kwargs...)
+PBE0(; kwargs...)  = HybridFunctional([:hyb_gga_xc_pbeh]; kwargs...)
 
+
+"""
+Specify a HSE hybrid functional in conjunction with [`model_DFT`](@ref)
+<https://doi.org/10.1063/1.2404663>
+Possible keyword arguments are those accepted by [`Xc`](@ref) and by
+[`ExactExchange`](@ref). Use the keyword argument `exx_fraction` to specify a
+custom exact exchange fraction.
+
+This is the HSE06 hybrid functional with range-separation parameter μ=0.11/bohr.
+
+Note that other codes use slightly different μ:
+* VASP uses μ = 0.2/Angstrom = 0.105835/bohr
+* Quantum Espresso uses μ=0.106/bohr if input_dft='hse'
+* Quantum Espresso uses μ=0.11/bohr  if input_dft='xc-000i-000i-000i-428l'
+
+!!! warn "Hybrid DFT is experimental"
+         The interface may change at any moment, which is not considered a breaking change.
+         Note further that at this stage (Feb 2026) there are still known performance bottle
+         necks in the code.
+"""
+HSE(; kwargs...) = HybridFunctional([:hyb_gga_xc_hse06]; 
+                                    exx_fraction=0.25,  # have to pass as range-separated hybrids don't provide exx fraction
+                                    interaction_kernel=ErfShortRangeCoulomb(μ=0.11),  
+                                    kwargs...)
 
 # Internal function to help define hybrid functional shorthands
 function HybridFunctional(libxc_symbols;
                           exx_fraction=nothing,
-                          singularity_treatment::CoulombSingulartyTreatment=ProbeCharge(),
+                          interaction_kernel::InteractionKernel=Coulomb(),
                           exx_algorithm::ExxAlgorithm=VanillaExx(), kwargs...)
     xc  = Xc(libxc_symbols; kwargs...)
     scaling_factor = @something(exx_fraction, begin
         only(filter(!isnothing, map(exx_coefficient, xc.functionals)))
     end)
 
-    exx = ExactExchange(; scaling_factor, singularity_treatment, exx_algorithm)
+    exx = ExactExchange(; scaling_factor, interaction_kernel, exx_algorithm)
     [xc, exx]
 end
 

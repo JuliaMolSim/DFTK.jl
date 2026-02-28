@@ -1,21 +1,21 @@
-@testitem "Silicon PBE0" tags=[:minimal, :exx, :dont_test_mpi] setup=[RunSCF] begin
+@testitem "Silicon HSE" tags=[:minimal, :exx, :dont_test_mpi] setup=[RunSCF] begin
     using DFTK
     using PseudoPotentialData
     using .RunSCF: run_scf_and_compare
 
-    # These values were computed using QuantumEspresso with one kpoint and Ecut = 20
-    # using exactly the same settings (ACE, no treatment of Coulomb singularity)
+    # These values were computed using QuantumEspresso with one kpoint and Ecut = 25
+    # using exactly the same settings (no ACE)
     #
-    ref_εF = 0.3890179653333848
+    ref_εF = 2.637577380644947E-001
     ref_hf = [
-        [-1.423449409602823E-001, 3.155230816687672E-001, 3.155230816689635E-001,
-          3.155230816693947E-001, 3.948598418578042E-001, 3.948598418580224E-001,
-          3.948598418581931E-001, 4.459496545492150E-001],
+        [-3.966099538728215E-001, 6.079406112827507E-002,  6.079406112846138E-002,
+          6.079406112862479E-002, 3.816652905730460E-001,  3.816652905730735E-001,
+          3.816652905730933E-001, 4.326487809357601E-001],
     ]
-    ref_etot = -7.299027688178781
+    ref_etot = -8.398986637133419E+000
 
     # Adjust bands to Fermi level changes between QE and DFTK
-    δεF = 0.31987742795556495
+    δεF = 0.19455408549950615
     ref_hf = [e .+ (- ref_εF + δεF) for e in ref_hf]
 
     # First run PBE to get initial guess
@@ -32,14 +32,14 @@
     model_pbe  = model_DFT(lattice, atoms, positions;
                            functionals=PBE(), temperature=0.001,
                            smearing=DFTK.Smearing.Gaussian())
-    basis_pbe  = PlaneWaveBasis(model_pbe; Ecut=20, kgrid=[1, 1, 1])
+    basis_pbe  = PlaneWaveBasis(model_pbe; Ecut=25, kgrid=[1, 1, 1])
     scfres_pbe = self_consistent_field(basis_pbe; tol=1e-4)
 
-    pbe0 = PBE0(exx_algorithm=AceExx(), interaction_kernel=Coulomb(ReplaceSingularity()))
+    hse = HSE(exx_algorithm=VanillaExx())
     model = model_DFT(lattice, atoms, positions;
-                     temperature=0.001, smearing=DFTK.Smearing.Gaussian(),
-                     functionals=pbe0)
-    basis = PlaneWaveBasis(model; Ecut=20, kgrid=[1, 1, 1])
+                      temperature=0.001, smearing=DFTK.Smearing.Gaussian(),
+                      functionals=hse)
+    basis = PlaneWaveBasis(model; Ecut=25, kgrid=[1, 1, 1])
 
     # Note: With ACE enabled, the unoccupied orbitals are represented rather poorly.
     run_scf_and_compare(Float64, basis, ref_hf, ref_etot; 

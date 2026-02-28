@@ -1,21 +1,27 @@
 @doc raw"""
-Abstract type for different methods of computing the 
-discretised Coulomb kernel ``v(G+q) = 4π/|G+q|²``.
+Abstract type for different interaction models
 
 Available models:
-- [`ProbeCharge`](@ref): Gygi-Baldereschi probe charge method
-- [`NeglectSingularity`](@ref): Set G+q=0 component to zero
-- [`SphericallyTruncated`](@ref): Spherical truncation at radius Rcut
+- [`Coulomb`](@ref): 1/r
+- [`ErfShortRangeCoulomb`](@ref): erfc(μr)/r
+- [`ErfLongRangeCoulomb`](@ref): erf(μr)/r
+- [`SphericallyTruncatedCoulomb`](@ref): θ(R-r)/r
 
-See also: [`compute_coulomb_kernel`](@ref)
+Available Regularization Strategies
+If an interaction model requires a singularity treatment, the following are available:
+- [`ProbeCharge`](@ref): Gygi-Baldereschi probe charge method
+- [`ReplaceSingularity`](@ref): Set G+q=0 component to given value (default is zero)
+
+See also: [`compute_kernel_fourier`](@ref)
 """
-abstract type CoulombSingulartyTreatment end
+abstract type InteractionKernel end
+
 
 @doc raw"""
-Compute Coulomb kernel, i.e. essentially ``v(G+q) = 4π/|G+q|²``, on spherical plane-wave grid.
-
-Returns the Fourier-space Coulomb interaction for momentum transfer `q`,
+Returns the Fourier-space Coulomb kernel for momentum transfer `q`,
 evaluated only on the spherical cutoff |G+q|² < 2Ecut (not the full cubic FFT grid).
+
+In the most simple case this is essentially 4π/(G+q)².
 
 !!! note "Gamma-point only"
     Currently only works for single k-point calculations (Gamma-only).
@@ -24,17 +30,17 @@ evaluated only on the spherical cutoff |G+q|² < 2Ecut (not the full cubic FFT g
 ## Arguments
 - `basis::PlaneWaveBasis`: Plane-wave basis defining the grid
 - `q`: Momentum transfer vector in fractional coordinates
-- `singularity_treatment::CoulombSingulartyTreatment`: Method for treating singularity
+- `interaction_kernel::InteractionKernel`: The physical operator defining the electron-electron interaction 
 
 ## Returns
 Vector of Coulomb kernel values for each G-vector in the spherical cutoff.
 """
-function compute_coulomb_kernel(basis::PlaneWaveBasis{T}; q=zero(Vec3{T}),
-                                singularity_treatment::CoulombSingulartyTreatment=ProbeCharge()) where {T}
+function compute_kernel_fourier(basis::PlaneWaveBasis{T}; q=zero(Vec3{T}),
+                                interaction_kernel::InteractionKernel=Coulomb()) where {T}
     is_gamma_only = all(iszero(kpt.coordinate) for kpt in basis.kpoints)
     if !is_gamma_only
         throw(ArgumentError("Currently only Gamma-point calculations are supported in " *
-                            "compute_coulomb_kernel, respectively Hartree-Fock and " *
+                            "compute_kernel_fourier, respectively Hartree-Fock and " *
                             "calculations involving exact exchange."))
     end
     if mpi_nprocs(basis.comm_kpts) > 1
@@ -44,31 +50,11 @@ function compute_coulomb_kernel(basis::PlaneWaveBasis{T}; q=zero(Vec3{T}),
 
     # currently only works for Gamma-only (need correct q-point otherwise)
     qpt = basis.kpoints[1] 
-    coulomb_kernel =  _compute_coulomb_kernel(singularity_treatment, basis, qpt)
+    kernel_fourier =  _compute_kernel(basis, qpt, q, interaction_kernel)
 
     # TODO: if q=0, symmetrize Fourier coeffs to have real iFFT 
 
-    coulomb_kernel = to_device(basis.architecture, coulomb_kernel)
-end
-
-
-"""
-Simply set the G+q=0 Coulomb kernel component to zero.
-This is the simplest approach but leads to slow `O(1/L) = O(1 / ∛(Nk))` convergence
-where `L` is the size of the supercell,`Nk` is the number of k-points.
-Useful for testing or comparison purposes.
-"""
-struct NeglectSingularity <: CoulombSingulartyTreatment end
-function _compute_coulomb_kernel(::NeglectSingularity, basis::PlaneWaveBasis{T}, qpt::Kpoint) where {T}
-    # Compute truncated Coulomb kernel without special-casing singularity at G+q=0 
-    coulomb_kernel = map(Gplusk_vectors_cart(basis, qpt)) do Gpq
-        4T(π) / sum(abs2, Gpq)
-    end
-
-    if iszero(qpt.coordinate)  # Neglect the singularity
-        GPUArraysCore.@allowscalar coulomb_kernel[1] = zero(T)
-    end
-    coulomb_kernel
+    kernel_fourier = to_device(basis.architecture, kernel_fourier)
 end
 
 
@@ -90,61 +76,121 @@ charges, which can be computed using an Ewald sum.
 ## References
 - [S. Massidda, M. Posternak, A. Baldereschi. Phys. Rev. B **48**, 5058 (1993)](https://doi.org/10.1103/PhysRevB.48.5058)
 """
-@kwdef struct ProbeCharge <: CoulombSingulartyTreatment
+@kwdef struct ProbeCharge
     α::Union{Float64, Nothing} = nothing  # Width of the probe charge
 end
-@views function _compute_coulomb_kernel(kernel::ProbeCharge, basis::PlaneWaveBasis{T},
-                                        qpt::Kpoint) where {T}
+@views function _compute_kernel(
+    basis::PlaneWaveBasis{T}, 
+    qpt, 
+    q, 
+    interaction_kernel::InteractionKernel, 
+    regularization::ProbeCharge
+) where {T}
     # Default value well-tested in VASP; ensures that e^(-α*G²) is localized 
     # charge with full support on G grid
-    α = @something kernel.α T(π)^2 / basis.Ecut
+    α = @something regularization.α T(π)^2 / basis.Ecut
 
     Ω = basis.model.unit_cell_volume  # volume of unit cell 
     Gpq = map(Gpq -> sum(abs2, Gpq), Gplusk_vectors_cart(basis, qpt))
 
-    coulomb_kernel = 4T(π) ./ Gpq  # Note: q+G = 0 component is not special-cased, i.e. wrong here
+    kernel_fourier = eval_kernel_fourier.(Ref(interaction_kernel), Gpq) # Note: q+G = 0 component is not special-cased, i.e. wrong here
 
     # Potential of Gaussian charges (skipping term at G+q=0)
-    probe_charge_sum = sum((coulomb_kernel .* exp.(-α*Gpq))[2:end])
+    probe_charge_sum = sum((kernel_fourier .* exp.(-α*Gpq))[2:end])
 
     # Interaction of Gaussian charges with uniform background (i.e. integral of charges)
     #  = Ω/(2π)^3 ∫ 4π/q² ρ(q) dq  with  ρ(q)=e^(-αq²)
-    probe_charge_integral = 8*π^2*sqrt(π/α) * Ω/(2π)^3 
+    probe_charge_integral = evaluate_probe_charge_integral(interaction_kernel, α, Ω)
 
     if iszero(qpt.coordinate)
         GPUArraysCore.@allowscalar begin
-            coulomb_kernel[1] = probe_charge_integral - probe_charge_sum
+            kernel_fourier[1] = probe_charge_integral - probe_charge_sum
         end
     end
-    coulomb_kernel
+    kernel_fourier
 end
 
 
 """
-Spherical truncation of Coulomb interaction at radius Rcut.
+Simply set the G+q=0 Coulomb kernel component to Gpq_zero_value.
+
+This is useful for interaction models with an analytic G+q=0 component
+or for testing/comparison purposes.
+
+In case of Gpq_zero_value=0 this leads to slow `O(1/L) = O(1 / ∛(Nk))` 
+convergence where `L` is the size of the supercell,`Nk` is the number of k-points.
+"""
+@kwdef struct ReplaceSingularity{V <: Real} 
+    Gpq_zero_value::V = 0.0
+end
+@views function _compute_kernel(
+    basis::PlaneWaveBasis{T}, 
+    qpt, 
+    q, 
+    interaction_kernel::InteractionKernel, 
+    regularization::ReplaceSingularity
+) where {T}
+    # Compute truncated Coulomb kernel without special-casing singularity at G+q=0 
+    kernel_fourier = map(Gplusk_vectors_cart(basis, qpt)) do Gpq
+        eval_kernel_fourier(interaction_kernel, sum(abs2, Gpq))
+    end
+
+    if iszero(qpt.coordinate)  # Neglect the singularity
+        GPUArraysCore.@allowscalar kernel_fourier[1] = 
+            T(regularization.Gpq_zero_value)
+    end
+    kernel_fourier
+end
+
+
+"""
+Coulomb interaction: 1/r 
+"""
+@kwdef struct Coulomb{R} <: InteractionKernel 
+    regularization::R = ProbeCharge()
+end
+eval_kernel_fourier(::Coulomb, Gsq::T) where {T} = 4T(π) / Gsq
+evaluate_probe_charge_integral(::Coulomb, α, Ω) = 8π^2 * sqrt(π / α) * Ω / (2π)^3
+_compute_kernel(basis, qpt, q, m::Coulomb) = _compute_kernel(basis, qpt, q, m, m.regularization)
+
+
+"""
+Short-range Coulomb interaction via error function: erfc(μr)/r
+"""
+@kwdef struct ErfShortRangeCoulomb <: InteractionKernel 
+    μ = 0.11  # ≈ 0.2 / Angstrom
+end
+eval_kernel_fourier(m::ErfShortRangeCoulomb, Gsq::T) where {T} = -(4T(π) / Gsq) * expm1(-Gsq / (4 * m.μ^2))
+_compute_kernel(basis, qpt, q, m::ErfShortRangeCoulomb) = _compute_kernel(basis, qpt, q, m, ReplaceSingularity(π/m.μ^2))
+
+
+"""
+Long-range Coulomb interaction via error function: erf(μr)/r
+"""
+@kwdef struct ErfLongRangeCoulomb{R} <: InteractionKernel 
+    μ = 0.11  # ≈ 0.2 / Angstrom
+    regularization::R = ProbeCharge()
+end
+eval_kernel_fourier(m::ErfLongRangeCoulomb, Gsq::T) where {T} = (4T(π) / Gsq) * exp(-Gsq / (4 * m.μ^2))
+evaluate_probe_charge_integral(m::ErfLongRangeCoulomb, α, Ω) = 8π^2 * sqrt(π / (α + 1/(4 * m.μ^2))) * Ω / (2π)^3
+_compute_kernel(basis, qpt, q, m::ErfLongRangeCoulomb) = _compute_kernel(basis, qpt, q, m, m.regularization)
+
+
+"""
+Spherically truncated Coulomb interaction: θ(Rcut-r)/r
 If Rcut is nothing, it uses `Rcut = cbrt(3Ω / (4π))` where `Ω` is the unit cell volume.
 
 ## References
 - [J. Spencer, A. Alavi. Phys. Rev. B **77**, 193110 (2008)](https://doi.org/10.1103/PhysRevB.77.193110)
 """
-@kwdef struct SphericallyTruncated <: CoulombSingulartyTreatment 
-    Rcut::Union{Float64, Nothing} = nothing  # Cutoff after which Coulomb operator is set to zero
+@kwdef struct SphericallyTruncatedCoulomb <: InteractionKernel
+    Rcut::Union{Float64, Nothing} = nothing
+end   
+eval_kernel_fourier(m::SphericallyTruncatedCoulomb, Gsq::T) where {T} = 4T(π) / Gsq * (1 - cos(m.Rcut * sqrt(Gsq)))
+function _compute_kernel(basis, qpt, q, m::SphericallyTruncatedCoulomb) 
+    Ω = basis.model.unit_cell_volume  
+    Rcut = @something m.Rcut cbrt(3Ω/(4π))  # convert from potential `nothing` to specific Rcut
+    interaction_kernel_with_Rcut = SphericallyTruncatedCoulomb(Rcut)
+    _compute_kernel(basis, qpt, q, interaction_kernel_with_Rcut, ReplaceSingularity(2π*Rcut^2))
 end
-function _compute_coulomb_kernel(kernel::SphericallyTruncated, basis::PlaneWaveBasis{T},
-                                 qpt::Kpoint) where {T}
-    Ω = basis.model.unit_cell_volume  # volume of unit cell 
-    Rcut = @something kernel.Rcut cbrt(3Ω / T(4π))
 
-    # Compute truncated Coulomb kernel without special-casing singularity at G+q=0 
-    coulomb_kernel = map(Gplusk_vectors_cart(basis, qpt)) do Gpq
-        Gnorm2 = sum(abs2, Gpq)
-        4T(π) / Gnorm2 * (1 - cos(Rcut * sqrt(Gnorm2)))
-    end
-
-    if iszero(qpt.coordinate)
-        GPUArraysCore.@allowscalar begin
-            coulomb_kernel[1] = 2T(π)*Rcut^2
-        end
-    end
-    coulomb_kernel
-end

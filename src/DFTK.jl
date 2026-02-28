@@ -101,7 +101,10 @@ include("supercell.jl")
 export Energies
 include("Energies.jl")
 
-export NeglectSingularity, ProbeCharge, SphericallyTruncated
+export Coulomb, SphericallyTruncatedCoulomb
+export ErfShortRangeCoulomb, ErfLongRangeCoulomb
+export ProbeCharge
+export ReplaceSingularity
 include("coulomb.jl")
 
 export Hamiltonian
@@ -156,7 +159,8 @@ include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
 
 export model_atomic, model_DFT, model_HF
-export LDA, PBE, PBE0, PBEsol, SCAN, r2SCAN
+export LDA, PBE, PBEsol, SCAN, r2SCAN
+export PBE0, HSE
 include("standard_models.jl")
 
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing

@@ -184,7 +184,7 @@ end
 struct ExchangeOperator{T <: Real,Tocc,Tpsi,TpsiReal} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
     kpoint::Kpoint{T}
-    coulomb_kernel::Array{T}
+    interaction_kernel::Array{T}
     occk::Tocc
     ψk::Tpsi
     ψk_real::TpsiReal
@@ -197,7 +197,7 @@ function apply!(Hψ, op::ExchangeOperator, ψ)
 
         # Compute integral by Poisson solve
         x_four  = fft(op.basis, op.kpoint, x_real) # actually we need q-point here
-        Vx_four = x_four .* op.coulomb_kernel
+        Vx_four = x_four .* op.interaction_kernel
         Vx_real = ifft(op.basis, op.kpoint, Vx_four) # actually we need q-point here
 
         # Exact exchange is quadratic in occupations but linear in spin,
