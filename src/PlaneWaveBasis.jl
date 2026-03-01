@@ -217,19 +217,22 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
     )
     kpoints = build_kpoints(model, fft_size, kcoords_global[krange_thisproc1], Ecut;
                             variational, architecture)
-    # kpoints is now possibly twice the size of krange. Make things consistent
-    if model.n_spin_components == 1
-        kweights = kweights_global[krange_thisproc1]
-        krange_allprocs = [[range] for range in krange_allprocs1]
-    else
+   # kpoints is twice the size of krange ONLY if we are using collinear spins
+    if model.spin_polarization == :collinear
         kweights = vcat(kweights_global[krange_thisproc1],
                         kweights_global[krange_thisproc1])
         krange_allprocs = [[range, n_kpt .+ range] for range in krange_allprocs1]
+    else
+        kweights = kweights_global[krange_thisproc1]
+        krange_allprocs = [[range] for range in krange_allprocs1]
     end
+    
     krange_thisproc = krange_allprocs[1 + MPI.Comm_rank(comm_kpts)]
     krange_thisproc_allspin = reduce(vcat, krange_thisproc)
 
-    @assert mpi_sum(sum(kweights), comm_kpts) ≈ model.n_spin_components
+    # For collinear spin, BZ integral weights sum to 2. For none, spinless, and full, they sum to 1.
+    expected_kweight_sum = model.spin_polarization == :collinear ? 2.0 : 1.0
+    @assert mpi_sum(sum(kweights), comm_kpts) ≈ expected_kweight_sum
     @assert length(kpoints) == length(kweights)
     @assert length(kpoints) == sum(length, krange_thisproc)
     @assert length(kpoints) == length( krange_thisproc_allspin)
@@ -482,9 +485,9 @@ end
 Return the index range of ``k``-points that have a particular spin component.
 """
 function krange_spin(basis::PlaneWaveBasis, spin::Integer)
-    n_spin = basis.model.n_spin_components
-    n_kpts_per_spin = div(length(basis.kpoints), n_spin)
-    @assert 1 ≤ spin ≤ n_spin
+    n_spin_kpts = basis.model.spin_polarization == :collinear ? 2 : 1
+    n_kpts_per_spin = div(length(basis.kpoints), n_spin_kpts)
+    @assert 1 ≤ spin ≤ n_spin_kpts
     (1 + (spin - 1) * n_kpts_per_spin):(spin * n_kpts_per_spin)
 end
 
@@ -562,13 +565,15 @@ and save it in `dest` as a dense `(size(kdata[1])..., n_kpoints)` array. On the 
 """
 @views function gather_kpts_block!(dest, basis::PlaneWaveBasis, kdata::AbstractVector{A}) where {A}
     # Number of elements stored per k-point in `kdata` (as vector of arrays)
+    # In gather_kpts_block!
     n_chunk = mpi_bcast(length(kdata[1]), 0, basis.comm_kpts)
     @assert all(length(k) == n_chunk for k in kdata)
 
     # Note: This function assumes that k-points are stored contiguously in rank-increasing
     # order, i.e. it depends on the splitting realised by split_evenly.
     # Note that if some k-points are duplicated over MPI ranks, they are also gathered here.
-    for σ in 1:basis.model.n_spin_components
+    n_spin_kpts = basis.model.spin_polarization == :collinear ? 2 : 1
+    for σ in 1:n_spin_kpts
         if mpi_master(basis.comm_kpts)
             # Setup variable buffer using appropriate data lengths and 
             counts = [n_chunk * length(basis.krange_allprocs[rank][σ])
@@ -594,7 +599,8 @@ end
 function gather_kpts_block(basis::PlaneWaveBasis, kdata::AbstractVector{A}) where {A}
     dest = nothing
     if mpi_master(basis.comm_kpts)
-        n_kptspin = length(basis.kcoords_global) * basis.model.n_spin_components
+        n_spin_kpts = basis.model.spin_polarization == :collinear ? 2 : 1
+        n_kptspin = length(basis.kcoords_global) * n_spin_kpts
         dest = zeros(eltype(A), size(kdata[1])..., n_kptspin)
     end
     gather_kpts_block!(dest, basis, kdata)
@@ -611,7 +617,8 @@ function scatter_kpts_block(basis::PlaneWaveBasis, data::Union{Nothing,AbstractA
     T, N = mpi_bcast((T, N), 0, basis.comm_kpts)
     splitted = Vector{Array{T,N-1}}(undef, length(basis.kpoints))
 
-    for σ in 1:basis.model.n_spin_components
+    n_spin_kpts = basis.model.spin_polarization == :collinear ? 2 : 1
+    for σ in 1:n_spin_kpts
         # Setup variable buffer for sending using appropriate data lengths
         if mpi_master(basis.comm_kpts)
             @assert data isa AbstractArray

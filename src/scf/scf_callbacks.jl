@@ -41,7 +41,7 @@ function (cb::ScfDefaultCallback)(info)
     # If first iteration clear a potentially cached previous time
     info.n_iter ≤ 1 && (cb.prev_time[] = 0)
 
-    show_magn = info.basis.model.spin_polarization == :collinear
+    show_magn = info.basis.model.spin_polarization in (:collinear, :full)
     show_diag = hasproperty(info, :diagonalization)
     show_damp = hasproperty(info, :α) && cb.show_damping
     show_time = hasproperty(info, :runtime_ns) && cb.show_time
@@ -71,7 +71,13 @@ function (cb::ScfDefaultCallback)(info)
 
     # TODO We should really do this properly ... this is really messy
     if info.n_iter == 1
-        label_magn = show_magn   ? ("   Magnet   |Magn|", "   ------   ------") : ("", "")
+        if info.basis.model.spin_polarization == :full
+            label_magn = ("   Magnet (x, y, z)           |Magn|", "   ----------------           ------")
+        elseif show_magn
+            label_magn = ("   Magnet   |Magn|", "   ------   ------")
+        else
+            label_magn = ("", "")
+        end
         label_damp = show_damp   ? ("   α   ",   "   ----")   : ("", "")
         label_diag = show_diag   ? ("   Diag",   "   ----")   : ("", "")
         label_time = show_time   ? ("   Δtime ",  "   ------") : ("", "")
@@ -83,8 +89,21 @@ function (cb::ScfDefaultCallback)(info)
         println(label_magn[2], label_damp[2], label_diag[2], label_time[2], label_memo[2], label_dmem[2])
     end
     E    = isnothing(info.energies) ? Inf : info.energies.total
-    magn = sum(spin_density(info.ρout)) * info.basis.dvol
-    abs_magn = sum(abs, spin_density(info.ρout)) * info.basis.dvol
+    
+    if info.basis.model.spin_polarization == :full
+        # Integrate the vector magnetization over the unit cell
+        magn_x = sum(@view info.ρout[:, :, :, 2]) * info.basis.dvol
+        magn_y = sum(@view info.ρout[:, :, :, 3]) * info.basis.dvol
+        magn_z = sum(@view info.ρout[:, :, :, 4]) * info.basis.dvol
+        magn = [magn_x, magn_y, magn_z]
+        abs_magn = norm(magn)
+    elseif show_magn
+        magn = sum(spin_density(info.ρout)) * info.basis.dvol
+        abs_magn = sum(abs, spin_density(info.ρout)) * info.basis.dvol
+    else
+        magn = 0.0
+        abs_magn = 0.0
+    end
 
     tstr = cb.show_time ? " "^9 : ""
     if show_time
@@ -109,8 +128,17 @@ function (cb::ScfDefaultCallback)(info)
         ΔE = sign * format_log8(E - prev_energy)
     end
     Δρstr   = " " * format_log8(last(info.history_Δρ))
-    Mstr    = show_magn ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
-    absMstr = show_magn ? "   $((@sprintf "%6.3f" round(abs_magn, sigdigits=4))[1:6])" : ""
+    
+    if info.basis.model.spin_polarization == :full
+        Mstr = @sprintf "  [%5.2f, %5.2f, %5.2f]" magn[1] magn[2] magn[3]
+        absMstr = @sprintf "  %6.3f" abs_magn
+    elseif show_magn
+        Mstr    = "  $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])"
+        absMstr = "  $((@sprintf "%6.3f" round(abs_magn, sigdigits=4))[1:6])"
+    else
+        Mstr = ""
+        absMstr = ""
+    end
     diagstr = show_diag ? "  $(@sprintf "% 5.1f" diagiter)" : ""
 
     αstr = ""

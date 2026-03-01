@@ -212,7 +212,21 @@ Overview of parameters:
         info_next = merge(info_next, (; energies, history_Etot, history_Δρ, n_matvec))
 
         # Apply mixing and pass it the full info as kwargs
-        ρnext = ρin .+ T(damping) .* mix_density(mixing, basis, Δρ; info_next...)
+        if basis.model.spin_polarization == :full
+            # Precondition the charge density using the chosen mixer
+            # We slice 1:1 to maintain the 4th dimension for the mixer's internal array shapes
+            Δρ_charge = @view Δρ[:, :, :, 1:1]
+            δρ_charge = mix_density(mixing, basis, Δρ_charge; info_next...)
+            
+            # Use simple mixing (no preconditioning) for the vector magnetization
+            δρ_mag = @view Δρ[:, :, :, 2:4]
+            
+            # Recombine and apply damping
+            δρ_mixed = cat(δρ_charge, δρ_mag; dims=4)
+            ρnext = ρin .+ T(damping) .* δρ_mixed
+        else
+            ρnext = ρin .+ T(damping) .* mix_density(mixing, basis, Δρ; info_next...)
+        end
 
         converged = n_iter ≥ miniter && is_converged(info_next)
         converged = mpi_bcast(converged, 0, basis.comm_kpts)

@@ -14,17 +14,25 @@ function select_occupied_orbitals(basis, ψ, occupation; threshold=0.0)
     if iszero(threshold)
         model   = basis.model
         n_spin  = model.n_spin_components
-        n_bands = div(model.n_electrons, n_spin * filled_occupation(model), RoundUp)
+        
+        if model.spin_polarization == :full
+            n_bands = div(model.n_electrons, filled_occupation(model), RoundUp)
+        else
+            n_bands = div(model.n_electrons, n_spin * filled_occupation(model), RoundUp)
+        end
+        
         @assert n_bands == size(selected_ψ[1], 2)
     end
-    (; ψ=selected_ψ, occupation=selected_occ)
 end
 
 # Packing routine to store all bands ψ using same-sized matrices.
 # This is useful for serialisation to disk
 function blockify_ψ(basis::PlaneWaveBasis, ψ::AbstractVector)
     # Determine largest rectangular grid on which all bands can live
-    n_G_vectors = [length(kpt.mapping) for kpt in basis.kpoints]
+    n_G_vectors = map(basis.kpoints) do kpt
+        n_G = length(kpt.mapping)
+        basis.model.spin_polarization == :full ? 2 * n_G : n_G
+    end
     max_n_G = mpi_max(maximum(n_G_vectors), basis.comm_kpts)
 
     # Zero-pad each ψk to the full stored rectangle
@@ -80,7 +88,10 @@ end
 unpack_ψ(x, sizes_ψ) = deepcopy(unsafe_unpack_ψ(x, sizes_ψ))
 
 function random_orbitals(basis::PlaneWaveBasis{T}, kpt::Kpoint, howmany::Integer) where {T}
-    orbitals = similar(G_vectors(basis), Complex{T}, length(G_vectors(basis, kpt)), howmany)
+    n_G = length(G_vectors(basis, kpt))
+    n_dim = basis.model.spin_polarization == :full ? 2 * n_G : n_G
+    
+    orbitals = similar(G_vectors(basis), Complex{T}, n_dim, howmany)
     randn!(TaskLocalRNG(), orbitals)  # use the RNG on the device if we're using a GPU
     ortho_qr(orbitals)
 end

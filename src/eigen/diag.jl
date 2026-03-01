@@ -1,3 +1,21 @@
+import LinearAlgebra: ldiv!
+
+# Wrapper to apply the scalar preconditioner to both components of a spinor
+struct NoncollinearPreconditioner
+    prec
+    n_Gk::Int
+end
+function LinearAlgebra.ldiv!(Y, P::NoncollinearPreconditioner, X)
+    ldiv!(view(Y, 1:P.n_Gk, :), P.prec, view(X, 1:P.n_Gk, :))
+    ldiv!(view(Y, P.n_Gk+1:size(X, 1), :), P.prec, view(X, P.n_Gk+1:size(X, 1), :))
+    Y
+end
+function LinearAlgebra.ldiv!(P::NoncollinearPreconditioner, X)
+    ldiv!(P.prec, view(X, 1:P.n_Gk, :))
+    ldiv!(P.prec, view(X, P.n_Gk+1:size(X, 1), :))
+    X
+end
+
 @doc raw"""
 Function for diagonalising each ``k``-Point blow of ham one step at a time.
 Some logic for interpolating between ``k``-points is used if `interpolate_kpoints`
@@ -12,18 +30,22 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
                                  tol=1e-6, miniter=1, maxiter=100, n_conv_check=nothing)
     kpoints = ham.basis.kpoints
     results = Vector{Any}(undef, length(kpoints))
+    is_full = ham.basis.model.spin_polarization == :full
 
     for (ik, kpt) in enumerate(kpoints)
         n_Gk = length(G_vectors(ham.basis, kpt))
+        n_dim = is_full ? 2 * n_Gk : n_Gk
+        
         if n_Gk < nev_per_kpoint
             error("The size of the plane wave basis is $n_Gk, and you are asking for " *
                   "$nev_per_kpoint eigenvalues. Increase Ecut.")
         end
+        
         # Get ψguessk
         if !isnothing(ψguess)
-            if n_Gk != size(ψguess[ik], 1)
-                error("Mismatch in dimension between guess ($(size(ψguess[ik], 1)) and " *
-                      "Hamiltonian ($n_Gk)")
+            if n_dim != size(ψguess[ik], 1)
+                error("Mismatch in dimension between guess ($(size(ψguess[ik], 1))) and " *
+                      "Hamiltonian ($n_dim)")
             end
             nev_guess = size(ψguess[ik], 2)
             if nev_guess > nev_per_kpoint
@@ -31,22 +53,34 @@ function diagonalize_all_kblocks(eigensolver, ham::Hamiltonian, nev_per_kpoint::
             elseif nev_guess == nev_per_kpoint
                 ψguessk = ψguess[ik]
             else
-                X0 = similar(ψguess[ik], n_Gk, nev_per_kpoint)
+                X0 = similar(ψguess[ik], n_dim, nev_per_kpoint)
                 X0[:, 1:nev_guess] = ψguess[ik]
-                X0[:, nev_guess+1:end] = randn(eltype(X0), n_Gk, nev_per_kpoint - nev_guess)
+                X0[:, nev_guess+1:end] = randn(eltype(X0), n_dim, nev_per_kpoint - nev_guess)
                 ψguessk = ortho_qr(X0)
             end
         elseif interpolate_kpoints && ik > 1
             # use information from previous k-point
-            ψguessk = interpolate_kpoint(results[ik - 1].X, ham.basis, kpoints[ik - 1],
-                                         ham.basis, kpoints[ik])
+            if is_full
+                # Interpolate the up and down spin components separately
+                n_Gk_prev = length(G_vectors(ham.basis, kpoints[ik - 1]))
+                ψ_up = interpolate_kpoint(results[ik - 1].X[1:n_Gk_prev, :], ham.basis, kpoints[ik - 1], ham.basis, kpoints[ik])
+                ψ_dn = interpolate_kpoint(results[ik - 1].X[n_Gk_prev+1:end, :], ham.basis, kpoints[ik - 1], ham.basis, kpoints[ik])
+                ψguessk = vcat(ψ_up, ψ_dn)
+            else
+                ψguessk = interpolate_kpoint(results[ik - 1].X, ham.basis, kpoints[ik - 1],
+                                             ham.basis, kpoints[ik])
+            end
         else
             ψguessk = random_orbitals(ham.basis, kpt, nev_per_kpoint)
         end
-        @assert size(ψguessk) == (n_Gk, nev_per_kpoint)
+        @assert size(ψguessk) == (n_dim, nev_per_kpoint)
 
         prec = nothing
-        !isnothing(prec_type) && (prec = prec_type(ham[ik]))
+        if !isnothing(prec_type)
+            prec_base = prec_type(ham[ik])
+            prec = is_full ? NoncollinearPreconditioner(prec_base, n_Gk) : prec_base
+        end
+        
         results[ik] = eigensolver(ham[ik], ψguessk;
                                   prec, tol, miniter, maxiter, n_conv_check)
     end

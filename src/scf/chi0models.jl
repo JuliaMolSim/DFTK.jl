@@ -24,9 +24,15 @@ function (χ0::LdosModel)(basis::PlaneWaveBasis{T}; eigenvalues, ψ, εF, kwargs
     temperature = χ0.adjust_temperature(basis.model.temperature; kwargs...)
     iszero(temperature) && return nothing
     ldos = compute_ldos(εF, basis, eigenvalues, ψ; temperature)
+    
+    # We only want the scalar charge component for the preconditioner!
+    if basis.model.spin_polarization == :full
+        ldos = ldos[:, :, :, 1:1]
+    end
+    
     maximum(abs, ldos) < sqrt(eps(T)) && return nothing
 
-    tdos = sum(sum, ldos) * basis.dvol  # Integrate LDOS to form total DOS
+    tdos = sum(sum, ldos) * basis.dvol   # Integrate LDOS to form total DOS
     function apply!(δρ, δV, α=1)
         δεF = dot(ldos, δV) .* basis.dvol
         δρ .+= α .* (-ldos .* δV .+ ldos .* δεF ./ tdos)

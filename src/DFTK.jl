@@ -252,6 +252,21 @@ include("workarounds/forwarddiff_rules.jl")
 include("gpu/linalg.jl")
 include("gpu/gpu_arrays.jl")
 
+# NEW ADDED for `spin_polarization = :full` feature
+#\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+# Spin comparsion for `spin_polarization = :full` calculation support
+export get_spin_3d_data
+export get_spin_slice_data
+include("postprocess/spin_extraction.jl")
+
+export plot_spin_3d
+export plot_spin_slice
+export plot_spin_3d!
+export plot_spin_slice!
+export plot_bandstructure!  
+export plot_dos!           
+#\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
 # Precompilation block with a basic workflow
 
 function precompilation_workflow(lattice, atoms, positions, magnetic_moments;
