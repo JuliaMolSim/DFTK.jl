@@ -192,9 +192,9 @@ function (cb::OmegaPlusKDefaultCallback)(info)
         # Axinfo: NamedTuple returned by mul_inexact(::DielectricAdjoint, ...)
         # Axinfos is the collection of all these named tuples since the last callback
 
-        # Sum all CG iterations over all bands and all Axinfos, average over k-points
+        # Average CG iterations per (k-point, band) pair over all Axinfos
         avgCG = sum(info.Axinfos) do Axinfo
-            mean(sum, Axinfo.n_iter)
+            mean(v -> isempty(v) ? 0 : mean(v), Axinfo.n_iter)
         end
         avgCG = mpi_mean(avgCG, comm)
     end
@@ -290,26 +290,20 @@ Input parameters:
     @assert size(δHextψ[1]) == size(ψ[1])
     start_ns = time_ns()
 
-    # TODO Better initial guess handling. Especially between the last iteration of the GMRES
-    #      and the concluding Sternheimer solve we should be able to benefit from passing
-    #      around the orbitals
-
     # TODO Use tol_density=tol/10 to make sure that the density is very accurate.
     #      This is likely overdoing it and we should investigate if a smaller
     #      value also does the trick.
 
     # compute δρ0 (ignoring interactions)
-    δρ0 = let  # Make sure memory owned by res0 is freed
-        res0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHextψ;
-                           δtemperature,
-                           maxiter=maxiter_sternheimer, tol=tol * factor_initial,
-                           bandtolalg, occupation_threshold,
-                           q, kwargs...)  # = χ04P * δHext
-        callback((; stage=:noninteracting, runtime_ns=time_ns() - start_ns, basis,
-                    Axinfos=[(; tol=tol*factor_initial, res0...)]))
-        compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
-                   occupation_threshold, q)
-    end
+    res0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHextψ;
+                       δtemperature,
+                       maxiter=maxiter_sternheimer, tol=tol * factor_initial,
+                       bandtolalg, occupation_threshold,
+                       q, kwargs...)  # = χ04P * δHext
+    callback((; stage=:noninteracting, runtime_ns=time_ns() - start_ns, basis,
+                Axinfos=[(; tol=tol*factor_initial, res0...)]))
+    δρ0 = compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
+                     occupation_threshold, q)
 
     # compute total δρ
     # TODO Can be smarter here, e.g. use mixing to come up with initial guess.
@@ -346,7 +340,9 @@ Input parameters:
     resfinal = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHtotψ;
                            δtemperature,
                            maxiter=maxiter_sternheimer, tol=tol * factor_final,
-                           bandtolalg, occupation_threshold, q, kwargs...)
+                           bandtolalg, occupation_threshold, q,
+                           δψ0=res0.δψ,  # warm-start CG from non-interacting solution
+                           kwargs...)
     callback((; stage=:final, runtime_ns=time_ns() - start_ns, basis,
                 Axinfos=[(; tol=tol*factor_final, resfinal...)]))
     # Compute total change in eigenvalues

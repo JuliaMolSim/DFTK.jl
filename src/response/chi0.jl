@@ -111,7 +111,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
                                     callback=identity,
                                     ψk_extra=zeros_like(ψk, size(ψk, 1), 0), εk_extra=zeros(0),
                                     Hψk_extra=zeros_like(ψk, size(ψk, 1), 0), tol=1e-9,
-                                    miniter=1, maxiter=100)
+                                    miniter=1, maxiter=100, x0=nothing)
     # TODO This whole projector business allocates a lot, which is rather slow.
     #      We should optimise this a bit to avoid allocations where possible.
 
@@ -181,9 +181,10 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
         x .= R(precon \ R(y))
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
-    cg_res = cg(J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
-                callback=info -> callback(merge(info, (; basis, kpoint))),
-                miniter, maxiter)
+    x_init = isnothing(x0) ? zero(bb) : R(x0)
+    cg_res = cg!(x_init, J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
+                 callback=info -> callback(merge(info, (; basis, kpoint))),
+                 miniter, maxiter)
     δψknᴿ = cg_res.x
 
     # 2) solve for αkn now that we know δψknᴿ
@@ -324,7 +325,8 @@ in `basis.kpoints[ik]` from which `δψ` is computed (but expressed in `basis.kp
 """
 function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε_minus_q=ε;
                      ψ_extra=[zeros_like(ψk, size(ψk,1), 0) for ψk in ψ],
-                     q=zero(Vec3{T}), bandtol_minus_q, kwargs_sternheimer...) where {T}
+                     q=zero(Vec3{T}), bandtol_minus_q, δψ0=nothing,
+                     kwargs_sternheimer...) where {T}
     # We solve the Sternheimer equation
     #   (H_k - ε_{n,k-q}) δψ_{n,k} = - (1 - P_{k}) δHψ_{n, k-q},
     # where P_{k} is the projector on ψ_{k} and with the conventions:
@@ -375,8 +377,10 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
             end
 
             # Sternheimer contribution
+            x0 = isnothing(δψ0) ? nothing : δψ0[ik][:, n]
             res = sternheimer_solver(Hk, ψk, εk_minus_q[n], δHψ[ik][:, n]; ψk_extra,
-                                     εk_extra, Hψk_extra, tol=tolk_minus_q[n], kwargs_sternheimer...)
+                                     εk_extra, Hψk_extra, tol=tolk_minus_q[n], x0,
+                                     kwargs_sternheimer...)
 
             !res.converged && @warn("Sternheimer CG not converged", ik, n, res.n_iter,
                                     res.tol, res.residual_norm)
@@ -399,7 +403,7 @@ to the Hamiltonian change `δH` represented by the matrix-vector products `δHψ
 @views @timing function apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                                     δtemperature=zero(eltype(ham.basis)),
                                     occupation_threshold, q=zero(Vec3{eltype(ham.basis)}),
-                                    bandtolalg, tol=1e-9, kwargs_sternheimer...)
+                                    bandtolalg, tol=1e-9, δψ0=nothing, kwargs_sternheimer...)
     basis = ham.basis
     k_to_k_minus_q = k_to_kpq_permutation(basis, -q)
 
@@ -450,8 +454,13 @@ to the Hamiltonian change `δH` represented by the matrix-vector products `δHψ
     δψ = zero.(δHψ)
     δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ[k_to_k_minus_q])]
 
+    # Extract the initial guess for the occupied bands (reindexed to k-q ordering)
+    δψ0_occ = isnothing(δψ0) ? nothing :
+              [δψ0[ik][:, mask_occ[k_to_k_minus_q[ik]]] for ik = 1:length(basis.kpoints)]
+
     res = compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, ε_minus_q_occ;
-                      ψ_extra, q, bandtol_minus_q=bandtol_minus_q_occ, kwargs_sternheimer...)
+                      ψ_extra, q, bandtol_minus_q=bandtol_minus_q_occ, δψ0=δψ0_occ,
+                      kwargs_sternheimer...)
     (; δψ, δoccupation, δεF, res.n_iter, res.residual_norms, res.converged)
 end
 
