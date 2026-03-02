@@ -295,15 +295,17 @@ Input parameters:
     #      value also does the trick.
 
     # compute δρ0 (ignoring interactions)
-    res0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHextψ;
-                       δtemperature,
-                       maxiter=maxiter_sternheimer, tol=tol * factor_initial,
-                       bandtolalg, occupation_threshold,
-                       q, kwargs...)  # = χ04P * δHext
-    callback((; stage=:noninteracting, runtime_ns=time_ns() - start_ns, basis,
-                Axinfos=[(; tol=tol*factor_initial, res0...)]))
-    δρ0 = compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
-                     occupation_threshold, q)
+    δρ0, δψ0 = let  # Make sure memory owned by res0 is freed, except δψ used for warm-start
+        res0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHextψ;
+                           δtemperature,
+                           maxiter=maxiter_sternheimer, tol=tol * factor_initial,
+                           bandtolalg, occupation_threshold,
+                           q, kwargs...)  # = χ04P * δHext
+        callback((; stage=:noninteracting, runtime_ns=time_ns() - start_ns, basis,
+                    Axinfos=[(; tol=tol*factor_initial, res0...)]))
+        (compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
+                    occupation_threshold, q), res0.δψ)
+    end
 
     # compute total δρ
     # TODO Can be smarter here, e.g. use mixing to come up with initial guess.
@@ -341,7 +343,7 @@ Input parameters:
                            δtemperature,
                            maxiter=maxiter_sternheimer, tol=tol * factor_final,
                            bandtolalg, occupation_threshold, q,
-                           δψ0=res0.δψ,  # warm-start CG from non-interacting solution
+                           δψ0,  # warm-start CG from non-interacting solution
                            kwargs...)
     callback((; stage=:final, runtime_ns=time_ns() - start_ns, basis,
                 Axinfos=[(; tol=tol*factor_final, resfinal...)]))
