@@ -111,7 +111,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
                                     callback=identity,
                                     ψk_extra=zeros_like(ψk, size(ψk, 1), 0), εk_extra=zeros(0),
                                     Hψk_extra=zeros_like(ψk, size(ψk, 1), 0), tol=1e-9,
-                                    miniter=1, maxiter=100, x0=nothing)
+                                    miniter=1, maxiter=100, δψk0=zero(rhs))
     # TODO This whole projector business allocates a lot, which is rather slow.
     #      We should optimise this a bit to avoid allocations where possible.
 
@@ -181,8 +181,7 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
         x .= R(precon \ R(y))
     end
     J = LinearMap{eltype(ψk)}(RAR, size(Hk, 1))
-    x_init = isnothing(x0) ? zero(bb) : R(x0)
-    cg_res = cg!(x_init, J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
+    cg_res = cg!(R(δψk0), J, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj=R,
                  callback=info -> callback(merge(info, (; basis, kpoint))),
                  miniter, maxiter)
     δψknᴿ = cg_res.x
@@ -377,9 +376,9 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
             end
 
             # Sternheimer contribution
-            x0 = isnothing(δψ0) ? nothing : δψ0[ik][:, n]
+            δψk0 = isnothing(δψ0) ? zero(δHψ[ik][:, n]) : δψ0[ik][:, n]
             res = sternheimer_solver(Hk, ψk, εk_minus_q[n], δHψ[ik][:, n]; ψk_extra,
-                                     εk_extra, Hψk_extra, tol=tolk_minus_q[n], x0,
+                                     εk_extra, Hψk_extra, tol=tolk_minus_q[n], δψk0,
                                      kwargs_sternheimer...)
 
             !res.converged && @warn("Sternheimer CG not converged", ik, n, res.n_iter,
