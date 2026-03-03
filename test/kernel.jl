@@ -123,8 +123,8 @@ end
     import ForwardDiff
     import ForwardDiff: Dual, partials
 
-    function test_approx(x, y; rtol=1e-4)
-        @test all(isapprox.(x, y; rtol))
+    function test_approx(x, y; rtol=1e-4, atol=1e-7)
+        @test all(isapprox.(x, y; rtol, atol))
     end
 
     for spin in [:none, :collinear]
@@ -222,7 +222,8 @@ end
             end
 
             @testset "MGGAL" begin
-                func = DFTK.LibxcFunctional(:mgga_x_br89)
+                # Need a (∇²ρ, τ)-dependent MGGA, seems more stable than the original br89
+                func = DFTK.LibxcFunctional(:mgga_x_br89_explicit)
                 @assert func isa DFTK.LibxcFunctional{:mggal}
 
                 terms_ad    = potential_terms(func, ρ .+ ε_dual .* δρ, σ .+ ε_dual .* δσ,
@@ -244,10 +245,10 @@ end
                 δVl_fd      = (terms_plus.Vl - terms_minus.Vl) / 2ε
 
                 test_approx(δe_ad, δe_fd)
-                test_approx(δVρ_ad, δVρ_fd; rtol=4e-3)
-                test_approx(δVσ_ad, δVσ_fd; rtol=4e-3)
-                test_approx(δVτ_ad, δVτ_fd; rtol=4e-3)
-                test_approx(δVl_ad, δVl_fd; rtol=4e-3)
+                test_approx(δVρ_ad, δVρ_fd)
+                test_approx(δVσ_ad, δVσ_fd)
+                test_approx(δVτ_ad, δVτ_fd)
+                test_approx(δVl_ad, δVl_fd)
             end
         end
     end
