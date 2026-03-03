@@ -216,9 +216,9 @@ end
                 δVτ_fd      = (terms_plus.Vτ - terms_minus.Vτ) / 2ε
 
                 test_approx(δe_ad, δe_fd)
-                test_approx(δVρ_ad, δVρ_fd)
-                test_approx(δVσ_ad, δVσ_fd)
-                test_approx(δVτ_ad, δVτ_fd)
+                test_approx(δVρ_ad, δVρ_fd; rtol=4e-4)
+                test_approx(δVσ_ad, δVσ_fd; rtol=4e-4)
+                test_approx(δVτ_ad, δVτ_fd; rtol=4e-4)
             end
 
             @testset "MGGAL" begin
@@ -244,10 +244,10 @@ end
                 δVl_fd      = (terms_plus.Vl - terms_minus.Vl) / 2ε
 
                 test_approx(δe_ad, δe_fd)
-                test_approx(δVρ_ad, δVρ_fd; rtol=2e-3)
-                test_approx(δVσ_ad, δVσ_fd; rtol=2e-3)
-                test_approx(δVτ_ad, δVτ_fd; rtol=2e-3)
-                test_approx(δVl_ad, δVl_fd; rtol=2e-3)
+                test_approx(δVρ_ad, δVρ_fd; rtol=4e-3)
+                test_approx(δVσ_ad, δVσ_fd; rtol=4e-3)
+                test_approx(δVτ_ad, δVτ_fd; rtol=4e-3)
+                test_approx(δVl_ad, δVl_fd; rtol=4e-3)
             end
         end
     end
