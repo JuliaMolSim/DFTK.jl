@@ -122,6 +122,7 @@ function eval_psp_local_fourier(psp::PspHgh, p::T) where {T <: Real}
 
     4T(π) * rloc^2 * (-Zion + sqrt(T(π) / 2) * rloc * t^2 * P) * exp(-t^2 / 2) / t^2
 end
+@vectorize_psp_function DFTK.eval_psp_local_fourier PspHgh
 
 # [GTH98] (1)
 function eval_psp_local_real(psp::PspHgh, r::T) where {T <: Real}
@@ -133,6 +134,7 @@ function eval_psp_local_real(psp::PspHgh, r::T) where {T <: Real}
         + exp(-rr^2 / 2) * (cloc[1] + cloc[2] * rr^2 + cloc[3] * rr^4 + cloc[4] * rr^6)
     )
 end
+@vectorize_psp_function DFTK.eval_psp_local_real PspHgh
 
 
 # [HGH98] (7-15) except they do it with plane waves normalized by 1/sqrt(Ω).
@@ -161,7 +163,7 @@ function eval_psp_projector_fourier(psp::PspHgh, i, l, p::T) where {T <: Real}
 
     error("Not implemented for l=$l and i=$i")
 end
-
+@vectorize_psp_projector_function DFTK.eval_psp_projector_fourier PspHgh
 
 # [HGH98] (3)
 function eval_psp_projector_real(psp::PspHgh, i, l, r::T) where {T <: Real}
@@ -169,6 +171,7 @@ function eval_psp_projector_real(psp::PspHgh, i, l, r::T) where {T <: Real}
     ired = (4i - 1) / T(2)
     sqrt(T(2)) * r^(l + 2(i - 1)) * exp(-r^2 / 2rp^2) / rp^(l + ired) / sqrt(gamma(l + ired))
 end
+@vectorize_psp_projector_function DFTK.eval_psp_projector_real PspHgh
 
 function eval_psp_energy_correction(T, psp::PspHgh)
     # By construction we need to compute the DC component of the difference

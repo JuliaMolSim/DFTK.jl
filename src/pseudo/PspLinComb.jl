@@ -77,6 +77,7 @@ macro make_psplincomb_call(fn)
     end
 end
 
+<<<<<<< HEAD
 macro make_psplincomb_call_vectorized(fn)
     quote
         function $fn(psp::PspLinComb, arg::AbstractVector{<:Real})
@@ -94,4 +95,12 @@ end
 @make_psplincomb_call DFTK.eval_psp_core_density_fourier
 @make_psplincomb_call DFTK.eval_psp_core_kinetic_energy_density_real
 @make_psplincomb_call DFTK.eval_psp_core_kinetic_energy_density_fourier
-@make_psplincomb_call_vectorized DFTK.eval_psp_density_core_fourier
+
+@vectorize_psp_function DFTK.eval_psp_local_real PspLinComb
+@vectorize_psp_function DFTK.eval_psp_local_fourier PspLinComb
+@vectorize_psp_function DFTK.eval_psp_valence_density_real PspLinComb
+@vectorize_psp_function DFTK.eval_psp_valence_density_fourier PspLinComb
+@vectorize_psp_function DFTK.eval_psp_core_density_eal PspLinComb
+@vectorize_psp_function DFTK.eval_psp_core_density_ourier PspLinComb
+@vectorize_psp_projector_function DFTK.eval_psp_projector_real PspLinComb
+@vectorize_psp_projector_function DFTK.eval_psp_projector_fourier PspLinComb
