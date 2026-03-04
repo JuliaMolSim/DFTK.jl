@@ -104,6 +104,7 @@ end
     # Test HF forces on non-symmetric multi-species structure using analytical pseudos
     using AtomsIO
     using PseudoPotentialData
+    using DFTK: DielectricMixing
     system = load_system("structures/tio2_stretched.extxyz")
     pseudopotentials = PseudoFamily("cp2k.nc.sr.pbe.v0_1.largecore.gth")
     TestForces.test_term_forces(system; Ecut=15, kgrid=(2,2,3), temperature=1e-4,
@@ -113,6 +114,7 @@ end
 @testitem "Forces term-wise TiO2 (UPF)" setup=[TestForces] tags=[:forces, :minimal] begin
     # Test HF forces on non-symmetric multi-species structure with NLCC
     using AtomsIO
+    using DFTK: DielectricMixing
     system = load_system("structures/tio2_stretched.extxyz")
     TestForces.test_term_forces(system; Ecut=25, kgrid=(2,2,3), temperature=1e-4,
                                 mixing=DielectricMixing(εr=10))
@@ -187,6 +189,7 @@ end
 
 @testitem "Forces TiO2 PBE" setup=[TestForces] tags=[:forces,:slow] begin
     using AtomsIO
+    using DFTK: DielectricMixing
     system = load_system("structures/tio2_stretched.extxyz")
     TestForces.test_forces(system; kgrid=[2, 2, 3], Ecut=25,
                            mixing=DielectricMixing(εr=10),
