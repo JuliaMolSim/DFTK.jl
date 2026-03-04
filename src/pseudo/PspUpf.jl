@@ -174,6 +174,7 @@ has_core_density(psp::PspUpf) = !all(iszero, psp.r2_ρcore)
 function eval_psp_projector_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
     psp.r2_projs_interp[l+1][i](r) / r^2  # TODO if r is below a threshold, return zero
 end
+@vectorize_psp_projector_function DFTK.eval_psp_projector_real PspUpf
 
 function eval_psp_projector_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     # The projectors may have been cut off before the end of the radial mesh
@@ -184,6 +185,7 @@ function eval_psp_projector_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     r2_proj = @view psp.r2_projs[l+1][i][1:ircut_proj]
     hankel(rgrid, r2_proj, l, p)
 end
+@vectorize_psp_projector_function DFTK.eval_psp_projector_fourier PspUpf
 
 count_n_pswfc_radial(psp::PspUpf, l) = length(psp.r2_pswfcs[l+1])
 
@@ -192,6 +194,7 @@ pswfc_label(psp::PspUpf, i, l) = psp.pswfc_labels[l+1][i]
 function eval_psp_pswfc_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
     psp.r2_pswfcs_interp[l+1][i](r) / r^2  # TODO if r is below a threshold, return zero
 end
+@vectorize_psp_projector_function DFTK.eval_psp_pswfc_real PspUpf
 
 function eval_psp_pswfc_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     # Pseudo-atomic wavefunctions are _not_ currently cut off like the other
@@ -200,8 +203,10 @@ function eval_psp_pswfc_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     # If issues arise, try cutting them off too.
     return hankel(psp.rgrid, psp.r2_pswfcs[l+1][i], l, p)
 end
+@vectorize_psp_projector_function DFTK.eval_psp_pswfc_fourier PspUpf
 
 eval_psp_local_real(psp::PspUpf, r::T) where {T<:Real} = psp.vloc_interp(r)
+@vectorize_psp_function DFTK.eval_psp_local_real PspUpf
 
 # Low-level function for the local part of the pseudopotential in reciprocal space
 function _eval_psp_local_fourier(quadrature, rgrid, vloc, Zion, p::T)::T where {T<:Real}
@@ -225,7 +230,7 @@ function eval_psp_local_fourier(psp::PspUpf, p::T) where {T<:Real}
     _eval_psp_local_fourier(quadrature, rgrid, vloc, psp.Zion, p)
 end
 
-# Vectorized version of the above, GPU compatible
+# Vectorized version of the above, GPU optimized
 function eval_psp_local_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Real}
     quadrature = default_psp_quadrature(psp.rgrid)
     arch = architecture(ps)
@@ -242,16 +247,19 @@ end
 function eval_psp_density_valence_real(psp::PspUpf, r::T) where {T<:Real}
     psp.r2_ρion_interp(r) / r^2  # TODO if r is below a threshold, return zero
 end
+@vectorize_psp_function DFTK.eval_psp_density_valence_real PspUpf
 
 function eval_psp_density_valence_fourier(psp::PspUpf, p::T) where {T<:Real}
     rgrid = @view psp.rgrid[1:psp.ircut]
     r2_ρion = @view psp.r2_ρion[1:psp.ircut]
     return hankel(rgrid, r2_ρion, 0, p)
 end
+@vectorize_psp_function DFTK.eval_psp_density_valence_fourier PspUpf
 
 function eval_psp_density_core_real(psp::PspUpf, r::T) where {T<:Real}
     psp.r2_ρcore_interp(r) / r^2  # TODO if r is below a threshold, return zero
 end
+@vectorize_psp_function DFTK.eval_psp_density_core_real PspUpf
 
 function eval_psp_density_core_fourier(psp::PspUpf, p::T) where {T<:Real}
     rgrid = @view psp.rgrid[1:psp.ircut]
@@ -259,7 +267,7 @@ function eval_psp_density_core_fourier(psp::PspUpf, p::T) where {T<:Real}
     return hankel(rgrid, r2_ρcore, 0, p)
 end
 
-# Vectorized version of the above, GPU compatible
+# Vectorized version of the above, GPU optimized
 function eval_psp_density_core_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Real}
     quadrature = default_psp_quadrature(psp.rgrid)
     arch = architecture(ps)

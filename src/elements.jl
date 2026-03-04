@@ -52,12 +52,6 @@ function core_charge_density_fourier(::Element, ::T)::T where {T <: Real}
     error("Abstract elements do not necesesarily provide core charge density.")
 end
 
-# Generic vectorized version of local_potential_fourier, GPU-safe
-function local_potential_fourier(el::Element, ps::AbstractVector{T}) where {T <: Real}
-    arch = architecture(ps)
-    to_device(arch, map(p -> local_potential_fourier(el, p), to_cpu(ps)))
-end
-
 Base.show(io::IO, el::Element) = print(io, "$(typeof(el))(:$(species(el)))")
 
 #
@@ -169,10 +163,6 @@ eval_psp_energy_correction(T, el::ElementPsp) = eval_psp_energy_correction(T, el
 function local_potential_fourier(el::ElementPsp, p::T) where {T <: Real}
     eval_psp_local_fourier(el.psp, p)
 end
-# Vectorized version of the above
-function local_potential_fourier(el::ElementPsp, ps::AbstractVector{T}) where {T <: Real}
-    eval_psp_local_fourier(el.psp, ps)
-end
 local_potential_real(el::ElementPsp, r::Real) = eval_psp_local_real(el.psp, r)
 
 function valence_charge_density_fourier(el::ElementPsp, p::T) where {T <: Real}
@@ -185,7 +175,21 @@ end
 function core_charge_density_fourier(el::ElementPsp, p::T) where {T <: Real}
     eval_psp_density_core_fourier(el.psp, p)
 end
-# Vectorized version of the above
+
+# Vectorized versions of the above, specific implementation depending on the Psp type
+function local_potential_fourier(el::ElementPsp, ps::AbstractVector{T}) where {T <: Real}
+    eval_psp_local_fourier(el.psp, ps)
+end
+function local_potential_real(el::ElementPsp, rs::AbstractVector{T}) where {T <: Real}
+    eval_psp_local_real(el.psp, rs)
+end
+function valence_charge_density_fourier(el::ElementPsp, ps::AbstractVector{T}) where {T <: Real}
+    if has_valence_density(el.psp)
+        eval_psp_density_valence_fourier(el.psp, ps)
+    else
+        gaussian_valence_charge_density_fourier(el, ps)
+    end
+end
 function core_charge_density_fourier(el::ElementPsp, ps::AbstractVector{T}) where {T <: Real}
     eval_psp_density_core_fourier(el.psp, ps)
 end
@@ -291,6 +295,27 @@ function local_potential_fourier(el::ElementGaussian, p::Real)
     -el.α * exp(- (p * el.L)^2 / 2)  # = ∫_ℝ³ V(x) exp(-ix⋅p) dx
 end
 # TODO Strictly speaking needs a eval_psp_energy_correction
+
+# Generic API expectations: all element functions taking a real space scalar |r| or a
+# reciprocal space scalar |p| should have a vectorized version accepting vectors of |r| or |p|.
+# This macro vectorizes element functions by calling existing single-value version elementwise.
+# This is GPU safe and generic. Performance critical functions should have their own
+# GPU-optimized implementation.
+macro vectorize_element_function(fn)
+    quote
+        function $fn(el::Element, arg::AbstractVector{T}) where {T <: Real}
+            arch = architecture(arg)
+            to_device(arch, map(p -> $fn(el, p), to_cpu(arg)))
+        end
+    end
+end
+
+# Generic vectorized element functions
+@vectorize_element_function DFTK.valence_charge_density_fourier
+@vectorize_element_function DFTK.gaussian_valence_charge_density_fourier
+@vectorize_element_function DFTK.core_charge_density_fourier
+@vectorize_element_function DFTK.local_potential_fourier
+@vectorize_element_function DFTK.local_potential_real
 
 #
 # Helper functions
