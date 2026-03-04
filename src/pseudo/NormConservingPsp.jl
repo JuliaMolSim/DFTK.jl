@@ -20,7 +20,6 @@ abstract type NormConservingPsp end
 # eval_psp_projector_fourier(psp, i, l, ps::AbstrcatArray{<Real})
 # eval_psp_local_real(psp, r::Real)
 # eval_psp_local_fourier(psp, p::Real)
-# eval_psp_local_fourier(psp, ps::AbstractArray{<Real})
 # eval_psp_energy_correction(T::Type, psp)
 
 #### Optional methods:
@@ -43,6 +42,40 @@ abstract type NormConservingPsp end
 # count_n_pswfc(psp, l::Integer)
 # count_n_pswfc_radial(psp, l::Integer)
 # pswfc_label(psp, i::Integer, l::Integer)
+
+#### Vectorization: all methods are expected to accept vectorized inputs, namely:
+# eval_psp_projector_real(psp, i, l, r::AbstractVector{<Real})
+# eval_psp_projector_fourier(psp, i, l, p::AbstractVector{<Real})
+# eval_psp_local_real(psp, r::AbstractVector{<Real})
+# eval_psp_local_fourier(psp, p::AbstractVector{<Real})
+# eval_psp_density_valence_real(psp, r::AbstractVector{<Real})
+# eval_psp_density_valence_fourier(psp, p::AbstractVector{<Real})
+# eval_psp_density_core_real(psp, r::AbstractVector{<Real})
+# eval_psp_density_core_fourier(psp, p::AbstractVector{<Real})
+# eval_psp_pswfc_real(psp, i, l, p::AbstractVector{<Real})
+# eval_psp_pswfc_fourier(psp, i, l, p::AbstractVector{<Real})
+
+# Macros that vectorize a given method for a Psp type by calling an existing scalar
+# version elementwise. Safe for GPUArray inputs. Performance critical methods should
+# have their own GPU-optimized implementation instead of relying on this macro. The
+# different norm-conserving pseudopotential types are responsible for the implementation
+# of vectorized functions, whether by using these macros or not.
+macro vectorize_psp_function(fn, PspType)
+    quote
+        function $fn(psp::$PspType, vec::AbstractVector{T}) where {T <: Real}
+            arch = architecture(vec)
+            to_device(arch, map(p -> $fn(psp, p), to_cpu(vec)))
+        end
+    end
+end
+macro vectorize_psp_projector_function(fn, PspType)
+    quote
+        function $fn(psp::$PspType, i, l, vec::AbstractVector{T}) where {T <: Real}
+            arch = architecture(vec)
+            to_device(arch, map(p -> $fn(psp, i, l, p), to_cpu(vec)))
+        end
+    end
+end
 
 """
     eval_psp_projector_real(psp, i, l, r)
@@ -104,12 +137,6 @@ V_{\rm loc}(p) &= ∫_{ℝ^3} (V_{\rm loc}(r) - C(r)) e^{-ip·r} dr + F[C(r)] \\
 """
 eval_psp_local_fourier(psp::NormConservingPsp, p::AbstractVector) =
     eval_psp_local_fourier(psp, norm(p))
-
-# Fallback vectorized implementation for non GPU-optimized code.
-function eval_psp_local_fourier(psp::NormConservingPsp, ps::AbstractVector{T}) where {T <: Real}
-    arch = architecture(ps)
-    to_device(arch, map(p -> eval_psp_local_fourier(psp, p), to_cpu(ps)))
-end
 
 @doc raw"""
     eval_psp_energy_correction([T=Float64,] psp::NormConservingPsp)
@@ -191,13 +218,6 @@ eval_psp_core_kinetic_energy_density_real(psp::NormConservingPsp, r::AbstractVec
 eval_psp_core_kinetic_energy_density_fourier(::NormConservingPsp, ::T) where {T <: Real} = zero(T)
 eval_psp_core_kinetic_energy_density_fourier(psp::NormConservingPsp, p::AbstractVector) =
     eval_psp_core_kinetic_energy_density_fourier(psp, norm(p))
-
-# Fallback vectorized implementation for non GPU-optimized code.
-function eval_density_core_fourier(psp::NormConservingPsp, ps::AbstractVector{T}) where {T <: Real}
-    arch = architecture(ps)
-    to_device(arch, map(p -> eval_psp_density_core_fourier(psp, p), to_cpu(ps)))
-end
-
 
 #### Methods defined on a NormConservingPsp
 import Base.Broadcast.broadcastable
