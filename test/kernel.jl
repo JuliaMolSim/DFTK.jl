@@ -123,10 +123,6 @@ end
     import ForwardDiff
     import ForwardDiff: Dual, partials
 
-    function test_approx(x, y; rtol=1e-4, atol=1e-7)
-        @test all(isapprox.(x, y; rtol, atol))
-    end
-
     for spin in [:none, :collinear]
         @testset "Spin polarization: $spin" begin
             # Build a reasonable density from a silicon model
@@ -147,12 +143,27 @@ end
             Δρ = reshape(density.Δρ_real, size(density.Δρ_real, 1), :)
             τ  = reshape(density.τ_real, size(density.τ_real, 1), :)
 
-            ε = 1e-5
-            ε_dual = Dual{typeof(ForwardDiff.Tag(nothing, Float64))}(0.0, 1.0)
+            ε_ad = Dual{typeof(ForwardDiff.Tag(nothing, Float64))}(0.0, 1.0)
+            function do_ad(f)
+                map(f(ε_ad)) do y
+                    partials.(y, 1)
+                end
+            end
+
+            ε_fd = 1e-4
+            function do_fd(f)
+                f1 = f(-2ε_fd)
+                f2 = f(-ε_fd)
+                f3 = f(ε_fd)
+                f4 = f(2ε_fd)
+                map(f1, f2, f3, f4) do y1, y2, y3, y4
+                    (-y4 + 8*y3 - 8*y2 + y1) / 12ε_fd
+                end
+            end
 
             # Random δρ with consistent δσ and δΔρ
             δρ0 = randn(size(ρ0)) / model.unit_cell_volume
-            δdens = DFTK.LibxcDensities(basis, 2, ρ0.+ε_dual.*δρ0, nothing)
+            δdens = DFTK.LibxcDensities(basis, 2, ρ0.+ε_ad.*δρ0, nothing)
             δσ_real = partials.(δdens.σ_real, 1)
             δΔρ_real = partials.(δdens.Δρ_real, 1)
             δρ = reshape(δρ0, size(ρ)...)
@@ -164,61 +175,40 @@ end
             @testset "LDA" begin
                 func = DFTK.LibxcFunctional(:lda_xc_teter93)
 
-                terms_ad    = potential_terms(func, ρ .+ ε_dual .* δρ)
-                δe_ad       = partials.(terms_ad.e,  1)
-                δVρ_ad      = partials.(terms_ad.Vρ, 1)
+                f = ε -> potential_terms(func, ρ .+ ε .* δρ)
 
-                terms_plus  = potential_terms(func, ρ .+ ε .* δρ)
-                terms_minus = potential_terms(func, ρ .- ε .* δρ)
-                δe_fd       = (terms_plus.e  - terms_minus.e)  / 2ε
-                δVρ_fd      = (terms_plus.Vρ - terms_minus.Vρ) / 2ε
+                δe_ad, δVρ_ad = do_ad(f)
+                δe_fd, δVρ_fd = do_fd(f)
 
-                test_approx(δe_ad, δe_fd)
-                test_approx(δVρ_ad, δVρ_fd)
+                @test δe_ad  ≈ δe_fd  rtol=1e-6
+                @test δVρ_ad ≈ δVρ_fd rtol=1e-6
             end
 
             @testset "GGA" begin
                 func = DFTK.LibxcFunctional(:gga_x_pbe)
 
-                terms_ad    = potential_terms(func, ρ .+ ε_dual .* δρ, σ .+ ε_dual .* δσ)
-                δe_ad       = partials.(terms_ad.e,  1)
-                δVρ_ad      = partials.(terms_ad.Vρ, 1)
-                δVσ_ad      = partials.(terms_ad.Vσ, 1)
+                f = ε -> potential_terms(func, ρ .+ ε .* δρ, σ .+ ε .* δσ)
 
-                terms_plus  = potential_terms(func, ρ .+ ε .* δρ, σ .+ ε .* δσ)
-                terms_minus = potential_terms(func, ρ .- ε .* δρ, σ .- ε .* δσ)
-                δe_fd       = (terms_plus.e  - terms_minus.e)  / 2ε
-                δVρ_fd      = (terms_plus.Vρ - terms_minus.Vρ) / 2ε
-                δVσ_fd      = (terms_plus.Vσ - terms_minus.Vσ) / 2ε
+                δe_ad, δVρ_ad, δVσ_ad = do_ad(f)
+                δe_fd, δVρ_fd, δVσ_fd = do_fd(f)
 
-                test_approx(δe_ad, δe_fd)
-                test_approx(δVρ_ad, δVρ_fd)
-                test_approx(δVσ_ad, δVσ_fd)
+                @test δe_ad  ≈ δe_fd  rtol=1e-6
+                @test δVρ_ad ≈ δVρ_fd rtol=1e-6
+                @test δVσ_ad ≈ δVσ_fd rtol=1e-6
             end
 
             @testset "MGGA" begin
                 func = DFTK.LibxcFunctional(:mgga_x_r2scan)
 
-                terms_ad    = potential_terms(func, ρ .+ ε_dual .* δρ, σ .+ ε_dual .* δσ,
-                                                    τ .+ ε_dual .* δτ)
-                δe_ad       = partials.(terms_ad.e,  1)
-                δVρ_ad      = partials.(terms_ad.Vρ, 1)
-                δVσ_ad      = partials.(terms_ad.Vσ, 1)
-                δVτ_ad      = partials.(terms_ad.Vτ, 1)
+                f = ε -> potential_terms(func, ρ .+ ε .* δρ, σ .+ ε .* δσ, τ .+ ε .* δτ)
 
-                terms_plus  = potential_terms(func, ρ .+ ε .* δρ, σ .+ ε .* δσ,
-                                                    τ .+ ε .* δτ)
-                terms_minus = potential_terms(func, ρ .- ε .* δρ, σ .- ε .* δσ,
-                                                    τ .- ε .* δτ)
-                δe_fd       = (terms_plus.e  - terms_minus.e)  / 2ε
-                δVρ_fd      = (terms_plus.Vρ - terms_minus.Vρ) / 2ε
-                δVσ_fd      = (terms_plus.Vσ - terms_minus.Vσ) / 2ε
-                δVτ_fd      = (terms_plus.Vτ - terms_minus.Vτ) / 2ε
+                δe_ad, δVρ_ad, δVσ_ad, δVτ_ad = do_ad(f)
+                δe_fd, δVρ_fd, δVσ_fd, δVτ_fd = do_fd(f)
 
-                test_approx(δe_ad, δe_fd)
-                test_approx(δVρ_ad, δVρ_fd; rtol=4e-4)
-                test_approx(δVσ_ad, δVσ_fd; rtol=4e-4)
-                test_approx(δVτ_ad, δVτ_fd; rtol=4e-4)
+                @test δe_ad  ≈ δe_fd  rtol=1e-6
+                @test δVρ_ad ≈ δVρ_fd rtol=1e-6
+                @test δVσ_ad ≈ δVσ_fd rtol=3e-6
+                @test δVτ_ad ≈ δVτ_fd rtol=1e-6
             end
 
             @testset "MGGAL" begin
@@ -226,29 +216,17 @@ end
                 func = DFTK.LibxcFunctional(:mgga_x_br89_explicit)
                 @assert func isa DFTK.LibxcFunctional{:mggal}
 
-                terms_ad    = potential_terms(func, ρ .+ ε_dual .* δρ, σ .+ ε_dual .* δσ,
-                                                    τ .+ ε_dual .* δτ, Δρ .+ ε_dual .* δΔρ)
-                δe_ad       = partials.(terms_ad.e,  1)
-                δVρ_ad      = partials.(terms_ad.Vρ, 1)
-                δVσ_ad      = partials.(terms_ad.Vσ, 1)
-                δVτ_ad      = partials.(terms_ad.Vτ, 1)
-                δVl_ad      = partials.(terms_ad.Vl, 1)
+                f = ε -> potential_terms(func, ρ .+ ε .* δρ, σ .+ ε .* δσ,
+                                               τ .+ ε .* δτ, Δρ .+ ε .* δΔρ)
 
-                terms_plus  = potential_terms(func, ρ .+ ε .* δρ, σ .+ ε .* δσ,
-                                                    τ .+ ε .* δτ, Δρ .+ ε .* δΔρ)
-                terms_minus = potential_terms(func, ρ .- ε .* δρ, σ .- ε .* δσ,
-                                                    τ .- ε .* δτ, Δρ .- ε .* δΔρ)
-                δe_fd       = (terms_plus.e  - terms_minus.e)  / 2ε
-                δVρ_fd      = (terms_plus.Vρ - terms_minus.Vρ) / 2ε
-                δVσ_fd      = (terms_plus.Vσ - terms_minus.Vσ) / 2ε
-                δVτ_fd      = (terms_plus.Vτ - terms_minus.Vτ) / 2ε
-                δVl_fd      = (terms_plus.Vl - terms_minus.Vl) / 2ε
+                δe_ad, δVρ_ad, δVσ_ad, δVτ_ad, δVl_ad = do_ad(f)
+                δe_fd, δVρ_fd, δVσ_fd, δVτ_fd, δVl_fd = do_fd(f)
 
-                test_approx(δe_ad, δe_fd)
-                test_approx(δVρ_ad, δVρ_fd)
-                test_approx(δVσ_ad, δVσ_fd)
-                test_approx(δVτ_ad, δVτ_fd)
-                test_approx(δVl_ad, δVl_fd)
+                @test δe_ad  ≈ δe_fd  rtol=1e-6
+                @test δVρ_ad ≈ δVρ_fd rtol=1e-6
+                @test δVσ_ad ≈ δVσ_fd rtol=1e-6
+                @test δVτ_ad ≈ δVτ_fd rtol=1e-6
+                @test δVl_ad ≈ δVl_fd rtol=1e-6
             end
         end
     end
