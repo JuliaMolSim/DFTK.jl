@@ -152,12 +152,12 @@ end
 
             ε_fd = 1e-4
             function do_fd(f)
-                f1 = f(-2ε_fd)
-                f2 = f(-ε_fd)
-                f3 = f(ε_fd)
-                f4 = f(2ε_fd)
-                map(f1, f2, f3, f4) do y1, y2, y3, y4
-                    (-y4 + 8*y3 - 8*y2 + y1) / 12ε_fd
+                f_m2ε = f(-2ε_fd)
+                f_m1ε = f(-ε_fd)
+                f_p1ε = f(ε_fd)
+                f_p2ε = f(2ε_fd)
+                map(f_m2ε, f_m1ε, f_p1ε, f_p2ε) do y_m2ε, y_m1ε, y_p1ε, y_p2ε
+                    (-y_p2ε + 8*y_p1ε - 8*y_m1ε + y_m2ε) / 12ε_fd
                 end
             end
 
@@ -207,6 +207,7 @@ end
 
                 @test δe_ad  ≈ δe_fd  rtol=1e-6
                 @test δVρ_ad ≈ δVρ_fd rtol=1e-6
+                # Seems more sensitive to noise, use a slightly looser tolerance:
                 @test δVσ_ad ≈ δVσ_fd rtol=3e-6
                 @test δVτ_ad ≈ δVτ_fd rtol=1e-6
             end
