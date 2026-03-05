@@ -56,6 +56,7 @@ end
 @testitem "Phonon: LDA: comparison to ref testcase" #=
     =#    tags=[:phonon, :dont_test_mpi] setup=[Phonon, PhononNonlocal, TestCases] begin
     using .Phonon: test_frequencies
+    using DFTK
 
     # Values computed offline with automatic differentiation.
     ω_ref = [ -0.002394568935772381
@@ -84,6 +85,7 @@ end
 @testitem "Phonon: LDA: NLCC not implemented" #=
     =#    tags=[:phonon, :dont_test_mpi] setup=[Phonon, PhononNonlocal, TestCases] begin
     using .Phonon: test_frequencies
+    using DFTK
     Al = ElementPsp(:Al, load_psp(TestCases.aluminium_primitive.psp_upf))
     aluminium_primitive = merge(TestCases.aluminium_primitive, (; atoms=[Al]))
     model_LDA(args...; kwargs...) = model_DFT(args...; functionals=LDA(), kwargs...)
