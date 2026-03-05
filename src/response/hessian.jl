@@ -29,8 +29,12 @@ from ψ and Λ is the set of Rayleigh coefficients ψk' * Hk * ψk at each k-poi
 """
 @timing function apply_Ω(δψ, ψ, H::Hamiltonian, Λ)
     δψ = proj_tangent(δψ, ψ)
-    Ωδψ = [H.blocks[ik] * δψk - δψk * Λ[ik] for (ik, δψk) in enumerate(δψ)]
-    proj_tangent!(Ωδψ, ψ)
+    map(enumerate(δψ)) do (ik, δψk)
+        Ωδψ = H.blocks[ik] * δψk
+        mul!(Ωδψ, δψk, Λ[ik], -1, 1)
+        proj_tangent_kpt!(Ωδψ, ψ[ik])
+        Ωδψ
+    end
 end
 
 """
@@ -48,6 +52,8 @@ Compute the application of K defined at ψ to δψ. ρ is the density issued fro
     δψ = proj_tangent(δψ, ψ)
     δρ = compute_δρ(basis, ψ, δψ, occupation)
     δV = apply_kernel(basis, δρ; ρ)
+    # normalize here so we can use unnormalized FFTs for extra speed
+    δV .*= basis.fft_grid.ifft_normalization * basis.fft_grid.fft_normalization
 
     ψnk_real = similar(G_vectors(basis), promote_type(T, eltype(ψ[1])))
     Kδψ = map(enumerate(ψ)) do (ik, ψk)
@@ -55,9 +61,9 @@ Compute the application of K defined at ψ to δψ. ρ is the density issued fro
         δVψk = similar(ψk)
 
         for n = 1:size(ψk, 2)
-            ifft!(ψnk_real, basis, kpt, ψk[:, n])
+            ifft!(ψnk_real, basis, kpt, ψk[:, n]; normalize=false)
             ψnk_real .*= δV[:, :, :, kpt.spin]
-            fft!(δVψk[:, n], basis, kpt, ψnk_real)
+            fft!(δVψk[:, n], basis, kpt, ψnk_real; normalize=false)
         end
         δVψk
     end
@@ -76,7 +82,7 @@ function ResponseCallback()
     ResponseCallback(Ref(zero(UInt64)))
 end
 function (cb::ResponseCallback)(info)
-    mpi_master(info.basis.comm_kpts) && return info  # Only print on master
+    mpi_master(info.basis.comm_kpts) || return info  # Only print on master
 
     if info.stage == :finalize
         info.converged || @warn "solve_ΩplusK not converged."
