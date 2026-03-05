@@ -106,6 +106,12 @@ julia> model_DFT(system; functionals=[:lda_x, :lda_c_pw], temperature=0.01,
 ```
 Alternative syntax specifying the functionals directly
 via their libxc codes.
+
+```julia-repl
+julia> model_DFT(system; functionals=HSE(μ=0.2, exx_fraction=0.1),
+                 pseudopotentials=PseudoFamily("dojo.nc.sr.pbe.v0_5_1-fix.standard.upf"))
+```
+Build an HSE06 model with custom range-separation parameter and custom exact exchange fraction.
 """
 function model_DFT(system::AbstractSystem; pseudopotentials, functionals, kwargs...)
     # Note: We are deliberately enforcing the user to specify pseudopotentials here.
@@ -186,20 +192,20 @@ Build an Hartree-Fock model from the specified atoms.
          necks in the code.
 """
 function model_HF(system::AbstractSystem; pseudopotentials,
-                  interaction_kernel::InteractionKernel=Coulomb(),
+                  exx_kernel::InteractionKernel=Coulomb(),
                   exx_algorithm::ExxAlgorithm=VanillaExx(), extra_terms=[], kwargs...)
     # Note: We are deliberately enforcing the user to specify pseudopotentials here.
     # See the implementation of model_atomic for a rationale why
     #
-    exx = ExactExchange(; interaction_kernel, exx_algorithm)
+    exx = ExactExchange(; kernel=exx_kernel, exx_algorithm)
     model_atomic(system; pseudopotentials, model_name="HF",
                  extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
 end
 function model_HF(lattice::AbstractMatrix, atoms::Vector{<:Element},
                   positions::Vector{<:AbstractVector};
-                  interaction_kernel::InteractionKernel=Coulomb(),
+                  exx_kernel::InteractionKernel=Coulomb(),
                   exx_algorithm::ExxAlgorithm=VanillaExx(), extra_terms=[], kwargs...)
-    exx = ExactExchange(; interaction_kernel, exx_algorithm)
+    exx = ExactExchange(; kernel=exx_kernel, exx_algorithm)
     model_atomic(lattice, atoms, positions; model_name="HF",
                  extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
 end
@@ -247,53 +253,53 @@ r2SCAN(; kwargs...) = Xc([:mgga_x_r2scan, :mgga_c_r2scan]; kwargs...)
 """
 Specify a PBE0 hybrid functional in conjunction with [`model_DFT`](@ref)
 <https://doi.org/10.1063/1.478522>
-Possible keyword arguments are those accepted by [`Xc`](@ref) and by
-[`ExactExchange`](@ref). Use the keyword argument `exx_fraction` to specify a
-custom exact exchange fraction.
-
-!!! warn "Hybrid DFT is experimental"
-         The interface may change at any moment, which is not considered a breaking change.
-         Note further that at this stage (Feb 2026) there are still known performance bottle
-         necks in the code.
+Possible keyword arguments are those accepted by the [`HybridFunctional`](@ref) function.
 """
-PBE0(; kwargs...)  = HybridFunctional([:hyb_gga_xc_pbeh]; kwargs...)
+PBE0(; kwargs...) = HybridFunctional([:hyb_gga_xc_pbeh]; kwargs...)
 
 
 """
-Specify a HSE hybrid functional in conjunction with [`model_DFT`](@ref)
+Specify a HSE06 hybrid functional in conjunction with [`model_DFT`](@ref)
 <https://doi.org/10.1063/1.2404663>
-Possible keyword arguments are those accepted by [`Xc`](@ref) and by
-[`ExactExchange`](@ref). Use the keyword argument `exx_fraction` to specify a
-custom exact exchange fraction.
-
-This is the HSE06 hybrid functional with range-separation parameter μ=0.11/bohr.
-
-Note that other codes use slightly different μ:
-* VASP uses μ = 0.2/Angstrom = 0.105835/bohr
-* Quantum Espresso uses μ=0.106/bohr if input_dft='hse'
-* Quantum Espresso uses μ=0.11/bohr  if input_dft='xc-000i-000i-000i-428l'
-
-!!! warn "Hybrid DFT is experimental"
-         The interface may change at any moment, which is not considered a breaking change.
-         Note further that at this stage (Feb 2026) there are still known performance bottle
-         necks in the code.
+Possible keyword arguments are those accepted by the [`HybridFunctional`](@ref) function
+as well as the keyword argument `μ` to specify the short-range separation parameter.
+By default we use the value suggested by Libxc (`μ=0.11/bohr`). Notice, that this value
+differs largely between codes:
+- VASP uses `HSE(; μ=0.2/u"Å")` by default
+- Quantum Espresso uses `HSE(; μ=0.106)` if `input_dft='hse'`
+- Quantum Espresso uses `HSE(; μ=0.11)`  if `input_dft='xc-000i-000i-000i-428l'`
 """
-HSE(; kwargs...) = HybridFunctional([:hyb_gga_xc_hse06]; 
-                                    exx_fraction=0.25,  # have to pass as range-separated hybrids don't provide exx fraction
-                                    interaction_kernel=ErfShortRangeCoulomb(μ=0.11),  
-                                    kwargs...)
+function HSE(; μ=0.11, kwargs...)
+    # TODO: We should properly integrate with the libxc interface here
+    #       For range-separated hybrids Libxc exposes these values not as functional.exx_fraction
+    #       but as μ = functional.cam_omega, exx_fraction = functional.cam_beta and currently
+    #       in the code we make the assumption that functional.cam_alpha == 0
+    HybridFunctional([:hyb_gga_xc_hse06]; 
+                     exx_fraction=0.25,
+                     exx_kernel=ShortRangeCoulomb(μ),
+                     kwargs...)
+end
 
-# Internal function to help define hybrid functional shorthands
-function HybridFunctional(libxc_symbols;
+
+"""
+Helper function to setup a hybrid DFT model with [`model_DFT`](@ref).
+Possible keyword arguments are those accepted by the [`Xc`](@ref) term
+as well as the following:
+- `exx_fraction`: Custom exact exchange / screened Coulomb fraction. If not specified,
+  the Libxc default will be used.
+- `exx_kernel`: The type of [`InteractionKernel`](@ref) to employ. By default a (regularised)
+  Coulomb kernel is employed.
+"""
+function HybridFunctional(libxc_symbols::Vector{Symbol};
                           exx_fraction=nothing,
-                          interaction_kernel::InteractionKernel=Coulomb(),
+                          exx_kernel::InteractionKernel=Coulomb(),
                           exx_algorithm::ExxAlgorithm=VanillaExx(), kwargs...)
     xc  = Xc(libxc_symbols; kwargs...)
     scaling_factor = @something(exx_fraction, begin
         only(filter(!isnothing, map(exx_coefficient, xc.functionals)))
     end)
 
-    exx = ExactExchange(; scaling_factor, interaction_kernel, exx_algorithm)
+    exx = ExactExchange(; scaling_factor, kernel=exx_kernel, exx_algorithm)
     [xc, exx]
 end
 

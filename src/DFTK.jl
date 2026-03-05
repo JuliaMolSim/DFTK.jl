@@ -102,9 +102,8 @@ export Energies
 include("Energies.jl")
 
 export Coulomb, SphericallyTruncatedCoulomb
-export ErfShortRangeCoulomb, ErfLongRangeCoulomb
-export ProbeCharge
-export ReplaceSingularity
+export ShortRangeCoulomb, LongRangeCoulomb
+export ProbeCharge, ReplaceSingularity
 include("coulomb.jl")
 
 export Hamiltonian
@@ -160,7 +159,7 @@ include("eigen/diag.jl")
 
 export model_atomic, model_DFT, model_HF
 export LDA, PBE, PBEsol, SCAN, r2SCAN
-export PBE0, HSE
+export HybridFunctional, PBE0, HSE
 include("standard_models.jl")
 
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing

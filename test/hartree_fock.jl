@@ -42,7 +42,7 @@
     model = model_HF(lattice, atoms, positions;
                      temperature=0.001, smearing=DFTK.Smearing.Gaussian(),
                      exx_algorithm=VanillaExx(),
-                     interaction_kernel=Coulomb(ReplaceSingularity()))
+                     interaction_kernel=Coulomb(ReplaceSingularity(0.0)))
     basis = PlaneWaveBasis(model; Ecut=20, kgrid=[1, 1, 1])
 
     run_scf_and_compare(Float64, basis, ref_hf, ref_etot; 
@@ -102,8 +102,6 @@ end
     using DFTK
     using LinearAlgebra
     using PseudoPotentialData
-
-    # TODO: Use system interface here in order to test it once in tests
 
     pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_5.stringent.upf") 
     H = ElementPsp(:H, pseudopotentials)

@@ -1,4 +1,4 @@
-@testitem "Silicon HSE" tags=[:minimal, :exx, :dont_test_mpi] setup=[RunSCF] begin
+@testitem "Silicon HSE" tags=[:exx, :dont_test_mpi] setup=[RunSCF] begin
     using DFTK
     using PseudoPotentialData
     using .RunSCF: run_scf_and_compare
@@ -35,10 +35,9 @@
     basis_pbe  = PlaneWaveBasis(model_pbe; Ecut=25, kgrid=[1, 1, 1])
     scfres_pbe = self_consistent_field(basis_pbe; tol=1e-4)
 
-    hse = HSE(exx_algorithm=VanillaExx())
     model = model_DFT(lattice, atoms, positions;
                       temperature=0.001, smearing=DFTK.Smearing.Gaussian(),
-                      functionals=hse)
+                      functionals=HSE(; exx_algorithm=VanillaExx()))
     basis = PlaneWaveBasis(model; Ecut=25, kgrid=[1, 1, 1])
 
     # Note: With ACE enabled, the unoccupied orbitals are represented rather poorly.
