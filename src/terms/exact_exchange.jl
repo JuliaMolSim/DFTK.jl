@@ -1,37 +1,39 @@
-@doc raw"""
-Exact exchange term: the Hartree-Exact exchange energy of the orbitals
-```math
--1/2 ∑_{nm} f_n f_m ∫∫ \frac{ψ_n^*(r)ψ_m^*(r')ψ_n(r')ψ_m(r)}{|r - r'|} dr dr'
-```
-"""
-
+"""Abstract types for different algorithms to evaluate exact exchange"""
 abstract type ExxAlgorithm end
 
-"""
-Unscreened exact exchange (exx) term. Keyword arguments:
-- `scaling_factor::Real`: Bulk scaling of the entire term
-- `singularity_treatment::CoulombSingulartyTreatment`: Method for treating Coulomb singularity
-- `exx_algorithm::ExxAlgorithm`: Algorithm for evaluating the exx contribution
+@doc raw"""
+Term for (possibly screened) Hartree-Fock exact exchange energy of the form
+```math
+-1/2 ∑_{nm} f_n f_m ∫∫ ψ_n^*(r)ψ_m^*(r') kernel(r, r')  ψ_n(r')ψ_m(r) dr dr'
+```
+where the `kernel` keyword argument is an [`InteractionKernel`](@ref) , typically
+- the untruncated, unscreened [`Coulomb`](@ref) kernel `G(r, r') = 1/|r - r'|` for
+  Hartree-Fock exact exchange, by default some form of regularisation is applied,
+  see e.g. [`ProbeCharge`](@ref).
+- [`SphericallyTruncatedCoulomb`](@ref) for a Coulomb kernel with truncated range, that
+  converges faster with the ``k``-point grid.
+- [`ShortRangeCoulomb`](@ref) the `erf`-truncated short-range Coulomb kernel
+- [`LongRangeCoulomb`](@ref) the `erf`-truncated long-range Coulomb kernel
 """
 @kwdef struct ExactExchange
     scaling_factor::Real = 1.0
-    singularity_treatment::CoulombSingulartyTreatment = ProbeCharge()
+    kernel = Coulomb()
     exx_algorithm::ExxAlgorithm = VanillaExx()
 end
 function (ex::ExactExchange)(basis)
-    TermExactExchange(basis, ex.scaling_factor, ex.singularity_treatment, ex.exx_algorithm)
+    TermExactExchange(basis, ex.scaling_factor, ex.kernel, ex.exx_algorithm)
 end
 
 struct TermExactExchange <: Term
-    scaling_factor::Real  # scaling factor, absorbed into coulomb_kernel
-    coulomb_kernel::AbstractArray
+    scaling_factor::Real  # scaling factor, absorbed into interaction_kernel
+    interaction_kernel::AbstractArray  # kernel values in Fourier space
     exx_algorithm::ExxAlgorithm
 end
-function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, singularity_treatment, exx_algorithm) where {T}
+function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, kernel, exx_algorithm) where {T}
     # TODO: we need this for every q-point
     fac::T = scaling_factor
-    coulomb_kernel = fac .* compute_coulomb_kernel(basis; singularity_treatment)
-    TermExactExchange(fac, coulomb_kernel, exx_algorithm)
+    interaction_kernel = fac .* compute_kernel_fourier(kernel, basis)
+    TermExactExchange(fac, interaction_kernel, exx_algorithm)
 end
 
 @timing "ene_ops: ExactExchange" function ene_ops(term::TermExactExchange, basis::PlaneWaveBasis{T},
@@ -64,7 +66,7 @@ end
         #       and not just the ones with occupation above the threshold (especially for metals),
         #       see the note in the AceExx routines below.
         (; Ek, op) = exx_operator(term.exx_algorithm, basis, kpt,
-                                  term.coulomb_kernel, ψk, ψk_real, occk)
+                                  term.interaction_kernel, ψk, ψk_real, occk)
         push!(ops, op)
         E += Ek  # TODO: Need kweight here later for energy; see also non-local term for ideas
     end
@@ -75,17 +77,17 @@ end
 #       exx_energy_only for both ACE and Vanilla version.
 
 
+
 """
 Plain vanilla Fock exchange implementation without any tricks.
 """
 struct VanillaExx <: ExxAlgorithm end
-function exx_operator(::VanillaExx, basis::PlaneWaveBasis{T}, kpt, coulomb_kernel,
+function exx_operator(::VanillaExx, basis::PlaneWaveBasis{T}, kpt, interaction_kernel,
                       ψk, ψk_real, occk) where {T}
-    Ek = exx_energy_only(basis, kpt, coulomb_kernel, ψk_real, occk)
-    op = ExchangeOperator(basis, kpt, coulomb_kernel, occk, ψk, ψk_real)
+    Ek = exx_energy_only(basis, kpt, interaction_kernel, ψk_real, occk)
+    op = ExchangeOperator(basis, kpt, interaction_kernel, occk, ψk, ψk_real)
     (; Ek, op)
 end
-
 
 """
 Adaptively Compressed Exchange (ACE) implementation of the Fock exchange.
@@ -98,7 +100,7 @@ energies.
 JCTC 2016, 12, 5, 2242-2249, doi.org/10.1021/acs.jctc.6b00092
 """
 struct AceExx <: ExxAlgorithm end 
-function exx_operator(::AceExx, basis::PlaneWaveBasis{T}, kpt, coulomb_kernel::AbstractArray,
+function exx_operator(::AceExx, basis::PlaneWaveBasis{T}, kpt, interaction_kernel::AbstractArray,
                       ψk, ψk_real, occk) where {T}
     # TODO: Higher accuracy (especially for systems with large mixing between
     #       occupied and unoccupied orbitals during the SCF) can probably be
@@ -110,7 +112,7 @@ function exx_operator(::AceExx, basis::PlaneWaveBasis{T}, kpt, coulomb_kernel::A
     # Perform sketch of the exchange operator with the orbitals ψk
     Wk = similar(ψk)
     Wnk_real_tmp = similar(ψk_real[:, :, :, 1])
-    Vx = ExchangeOperator(basis, kpt, coulomb_kernel, occk, ψk, ψk_real)
+    Vx = ExchangeOperator(basis, kpt, interaction_kernel, occk, ψk, ψk_real)
     for (n, ψnk_real) in enumerate(eachslice(ψk_real, dims=4))
         # Compute Wnk = Vx * ψnk in real space
         Wnk_real_tmp .= 0
@@ -136,7 +138,7 @@ end
 Base.:*(op::InverseNegatedMap, x) = -(op.B \ x)
 
 
-function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, coulomb_kernel, ψk_real, occk) where {T}
+function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, interaction_kernel, ψk_real, occk) where {T}
     # Naive algorithm for computing the exact exchange energy only.
 
     Ek = zero(T)
@@ -153,7 +155,7 @@ function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, coulomb_kernel, ψk_real
             fac_mn = occk[n] * occk[m] / filled_occupation(basis.model)
 
             fac_mn *= (m != n ? 2 : 1) # factor 2 because we skipped m>n
-            Ek -= 1/T(2) * fac_mn * real(dot(ρmn_fourier .* coulomb_kernel, ρmn_fourier))
+            Ek -= 1/T(2) * fac_mn * real(dot(ρmn_fourier .* interaction_kernel, ρmn_fourier))
         end
     end
     Ek
