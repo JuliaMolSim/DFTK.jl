@@ -50,9 +50,16 @@
     end
 
     @testset "ShortRangeCoulomb plus LongRangeCoulomb is coulomb" begin
-        k_lr = compute_kernel_fourier(LongRangeCoulomb(0.1, ProbeCharge()), basis)
-        k_sr = compute_kernel_fourier(ShortRangeCoulomb(0.1), basis)
-        @test maximum(abs, k_lr + k_sr - k_probe) < 1e-12
+        k_lr  = compute_kernel_fourier(LongRangeCoulomb(0.1, ProbeCharge()), basis)
+        k_sr  = compute_kernel_fourier(ShortRangeCoulomb(0.1), basis)
+        k_sum = k_lr + k_sr
+
+        # Note: The G=0 component does not match up, because in short-range Coulomb
+        # we can take the G->0 limit exactly, but in long-range we cannot and instead
+        # use the ProbeCharge regularisation. However, for finite k-points the ProbeCharge
+        # regularisation for LongRangeCoulomb and Coulomb does not agree, thus we need
+        # to exclude the G=0 component from the test below.
+        @test maximum(abs, (k_sum - k_probe)[2:end]) < 1e-12
     end
 
     @testset "SphericallyTruncatedCoulomb" begin
@@ -97,7 +104,7 @@ end
             numerical_integral, _ = quadgk(0, qmax) do q
                 4π * q^2 * DFTK.eval_kernel_fourier(kernel, q^2) * exp(-α * q^2)
             end
-            analytical_integral = DFTK.eval_probe_charge_integral(kernel, α, Ω)
+            analytical_integral = DFTK.eval_probe_charge_integral(kernel, α)
             @test abs(numerical_integral - analytical_integral) < 1e-12
         end
     end

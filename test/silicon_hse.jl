@@ -1,3 +1,5 @@
+# TODO: If this is too expensive, mark as :slow, features should be well-tested
+#       with other tests, too
 @testitem "Silicon HSE" tags=[:exx, :dont_test_mpi] setup=[RunSCF] begin
     using DFTK
     using PseudoPotentialData

@@ -54,6 +54,8 @@ function eval_kernel_fourier(k::ShortRangeCoulomb, Gsq::T) where {T}
     -(4T(π) / Gsq) * expm1(-Gsq / (4 * T(k.μ)^2))
 end
 function _compute_kernel_fourier(k::ShortRangeCoulomb, basis, qpt, q)
+    # Use ReplaceSingularity regularisation to explicitly set as the G==0
+    # component the exact limit of the kernel for G->0, namely π/μ^2
     _compute_kernel_fourier(k, ReplaceSingularity(π/k.μ^2), basis, qpt, q)
 end
 
@@ -104,6 +106,9 @@ function _compute_kernel_fourier(k::SphericallyTruncatedCoulomb, basis, qpt, q)
     Ω = basis.model.unit_cell_volume  
     Rcut = @something k.Rcut cbrt(3Ω/(4π))
     kRcut = SphericallyTruncatedCoulomb(Rcut)
+
+    # Use ReplaceSingularity regularisation to explicitly set as the G==0
+    # component the exact limit of the kernel for G->0
     _compute_kernel_fourier(kRcut, ReplaceSingularity(2π*Rcut^2), basis, qpt, q)
 end
 @doc raw"""
