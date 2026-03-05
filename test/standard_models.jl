@@ -54,8 +54,7 @@
     end
 
     @testset "hybrid with explicit exx" begin
-        exx = ExactExchange(; scaling_factor=0.2,
-                            interaction_kernel=SphericallyTruncatedCoulomb())
+        exx = ExactExchange(; scaling_factor=0.2, exx_kernel=SphericallyTruncatedCoulomb())
         (; dftterms, model_name) = _parse_functionals([:hyb_gga_xc_pbeh, exx])
         @test length(dftterms) == 2
         @test dftterms[1] isa Xc
@@ -66,7 +65,7 @@
     end
 
     @testset "pbe0 with exx parameters" begin
-        pbe0 = PBE0(; potential_threshold=1e-2, interaction_kernel=SphericallyTruncatedCoulomb())
+        pbe0 = PBE0(; potential_threshold=1e-2, exx_kernel=SphericallyTruncatedCoulomb())
         (; dftterms, model_name) = _parse_functionals(pbe0)
         @test length(dftterms) == 2
         @test dftterms[1] isa Xc
@@ -74,6 +73,6 @@
         @test dftterms[1].potential_threshold == 1e-2
         @test dftterms[2] isa ExactExchange
         @test dftterms[2] == ExactExchange(; scaling_factor=0.25,
-                                           interaction_kernel=SphericallyTruncatedCoulomb())
+                                           exx_kernel=SphericallyTruncatedCoulomb())
     end
 end
