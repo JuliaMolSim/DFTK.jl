@@ -49,6 +49,7 @@ struct ShortRangeCoulomb <: InteractionKernel
     μ::Float64  # Cutoff parameter in inverse length units
 end
 ShortRangeCoulomb(; μ=0.2/u"Å") = ShortRangeCoulomb(austrip(μ))
+ShortRangeCoulomb(μ::Quantity) = ShortRangeCoulomb(austrip(μ))
 function eval_kernel_fourier(k::ShortRangeCoulomb, Gsq::T) where {T}
     -(4T(π) / Gsq) * expm1(-Gsq / (4 * T(k.μ)^2))
 end
@@ -95,13 +96,13 @@ end
 function eval_kernel_fourier(k::SphericallyTruncatedCoulomb, Gsq::T) where {T}
     4T(π) / Gsq * (1 - cos(T(k.Rcut) * sqrt(Gsq)))
 end
-function _compute_kernel_fourier(basis, qpt, q, m::SphericallyTruncatedCoulomb) 
+function _compute_kernel_fourier(k::SphericallyTruncatedCoulomb, basis, qpt, q)
     # TODO: This is a bit hackish as the parameter needs to be re-computed every kernel
     #       evaluation. Cleaner would be to move this further up in the call hierarchy,
     #       such that compute_kernel_fourier is never called without Rcut being set to
     #       not nothing
     Ω = basis.model.unit_cell_volume  
-    Rcut = @something m.Rcut cbrt(3Ω/(4π))
+    Rcut = @something k.Rcut cbrt(3Ω/(4π))
     kRcut = SphericallyTruncatedCoulomb(Rcut)
     _compute_kernel_fourier(kRcut, ReplaceSingularity(2π*Rcut^2), basis, qpt, q)
 end
