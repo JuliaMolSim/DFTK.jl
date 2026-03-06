@@ -16,8 +16,8 @@ function kwargs_scf_checkpoints(basis::AbstractBasis;
                                 diagtolalg::AdaptiveDiagtol=AdaptiveDiagtol(),
                                 ρ=guess_density(basis),
                                 τ=any(needs_τ, basis.terms) ? zero(ρ) : nothing,
-                                ψ=nothing, save_ψ=false,
-                                kwargs...)
+                                hubbard_n=nothing, ψ=nothing, occupation=nothing,
+                                save_ψ=false, kwargs...)
     if isfile(filename)
         # Disable strict checking, since we can live with only the density data
         previous = load_scfres(filename, basis; skip_hamiltonian=true, strict=false)
@@ -26,8 +26,8 @@ function kwargs_scf_checkpoints(basis::AbstractBasis;
         if !isnothing(previous.ρ)
             ρ = previous.ρ
             τ = previous.τ
-            consistent_kpts = hasproperty(previous, :eigenvalues)
-            if consistent_kpts && hasproperty(previous, :history_Δρ)
+            hubbard_n = previous.hubbard_n
+            if hasproperty(previous, :eigenvalues) && hasproperty(previous, :history_Δρ)
                 diagtol_first = determine_diagtol(diagtolalg, previous)
             else
                 diagtol_first = diagtolalg.diagtol_max
@@ -37,11 +37,12 @@ function kwargs_scf_checkpoints(basis::AbstractBasis;
                                            diagtolalg.diagtol_min,
                                            diagtolalg.ratio_ρdiff)
         end
+        occupation = something(previous.occupation, Some(occupation))
         ψ = something(previous.ψ, Some(ψ))
     end
 
     callback = callback ∘ ScfSaveCheckpoints(; filename, save_ψ)
-    (; callback, diagtolalg, ψ, ρ, τ, kwargs...)
+    (; callback, diagtolalg, ψ, ρ, τ, hubbard_n, occupation, kwargs...)
 end
 
 
