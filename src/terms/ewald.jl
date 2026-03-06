@@ -80,7 +80,6 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
     # energy of non-3D systems
     any(iszero.(eachcol(lattice))) && return (; energy=zero(T), forces=zero(positions))
 
-
     # Numerical cutoffs to obtain meaningful contributions. These are very conservative.
     # The largest argument to the exp(-x) function
     max_exp_arg = -log(eps(T)) + 5  # add some wiggle room

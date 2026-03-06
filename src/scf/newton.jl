@@ -48,7 +48,7 @@ using LinearMaps
 #  Compute the gradient of the energy, projected on the space tangent to ψ, that
 #  is to say H(ψ)*ψ - ψ*λ where λ is the set of Rayleigh coefficients associated
 #  to the ψ.
-function compute_projected_gradient(basis::PlaneWaveBasis, ψ, occupation)
+@timing function compute_projected_gradient(basis::PlaneWaveBasis, ψ, occupation)
     ρ = compute_density(basis, ψ, occupation)
     H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
 
@@ -84,7 +84,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
                 is_converged=ScfConvergenceDensity(tol),
                 seed=nothing) where {T}
 
-    seed = seed_task_local_rng!(seed, MPI.COMM_WORLD)
+    seed = seed_task_local_rng!(seed, basis.comm_kpts)
     # setting parameters
     model = basis.model
     @assert iszero(model.temperature)  # temperature is not yet supported

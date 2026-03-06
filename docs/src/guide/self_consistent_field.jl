@@ -83,7 +83,7 @@
 #
 # It turns out that for the largest chunk of cases the eigenvalues of
 # $\varepsilon^\dagger$ are positive. Moreover near a local minimiser
-# $\varepsilon^\dagger$ always has non-degative spectrum.
+# $\varepsilon^\dagger$ always has non-negative spectrum.
 #
 # To make the SCF converge one can therefore:
 # - Choose $\alpha$ small enough. Even for $P = I$ this always works, but convergence can be painfully slow. (see e.g. the proof in [^HL2022])
@@ -188,7 +188,7 @@ self_consistent_field(aluminium_setup(1); solver=fixed_point_iteration, damping=
 #     Modify `fixed_point_iteration` such that it supports this *damped*
 #     fixed-point iteration. In other words implement damping *inside* your
 #     algorithm and not by changing the `damping` parameter of the
-#     `self_consistent_field` function driving the SCF.  
+#     [`self_consistent_field`](@ref) function driving the SCF.  
 #
 #     Using your algorithm try different values for $\alpha$ between $0$ and
 #     $1$ and estimate roughly the $\alpha$ which gives fastest convergence.
@@ -276,7 +276,7 @@ end;
 #     Pick $\alpha = 0.8$ and make the problem harder by increasing `repeat` (e.g. `2`, `4`, `6`, `8`). Can you make Anderson fail to converge? What do you notice in terms of the number of iterations and runtimes?
 
 # DFTK actually employs a numerically more stable Anderson acceleration implementation by default
-# if the `solver` keyword argument is not provided to `self_consistent_field`.
+# if the `solver` keyword argument is not provided to [`self_consistent_field`](@ref).
 # For practical calculations this should be used instead of a custom version.
 
 # ## Metals and charge sloshing
@@ -309,7 +309,7 @@ end;
 # ```math
 # \lim_{q\to0} \chi_0(q) \simeq -D.
 # ```
-# Therefore as one treats larger and larger metallic systems, smaller wavelengths $q$ become accessible in the discretised problem, which causes $\lambda_\text{max}$ to increase --- in theory quadratically with system size. This phaenomenon, known as **charge sloshing** makes it difficult to treat large metallic systems without proper preconditioning.
+# Therefore as one treats larger and larger metallic systems, smaller wavelengths $q$ become accessible in the discretised problem, which causes $\lambda_\text{max}$ to increase --- in theory quadratically with system size. This phenomenon, known as **charge sloshing** makes it difficult to treat large metallic systems without proper preconditioning.
 # 
 # In contrast for **insulators** and **semiconductors** a good approximation of $\chi_0(q)$ for small $q$ is $-q^T \sigma_0 q$, where $\sigma_0$ is a material-dependent symmetric positive matrix. Therefore the $1/q^2$ instability is compensated and treating larger cells is less difficult.
 
@@ -434,12 +434,12 @@ plot!(p, x -> ε(χ0_SiO2, x),  label="silica (SiO₂)", ls=:dashdot)
 # If you wonder about the use of Anderson acceleration in this context:
 # It can simply be re-introduced by replacing the previous definition of $R$ by
 # $R(\rho) = P^{-1} (F(\rho_n) - \rho_n)$. Again DFTK does exactly this by default
-# if no other `solver` is passed to `self_consistent_field`.
+# if no other `solver` is passed to [`self_consistent_field`](@ref).
 #
 # !!! tip "Exercise 4"
 #     Try the Anderson-accelerated and `KerkerMixing`-preconditioned setup for
 #     different values of `repeat` in `aluminium_setup`
-#     and check the number of iterations needed. Other mixings DFTK has to offer are `DielectricMixing` (best for semiconductors), `SimpleMixing` (which is $P = I$, i.e. no preconditioner at all, best for insulators) or `LdosMixing` (self-adapting, suitable for both metals *or* insulators *or* inhomogeneous mixtures). Note that `LdosMixing` is the default in DFTK (i.e. used if the `mixing` parameter is *not* supplied to `self_consistent_field`. Try these mixings (`SimpleMixing`, `DielectricMixing`, `LdosMixing` and `KerkerMixing`) and summarise your findings.
+#     and check the number of iterations needed. Other mixings DFTK has to offer are `DielectricMixing` (best for semiconductors), `SimpleMixing` (which is $P = I$, i.e. no preconditioner at all, best for insulators) or `LdosMixing` (self-adapting, suitable for both metals *or* insulators *or* inhomogeneous mixtures). Note that `LdosMixing` is the default in DFTK (i.e. used if the `mixing` parameter is *not* supplied to [`self_consistent_field`](@ref). Try these mixings (`SimpleMixing`, `DielectricMixing`, `LdosMixing` and `KerkerMixing`) and summarise your findings.
 #
 # You should notice that choosing a preconditioner matching the material under study aids a fast SCF convergence, but that sometimes being off does not seem to do much harm for our case. For larger values of `repeat` (beyond what you can probably effort on your laptop) this is no longer true and one needs to be very careful in selecting the right preconditioner. See for example the investigation in [^HL2021].
 #

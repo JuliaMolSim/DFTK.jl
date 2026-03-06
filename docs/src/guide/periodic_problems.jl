@@ -182,7 +182,7 @@
 # and typically one forms basis sets from these by specifying a
 # **kinetic energy cutoff** ``E_\text{cut}``:
 # ```math
-# \left\{ e_{G} \, \big| \, (G + k)^2 \leq 2E_\text{cut} \right\}
+# \left\{ e_{G} \, \big| \, \frac{1}{2} (G + k)^2 \leq E_\text{cut} \right\}
 # ```
 #
 # ## Correspondence of theory to DFTK code
@@ -190,13 +190,13 @@
 # Before solving a few example problems numerically in DFTK, a short overview
 # of the correspondence of the introduced quantities to data structures inside DFTK.
 #
-# - ``H`` is represented by a `Hamiltonian` object and variables for hamiltonians are usually called `ham`.
+# - ``H`` is represented by a [`Hamiltonian`](@ref) object and variables for hamiltonians are usually called `ham`.
 # - ``H_k`` by a `HamiltonianBlock` and variables are `hamk`.
 # - ``ψ_{kn}`` is usually just called `ψ`.
 #   ``u_{kn}`` is not stored (in favor of ``ψ_{kn}``).
 # - ``ε_{kn}`` is called `eigenvalues`.
-# - ``k``-points are represented by `Kpoint` and respective variables called `kpt`.
-# - The basis of plane waves is managed by `PlaneWaveBasis` and variables usually just called `basis`.
+# - ``k``-points are represented by [`Kpoint`](@ref) and respective variables called `kpt`.
+# - The basis of plane waves is managed by [`PlaneWaveBasis`](@ref) and variables usually just called `basis`.
 #
 # ## Solving the free-electron Hamiltonian
 #
@@ -235,17 +235,17 @@ using Plots
 
 plot_bandstructure(basis; n_bands=6, kline_density=100)
 
-# !!! note "Selection of k-point grids in `PlaneWaveBasis` construction"
+# !!! note "Selection of k-point grids in [`PlaneWaveBasis`](@ref) construction"
 #     You might wonder why we only selected a single ``k``-point (clearly a very crude
 #     and inaccurate approximation). In this example the `kgrid` parameter specified
-#     in the construction of the `PlaneWaveBasis`
+#     in the construction of the [`PlaneWaveBasis`](@ref)
 #     is not actually used for plotting the bands. It is only used when solving more
 #     involved models like density-functional theory (DFT) where the Hamiltonian is
 #     non-linear. In these cases before plotting the bands the self-consistent field
 #     equations (SCF) need to be solved first. This is typically done on
 #     a different ``k``-point grid than the grid used for the bands later on.
 #     In our case we don't need this extra step and therefore the `kgrid` value passed
-#     to `PlaneWaveBasis` is actually arbitrary.
+#     to [`PlaneWaveBasis`](@ref) is actually arbitrary.
 
 
 # ## Adding potentials
@@ -268,7 +268,7 @@ plot_bandstructure(basis; n_bands=6, kline_density=100)
 #     (see [Gross-Pitaevskii equation in one dimension](@ref gross-pitaevskii))
 #   * even some more unusual cases like anyonic models.
 #
-# We will use `ElementGaussian`, which is an analytic potential describing a Gaussian
+# We will use [`ElementGaussian`](@ref), which is an analytic potential describing a Gaussian
 # interaction with the electrons to DFTK. See [Custom potential](@ref custom-potential) for
 # how to create a custom potential.
 #

@@ -1,3 +1,4 @@
+"""Pairwise potential energy terms between nuclei. Precomputed at discretization time."""
 struct PairwisePotential
     V
     params

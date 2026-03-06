@@ -7,12 +7,15 @@ which start checkpointing (if no checkpoint file is present) or that continue a 
 run (if a checkpoint file can be loaded). `filename` is the location where the checkpoint
 is saved, `save_ψ` determines whether orbitals are saved in the checkpoint as well.
 The latter is discouraged, since generally slow.
+See [Saving SCF results on disk and SCF checkpoints](@ref) for details how to use
+this function in practice.
 """
 function kwargs_scf_checkpoints(basis::AbstractBasis;
                                 filename="dftk_scf_checkpoint.jld2",
                                 callback=ScfDefaultCallback(),
                                 diagtolalg::AdaptiveDiagtol=AdaptiveDiagtol(),
                                 ρ=guess_density(basis),
+                                τ=any(needs_τ, basis.terms) ? zero(ρ) : nothing,
                                 ψ=nothing, save_ψ=false,
                                 kwargs...)
     if isfile(filename)
@@ -22,6 +25,7 @@ function kwargs_scf_checkpoints(basis::AbstractBasis;
         # If we can expect the guess to be good, tighten the diagtol.
         if !isnothing(previous.ρ)
             ρ = previous.ρ
+            τ = previous.τ
             consistent_kpts = hasproperty(previous, :eigenvalues)
             if consistent_kpts && hasproperty(previous, :history_Δρ)
                 diagtol_first = determine_diagtol(diagtolalg, previous)
@@ -37,7 +41,7 @@ function kwargs_scf_checkpoints(basis::AbstractBasis;
     end
 
     callback = callback ∘ ScfSaveCheckpoints(; filename, save_ψ)
-    (; callback, diagtolalg, ψ, ρ, kwargs...)
+    (; callback, diagtolalg, ψ, ρ, τ, kwargs...)
 end
 
 
@@ -133,6 +137,8 @@ Overview of parameters:
     τ=any(needs_τ, basis.terms) ? zero(ρ) : nothing,
     hubbard_n=nothing,
     ψ=nothing,
+    occupation=nothing,
+    eigenvalues=nothing,
     tol=1e-6,
     is_converged=ScfConvergenceDensity(tol),
     miniter=0,
@@ -155,7 +161,7 @@ Overview of parameters:
     end
     start_ns = time_ns()
     timeout_date = Dates.now() + maxtime
-    seed = seed_task_local_rng!(seed, MPI.COMM_WORLD)
+    seed = seed_task_local_rng!(seed, basis.comm_kpts)
 
     # We do density mixing in the real representation
     # TODO support other mixing types
@@ -165,7 +171,9 @@ Overview of parameters:
 
         # Note that ρin is not the density of ψ, and the eigenvalues
         # are not the self-consistent ones, which makes this energy non-variational
-        energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρin, τ, hubbard_n, eigenvalues, εF)
+        energies, ham = energy_hamiltonian(basis, ψ, occupation; 
+                                           ρ=ρin, τ, hubbard_n, eigenvalues, εF, 
+                                           occupation_threshold=nbandsalg.occupation_threshold)
 
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
@@ -194,7 +202,9 @@ Overview of parameters:
 
         # Compute the energy of the new state
         if compute_consistent_energies
-            (; energies) = energy(basis, ψ, occupation; ρ=ρout, τ, hubbard_n, eigenvalues, εF)
+            (; energies) = energy(basis, ψ, occupation; 
+                                  ρ=ρout, τ, hubbard_n, eigenvalues, εF,
+                                  occupation_threshold=nbandsalg.occupation_threshold)
         end
         history_Etot = vcat(info.history_Etot, energies.total)
         history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
@@ -205,10 +215,10 @@ Overview of parameters:
         ρnext = ρin .+ T(damping) .* mix_density(mixing, basis, Δρ; info_next...)
 
         converged = n_iter ≥ miniter && is_converged(info_next)
-        converged = MPI.bcast(converged, 0, MPI.COMM_WORLD)
+        converged = mpi_bcast(converged, 0, basis.comm_kpts)
         info_next = merge(info_next, (; converged))
 
-        timedout = MPI.bcast(Dates.now() ≥ timeout_date, MPI.COMM_WORLD)
+        timedout = mpi_bcast(Dates.now() ≥ timeout_date, basis.comm_kpts)
         info_next = merge(info_next, (; timedout))
 
         callback(info_next)
@@ -216,7 +226,7 @@ Overview of parameters:
         ρnext, info_next
     end
 
-    info_init = (; ρin=ρ, τ, hubbard_n, ψ, occupation=nothing, eigenvalues=nothing, εF=nothing,
+    info_init = (; ρin=ρ, τ, hubbard_n, ψ, occupation, eigenvalues, εF=nothing,
                    n_iter=0, n_matvec=0, timedout=false, converged=false,
                    history_Etot=T[], history_Δρ=T[])
 
@@ -227,7 +237,9 @@ Overview of parameters:
     # ψ is consistent with ρout, so we return that. We also perform a last energy computation
     # to return a correct variational energy
     (; ρin, ρout, τ, hubbard_n, ψ, occupation, eigenvalues, εF, converged) = info
-    energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρout, τ, hubbard_n, eigenvalues, εF)
+    energies, ham = energy_hamiltonian(basis, ψ, occupation; 
+                                       ρ=ρout, τ, hubbard_n, eigenvalues, εF, 
+                                       occupation_threshold=nbandsalg.occupation_threshold)
 
     # Callback is run one last time with final state to allow callback to clean up
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,

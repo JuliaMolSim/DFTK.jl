@@ -124,6 +124,7 @@ Transfer Bloch wave between two basis sets. Limited feature set.
 """
 function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis, basis_out::PlaneWaveBasis)
     @assert basis_in.model.lattice == basis_out.model.lattice
+    @assert length(basis_in.kpoints) == length(ψ_in)
     @assert length(basis_in.kpoints) == length(basis_out.kpoints)
     @assert all(basis_in.kpoints[ik].coordinate == basis_out.kpoints[ik].coordinate
                 for ik = 1:length(basis_in.kpoints))

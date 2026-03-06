@@ -69,6 +69,10 @@ a list of objects subtyping `DftFunctionals.Functional` or a list of
 can be specified, see examples below.
 Note, that most DFT models require two symbols in the `functionals` list
 (one for the exchange and one for the correlation part).
+For the most important standard functionals, convenience wrappers can be
+used to directly pass the right set of arguments to the `functionals` keyword.
+See for example [`LDA`](@ref), [`PBE`](@ref), [`PBEsol`](@ref), [`SCAN`](@ref),
+[`r2SCAN`](@ref), [`PBE0`](@ref).
 
 If `functionals=[]` (empty list), then a reduced Hartree-Fock model is constructed.
 
@@ -80,6 +84,12 @@ Note in particular that the `pseudopotential` keyword
 argument is mandatory to specify pseudopotential information. This can be easily
 achieved for example using the `PseudoFamily` struct from the `PseudoPotentialData`
 package as shown below:
+
+!!! warn "Hybrid DFT is experimental"
+         The interface for Hybrid DFT models may change at any moment,
+         which is not considered a breaking change.
+         Note further that at this stage (Feb 2026) there are still
+         known performance bottle necks in the code.
 
 # Examples
 ```julia-repl
@@ -96,6 +106,12 @@ julia> model_DFT(system; functionals=[:lda_x, :lda_c_pw], temperature=0.01,
 ```
 Alternative syntax specifying the functionals directly
 via their libxc codes.
+
+```julia-repl
+julia> model_DFT(system; functionals=HSE(μ=0.2, exx_fraction=0.1),
+                 pseudopotentials=PseudoFamily("dojo.nc.sr.pbe.v0_5_1-fix.standard.upf"))
+```
+Build an HSE06 model with custom range-separation parameter and custom exact exchange fraction.
 """
 function model_DFT(system::AbstractSystem; pseudopotentials, functionals, kwargs...)
     # Note: We are deliberately enforcing the user to specify pseudopotentials here.
@@ -106,24 +122,92 @@ function model_DFT(system::AbstractSystem; pseudopotentials, functionals, kwargs
     _model_DFT(functionals, parsed.lattice, parsed.atoms, parsed.positions;
                parsed.magnetic_moments, kwargs...)
 end
-function model_DFT(lattice::AbstractMatrix,
-                   atoms::Vector{<:Element},
-                   positions::Vector{<:AbstractVector};
-                   functionals, kwargs...)
+function model_DFT(lattice::AbstractMatrix, atoms::Vector{<:Element},
+                   positions::Vector{<:AbstractVector}; functionals, kwargs...)
+    _model_DFT(functionals, lattice, atoms, positions; kwargs...)
+end
+function _model_DFT(functionals::AbstractVector, args...; extra_terms=[], kwargs...)
+    (; model_name, dftterms) = _parse_functionals(functionals)
+    model_atomic(args...;
+                 extra_terms=[Hartree(), dftterms..., extra_terms...], model_name, kwargs...)
+end
+_model_DFT(xc::Xc, args...; kwargs...) = _model_DFT([xc], args...; kwargs...)
+
+function _parse_functionals(functionals::AbstractVector)
     # The idea is for the functionals keyword argument to be pretty smart in the long run,
     # such that things like
     #  - `model_DFT(system; functionals=B3LYP())`
     #  - `model_DFT(system; functionals=[LibxcFunctional(:lda_x)])`
     #  - `model_DFT(system; functionals=[:lda_x, :lda_c_pw, HubbardU(data)])`
+    #  - `model_DFT(system; functionals=[:hyb_gga_xc_pbeh])'
     # will all work.
-    _model_DFT(functionals, lattice, atoms, positions; kwargs...)
+    # This function does the parsing and returns the terms and model_name to be used
+    # with model_atomic
+
+    exx  = nothing
+    xc   = nothing
+    rest = eltype(functionals)[]
+    for fun in functionals
+        if fun isa ExactExchange
+            exx = fun
+        elseif fun isa Xc
+            xc = fun
+        else
+            push!(rest, fun)
+        end
+    end
+
+    if !isnothing(xc) && !isempty(rest)
+        throw(ArgumentError("Cannot provide both xc object and constituent functionals " *
+        "to functionals keyword."))
+    end
+    xc = @something xc Xc(rest)
+    if isempty(xc.functionals) && !isnothing(exx)
+        throw(ArgumentError("Cannot use model_DFT to construct Hartree-Fock models. " * 
+                            "Use model_HF for this purpose."))
+    end
+
+    # Add hybrid functional if functional is hybrid, but no EXX given so far.
+    exx_coeffs = filter(!isnothing, map(exx_coefficient, xc.functionals))
+    if isnothing(exx) && !isempty(exx_coeffs)
+        exx = ExactExchange(; scaling_factor=only(exx_coeffs))
+    end
+
+    if isempty(xc.functionals)
+        @assert isnothing(exx)
+        model_name = "rHF"
+    else
+        model_name = join(string.(xc.functionals), "+")
+    end
+    (; model_name, dftterms=filter(!isnothing, [xc, exx]))
 end
-function _model_DFT(functionals::AbstractVector, args...; kwargs...)
-    _model_DFT(Xc(functionals), args...; kwargs...)
+
+
+"""
+Build an Hartree-Fock model from the specified atoms.
+
+!!! warn "Hartree-Fock is experimental"
+         The interface may change at any moment, which is not considered a breaking change.
+         Note further that at this stage (Feb 2026) there are still known performance bottle
+         necks in the code.
+"""
+function model_HF(system::AbstractSystem; pseudopotentials,
+                  exx_kernel::InteractionKernel=Coulomb(),
+                  exx_algorithm::ExxAlgorithm=VanillaExx(), extra_terms=[], kwargs...)
+    # Note: We are deliberately enforcing the user to specify pseudopotentials here.
+    # See the implementation of model_atomic for a rationale why
+    #
+    exx = ExactExchange(; kernel=exx_kernel, exx_algorithm)
+    model_atomic(system; pseudopotentials, model_name="HF",
+                 extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
 end
-function _model_DFT(xc::Xc, args...; extra_terms=[], kwargs...)
-    model_name = isempty(xc.functionals) ? "rHF" : join(string.(xc.functionals), "+")
-    model_atomic(args...; extra_terms=[Hartree(), xc, extra_terms...], model_name, kwargs...)
+function model_HF(lattice::AbstractMatrix, atoms::Vector{<:Element},
+                  positions::Vector{<:AbstractVector};
+                  exx_kernel::InteractionKernel=Coulomb(),
+                  exx_algorithm::ExxAlgorithm=VanillaExx(), extra_terms=[], kwargs...)
+    exx = ExactExchange(; kernel=exx_kernel, exx_algorithm)
+    model_atomic(lattice, atoms, positions; model_name="HF",
+                 extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
 end
 
 
@@ -133,34 +217,91 @@ end
 
 """
 Specify an LDA model (Perdew & Wang parametrization) in conjunction with [`model_DFT`](@ref)
-<https://doi.org/10.1103/PhysRevB.45.13244>
+<https://doi.org/10.1103/PhysRevB.45.13244>.
+Possible keyword arguments are those accepted by [`Xc`](@ref).
 """
 LDA(; kwargs...) = Xc([:lda_x, :lda_c_pw]; kwargs...)
 
 """
 Specify an PBE GGA model in conjunction with [`model_DFT`](@ref)
-<https://doi.org/10.1103/PhysRevLett.77.3865>
+<https://doi.org/10.1103/PhysRevLett.77.3865>.
+Possible keyword arguments are those accepted by [`Xc`](@ref).
 """
 PBE(; kwargs...) = Xc([:gga_x_pbe, :gga_c_pbe]; kwargs...)
 
 """
 Specify an PBEsol GGA model in conjunction with [`model_DFT`](@ref)
-<https://doi.org/10.1103/physrevlett.100.136406>
+<https://doi.org/10.1103/physrevlett.100.136406>.
+Possible keyword arguments are those accepted by [`Xc`](@ref).
 """
 PBEsol(; kwargs...) = Xc([:gga_x_pbe_sol, :gga_c_pbe_sol]; kwargs...)
 
 """
 Specify a SCAN meta-GGA model in conjunction with [`model_DFT`](@ref)
-<https://doi.org/10.1103/PhysRevLett.115.036402>
+<https://doi.org/10.1103/PhysRevLett.115.036402>.
+Possible keyword arguments are those accepted by [`Xc`](@ref).
 """
 SCAN(; kwargs...) = Xc([:mgga_x_scan, :mgga_c_scan]; kwargs...)
 
 """
 Specify a r2SCAN meta-GGA model in conjunction with [`model_DFT`](@ref)
-<http://doi.org/10.1021/acs.jpclett.0c02405>
+<http://doi.org/10.1021/acs.jpclett.0c02405>.
+Possible keyword arguments are those accepted by [`Xc`](@ref).
 """
 r2SCAN(; kwargs...) = Xc([:mgga_x_r2scan, :mgga_c_r2scan]; kwargs...)
 
+"""
+Specify a PBE0 hybrid functional in conjunction with [`model_DFT`](@ref)
+<https://doi.org/10.1063/1.478522>
+Possible keyword arguments are those accepted by the [`HybridFunctional`](@ref) function.
+"""
+PBE0(; kwargs...) = HybridFunctional([:hyb_gga_xc_pbeh]; kwargs...)
+
+
+"""
+Specify a HSE06 hybrid functional in conjunction with [`model_DFT`](@ref)
+<https://doi.org/10.1063/1.2404663>
+Possible keyword arguments are those accepted by the [`HybridFunctional`](@ref) function
+as well as the keyword argument `μ` to specify the short-range separation parameter.
+By default we use the value suggested by Libxc (`μ=0.11/bohr`). Notice, that this value
+differs largely between codes:
+- VASP uses `HSE(; μ=0.2/u"Å")` by default
+- Quantum Espresso uses `HSE(; μ=0.106)` if `input_dft='hse'`
+- Quantum Espresso uses `HSE(; μ=0.11)`  if `input_dft='xc-000i-000i-000i-428l'`
+"""
+function HSE(; μ=0.11, kwargs...)
+    # TODO: We should properly integrate with the libxc interface here
+    #       For range-separated hybrids Libxc exposes these values not as functional.exx_fraction
+    #       but as μ = functional.cam_omega, exx_fraction = functional.cam_beta and currently
+    #       in the code we make the assumption that functional.cam_alpha == 0
+    HybridFunctional([:hyb_gga_xc_hse06]; 
+                     exx_fraction=0.25,
+                     exx_kernel=ShortRangeCoulomb(μ),
+                     kwargs...)
+end
+
+
+"""
+Helper function to setup a hybrid DFT model with [`model_DFT`](@ref).
+Possible keyword arguments are those accepted by the [`Xc`](@ref) term
+as well as the following:
+- `exx_fraction`: Custom exact exchange / screened Coulomb fraction. If not specified,
+  the Libxc default will be used.
+- `exx_kernel`: The type of [`InteractionKernel`](@ref) to employ. By default a (regularised)
+  Coulomb kernel is employed.
+"""
+function HybridFunctional(libxc_symbols::Vector{Symbol};
+                          exx_fraction=nothing,
+                          exx_kernel::InteractionKernel=Coulomb(),
+                          exx_algorithm::ExxAlgorithm=VanillaExx(), kwargs...)
+    xc  = Xc(libxc_symbols; kwargs...)
+    scaling_factor = @something(exx_fraction, begin
+        only(filter(!isnothing, map(exx_coefficient, xc.functionals)))
+    end)
+
+    exx = ExactExchange(; scaling_factor, kernel=exx_kernel, exx_algorithm)
+    [xc, exx]
+end
 
 @deprecate(model_LDA(lattice::AbstractMatrix, atoms::Vector{<:Element},
                      positions::Vector{<:AbstractVector}; kwargs...),

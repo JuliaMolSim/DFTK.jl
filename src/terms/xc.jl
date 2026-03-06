@@ -42,7 +42,7 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
         # Strip duals from functional parameters if needed
         params = parameters(fun)
         if !isempty(params)
-            newparams = convert_dual.(T, params)
+            newparams = map(p -> convert_dual(T, p), params)
             fun = change_parameters(fun, newparams; keep_identifier=true)
         end
         fun
@@ -335,7 +335,8 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
             end
         end
 
-        tσ = DftFunctionals.spinindex_σ  # Spin index transformation (s, t) => st as expected by Libxc
+        # Spin index transformation (s, t) => st as expected by Libxc
+        tσ = DftFunctionals.spinindex_σ
         σ_real .= 0
         @views for α = 1:3
             σ_real[tσ(1, 1), :, :, :] .+= ∇ρ_real[1, :, :, :, α] .* ∇ρ_real[1, :, :, :, α]
@@ -361,39 +362,42 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
 end
 
 
-function compute_kernel(term::TermXc, basis::PlaneWaveBasis; ρ, kwargs...)
+function compute_kernel(term::TermXc, basis::PlaneWaveBasis{T}; ρ, kwargs...) where {T}
     n_spin  = basis.model.n_spin_components
     @assert 1 ≤ n_spin ≤ 2
     if !all(family(xc) == :lda for xc in term.functionals)
         error("compute_kernel only implemented for LDA")
     end
 
-    # Add the model core charge density (non-linear core correction)
-    if !isnothing(term.ρcore)
-        ρ = ρ + term.ρcore
-    end
-
-    density = LibxcDensities(basis, 0, ρ, nothing)
-    kernel = kernel_terms(term.functionals, density).Vρρ
-    fac = term.scaling_factor
+    # For LDA the Kernel is known to be diagonal, so we can get away
+    # with a single push-forward (two for spin-polarized case)
     if n_spin == 1
-        Diagonal(vec(fac .* kernel))
+        f_spinless(ε) = xc_potential_real(term, basis, nothing, nothing; ρ=ρ.+ε).potential
+        δpotential = ForwardDiff.derivative(f_spinless, zero(T))
+        Diagonal(vec(δpotential))
     else
-        # Blocks in the kernel matrix mapping (ρα, ρβ) ↦ (Vα, Vβ)
-        Kαα = @view kernel[1, 1, :, :, :]
-        Kαβ = @view kernel[1, 2, :, :, :]
-        Kβα = @view kernel[2, 1, :, :, :]
-        Kββ = @view kernel[2, 2, :, :, :]
+        # We could use chunking instead, but this is simpler and not performance-critical.
+        function f_collinear(ε)
+            dρ1 = reshape([ε, 0], 1, 1, 1, 2)
+            dρ2 = reshape([0, ε], 1, 1, 1, 2)
+            stack([xc_potential_real(term, basis, nothing, nothing; ρ=ρ.+dρ1).potential,
+                   xc_potential_real(term, basis, nothing, nothing; ρ=ρ.+dρ2).potential])
+        end
+        δpotential = ForwardDiff.derivative(f_collinear, zero(T))
 
-        fac .* [Diagonal(vec(Kαα)) Diagonal(vec(Kαβ));
-                Diagonal(vec(Kβα)) Diagonal(vec(Kββ))]
+        # Blocks in the kernel matrix mapping (ρα, ρβ) ↦ (Vα, Vβ)
+        Kαα = @view δpotential[:, :, :, 1, 1]
+        Kαβ = @view δpotential[:, :, :, 1, 2]
+        Kβα = @view δpotential[:, :, :, 2, 1]
+        Kββ = @view δpotential[:, :, :, 2, 2]
+        [Diagonal(vec(Kαα)) Diagonal(vec(Kαβ));
+         Diagonal(vec(Kβα)) Diagonal(vec(Kββ))]
     end
 end
 
 
 function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArray{Tδρ};
-                      ρ, q=zero(Vec3{T}), kwargs...) where {T, Tδρ}
-    n_spin = basis.model.n_spin_components
+                      ρ, q=zero(Vec3{T}), kwargs...) where {T, Tδρ<:Union{T,Complex{T}}}
     isempty(term.functionals) && return nothing
     @assert all(family(xc) in (:lda, :gga) for xc in term.functionals)
 
@@ -402,114 +406,22 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArra
               correction.")
     end
 
-    # Add the model core charge density (non-linear core correction)
-    if !isnothing(term.ρcore)
-        ρ = ρ + term.ρcore
+    # Key insight: kernel application is just a Hessian-vector product,
+    # which is computed with a push-forward of the gradient.
+    f(ρ_eval) = xc_potential_real(term, basis, nothing, nothing; ρ=ρ_eval).potential
+    Tag = typeof(ForwardDiff.Tag(f, T))
+    if Tδρ <: T
+        # Usually δρ has the same type, so we do a standard push-forward
+        ε = Dual{Tag}(zero(T), one(T))
+        ForwardDiff.partials.(f(ρ .+ ε .* δρ), 1)
+    else
+        # But for complex δρ (phonons) we need to push the real and imaginary
+        # parts forward separately
+        ε1 = Dual{Tag}(zero(T), one(T), zero(T))
+        ε2 = Dual{Tag}(zero(T), zero(T), one(T))
+        potential = f(ρ .+ ε1 .* real.(δρ) .+ ε2 .* imag.(δρ))
+        ForwardDiff.partials.(potential, 1) .+ im .* ForwardDiff.partials.(potential, 2)
     end
-
-    # Take derivatives of the density and the perturbation if needed.
-    max_ρ_derivs = maximum(max_required_derivative, term.functionals)
-    density      = LibxcDensities(basis, max_ρ_derivs, ρ, nothing)
-    perturbation = LibxcDensities(basis, max_ρ_derivs, δρ, nothing)
-
-    ∇ρ  = density.∇ρ_real
-    δρ  = perturbation.ρ_real
-    ∇δρ = perturbation.∇ρ_real
-
-    # Compute required density / perturbation cross-derivatives
-    cross_derivatives = Dict{Symbol, Any}()
-    if max_ρ_derivs > 0
-        cross_derivatives[:δσ] = [
-            @views 2sum(∇ρ[I[1], :, :, :, α] .* ∇δρ[I[2], :, :, :, α] for α = 1:3)
-            for I in CartesianIndices((n_spin, n_spin))
-        ]
-    end
-
-    # If the XC functional is not supported for an architecture, terms is on the CPU
-    terms = kernel_terms(term.functionals, density)
-    δV = zeros(Tδρ, size(ρ)...)  # [ix, iy, iz, iσ]
-
-    Vρρ = to_device(basis.architecture, reshape(terms.Vρρ, n_spin, n_spin, basis.fft_size...))
-    @views for s = 1:n_spin, t = 1:n_spin  # LDA term
-        δV[:, :, :, s] .+= Vρρ[s, t, :, :, :] .* δρ[t, :, :, :]
-    end
-    if haskey(terms, :Vρσ)  # GGA term
-        add_kernel_gradient_correction!(δV, terms, density, perturbation, cross_derivatives)
-    end
-
-    term.scaling_factor * δV
-end
-
-
-function add_kernel_gradient_correction!(δV, terms, density, perturbation, cross_derivatives)
-    # Follows DOI 10.1103/PhysRevLett.107.216402
-    #
-    # For GGA V = Vρ - 2 ∇⋅(Vσ ∇ρ) = (∂ε/∂ρ) - 2 ∇⋅((∂ε/∂σ) ∇ρ)
-    #
-    # δV(r) = f(r,r') δρ(r') = (∂V/∂ρ) δρ + (∂V/∂σ) δσ
-    #
-    # therefore
-    # δV(r) = (∂^2ε/∂ρ^2) δρ - 2 ∇⋅[(∂^2ε/∂σ∂ρ) ∇ρ + (∂ε/∂σ) (∂∇ρ/∂ρ)] δρ
-    #       + (∂^2ε/∂ρ∂σ) δσ - 2 ∇⋅[(∂^ε/∂σ^2) ∇ρ  + (∂ε/∂σ) (∂∇ρ/∂σ)] δσ
-    #
-    # Note δσ = 2∇ρ⋅δ∇ρ = 2∇ρ⋅∇δρ, therefore
-    #      - 2 ∇⋅((∂ε/∂σ) (∂∇ρ/∂σ)) δσ
-    #    = - 2 ∇(∂ε/∂σ)⋅(∂∇ρ/∂σ) δσ - 2 (∂ε/∂σ) ∇⋅(∂∇ρ/∂σ) δσ
-    #    = - 2 ∇(∂ε/∂σ)⋅δ∇ρ - 2 (∂ε/∂σ) ∇⋅δ∇ρ
-    #    = - 2 ∇⋅((∂ε/∂σ) ∇δρ)
-    # and (because assumed independent variables): (∂∇ρ/∂ρ) = 0.
-    #
-    # Note that below the LDA term (∂^2ε/∂ρ^2) δρ is not done here (dealt with by caller)
-
-    basis  = density.basis
-    n_spin = basis.model.n_spin_components
-    spin_σ = 2n_spin - 1
-    ρ   = density.ρ_real
-    ∇ρ  = density.∇ρ_real
-    δρ  = perturbation.ρ_real
-    ∇δρ = perturbation.∇ρ_real
-    δσ  = cross_derivatives[:δσ]
-    Vρσ = to_device(basis.architecture, reshape(terms.Vρσ, n_spin, spin_σ, basis.fft_size...))
-    Vσσ = to_device(basis.architecture, reshape(terms.Vσσ, spin_σ, spin_σ, basis.fft_size...))
-    Vσ  = to_device(basis.architecture, reshape(terms.Vσ,  spin_σ,         basis.fft_size...))
-
-    T   = eltype(ρ)
-    tσ  = DftFunctionals.spinindex_σ
-
-    # Note: δV[ix, iy, iz, iσ] unlike the other quantities ...
-    @views for s = 1:n_spin
-        for t = 1:n_spin, u = 1:n_spin
-            spinfac_tu = (t == u ? one(T) : one(T)/2)
-            @. δV[:, :, :, s] += spinfac_tu * Vρσ[s, tσ(t, u), :, :, :] * δσ[t, u][:, :, :]
-        end
-
-        # TODO Potential for some optimisation ... some contractions in this body are
-        #      independent of α and could be precomputed.
-        δV[:, :, :, s] .+= divergence_real(density.basis) do α
-            ret_α = similar(density.ρ_real, basis.fft_size...)
-            ret_α .= 0
-            for t = 1:n_spin
-                spinfac_st = (t == s ? one(T) : one(T)/2)
-                ret_α .+= -2spinfac_st .* Vσ[tσ(s, t), :, :, :] .* ∇δρ[t, :, :, :, α]
-
-                for u = 1:n_spin
-                    spinfac_su = (s == u ? one(T) : one(T)/2)
-                    ret_α .+= (-2spinfac_su .* Vρσ[t, tσ(s, u), :, :, :]
-                               .* ∇ρ[u, :, :, :, α] .* δρ[t, :, :, :])
-
-                    for v = 1:n_spin
-                        spinfac_uv = (u == v ? one(T) : one(T)/2)
-                        ret_α .+= (-2spinfac_uv .* spinfac_st
-                                   .* Vσσ[tσ(s, t), tσ(u, v), :, :, :]
-                                   .* ∇ρ[t, :, :, :, α] .* δσ[u, v][:, :, :])
-                    end  # v
-                end  # u
-            end  # t
-            ret_α
-        end  # α
-    end
-
-    δV
 end
 
 function mergesum(nt1::NamedTuple{An}, nt2::NamedTuple{Bn}) where {An, Bn}
@@ -527,24 +439,28 @@ end
 _matify(::Nothing) = nothing
 _matify(data::AbstractArray) = reshape(data, size(data, 1), :)
 
-for fun in (:potential_terms, :kernel_terms)
-    @eval begin
-        function DftFunctionals.$fun(xc::Functional, density::LibxcDensities)
-            $fun(xc, _matify(density.ρ_real), _matify(density.σ_real),
-                     _matify(density.τ_real), _matify(density.Δρ_real))
-        end
-
-        function DftFunctionals.$fun(xcs::Vector{Functional}, density::LibxcDensities)
-            isempty(xcs) && return NamedTuple()
-            result = $fun(xcs[1], density)
-            for i = 2:length(xcs)
-                result = mergesum(result, $fun(xcs[i], density))
-            end
-            result
-        end
-    end
+function DftFunctionals.potential_terms(xc::DispatchFunctional, density::LibxcDensities)
+    potential_terms(xc, _matify(density.ρ_real), _matify(density.σ_real),
+                        _matify(density.τ_real), _matify(density.Δρ_real))
 end
 
+# Ensure functionals from DftFunctionals are sent to the CPU
+# TODO: Allow GPUArrys once DftFunctionals is refactored to support GPU. 
+function DftFunctionals.potential_terms(fun::DftFunctionals.Functional, density::LibxcDensities)
+    maticpuify(::Nothing) = nothing
+    maticpuify(x::AbstractArray) = reshape(Array(x), size(x, 1), :)
+    DftFunctionals.potential_terms(fun, maticpuify(density.ρ_real), maticpuify(density.σ_real),
+                                        maticpuify(density.τ_real), maticpuify(density.Δρ_real))
+end
+
+function DftFunctionals.potential_terms(xcs::Vector{Functional}, density::LibxcDensities)
+    isempty(xcs) && return NamedTuple()
+    result = DftFunctionals.potential_terms(xcs[1], density)
+    for i = 2:length(xcs)
+        result = mergesum(result, DftFunctionals.potential_terms(xcs[i], density))
+    end
+    result
+end
 
 """
 Compute divergence of an operand function, which returns the Cartesian x,y,z

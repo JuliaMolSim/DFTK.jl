@@ -52,6 +52,7 @@ export PspUpf
 include("pseudo/NormConservingPsp.jl")
 include("pseudo/PspHgh.jl")
 include("pseudo/PspUpf.jl")
+include("pseudo/PspLinComb.jl")
 
 export ElementPsp
 export ElementCohenBergstresser
@@ -60,6 +61,7 @@ export ElementGaussian
 export charge_nuclear, charge_ionic
 export n_elec_valence, n_elec_core
 export element_symbol, mass, species  # Note: Re-exported from AtomsBase
+export virtual_crystal_approximation
 include("elements.jl")
 
 export SymOp
@@ -89,6 +91,7 @@ include("fft.jl")
 include("Kpoint.jl")
 include("PlaneWaveBasis.jl")
 include("orbitals.jl")
+include("memory_usage.jl")
 include("input_output.jl")
 
 export create_supercell
@@ -98,10 +101,17 @@ include("supercell.jl")
 export Energies
 include("Energies.jl")
 
+export Coulomb, SphericallyTruncatedCoulomb
+export ShortRangeCoulomb, LongRangeCoulomb
+export ProbeCharge, ReplaceSingularity
+include("coulomb.jl")
+
 export Hamiltonian
 export HamiltonianBlock
 export energy_hamiltonian
 export Kinetic
+export ExactExchange
+export VanillaExx, AceExx
 export ExternalFromFourier
 export ExternalFromReal
 export AtomicLocal
@@ -147,8 +157,9 @@ export diagonalize_all_kblocks
 include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
 
-export model_atomic, model_DFT
+export model_atomic, model_DFT, model_HF
 export LDA, PBE, PBEsol, SCAN, r2SCAN
+export HybridFunctional, PBE0, HSE
 include("standard_models.jl")
 
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing
@@ -258,6 +269,9 @@ function precompilation_workflow(lattice, atoms, positions, magnetic_moments;
     scfres = self_consistent_field(basis; ρ=ρ0, tol=1e-2, maxiter=3, callback=identity)
     compute_forces_cart(scfres)
 
+    # Clear precompilation section timings
+    reset_timer!(timer)
+
     nothing
 end
 
@@ -277,4 +291,10 @@ end
         precompilation_workflow(lattice, atoms, positions, magnetic_moments)
     end
 end
+
+function __init__()
+    # Reset timer; otherwise the starting time is the time of precompilation
+    reset_timer!(timer)
+end
+
 end # module DFTK

@@ -85,11 +85,13 @@ end
         (ik, n) = kn
 
         kpt = basis.kpoints[ik]
-        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n])
+        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n]; normalize=false)
         # … and then we compute the real Fourier transform in the adequate basis.
-        ifft!(storage.δψnk_real, basis, δψ_plus_k[ik].kpt, δψ_plus_k[ik].ψk[:, n])
+        ifft!(storage.δψnk_real, basis, δψ_plus_k[ik].kpt, δψ_plus_k[ik].ψk[:, n]; normalize=false)
+        # use unnormalized plans for extra speed, normalize at the end
+        ifft_normalization = basis.fft_grid.ifft_normalization
 
-        storage.δρ[:, :, :, kpt.spin] .+= real_qzero.(
+        storage.δρ[:, :, :, kpt.spin] .+= ifft_normalization^2 .* real_qzero.(
             2 .* occupation[ik][n]  .* basis.kweights[ik] .* conj.(storage.ψnk_real)
                                                           .* storage.δψnk_real
               .+ δoccupation[ik][n] .* basis.kweights[ik] .* abs2.(storage.ψnk_real))
@@ -105,9 +107,10 @@ end
     T = promote_type(eltype(basis), real(eltype(ψ[1])))
     τ = similar(ψ[1], T, (basis.fft_size..., basis.model.n_spin_components))
     τ .= 0
-    dαψnk_real = zeros(complex(eltype(basis)), basis.fft_size)
+    dαψnk_real = zeros_like(G_vectors(basis), complex(eltype(basis)), basis.fft_size...)
+    occupation = [to_cpu(oc) for oc in occupation]
     for (ik, kpt) in enumerate(basis.kpoints)
-        G_plus_k = [[p[α] for p in Gplusk_vectors_cart(basis, kpt)] for α = 1:3]
+        G_plus_k = [map(p -> p[α], Gplusk_vectors_cart(basis, kpt)) for α = 1:3]
         for n = 1:size(ψ[ik], 2), α = 1:3
             ifft!(dαψnk_real, basis, kpt, im .* G_plus_k[α] .* ψ[ik][:, n])
             @. τ[:, :, :, kpt.spin] += occupation[ik][n] * basis.kweights[ik] / 2 * abs2(dαψnk_real)
