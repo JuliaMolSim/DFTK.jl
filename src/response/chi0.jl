@@ -103,19 +103,28 @@ LinearAlgebra.ldiv!(y::T, P::FunctionPreconditioner, x) where {T} = P.preconditi
 LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.precondition!(similar(x), x))
 precondprep!(P::FunctionPreconditioner, ::Any) = P
 
+struct MaskedOperator
+    masked_product!::Function
+end
+@timing mul_masked!(Ax, M::MaskedOperator, x; mask) = M.masked_product!(Ax, x, mask)
+
 # Solves (1-P) (H-ε) (1-P) δψ = - (1-P) rhs
 # where 1-P is the projector on the orthogonal of ψk
 # The solver simultaneously solves for multiple right-hand sides, i.e.:
 # (1-P) (H-ε) (1-P) δψ[:, i] = - (1-P) rhs[:, i] for all columns i.
 # /!\ It is assumed (and not checked) that ψk'Hk*ψk = Diagonal(εk) (extra states
 # included).
-@timing function sternheimer_solver(Hk, ψk, ε, rhs;
+function sternheimer_solver(Hk, ψk, ε, rhs;
                                     callback=identity,
                                     ψk_extra=zeros_like(ψk), εk_extra=zeros_like(ε),
                                     Hψk_extra=zeros_like(ψk), tol=1e-9,
                                     miniter=1, maxiter=100)
     basis  = Hk.basis
     kpoint = Hk.kpoint
+
+    # Note: to maintain clearer mathematical formulas, all commements assue the problem
+    #       is solved band by band, with ψkn = ψk[:, n]. In practice, the problem is solved
+    #       for all bands simultaneously for performance reasosn.
 
     # We use a Schur decomposition of the orthogonal of the occupied states
     # into a part where we have the partially converged, non-occupied bands
@@ -132,24 +141,19 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
     Q(ϕ) = ϕ - P(ϕ)
 
     # R = 1-P_computed is the projector onto the orthogonal of computed states
-    # Implement allocation light and in-place versions for performance
-    function R(ϕ)
-        Rϕ = ψk * (ψk' * ϕ) # P(ϕ)
+    # Implement allocation light, in-place version for performance
+    function R!(Rϕ, ϕ)
+        mul!(Rϕ, ψk, ψk' * ϕ) # P(ϕ)
         mul!(Rϕ, ψk_extra, ψk_extra' * ϕ, -1, -1) # -P(ϕ) - P_extra(ϕ)
         Rϕ .+= ϕ # R = ϕ -P(ϕ) - P_extra(ϕ)
     end
-
-    function R!(Rϕ, ϕ)
-        mul!(Rϕ, ψk, ψk' * ϕ)
-        mul!(Rϕ, ψk_extra, ψk_extra' * ϕ, -1, -1)
-        Rϕ .+= ϕ
-    end
+    R(ϕ) = R!(similar(ϕ), ϕ) #TODO: ok, is Rϕ actually returned?
 
     # We put things into the form
-    # δψk = ψk_extra * αk + δψkᴿ ∈ Ran(Q)
-    # where δψkᴿ ∈ Ran(R).
+    # δψkn = ψk_extra * αkn + δψknᴿ ∈ Ran(Q)
+    # where δψknᴿ ∈ Ran(R).
     # Note that, if ψk_extra = [], then 1-P = 1-P_computed and
-    # δψk = δψkᴿ is obtained by inverting the full Sternheimer
+    # δψkn = δψknᴿ is obtained by inverting the full Sternheimer
     # equations in Ran(Q) = Ran(R)
     #
     # This can be summarized as the following:
@@ -160,35 +164,48 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
     # |-----------|--------------|------------------------
     # 1     N_occupied  N_occupied + N_extra
 
-    # ψk_extra are not converged but have been Rayleigh-Ritzed (they are NOT
-    # eigenvectors of H) so H(ψk_extra) = ψk_extra' (Hk-ε) ψk_extra should be a
-    # real diagonal matrix.
-    inv_ψk_exHψk_ex = 1 ./(real.(εk_extra) .- ε')
+    # Define the operator H-ε by its action on a set of vectors ϕ: 
+    # (H-ε)ϕ = Hϕ - ϕ * Diagonal(ε). Application can be restriced to a
+    #given active range of columns of x, define by a mask.
+    function H(ϕ; mask=1:size(ϕ, 2))
+        Hϕ = Hk * ϕ
+        mul!(Hϕ, ϕ, Diagonal(ε[mask]), -1, 1) # Hϕ - ϕ * Diagonal(ε)
+    end
 
-    # Apply H - εI to a given vector as a Sylvester equation:
-    # c = Ax - xB, where A is the Hamilitonian, and B a diagonal matrix of eigenvalues.
-    # Application can be restriced to a given active range of columns of x
-    H(ϕ; active=1:size(ϕ, 2)) = Hk * ϕ - ϕ * Diagonal(ε[active])
-
-    # 1) solve for δψkᴿ
+    # 1) solve for δψknᴿ
     # ----------------------------
     # writing αk as a function of δψkᴿ, we get that δψkᴿ
     # solves the system (in Ran(1-P_computed))
     #
-    # R * (H - ε) * (1 - M * (H - ε)) * R * δψkᴿ = R * (1 - M) * b
+    # R * (H - ε) * (1 - M * (H - ε)) * R * δψknᴿ = R * (1 - M) * b
     #
     # where M = ψk_extra * (ψk_extra' (H-ε) ψk_extra)^{-1} * ψk_extra'
     # is defined above and b is the projection of -rhs onto Ran(Q).
     #
+    # ψk_extra are not converged but have been Rayleigh-Ritzed (they are NOT
+    # eigenvectors of H) so H(ψk_extra) = ψk_extra' (Hk-ε) ψk_extra should be a
+    # real diagonal matrix with εk_extra - ε_l on the diagonal (ε_l is a scalar).
+    #
+    # When solving for multiple RHS at once, ε is a vector, and the above becomes
+    # a 3-tensor: ψmk_extra' (H - ε_l) ψnk_extra = δmn (εk_extra_n - ε_l)
+    # Applying M * b becomes:
+    # ψkm_extra * 1/(εk_extra_n - ε_l) * ψkn_extra' * b[:, l]
+    # 1/(εk_extra_n - ε_l) is stored in matrix form as inv_ψk_exHψk_ex[n, l],
+    # and multiplies ψkn_extra' * b[:, l] elementwise when applying M * b.
+    inv_ψk_exHψk_ex = 1 ./(real.(εk_extra) .- ε')
+
     b = -Q(rhs)
-    bb = R(b -  Hψk_extra * (ψk_extra'b .* inv_ψk_exHψk_ex))
-    @timing function RAR!(RARϕ, ϕ; active=1:size(ϕ, 2))
-        R!(RARϕ, ϕ)
+    bb = R(b -  Hψk_extra * (inv_ψk_exHψk_ex .* ψk_extra'b)) # R * (1-M) * b
+
+    # Implementation of: R * (H - ε) * (1 - M * (H - ε)) * R * ϕ
+    @views function RAR!(RARϕ, ϕ, mask)
+        R!(RARϕ, ϕ[:, mask])
+        HRϕ = H(RARϕ; mask)
         # Schur complement of (1-P) (H-ε) (1-P)
         # with the splitting Ran(1-P) = Ran(P_extra) ⊕ Ran(R)
-        HRϕ = H(RARϕ; active)
-        R!(RARϕ, mul!(HRϕ, Hψk_extra, Hψk_extra'RARϕ .* inv_ψk_exHψk_ex[:, active], -1, 1))
+        R!(RARϕ, mul!(HRϕ, Hψk_extra, inv_ψk_exHψk_ex[:, mask] .* Hψk_extra'RARϕ, -1, 1))
     end
+    A = MaskedOperator(RAR!)
     precon = PreconditionerTPA(basis, kpoint)
     # First column of ψk as there is no natural kinetic energy.
     # We take care of the (rare) cases when ψk is empty.
@@ -196,14 +213,14 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
     @timing function R_ldiv!(x, y)
         R!(x, precon \ R(y))
     end
-    cg_res = cg(RAR!, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj! =R!,
+    cg_res = cg(A, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj! =R!,
                 callback=info -> callback(merge(info, (; basis, kpoint))),
                 miniter, maxiter)
     δψkᴿ = cg_res.x
 
-    # 2) solve for αk now that we know δψkᴿ
-    # Note that αk is an empty array if there is no extra bands.
-    αk = (ψk_extra' * (b - H(δψkᴿ))) .* inv_ψk_exHψk_ex
+    # 2) solve for αkn now that we know δψknᴿ
+    # Note that αkn is an empty array if there is no extra bands.
+    αk = inv_ψk_exHψk_ex .* (ψk_extra' * (b - H(δψkᴿ)))
 
     δψk = ψk_extra * αk + δψkᴿ
 
@@ -357,7 +374,7 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
     n_iter = [Vector{Int}() for _ in 1:length(ψ)]
     converged = true
 
-    # Compute δψk band per band
+    # Compute δψk for each k-point
     for ik = 1:length(ψ)
         Hk   = H[ik]
         ψk   = ψ[ik]

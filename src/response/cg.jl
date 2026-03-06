@@ -7,14 +7,24 @@ function default_cg_print(info)
 end
 
 """
+Matrix-vector product used in the CG solver. The CG locking mechanism is such that the first and last
+converged columns of x in Ax = b are ignored by considering a contiguous active set of columns,defined
+by first(!converged_columns):last(!converged_columns). The mask must be a contiguous range for GPU
+compatibility. This is the default implementation for matrix-like A. Custom opertators must implement
+their own method for mul_masked!.
+"""
+@timing mul_masked!(Ax, A, x; mask::UnitRange) = @views mul!(Ax, A, x[:, mask])
+
+"""
 Implementation of the conjugate gradient method which allows for preconditioning
 and projection operations along iterations. The solver is optimized for generic
 input arrays with multiple columns, i.e. solutions of A x[:, i] = b[:, i] for all
 columns i are sought simultaneously. Single column vectors, i.e. size(x, 2) == 1,
-are also supported. To reduce allocations, operator A! and projector proj! are
-expected to be in-place. A basic locking meachnism for converged columns is implemented.
+are also supported. To reduce allocations, an in-place mul_masked! matrix-vector
+product is used for A*x,  and projector proj! is also expected to be in-place.
+A basic locking meachnism for converged columns is implemented.
 """
-function cg!(x::AbstractArray{T}, A!, b::AbstractArray{T};
+function cg!(x::AbstractArray{T}, A, b::AbstractArray{T};
              precon=I, proj! =copy!, callback=identity,
              tol=1e-10*ones(real(T), size(b, 2)), maxiter=100, miniter=1,
              my_columnwise_dots=columnwise_dots) where {T}
@@ -23,23 +33,6 @@ function cg!(x::AbstractArray{T}, A!, b::AbstractArray{T};
     # from which the norms are derived. The default is the standard dot porduct: 
     # [dot(x[:, i], x[:, i])] for all columns i.
     my_columnwise_norms(x) = sqrt.(real.(my_columnwise_dots(x, x)))
-
-    # Utility to accept operators that do not implement active ranges for locking. In such
-    # cases, all columns are always considered. Allows to use the same cg! implementation
-    # across the board, without extra complication. For performance, when x and b are not
-    # single column vectors, active ranges should be implemented.
-    op_supports_active = hasmethod(
-        A!,
-        Tuple{typeof(x), typeof(x)},
-        (:active,)
-    )
-    function apply_op!(Ax, x; active=nothing)
-        if op_supports_active
-            A!(Ax, x; active)
-        else
-            A!(Ax, x)
-        end
-    end
 
     # initialisation
     # r = b - Ax is the residual
@@ -52,7 +45,7 @@ function cg!(x::AbstractArray{T}, A!, b::AbstractArray{T};
 
     # save one matrix-vector product
     if !iszero(x)
-        apply_op!(c, x) # mul!(c, A, x)
+        mul_masked!(c, A, x; mask=1:size(x, 2))
         r .-= c
     end
     ldiv!(c, precon, r)
@@ -81,7 +74,7 @@ function cg!(x::AbstractArray{T}, A!, b::AbstractArray{T};
     # preconditioned conjugate gradient
     while n_iter < maxiter
         # output
-        info = (; A!, b=full_b, n_iter, x=full_x, r=full_r, residual_norms=full_residuals,
+        info = (; A, b=full_b, n_iter, x=full_x, r=full_r, residual_norms=full_residuals,
                   converged, stage=:iterate)
         callback(info)
         n_iter += 1
@@ -93,12 +86,9 @@ function cg!(x::AbstractArray{T}, A!, b::AbstractArray{T};
 
         # Lock columns that are already converged. Because we can only take views with
         # contiguous ranges in GPU arrays, we lock the first and last converged columns.
-        active = 1:size(b, 2)
-        if op_supports_active
-            locked_lb = findfirst(!, converged_cols)
-            locked_ub = findlast(!, converged_cols)
-            active = locked_lb : locked_ub
-        end
+        locked_lb = findfirst(!, converged_cols)
+        locked_ub = findlast(!, converged_cols)
+        active = locked_lb : locked_ub
 
         @views begin
             x = full_x[:, active]
@@ -111,7 +101,7 @@ function cg!(x::AbstractArray{T}, A!, b::AbstractArray{T};
             residual_norms = full_residuals[active]
         end
 
-        apply_op!(c, p; active) # mul!(c, A, p)
+        mul_masked!(c, A, full_p; mask=active) # c = A*full_p[:, active]
         tmp = zeros_like(γ)
         tmp .= my_columnwise_dots(p, c)
         α = γ ./ tmp

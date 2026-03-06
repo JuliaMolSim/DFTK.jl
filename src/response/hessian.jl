@@ -148,12 +148,13 @@ that is return δψ where (Ω+K) δψ = -δHextψ.
     Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ, H * ψ)]
 
     # mapping of the linear system on the tangent space
-    function ΩpK!(ΩpKx, x)
+    function ΩpK(x)
         δψ = unsafe_unpack(x)
         Kδψ = apply_K(basis, δψ, ψ, ρ, occupation)
         Ωδψ = apply_Ω(δψ, ψ, H, Λ)
-        ΩpKx .= pack(Ωδψ + Kδψ)
+        pack(Ωδψ + Kδψ)
     end
+    J = LinearMap{T}(ΩpK, size(δHextψ_pack, 1))
 
     # solve (Ω+K) δψ = -δHextψ on the tangent space with CG
     function proj!(Px, x)
@@ -168,8 +169,8 @@ that is return δψ where (Ω+K) δψ = -δHextψ.
         # real(dot) here because we work in R^2N rather than C^N
         [weighted_ksum(basis, [real(dot(δψx[ik], δψy[ik])) for ik in 1:length(basis.kpoints)])]
     end
-    res = cg(ΩpK!, -δHextψ_pack; precon=FunctionPreconditioner(f_ldiv!), proj!, tol=tol,
-             callback, my_columnwise_dots=weighted_dots)
+    res = cg(J, -δHextψ_pack; precon=FunctionPreconditioner(f_ldiv!), proj!, tol=tol,
+             callback=info -> callback(merge(info, (; basis=basis))), my_columnwise_dots=weighted_dots)
     (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norms,
      res.n_iter)
 end
@@ -234,6 +235,7 @@ function (cb::OmegaPlusKDefaultCallback)(info)
         @printf(io, "%21s%s  %10s  %7.1f%s  %s\n",
                 "", label_s[3], "", avgCG, tstr, "Final orbitals")
     end
+    flush(stdout)
     info
 end
 

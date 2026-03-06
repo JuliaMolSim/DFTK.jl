@@ -52,16 +52,15 @@ Invert the metric operator M.
     # Apply the M_n^{-1} operator.
     function apply_inv_M(ψk, Pk, resk, n)
         resk = proj_tangent_kpt(resk, ψk)
-        function op!(Mx, x)
-            Mx .= apply_M!(ψk, Pk, x, n)
-        end
+        op(x) = apply_M!(ψk, Pk, x, n)
         function f_ldiv!(x, y)
             x .= proj_tangent_kpt(y, ψk)
             x ./= (Pk.mean_kin[n] .+ Pk.kin)
             proj_tangent_kpt!(x, ψk)
         end
+        J = LinearMap{eltype(ψk)}(op, size(resk, 1))
         # This CG seems to converge very quickly in practice (often 1 iteration).
-        cginfo = cg(op!, resk;
+        cginfo = cg(J, resk;
                     precon=FunctionPreconditioner(f_ldiv!),
                     tol=100*eps(T), maxiter=20)
         if !cginfo.converged
