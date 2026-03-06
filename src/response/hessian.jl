@@ -194,9 +194,10 @@ function (cb::OmegaPlusKDefaultCallback)(info)
         # Axinfo: NamedTuple returned by mul_inexact(::DielectricAdjoint, ...)
         # Axinfos is the collection of all these named tuples since the last callback
 
-        # Sum all CG iterations over all bands and all Axinfos, average over k-points
+        # Sum all CG iterations all Axinfos, average over k-points and bands
+        # TODO: is the mean of mean consistent with the SCF?
         avgCG = sum(info.Axinfos) do Axinfo
-            mean(sum, Axinfo.n_iter)
+            mean(mean, Axinfo.n_iter)
         end
         avgCG = mpi_mean(avgCG, comm)
     end
@@ -265,7 +266,7 @@ Input parameters:
 @timing function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
                                     eigenvalues, δHextψ;
                                     δtemperature=zero(real(T)),
-                                    tol=1e-8, verbose=true,
+                                    tol=1e-8, rtol=zero(real(T)), verbose=true,
                                     mixing=SimpleMixing(),
                                     occupation_threshold,
                                     bandtolalg=BandtolBalanced(ham.basis, ψ, occupation; occupation_threshold),
@@ -322,8 +323,10 @@ Input parameters:
                                ham, basis, ρin=ρ, εF, eigenvalues, ψ))
     end
     callback_inner(info) = callback(merge(info, (; runtime_ns=time_ns() - start_ns, basis=basis)))
-    info_gmres = inexact_gmres(ε_adj, vec(δρ0);
-                               tol, precon, krylovdim, maxiter, s,
+    gmres_rhs = vec(δρ0)
+    gmres_tol = max(tol, rtol * norm(gmres_rhs))
+    info_gmres = inexact_gmres(ε_adj, gmres_rhs;
+                               tol=gmres_tol, precon, krylovdim, maxiter, s,
                                callback=callback_inner, kwargs...)
     δρ = reshape(info_gmres.x, size(ρ))
     if !info_gmres.converged

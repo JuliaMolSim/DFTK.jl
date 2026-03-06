@@ -206,6 +206,9 @@ struct RefinementResult{T}
     ΩpK_res
 end
 
+struct DMRefinement end
+struct SCFRefinement end
+
 """
 Transfer the result of an SCF to a larger basis set,
 and compute approximate first order corrections ("refinements") to the wavefunctions and density.
@@ -218,6 +221,7 @@ through [`refine_energies`](@ref) and [`refine_forces`](@ref).
 @timing function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T};
                                atol=T(1e-12), rtol=T(1e-4),
                                occ_threshold=default_occupation_threshold(T),
+                               algorithm=DMRefinement(),
                                kwargs...) where {T}
     basis = scfres.basis
 
@@ -256,7 +260,13 @@ through [`refine_energies`](@ref) and [`refine_forces`](@ref).
     rhs = ΩpKe2 - resLF
 
     # Invert Ω+K on the small space
-    ΩpK_res = solve_ΩplusK(basis, ψ, rhs, occ; atol, rtol, kwargs...)
+    if algorithm isa DMRefinement
+        ΩpK_res = solve_ΩplusK(basis, ψ, rhs, occ; atol, rtol, kwargs...)
+    else
+        @assert algorithm isa SCFRefinement
+        _, ham = energy_hamiltonian(basis, ψ, occ; scfres.ρ)
+        ΩpK_res = solve_ΩplusK_split(ham, scfres.ρ, ψ, occ, scfres.εF, scfres.eigenvalues, rhs; tol=atol, rtol, occupation_threshold=occ_threshold, kwargs...)
+    end
 
     e1 = transfer_blochwave(ΩpK_res.δψ, basis, basis_ref)
     schur_residual = e1 + e2
