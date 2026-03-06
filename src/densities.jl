@@ -17,6 +17,9 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     mask_occ = [findall(occnk -> abs(occnk) ≥ occupation_threshold, occk)
                 for occk in occupation]
 
+    is_full = basis.model.spin_polarization == :full
+    n_spin_components = is_full ? 4 : basis.model.n_spin_components
+
     function allocate_local_storage()
         # The types were moved inside here to avoid a type instability,
         # as it seems that captures over types do not get specialized!
@@ -26,20 +29,47 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
         # dual numbers, but not yet the FFT
         Tψ = promote_type(VT, real(eltype(ψ[1])))
 
-        (; ρ=zeros_like(G_vectors(basis), Tρ, basis.fft_size..., basis.model.n_spin_components),
-         ψnk_real=zeros_like(G_vectors(basis), complex(Tψ), basis.fft_size...))
+        if is_full
+            return (; ρ=zeros_like(G_vectors(basis), Tρ, basis.fft_size..., 4),
+                      ψnk_real_1=zeros_like(G_vectors(basis), complex(Tψ), basis.fft_size...),
+                      ψnk_real_2=zeros_like(G_vectors(basis), complex(Tψ), basis.fft_size...))
+        else
+            return (; ρ=zeros_like(G_vectors(basis), Tρ, basis.fft_size..., n_spin_components),
+                      ψnk_real=zeros_like(G_vectors(basis), complex(Tψ), basis.fft_size...))
+        end
     end
+
     # We split the total iteration range (ik, n) in chunks, and parallelize over them.
     range = [(ik, n) for ik = 1:length(basis.kpoints) for n = mask_occ[ik]]
 
     storages = parallel_loop_over_range(range; allocate_local_storage) do kn, storage
         (ik, n) = kn
         kpt = basis.kpoints[ik]
-        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n]; normalize=false)
-        storage.ρ[:, :, :, kpt.spin] .+= (occupation[ik][n] .* basis.kweights[ik]
-                                          .* (basis.fft_grid.ifft_normalization)^2
-                                          .* abs2.(storage.ψnk_real))
+        weight = occupation[ik][n] * basis.kweights[ik] * (basis.fft_grid.ifft_normalization)^2
 
+        if is_full
+            n_G = length(G_vectors(basis, kpt))
+            ifft!(storage.ψnk_real_1, basis, kpt, ψ[ik][1:n_G, n]; normalize=false)
+            ifft!(storage.ψnk_real_2, basis, kpt, ψ[ik][n_G+1:end, n]; normalize=false)
+
+            @inbounds for I in CartesianIndices(storage.ψnk_real_1)
+                c1 = storage.ψnk_real_1[I]
+                c2 = storage.ψnk_real_2[I]
+                
+                # Traces of the density matrix with Pauli matrices
+                ρ11 = abs2(c1)
+                ρ22 = abs2(c2)
+                ρ12 = conj(c1) * c2
+                
+                storage.ρ[I, 1] += weight * (ρ11 + ρ22)          # n = Tr(ρ)
+                storage.ρ[I, 2] += weight * 2 * real(ρ12)        # mx = Tr(ρ σx)
+                storage.ρ[I, 3] += weight * 2 * imag(ρ12)        # my = Tr(ρ σy)
+                storage.ρ[I, 4] += weight * (ρ11 - ρ22)          # mz = Tr(ρ σz)
+            end
+        else
+            ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n]; normalize=false)
+            storage.ρ[:, :, :, kpt.spin] .+= weight .* abs2.(storage.ψnk_real)
+        end
     end
     ρ = sum(storage -> storage.ρ, storages)
 
@@ -49,7 +79,7 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     # There can always be small negative densities, e.g. due to numerical fluctuations
     # in a vacuum region, so put some tolerance even if occupation_threshold == 0
     negtol = max(sqrt(eps(T)), 10occupation_threshold)
-    minimum(ρ) < -negtol && @warn("Negative ρ detected", min_ρ=minimum(ρ))
+    minimum(ρ[:, :, :, 1]) < -negtol && @warn("Negative ρ detected", min_ρ=minimum(ρ[:, :, :, 1]))
 
     ρ
 end
@@ -85,13 +115,11 @@ end
         (ik, n) = kn
 
         kpt = basis.kpoints[ik]
-        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n]; normalize=false)
+        ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n])
         # … and then we compute the real Fourier transform in the adequate basis.
-        ifft!(storage.δψnk_real, basis, δψ_plus_k[ik].kpt, δψ_plus_k[ik].ψk[:, n]; normalize=false)
-        # use unnormalized plans for extra speed, normalize at the end
-        ifft_normalization = basis.fft_grid.ifft_normalization
+        ifft!(storage.δψnk_real, basis, δψ_plus_k[ik].kpt, δψ_plus_k[ik].ψk[:, n])
 
-        storage.δρ[:, :, :, kpt.spin] .+= ifft_normalization^2 .* real_qzero.(
+        storage.δρ[:, :, :, kpt.spin] .+= real_qzero.(
             2 .* occupation[ik][n]  .* basis.kweights[ik] .* conj.(storage.ψnk_real)
                                                           .* storage.δψnk_real
               .+ δoccupation[ik][n] .* basis.kweights[ik] .* abs2.(storage.ψnk_real))
@@ -120,30 +148,49 @@ end
     symmetrize_ρ(basis, τ; do_lowpass=false)
 end
 
-total_density(ρ) = dropdims(sum(ρ; dims=4); dims=4)
+@views function total_density(ρ)
+    if size(ρ, 4) == 4
+        # Non-collinear case: the first component is already the scalar charge density (n)
+        ρ[:, :, :, 1]
+    else
+        # Collinear or spinless: sum over spin channels (up + down)
+        dropdims(sum(ρ; dims=4); dims=4)
+    end
+end
 @views function spin_density(ρ)
-    if size(ρ, 4) == 2
+    if size(ρ, 4) == 4
+        # Return the vector magnetization (mx, my, mz)
+        ρ[:, :, :, 2:4]
+    elseif size(ρ, 4) == 2
+        # Return collinear magnetization (up - down)
         ρ[:, :, :, 1] - ρ[:, :, :, 2]
     else
         zero(ρ[:, :, :])
     end
 end
 
-function ρ_from_total_and_spin(ρtot, ρspin=nothing)
+function ρ_from_total_and_spin(ρtot, ρspin=nothing; is_full=false)
     if ρspin === nothing
         # Val used to ensure inferability
         cat(ρtot; dims=Val(4))  # copy for consistency with other case
+    elseif is_full
+        # ρspin is expected to be a 3D vector field of shape (Nx, Ny, Nz, 3)
+        cat(ρtot, ρspin; dims=Val(4))
     else
+        # Collinear case
         cat((ρtot .+ ρspin) ./ 2,
             (ρtot .- ρspin) ./ 2; dims=Val(4))
     end
 end
 
 function ρ_from_total(basis, ρtot::AbstractArray{T}) where {T}
+    is_full = basis.model.spin_polarization == :full
     if basis.model.spin_polarization in (:none, :spinless)
         ρspin = nothing
+    elseif is_full
+        ρspin = zeros_like(G_vectors(basis), T, basis.fft_size..., 3)
     else
         ρspin = zeros_like(G_vectors(basis), T, basis.fft_size...)
     end
-    ρ_from_total_and_spin(ρtot, ρspin)
+    ρ_from_total_and_spin(ρtot, ρspin; is_full)
 end

@@ -46,10 +46,21 @@ end
     end
 
     E = zero(T)
+    is_full = basis.model.spin_polarization == :full
     for (ik, ψk) in enumerate(ψ)
-        E += basis.kweights[ik] * 
-             sum(occupation[ik] .* 
-                 real(vec(columnwise_dots(ψk, Diagonal(term.kinetic_energies[ik]), ψk))))
+        k = term.kinetic_energies[ik]
+        if is_full
+            n_G = length(k)
+            ψk_up = @view ψk[1:n_G, :]
+            ψk_dn = @view ψk[n_G+1:end, :]
+            
+            kin_up = real(vec(columnwise_dots(ψk_up, Diagonal(k), ψk_up)))
+            kin_dn = real(vec(columnwise_dots(ψk_dn, Diagonal(k), ψk_dn)))
+            
+            E += basis.kweights[ik] * sum(occupation[ik] .* (kin_up .+ kin_dn))
+        else
+            E += basis.kweights[ik] * sum(occupation[ik] .* real(vec(columnwise_dots(ψk, Diagonal(k), ψk))))
+        end
     end
     E = mpi_sum(E, basis.comm_kpts)
 

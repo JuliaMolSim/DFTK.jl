@@ -245,3 +245,5 @@ function plot_dos end
 function plot_ldos end
 
 function plot_pdos end
+
+function plot_dos! end

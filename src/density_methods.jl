@@ -22,11 +22,15 @@ function random_density(basis::PlaneWaveBasis{T}, n_electrons::Integer) where {T
     ρtot  = rand(T, basis.fft_size)
     ρtot  = ρtot .* n_electrons ./ (sum(ρtot) * basis.dvol)  # Integration to n_electrons
     ρspin = nothing
-    if basis.model.n_spin_components > 1
+    
+    is_full = basis.model.spin_polarization == :full
+    if basis.model.spin_polarization == :collinear
         ρspin = rand((-1, 1), basis.fft_size) .* rand(T, basis.fft_size) .* ρtot
         @assert all(abs.(ρspin) .≤ ρtot)
+    elseif is_full
+        ρspin = rand((-1, 1), basis.fft_size..., 3) .* rand(T, basis.fft_size..., 3) .* ρtot
     end
-    ρ_from_total_and_spin(ρtot, ρspin)
+    ρ_from_total_and_spin(ρtot, ρspin; is_full)
 end
 
 # Atomic density methods
@@ -88,9 +92,12 @@ function atomic_density(basis::PlaneWaveBasis, method::AtomicDensity, magnetic_m
                         n_electrons)
     ρtot = atomic_total_density(basis, method)
     ρspin = atomic_spin_density(basis, method, magnetic_moments)
-    ρ = ρ_from_total_and_spin(ρtot, ρspin)
+    
+    is_full = basis.model.spin_polarization == :full
+    ρ = ρ_from_total_and_spin(ρtot, ρspin; is_full)
 
-    N = sum(ρ) * basis.model.unit_cell_volume / prod(basis.fft_size)
+    # Only normalize based on the scalar charge density, not the magnetization!
+    N = sum(ρ[:, :, :, 1]) * basis.model.unit_cell_volume / prod(basis.fft_size)
     if !isnothing(n_electrons) && (N > 0)
         ρ .*= n_electrons / N  # Renormalize to the correct number of electrons
     end
@@ -111,7 +118,7 @@ function atomic_spin_density(basis::PlaneWaveBasis{T}, method::AtomicDensity,
     model = basis.model
     if model.spin_polarization in (:none, :spinless)
         isempty(magnetic_moments) && return nothing
-        error("Initial magnetic moments can only be used with collinear models.")
+        error("Initial magnetic moments can only be used with collinear or full models.")
     end
 
     # If no magnetic moments start with a zero spin density
@@ -120,20 +127,40 @@ function atomic_spin_density(basis::PlaneWaveBasis{T}, method::AtomicDensity,
         @warn("Returning zero spin density guess, because no initial magnetization has " *
               "been specified in any of the given elements / atoms. Your SCF will likely " *
               "not converge to a spin-broken solution.")
-        return zeros(T, basis.fft_size)
+        if model.spin_polarization == :full
+            return zeros(T, basis.fft_size..., 3)
+        else
+            return zeros(T, basis.fft_size)
+        end
     end
 
     @assert length(magmoms) == length(basis.model.atoms)
-    coefficients = map(basis.model.atoms, magmoms) do atom, magmom
-        iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
-        magmom[3] ≤ n_elec_valence(atom) || error(
-            "Magnetic moment $(magmom[3]) too large for element $(species(atom)) " *
-            "with only $(n_elec_valence(atom)) valence electrons."
-        )
-        magmom[3] / n_elec_valence(atom)
-    end::AbstractVector{T}  # Needed to ensure type stability in final guess density
-
-    atomic_density_superposition(basis, method; coefficients)
+    
+    if model.spin_polarization == :collinear
+        coefficients = map(basis.model.atoms, magmoms) do atom, magmom
+            iszero(magmom[1:2]) || error("Non-collinear magnetization not supported in collinear mode.")
+            magmom[3] ≤ n_elec_valence(atom) || error(
+                "Magnetic moment $(magmom[3]) too large for element $(species(atom)) " *
+                "with only $(n_elec_valence(atom)) valence electrons."
+            )
+            magmom[3] / n_elec_valence(atom)
+        end::AbstractVector{T}  # Needed to ensure type stability in final guess density
+        return atomic_density_superposition(basis, method; coefficients)
+        
+    elseif model.spin_polarization == :full
+        # Superpose x, y, z components separately
+        ρspin_components = map(1:3) do α
+            coeff_α = map(basis.model.atoms, magmoms) do atom, magmom
+                norm(magmom) ≤ n_elec_valence(atom) || error(
+                    "Magnetic moment $(norm(magmom)) too large for element $(species(atom)) " *
+                    "with only $(n_elec_valence(atom)) valence electrons."
+                )
+                magmom[α] / n_elec_valence(atom)
+            end::AbstractVector{T}
+            atomic_density_superposition(basis, method; coefficients=coeff_α)
+        end
+        return cat(ρspin_components...; dims=4)
+    end
 end
 
 # Perform an atomic density superposition. The density is constructed in reciprocal space

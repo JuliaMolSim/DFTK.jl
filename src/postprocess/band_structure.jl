@@ -31,10 +31,12 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
               "quantity to compute_bands as the τ keyword argument or use the " *
               "compute_bands(scfres) function.")
     end
+
     i_exx = findfirst(t -> t isa TermExactExchange, basis.terms)
     if !isnothing(i_exx) && basis.terms[i_exx].exx_algorithm isa AceExx
         @warn "Virtual orbitals and virtual orbital energies are off if using AceExx."
     end
+
     seed = seed_task_local_rng!(seed, basis.comm_kpts)
 
     # Create new basis with new kpoints
@@ -292,6 +294,7 @@ Like in the rest of DFTK Hartree is used by default. Another standard choices is
 `unit=u"eV"` (electron volts).
 """
 function plot_bandstructure end
+function plot_bandstructure! end
 
 
 """
