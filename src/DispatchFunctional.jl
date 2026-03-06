@@ -240,9 +240,30 @@ function DftFunctionals.potential_terms(fun::DispatchFunctional, ρ::AbstractMat
     potential_terms(DftFunctional(identifier(fun)), ρ, args...)
 end
 
-# TODO This is hackish for now until Libxc has fully picked up the DftFunctionals.jl interface
-exx_coefficient(::Functional{:lda})      = nothing
-exx_coefficient(::Functional{:gga})      = nothing
-exx_coefficient(::Functional{:mgga})     = nothing
-exx_coefficient(fun::DispatchFunctional) = exx_coefficient(fun.inner)
-exx_coefficient(fun::LibxcFunctional)    = Libxc.Functional(fun.identifier).exx_coefficient
+hybrid_parameters(::Functional{:lda})  = nothing
+hybrid_parameters(::Functional{:gga})  = nothing
+hybrid_parameters(::Functional{:mgga}) = nothing
+hybrid_parameters(fun::DispatchFunctional) = hybrid_parameters(fun.inner)
+function hybrid_parameters(libxcfun::LibxcFunctional)
+    fxc = Libxc.Functional(libxcfun.identifier)
+    if Libxc.is_global_hybrid(fxc)
+        exx_lr = exx_sr = fxc.exx_coefficient
+        return (; exx_lr, exx_sr,
+                  range_separation_parameter=nothing, range_separation_kernel=nothing)
+    elseif Libxc.is_range_separated(fxc)
+        exx_lr = fxc.cam_alpha
+        exx_sr = fxc.cam_alpha + fxc.cam_beta
+
+        if :hyb_lcy in fxc.flags || :hym_camy in fxc.flags
+            range_separation_kernel = :yukawa
+        elseif :hyb_lc in fxc.flags || :hym_cam in fxc.flags
+            range_separation_kernel = :erf
+        else
+            error("Unknown range separation kernel")
+        end
+        return (; exx_lr, exx_sr,
+                  range_separation_parameter=fxc.cam_omega, range_separation_kernel)
+    else
+        return nothing
+    end
+end

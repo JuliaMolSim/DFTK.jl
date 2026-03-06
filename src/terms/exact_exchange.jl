@@ -19,9 +19,7 @@ where the `kernel` keyword argument is an [`InteractionKernel`](@ref) , typicall
     scaling_factor::Real = 1.0
     kernel = Coulomb()
 end
-function (ex::ExactExchange)(basis)
-    TermExactExchange(basis, ex.scaling_factor, ex.kernel)
-end
+(ex::ExactExchange)(basis) = TermExactExchange(basis, ex.scaling_factor, ex.kernel)
 
 struct TermExactExchange <: Term
     scaling_factor::Real  # scaling factor, absorbed into interaction_kernel
