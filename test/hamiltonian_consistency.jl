@@ -8,7 +8,8 @@ using ..TestCases: silicon
 
 function test_consistency_term(term; rtol=1e-4, atol=1e-8, test_for_constant=false, n_empty=3,
                                ε=1e-6, kgrid=[1, 2, 3], kshift=[0, 1, 0]/2, Ecut=10,
-                               lattice=silicon.lattice, atom=nothing, spin_polarization=:none)
+                               lattice=silicon.lattice, atom=nothing, spin_polarization=:none,
+                               exxalg=AceExx())
     sspol = spin_polarization != :none ? " ($spin_polarization)" : ""
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
     @testset "$(typeof(term))$xc $sspol" begin
@@ -40,7 +41,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, test_for_constant=fal
         if term isa Hubbard
             hubbard_n = DFTK.compute_hubbard_n(only(basis.terms), basis, ψ, occupation)
         end
-        E0, ham = energy_hamiltonian(basis, ψ, occupation; ρ, τ, hubbard_n)
+        E0, ham = energy_hamiltonian(basis, ψ, occupation; exxalg, ρ, τ, hubbard_n)
 
         # Test operator agrees with matrix form
         for ik = 1:length(basis.kpoints)
@@ -63,7 +64,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, test_for_constant=fal
                 hubbard_n_trial = DFTK.compute_hubbard_n(thub, basis, ψ_trial, occupation)
             end
             (; energies) = energy_hamiltonian(basis, ψ_trial, occupation;
-                                              ρ=ρ_trial, τ=τ_trial,
+                                              exxalg, ρ=ρ_trial, τ=τ_trial,
                                               hubbard_n=hubbard_n_trial)
             energies.total
         end
@@ -138,9 +139,9 @@ end
     end
 
     @testset "Exact exchange" begin
-        for exx_algorithm in (VanillaExx(), AceExx())
-            test_consistency_term(ExactExchange(; kernel=Coulomb(ProbeCharge()), exx_algorithm);
-                                  kgrid=(1, 1, 1), kshift=(0, 0, 0))
+        for exxalg in (VanillaExx(), AceExx())
+            test_consistency_term(ExactExchange(; kernel=Coulomb(ProbeCharge()));
+                                  exxalg, kgrid=(1, 1, 1), kshift=(0, 0, 0))
         end
         test_consistency_term(ExactExchange(); spin_polarization=:collinear,
                               kgrid=(1, 1, 1), kshift=(0, 0, 0))

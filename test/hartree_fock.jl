@@ -41,18 +41,15 @@
     # Then run Hartree-Fock
     model = model_HF(lattice, atoms, positions;
                      temperature=0.001, smearing=DFTK.Smearing.Gaussian(),
-                     exx_algorithm=VanillaExx(),
                      exx_kernel=Coulomb(ReplaceSingularity(0.0)))
     basis = PlaneWaveBasis(model; Ecut=20, kgrid=[1, 1, 1])
 
     run_scf_and_compare(Float64, basis, ref_hf, ref_etot; 
                         scf_ene_tol=1e-7, test_tol=1e-4, maxiter=20,
                         scfres_pbe.ψ, scfres_pbe.ρ,
-                        scfres_pbe.eigenvalues, scfres_pbe.occupation,
+                        scfres_pbe.eigenvalues, scfres_pbe.occupation, exxalg=VanillaExx(),
                         # TODO: Anderson right does not yet work well for Hartree-Fock
-                        damping=0.3, solver=DFTK.scf_damping_solver(),
-                        # TODO: The default diagtolalg does not yet work well for Hartree-Fock
-                        diagtolalg=DFTK.AdaptiveDiagtol(; ratio_ρdiff=1e-5))
+                        damping=0.3, solver=DFTK.scf_damping_solver())
 
     # TODO: This test is very brittle. I think QE converged to the wrong SCF minimum
 end
@@ -85,17 +82,16 @@ end
                0.39476442887837615]]
     ref_etot = -31.240766149174128
 
-    model  = model_HF(lattice, atoms, positions; 
-                      exx_kernel=SphericallyTruncatedCoulomb(), 
-                      exx_algorithm=AceExx())
+    model  = model_HF(lattice, atoms, positions; exx_kernel=SphericallyTruncatedCoulomb())
     basis  = PlaneWaveBasis(model, Ecut=40; kgrid=[1, 1, 1])
 
+    # Note: In DFTK we disable ACE for the final energy computation and the final Hamiltonian
+    #       build, why QE does not do that. Hence our total energy agrees only to 1e-4
     RunSCF.run_scf_and_compare(Float64, basis, ref_hf, ref_etot;
-                               scf_ene_tol=1e-10, test_tol=5e-5, n_ignored=0,
+                               scf_ene_tol=1e-10, test_tol=1e-4, n_ignored=0,
+                               exxalg=AceExx(sketch_with_extra_orbitals=false),
                                # TODO: Anderson right does not yet work well for Hartree-Fock
-                               damping=0.4, solver=DFTK.scf_damping_solver(),
-                               # TODO: The default diagtolalg does not yet work well for Hartree-Fock
-                               diagtolalg=DFTK.AdaptiveDiagtol(; ratio_ρdiff=1e-5))
+                               damping=0.4, solver=DFTK.scf_damping_solver())
 end
 
 @testitem "AFM H chain Hartree-Fock energy" tags=[:exx, :dont_test_mpi] setup=[RunSCF] begin
@@ -132,13 +128,14 @@ end
     scfres_pbe = self_consistent_field(basis; ρ, tol=1e-3)
     
     model  = model_HF(system; pseudopotentials, magnetic_moments, temperature=0.01,
-                      exx_kernel=Coulomb(ProbeCharge()), exx_algorithm=AceExx())
+                      exx_kernel=Coulomb(ProbeCharge()))
     basis  = PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])
+
     RunSCF.run_scf_and_compare(Float64, basis, ref_hf, ref_etot;
                                scf_ene_tol=1e-10, test_tol=5e-5, n_ignored=0,
-                               scfres_pbe.ρ, scfres_pbe.ψ, scfres_pbe.eigenvalues, scfres_pbe.occupation,
+                               scfres_pbe.ρ, scfres_pbe.ψ, scfres_pbe.eigenvalues,
+                               scfres_pbe.occupation,
+                               exxalg=AceExx(sketch_with_extra_orbitals=false),
                                # TODO: Anderson right does not yet work well for Hartree-Fock
-                               damping=0.4, solver=DFTK.scf_damping_solver(),
-                               # TODO: The default diagtolalg does not yet work well for Hartree-Fock
-                               diagtolalg=DFTK.AdaptiveDiagtol(; ratio_ρdiff=1e-5))
+                               damping=0.4, solver=DFTK.scf_damping_solver())
 end

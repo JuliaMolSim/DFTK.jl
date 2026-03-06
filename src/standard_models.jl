@@ -192,22 +192,18 @@ Build an Hartree-Fock model from the specified atoms.
          necks in the code.
 """
 function model_HF(system::AbstractSystem; pseudopotentials,
-                  exx_kernel::InteractionKernel=Coulomb(),
-                  exx_algorithm::ExxAlgorithm=VanillaExx(), extra_terms=[], kwargs...)
+                  exx_kernel::InteractionKernel=Coulomb(), extra_terms=[], kwargs...)
     # Note: We are deliberately enforcing the user to specify pseudopotentials here.
     # See the implementation of model_atomic for a rationale why
     #
-    exx = ExactExchange(; kernel=exx_kernel, exx_algorithm)
-    model_atomic(system; pseudopotentials, model_name="HF",
-                 extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
+    extra_terms=[Hartree(), ExactExchange(; kernel=exx_kernel), extra_terms...]
+    model_atomic(system; pseudopotentials, model_name="HF", extra_terms, kwargs...)
 end
 function model_HF(lattice::AbstractMatrix, atoms::Vector{<:Element},
                   positions::Vector{<:AbstractVector};
-                  exx_kernel::InteractionKernel=Coulomb(),
-                  exx_algorithm::ExxAlgorithm=VanillaExx(), extra_terms=[], kwargs...)
-    exx = ExactExchange(; kernel=exx_kernel, exx_algorithm)
-    model_atomic(lattice, atoms, positions; model_name="HF",
-                 extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
+                  exx_kernel::InteractionKernel=Coulomb(), extra_terms=[], kwargs...)
+    extra_terms=[Hartree(), ExactExchange(; kernel=exx_kernel), extra_terms...]
+    model_atomic(lattice, atoms, positions; model_name="HF", extra_terms, kwargs...)
 end
 
 
@@ -290,16 +286,13 @@ as well as the following:
 - `exx_kernel`: The type of [`InteractionKernel`](@ref) to employ. By default a (regularised)
   Coulomb kernel is employed.
 """
-function HybridFunctional(libxc_symbols::Vector{Symbol};
-                          exx_fraction=nothing,
-                          exx_kernel::InteractionKernel=Coulomb(),
-                          exx_algorithm::ExxAlgorithm=VanillaExx(), kwargs...)
+function HybridFunctional(libxc_symbols::Vector{Symbol}; exx_fraction=nothing,
+                          exx_kernel::InteractionKernel=Coulomb(), kwargs...)
     xc  = Xc(libxc_symbols; kwargs...)
     scaling_factor = @something(exx_fraction, begin
         only(filter(!isnothing, map(exx_coefficient, xc.functionals)))
     end)
-
-    exx = ExactExchange(; scaling_factor, kernel=exx_kernel, exx_algorithm)
+    exx = ExactExchange(; scaling_factor, kernel=exx_kernel)
     [xc, exx]
 end
 
