@@ -36,7 +36,7 @@ jobs:
             DocMeta.setdocmeta!(DFTK, :DocTestSetup, :(using DFTK); recursive=true)
             doctest(DFTK)'
       - name: Upload Docs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: documentation
           path: docs/build
