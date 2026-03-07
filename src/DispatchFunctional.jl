@@ -254,15 +254,15 @@ function hybrid_parameters(libxcfun::LibxcFunctional)
         exx_lr = fxc.cam_alpha
         exx_sr = fxc.cam_alpha + fxc.cam_beta
 
-        if :hyb_lcy in fxc.flags || :hym_camy in fxc.flags
+        if :hyb_lcy in fxc.flags || :hyb_camy in fxc.flags
             range_separation_kernel = :yukawa
-        elseif :hyb_lc in fxc.flags || :hym_cam in fxc.flags
+        elseif :hyb_lc in fxc.flags || :hyb_cam in fxc.flags
             range_separation_kernel = :erf
         else
             error("Unknown range separation kernel")
         end
-        return (; exx_lr, exx_sr,
-                  range_separation_parameter=fxc.cam_omega, range_separation_kernel)
+        return (; exx_lr, exx_sr, range_separation_kernel,
+                  range_separation_parameter=fxc.cam_omega)
     else
         return nothing
     end

@@ -281,7 +281,9 @@ term as well as the following:
 function HybridFunctional(libxc_symbols::Vector{Symbol}; exx_fraction=nothing,
                           exx_kernel=nothing, μ=nothing, kwargs...)
     xc = Xc(libxc_symbols; kwargs...)
-    parsed = parse_hybrid_parameters_(; hybrid_parameters(xc)...)
+    hyb_params = hybrid_parameters(xc)
+    range_separation_parameter = @something μ Some(hyb_params.range_separation_parameter)
+    parsed = parse_hybrid_parameters_(; hyb_params..., range_separation_parameter)
     kernel = @something exx_kernel parsed.kernel
     scaling_factor = @something exx_fraction parsed.scaling_factor
     [xc, ExactExchange(; scaling_factor, kernel)]
@@ -293,11 +295,13 @@ function parse_hybrid_parameters_(; exx_sr=nothing, exx_lr=nothing,
     if isnothing(range_separation_kernel)
         @assert exx_lr == exx_sr
         return (; scaling_factor=exx_sr, kernel=Coulomb())
-    elseif range_separation_kernel == :erf && exx_sr == 0
-        return (; scaling_factor=exx_lr,
-                  kernel=ShortRangeCoulomb(range_separation_parameter))
-    elseif exx_sr > 0
-        error("Range separation with non-zero short-range exact exchange not yet available.")
+    elseif range_separation_kernel == :erf
+        if exx_lr > 0
+            error("Range separation with non-zero long-range exact exchange not yet available.")
+        else
+            return (; scaling_factor=exx_sr,
+                      kernel=ShortRangeCoulomb(range_separation_parameter))
+        end
     else
         error("Range separation based on $range_separation_kernel kernels " *
               "not yet implemented.")
