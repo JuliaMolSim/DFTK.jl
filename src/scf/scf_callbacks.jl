@@ -216,9 +216,13 @@ end
 # as opposed to any of these more sophisticated criteria.
 
 function default_diagtolalg(basis; tol, kwargs...)
-    if any(t -> t isa TermNonlinear, basis.terms)
-        AdaptiveDiagtol()
+    if any(t -> t isa TermExactExchange, basis.terms)
+        # TODO: This is not benchmarked whatsoever, this is just a number pulled
+        #       out of my hips right now.
+        return AdaptiveDiagtol(; ratio_ρdiff=5e-4)
+    elseif any(t -> t isa TermNonlinear, basis.terms)
+        return AdaptiveDiagtol()
     else
-        AdaptiveDiagtol(; diagtol_first=tol/5)
+        return AdaptiveDiagtol(; diagtol_first=tol/5)
     end
 end
