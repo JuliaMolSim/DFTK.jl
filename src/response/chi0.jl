@@ -415,8 +415,8 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
         mul!(δψk, ψk, dot_prods, 1, 1)
 
         # Sternheimer contribution, for all columns of δψk at once.
-        εk_minus_q_gpu = to_device(basis.architecture, εk_minus_q),
-        res = sternheimer_solver(Hk, ψk, εk_minus_q_gpu, δHψ[ik];
+        εk_minus_q_device = to_device(basis.architecture, εk_minus_q)
+        res = sternheimer_solver(Hk, ψk, εk_minus_q_device, δHψ[ik];
                                  ψk_extra, εk_extra, Hψk_extra,
                                  tol=tolk_minus_q, kwargs_sternheimer...)
         !res.converged && @warn("Sternheimer CG not converged", res.tol, res.residual_norms)
