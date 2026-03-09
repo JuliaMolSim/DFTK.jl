@@ -101,8 +101,8 @@ LinearAlgebra.ldiv!(y::T, P::FunctionPreconditioner, x) where {T} = P.preconditi
 LinearAlgebra.ldiv!(P::FunctionPreconditioner, x) = (x .= P.precondition!(similar(x), x))
 precondprep!(P::FunctionPreconditioner, ::Any) = P
 
-struct MaskedOperator
-    masked_product!::Function
+struct MaskedOperator{T}
+    masked_product!::T  # masked_product!(Ax, x; mask)
 end
 @timing mul_masked!(Ax, M::MaskedOperator, x; mask) = M.masked_product!(Ax, x; mask)
 
@@ -201,6 +201,7 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
         HRϕ = H(RARϕ; mask)
         # Schur complement of (1-P) (H-ε) (1-P)
         # with the splitting Ran(1-P) = Ran(P_extra) ⊕ Ran(R)
+        # HRϕ[:, n] -= Hψk_extra[:, n] * [1/(εk_extra_n - ε_l)] .* Hψk_extra[:, n]' Rϕ[:, l]
         mul!(HRϕ, Hψk_extra, inv_ψk_exHψk_ex[:, mask] .* Hψk_extra'RARϕ[:, mask], -1, 1)
         R!(RARϕ[:, mask], HRϕ)
     end
@@ -219,7 +220,8 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
 
     # 2) solve for αk now that we know δψkᴿ
     # We again do this for all right-hand sides at once, such that
-    # αk[m, l] = 1/(εk_extra_n - ε_l) δnm (ψk_extra[:, n]' * (b[:, l] - (H - ε_l) * δψkᴿ[:, l])
+    # αk[m, l] = 1/(εk_extra_n - ε_l) δnm (ψk_extra[:, n]' 
+    #                                      * (b[:, l] - (H - ε_l) * δψkᴿ[:, l])
     # Note that αk is an empty array if there is no extra bands.
     αk = inv_ψk_exHψk_ex .* (ψk_extra' * (b - H(δψkᴿ)))
 
@@ -413,11 +415,10 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
         mul!(δψk, ψk, dot_prods, 1, 1)
 
         # Sternheimer contribution, for all columns of δψk at once.
-        res = sternheimer_solver(Hk, ψk,
-                                 to_device(basis.architecture, εk_minus_q),
-                                 δHψ[ik]; ψk_extra, εk_extra, Hψk_extra,
+        εk_minus_q_gpu = to_device(basis.architecture, εk_minus_q),
+        res = sternheimer_solver(Hk, ψk, εk_minus_q_gpu, δHψ[ik];
+                                 ψk_extra, εk_extra, Hψk_extra,
                                  tol=tolk_minus_q, kwargs_sternheimer...)
-
         !res.converged && @warn("Sternheimer CG not converged", res.tol, res.residual_norms)
 
         δψk .+= res.δψk
