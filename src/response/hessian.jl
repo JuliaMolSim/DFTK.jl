@@ -1,4 +1,5 @@
 using KrylovKit
+using LinearMaps
 
 # The Hessian of P -> E(P) (E being the energy) is Ω+K, where Ω and K are
 # defined below (cf. [1] for more details).
@@ -100,7 +101,7 @@ function (cb::ResponseCallback)(info)
     runtime_ns = current_time - cb.prev_time[]
     cb.prev_time[] = current_time
 
-    resnorm = @sprintf "%20.2f" log10(info.residual_norm)
+    resnorm = @sprintf "%20.2f" log10(only(info.residual_norms))
     time = @sprintf "% 6s" TimerOutputs.prettytime(runtime_ns)
     @printf "% 3d   %s   %s\n" info.n_iter resnorm time
     flush(stdout)
@@ -155,21 +156,22 @@ that is return δψ where (Ω+K) δψ = -δHextψ.
     J = LinearMap{T}(ΩpK, size(δHextψ_pack, 1))
 
     # solve (Ω+K) δψ = -δHextψ on the tangent space with CG
-    function proj(x)
+    function proj!(Px, x)
         δψ = unpack(x)
         proj_tangent!(δψ, ψ)
-        pack(δψ)
+        Px .= pack(δψ)
     end
     # custom inner product that Ω+K is self-adjoint with respect to
-    function weighted_dot(x, y)
+    function weighted_dots(x, y)
         δψx = unsafe_unpack(x)
         δψy = unsafe_unpack(y)
         # real(dot) here because we work in R^2N rather than C^N
-        weighted_ksum(basis, [real(dot(δψx[ik], δψy[ik])) for ik in 1:length(basis.kpoints)])
+        [weighted_ksum(basis, [real(dot(δψx[ik], δψy[ik])) for ik in 1:length(basis.kpoints)])]
     end
-    res = cg(J, -δHextψ_pack; precon=FunctionPreconditioner(f_ldiv!), proj, tol,
-             callback=info -> callback(merge(info, (; basis=basis))), my_dot=weighted_dot)
-    (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norm,
+    res = cg(J, -δHextψ_pack; precon=FunctionPreconditioner(f_ldiv!), proj!,
+             tol=tol, callback=info -> callback(merge(info, (; basis=basis))),
+             my_columnwise_dots=weighted_dots)
+    (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norms,
      res.n_iter)
 end
 
@@ -233,6 +235,7 @@ function (cb::OmegaPlusKDefaultCallback)(info)
         @printf(io, "%21s%s  %10s  %7.1f%s  %s\n",
                 "", label_s[3], "", avgCG, tstr, "Final orbitals")
     end
+    flush(stdout)
     info
 end
 
