@@ -1,5 +1,5 @@
-using LinearMaps
 using LinearAlgebra: dot
+using LinearMaps
 
 function default_cg_print(info)
     # Default callback prints on all MPI ranks
@@ -7,19 +7,20 @@ function default_cg_print(info)
 end
 
 """
-Matrix-vector product used in the CG solver. The CG locking mechanism is such that the first and last
-converged columns of x in Ax = b are ignored by considering a contiguous active set of columns,defined
-by first(!converged_columns):last(!converged_columns). The mask must be a contiguous range for GPU
-compatibility. This is the default implementation for matrix-like A. Custom opertators must implement
-their own method for mul_masked!.
+Matrix-vector product used in the CG solver. The CG locking mechanism is such that the first
+and last converged columns of x in Ax = b are ignored by considering a contiguous active set
+of columns,defined by first(!converged_columns):last(!converged_columns). The mask must be a
+contiguous range for GPU compatibility. This is the default implementation for matrix-like A.
+Custom opertators must implement their own method for mul_masked!.
 """
-@timing mul_masked!(Ax, A, x; mask::UnitRange) = @views mul!(Ax, A, x[:, mask])
+@timing mul_masked!(Ax, A::Union{AbstractArray{T}, LinearMap{T}}, x;
+                    mask::UnitRange) where {T} = @views mul!(Ax[:, mask], A, x[:, mask])
 
 """
 Implementation of the conjugate gradient method which allows for preconditioning
 and projection operations along iterations. The solver is optimized for generic
-input arrays with multiple columns, i.e. solutions of A x[:, i] = b[:, i] for all
-columns i are sought simultaneously. Single column vectors, i.e. size(x, 2) == 1,
+input arrays with multiple columns, i.e. solutions of A x[:, n] = b[:, n] for all
+columns n are sought simultaneously. Single column vectors, i.e. size(x, 2) == 1,
 are also supported. To reduce allocations, an in-place mul_masked! matrix-vector
 product is used for A*x,  and projector proj! is also expected to be in-place.
 A basic locking meachnism for converged columns is implemented.
@@ -49,12 +50,12 @@ function cg!(x::AbstractArray{T}, A, b::AbstractArray{T};
         r .-= c
     end
     ldiv!(c, precon, r)
-    γ = similar(b, T, size(b, 2)) # explicit type for stability
+    γ = similar(b, T, size(b, 2))  # explicit type for stability
     γ .= my_columnwise_dots(r, c)
     # p is the descent direction
     p = copy(c)
     n_iter = 0
-    residual_norms = zeros(real(T), size(b, 2)) # explicit type stability
+    residual_norms = zeros(real(T), size(b, 2))  # explicit type stability
     residual_norms .= to_cpu(my_columnwise_norms(r))
     converged_cols = falses(size(b, 2))
 
@@ -101,27 +102,28 @@ function cg!(x::AbstractArray{T}, A, b::AbstractArray{T};
             residual_norms = full_residuals[active]
         end
 
-        mul_masked!(c, A, full_p; mask=active) # c = A*full_p[:, active]
+        mul_masked!(full_c, A, full_p; mask=active)  # full_c[:, active] = A*full_p[:, active]
         tmp = zeros_like(γ)
         tmp .= my_columnwise_dots(p, c)
         α = γ ./ tmp
 
         # update iterate and residual while ensuring they stay in Ran(proj)
         proj_buffer .= x .+ p .* α'
-        proj!(x, proj_buffer) # x .= proj(x .+ p .* α')
+        proj!(x, proj_buffer)  # x .= proj(x .+ p .* α')
         proj_buffer .= r .- c .* α'
-        proj!(r, proj_buffer) # r .= proj(r .- c .* α')
+        proj!(r, proj_buffer)  # r .= proj(r .- c .* α')
         residual_norms .= to_cpu(my_columnwise_norms(r))
 
-        # apply preconditioner and prepare next iteration. Preconditioner applied to full arrays,
-        # because the FunctionPreconditioner type makes it hard to change the active set (cheap enough).
-        # c is also updated, as it is a view into full_c
+        # apply preconditioner and prepare next iteration. Preconditioner applied to full
+        # arrays, because the FunctionPreconditioner type makes it hard to change the
+        # active set (cheap enough). c is also updated, as it is a view into full_c
+        # TODO: allow masking in the preconditioner ?
         ldiv!(full_c, precon, full_r)
-        copy!(tmp, γ) # previous γ stored in tmp array 
+        copy!(tmp, γ)  # previous γ stored in tmp array 
         γ .= my_columnwise_dots(r, c)
         β = γ ./ tmp
         proj_buffer .= c .+ p .* β'
-        proj!(p, proj_buffer) # p .= proj(c .+ p .* β')/
+        proj!(p, proj_buffer)  # p .= proj(c .+ p .* β')/
     end
     info = (; x=full_x, converged, tol, residual_norms=full_residuals, n_iter, maxiter, stage=:finalize)
     callback(info)

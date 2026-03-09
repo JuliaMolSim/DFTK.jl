@@ -1,4 +1,5 @@
 using KrylovKit
+using LinearMaps
 
 # The Hessian of P -> E(P) (E being the energy) is Ω+K, where Ω and K are
 # defined below (cf. [1] for more details).
@@ -100,9 +101,7 @@ function (cb::ResponseCallback)(info)
     runtime_ns = current_time - cb.prev_time[]
     cb.prev_time[] = current_time
 
-    # expect a scalar from solve_ΩplusK
-    @assert length(info.residual_norms) == 1
-    resnorm = @sprintf "%20.2f" log10(info.residual_norms[1])
+    resnorm = @sprintf "%20.2f" log10(only(info.residual_norms))
     time = @sprintf "% 6s" TimerOutputs.prettytime(runtime_ns)
     @printf "% 3d   %s   %s\n" info.n_iter resnorm time
     flush(stdout)
@@ -169,8 +168,9 @@ that is return δψ where (Ω+K) δψ = -δHextψ.
         # real(dot) here because we work in R^2N rather than C^N
         [weighted_ksum(basis, [real(dot(δψx[ik], δψy[ik])) for ik in 1:length(basis.kpoints)])]
     end
-    res = cg(J, -δHextψ_pack; precon=FunctionPreconditioner(f_ldiv!), proj!, tol=tol,
-             callback=info -> callback(merge(info, (; basis=basis))), my_columnwise_dots=weighted_dots)
+    res = cg(J, -δHextψ_pack; precon=FunctionPreconditioner(f_ldiv!), proj!,
+             tol=tol, callback=info -> callback(merge(info, (; basis=basis))),
+             my_columnwise_dots=weighted_dots)
     (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norms,
      res.n_iter)
 end

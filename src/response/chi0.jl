@@ -1,5 +1,3 @@
-using LinearMaps
-
 @doc raw"""
 Compute the independent-particle susceptibility. Will blow up for large systems.
 For non-spin-polarized calculations the matrix dimension is
@@ -106,12 +104,12 @@ precondprep!(P::FunctionPreconditioner, ::Any) = P
 struct MaskedOperator
     masked_product!::Function
 end
-@timing mul_masked!(Ax, M::MaskedOperator, x; mask) = M.masked_product!(Ax, x, mask)
+@timing mul_masked!(Ax, M::MaskedOperator, x; mask) = M.masked_product!(Ax, x; mask)
 
 # Solves (1-P) (H-ε) (1-P) δψ = - (1-P) rhs
 # where 1-P is the projector on the orthogonal of ψk
 # The solver simultaneously solves for multiple right-hand sides, i.e.:
-# (1-P) (H-ε) (1-P) δψ[:, i] = - (1-P) rhs[:, i] for all columns i.
+# (1-P) (H-ε) (1-P) δψ[:, n] = - (1-P) rhs[:, n] for all columns n.
 # /!\ It is assumed (and not checked) that ψk'Hk*ψk = Diagonal(εk) (extra states
 # included).
 function sternheimer_solver(Hk, ψk, ε, rhs;
@@ -122,9 +120,9 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     basis  = Hk.basis
     kpoint = Hk.kpoint
 
-    # Note: to maintain clearer mathematical formulas, all commements assue the problem
+    # Note: to maintain clearer mathematical formulas, all commements assume the problem
     #       is solved band by band, with ψkn = ψk[:, n]. In practice, the problem is solved
-    #       for all bands simultaneously for performance reasosn.
+    #       for all bands simultaneously for performance reasons.
 
     # We use a Schur decomposition of the orthogonal of the occupied states
     # into a part where we have the partially converged, non-occupied bands
@@ -143,11 +141,11 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     # R = 1-P_computed is the projector onto the orthogonal of computed states
     # Implement allocation light, in-place version for performance
     function R!(Rϕ, ϕ)
-        mul!(Rϕ, ψk, ψk' * ϕ) # P(ϕ)
-        mul!(Rϕ, ψk_extra, ψk_extra' * ϕ, -1, -1) # -P(ϕ) - P_extra(ϕ)
-        Rϕ .+= ϕ # R = ϕ -P(ϕ) - P_extra(ϕ)
+        mul!(Rϕ, ψk, ψk' * ϕ)  # P(ϕ)
+        mul!(Rϕ, ψk_extra, ψk_extra' * ϕ, -1, -1)  # -P(ϕ) - P_extra(ϕ)
+        Rϕ .+= ϕ  # R = ϕ -P(ϕ) - P_extra(ϕ)
     end
-    R(ϕ) = R!(similar(ϕ), ϕ) #TODO: ok, is Rϕ actually returned?
+    R(ϕ) = R!(similar(ϕ), ϕ)
 
     # We put things into the form
     # δψkn = ψk_extra * αkn + δψknᴿ ∈ Ran(Q)
@@ -168,13 +166,13 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     # (H-ε)ϕ = Hϕ - ϕ * Diagonal(ε). Application can be restriced to a
     #given active range of columns of x, define by a mask.
     function H(ϕ; mask=1:size(ϕ, 2))
-        Hϕ = Hk * ϕ
-        mul!(Hϕ, ϕ, Diagonal(ε[mask]), -1, 1) # Hϕ - ϕ * Diagonal(ε)
+        Hϕ = Hk * ϕ[:, mask]
+        mul!(Hϕ, ϕ[:, mask], Diagonal(ε[mask]), -1, 1)  # Hϕ - ϕ * Diagonal(ε)
     end
 
     # 1) solve for δψknᴿ
     # ----------------------------
-    # writing αk as a function of δψkᴿ, we get that δψkᴿ
+    # writing αkn as a function of δψknᴿ, we get that δψknᴿ
     # solves the system (in Ran(1-P_computed))
     #
     # R * (H - ε) * (1 - M * (H - ε)) * R * δψknᴿ = R * (1 - M) * b
@@ -195,15 +193,16 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     inv_ψk_exHψk_ex = 1 ./(real.(εk_extra) .- ε')
 
     b = -Q(rhs)
-    bb = R(b -  Hψk_extra * (inv_ψk_exHψk_ex .* ψk_extra'b)) # R * (1-M) * b
+    bb = R(b -  Hψk_extra * (inv_ψk_exHψk_ex .* ψk_extra'b))  # R * (1-M) * b
 
     # Implementation of: R * (H - ε) * (1 - M * (H - ε)) * R * ϕ
-    @views function RAR!(RARϕ, ϕ, mask)
-        R!(RARϕ, ϕ[:, mask])
+    @views function RAR!(RARϕ, ϕ; mask)
+        R!(RARϕ[:, mask], ϕ[:, mask])
         HRϕ = H(RARϕ; mask)
         # Schur complement of (1-P) (H-ε) (1-P)
         # with the splitting Ran(1-P) = Ran(P_extra) ⊕ Ran(R)
-        R!(RARϕ, mul!(HRϕ, Hψk_extra, inv_ψk_exHψk_ex[:, mask] .* Hψk_extra'RARϕ, -1, 1))
+        mul!(HRϕ, Hψk_extra, inv_ψk_exHψk_ex[:, mask] .* Hψk_extra'RARϕ[:, mask], -1, 1)
+        R!(RARϕ[:, mask], HRϕ)
     end
     A = MaskedOperator(RAR!)
     precon = PreconditionerTPA(basis, kpoint)
@@ -218,8 +217,10 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
                 miniter, maxiter)
     δψkᴿ = cg_res.x
 
-    # 2) solve for αkn now that we know δψknᴿ
-    # Note that αkn is an empty array if there is no extra bands.
+    # 2) solve for αk now that we know δψkᴿ
+    # We again do this for all right-hand sides at once, such that
+    # αk[m, l] = 1/(εk_extra_n - ε_l) δnm (ψk_extra[:, n]' * (b[:, l] - (H - ε_l) * δψkᴿ[:, l])
+    # Note that αk is an empty array if there is no extra bands.
     αk = inv_ψk_exHψk_ex .* (ψk_extra' * (b - H(δψkᴿ)))
 
     δψk = ψk_extra * αk + δψkᴿ
@@ -412,8 +413,10 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
         mul!(δψk, ψk, dot_prods, 1, 1)
 
         # Sternheimer contribution, for all columns of δψk at once.
-        res = sternheimer_solver(Hk, ψk, to_device(basis.architecture, εk_minus_q), δHψ[ik]; ψk_extra,
-                                 εk_extra, Hψk_extra, tol=tolk_minus_q, kwargs_sternheimer...)
+        res = sternheimer_solver(Hk, ψk,
+                                 to_device(basis.architecture, εk_minus_q),
+                                 δHψ[ik]; ψk_extra, εk_extra, Hψk_extra,
+                                 tol=tolk_minus_q, kwargs_sternheimer...)
 
         !res.converged && @warn("Sternheimer CG not converged", res.tol, res.residual_norms)
 
