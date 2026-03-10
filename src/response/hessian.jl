@@ -293,16 +293,12 @@ Input parameters:
     @assert size(δHextψ[1]) == size(ψ[1])
     start_ns = time_ns()
 
-    # TODO Better initial guess handling. Especially between the last iteration of the GMRES
-    #      and the concluding Sternheimer solve we should be able to benefit from passing
-    #      around the orbitals
-
     # TODO Use tol_density=tol/10 to make sure that the density is very accurate.
     #      This is likely overdoing it and we should investigate if a smaller
     #      value also does the trick.
 
     # compute δρ0 (ignoring interactions)
-    δρ0 = let  # Make sure memory owned by res0 is freed
+    δρ0, δψ0 = let  # Make sure memory owned by res0 is freed
         res0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHextψ;
                            δtemperature,
                            maxiter=maxiter_sternheimer, tol=tol * factor_initial,
@@ -310,8 +306,8 @@ Input parameters:
                            q, kwargs...)  # = χ04P * δHext
         callback((; stage=:noninteracting, runtime_ns=time_ns() - start_ns, basis,
                     Axinfos=[(; tol=tol*factor_initial, res0...)]))
-        compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
-                   occupation_threshold, q)
+        (compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
+                    occupation_threshold, q), res0.δψ)
     end
 
     # compute total δρ
@@ -349,7 +345,7 @@ Input parameters:
     resfinal = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHtotψ;
                            δtemperature,
                            maxiter=maxiter_sternheimer, tol=tol * factor_final,
-                           bandtolalg, occupation_threshold, q, kwargs...)
+                           bandtolalg, occupation_threshold, q, δψ0, kwargs...)
     callback((; stage=:final, runtime_ns=time_ns() - start_ns, basis,
                 Axinfos=[(; tol=tol*factor_final, resfinal...)]))
     # Compute total change in eigenvalues
