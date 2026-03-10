@@ -1,4 +1,5 @@
 using KrylovKit
+using LinearMaps
 
 # The Hessian of P -> E(P) (E being the energy) is Ω+K, where Ω and K are
 # defined below (cf. [1] for more details).
@@ -100,7 +101,7 @@ function (cb::ResponseCallback)(info)
     runtime_ns = current_time - cb.prev_time[]
     cb.prev_time[] = current_time
 
-    resnorm = @sprintf "%20.2f" log10(info.residual_norm)
+    resnorm = @sprintf "%20.2f" log10(only(info.residual_norms))
     time = @sprintf "% 6s" TimerOutputs.prettytime(runtime_ns)
     @printf "% 3d   %s   %s\n" info.n_iter resnorm time
     flush(stdout)
@@ -155,21 +156,22 @@ that is return δψ where (Ω+K) δψ = -δHextψ.
     J = LinearMap{T}(ΩpK, size(δHextψ_pack, 1))
 
     # solve (Ω+K) δψ = -δHextψ on the tangent space with CG
-    function proj(x)
+    function proj!(Px, x)
         δψ = unpack(x)
         proj_tangent!(δψ, ψ)
-        pack(δψ)
+        Px .= pack(δψ)
     end
     # custom inner product that Ω+K is self-adjoint with respect to
-    function weighted_dot(x, y)
+    function weighted_dots(x, y)
         δψx = unsafe_unpack(x)
         δψy = unsafe_unpack(y)
         # real(dot) here because we work in R^2N rather than C^N
-        weighted_ksum(basis, [real(dot(δψx[ik], δψy[ik])) for ik in 1:length(basis.kpoints)])
+        [weighted_ksum(basis, [real(dot(δψx[ik], δψy[ik])) for ik in 1:length(basis.kpoints)])]
     end
-    res = cg(J, -δHextψ_pack; precon=FunctionPreconditioner(f_ldiv!), proj, tol,
-             callback=info -> callback(merge(info, (; basis=basis))), my_dot=weighted_dot)
-    (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norm,
+    res = cg(J, -δHextψ_pack; precon=FunctionPreconditioner(f_ldiv!), proj!,
+             tol=tol, callback=info -> callback(merge(info, (; basis=basis))),
+             my_columnwise_dots=weighted_dots)
+    (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norms,
      res.n_iter)
 end
 
@@ -192,9 +194,9 @@ function (cb::OmegaPlusKDefaultCallback)(info)
         # Axinfo: NamedTuple returned by mul_inexact(::DielectricAdjoint, ...)
         # Axinfos is the collection of all these named tuples since the last callback
 
-        # Average CG iterations per (k-point, band) pair over all Axinfos
+        # Sum all CG iterations over all bands and all Axinfos, average over k-points
         avgCG = sum(info.Axinfos) do Axinfo
-            mean(v -> isempty(v) ? 0 : mean(v), Axinfo.n_iter)
+            mean(sum, Axinfo.n_iter)
         end
         avgCG = mpi_mean(avgCG, comm)
     end
@@ -233,6 +235,7 @@ function (cb::OmegaPlusKDefaultCallback)(info)
         @printf(io, "%21s%s  %10s  %7.1f%s  %s\n",
                 "", label_s[3], "", avgCG, tstr, "Final orbitals")
     end
+    flush(stdout)
     info
 end
 
@@ -295,7 +298,7 @@ Input parameters:
     #      value also does the trick.
 
     # compute δρ0 (ignoring interactions)
-    δρ0, δψ0 = let  # Make sure memory owned by res0 is freed, except δψ used for warm-start
+    δρ0, δψ0 = let  # Make sure memory owned by res0 is freed
         res0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHextψ;
                            δtemperature,
                            maxiter=maxiter_sternheimer, tol=tol * factor_initial,
@@ -342,9 +345,7 @@ Input parameters:
     resfinal = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHtotψ;
                            δtemperature,
                            maxiter=maxiter_sternheimer, tol=tol * factor_final,
-                           bandtolalg, occupation_threshold, q,
-                           δψ0,  # warm-start CG from non-interacting solution
-                           kwargs...)
+                           bandtolalg, occupation_threshold, q, δψ0, kwargs...)
     callback((; stage=:final, runtime_ns=time_ns() - start_ns, basis,
                 Axinfos=[(; tol=tol*factor_final, resfinal...)]))
     # Compute total change in eigenvalues

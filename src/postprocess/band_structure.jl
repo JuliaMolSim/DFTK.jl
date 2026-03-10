@@ -31,16 +31,15 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
               "quantity to compute_bands as the τ keyword argument or use the " *
               "compute_bands(scfres) function.")
     end
-    i_exx = findfirst(t -> t isa TermExactExchange, basis.terms)
-    if !isnothing(i_exx) && basis.terms[i_exx].exx_algorithm isa AceExx
-        @warn "Virtual orbitals and virtual orbital energies are off if using AceExx."
+    if any(t isa TermExactExchange for t in basis.terms)
+        error("Band structure computations with exact exchange not yet supported.")
     end
     seed = seed_task_local_rng!(seed, basis.comm_kpts)
 
     # Create new basis with new kpoints
     bs_basis = PlaneWaveBasis(basis, kgrid)
 
-    ham = Hamiltonian(bs_basis; ρ, τ, hubbard_n)
+    ham = Hamiltonian(bs_basis; ρ, τ, hubbard_n, exxalg=VanillaExx())
     eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + n_extra;
                                      n_conv_check=n_bands, tol, kwargs...)
     if !eigres.converged

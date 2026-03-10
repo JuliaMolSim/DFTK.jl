@@ -1,5 +1,5 @@
 @testitem "Check reading 'C-lda-q4'" tags=[:psp] begin
-    using DFTK: load_psp
+    using DFTK
     using LinearAlgebra
     using PseudoPotentialData
 
@@ -178,6 +178,7 @@ end
 end
 
 @testitem "All pseudopotentials from common GTH families can be loaded" begin
+    using DFTK
     using PseudoPotentialData
 
     for key in ("cp2k.nc.sr.lda.v0_1.semicore.gth",
