@@ -1,5 +1,6 @@
 @testmodule Chi0 begin
 using Test
+using ComponentArrays
 using DFTK
 using DFTK: mpi_mean!
 using LinearAlgebra
@@ -33,7 +34,9 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         ham0  = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0).ham
         nbandsalg = is_εF_fixed ? FixedBands(; n_bands_converge=6) : AdaptiveBands(model)
         res = DFTK.next_density(ham0, nbandsalg; tol, eigensolver)
-        scfres = (; ham=ham0, res...)
+        scfres = (; basis, ham=ham0, res...)
+
+        bandtolalg = DFTK.BandtolBalanced(scfres)
 
         # create external small perturbation εδV
         n_spin = model.n_spin_components
@@ -46,24 +49,34 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
             @test δV_sym ≈ δV
         end
 
-        function compute_ρ_FD(ε)
+        function compute_finite_perturbation(ε)
             term_builder = basis -> DFTK.TermExternal(ε * δV)
             model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
                               functionals, model_kwargs..., extra_terms=[term_builder])
             basis = PlaneWaveBasis(model; basis_kwargs...)
             ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0).ham
-            res = DFTK.next_density(ham, nbandsalg; tol, eigensolver)
-            res.ρout
+            (; ρout, occupation, εF) = DFTK.next_density(ham, nbandsalg; tol, eigensolver)
+            ComponentArray(; ρ=ρout, occupation, εF)
         end
 
         # middle point finite difference for more precision
-        ρ1 = compute_ρ_FD(-ε)
-        ρ2 = compute_ρ_FD(ε)
-        diff_findiff = (ρ2 - ρ1) / (2ε)
+        res1 = compute_finite_perturbation(-ε)
+        res2 = compute_finite_perturbation(+ε)
+        diff_findiff = (res2 - res1) / (2ε)
 
         # Test apply_χ0 and compare against finite differences
-        diff_applied_χ0 = apply_χ0(scfres, δV).δρ
-        @test norm(diff_findiff - diff_applied_χ0) < atol
+        diff_applied_χ0 = apply_χ0(scfres, δV)
+        @test norm(diff_findiff.ρ - diff_applied_χ0.δρ) < atol
+
+        # Test occupation and Fermi-level sensitivities
+        (; ψ, occupation, eigenvalues, εF, occupation_threshold) = scfres
+        q = zero(Vec3{eltype(ham0.basis)})
+        δHψ = DFTK.multiply_ψ_by_blochwave(basis, ψ, δV, q)
+        diff_applied_χ0_4P = DFTK.apply_χ0_4P(ham0, ψ, occupation, εF, eigenvalues, δHψ;
+                                              occupation_threshold, bandtolalg, q)
+        maximumabs(x) = maximum(abs, x)
+        @test maximum(maximumabs, diff_applied_χ0_4P.δoccupation - diff_findiff.occupation) < atol
+        @test abs(diff_applied_χ0_4P.δεF - diff_findiff.εF) < 1e-10
 
         # Test apply_χ0 without extra bands
         ψ_occ, occ_occ = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation;
@@ -72,12 +85,13 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
 
         diff_applied_χ0_noextra = apply_χ0(scfres.ham, ψ_occ, occ_occ, scfres.εF, ε_occ, δV;
                                            scfres.occupation_threshold).δρ
-        @test norm(diff_applied_χ0_noextra - diff_applied_χ0) < atol
+        @test norm(diff_applied_χ0_noextra - diff_applied_χ0.δρ) < atol
 
         # just to cover it here
         if temperature > 0
             D = compute_dos(res.εF, basis, res.eigenvalues)
             LDOS = compute_ldos(res.εF, basis, res.eigenvalues, res.ψ)
+            @test abs(sum(LDOS) * basis.dvol - sum(D)) < 1e-12
         end
 
         if !symmetries
@@ -86,7 +100,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
             if compute_full_χ0
                 χ0 = compute_χ0(ham0)
                 diff_computed_χ0 = reshape(χ0 * vec(δV), basis.fft_size..., n_spin)
-                @test norm(diff_findiff - diff_computed_χ0) < atol
+                @test norm(diff_findiff.ρ - diff_computed_χ0) < atol
             end
 
             # Test that apply_χ0 is self-adjoint
