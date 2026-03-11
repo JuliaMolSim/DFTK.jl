@@ -1,4 +1,3 @@
-using LinearMaps
 using KrylovKit: OrthonormalBasis, Orthogonalizer
 using LinearAlgebra: Givens
 
