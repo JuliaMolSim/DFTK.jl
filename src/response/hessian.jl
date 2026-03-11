@@ -73,6 +73,86 @@ Compute the application of K defined at ψ to δψ. ρ is the density issued fro
 end
 
 """
+Prepares a function that will perform an optimized application of Ω+K to a vector.
+This version trades additional memory for speed by caching `ifft(ψ)` and `ifft(δψ)`.
+"""
+@views @timing function prepare_ΩplusK(basis::PlaneWaveBasis{T}, H::Hamiltonian,
+                                       ψ, ρ, occupation) where {T}
+    if !(H.blocks[1] isa DftHamiltonianBlock) || !isnothing(H.blocks[1].divAgrad_op)
+        error("prepare_ΩplusK only implemented for DftHamiltonianBlock without divAgrad for now")
+    end
+
+    Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ, H * ψ)]
+    # use unnormalized plans for extra speed, normalize at the end
+    fft_normalization = basis.fft_grid.fft_normalization
+    ifft_normalization = basis.fft_grid.ifft_normalization
+    ψ_real = map(basis.kpoints, ψ) do kpt, ψk
+        [ifft(basis, kpt, ψk[:, n]; normalize=false) for n in 1:size(ψk, 2)]
+    end
+    δψ_real = deepcopy(ψ_real)
+
+    @timing function apply_ΩplusK(δψ)
+        δψ = proj_tangent(δψ, ψ)
+        @timing "ifft(δψ)" begin
+            for (kpt, δψk, δψk_real) in zip(basis.kpoints, δψ, δψ_real)
+                for n = 1:size(δψk, 2)
+                    ifft!(δψk_real[n], basis, kpt, δψk[:, n]; normalize=false)
+                end
+            end
+        end
+        # Computation of δρ with cached ifft(ψ) and ifft(δψ)
+        @timing "compute δρ" begin
+            δρ = zeros_like(G_vectors(basis), T, basis.fft_size..., basis.model.n_spin_components)
+            for (ik, kpt) in enumerate(basis.kpoints), n in 1:size(ψ[ik], 2)
+                ψnk_real = ψ_real[ik][n]
+                δψnk_real = δψ_real[ik][n]
+                # use unnormalized plans for extra speed, normalize at the end
+                δρ[:, :, :, kpt.spin] .+= ifft_normalization^2 .* real.(
+                    2 .* occupation[ik][n] .* basis.kweights[ik]
+                      .* conj.(ψnk_real) .* δψnk_real)
+            end
+            mpi_sum!(δρ, basis.comm_kpts)
+            δρ = symmetrize_ρ(basis, δρ; do_lowpass=false)
+        end
+        # Compute kernel
+        δV = apply_kernel(basis, δρ; ρ)
+        # normalize here so we can use unnormalized FFTs for extra speed
+        δV .*= fft_normalization * ifft_normalization
+        # Now apply both δV * ψ (K) and the first part of H * δψ (first part of Ω),
+        # to share the fft of the summed result
+        result = [zero(ψk) for ψk in ψ]
+        res_real = zeros_like(G_vectors(basis), complex(T), basis.fft_size...)
+        for (ik, kpt) in enumerate(basis.kpoints)
+            Hk = H.blocks[ik]::DftHamiltonianBlock
+            potential = Hk.local_op.potential .* fft_normalization .* ifft_normalization
+
+            for iband in 1:size(ψ[ik], 2)
+                @timing "δV * ψ + local * δψ" begin
+                    res_real .= (  potential .* δψ_real[ik][iband]
+                                .+ δV[:, :, :, kpt.spin] .* ψ_real[ik][iband])
+                    fft!(result[ik][:, iband], basis, kpt, res_real; normalize=false)
+                end
+            end
+
+            result[ik] .+= Hk.fourier_op.multiplier .* δψ[ik]
+            if !isnothing(Hk.nonlocal_op)
+                @timing "nonlocal" begin
+                    apply!((; fourier=result[ik], real=nothing),
+                            Hk.nonlocal_op,
+                            (; fourier=δψ[ik], real=nothing))
+                end
+            end
+        end
+        # Finish with -ψ * Λ part of Ω and projection onto the tangent space
+        map(enumerate(δψ)) do (ik, δψk)
+            mul!(result[ik], δψk, Λ[ik], -1, 1)
+            proj_tangent_kpt!(result[ik], ψ[ik])
+            result[ik]
+        end
+    end
+end
+
+"""
 Default callback function for `solve_ΩplusK`,
 which prints a convergence table.
 """
@@ -143,15 +223,13 @@ that is return δψ where (Ω+K) δψ = -δHextψ.
         x .= pack(Pδψ)
     end
 
-    # Rayleigh-coefficients
-    Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ, H * ψ)]
-
     # mapping of the linear system on the tangent space
+    apply_ΩpK = prepare_ΩplusK(basis, H, ψ, ρ, occupation)
+
     function ΩpK(x)
         δψ = unsafe_unpack(x)
-        Kδψ = apply_K(basis, δψ, ψ, ρ, occupation)
-        Ωδψ = apply_Ω(δψ, ψ, H, Λ)
-        pack(Ωδψ + Kδψ)
+        res = apply_ΩpK(δψ)
+        pack(res)
     end
     J = LinearMap{T}(ΩpK, size(δHextψ_pack, 1))
 
