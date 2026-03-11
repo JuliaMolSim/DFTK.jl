@@ -29,7 +29,7 @@ end
 # Insure pre-compilation can proceed without error (old Julia/packages versions)
 # CUDA pre-compilation is currently broken on Julia 1.10,
 # see https://github.com/JuliaMolSim/DFTK.jl/issues/1278
-if Libxc.has_cuda() && !isnothing(Base.get_extension(Libxc, :LibxcCudaExt)) && VERSION > v"1.10"
+if Libxc.has_cuda() && !isnothing(Base.get_extension(Libxc, :LibxcCudaExt)) && VERSION ≥ v"1.11"
 
     # Precompilation block with a basic workflow
     @setup_workload begin
