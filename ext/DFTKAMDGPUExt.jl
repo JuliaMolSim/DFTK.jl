@@ -37,7 +37,9 @@ function LinearAlgebra.mul!(C::AMDGPU.ROCArray{T}, A::AMDGPU.ROCArray{T}, B::AMD
 end
 
 # Ensure precompilation is only performed if an AMD GPU is available
-if AMDGPU.functional()
+# AMDGPU pre-compiliation is currently broken on Julia > 1.10,
+# see https://github.com/JuliaMolSim/DFTK.jl/issues/1278
+if AMDGPU.functional() && VERSION < v"1.11"
     # Precompilation block with a basic workflow
     @setup_workload begin
         # very artificial silicon ground state example
