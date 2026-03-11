@@ -12,14 +12,15 @@ using DFTK
 using PseudoPotentialData
 
 pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_5.stringent.upf") 
+system = bulk(:Si)
 
 # First perform a PBE calculation to get a good starting point
-model  = model_DFT(bulk(:Si); pseudopotentials, functionals=PBE())
+model  = model_DFT(system; pseudopotentials, functionals=PBE())
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[1, 1, 1])
 scfres = self_consistent_field(basis; tol=1e-6)
 
 # Then run PBE0, see also [PBE0](@ref) and [HybridFunctional](@ref) for more documentation.
-model  = model_DFT(lattice, atoms, positions; functionals=PBE0())
+model  = model_DFT(system; pseudopotentials, functionals=PBE0())
 basis  = PlaneWaveBasis(model; basis.Ecut, basis.kgrid)
 scfres = self_consistent_field(basis; tol=1e-4, scfres.ρ, scfres.ψ, scfres.occupation,
                                scfres.eigenvalues, solver=DFTK.scf_damping_solver())
