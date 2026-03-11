@@ -75,8 +75,8 @@ end
 Prepares a function that will perform an optimized application of Ω+K to a vector.
 This version trades additional memory for speed by caching `ifft(ψ)` and `ifft(δψ)`.
 """
-@views @timing function prepare_ΩplusK(basis::PlaneWaveBasis{T}, H::Hamiltonian,
-                                       ψ, ρ, occupation) where {T}
+@views @timing function prepare_ΩplusK(basis::PlaneWaveBasis, H::Hamiltonian,
+                                       ψ, ρ, occupation)
     if !(H.blocks[1] isa DftHamiltonianBlock) || !isnothing(H.blocks[1].divAgrad_op)
         error("prepare_ΩplusK only implemented for DftHamiltonianBlock without divAgrad for now")
     end
@@ -101,7 +101,7 @@ This version trades additional memory for speed by caching `ifft(ψ)` and `ifft(
         end
         # Computation of δρ with cached ifft(ψ) and ifft(δψ)
         @timing "compute δρ" begin
-            δρ = zeros_like(G_vectors(basis), T, basis.fft_size..., basis.model.n_spin_components)
+            δρ = zeros_like(ρ)
             for (ik, kpt) in enumerate(basis.kpoints), n in 1:size(ψ[ik], 2)
                 ψnk_real = ψ_real[ik][n]
                 δψnk_real = δψ_real[ik][n]
@@ -120,7 +120,7 @@ This version trades additional memory for speed by caching `ifft(ψ)` and `ifft(
         # Now apply both δV * ψ (K) and the first part of H * δψ (first part of Ω),
         # to share the fft of the summed result
         result = [zero(ψk) for ψk in ψ]
-        res_real = zeros_like(G_vectors(basis), complex(T), basis.fft_size...)
+        res_real = zeros_like(ψ[1], basis.fft_size...)
         for (ik, kpt) in enumerate(basis.kpoints)
             Hk = H.blocks[ik]::DftHamiltonianBlock
             potential = Hk.local_op.potential .* fft_normalization .* ifft_normalization
