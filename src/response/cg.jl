@@ -13,8 +13,10 @@ of columns,defined by first(!converged_columns):last(!converged_columns). The ma
 contiguous range for GPU compatibility. This is the default implementation for matrix-like A.
 Custom opertators must implement their own method for mul_masked!.
 """
-@timing mul_masked!(Ax, A::Union{AbstractArray{T}, LinearMap{T}}, x;
-                    mask::UnitRange) where {T} = @views mul!(Ax[:, mask], A, x[:, mask])
+@views @timing function mul_masked!(Ax, A::Union{AbstractArray{T}, LinearMap{T}}, x;
+                                    mask::UnitRange) where {T}
+     mul!(Ax[:, mask], A, x[:, mask])
+end
 
 """
 Implementation of the conjugate gradient method which allows for preconditioning
