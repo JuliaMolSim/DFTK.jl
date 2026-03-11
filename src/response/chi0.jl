@@ -113,10 +113,10 @@ end
 # /!\ It is assumed (and not checked) that ψk'Hk*ψk = Diagonal(εk) (extra states
 # included).
 function sternheimer_solver(Hk, ψk, ε, rhs;
-                                    callback=identity,
-                                    ψk_extra=zeros_like(ψk), εk_extra=zeros_like(ε),
-                                    Hψk_extra=zeros_like(ψk), tol=1e-9,
-                                    miniter=1, maxiter=100, δψk0=zero(rhs))
+                            callback=identity,
+                            ψk_extra=zeros_like(ψk), εk_extra=zeros_like(ε),
+                            Hψk_extra=zeros_like(ψk), tol=1e-9,
+                            miniter=1, maxiter=100, δψk0=nothing)
     basis  = Hk.basis
     kpoint = Hk.kpoint
 
@@ -213,7 +213,8 @@ function sternheimer_solver(Hk, ψk, ε, rhs;
     @timing function R_ldiv!(x, y)
         R!(x, precon \ R(y))
     end
-    cg_res = cg!(R(δψk0), A, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj! =R!,
+    xinit = isnothing(δψk0) ? zero(bb) : R(δψk0)
+    cg_res = cg!(xinit, A, bb; precon=FunctionPreconditioner(R_ldiv!), tol, proj! =R!,
                 callback=info -> callback(merge(info, (; basis, kpoint))),
                 miniter, maxiter)
     δψkᴿ = cg_res.x
@@ -416,11 +417,7 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
 
         # Sternheimer contribution, for all columns of δψk at once.
         εk_minus_q_device = to_device(basis.architecture, εk_minus_q)
-        if isnothing(δψ0)
-            δψk0 = zero(δHψ[ik])
-        else
-            δψk0 = δψ0[ik]
-        end
+        δψk0 = isnothing(δψ0) ? nothing : δψ0[ik]
         res = sternheimer_solver(Hk, ψk, εk_minus_q_device, δHψ[ik];
                                  ψk_extra, εk_extra, Hψk_extra,
                                  tol=tolk_minus_q, δψk0, kwargs_sternheimer...)
