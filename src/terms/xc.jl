@@ -52,6 +52,11 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
            T(xc.potential_threshold), ρcore)
 end
 
+function hybrid_parameters(xc::Xc)
+    res = filter(!isnothing, map(hybrid_parameters, xc.functionals))
+    isempty(res) ? nothing : only(res)
+end
+
 struct TermXc{T,CT} <: TermNonlinear where {T,CT}
     functionals::Vector{Functional}
     scaling_factor::T

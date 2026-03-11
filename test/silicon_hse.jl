@@ -38,17 +38,14 @@
     scfres_pbe = self_consistent_field(basis_pbe; tol=1e-4)
 
     model = model_DFT(lattice, atoms, positions;
-                      temperature=0.001, smearing=DFTK.Smearing.Gaussian(),
-                      functionals=HSE(; exx_algorithm=VanillaExx()))
+                      temperature=0.001, smearing=DFTK.Smearing.Gaussian(), functionals=HSE())
     basis = PlaneWaveBasis(model; Ecut=25, kgrid=[1, 1, 1])
 
     # Note: With ACE enabled, the unoccupied orbitals are represented rather poorly.
     run_scf_and_compare(Float64, basis, ref_hf, ref_etot; 
                         scf_ene_tol=1e-8, test_tol=1e-4, n_ignored=4,
                         scfres_pbe.ψ, scfres_pbe.ρ,
-                        scfres_pbe.eigenvalues, scfres_pbe.occupation,
+                        scfres_pbe.eigenvalues, scfres_pbe.occupation, exxalg=VanillaExx(),
                         # TODO: Anderson right does not yet work well for Hartree-Fock
-                        damping=0.3, solver=DFTK.scf_damping_solver(),
-                        # TODO: The default diagtolalg does not yet work well for Hartree-Fock
-                        diagtolalg=DFTK.AdaptiveDiagtol(; ratio_ρdiff=1e-5))
+                        damping=0.3, solver=DFTK.scf_damping_solver())
 end
