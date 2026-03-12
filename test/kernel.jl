@@ -150,8 +150,7 @@ end
                 end
             end
 
-            ε_fd = 1e-4
-            function do_fd(f)
+            function do_fd(f; ε_fd=1e-4)
                 f_m2ε = f(-2ε_fd)
                 f_m1ε = f(-ε_fd)
                 f_p1ε = f(ε_fd)
@@ -212,7 +211,24 @@ end
                 @test δVτ_ad ≈ δVτ_fd rtol=1e-6
             end
 
-            @testset "MGGAL" begin
+            @testset "MGGAL without τ" begin
+                # Need a ∇²ρ-dependent MGGA
+                func = DFTK.LibxcFunctional(:mgga_x_r2scanl)
+                @assert func isa DFTK.LibxcFunctional{:mggal}
+
+                f = ε -> potential_terms(func, ρ .+ ε .* δρ, σ .+ ε .* δσ,
+                                               nothing, Δρ .+ ε .* δΔρ)
+
+                δe_ad, δVρ_ad, δVσ_ad, δVl_ad = do_ad(f)
+                δe_fd, δVρ_fd, δVσ_fd, δVl_fd = do_fd(f)
+
+                @test δe_ad  ≈ δe_fd  rtol=1e-6
+                @test δVρ_ad ≈ δVρ_fd rtol=1e-6
+                @test δVσ_ad ≈ δVσ_fd rtol=1e-6
+                @test δVl_ad ≈ δVl_fd rtol=1e-6
+            end
+
+            @testset "MGGAL with τ" begin
                 # Need a (∇²ρ, τ)-dependent MGGA, seems more stable than the original br89
                 func = DFTK.LibxcFunctional(:mgga_x_br89_explicit)
                 @assert func isa DFTK.LibxcFunctional{:mggal}

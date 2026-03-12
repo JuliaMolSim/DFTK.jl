@@ -7,6 +7,8 @@ import Libxc
 #
 struct LibxcFunctional{Family,Kind} <: Functional{Family,Kind}
     identifier::Symbol
+    needs_tau::Bool
+    needs_laplacian::Bool
 end
 function LibxcFunctional(identifier::Symbol)
     fun = Libxc.Functional(identifier)
@@ -24,13 +26,16 @@ function LibxcFunctional(identifier::Symbol)
     if family == :mgga && Libxc.needs_laplacian(fun)
         family = :mggal
     end
-    LibxcFunctional{family,kind}(identifier)
+    LibxcFunctional{family,kind}(identifier,
+                                 Libxc.needs_tau(fun),
+                                 Libxc.needs_laplacian(fun))
 end
-
 DftFunctionals.identifier(fun::LibxcFunctional) = fun.identifier
 function DftFunctionals.has_energy(func::LibxcFunctional)
     0 in Libxc.supported_derivatives(Libxc.Functional(func.identifier))
 end
+DftFunctionals.needs_τ(fun::LibxcFunctional)  = fun.needs_tau
+DftFunctionals.needs_Δρ(fun::LibxcFunctional) = fun.needs_laplacian
 
 function libxc_energy(terms, ρ)
     haskey(terms, :zk) ? reshape(terms.zk, 1, size(ρ, 2)) .* sum(ρ; dims=1) : false
@@ -69,6 +74,20 @@ function DftFunctionals.potential_terms(func::LibxcFunctional{:mgga}, ρ::Abstra
     Vσ = reshape(terms.vsigma, s_σ, n_p)
     Vτ = reshape(terms.vtau,   s_ρ, n_p)
     (; e, Vρ, Vσ, Vτ)
+end
+function DftFunctionals.potential_terms(func::LibxcFunctional{:mggal}, ρ::AbstractMatrix{Float64},
+                                        σ::AbstractMatrix{Float64}, τ::Nothing,
+                                        Δρ::AbstractMatrix{Float64})
+    s_ρ, n_p = size(ρ)
+    s_σ = size(σ, 1)
+    fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
+    derivatives = filter(in(Libxc.supported_derivatives(fun)), 0:1)
+    terms = Libxc.evaluate(fun; rho=ρ, sigma=σ, lapl=Δρ, derivatives)
+    e  = libxc_energy(terms, ρ)
+    Vρ = reshape(terms.vrho,   s_ρ, n_p)
+    Vσ = reshape(terms.vsigma, s_σ, n_p)
+    Vl = reshape(terms.vlapl,  s_ρ, n_p)
+    (; e, Vρ, Vσ, Vl)
 end
 function DftFunctionals.potential_terms(func::LibxcFunctional{:mggal}, ρ::AbstractMatrix{Float64},
                                         σ::AbstractMatrix{Float64}, τ::AbstractMatrix{Float64},
@@ -164,7 +183,7 @@ end
                                    Vlτ=nothing, δl=nothing)
     if size(δρ, 1) == 1
         δVτ = Vρτ .* δρ .+ Vστ .* δσ .+ Vττ .* δτ
-        isnothing(Vlτ) || (δVτ .+= Vlτ .* δl)
+        !isnothing(Vlτ) && (δVτ .+= Vlτ .* δl)
         return δVτ
     else
         δVτ1 =   @. Vρτ[1,:] * δρ[1,:] + Vρτ[3,:] * δρ[2,:]
@@ -182,14 +201,18 @@ end
 end
 @views function libxc_assemble_δVl(Vρl, δρ, Vσl, δσ, Vlτ, δτ, Vll, δl)
     if size(δρ, 1) == 1
-        return Vρl .* δρ .+ Vσl .* δσ .+ Vlτ .* δτ .+ Vll .* δl
+        δVl = Vρl .* δρ .+ Vσl .* δσ .+ Vll .* δl
+        !isnothing(Vlτ) && (δVl += Vlτ .* δτ)
+        return δVl
     else
         δVl1 =   @. Vρl[1,:] * δρ[1,:] + Vρl[3,:] * δρ[2,:]
         δVl2 =   @. Vρl[2,:] * δρ[1,:] + Vρl[4,:] * δρ[2,:]
         δVl1 .+= @. Vσl[1,:] * δσ[1,:] + Vσl[3,:] * δσ[2,:] + Vσl[5,:] * δσ[3,:]
         δVl2 .+= @. Vσl[2,:] * δσ[1,:] + Vσl[4,:] * δσ[2,:] + Vσl[6,:] * δσ[3,:]
-        δVl1 .+= @. Vlτ[1,:] * δτ[1,:] + Vlτ[2,:] * δτ[2,:]
-        δVl2 .+= @. Vlτ[3,:] * δτ[1,:] + Vlτ[4,:] * δτ[2,:]
+        if !isnothing(Vlτ)
+            δVl1 .+= @. Vlτ[1,:] * δτ[1,:] + Vlτ[2,:] * δτ[2,:]
+            δVl2 .+= @. Vlτ[3,:] * δτ[1,:] + Vlτ[4,:] * δτ[2,:]
+        end
         δVl1 .+= @. Vll[1,:] * δl[1,:] + Vll[2,:] * δl[2,:]
         δVl2 .+= @. Vll[2,:] * δl[1,:] + Vll[3,:] * δl[2,:]
         return libxc_combine_spins(δVl1, δVl2)
@@ -303,6 +326,59 @@ end
 @views function DftFunctionals.potential_terms(func::LibxcFunctional{:mggal},
                                                ρ_δρ::AbstractMatrix{DT},
                                                σ_δσ::AbstractMatrix{DT},
+                                               τ_δτ::Nothing,
+                                               l_δl::AbstractMatrix{DT}
+                                               ) where {N,T,DT<:Dual{T,Float64,N}}
+    ρ = ForwardDiff.value.(ρ_δρ)
+    σ = ForwardDiff.value.(σ_δσ)
+    l = ForwardDiff.value.(l_δl)
+    s_ρ, n_p = size(ρ)
+    s_σ = size(σ, 1)
+    fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
+    derivatives = filter(in(Libxc.supported_derivatives(fun)), 0:2)
+    terms = Libxc.evaluate(fun; rho=ρ, sigma=σ, lapl=l, derivatives)
+    e  = libxc_energy(terms, ρ)
+    Vρ = reshape(terms.vrho,   s_ρ, n_p)
+    Vσ = reshape(terms.vsigma, s_σ, n_p)
+    Vl = reshape(terms.vlapl,  s_ρ, n_p)
+    Vρρ = terms.v2rho2
+    Vρσ = terms.v2rhosigma
+    Vρl = terms.v2rholapl
+    Vσσ = terms.v2sigma2
+    Vσl = terms.v2sigmalapl
+    Vll = terms.v2lapl2
+
+    δe = ntuple(Val(N)) do n
+        ( sum(Vρ .* ForwardDiff.partials.(ρ_δρ, n); dims=1)
+        + sum(Vσ .* ForwardDiff.partials.(σ_δσ, n); dims=1)
+        + sum(Vl .* ForwardDiff.partials.(l_δl, n); dims=1))
+    end
+    δVρ = ntuple(Val(N)) do n
+        libxc_assemble_δVρ(Vρρ, ForwardDiff.partials.(ρ_δρ, n),
+                           Vρσ, ForwardDiff.partials.(σ_δσ, n),
+                           nothing, nothing,
+                           Vρl, ForwardDiff.partials.(l_δl, n))
+    end
+    δVσ = ntuple(Val(N)) do n
+        libxc_assemble_δVσ(Vρσ, ForwardDiff.partials.(ρ_δρ, n),
+                           Vσσ, ForwardDiff.partials.(σ_δσ, n),
+                           nothing, nothing,
+                           Vσl, ForwardDiff.partials.(l_δl, n))
+    end
+    δVl = ntuple(Val(N)) do n
+        libxc_assemble_δVl(Vρl, ForwardDiff.partials.(ρ_δρ, n),
+                           Vσl, ForwardDiff.partials.(σ_δσ, n),
+                           nothing, nothing,
+                           Vll, ForwardDiff.partials.(l_δl, n))
+    end
+    (; e=map(Dual{T},   e, δe...),
+       Vρ=map(Dual{T}, Vρ, δVρ...),
+       Vσ=map(Dual{T}, Vσ, δVσ...),
+       Vl=map(Dual{T}, Vl, δVl...))
+end
+@views function DftFunctionals.potential_terms(func::LibxcFunctional{:mggal},
+                                               ρ_δρ::AbstractMatrix{DT},
+                                               σ_δσ::AbstractMatrix{DT},
                                                τ_δτ::AbstractMatrix{DT},
                                                l_δl::AbstractMatrix{DT}
                                                ) where {N,T,DT<:Dual{T,Float64,N}}
@@ -380,6 +456,8 @@ end
 DispatchFunctional(identifier::Symbol) = DispatchFunctional(LibxcFunctional(identifier))
 DftFunctionals.identifier(fun::DispatchFunctional) = identifier(fun.inner)
 DftFunctionals.has_energy(fun::DispatchFunctional) = has_energy(fun.inner)
+DftFunctionals.needs_τ(fun::DispatchFunctional)    = needs_τ(fun.inner)
+DftFunctionals.needs_Δρ(fun::DispatchFunctional)   = needs_Δρ(fun.inner)
 
 # Note: CuMatrix dispatch to Libxc.jl is defined in src/workarounds/cuda_arrays.jl
 const DispatchFloat = Union{Float64,Dual{<:Any,Float64}}
@@ -390,9 +468,10 @@ function DftFunctionals.potential_terms(fun::DispatchFunctional, ρ::AbstractMat
     potential_terms(DftFunctional(identifier(fun)), ρ, args...)
 end
 
-hybrid_parameters(::Functional{:lda})  = nothing
-hybrid_parameters(::Functional{:gga})  = nothing
-hybrid_parameters(::Functional{:mgga}) = nothing
+hybrid_parameters(::Functional{:lda})   = nothing
+hybrid_parameters(::Functional{:gga})   = nothing
+hybrid_parameters(::Functional{:mgga})  = nothing
+hybrid_parameters(::Functional{:mggal}) = nothing
 hybrid_parameters(fun::DispatchFunctional) = hybrid_parameters(fun.inner)
 function hybrid_parameters(libxcfun::LibxcFunctional)
     fxc = Libxc.Functional(libxcfun.identifier)
