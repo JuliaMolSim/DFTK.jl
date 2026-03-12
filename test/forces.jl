@@ -196,6 +196,31 @@ end
                            atol=1e-7, temperature=1e-3)
 end
 
+@testitem "Forces LiCl PBE (partial NLCC)" setup=[TestForces] tags=[:forces] begin
+    # Regression test for XC force when only some atom groups have NLCC.
+    # Cl has NLCC in the dojo UPF pseudos, Li does not.
+    using DFTK
+    using DFTK: has_core_density
+    using PseudoPotentialData
+    test_forces = TestForces.test_forces
+
+    pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
+
+    a = 10.657
+    lattice = a / 2 * [[0 1 1]; [1 0 1]; [1 1 0]]
+    Li = ElementPsp(:Li, pseudopotentials)
+    Cl = ElementPsp(:Cl, pseudopotentials)
+    atoms = [Li, Cl]
+    positions = [[0.01, 0.02, 0.03], [0.5, 0.5, 0.5]]
+    system = atomic_system(lattice, atoms, positions)
+
+    # Verify the NLCC assumptions this test is based on
+    @test !has_core_density(Li)
+    @test  has_core_density(Cl)
+
+    test_forces(system; pseudopotentials, Ecut=15, kgrid=(2, 2, 2), iatom=2)
+end
+
 @testitem "Forces silicon SCAN" setup=[TestCases,TestForces] tags=[:forces] begin
     using DFTK
     using PseudoPotentialData
