@@ -166,7 +166,7 @@ function Model(lattice::AbstractMatrix{Tstatic},
         error("Length of atoms and positions vectors need to agree.")
     end
     isempty(terms) && error("Model without terms not supported.")
-    atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
+    atom_groups = [findall(Ref(pot) .== atoms) for pot in unique(atoms)]
 
     # Special handling of 1D and 2D systems, and sanity checks
     lattice = Mat3{T}(lattice)
