@@ -184,24 +184,26 @@ end
     # early return if nlcc is disabled / no elements have model core charges.
     isnothing(term.ρcore) && return nothing
 
+    model = basis.model
     Vxc_real = xc_potential_real(term, basis, ψ, occupation; ρ, τ).potential
-    if basis.model.spin_polarization in (:none, :spinless)
+    if model.spin_polarization in (:none, :spinless)
         Vxc_fourier = fft(basis, Vxc_real[:,:,:,1])
     else
         Vxc_fourier = fft(basis, mean(Vxc_real, dims=4))
     end
 
     form_factors, iG2ifnorm = atomic_density_form_factors(basis, CoreDensity())
-    nlcc_groups = filter(group -> has_core_density(basis.model.atoms[first(group)]),
-                         basis.model.atom_groups)
-    @assert !isnothing(nlcc_groups)
+    nlcc_groups = findall(group -> has_core_density(model.atoms[first(group)]),
+                          model.atom_groups)
+    @assert !isempty(nlcc_groups)
 
-    _forces_xc(basis, Vxc_fourier, form_factors, iG2ifnorm, nlcc_groups) 
+    _forces_xc(basis, Vxc_fourier, form_factors[:, nlcc_groups], iG2ifnorm,
+               model.atom_groups[nlcc_groups])
 end
 
 # Function barrier to work around various type instabilities.
 function _forces_xc(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U}, 
-                    form_factors, iG2ifnorm, nlcc_groups) where {T, U}
+                    form_factors, iG2ifnorm, groups) where {T, U}
     # Pre-allocation of large arrays for GPU Efficiency
     TT = promote_type(T, real(U))
     Gs = G_vectors(basis)
@@ -209,7 +211,7 @@ function _forces_xc(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U},
     work = zeros_like(indices, Complex{TT}, length(indices))
 
     forces = Vec3{TT}[zero(Vec3{TT}) for _ = 1:length(basis.model.positions)]
-    for (igroup, group) in enumerate(nlcc_groups)
+    for (igroup, group) in enumerate(groups)
         for iatom in group
             r = basis.model.positions[iatom]
             ff_group = @view form_factors[:, igroup]
