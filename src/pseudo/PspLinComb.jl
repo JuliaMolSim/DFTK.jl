@@ -74,9 +74,19 @@ macro make_psplincomb_call(fn)
         end
     end
 end
+
 @make_psplincomb_call DFTK.eval_psp_local_real
 @make_psplincomb_call DFTK.eval_psp_local_fourier
 @make_psplincomb_call DFTK.eval_psp_density_valence_real
 @make_psplincomb_call DFTK.eval_psp_density_valence_fourier
 @make_psplincomb_call DFTK.eval_psp_density_core_real
 @make_psplincomb_call DFTK.eval_psp_density_core_fourier
+
+@vectorize_psp_function DFTK.eval_psp_local_real PspLinComb
+@vectorize_psp_function DFTK.eval_psp_local_fourier PspLinComb
+@vectorize_psp_function DFTK.eval_psp_density_valence_real PspLinComb
+@vectorize_psp_function DFTK.eval_psp_density_valence_fourier PspLinComb
+@vectorize_psp_function DFTK.eval_psp_density_core_real PspLinComb
+@vectorize_psp_function DFTK.eval_psp_density_core_fourier PspLinComb
+@vectorize_psp_projector_function DFTK.eval_psp_projector_real PspLinComb
+@vectorize_psp_projector_function DFTK.eval_psp_projector_fourier PspLinComb

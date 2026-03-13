@@ -10,8 +10,13 @@ as input the radial grid `r`, the precomputed quantity r²f(r) `r2_f`, angular
 momentum / spherical bessel order `l`, and the Hankel coordinate `p`.
 """
 function hankel(r::AbstractVector, r2_f::AbstractVector, l::Integer, p::T)::T where {T<:Real}
+    quadrature = default_psp_quadrature(r)
+    hankel(quadrature, r, r2_f, l, p)
+end
+
+function hankel(quadrature, r::AbstractVector, r2_f::AbstractVector, l::Integer, p::T)::T where {T<:Real}
     @assert length(r) == length(r2_f)
-    4T(π) * simpson(r) do i, ri
+    4T(π) * quadrature(r) do i, ri
         r2_f[i] * sphericalbesselj_fast(l, p * ri)
     end
 end

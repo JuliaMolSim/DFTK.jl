@@ -178,17 +178,18 @@ function atomic_density_form_factors(basis::PlaneWaveBasis{T},
         p = norm(G)
         iG2ifnorm_cpu[iG] = get!(norm_indices, p, length(norm_indices) + 1)
     end
+    iG2ifnorm = to_device(basis.architecture, iG2ifnorm_cpu)
 
-    form_factors_cpu = zeros(T, length(norm_indices), length(basis.model.atom_groups))
-    for (p, ifnorm) in norm_indices
-        for (igroup, group) in enumerate(basis.model.atom_groups)
-            element = basis.model.atoms[first(group)]
-            form_factors_cpu[ifnorm, igroup] = atomic_density(element, p, method)
-        end
+    ni_pairs = collect(pairs(norm_indices))
+    ps = to_device(basis.architecture, first.(ni_pairs))
+    indices = to_device(basis.architecture, last.(ni_pairs))
+
+    form_factors = similar(ps, length(norm_indices), length(basis.model.atom_groups))
+    for (igroup, group) in enumerate(basis.model.atom_groups)
+        element = basis.model.atoms[first(group)]
+        @inbounds form_factors[indices, igroup] .= atomic_density(element, ps, method)
     end
 
-    form_factors = to_device(basis.architecture, form_factors_cpu)
-    iG2ifnorm = to_device(basis.architecture, iG2ifnorm_cpu)
     (; form_factors, iG2ifnorm)
 end
 
@@ -210,6 +211,25 @@ end
 function atomic_density(element::Element, Gnorm::T,
                         ::CoreDensity)::T where {T <: Real}
     has_core_density(element) ? core_charge_density_fourier(element, Gnorm) : zero(T)
+end
+
+# Generic vectoriezed version of the above
+function atomic_density(element::Element, Gnorms::AbstractVector{T},
+                        method::AtomicDensity) where {T <: Real}
+    arch = architecture(Gnorms)
+    to_device(arch,
+              map(Gnorm -> atomic_density(element, Gnorm, method),
+                  to_cpu(Gnorms)))
+end
+
+# Vectorized version for CoreDensity, GPU optimized
+function atomic_density(element::Element, Gnorms::AbstractVector{T},
+                        ::CoreDensity) where {T <: Real}
+    if has_core_density(element)
+        core_charge_density_fourier(element, Gnorms)
+    else
+        zeros_like(Gnorms)
+    end
 end
 
 # Get the lengthscale of the valence density for an atom with `n_elec_core` core
