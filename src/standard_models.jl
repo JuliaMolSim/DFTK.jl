@@ -106,6 +106,12 @@ julia> model_DFT(system; functionals=[:lda_x, :lda_c_pw], temperature=0.01,
 ```
 Alternative syntax specifying the functionals directly
 via their libxc codes.
+
+```julia-repl
+julia> model_DFT(system; functionals=HSE(μ=0.2, exx_fraction=0.1),
+                 pseudopotentials=PseudoFamily("dojo.nc.sr.pbe.v0_5_1-fix.standard.upf"))
+```
+Build an HSE06 model with custom range-separation parameter and custom exact exchange fraction.
 """
 function model_DFT(system::AbstractSystem; pseudopotentials, functionals, kwargs...)
     # Note: We are deliberately enforcing the user to specify pseudopotentials here.
@@ -162,9 +168,10 @@ function _parse_functionals(functionals::AbstractVector)
     end
 
     # Add hybrid functional if functional is hybrid, but no EXX given so far.
-    exx_coeffs = filter(!isnothing, map(exx_coefficient, xc.functionals))
-    if isnothing(exx) && !isempty(exx_coeffs)
-        exx = ExactExchange(; scaling_factor=only(exx_coeffs))
+    hyb_params = hybrid_parameters(xc)
+    if isnothing(exx) && !isnothing(hyb_params)
+        (; kernel, scaling_factor) = parse_hybrid_parameters_(; hyb_params...)
+        exx = ExactExchange(; kernel, scaling_factor)
     end
 
     if isempty(xc.functionals)
@@ -186,22 +193,18 @@ Build an Hartree-Fock model from the specified atoms.
          necks in the code.
 """
 function model_HF(system::AbstractSystem; pseudopotentials,
-                  singularity_treatment::CoulombSingulartyTreatment=ProbeCharge(),
-                  exx_algorithm::ExxAlgorithm=VanillaExx(), extra_terms=[], kwargs...)
+                  exx_kernel::InteractionKernel=Coulomb(), extra_terms=[], kwargs...)
     # Note: We are deliberately enforcing the user to specify pseudopotentials here.
     # See the implementation of model_atomic for a rationale why
     #
-    exx = ExactExchange(; singularity_treatment, exx_algorithm)
-    model_atomic(system; pseudopotentials, model_name="HF",
-                 extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
+    extra_terms=[Hartree(), ExactExchange(; kernel=exx_kernel), extra_terms...]
+    model_atomic(system; pseudopotentials, model_name="HF", extra_terms, kwargs...)
 end
 function model_HF(lattice::AbstractMatrix, atoms::Vector{<:Element},
                   positions::Vector{<:AbstractVector};
-                  singularity_treatment::CoulombSingulartyTreatment=ProbeCharge(),
-                  exx_algorithm::ExxAlgorithm=VanillaExx(), extra_terms=[], kwargs...)
-    exx = ExactExchange(; singularity_treatment, exx_algorithm)
-    model_atomic(lattice, atoms, positions; model_name="HF",
-                 extra_terms=[Hartree(), exx, extra_terms...], kwargs...)
+                  exx_kernel::InteractionKernel=Coulomb(), extra_terms=[], kwargs...)
+    extra_terms=[Hartree(), ExactExchange(; kernel=exx_kernel), extra_terms...]
+    model_atomic(lattice, atoms, positions; model_name="HF", extra_terms, kwargs...)
 end
 
 
@@ -246,31 +249,63 @@ r2SCAN(; kwargs...) = Xc([:mgga_x_r2scan, :mgga_c_r2scan]; kwargs...)
 
 """
 Specify a PBE0 hybrid functional in conjunction with [`model_DFT`](@ref)
-<https://doi.org/10.1063/1.478522>.
-Possible keyword arguments are those accepted by [`Xc`](@ref) and by
-[`ExactExchange`](@ref). Use the keyword argument `exx_fraction` to specify a
-custom exact exchange fraction.
-
-!!! warn "Hybrid DFT is experimental"
-         The interface may change at any moment, which is not considered a breaking change.
-         Note further that at this stage (Feb 2026) there are still known performance bottle
-         necks in the code.
+<https://doi.org/10.1063/1.478522>
+Possible keyword arguments are those accepted by the [`HybridFunctional`](@ref) function.
 """
 PBE0(; kwargs...) = HybridFunctional([:hyb_gga_xc_pbeh]; kwargs...)
 
+"""
+Specify a HSE06 hybrid functional in conjunction with [`model_DFT`](@ref)
+<https://doi.org/10.1063/1.2404663>
+Possible keyword arguments are those accepted by the [`HybridFunctional`](@ref) function.
+We use the range separation parameter suggested by Libxc (`μ=0.11/bohr`) by default.
+Notice, that other codes by default use different values:
+- VASP uses `HSE(; μ=0.2/u"Å")` by default
+- Quantum Espresso uses `HSE(; μ=0.106)` if `input_dft='hse'`
+- Quantum Espresso uses `HSE(; μ=0.11)`  if `input_dft='xc-000i-000i-000i-428l'`
+"""
+HSE(; kwargs...) = HybridFunctional([:hyb_gga_xc_hse06]; kwargs...)
 
-# Internal function to help define hybrid functional shorthands
-function HybridFunctional(libxc_symbols;
-                          exx_fraction=nothing,
-                          singularity_treatment::CoulombSingulartyTreatment=ProbeCharge(),
-                          exx_algorithm::ExxAlgorithm=VanillaExx(), kwargs...)
-    xc  = Xc(libxc_symbols; kwargs...)
-    scaling_factor = @something(exx_fraction, begin
-        only(filter(!isnothing, map(exx_coefficient, xc.functionals)))
-    end)
+"""
+Helper function to setup a hybrid DFT / range-separated hybrid DFT model
+with [`model_DFT`](@ref). Possible keyword arguments are those accepted by the [`Xc`](@ref)
+term as well as the following:
+- `exx_fraction`: Custom exact exchange / screened Coulomb fraction. If not specified,
+  the Libxc default will be used.
+- `exx_kernel`: The type of [`InteractionKernel`](@ref) to employ. If not specified,
+  the function will query Libxc and employ a [`Coulomb`](@ref) or [`ShortRangeCoulomb`](@ref)
+  kernel with the range-separation parameter `μ`.
+- `μ`: Range-separation parameter. If not specified, Libxc default is used.
+  Ignored for global hybrids or if `exx_kernel` is provided.
+"""
+function HybridFunctional(libxc_symbols::Vector{Symbol}; exx_fraction=nothing,
+                          exx_kernel=nothing, μ=nothing, kwargs...)
+    xc = Xc(libxc_symbols; kwargs...)
+    hyb_params = hybrid_parameters(xc)
+    range_separation_parameter = @something μ Some(hyb_params.range_separation_parameter)
+    parsed = parse_hybrid_parameters_(; hyb_params..., range_separation_parameter)
+    kernel = @something exx_kernel parsed.kernel
+    scaling_factor = @something exx_fraction parsed.scaling_factor
+    [xc, ExactExchange(; scaling_factor, kernel)]
+end
 
-    exx = ExactExchange(; scaling_factor, singularity_treatment, exx_algorithm)
-    [xc, exx]
+function parse_hybrid_parameters_(; exx_sr=nothing, exx_lr=nothing,
+                                    range_separation_kernel=nothing,
+                                    range_separation_parameter=nothing)
+    if isnothing(range_separation_kernel)
+        @assert exx_lr == exx_sr
+        return (; scaling_factor=exx_sr, kernel=Coulomb())
+    elseif range_separation_kernel == :erf
+        if exx_lr > 0
+            error("Range separation with non-zero long-range exact exchange not yet available.")
+        else
+            return (; scaling_factor=exx_sr,
+                      kernel=ShortRangeCoulomb(range_separation_parameter))
+        end
+    else
+        error("Range separation based on $range_separation_kernel kernels " *
+              "not yet implemented.")
+    end
 end
 
 @deprecate(model_LDA(lattice::AbstractMatrix, atoms::Vector{<:Element},

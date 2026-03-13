@@ -1,5 +1,4 @@
 using KrylovKit
-using LinearMaps
 using Statistics
 import Base: @kwdef
 

@@ -1,5 +1,3 @@
-using LinearMaps
-
 # Newton's algorithm to solve SCF equations
 #
 # Newton algorithm consists of iterating over density matrices like
