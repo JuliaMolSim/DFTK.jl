@@ -70,6 +70,20 @@
 
         # TODO: Test this gives a spherically truncated function.
     end
+
+    @testset "WignerSeitzTruncatedCoulomb" begin
+        k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis)
+        E_wstrunc = exx_energy_only(basis, kpt, k_wstrunc, ψk_real, occk)
+        E_ref = -2.3456813523805415
+        @test abs(E_ref - E_wstrunc) < 1e-6
+    end
+
+    @testset "VoxelAveraged" begin
+        k_voxavg = compute_kernel_fourier(Coulomb(VoxelAveraged()), basis)
+        E_voxavg = exx_energy_only(basis, kpt, k_voxavg, ψk_real, occk)
+        E_ref = -2.249032672407079
+        @test abs(E_ref - E_voxavg) < 1e-6
+    end
 end
 
 
