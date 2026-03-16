@@ -22,16 +22,47 @@ where the `kernel` keyword argument is an [`InteractionKernel`](@ref) , typicall
 end
 (ex::ExactExchange)(basis) = TermExactExchange(basis, ex.scaling_factor, ex.kernel)
 
-struct TermExactExchange <: Term
-    scaling_factor::Real  # scaling factor, absorbed into interaction_kernel
-    interaction_kernel::AbstractArray  # kernel values in Fourier space
+struct TermExactExchange{T, TKernel} <: Term
+    scaling_factor::T  # scaling factor, absorbed into interaction_kernels
+    interaction_kernels::TKernel  # kernel values in Fourier space for each q
 end
 function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, kernel) where {T}
-    # TODO: we need this for every q-point
-    fac::T = scaling_factor
-    interaction_kernel = fac .* compute_kernel_fourier(kernel, basis)
-    TermExactExchange(fac, interaction_kernel)
+    fac::T = scaling_factor 
+
+    # === set up q-point logic ===
+    
+    # find all differences q=k1-k2 considering MIC
+    q_coords_all = [
+        mod.(k1.coordinate .- k2.coordinate .+ 0.5, 1.0) .- 0.5
+        for k1 in basis.kpoints, k2 in basis.kpoints
+    ]
+
+    # Consider only unique q points using tolerance of 1e-10 / bohr
+    # (q≈1e-10 would correspond to BvK edge length of the order of meters)
+    q_coords = unique(q -> round.(q,digits=10), q_coords_all)
+    
+    # Build Kpoint objects
+    #qpts = build_qpoints(basis.model, basis.fft_size, q_coords, basis.Ecut)
+    qpts = build_kpoints(basis.model, basis.fft_size, q_coords, basis.Ecut; basis.architecture)
+    
+    # Compute and store the Coulomb kernel for each q-point
+    interaction_kernels = Dict{Vec3{T}, Vector{T}}()
+    for (q, qpt) in zip(q_coords, qpts)
+        # Note: You will need to update `compute_coulomb_kernel` to accept `qpt`
+        kernel_q = fac .* compute_kernel_fourier(kernel, basis, qpt)
+        
+        interaction_kernels[q] = kernel_q
+    end
+    
+    TermExactExchange(fac, interaction_kernels)
 end
+
+#function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, kernel) where {T}
+#    # TODO: we need this for every q-point
+#    fac::T = scaling_factor
+#    interaction_kernels = fac .* compute_kernel_fourier(kernel, basis)
+#    TermExactExchange(fac, interaction_kernels)
+#end
 
 @timing "ene_ops: ExactExchange" function ene_ops(term::TermExactExchange, basis::PlaneWaveBasis{T},
                                                   ψ, occupation;
@@ -49,7 +80,7 @@ end
     E = zero(T)
     ops = []
     for (ik, kpt) in enumerate(basis.kpoints)
-        (; Ek, opk) = exx_operator(exxalg, basis, kpt, term.interaction_kernel,
+        (; Ek, opk) = exx_operator(exxalg, basis, kpt, term.interaction_kernels,
                                    ψ[ik], occupation[ik], mask_occ[ik])
         push!(ops, opk)
         E += Ek  # TODO: Need kweight here later for energy; see also non-local term for ideas
@@ -66,7 +97,7 @@ end
 Plain vanilla Fock exchange implementation without any tricks.
 """
 struct VanillaExx <: ExxAlgorithm end
-function exx_operator(::VanillaExx, basis::PlaneWaveBasis{T}, kpt, interaction_kernel,
+function exx_operator(::VanillaExx, basis::PlaneWaveBasis{T}, kpt, interaction_kernels,
                       ψk, occk, maskk_occ) where {T}
     # Perform FFT on occupied orbitals only
     ψk_occ = @view ψk[:, maskk_occ]
@@ -77,8 +108,10 @@ function exx_operator(::VanillaExx, basis::PlaneWaveBasis{T}, kpt, interaction_k
 
     # Compute energy and build exchange operator
     occk_occ = @view occk[maskk_occ]
-    Ek  = exx_energy_only(basis,  kpt, interaction_kernel, ψk_occ_real, occk_occ)
-    opk = ExchangeOperator(basis, kpt, interaction_kernel, occk_occ, ψk_occ, ψk_occ_real)
+
+    q=zero(Vec3{T}) # TODO HACK TODO
+    Ek  = exx_energy_only(basis,  kpt, interaction_kernels[q], ψk_occ_real, occk_occ)
+    opk = ExchangeOperator(basis, kpt, interaction_kernels[q], occk_occ, ψk_occ, ψk_occ_real)
     (; Ek, opk)
 end
 
@@ -101,7 +134,7 @@ JCTC 2016, 12, 5, 2242-2249, doi.org/10.1021/acs.jctc.6b00092
     # or using only the occupied orbitals (false).
     sketch_with_extra_orbitals::Bool = true
 end 
-function exx_operator(ace::AceExx, basis::PlaneWaveBasis{T}, kpt, interaction_kernel,
+function exx_operator(ace::AceExx, basis::PlaneWaveBasis{T}, kpt, interaction_kernels,
                       ψk, occk, maskk_occ) where {T}
     # Perform FFT on orbitals
     fftmask = ace.sketch_with_extra_orbitals ? (1:size(ψk, 2)) : maskk_occ
@@ -114,7 +147,7 @@ function exx_operator(ace::AceExx, basis::PlaneWaveBasis{T}, kpt, interaction_ke
     occk_occ    = @view occk[maskk_occ]
     ψk_occ      = @view ψk[:, maskk_occ]
     ψk_occ_real = @view ψk_real[:, :, :, maskk_occ]
-    Vxk = ExchangeOperator(basis, kpt, interaction_kernel, occk_occ, ψk_occ, ψk_occ_real)
+    Vxk = ExchangeOperator(basis, kpt, interaction_kernels, occk_occ, ψk_occ, ψk_occ_real)
 
     # Apply ACE compression using as sketch space all orbitals the user wants for compression
     occk_comp    = @view occk[fftmask]
@@ -159,6 +192,7 @@ end
 Base.:*(op::InverseNegatedMap, x) = -(op.B \ x)
 
 
+# TODO this is currently called only with interaction_kernel for one q (see exx_operator)
 function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, interaction_kernel, ψk_real, occk) where {T}
     # Naive algorithm for computing the exact exchange energy only.
 
@@ -176,7 +210,7 @@ function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, interaction_kernel, ψk_
             fac_mn = occk[n] * occk[m] / filled_occupation(basis.model)
 
             fac_mn *= (m != n ? 2 : 1) # factor 2 because we skipped m>n
-            Ek -= 1/T(2) * fac_mn * real(dot(ρmn_fourier .* interaction_kernel, ρmn_fourier))
+            Ek -= 1/T(2) * fac_mn * real(dot(ρmn_fourier .* interaction_kernel, ρmn_fourier)) 
         end
     end
     Ek
