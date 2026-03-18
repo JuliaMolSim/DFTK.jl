@@ -181,31 +181,52 @@ function apply!(Hψ, op::DivAgradOperator, ψ;
 end
 # TODO Implement  Base.Matrix(op::DivAgradOperator)
 
-struct ExchangeOperator{T <: Real,Tocc,TKernel,Tpsi,TpsiReal} <: RealFourierOperator
+struct ExchangeOperator{T <: Real,Tkernel,Tq,Tmap,Tocc,Tpsi} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
     kpoint::Kpoint{T}
-    interaction_kernels::TKernel
-    occk::Tocc
-    ψk::Tpsi
-    ψk_real::TpsiReal
+    interaction_kernels::Tkernel  # Vector{Vector{T}}: kernel values in Fourier space
+    q_points::Tq                  # Vector{Kpoint{T}}
+    kprime_mapping::Tmap          # Matrix{Int}: find index for k'=k-q
+    occ_occ::Tocc
+    ψ_occ_real::Tpsi              # Store precomputed real-space orbitals
 end
 function apply!(Hψ, op::ExchangeOperator, ψ)
-    # Hψ = - ∑_n f_n ψ_n(r) ∫ (ψ_n)†(r') * ψ(r') / |r-r'| dr'
-    for (n, ψnk_real) in enumerate(eachslice(op.ψk_real, dims=4))
-        x_real   = conj(ψnk_real) .* ψ.real
-        # TODO Some symmetrisation of x_real might be needed here ...
+    basis = op.basis
+    ik = findfirst(isequal(op.kpoint), basis.kpoints)
 
-        # Compute integral by Poisson solve
-        x_four  = fft(op.basis, op.kpoint, x_real) # actually we need q-point here
-        Vx_four = x_four .* op.interaction_kernels[op.kpoint.coordinate] # TODO op.interaction_kernels[...] <- set q properly TODO
-        Vx_real = ifft(op.basis, op.kpoint, Vx_four) # actually we need q-point here
+    for iq in 1:length(op.q_points)
 
-        # Exact exchange is quadratic in occupations but linear in spin,
-        # hence we need to undo the fact that in DFTK for non-spin-polarized calcuations
-        # orbitals are considered as spin orbitals and thus occupations run from 0 to 2
-        # We do this by dividing by the filled_occupation.
-        fac_nk = op.occk[n] / filled_occupation(op.basis.model)
-        Hψ.real .-= fac_nk .* ψnk_real .* Vx_real  # Real-space multiply and accumulate
+        # construct k' = k - q
+        ikp = kprime_mapping[ik, iq]
+        ikp == 0 && continue 
+        
+        # get the Coulomb kernel Fourier components G+q
+        qpt = q_points[iq]
+        kernel_q = interaction_kernels[iq]
+
+        # get occupied orbitals at k' in real-space
+        ψkp_real = op.ψ_occ_real[ikp]
+
+        # Hψ = - ∑_n f_n ψ_n(r) ∫ (ψ_n)†(r') * ψ(r') / |r-r'| dr'
+        for (n, ψnkp_real) in enumerate(eachslice(op.ψkp_real, dims=4))
+            x_real   = conj(ψnkp_real) .* ψ.real
+            # TODO Some symmetrisation of x_real might be needed here ...
+    
+            # Compute integral by Poisson solve
+            x_four  = fft(basis, qpt, x_real) 
+            Vx_four = x_four .* kernel_q
+            Vx_real = ifft(basis, qpt, Vx_four) 
+    
+            # Exact exchange is quadratic in occupations but linear in spin,
+            # hence we need to undo the fact that in DFTK for non-spin-polarized calcuations
+            # orbitals are considered as spin orbitals and thus occupations run from 0 to 2
+            # We do this by dividing by the filled_occupation.
+            fac_nk = op.occ_okk[ikp][n] / filled_occupation(basis.model)
+         
+            fac_nk *= basis.kweights[ikp] # use k'-weight
+    
+            Hψ.real .-= fac_nk .* ψnkp_real .* Vx_real  # Real-space multiply and accumulate
+        end
     end
 end
 
