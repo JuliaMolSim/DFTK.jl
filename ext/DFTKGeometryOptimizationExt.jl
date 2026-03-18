@@ -2,6 +2,7 @@ module DFTKGeometryOptimizationExt
 using DFTK
 using Unitful
 using UnitfulAtomic
+using MPI
 import GeometryOptimization
 GO = GeometryOptimization
 
@@ -18,9 +19,10 @@ function GO.minimize_energy!(system, calc::DFTKCalculator, solver;
                              tol_forces=1e-4u"eV/Å",
                              tol_virial=1e-6u"eV",
                              verbosity::Integer=0,
-                             # Verbosity is 0 (silent) unless we are on master
-                             callback=GO.GeoOptDefaultCallback(mpi_master() * verbosity;
-                                                               show_virial=variablecell),
+                             # Verbosity is 0 (silent) unless we are on master.
+                             callback=GO.GeoOptDefaultCallback(
+                                mpi_master(MPI.COMM_WORLD) * verbosity;
+                                show_virial=variablecell),
                              kwargs...)
     if autoadjust_calculator
         has_modified_parameter = any(haskey(calc.params.scf_kwargs, key)

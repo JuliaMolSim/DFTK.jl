@@ -16,8 +16,8 @@ function kwargs_scf_checkpoints(basis::AbstractBasis;
                                 diagtolalg::AdaptiveDiagtol=AdaptiveDiagtol(),
                                 ρ=guess_density(basis),
                                 τ=any(needs_τ, basis.terms) ? zero(ρ) : nothing,
-                                ψ=nothing, save_ψ=false,
-                                kwargs...)
+                                hubbard_n=nothing, ψ=nothing, occupation=nothing,
+                                save_ψ=false, kwargs...)
     if isfile(filename)
         # Disable strict checking, since we can live with only the density data
         previous = load_scfres(filename, basis; skip_hamiltonian=true, strict=false)
@@ -26,8 +26,8 @@ function kwargs_scf_checkpoints(basis::AbstractBasis;
         if !isnothing(previous.ρ)
             ρ = previous.ρ
             τ = previous.τ
-            consistent_kpts = hasproperty(previous, :eigenvalues)
-            if consistent_kpts && hasproperty(previous, :history_Δρ)
+            hubbard_n = previous.hubbard_n
+            if hasproperty(previous, :eigenvalues) && hasproperty(previous, :history_Δρ)
                 diagtol_first = determine_diagtol(diagtolalg, previous)
             else
                 diagtol_first = diagtolalg.diagtol_max
@@ -37,11 +37,12 @@ function kwargs_scf_checkpoints(basis::AbstractBasis;
                                            diagtolalg.diagtol_min,
                                            diagtolalg.ratio_ρdiff)
         end
+        occupation = something(previous.occupation, Some(occupation))
         ψ = something(previous.ψ, Some(ψ))
     end
 
     callback = callback ∘ ScfSaveCheckpoints(; filename, save_ψ)
-    (; callback, diagtolalg, ψ, ρ, τ, kwargs...)
+    (; callback, diagtolalg, ψ, ρ, τ, hubbard_n, occupation, kwargs...)
 end
 
 
@@ -137,6 +138,8 @@ Overview of parameters:
     τ=any(needs_τ, basis.terms) ? zero(ρ) : nothing,
     hubbard_n=nothing,
     ψ=nothing,
+    occupation=nothing,
+    eigenvalues=nothing,
     tol=1e-6,
     is_converged=ScfConvergenceDensity(tol),
     miniter=0,
@@ -149,6 +152,7 @@ Overview of parameters:
     diagtolalg=default_diagtolalg(basis; tol),
     nbandsalg::NbandsAlgorithm=AdaptiveBands(basis.model),
     fermialg::AbstractFermiAlgorithm=default_fermialg(basis.model),
+    exxalg::ExxAlgorithm=AceExx(),
     callback=ScfDefaultCallback(; show_damping=false),
     compute_consistent_energies=true,
     seed=nothing,
@@ -159,7 +163,7 @@ Overview of parameters:
     end
     start_ns = time_ns()
     timeout_date = Dates.now() + maxtime
-    seed = seed_task_local_rng!(seed, MPI.COMM_WORLD)
+    seed = seed_task_local_rng!(seed, basis.comm_kpts)
 
     # We do density mixing in the real representation
     # TODO support other mixing types
@@ -169,7 +173,9 @@ Overview of parameters:
 
         # Note that ρin is not the density of ψ, and the eigenvalues
         # are not the self-consistent ones, which makes this energy non-variational
-        energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρin, τ, hubbard_n, eigenvalues, εF)
+        energies, ham = energy_hamiltonian(basis, ψ, occupation;
+                                           exxalg, ρ=ρin, τ, hubbard_n, eigenvalues, εF, 
+                                           nbandsalg.occupation_threshold)
 
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
@@ -198,7 +204,9 @@ Overview of parameters:
 
         # Compute the energy of the new state
         if compute_consistent_energies
-            (; energies) = energy(basis, ψ, occupation; ρ=ρout, τ, hubbard_n, eigenvalues, εF)
+            (; energies) = energy(basis, ψ, occupation; 
+                                  exxalg, ρ=ρout, τ, hubbard_n, eigenvalues, εF,
+                                  nbandsalg.occupation_threshold)
         end
         history_Etot = vcat(info.history_Etot, energies.total)
         history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
@@ -209,10 +217,10 @@ Overview of parameters:
         ρnext = ρin .+ T(damping) .* mix_density(mixing, basis, Δρ; info_next...)
 
         converged = n_iter ≥ miniter && is_converged(info_next)
-        converged = MPI.bcast(converged, 0, MPI.COMM_WORLD)
+        converged = mpi_bcast(converged, 0, basis.comm_kpts)
         info_next = merge(info_next, (; converged))
 
-        timedout = MPI.bcast(Dates.now() ≥ timeout_date, MPI.COMM_WORLD)
+        timedout = mpi_bcast(Dates.now() ≥ timeout_date, basis.comm_kpts)
         info_next = merge(info_next, (; timedout))
 
         callback(info_next)
@@ -220,7 +228,7 @@ Overview of parameters:
         ρnext, info_next
     end
 
-    info_init = (; ρin=ρ, τ, hubbard_n, ψ, occupation=nothing, eigenvalues=nothing, εF=nothing,
+    info_init = (; ρin=ρ, τ, hubbard_n, ψ, occupation, eigenvalues, εF=nothing,
                    n_iter=0, n_matvec=0, timedout=false, converged=false,
                    history_Etot=T[], history_Δρ=T[])
 
@@ -229,9 +237,13 @@ Overview of parameters:
 
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρout, so we return that. We also perform a last energy computation
-    # to return a correct variational energy
+    # to return a correct variational energy and to build a Hamiltonian without any compression
+    # applied to the exchange operator.
     (; ρin, ρout, τ, hubbard_n, ψ, occupation, eigenvalues, εF, converged) = info
-    energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρout, τ, hubbard_n, eigenvalues, εF)
+    energies, ham = energy_hamiltonian(basis, ψ, occupation; 
+                                       exxalg=VanillaExx(),
+                                       ρ=ρout, τ, hubbard_n, eigenvalues, εF, 
+                                       nbandsalg.occupation_threshold)
 
     # Callback is run one last time with final state to allow callback to clean up
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,

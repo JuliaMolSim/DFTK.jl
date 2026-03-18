@@ -111,3 +111,124 @@
         test_kernel(:none, Xc([:lda_xc_teter93]); psp)
     end
 end
+
+# Tests the derivatives of the libxc potential_terms,
+# especially the energy density e which is not tested by the apply_kernel tests.
+@testitem "ForwardDiff potential_terms for libxc" tags=[:minimal] setup=[TestCases] begin
+    using DFTK
+    using DftFunctionals
+    using DftFunctionals: potential_terms
+    using ForwardDiff
+    using LinearAlgebra
+    import ForwardDiff
+    import ForwardDiff: Dual, partials
+
+    for spin in [:none, :collinear]
+        @testset "Spin polarization: $spin" begin
+            # Build a reasonable density from a silicon model
+            testcase = TestCases.silicon
+            Si = ElementPsp(testcase.atnum, load_psp(testcase.psp_gth))
+            magnetic_moments = spin == :collinear ? [0.5, -0.5] : []
+            model = model_DFT(testcase.lattice, [Si, Si], testcase.positions;
+                              functionals=r2SCAN(), magnetic_moments)
+            basis = PlaneWaveBasis(model; Ecut=2, kgrid=MonkhorstPack([2, 2, 2]))
+            scfres = self_consistent_field(basis; ρ=guess_density(basis, magnetic_moments))
+            ρ0 = scfres.ρ
+            τ0 = scfres.τ
+
+            # LibxcDensities with max_derivative=2 gives ρ, σ = |∇ρ|², and Δρ
+            density = DFTK.LibxcDensities(basis, 2, ρ0, τ0)
+            ρ  = reshape(density.ρ_real, size(density.ρ_real, 1), :)
+            σ  = reshape(density.σ_real, size(density.σ_real, 1), :)
+            Δρ = reshape(density.Δρ_real, size(density.Δρ_real, 1), :)
+            τ  = reshape(density.τ_real, size(density.τ_real, 1), :)
+
+            ε_ad = Dual{typeof(ForwardDiff.Tag(nothing, Float64))}(0.0, 1.0)
+            function do_ad(f)
+                map(f(ε_ad)) do y
+                    partials.(y, 1)
+                end
+            end
+
+            ε_fd = 1e-4
+            function do_fd(f)
+                f_m2ε = f(-2ε_fd)
+                f_m1ε = f(-ε_fd)
+                f_p1ε = f(ε_fd)
+                f_p2ε = f(2ε_fd)
+                map(f_m2ε, f_m1ε, f_p1ε, f_p2ε) do y_m2ε, y_m1ε, y_p1ε, y_p2ε
+                    (-y_p2ε + 8*y_p1ε - 8*y_m1ε + y_m2ε) / 12ε_fd
+                end
+            end
+
+            # Random δρ with consistent δσ and δΔρ
+            δρ0 = randn(size(ρ0)) / model.unit_cell_volume
+            δdens = DFTK.LibxcDensities(basis, 2, ρ0.+ε_ad.*δρ0, nothing)
+            δσ_real = partials.(δdens.σ_real, 1)
+            δΔρ_real = partials.(δdens.Δρ_real, 1)
+            δρ = reshape(δρ0, size(ρ)...)
+            δσ = reshape(δσ_real, size(σ)...)
+            δΔρ = reshape(δΔρ_real, size(Δρ)...)
+            # And a random δτ
+            δτ = randn(size(τ)) / model.unit_cell_volume
+
+            @testset "LDA" begin
+                func = DFTK.LibxcFunctional(:lda_xc_teter93)
+
+                f = ε -> potential_terms(func, ρ .+ ε .* δρ)
+
+                δe_ad, δVρ_ad = do_ad(f)
+                δe_fd, δVρ_fd = do_fd(f)
+
+                @test δe_ad  ≈ δe_fd  rtol=1e-6
+                @test δVρ_ad ≈ δVρ_fd rtol=1e-6
+            end
+
+            @testset "GGA" begin
+                func = DFTK.LibxcFunctional(:gga_x_pbe)
+
+                f = ε -> potential_terms(func, ρ .+ ε .* δρ, σ .+ ε .* δσ)
+
+                δe_ad, δVρ_ad, δVσ_ad = do_ad(f)
+                δe_fd, δVρ_fd, δVσ_fd = do_fd(f)
+
+                @test δe_ad  ≈ δe_fd  rtol=1e-6
+                @test δVρ_ad ≈ δVρ_fd rtol=1e-6
+                @test δVσ_ad ≈ δVσ_fd rtol=1e-6
+            end
+
+            @testset "MGGA" begin
+                func = DFTK.LibxcFunctional(:mgga_x_r2scan)
+
+                f = ε -> potential_terms(func, ρ .+ ε .* δρ, σ .+ ε .* δσ, τ .+ ε .* δτ)
+
+                δe_ad, δVρ_ad, δVσ_ad, δVτ_ad = do_ad(f)
+                δe_fd, δVρ_fd, δVσ_fd, δVτ_fd = do_fd(f)
+
+                @test δe_ad  ≈ δe_fd  rtol=1e-6
+                @test δVρ_ad ≈ δVρ_fd rtol=1e-6
+                # Seems more sensitive to noise, use a slightly looser tolerance:
+                @test δVσ_ad ≈ δVσ_fd rtol=3e-6
+                @test δVτ_ad ≈ δVτ_fd rtol=1e-6
+            end
+
+            @testset "MGGAL" begin
+                # Need a (∇²ρ, τ)-dependent MGGA, seems more stable than the original br89
+                func = DFTK.LibxcFunctional(:mgga_x_br89_explicit)
+                @assert func isa DFTK.LibxcFunctional{:mggal}
+
+                f = ε -> potential_terms(func, ρ .+ ε .* δρ, σ .+ ε .* δσ,
+                                               τ .+ ε .* δτ, Δρ .+ ε .* δΔρ)
+
+                δe_ad, δVρ_ad, δVσ_ad, δVτ_ad, δVl_ad = do_ad(f)
+                δe_fd, δVρ_fd, δVσ_fd, δVτ_fd, δVl_fd = do_fd(f)
+
+                @test δe_ad  ≈ δe_fd  rtol=1e-6
+                @test δVρ_ad ≈ δVρ_fd rtol=1e-6
+                @test δVσ_ad ≈ δVσ_fd rtol=1e-6
+                @test δVτ_ad ≈ δVτ_fd rtol=1e-6
+                @test δVl_ad ≈ δVl_fd rtol=1e-6
+            end
+        end
+    end
+end

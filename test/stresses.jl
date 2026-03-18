@@ -3,9 +3,9 @@
 
 @testitem "ForwardDiff stresses on silicon" tags=[:minimal] setup=[TestCases] begin
     using DFTK
+    using DFTK: mpi_bcast
     using ForwardDiff
     import FiniteDiff
-    using MPI
     using LinearAlgebra
     silicon = TestCases.silicon
 
@@ -35,7 +35,7 @@
         stresses = compute_stresses_cart(scfres)
         @test isapprox(stresses, compute_stresses_cart(scfres_nosym); atol=1e-10)
 
-        dir = MPI.bcast(randn(3, 3), 0, MPI.COMM_WORLD)
+        dir = mpi_bcast(randn(3, 3), 0, scfres.basis.comm_kpts)
 
         dE_stresses = dot(dir, stresses) * scfres.basis.model.unit_cell_volume
         ref_recompute = FiniteDiff.finite_difference_derivative(0.0) do ε

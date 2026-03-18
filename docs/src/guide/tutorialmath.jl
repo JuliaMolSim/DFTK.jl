@@ -35,7 +35,7 @@
 # &\left( \frac12 (-i∇ + k)^2 + V\left(\rho\right) \right) ψ_{kn}
 #   = ε_{kn} ψ_{kn}, \qquad \text{for } 1 ≤ n ≤ N, k ∈ \Omega^∗ ⊂ \mathbb{R}^3 \\
 # V(ρ) = &\, V_\text{nuc} + V_\text{H}(ρ) + V_\text{XC}(ρ), \\
-# ρ(r) = & \frac{1}{|\Omega|}  ∫_{\Omega^∗} ∑_{n=1}^N f\left(\frac{ε_{kn} - ε_F}{T}\right) \,  \abs{ψ_{kn}(r)}^2 \, d k, \\
+# ρ(r) = & \frac{1}{|\Omega^∗|}  ∫_{\Omega^∗} ∑_{n=1}^N f\left(\frac{ε_{kn} - ε_F}{T}\right) \,  \abs{ψ_{kn}(r)}^2 \, d k, \\
 # N_\text{el} &= ∫_{\Omega} ρ(r) \, dr.
 # \end{aligned}
 # \right.
@@ -115,7 +115,7 @@
 #     ```
 #     where the plane-waves are functions $\mathbb{R}^3 → \mathbb{C}$ of the form
 #     ```math
-#     e_G(r) = \frac{1}{\sqrt{|\Omega|}} e^{2π\, G⋅r}.
+#     e_G(r) = \frac{1}{\sqrt{|\Omega|}} e^{i G \cdot r}.
 #     ```
 #     Crucially the size of the basis is controlled
 #     by the **plane-wave cutoff** `Ecut`.

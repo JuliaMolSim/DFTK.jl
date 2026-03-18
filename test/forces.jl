@@ -3,7 +3,7 @@
     using Test
     using AtomsBase
     using DFTK
-    using MPI
+    using DFTK: mpi_bcast
     using PseudoPotentialData
     using Unitful
     using UnitfulAtomic
@@ -21,8 +21,8 @@
         scfres = self_consistent_field(basis; ρ, tol=1e-12, mixing)
 
         # must be identical on all processes
-        test_atom = MPI.bcast(rand(1:length(model.atoms)), 0, MPI.COMM_WORLD)
-        test_dir  = MPI.bcast(rand(3), 0, MPI.COMM_WORLD)
+        test_atom = mpi_bcast(rand(1:length(model.atoms)), 0, basis.comm_kpts)
+        test_dir  = mpi_bcast(rand(3), 0, basis.comm_kpts)
         normalize!(test_dir)
 
         for iterm in 1:length(basis.terms)
@@ -80,9 +80,9 @@
 
         dx = [zeros(3) * u"Å" for _ in 1:length(system)]
         δx = @something δx rand(3)
-        δx    = MPI.bcast(δx, 0, MPI.COMM_WORLD)
+        δx    = mpi_bcast(δx, 0, scfres.basis.comm_kpts)
         normalize!(δx)
-        iatom = MPI.bcast(iatom, 0, MPI.COMM_WORLD)
+        iatom = mpi_bcast(iatom, 0, scfres.basis.comm_kpts)
         dx[iatom]  = δx * u"Å"
 
         Fε_ref = sum(map(forces, dx) do Fi, dxi
@@ -104,6 +104,7 @@ end
     # Test HF forces on non-symmetric multi-species structure using analytical pseudos
     using AtomsIO
     using PseudoPotentialData
+    using DFTK: DielectricMixing
     system = load_system("structures/tio2_stretched.extxyz")
     pseudopotentials = PseudoFamily("cp2k.nc.sr.pbe.v0_1.largecore.gth")
     TestForces.test_term_forces(system; Ecut=15, kgrid=(2,2,3), temperature=1e-4,
@@ -113,6 +114,7 @@ end
 @testitem "Forces term-wise TiO2 (UPF)" setup=[TestForces] tags=[:forces, :minimal] begin
     # Test HF forces on non-symmetric multi-species structure with NLCC
     using AtomsIO
+    using DFTK: DielectricMixing
     system = load_system("structures/tio2_stretched.extxyz")
     TestForces.test_term_forces(system; Ecut=25, kgrid=(2,2,3), temperature=1e-4,
                                 mixing=DielectricMixing(εr=10))
@@ -187,10 +189,36 @@ end
 
 @testitem "Forces TiO2 PBE" setup=[TestForces] tags=[:forces,:slow] begin
     using AtomsIO
+    using DFTK: DielectricMixing
     system = load_system("structures/tio2_stretched.extxyz")
     TestForces.test_forces(system; kgrid=[2, 2, 3], Ecut=25,
                            mixing=DielectricMixing(εr=10),
                            atol=1e-7, temperature=1e-3)
+end
+
+@testitem "Forces LiCl PBE (partial NLCC)" setup=[TestForces] tags=[:forces] begin
+    # Regression test for XC force when only some atom groups have NLCC.
+    # Cl has NLCC in the dojo UPF pseudos, Li does not.
+    using DFTK
+    using DFTK: has_core_density
+    using PseudoPotentialData
+    test_forces = TestForces.test_forces
+
+    pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
+
+    a = 10.657
+    lattice = a / 2 * [[0 1 1]; [1 0 1]; [1 1 0]]
+    Li = ElementPsp(:Li, pseudopotentials)
+    Cl = ElementPsp(:Cl, pseudopotentials)
+    atoms = [Li, Cl]
+    positions = [[0.01, 0.02, 0.03], [0.5, 0.5, 0.5]]
+    system = atomic_system(lattice, atoms, positions)
+
+    # Verify the NLCC assumptions this test is based on
+    @test !has_core_density(Li)
+    @test  has_core_density(Cl)
+
+    test_forces(system; pseudopotentials, Ecut=15, kgrid=(2, 2, 2), iatom=2)
 end
 
 @testitem "Forces silicon SCAN" setup=[TestCases,TestForces] tags=[:forces] begin

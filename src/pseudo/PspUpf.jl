@@ -203,19 +203,40 @@ end
 
 eval_psp_local_real(psp::PspUpf, r::T) where {T<:Real} = psp.vloc_interp(r)
 
-function eval_psp_local_fourier(psp::PspUpf, p::T)::T where {T<:Real}
+# Low-level function for the local part of the pseudopotential in reciprocal space
+function _eval_psp_local_fourier(quadrature, rgrid, vloc, Zion, p::T)::T where {T<:Real}
     # QE style C(r) = -Zerf(r)/r Coulomb tail correction used to ensure
     # exponential decay of `f` so that the Hankel transform is accurate.
     # H[Vloc(r)] = H[Vloc(r) - C(r)] + H[C(r)],
     # where H[-Zerf(r)/r] = -Z/p^2 exp(-p^2 /4)
     # ABINIT uses a more 'pure' Coulomb term with the same asymptotic behavior
     # C(r) = -Z/r; H[-Z/r] = -Z/p^2
+    p == 0 && return zero(T)  # Compensating charge background
+    I = quadrature(rgrid) do i, r
+         r * (r * vloc[i] - -Zion * erf(r)) * sphericalbesselj_fast(0, p * r)
+    end
+    4T(π) * (I + -Zion / p^2 * exp(-p^2 / T(4)))
+end
+
+function eval_psp_local_fourier(psp::PspUpf, p::T) where {T<:Real}
+    quadrature = default_psp_quadrature(psp.rgrid)
     rgrid = @view psp.rgrid[1:psp.ircut]
     vloc  = @view psp.vloc[1:psp.ircut]
-    I = simpson(rgrid) do i, r
-         r * (r * vloc[i] - -psp.Zion * erf(r)) * sphericalbesselj_fast(0, p * r)
+    _eval_psp_local_fourier(quadrature, rgrid, vloc, psp.Zion, p)
+end
+
+# Vectorized version of the above, GPU compatible
+function eval_psp_local_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Real}
+    quadrature = default_psp_quadrature(psp.rgrid)
+    arch = architecture(ps)
+    rgrid = to_device(arch, @view psp.rgrid[1:psp.ircut])
+    vloc  = to_device(arch, @view psp.vloc[1:psp.ircut])
+    Zion = psp.Zion
+    map(ps) do p
+        # GPU kernels with dynamic function calls do not compile,
+        # hence the pre-determined explicit integration function
+        _eval_psp_local_fourier(quadrature, rgrid, vloc, Zion, p)
     end
-    4T(π) * (I + -psp.Zion / p^2 * exp(-p^2 / T(4)))
 end
 
 function eval_psp_density_valence_real(psp::PspUpf, r::T) where {T<:Real}

@@ -35,6 +35,7 @@ PAGES = [
         "examples/geometry_optimization.jl",
         "examples/energy_cutoff_smearing.jl",
         "examples/hubbard.jl",
+        "examples/exact_exchange.jl",
     ],
     "Response and properties" => [
         "examples/elastic_constants.jl",
@@ -96,6 +97,7 @@ PAGES = [
     ],
     "api.md",
     "publications.md",
+    "research.md",
 ]
 
 # .jl files to execute with Literate.jl. This can be helpful when working on

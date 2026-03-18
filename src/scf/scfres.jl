@@ -69,7 +69,7 @@ Keyword arguments:
 @timing function save_scfres(filename::AbstractString, scfres::NamedTuple;
                              save_ψ=nothing, extra_data=Dict{String,Any}(),
                              compress=false, save_ρ=true)
-    filename = MPI.bcast(filename, 0, MPI.COMM_WORLD)
+    filename = mpi_bcast(filename, 0, scfres.basis.comm_kpts)
 
     _, ext = splitext(filename)
     ext = Symbol(ext[2:end])
