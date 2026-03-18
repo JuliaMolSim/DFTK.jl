@@ -174,13 +174,13 @@ end
 
 
 """
-Estimate a Fermi level by assuming (a) integer occupation and (b) an equal number of bands
-is filled for each k-point. This is largely the setting for occupation without temperature.
-Note, that while this function can be used in cases with spin or with temperature, there
-is no guarantee that the Fermi-level estimated by this function *is* the actual Fermi level.
-Therefore this function should generally only be used as a starting point for other routines.
+Find the HOMO and LUMO levels and their local (k-point, band) indices, assuming
+(a) integer occupation and (b) an equal number of bands is filled for each k-point.
+Returns `(; HOMO, LUMO, ik_HOMO, n_HOMO, ik_LUMO, n_LUMO)`.
+`LUMO`, `ik_LUMO`, `n_LUMO` are `nothing` if no unoccupied bands are available.
+The `ik_*` indices refer to this MPI rank's local k-points.
 """
-function guess_fermi_level_intocc_(basis::PlaneWaveBasis, eigenvalues)
+function find_HOMO_LUMO(basis::PlaneWaveBasis, eigenvalues)
     filled_occ = filled_occupation(basis.model)
     n_spin = basis.model.n_spin_components
     n_fill = div(basis.model.n_electrons, n_spin * filled_occ, RoundUp)
@@ -188,6 +188,7 @@ function guess_fermi_level_intocc_(basis::PlaneWaveBasis, eigenvalues)
     # Highest occupied energy level
     HOMO = maximum([εk[n_fill] for εk in eigenvalues])
     HOMO = mpi_max(HOMO, basis.comm_kpts)
+    ik_HOMO = argmax(ik -> eigenvalues[ik][n_fill], eachindex(eigenvalues))
 
     # Lowest unoccupied energy level: not all k-points might have at least n_fill+1
     # energy levels so we have to take care of that by specifying init to minimum
@@ -197,6 +198,27 @@ function guess_fermi_level_intocc_(basis::PlaneWaveBasis, eigenvalues)
     LUMO = mpi_min(LUMO, basis.comm_kpts)
 
     if LUMO == typemax(HOMO)
+        (; HOMO, LUMO=nothing, ik_HOMO, n_HOMO=n_fill,
+         ik_LUMO=nothing, n_LUMO=nothing)
+    else
+        ik_LUMO = argmin(eachindex(eigenvalues)) do ik
+            minimum(eigenvalues[ik][n_fill+1:end]; init=typemax(HOMO))
+        end
+        n_LUMO = n_fill + argmin(eigenvalues[ik_LUMO][n_fill+1:end])
+        (; HOMO, LUMO, ik_HOMO, n_HOMO=n_fill, ik_LUMO, n_LUMO)
+    end
+end
+
+"""
+Estimate a Fermi level by assuming (a) integer occupation and (b) an equal number of bands
+is filled for each k-point. This is largely the setting for occupation without temperature.
+Note, that while this function can be used in cases with spin or with temperature, there
+is no guarantee that the Fermi-level estimated by this function *is* the actual Fermi level.
+Therefore this function should generally only be used as a starting point for other routines.
+"""
+function guess_fermi_level_intocc_(basis::PlaneWaveBasis, eigenvalues)
+    (; HOMO, LUMO) = find_HOMO_LUMO(basis, eigenvalues)
+    if isnothing(LUMO)
         HOMO + 1  # Just to make sure the εF is a sane number and above HOMO
     else
         (HOMO + LUMO) / 2

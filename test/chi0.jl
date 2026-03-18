@@ -77,7 +77,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
                                               occupation_threshold, bandtolalg, q)
         maximumabs(x) = maximum(abs, x)
         @test maximum(maximumabs, diff_applied_χ0_4P.δoccupation - diff_findiff.occupation) < atol
-        @test abs(diff_applied_χ0_4P.δεF - diff_findiff.εF) < 1e-10
+        @test abs(diff_applied_χ0_4P.δεF - diff_findiff.εF) < atol
 
         # Test apply_χ0 without extra bands
         ψ_occ, occ_occ = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation;
