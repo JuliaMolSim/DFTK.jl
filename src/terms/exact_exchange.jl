@@ -31,39 +31,10 @@ end
 function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, kernel) where {T}
     fac::T = scaling_factor 
 
-    # find all differences q=k1-k2 considering MIC
-    q_coords_all = [
-        mod.(k1.coordinate .- k2.coordinate .+ 0.5, 1.0) .- 0.5
-        for k1 in basis.kpoints, k2 in basis.kpoints
-    ]
-
-    # Consider only unique q points using tolerance of 1e-10 / bohr
-    # (q≈1e-10 would correspond to BvK edge length of the order of meters)
-    digits = 10
-    q_coords = unique(q -> round.(q,digits), q_coords_all)
-    
-    # Build Kpoint objects
-    q_points = build_kpoints(basis.model, basis.fft_size, q_coords, basis.Ecut; basis.architecture)
-
+    q_points, kprime_mapping = build_qpoints(basis)
     interaction_kernels = [fac .* compute_kernel_fourier(kernel, basis, qpt) for qpt in q_points]
 
-    # Build integer mapping table: kprime_mapping[ik, iq] = ik_prime (where k'=k-q)
-    N_k = length(basis.kpoints)
-    N_q = length(q_coords)
-    kprime_mapping = zeros(Int, N_k, N_q)
-    for iq in 1:N_q
-        for ik in 1:N_k
-            k_coord = basis.kpoints[ik].coordinate
-            k_prime_coord = mod.(k_coord .- q_coords[iq] .+ 0.5, 1.0) .- 0.5
-            
-            ik_prime = findfirst(k -> round.(k.coordinate, digits) == round.(k_prime_coord, digits), basis.kpoints)
-            if !isnothing(ik_prime)
-                kprime_mapping[ik, iq] = ik_prime
-            end
-        end
-    end
-    
-    TermExactExchange(fac, interaction_kernels, q_points)
+    TermExactExchange(fac, interaction_kernels, q_points, kprime_mapping)
 end
 
 
@@ -131,9 +102,7 @@ function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, interaction_kernels, q_p
 
     # get occupied orbitals at k
     ik = findfirst(isequal(kpt), basis.kpoints)
-    ψk_occ = ψ_occ[ik]
     ψk_real = ψ_occ_real[ik]
-    nocc_k = size(ψk_occ, 2)
 
     Ek = zero(T)
 
@@ -149,10 +118,7 @@ function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, interaction_kernels, q_p
         kernel_q = interaction_kernels[iq]
         
         # get occupied orbitals at k'
-        kpt_kp = basis.kpoints[ikp]
-        ψkp_occ = ψ_occ[ikp]
         ψkp_real = ψ_occ_real[ikp]
-        nocc_kp = size(ψkp_occ, 2)
 
         for (n, ψnk_real) in enumerate(eachslice(ψk_real, dims=4))
             for (m, ψmkp_real) in enumerate(eachslice(ψkp_real, dims=4))
@@ -198,14 +164,14 @@ JCTC 2016, 12, 5, 2242-2249, doi.org/10.1021/acs.jctc.6b00092
     sketch_with_extra_orbitals::Bool = true
 end 
 function build_exx(ace::AceExx, basis::PlaneWaveBasis{T}, kpt, term::TermExactExchange,
-                     ψ, occupation, mask_occ) where {T}
+                   ψ, occupation, mask_occ, ψ_occ_real, occ_occ) where {T}
     # Occupied views using mask_occ
     ψ_occ = [@view ψ[ik][:, mask_occ[ik]] for ik in 1:length(basis.kpoints)]
     occ_occ = [occupation[ik][mask_occ[ik]] for ik in 1:length(basis.kpoints)]
 
     # Build the ExchangeOperator K acting on orbital at k
     Kk = ExchangeOperator(basis, kpt, term.interaction_kernels, term.q_points, 
-                          occ_occ, ψ_occ)
+                          term.kprime_mapping, ψ_occ_real, occ_occ)
 
     # Build mask for ACE sketch orbitals
     ik = findfirst(isequal(kpt), basis.kpoints)
