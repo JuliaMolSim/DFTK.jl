@@ -654,6 +654,40 @@ function scatter_kpts_block(basis::PlaneWaveBasis, data::Union{Nothing,AbstractA
 end
 
 """
+Computes the unique momentum transfers q = k - k' for a given basis.
+Returns the Kpoint objects for the q-grid and the integer mapping table
+`kprime_mapping[ik, iq]` such that k' = k - q.
+"""
+function build_qpoints(basis::PlaneWaveBasis{T}; k_digits=10) where {T}
+    # Find unique q-coordinates
+    q_coords_all = [
+        mod.(k1.coordinate .- k2.coordinate .+ 0.5, 1.0) .- 0.5
+        for k1 in basis.kpoints, k2 in basis.kpoints
+    ]
+    q_coords = unique(q -> round.(q, digits=k_digits), q_coords_all)
+    
+    # Build Kpoint objects
+    q_points = build_kpoints(basis.model, basis.fft_size, q_coords, basis.Ecut; basis.architecture)
+    
+    # Build mapping table
+    N_k = length(basis.kpoints)
+    N_q = length(q_coords)
+    kprime_mapping = zeros(Int, N_k, N_q)
+    
+    for iq in 1:N_q, ik in 1:N_k
+        k_coord = basis.kpoints[ik].coordinate
+        k_prime_coord = mod.(k_coord .- q_coords[iq] .+ 0.5, 1.0) .- 0.5
+        
+        ikp = findfirst(k -> round.(k.coordinate, digits=k_digits) == round.(k_prime_coord, digits=k_digits), basis.kpoints)
+        if !isnothing(ikp)
+            kprime_mapping[ik, iq] = ikp
+        end
+    end
+    
+    return q_points, kprime_mapping
+end
+
+"""
 Forward FFT calls to the PlaneWaveBasis fft_grid field
 """
 ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis, f_fourier::AbstractArray3) = 
