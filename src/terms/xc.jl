@@ -366,14 +366,14 @@ function LibxcDensities(basis::PlaneWaveBasis{T}, max_derivative::Integer, ρ, �
     LibxcDensities{T}(basis, max_derivative, ρ_real, ∇ρ_real, σ_real, Δρ_real, τ_Libxc)
 end
 
-function _check_negative_bonding_indicator_α(densities::LibxcDensities)
+function _check_negative_bonding_indicator_α(densities::LibxcDensities{T}) where {T}
     if !isnothing(densities.τ_real) && !isnothing(densities.σ_real)
-        n_spin = density.basis.model.n_spin_components
+        n_spin = densities.basis.model.n_spin_components
         has_negative_α = @views any(1:n_spin) do iσ
             # α = (τ - τ_W) / τ_unif should be positive with τ_W = |∇ρ|² / 8ρ
             # equivalently, check 8ρτ - |∇ρ|² ≥ 0
-            α_check = (8 .* density.ρ_real[iσ, :, :, :] .* density.τ_real[iσ, :, :, :]
-                       .- density.σ_real[DftFunctionals.spinindex_σ(iσ, iσ), :, :, :])
+            α_check = (8 .* densities.ρ_real[iσ, :, :, :] .* densities.τ_real[iσ, :, :, :]
+                       .- densities.σ_real[DftFunctionals.spinindex_σ(iσ, iσ), :, :, :])
             any(α_check .<= -sqrt(eps(T)))
         end
         if has_negative_α
