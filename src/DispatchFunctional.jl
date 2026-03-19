@@ -16,6 +16,7 @@ import Libxc
 #
 struct LibxcFunctional{Family,Kind} <: Functional{Family,Kind}
     identifier::Symbol
+    has_energy::Bool
     needs_tau::Bool
     needs_laplacian::Bool
 end
@@ -35,25 +36,25 @@ function LibxcFunctional(identifier::Symbol)
     if family == :mgga && Libxc.needs_laplacian(fun)
         family = :mggal
     end
+    has_energy = 0 in Libxc.supported_derivatives(Libxc.Functional(func.identifier))
     LibxcFunctional{family,kind}(identifier,
+                                 has_energy,
                                  Libxc.needs_tau(fun),
                                  Libxc.needs_laplacian(fun))
 end
-DftFunctionals.identifier(fun::LibxcFunctional) = fun.identifier
-function DftFunctionals.has_energy(func::LibxcFunctional)
-    0 in Libxc.supported_derivatives(Libxc.Functional(func.identifier))
-end
-DftFunctionals.needs_τ(fun::LibxcFunctional)  = fun.needs_tau
-DftFunctionals.needs_Δρ(fun::LibxcFunctional) = fun.needs_laplacian
+DftFunctionals.identifier(fun::LibxcFunctional)  = fun.identifier
+DftFunctionals.has_energy(func::LibxcFunctional) = func.has_energy
+DftFunctionals.needs_τ(fun::LibxcFunctional)     = fun.needs_tau
+DftFunctionals.needs_Δρ(fun::LibxcFunctional)    = fun.needs_laplacian
 
 function libxc_energy_density(terms::NamedTuple, ρ)
     haskey(terms, :zk) ? reshape(terms.zk, 1, size(ρ, 2)) .* sum(ρ; dims=1) : false
 end
 function libxc_energy_density(func::LibxcFunctional; rho, kwargs...)
     terms = (; )
-    fun = Libxc.Functional(func.identifier; n_spin=size(rho, 1))
-    if 0 in Libxc.supported_derivatives(fun)
-        terms = Libxc.evaluate(fun; derivatives=0:0, rho, kwargs...)
+    if has_energy(func)
+        libxcfun = Libxc.Functional(func.identifier; n_spin=size(rho, 1))
+        terms = Libxc.evaluate(libxcfun; derivatives=0:0, rho, kwargs...)
     end
     libxc_energy_density(terms, rho)
 end
