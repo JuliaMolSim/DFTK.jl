@@ -577,6 +577,7 @@ DftFunctionals.needs_τ(fun::DispatchFunctional)    = needs_τ(fun.inner)
 DftFunctionals.needs_Δρ(fun::DispatchFunctional)   = needs_Δρ(fun.inner)
 
 # Note: CuMatrix dispatch to Libxc.jl is defined in src/workarounds/cuda_arrays.jl
+# Matrix element types that can dispatch to Libxc for potential computations
 const LibxcDispatchFloat = Union{Float64,Dual{<:Any,Float64}}
 function DftFunctionals.potential_terms(fun::DispatchFunctional, ρ::Matrix{<:LibxcDispatchFloat}, args...)
     potential_terms(fun.inner, ρ, args...)
@@ -585,6 +586,7 @@ function DftFunctionals.potential_terms(fun::DispatchFunctional, ρ::AbstractMat
     potential_terms(DftFunctional(identifier(fun)), ρ, args...)
 end
 
+# Matrix element types that can dispatch to Libxc for energy computations
 const LibxcDispatchFloatEnergy = Union{LibxcDispatchFloat,Dual{<:Any,<:Dual{<:Any,Float64}}}
 function energy_density(fun::DispatchFunctional, ρ::Matrix{<:LibxcDispatchFloatEnergy}, args...)
     energy_density(fun.inner, ρ, args...)
