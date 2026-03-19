@@ -84,6 +84,7 @@ export irfft
 export ifft!
 export fft
 export fft!
+export build_qpoints
 export KgridTotalNumber, KgridSpacing
 include("Smearing.jl")
 include("Model.jl")

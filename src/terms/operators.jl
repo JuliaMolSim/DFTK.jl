@@ -187,8 +187,8 @@ struct ExchangeOperator{T <: Real,Tkernel,Tq,Tmap,Tocc,Tpsi} <: RealFourierOpera
     interaction_kernels::Tkernel  # Vector{Vector{T}}: kernel values in Fourier space
     q_points::Tq                  # Vector{Kpoint{T}}
     kprime_mapping::Tmap          # Matrix{Int}: find index for k'=k-q
-    occ_occ::Tocc
     ψ_occ_real::Tpsi              # Store precomputed real-space orbitals
+    occ_occ::Tocc
 end
 function apply!(Hψ, op::ExchangeOperator, ψ)
     basis = op.basis
@@ -197,18 +197,18 @@ function apply!(Hψ, op::ExchangeOperator, ψ)
     for iq in 1:length(op.q_points)
 
         # construct k' = k - q
-        ikp = kprime_mapping[ik, iq]
+        ikp = op.kprime_mapping[ik, iq]
         ikp == 0 && continue 
         
         # get the Coulomb kernel Fourier components G+q
-        qpt = q_points[iq]
-        kernel_q = interaction_kernels[iq]
+        qpt = op.q_points[iq]
+        kernel_q = op.interaction_kernels[iq]
 
         # get occupied orbitals at k' in real-space
         ψkp_real = op.ψ_occ_real[ikp]
 
         # Hψ = - ∑_n f_n ψ_n(r) ∫ (ψ_n)†(r') * ψ(r') / |r-r'| dr'
-        for (n, ψnkp_real) in enumerate(eachslice(op.ψkp_real, dims=4))
+        for (n, ψnkp_real) in enumerate(eachslice(ψkp_real, dims=4))
             x_real   = conj(ψnkp_real) .* ψ.real
             # TODO Some symmetrisation of x_real might be needed here ...
     
@@ -221,7 +221,7 @@ function apply!(Hψ, op::ExchangeOperator, ψ)
             # hence we need to undo the fact that in DFTK for non-spin-polarized calcuations
             # orbitals are considered as spin orbitals and thus occupations run from 0 to 2
             # We do this by dividing by the filled_occupation.
-            fac_nk = op.occ_okk[ikp][n] / filled_occupation(basis.model)
+            fac_nk = op.occ_occ[ikp][n] / filled_occupation(basis.model)
          
             fac_nk *= basis.kweights[ikp] # use k'-weight
     
