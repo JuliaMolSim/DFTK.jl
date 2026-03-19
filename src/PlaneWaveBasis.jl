@@ -659,10 +659,14 @@ Returns the Kpoint objects for the q-grid and the integer mapping table
 `kprime_mapping[ik, iq]` such that k' = k - q.
 """
 function build_qpoints(basis::PlaneWaveBasis{T}; k_digits=10) where {T}
+    # since spin-polarization is encoded as additional k-points, we filter only unique
+    # k-coordinates here to avoid confusion with spin and k-points.
+    spatial_k_coords = unique(k -> round.(k.coordinate, digits=k_digits), basis.kpoints)
+
     # Find unique q-coordinates
     q_coords_all = [
         mod.(k1.coordinate .- k2.coordinate .+ 0.5, 1.0) .- 0.5
-        for k1 in basis.kpoints, k2 in basis.kpoints
+        for k1 in spatial_k_coords, k2 in spatial_k_coords
     ]
     q_coords = unique(q -> round.(q, digits=k_digits), q_coords_all)
     
@@ -674,13 +678,20 @@ function build_qpoints(basis::PlaneWaveBasis{T}; k_digits=10) where {T}
     N_q = length(q_coords)
     kprime_mapping = zeros(Int, N_k, N_q)
     
-    for iq in 1:N_q, ik in 1:N_k
-        k_coord = basis.kpoints[ik].coordinate
-        k_prime_coord = mod.(k_coord .- q_coords[iq] .+ 0.5, 1.0) .- 0.5
-        
-        ikp = findfirst(k -> round.(k.coordinate, digits=k_digits) == round.(k_prime_coord, digits=k_digits), basis.kpoints)
-        if !isnothing(ikp)
-            kprime_mapping[ik, iq] = ikp
+    for iq in 1:N_q
+        for ik in 1:N_k
+            k_coord = basis.kpoints[ik].coordinate
+            target_spin = basis.kpoints[ik].spin 
+            k_prime_coord = mod.(k_coord .- q_coords[iq] .+ 0.5, 1.0) .- 0.5
+            
+            # for the mapping both have to match: coordinate and the spin
+            ikp = findfirst(basis.kpoints) do k
+                round.(k.coordinate, digits=k_digits) == round.(k_prime_coord, digits=k_digits) && k.spin == target_spin
+            end
+
+            if !isnothing(ikp)
+                kprime_mapping[ik, iq] = ikp
+            end
         end
     end
     
