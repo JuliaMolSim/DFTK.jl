@@ -161,9 +161,18 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     (; E, potential, Vτ)
 end
 
-@views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis{T},
-                                              ψ, occupation; ρ, τ=nothing,
-                                              kwargs...) where {T}
+#=
+@views @timing "energy: xc"  function energy(term::TermXc, basis::PlaneWaveBasis{T},
+                                             ψ, occupation; ρ, τ=nothing, kwargs...) where {T}
+
+
+    error("Not implemented")
+    zero(T)
+end
+=#
+
+@views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis,
+                                              ψ, occupation; ρ, τ=nothing, kwargs...)
     E, Vxc, Vτ = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
 
     ops = map(basis.kpoints) do kpt
@@ -469,6 +478,21 @@ function DftFunctionals.potential_terms(xcs::Vector{Functional}, density::LibxcD
     end
     result
 end
+
+function energy_density(xc::DispatchFunctional, density::LibxcDensities)
+    energy_density(xc, _matify(density.ρ_real), _matify(density.σ_real),
+                   _matify(density.τ_real), _matify(density.Δρ_real))
+end
+function energy_density(xcs::Vector{Functional}, density::LibxcDensities)
+    xcs = filter(has_energy, xcs)
+    isempty(xcs) && return false
+    result = energy_density(xcs[1], density)
+    for i = 2:length(xcs)
+        result += energy_density(xcs[i], density)
+    end
+    result
+end
+
 
 """
 Compute divergence of an operand function, which returns the Cartesian x,y,z

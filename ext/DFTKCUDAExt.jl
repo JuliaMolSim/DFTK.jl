@@ -2,6 +2,7 @@ module DFTKCUDAExt
 using CUDA
 using PrecompileTools
 import DFTK: CPU, GPU, DispatchFunctional, precompilation_workflow, DispatchFloat
+import DFTK: energy_density
 using DftFunctionals
 using DFTK
 using Libxc
@@ -17,6 +18,10 @@ function DftFunctionals.potential_terms(fun::DispatchFunctional,
                                         ρ::CUDA.CuMatrix{<:DispatchFloat}, args...)
     @assert Libxc.has_cuda()
     potential_terms(fun.inner, ρ, args...)
+end
+function DFTK.energy_density(fun::DispatchFunctional, ρ::CUDA.CuMatrix{<:DispatchFloat}, args...)
+    @assert Libxc.has_cuda()
+    energy_density(fun.inner, ρ, args...)
 end
 
 # Ensure DFTK's custom ForwardDiff rule for FFTs is used.
