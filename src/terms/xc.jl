@@ -68,45 +68,24 @@ DftFunctionals.needs_τ(term::TermXc) = any(needs_τ, term.functionals)
 function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupation;
                            ρ, τ=nothing) where {T}
     @assert !isempty(term.functionals)
-
-    model    = basis.model
-    n_spin   = model.n_spin_components
-    potential_threshold = term.potential_threshold
     @assert all(family(xc) in (:lda, :gga, :mgga, :mggal) for xc in term.functionals)
+
+    if isnothing(τ) && needs_τ(term)
+        throw(ArgumentError("TermXc needs the kinetic energy density τ. Please pass a `τ` " *
+                            "keyword argument to your `Hamiltonian` or `energy_hamiltonian` call."))
+    end
 
     # Add the model core charge density (non-linear core correction)
     if !isnothing(term.ρcore)
         ρ = ρ + term.ρcore
     end
 
-    # Compute kinetic energy density, if needed.
-    if isnothing(τ) && needs_τ(term)
-        throw(ArgumentError("TermXc needs the kinetic energy density τ. Please pass a `τ` " *
-                            "keyword argument to your `Hamiltonian` or `energy_hamiltonian` call."))
-    end
-
-    # Take derivatives of the density, if needed.
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
     density = LibxcDensities(basis, max_ρ_derivs, ρ, τ)
+    _check_negative_bonding_indicator_α(density)
 
-    if !isnothing(term.ρcore) && needs_τ(term)
-        negative_α = @views any(1:n_spin) do iσ
-            # α = (τ - τ_W) / τ_unif should be positive with τ_W = |∇ρ|² / 8ρ
-            # equivalently, check 8ρτ - |∇ρ|² ≥ 0
-            α_check = (8 .* density.ρ_real[iσ, :, :, :] .* density.τ_real[iσ, :, :, :]
-                       .- density.σ_real[DftFunctionals.spinindex_σ(iσ, iσ), :, :, :])
-            any(α_check .<= -sqrt(eps(T)))
-        end
-        if negative_α
-            @warn "Exchange-correlation term: the kinetic energy density τ is smaller " *
-                  "than the von Weizsäcker kinetic energy density τ_W somewhere. " *
-                  "This can lead to unphysical results. " *
-                  "This is typically caused by the non-linear core correction, " *
-                  "which is currently not applied for the kinetic energy density τ. " *
-                  "See also https://github.com/JuliaMolSim/DFTK.jl/issues/1180. " *
-                  "This message is only logged once." maxlog=1
-        end
-    end
+    n_spin = basis.model.n_spin_components
+    potential_threshold = term.potential_threshold
 
     # Evaluate terms and energy contribution
     # If the XC functional is not supported for an architecture, terms is on the CPU
@@ -161,16 +140,6 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     (; E, potential, Vτ)
 end
 
-#=
-@views @timing "energy: xc"  function energy(term::TermXc, basis::PlaneWaveBasis{T},
-                                             ψ, occupation; ρ, τ=nothing, kwargs...) where {T}
-
-
-    error("Not implemented")
-    zero(T)
-end
-=#
-
 @views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis,
                                               ψ, occupation; ρ, τ=nothing, kwargs...)
     E, Vxc, Vτ = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
@@ -184,6 +153,26 @@ end
         end
     end
     (; E, ops)
+end
+
+@views @timing "energy: xc"  function energy(term::TermXc, basis::PlaneWaveBasis{T},
+                                             ψ, occupation; ρ, τ=nothing, kwargs...) where {T}
+    if isnothing(τ) && needs_τ(term)
+        throw(ArgumentError("TermXc needs the kinetic energy density τ. Please pass a `τ` " *
+                            "keyword argument to your `energy` call."))
+    end
+
+    # Add the model core charge density (non-linear core correction)
+    if !isnothing(term.ρcore)
+        ρ = ρ + term.ρcore
+    end
+
+    max_ρ_derivs = maximum(max_required_derivative, term.functionals)
+    densities = LibxcDensities(basis, max_ρ_derivs, ρ, τ)
+    _check_negative_bonding_indicator_α(densities)
+
+    edensity = energy_density(term.functionals, densities)
+    term.scaling_factor * sum(edensity) * basis.dvol
 end
 
 @timing "forces: xc" function compute_forces(term::TermXc, basis::PlaneWaveBasis{T},
@@ -309,8 +298,8 @@ end
 
 
 # stores the input to libxc in a format it likes
-struct LibxcDensities
-    basis::PlaneWaveBasis
+struct LibxcDensities{T}
+    basis::PlaneWaveBasis{T}
     max_derivative::Int
     ρ_real    # density ρ[iσ, ix, iy, iz]
     ∇ρ_real   # for GGA, density gradient ∇ρ[iσ, ix, iy, iz, iα]
@@ -322,7 +311,7 @@ end
 """
 Compute density in real space and its derivatives starting from ρ
 """
-function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
+function LibxcDensities(basis::PlaneWaveBasis{T}, max_derivative::Integer, ρ, τ) where {T}
     model = basis.model
     @assert max_derivative in (0, 1, 2)
 
@@ -374,9 +363,30 @@ function LibxcDensities(basis, max_derivative::Integer, ρ, τ)
 
     # τ[x, y, z, σ] -> τ_Libxc[σ, x, y, z]
     τ_Libxc = isnothing(τ) ? nothing : permutedims(τ, (4, 1, 2, 3))
-    LibxcDensities(basis, max_derivative, ρ_real, ∇ρ_real, σ_real, Δρ_real, τ_Libxc)
+    LibxcDensities{T}(basis, max_derivative, ρ_real, ∇ρ_real, σ_real, Δρ_real, τ_Libxc)
 end
 
+function _check_negative_bonding_indicator_α(densities::LibxcDensities)
+    if !isnothing(densities.τ_real) && !isnothing(densities.σ_real)
+        n_spin = density.basis.model.n_spin_components
+        has_negative_α = @views any(1:n_spin) do iσ
+            # α = (τ - τ_W) / τ_unif should be positive with τ_W = |∇ρ|² / 8ρ
+            # equivalently, check 8ρτ - |∇ρ|² ≥ 0
+            α_check = (8 .* density.ρ_real[iσ, :, :, :] .* density.τ_real[iσ, :, :, :]
+                       .- density.σ_real[DftFunctionals.spinindex_σ(iσ, iσ), :, :, :])
+            any(α_check .<= -sqrt(eps(T)))
+        end
+        if has_negative_α
+            @warn "Exchange-correlation term: the kinetic energy density τ is smaller " *
+                  "than the von Weizsäcker kinetic energy density τ_W somewhere. " *
+                  "This can lead to unphysical results. " *
+                  "This is typically caused by the non-linear core correction, " *
+                  "which is currently not applied for the kinetic energy density τ. " *
+                  "See also https://github.com/JuliaMolSim/DFTK.jl/issues/1180. " *
+                  "This message is only logged once." maxlog=1
+        end
+    end
+end
 
 function compute_kernel(term::TermXc, basis::PlaneWaveBasis{T}; ρ, kwargs...) where {T}
     n_spin  = basis.model.n_spin_components
@@ -419,8 +429,8 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArra
              all(family(xc) == :mggal && !needs_τ(xc) for xc in term.functionals))
 
     if !iszero(q) && !isnothing(term.ρcore)
-        error("Phonon computations are not supported for models using nonlinear core \
-              correction.")
+        error("Phonon computations are not supported for models using nonlinear core "
+              * "correction.")
     end
 
     # Key insight: kernel application is just a Hessian-vector product,
@@ -483,9 +493,9 @@ function energy_density(xc::DispatchFunctional, density::LibxcDensities)
     energy_density(xc, _matify(density.ρ_real), _matify(density.σ_real),
                    _matify(density.τ_real), _matify(density.Δρ_real))
 end
-function energy_density(xcs::Vector{Functional}, density::LibxcDensities)
+function energy_density(xcs::Vector{Functional}, density::LibxcDensities{T}) where {T}
     xcs = filter(has_energy, xcs)
-    isempty(xcs) && return false
+    isempty(xcs) && return zero(T)
     result = energy_density(xcs[1], density)
     for i = 2:length(xcs)
         result += energy_density(xcs[i], density)
