@@ -49,7 +49,109 @@ DftFunctionals.needs_Δρ(fun::LibxcFunctional) = fun.needs_laplacian
 function libxc_energy_density(terms::NamedTuple, ρ)
     haskey(terms, :zk) ? reshape(terms.zk, 1, size(ρ, 2)) .* sum(ρ; dims=1) : false
 end
+function libxc_energy_density(func::LibxcFunctional, ρ, σ=nothing, τ=nothing, Δρ=nothing)
+    s_ρ = size(ρ, 1)
+    fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
+    terms = (; )
+    if 0 in Libxc.supported_derivatives(fun)
+        terms = Libxc.evaluate(fun; rho=ρ, sigma=σ, tau=τ, lapl=Δρ, derivatives=0:0)
+    end
+    libxc_energy_density(terms, ρ)
+end
+function energy_density(func::LibxcFunctional{:lda}, ρ::AbstractMatrix{Float64})
+    libxc_energy_density(func, ρ)
+end
+function energy_density(func::LibxcFunctional{:gga}, ρ::AbstractMatrix{Float64},
+                        σ::AbstractMatrix{Float64})
+    libxc_energy_density(func, ρ, σ)
+end
+function energy_density(func::LibxcFunctional{:mgga}, ρ::AbstractMatrix{Float64},
+                        σ::AbstractMatrix{Float64}, τ::AbstractMatrix{Float64})
+    libxc_energy_density(func, ρ, σ, τ)
+end
+function energy_density(func::LibxcFunctional{:mggal}, ρ::AbstractMatrix{Float64},
+                        σ::AbstractMatrix{Float64}, τ, Δρ::AbstractMatrix{Float64})
+    libxc_energy_density(func, ρ, σ, τ, Δρ)
+end
 
+#
+# AD support for energy density
+#
+function energy_density(func::LibxcFunctional{:lda}, ρ_δρ::AbstractMatrix{DT}
+                        ) where {N,T,DT<:Dual{T,Float64,N}}
+    has_energy(func) || return 0.0
+    ρ = ForwardDiff.value.(ρ_δρ)
+    (; e, Vρ) = potential_terms(func, ρ)
+    δe = ntuple(Val(N)) do n
+        sum(Vρ .* ForwardDiff.partials.(ρ_δρ, n); dims=1)
+    end
+    map(Dual{T}, e, δe...)
+end
+function energy_density(func::LibxcFunctional{:gga}, ρ_δρ::AbstractMatrix{DT},
+                        σ_δσ::AbstractMatrix{DT}
+                        ) where {N,T,DT<:Dual{T,Float64,N}}
+    has_energy(func) || return 0.0
+    ρ = ForwardDiff.value.(ρ_δρ)
+    σ = ForwardDiff.value.(σ_δσ)
+    (; e, Vρ, Vσ) = potential_terms(func, ρ, σ)
+    δe = ntuple(Val(N)) do n
+        ( sum(Vρ .* ForwardDiff.partials.(ρ_δρ, n); dims=1)
+        + sum(Vσ .* ForwardDiff.partials.(σ_δσ, n); dims=1))
+    end
+    map(Dual{T}, e, δe...)
+end
+function energy_density(func::LibxcFunctional{:mgga}, ρ_δρ::AbstractMatrix{DT},
+                        σ_δσ::AbstractMatrix{DT}, τ_δτ::AbstractMatrix{DT}
+                        ) where {N,T,DT<:Dual{T,Float64,N}}
+    has_energy(func) || return 0.0
+    ρ = ForwardDiff.value.(ρ_δρ)
+    σ = ForwardDiff.value.(σ_δσ)
+    τ = ForwardDiff.value.(τ_δτ)
+    (; e, Vρ, Vσ, Vτ) = potential_terms(func, ρ, σ, τ)
+    δe = ntuple(Val(N)) do n
+        ( sum(Vρ .* ForwardDiff.partials.(ρ_δρ, n); dims=1)
+        + sum(Vσ .* ForwardDiff.partials.(σ_δσ, n); dims=1)
+        + sum(Vτ .* ForwardDiff.partials.(τ_δτ, n); dims=1))
+    end
+    map(Dual{T}, e, δe...)
+end
+function energy_density(func::LibxcFunctional{:mggal}, ρ_δρ::AbstractMatrix{DT},
+                        σ_δσ::AbstractMatrix{DT}, τ_δτ::Nothing, l_δl::AbstractMatrix{DT}
+                        ) where {N,T,DT<:Dual{T,Float64,N}}
+    has_energy(func) || return 0.0
+    ρ = ForwardDiff.value.(ρ_δρ)
+    σ = ForwardDiff.value.(σ_δσ)
+    lapl = ForwardDiff.value.(l_δl)
+    (; e, Vρ, Vσ, Vl) = potential_terms(func, ρ, σ, nothing, lapl)
+    δe = ntuple(Val(N)) do n
+        ( sum(Vρ .* ForwardDiff.partials.(ρ_δρ, n); dims=1)
+        + sum(Vσ .* ForwardDiff.partials.(σ_δσ, n); dims=1)
+        + sum(Vl .* ForwardDiff.partials.(l_δl, n); dims=1))
+    end
+    map(Dual{T}, e, δe...)
+end
+function energy_density(func::LibxcFunctional{:mggal}, ρ_δρ::AbstractMatrix{DT},
+                        σ_δσ::AbstractMatrix{DT}, τ_δτ::AbstractMatrix{DT},
+                        l_δl::AbstractMatrix{DT}
+                        ) where {N,T,DT<:Dual{T,Float64,N}}
+    has_energy(func) || return 0.0
+    ρ = ForwardDiff.value.(ρ_δρ)
+    σ = ForwardDiff.value.(σ_δσ)
+    τ = ForwardDiff.value.(τ_δτ)
+    lapl = ForwardDiff.value.(l_δl)
+    (; e, Vρ, Vσ, Vτ, Vl) = potential_terms(func, ρ, σ, τ, lapl)
+    δe = ntuple(Val(N)) do n
+        ( sum(Vρ .* ForwardDiff.partials.(ρ_δρ, n); dims=1)
+        + sum(Vσ .* ForwardDiff.partials.(σ_δσ, n); dims=1)
+        + sum(Vτ .* ForwardDiff.partials.(τ_δτ, n); dims=1)
+        + sum(Vl .* ForwardDiff.partials.(l_δl, n); dims=1))
+    end
+    map(Dual{T}, e, δe...)
+end
+
+#
+# Potential terms
+#
 function DftFunctionals.potential_terms(func::LibxcFunctional{:lda}, ρ::AbstractMatrix{Float64})
     s_ρ, n_p = size(ρ)
     fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
@@ -476,6 +578,13 @@ function DftFunctionals.potential_terms(fun::DispatchFunctional, ρ::Matrix{<:Di
 end
 function DftFunctionals.potential_terms(fun::DispatchFunctional, ρ::AbstractMatrix, args...)
     potential_terms(DftFunctional(identifier(fun)), ρ, args...)
+end
+function energy_density(fun::DispatchFunctional, ρ::Matrix{<:DispatchFloat}, args...)
+    energy_density(fun.inner, ρ, args...)
+end
+function energy_density(fun::DispatchFunctional, ρ::AbstractMatrix, args...)
+    # Note this is a misnomer in DftFunctionals
+    DftFunctionals.energy(DftFunctional(identifier(fun)), ρ, args...)
 end
 
 hybrid_parameters(::Functional{:lda})   = nothing
