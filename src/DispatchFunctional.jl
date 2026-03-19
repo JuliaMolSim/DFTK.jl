@@ -36,9 +36,8 @@ function LibxcFunctional(identifier::Symbol)
     if family == :mgga && Libxc.needs_laplacian(fun)
         family = :mggal
     end
-    has_energy = 0 in Libxc.supported_derivatives(Libxc.Functional(func.identifier))
     LibxcFunctional{family,kind}(identifier,
-                                 has_energy,
+                                 0 in Libxc.supported_derivatives(fun),  # has_energy
                                  Libxc.needs_tau(fun),
                                  Libxc.needs_laplacian(fun))
 end
@@ -70,7 +69,7 @@ function energy_density(func::LibxcFunctional{:mgga}, ρ::AbstractMatrix{Float64
     libxc_energy_density(func; rho=ρ, sigma=σ, tau=τ)
 end
 function energy_density(func::LibxcFunctional{:mggal}, ρ::AbstractMatrix{Float64},
-                        σ::AbstractMatrix{Float64}, τ::Nothing,
+                        σ::AbstractMatrix{Float64}, ::Nothing,
                         Δρ::AbstractMatrix{Float64}, args...)
     libxc_energy_density(func; rho=ρ, sigma=σ, lapl=Δρ)
 end
