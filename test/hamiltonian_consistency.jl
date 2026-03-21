@@ -43,6 +43,10 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, test_for_constant=fal
         end
         E0, ham = energy_hamiltonian(basis, ψ, occupation; exxalg, ρ, τ, hubbard_n)
 
+        # Function to compute energy only
+        E0_ene = DFTK.energy(basis, ψ, occupation; exxalg, ρ, τ, hubbard_n).energies
+        @test abs(E0.total - E0_ene.total) < 1e-14
+
         # Test operator agrees with matrix form
         for ik = 1:length(basis.kpoints)
             for operator in ham.blocks[ik].operators
