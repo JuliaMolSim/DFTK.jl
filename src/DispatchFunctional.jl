@@ -82,7 +82,7 @@ end
 #
 # AD support for energy density
 #
-function energy_density(func::LibxcFunctional{:lda}, ρ_δρ::AbstractMatrix{DT}
+function energy_density(func::LibxcFunctional{:lda}, ρ_δρ::AbstractMatrix{DT}, args...
                         ) where {N,T,Tg,DT<:Dual{Tg,T,N}}
     has_energy(func) || return zero(T)
     ρ = ForwardDiff.value.(ρ_δρ)
@@ -93,7 +93,7 @@ function energy_density(func::LibxcFunctional{:lda}, ρ_δρ::AbstractMatrix{DT}
     map(Dual{Tg}, e, δe...)
 end
 function energy_density(func::LibxcFunctional{:gga}, ρ_δρ::AbstractMatrix{DT},
-                        σ_δσ::AbstractMatrix{DT}
+                        σ_δσ::AbstractMatrix{DT}, args...
                         ) where {N,T,Tg,DT<:Dual{Tg,T,N}}
     has_energy(func) || return zero(T)
     ρ = ForwardDiff.value.(ρ_δρ)
@@ -106,7 +106,7 @@ function energy_density(func::LibxcFunctional{:gga}, ρ_δρ::AbstractMatrix{DT}
     map(Dual{Tg}, e, δe...)
 end
 function energy_density(func::LibxcFunctional{:mgga}, ρ_δρ::AbstractMatrix{DT},
-                        σ_δσ::AbstractMatrix{DT}, τ_δτ::AbstractMatrix{DT}
+                        σ_δσ::AbstractMatrix{DT}, τ_δτ::AbstractMatrix{DT}, args...
                         ) where {N,T,Tg,DT<:Dual{Tg,T,N}}
     has_energy(func) || return zero(T)
     ρ = ForwardDiff.value.(ρ_δρ)
