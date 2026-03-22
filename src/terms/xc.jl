@@ -489,11 +489,11 @@ function DftFunctionals.potential_terms(xcs::Vector{Functional}, density::LibxcD
     result
 end
 
-function energy_density(xc::DispatchFunctional, density::LibxcDensities)
+function DftFunctionals.energy_density(xc::DispatchFunctional, density::LibxcDensities)
     energy_density(xc, _matify(density.ρ_real), _matify(density.σ_real),
                    _matify(density.τ_real), _matify(density.Δρ_real))
 end
-function energy_density(xcs::Vector{Functional}, density::LibxcDensities{T}) where {T}
+function DftFunctionals.energy_density(xcs::Vector{Functional}, density::LibxcDensities{T}) where {T}
     xcs = filter(has_energy, xcs)
     isempty(xcs) && return zero(T)
     result = energy_density(xcs[1], density)
