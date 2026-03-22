@@ -5,8 +5,6 @@ import Libxc
 # TODO: Observations for a future XC functional interface refactor:
 #   - The distinction between mgga and mggal makes no sense as some mggal don't have a τ
 #     Merge them and make both τ and lapl optional
-#   - Instead of calling the function DftFunctionals.energy, call it what it is, namely
-#     Dftfunctionals.energy_density
 #   - No need for Dftfunctionals.kernel_terms This can be strictly expressed by AD.
 #     In contrast we no need both energy_density and potential_terms as some functionals
 #     don't have an energy.
@@ -57,33 +55,34 @@ function libxc_energy_density(func::LibxcFunctional; rho, kwargs...)
     end
     libxc_energy_density(terms, rho)
 end
-function energy_density(func::LibxcFunctional{:lda}, ρ::AbstractMatrix{Float64}, args...)
+function DftFunctionals.energy_density(func::LibxcFunctional{:lda}, ρ::AbstractMatrix{Float64}, args...)
     libxc_energy_density(func; rho=ρ)
 end
-function energy_density(func::LibxcFunctional{:gga}, ρ::AbstractMatrix{Float64},
-                        σ::AbstractMatrix{Float64}, args...)
+function DftFunctionals.energy_density(func::LibxcFunctional{:gga}, ρ::AbstractMatrix{Float64},
+                                       σ::AbstractMatrix{Float64}, args...)
     libxc_energy_density(func; rho=ρ, sigma=σ)
 end
-function energy_density(func::LibxcFunctional{:mgga}, ρ::AbstractMatrix{Float64},
-                        σ::AbstractMatrix{Float64}, τ::AbstractMatrix{Float64}, args...)
+function DftFunctionals.energy_density(func::LibxcFunctional{:mgga}, ρ::AbstractMatrix{Float64},
+                                       σ::AbstractMatrix{Float64}, τ::AbstractMatrix{Float64}, args...)
     libxc_energy_density(func; rho=ρ, sigma=σ, tau=τ)
 end
-function energy_density(func::LibxcFunctional{:mggal}, ρ::AbstractMatrix{Float64},
-                        σ::AbstractMatrix{Float64}, ::Nothing,
-                        Δρ::AbstractMatrix{Float64}, args...)
+function DftFunctionals.energy_density(func::LibxcFunctional{:mggal}, ρ::AbstractMatrix{Float64},
+                                       σ::AbstractMatrix{Float64}, ::Nothing,
+                                       Δρ::AbstractMatrix{Float64})
     libxc_energy_density(func; rho=ρ, sigma=σ, lapl=Δρ)
 end
-function energy_density(func::LibxcFunctional{:mggal}, ρ::AbstractMatrix{Float64},
-                        σ::AbstractMatrix{Float64}, τ::AbstractMatrix{Float64},
-                        Δρ::AbstractMatrix{Float64}, args...)
+function DftFunctionals.energy_density(func::LibxcFunctional{:mggal}, ρ::AbstractMatrix{Float64},
+                                       σ::AbstractMatrix{Float64}, τ::AbstractMatrix{Float64},
+                                       Δρ::AbstractMatrix{Float64})
     libxc_energy_density(func; rho=ρ, sigma=σ, tau=τ, lapl=Δρ)
 end
 
 #
 # AD support for energy density
 #
-function energy_density(func::LibxcFunctional{:lda}, ρ_δρ::AbstractMatrix{DT}, args...
-                        ) where {N,T,Tg,DT<:Dual{Tg,T,N}}
+function DftFunctionals.energy_density(func::LibxcFunctional{:lda},
+                                       ρ_δρ::AbstractMatrix{DT}, args...
+                                       ) where {N,T,Tg,DT<:Dual{Tg,T,N}}
     has_energy(func) || return zero(T)
     ρ = ForwardDiff.value.(ρ_δρ)
     (; e, Vρ) = potential_terms(func, ρ)
@@ -92,7 +91,7 @@ function energy_density(func::LibxcFunctional{:lda}, ρ_δρ::AbstractMatrix{DT}
     end
     map(Dual{Tg}, e, δe...)
 end
-function energy_density(func::LibxcFunctional{:gga}, ρ_δρ::AbstractMatrix{DT},
+function DftFunctionals.energy_density(func::LibxcFunctional{:gga}, ρ_δρ::AbstractMatrix{DT},
                         σ_δσ::AbstractMatrix{DT}, args...
                         ) where {N,T,Tg,DT<:Dual{Tg,T,N}}
     has_energy(func) || return zero(T)
@@ -105,9 +104,9 @@ function energy_density(func::LibxcFunctional{:gga}, ρ_δρ::AbstractMatrix{DT}
     end
     map(Dual{Tg}, e, δe...)
 end
-function energy_density(func::LibxcFunctional{:mgga}, ρ_δρ::AbstractMatrix{DT},
-                        σ_δσ::AbstractMatrix{DT}, τ_δτ::AbstractMatrix{DT}, args...
-                        ) where {N,T,Tg,DT<:Dual{Tg,T,N}}
+function DftFunctionals.energy_density(func::LibxcFunctional{:mgga}, ρ_δρ::AbstractMatrix{DT},
+                                       σ_δσ::AbstractMatrix{DT}, τ_δτ::AbstractMatrix{DT}, args...
+                                       ) where {N,T,Tg,DT<:Dual{Tg,T,N}}
     has_energy(func) || return zero(T)
     ρ = ForwardDiff.value.(ρ_δρ)
     σ = ForwardDiff.value.(σ_δσ)
@@ -120,9 +119,9 @@ function energy_density(func::LibxcFunctional{:mgga}, ρ_δρ::AbstractMatrix{DT
     end
     map(Dual{Tg}, e, δe...)
 end
-function energy_density(func::LibxcFunctional{:mggal}, ρ_δρ::AbstractMatrix{DT},
-                        σ_δσ::AbstractMatrix{DT}, τ_δτ::Nothing, l_δl::AbstractMatrix{DT}
-                        ) where {N,T,Tg,DT<:Dual{Tg,T,N}}
+function DftFunctionals.energy_density(func::LibxcFunctional{:mggal}, ρ_δρ::AbstractMatrix{DT},
+                                       σ_δσ::AbstractMatrix{DT}, τ_δτ::Nothing, l_δl::AbstractMatrix{DT}
+                                       ) where {N,T,Tg,DT<:Dual{Tg,T,N}}
     has_energy(func) || return zero(T)
     ρ = ForwardDiff.value.(ρ_δρ)
     σ = ForwardDiff.value.(σ_δσ)
@@ -135,10 +134,10 @@ function energy_density(func::LibxcFunctional{:mggal}, ρ_δρ::AbstractMatrix{D
     end
     map(Dual{Tg}, e, δe...)
 end
-function energy_density(func::LibxcFunctional{:mggal}, ρ_δρ::AbstractMatrix{DT},
-                        σ_δσ::AbstractMatrix{DT}, τ_δτ::AbstractMatrix{DT},
-                        l_δl::AbstractMatrix{DT}
-                        ) where {N,T,Tg,DT<:Dual{Tg,T,N}}
+function DftFunctionals.energy_density(func::LibxcFunctional{:mggal}, ρ_δρ::AbstractMatrix{DT},
+                                       σ_δσ::AbstractMatrix{DT}, τ_δτ::AbstractMatrix{DT},
+                                       l_δl::AbstractMatrix{DT}
+                                       ) where {N,T,Tg,DT<:Dual{Tg,T,N}}
     has_energy(func) || return zero(T)
     ρ = ForwardDiff.value.(ρ_δρ)
     σ = ForwardDiff.value.(σ_δσ)
@@ -588,12 +587,11 @@ end
 
 # Matrix element types that can dispatch to Libxc for energy computations
 const LibxcDispatchFloatEnergy = Union{LibxcDispatchFloat,Dual{<:Any,<:Dual{<:Any,Float64}}}
-function energy_density(fun::DispatchFunctional, ρ::Matrix{<:LibxcDispatchFloatEnergy}, args...)
+function DftFunctionals.energy_density(fun::DispatchFunctional, ρ::Matrix{<:LibxcDispatchFloatEnergy}, args...)
     energy_density(fun.inner, ρ, args...)
 end
-function energy_density(fun::DispatchFunctional, ρ::AbstractMatrix, args...)
-    # Note this is a misnomer in DftFunctionals
-    DftFunctionals.energy(DftFunctional(identifier(fun)), ρ, args...)
+function DftFunctionals.energy_density(fun::DispatchFunctional, ρ::AbstractMatrix, args...)
+    energy_density(DftFunctional(identifier(fun)), ρ, args...)
 end
 
 hybrid_parameters(::Functional{:lda})   = nothing
