@@ -228,6 +228,10 @@ Overview of parameters:
         ρnext, info_next
     end
 
+    # Note: it is assumed that, upon entry, the input density ρ is numerically identical
+    #       across all MPI ranks. If not, unexpected behavior may occur. It is the caller's
+    #       responsibility to ensure this is the case.
+
     info_init = (; ρin=ρ, τ, hubbard_n, ψ, occupation, eigenvalues, εF=nothing,
                    n_iter=0, n_matvec=0, timedout=false, converged=false,
                    history_Etot=T[], history_Δρ=T[])
