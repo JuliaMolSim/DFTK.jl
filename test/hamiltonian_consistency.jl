@@ -59,27 +59,31 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6,
 
         # Test operator is derivative of the energy
         δψ = [randn(ComplexF64, size(ψ[ik])) for ik = 1:length(basis.kpoints)]
-        function compute_E(ε)
+        function compute_E(ε::T) where {T}
+            modelE = Model(model; lattice=Matrix{T}(model.lattice))
+            basisE = PlaneWaveBasis(modelE; Ecut, kgrid=MonkhorstPack(kgrid; kshift))
+
             ψ_trial = ψ .+ ε .* δψ
             ρ_trial = with_logger(NullLogger()) do
-                compute_density(basis, ψ_trial, occupation)
+                compute_density(basisE, ψ_trial, occupation)
             end
             τ_trial = nothing
-            if needs_τ(only(basis.terms))
-                τ_trial = compute_kinetic_energy_density(basis, ψ_trial, occupation)
+            if needs_τ(only(basisE.terms))
+                τ_trial = compute_kinetic_energy_density(basisE, ψ_trial, occupation)
             end
             hubbard_n_trial = nothing
             if term isa Hubbard
-                thub = only(basis.terms)
-                hubbard_n_trial = DFTK.compute_hubbard_n(thub, basis, ψ_trial, occupation)
+                thub = only(basisE.terms)
+                hubbard_n_trial = DFTK.compute_hubbard_n(thub, basisE, ψ_trial, occupation)
             end
-            (; energies) = DFTK.energy(basis, ψ_trial, occupation;
+            (; energies) = DFTK.energy(basisE, ψ_trial, occupation;
                                        exxalg, ρ=ρ_trial, τ=τ_trial, hubbard_n=hubbard_n_trial)
             energies.total
         end
         diff = (compute_E(ε) - compute_E(-ε)) / (2ε)
 
         # Copy diff for simplicity of testing code in case no AD available.
+        # TODO: Better use tagged duals like in kernels.jl as that avoids precompilation
         diff_ad = test_energy_ad ? ForwardDiff.derivative(compute_E, 0.0) : diff
 
         diff_predicted = 0.0
@@ -96,15 +100,14 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6,
             @test abs(diff_predicted) < atol
             @test abs(diff_ad) < atol
         else
-            # Make sure that we don't accidentally test 0 == 0
-            @test abs(diff) > atol
+            @test abs(diff) > atol  # Make sure that we don't accidentally test 0 == 0
 
             err = abs(diff - diff_predicted)
             @test err < rtol * abs(E0.total) || err < atol
 
-            err_ad = abs(diff - diff_ad)
-            test_energy_ad && @show err_ad rtol * abs(E0.total) atol rtol
-            @test err_ad < rtol * abs(E0.total) || err_ad < atol
+            err_ad = abs(diff_ad - diff_predicted)
+            test_energy_ad && @show err_ad
+            @test abs(diff_ad - diff_predicted) < atol
         end
     end
 end
@@ -160,7 +163,7 @@ end
         test_consistency_term(Xc([:mgga_x_b00]; use_nlcc=false); atom=Si, tauad...)
         test_consistency_term(Xc([:mgga_c_b94]; use_nlcc=false); atom=Si, tauad...,
                               spin_polarization=:collinear)
-        test_consistency_term(Xc([:mgga_x_scanl]; use_nlcc=false); atom=Si)
+        test_consistency_term(Xc([:mgga_x_scanl]); atom=Si)
     end
 
     @testset "Exact exchange" begin
