@@ -318,7 +318,7 @@ end
 @views function libxc_assemble_δVl(Vρl, δρ, Vσl, δσ, Vlτ, δτ, Vll, δl)
     if size(δρ, 1) == 1
         δVl = Vρl .* δρ .+ Vσl .* δσ .+ Vll .* δl
-        !isnothing(Vlτ) && (δVl += Vlτ .* δτ)
+        !isnothing(Vlτ) && (δVl .+= Vlτ .* δτ)
         return δVl
     else
         δVl1 =   @. Vρl[1,:] * δρ[1,:] + Vρl[3,:] * δρ[2,:]
