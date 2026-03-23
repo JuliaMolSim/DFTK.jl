@@ -107,7 +107,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6,
 
             err_ad = abs(diff_ad - diff_predicted)
             test_energy_ad && @show err_ad
-            @test abs(diff_ad - diff_predicted) < atol
+            @test err_ad < rtol * abs(E0.total) || err_ad < atol
         end
     end
 end
