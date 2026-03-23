@@ -425,8 +425,7 @@ end
 function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArray{Tδρ};
                       ρ, q=zero(Vec3{T}), kwargs...) where {T, Tδρ<:Union{T,Complex{T}}}
     isempty(term.functionals) && return nothing
-    @assert (all(family(xc) in (:lda, :gga) for xc in term.functionals) || 
-             all(family(xc) == :mggal && !needs_τ(xc) for xc in term.functionals))
+    @assert (all(family(xc) in (:lda, :gga, :mggal) && !needs_τ(xc) for xc in term.functionals))
 
     if !iszero(q) && !isnothing(term.ρcore)
         error("Phonon computations are not supported for models using nonlinear core "
