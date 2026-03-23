@@ -17,7 +17,7 @@
             ρspin = nothing
         end
         ρ = ρ_from_total_and_spin(ρtot, ρspin)
-        DFTK.mpi_mean!(ρ, basis.comm_kpts)  # Enforce numerically identical density across MPI ranks
+        DFTK.mpi_bcast!(ρ, basis.comm_kpts)  # Enforce numerically identical density across MPI ranks
         self_consistent_field(basis; is_converged=DFTK.ScfConvergenceEnergy(5e-6),
                               ρ, nbandsalg=FixedBands(; n_bands_converge=10));
     end

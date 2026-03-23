@@ -252,7 +252,7 @@ end
                         ishermitian=false)
     info.converged == 0 && @warn "LDOS mixing GMRES not converged"
     δρ .+= DC_δF  # Set DC from δF
-    mpi_mean!(δρ, basis.comm_kpts)  # Enforce numerically identical density across MPI ranks
+    mpi_bcast!(δρ, basis.comm_kpts)  # Enforce numerically identical density across MPI ranks
 end
 
 @timing "χ0Mixing" function mix_potential(mixing::Mixing, basis::χ0Mixing, δF::AbstractArray; kwargs...)
