@@ -488,9 +488,17 @@ function DftFunctionals.potential_terms(xcs::Vector{Functional}, density::LibxcD
     result
 end
 
+# Ensure functionals from DftFunctionals are sent to the CPU
+# TODO: Allow GPUArrys once DftFunctionals is refactored to support GPU. 
+function DftFunctionals.energy_density(fun::DftFunctionals.Functional, density::LibxcDensities)
+    maticpuify(::Nothing) = nothing
+    maticpuify(x::AbstractArray) = reshape(Array(x), size(x, 1), :)
+    DftFunctionals.energy_density(fun, maticpuify(density.ρ_real), maticpuify(density.σ_real),
+                                       maticpuify(density.τ_real), maticpuify(density.Δρ_real))
+end
 function DftFunctionals.energy_density(xc::DispatchFunctional, density::LibxcDensities)
     energy_density(xc, _matify(density.ρ_real), _matify(density.σ_real),
-                   _matify(density.τ_real), _matify(density.Δρ_real))
+                       _matify(density.τ_real), _matify(density.Δρ_real))
 end
 function DftFunctionals.energy_density(xcs::Vector{Functional}, density::LibxcDensities{T}) where {T}
     xcs = filter(has_energy, xcs)
