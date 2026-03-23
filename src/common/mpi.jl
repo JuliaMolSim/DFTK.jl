@@ -23,6 +23,8 @@ mpi_mean!(arr, comm::MPI.Comm) = (mpi_sum!(arr, comm); arr ./= mpi_nprocs(comm))
 
 mpi_bcast(arr, comm::MPI.Comm; root::Int=0) = MPI.bcast(arr, root, comm)
 mpi_bcast(arr, root::Int, comm::MPI.Comm) = MPI.bcast(arr, root, comm)
+mpi_bcast!(arr, comm::MPI.Comm; root::Int=0) = MPI.Bcast!(arr, root, comm)
+mpi_bcast!(arr, root::Int, comm::MPI.Comm) = MPI.Bcast!(arr, root, comm)
 mpi_barrier(comm::MPI.Comm) = MPI.Barrier(comm)
 
 @static if Base.Sys.ARCH == :aarch64
