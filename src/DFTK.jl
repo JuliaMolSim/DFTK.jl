@@ -108,7 +108,7 @@ include("coulomb.jl")
 
 export Hamiltonian
 export HamiltonianBlock
-export energy_hamiltonian
+export energy_hamiltonian  # Also energy ... but too generic, thus not exported
 export Kinetic
 export ExactExchange
 export VanillaExx, AceExx
