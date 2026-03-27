@@ -185,6 +185,20 @@ function eval_psp_projector_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     hankel(rgrid, r2_proj, l, p)
 end
 
+# Vectorized version of the above, GPU compatible
+function eval_psp_projector_fourier(psp::PspUpf, i, l, ps::AbstractVector{T}) where {T<:Real}
+    quadrature = default_psp_quadrature(psp.rgrid)
+    arch = architecture(ps)
+    ircut_proj = min(psp.ircut, length(psp.r2_projs[l+1][i]))
+    rgrid = to_device(arch, @view psp.rgrid[1:ircut_proj])
+    r2_proj = to_device(arch, @view psp.r2_projs[l+1][i][1:ircut_proj])
+    map(ps) do p
+        # GPU kernels with dynamic function calls do not compile,
+        # hence the pre-determined explicit integration function
+        hankel(quadrature, rgrid, r2_proj, l, p)
+    end
+end
+
 count_n_pswfc_radial(psp::PspUpf, l) = length(psp.r2_pswfcs[l+1])
 
 pswfc_label(psp::PspUpf, i, l) = psp.pswfc_labels[l+1][i]
