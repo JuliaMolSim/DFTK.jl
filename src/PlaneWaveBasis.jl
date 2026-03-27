@@ -659,19 +659,26 @@ Returns the Kpoint objects for the q-grid and the integer mapping table
 `kprime_mapping[ik, iq]` such that k' = k - q.
 """
 function build_qpoints(basis::PlaneWaveBasis{T}; k_digits=10) where {T}
-    # since spin-polarization is encoded as additional k-points, we filter only unique
+    
+    # Helper function: map coordinates strictly to [-0.5, 0.5) and round out floating-point noise
+    snap(k) = round.(mod.(k .+ 0.5, 1.0) .- 0.5, digits=k_digits)
+    
+    # Since spin-polarization is encoded as additional k-points, we filter only unique
     # k-coordinates here to avoid confusion with spin and k-points.
-    spatial_k_coords = unique(k -> round.(k.coordinate, digits=k_digits), basis.kpoints)
+    spatial_k = unique(k -> round.(k.coordinate, digits=k_digits), basis.kpoints)
 
     # Find unique q-coordinates
     q_coords_all = [
-        mod.(k1.coordinate .- k2.coordinate .+ 0.5, 1.0) .- 0.5
-        for k1 in spatial_k_coords, k2 in spatial_k_coords
+        snap(k1.coordinate .- k2.coordinate)
+        for k1 in spatial_k, k2 in spatial_k
     ]
-    q_coords = unique(q -> round.(q, digits=k_digits), q_coords_all)
+    q_coords = unique(vec(q_coords_all))
     
     # Build Kpoint objects
-    q_points = build_kpoints(basis.model, basis.fft_size, q_coords, basis.Ecut; basis.architecture)
+    # DFTK's build_kpoints duplicates points for spin-polarized models.
+    # We must filter out these duplicates because q-transfers are spin-independent.
+    q_points_all = build_kpoints(basis.model, basis.fft_size, q_coords, basis.Ecut; basis.architecture)
+    q_points = unique(q -> q.coordinate, q_points_all)
     
     # Build mapping table
     N_k = length(basis.kpoints)
@@ -679,14 +686,14 @@ function build_qpoints(basis::PlaneWaveBasis{T}; k_digits=10) where {T}
     kprime_mapping = zeros(Int, N_k, N_q)
     
     for iq in 1:N_q
+        q_coord = q_points[iq].coordinate
         for ik in 1:N_k
-            k_coord = basis.kpoints[ik].coordinate
-            target_spin = basis.kpoints[ik].spin 
-            k_prime_coord = mod.(k_coord .- q_coords[iq] .+ 0.5, 1.0) .- 0.5
-            
-            # for the mapping both have to match: coordinate and the spin
-            ikp = findfirst(basis.kpoints) do k
-                round.(k.coordinate, digits=k_digits) == round.(k_prime_coord, digits=k_digits) && k.spin == target_spin
+            kpt = basis.kpoints[ik]
+            k_prime_coord = snap(kpt.coordinate .- q_coord)
+
+            # For the mapping both have to match: coordinate and the spin
+            ikp = findfirst(basis.kpoints) do kpt_prime
+                snap(kpt_prime.coordinate) == k_prime_coord && kpt_prime.spin == kpt.spin
             end
 
             if !isnothing(ikp)
