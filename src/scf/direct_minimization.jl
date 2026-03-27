@@ -1,6 +1,7 @@
 # Direct minimization of the energy
 
 using Optim
+using NLSolversBase: only_fg!
 using LineSearches
 
 # This is all a bit annoying because our ψ is represented as ψ[k][G,n], and Optim accepts
@@ -111,31 +112,26 @@ function direct_minimization(basis::PlaneWaveBasis{T};
     history_Etot = T[]
     history_Δρ   = T[]
 
-    # Will be later overwritten by the Optim-internal state, which we need in the
-    # callback to access certain quantities for convergence control.
-    optim_state = nothing
+    function optim_callback(optim_state)
+        optim_state.pseudo_iteration < 1 && return false
+        converged && return true
 
-    function compute_ρout(ψ, optim_state)
         # This is the current preconditioned, but unscaled gradient, which implies that
         # the next step would be ρout - ρ. We thus record convergence, but let Optim do
         # one more step.
         δψ = unsafe_unpack(optim_state.s)
         # TODO This looks weird ... should there not be a retraction ?
         ψ_next = [ortho_qr(ψ[ik] - δψ[ik]) for ik in 1:Nk]
-        compute_density(basis, ψ_next, occupation)
-    end
+        ρout = compute_density(basis, ψ_next, occupation)
 
-    function optim_callback(ts)
-        ts.iteration < 1 && return false
-        converged        && return true
-        ρout = compute_ρout(ψ, optim_state)
         Δρ = ρout - ρ
         push!(history_Δρ,   norm(Δρ) * sqrt(basis.dvol))
         push!(history_Etot, energies.total)
 
         info = (; ham, basis, energies, occupation, ρout, ρin=ρ, ψ,
                 runtime_ns=time_ns() - start_ns, history_Δρ, history_Etot,
-                stage=:iterate, algorithm="DM", n_iter=ts.iteration, optim_state)
+                stage=:iterate, algorithm="DM",
+                n_iter=optim_state.pseudo_iteration, optim_state)
 
         converged = is_converged(info)
         info = callback(info)
@@ -167,13 +163,13 @@ function direct_minimization(basis::PlaneWaveBasis{T};
     optim_options = Optim.Options(; allow_f_increases=true,
                                   callback=optim_callback,
                                   # Disable convergence control by Optim
-                                  x_tol=-1, f_tol=-1, g_tol=-1,
+                                  x_abstol=NaN, f_abstol=NaN, g_abstol=NaN,
                                   iterations=maxiter, kwargs...)
     optim_solver = optim_method(; P, precondprep=precondprep!, manifold, linesearch, alphaguess)
     ψ_packed = pack(ψ)
-    objective = OnceDifferentiable(Optim.only_fg!(fg!), ψ_packed, zero(T); inplace=true)
-    optim_state = Optim.initial_state(optim_solver, optim_options, objective, ψ_packed)
-    res = Optim.optimize(objective, ψ_packed, optim_solver, optim_options, optim_state)
+    objective = OnceDifferentiable(only_fg!(fg!), ψ_packed, zero(T); inplace=true)
+    res = Optim.optimize(objective, ψ_packed, optim_solver, optim_options)
+
     ψ = unpack(Optim.minimizer(res))
 
     # Final Rayleigh-Ritz (not strictly necessary, but sometimes useful)
