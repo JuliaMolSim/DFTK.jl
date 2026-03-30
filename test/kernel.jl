@@ -30,7 +30,7 @@
             term  = only(basis.terms)
 
             ρ0 = guess_density(basis, magnetic_moments)
-            δρ = randn(size(ρ0)) / model.unit_cell_volume
+            δρ = mpi_bcast!(randn(size(ρ0)) / model.unit_cell_volume, basis.comm_kpts)
             δV = do_fd(; ε_fd) do ε
                 (; ops) = DFTK.ene_ops(term, basis, nothing, nothing; ρ=ρ0 + ε*δρ)
 
@@ -168,15 +168,14 @@ end
             end
 
             # Random δρ with consistent δσ and δΔρ
-            δρ0 = randn(size(ρ0)) / model.unit_cell_volume
+            δρ0   = mpi_bcast!(randn(size(ρ0)) / model.unit_cell_volume, basis.comm_kpts)
             δdens = DFTK.LibxcDensities(basis, 2, ρ0.+ε_ad.*δρ0, nothing)
-            δσ_real = partials.(δdens.σ_real, 1)
+            δσ_real  = partials.(δdens.σ_real, 1)
             δΔρ_real = partials.(δdens.Δρ_real, 1)
-            δρ = reshape(δρ0, size(ρ)...)
-            δσ = reshape(δσ_real, size(σ)...)
+            δρ  = reshape(δρ0, size(ρ)...)
+            δσ  = reshape(δσ_real, size(σ)...)
             δΔρ = reshape(δΔρ_real, size(Δρ)...)
-            # And a random δτ
-            δτ = randn(size(τ)) / model.unit_cell_volume
+            δτ  = mpi_bcast!(randn(size(τ)) / model.unit_cell_volume, basis.comm_kpts)
 
             @testset "LDA" begin
                 func = DFTK.LibxcFunctional(:lda_xc_teter93)

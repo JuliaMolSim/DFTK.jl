@@ -44,34 +44,18 @@ DftFunctionals.has_energy(func::LibxcFunctional) = func.has_energy
 DftFunctionals.needs_τ(fun::LibxcFunctional)     = fun.needs_tau
 DftFunctionals.needs_Δρ(fun::LibxcFunctional)    = fun.needs_laplacian
 
-function libxc_energy_density(terms::NamedTuple, ρ)
+function libxc_energy_density(terms::NamedTuple, ρ::AbstractMatrix)
     haskey(terms, :zk) ? reshape(terms.zk, 1, size(ρ, 2)) .* sum(ρ; dims=1) : false
 end
-function libxc_energy_density(func::LibxcFunctional; rho, kwargs...)
+
+function DftFunctionals.energy_density(func::LibxcFunctional, ρ::AbstractMatrix{Float64},
+                                       σ=nothing, τ=nothing, Δρ=nothing)
     terms = (; )
     if has_energy(func)
-        libxcfun = Libxc.Functional(func.identifier; n_spin=size(rho, 1))
-        terms = Libxc.evaluate(libxcfun; derivatives=0:0, rho, kwargs...)
+        libxcfun = Libxc.Functional(func.identifier; n_spin=size(ρ, 1))
+        terms = Libxc.evaluate(libxcfun; derivatives=0:0, rho=ρ, sigma=σ, tau=τ, lapl=Δρ)
     end
-    libxc_energy_density(terms, rho)
-end
-function DftFunctionals.energy_density(func::LibxcFunctional{:lda}, ρ::AbstractMatrix{Float64}, args...)
-    libxc_energy_density(func; rho=ρ)
-end
-function DftFunctionals.energy_density(func::LibxcFunctional{:gga}, ρ::AbstractMatrix{Float64},
-                                       σ::AbstractMatrix{Float64}, args...)
-    libxc_energy_density(func; rho=ρ, sigma=σ)
-end
-function DftFunctionals.energy_density(func::LibxcFunctional{:mgga}, ρ::AbstractMatrix{Float64},
-                                       σ::AbstractMatrix{Float64}, τ::AbstractMatrix{Float64}, args...)
-    libxc_energy_density(func; rho=ρ, sigma=σ, tau=τ)
-end
-function DftFunctionals.energy_density(func::LibxcFunctional{:mggal},
-                                       ρ::AbstractMatrix{Float64},
-                                       σ::AbstractMatrix{Float64},
-                                       τ::Union{Nothing,AbstractMatrix{Float64}},
-                                       Δρ::AbstractMatrix{Float64})
-    libxc_energy_density(func; rho=ρ, sigma=σ, tau=τ, lapl=Δρ)
+    libxc_energy_density(terms, ρ)
 end
 
 #
