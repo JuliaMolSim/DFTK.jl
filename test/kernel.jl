@@ -1,4 +1,5 @@
 @testitem "Kernels" setup=[TestCases] begin
+    using MPI
     using DFTK
     using DFTK: mpi_bcast!
     using LinearAlgebra
@@ -12,7 +13,7 @@
         magnetic_moments = []
         n_spin = 1
         if spin_polarization == :collinear
-            magnetic_moments = 2rand(2)
+            magnetic_moments = mpi_bcast!(2rand(2), MPI.COMM_WORLD)
             n_spin = 2
         end
 
