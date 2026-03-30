@@ -16,6 +16,7 @@
 
 using AtomsBuilder
 using DFTK
+using Printf
 using PseudoPotentialData
 
 pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
@@ -31,5 +32,6 @@ phret_q0 = @time DFTK.phonon_modes(scfres; q=[0.25, 0.25, 0.25]);
 nothing  # hide
 
 # These are the final phonon frequencies:
-
-phret_q0.frequencies
+for (i, ω) in enumerate(phret_q0.frequencies)
+    @printf("Mode %2d: %8.3f cm-1\n", i, ω .* DFTK.hartree_to_cm⁻¹)
+end
