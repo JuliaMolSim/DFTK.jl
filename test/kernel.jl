@@ -100,6 +100,8 @@
     test_kernel(:none, Xc([:gga_c_pbe]))
     test_kernel(:none, Xc([:gga_x_pbe]))
     test_kernel(:none, Xc([:mgga_x_r2scanl]))
+    # TODO: τ-dependent kernels not yet available
+    # test_kernel(:none, Xc([:mgga_x_r2scanl, :mgga_c_r2scan]))
 
     test_kernel_collinear_vs_noncollinear(Hartree())
     test_kernel_collinear_vs_noncollinear(Xc([:lda_xc_teter93]))
@@ -114,6 +116,8 @@
     test_kernel(:collinear, Xc([:gga_x_pbe]))
     test_kernel(:collinear, Xc([:gga_x_pbe, :gga_c_pbe]))
     test_kernel(:collinear, Xc([:mgga_x_r2scanl, :mgga_c_r2scanl]))
+    # TODO: τ-dependent kernels not yet available
+    # test_kernel(:collinear, Xc([:mgga_x_r2scanl, :mgga_c_r2scan]))
 
     @testset "Non-linear core correction (NLCC)" begin
         psp = TestCases.silicon.psp_upf  # PseudoDojo v0.4.1 Si includes NLCC

@@ -83,7 +83,6 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6,
         diff = (compute_E(ε) - compute_E(-ε)) / (2ε)
 
         # Copy diff for simplicity of testing code in case no AD available.
-        # TODO: Better use tagged duals like in kernels.jl as that avoids precompilation
         diff_ad = test_energy_ad ? ForwardDiff.derivative(compute_E, 0.0) : diff
 
         diff_predicted = 0.0
@@ -106,7 +105,6 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6,
             @test err < rtol * abs(E0.total) || err < atol
 
             err_ad = abs(diff_ad - diff_predicted)
-            test_energy_ad && @show err_ad
             @test err_ad < rtol * abs(E0.total) || err_ad < atol
         end
     end
@@ -164,6 +162,8 @@ end
         test_consistency_term(Xc([:mgga_c_b94]; use_nlcc=false); atom=Si, tauad...,
                               spin_polarization=:collinear)
         test_consistency_term(Xc([:mgga_x_scanl]); atom=Si)
+        test_consistency_term(Xc([:mgga_x_r2scanl, :mgga_c_scan]); atom=Si, tauad...,
+                              spin_polarization=:collinear)
     end
 
     @testset "Exact exchange" begin
