@@ -1,5 +1,6 @@
 @testitem "Kernels" setup=[TestCases] begin
     using DFTK
+    using DFTK: mpi_bcast!
     using LinearAlgebra
     testcase = TestCases.silicon
 
@@ -130,6 +131,7 @@ end
 # especially the energy density e which is not tested by the apply_kernel tests.
 @testitem "ForwardDiff potential_terms for libxc" tags=[:minimal] setup=[TestCases] begin
     using DFTK
+    using DFTK: mpi_bcast!
     using DftFunctionals
     using DftFunctionals: potential_terms
     using ForwardDiff

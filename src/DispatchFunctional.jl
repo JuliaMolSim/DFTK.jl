@@ -76,64 +76,28 @@ end
 get_partials_(x_δx::AbstractArray, n::Integer) = ForwardDiff.partials.(x_δx, n)
 get_partials_(::Nothing, ::Integer)            = nothing
 
-function DftFunctionals.energy_density(func::LibxcFunctional{:lda},
-                                       ρ_δρ::AbstractMatrix{DT}, args...
+function DftFunctionals.energy_density(func::LibxcFunctional,
+                                       ρ_δρ::AbstractMatrix{DT},
+                                       σ_δσ::Union{Nothing,AbstractMatrix{DT}}=nothing,
+                                       τ_δτ::Union{Nothing,AbstractMatrix{DT}}=nothing,
+                                       l_δl::Union{Nothing,AbstractMatrix{DT}}=nothing
                                        ) where {N,T,Tg,DT<:Dual{Tg,T,N}}
     has_energy(func) || return zero(T)
-    ρ = ForwardDiff.value.(ρ_δρ)
-    (; e, Vρ) = potential_terms(func, ρ)
-    δe = ntuple(Val(N)) do n
-        libxc_assemble_δe(Vρ, get_partials_(ρ_δρ, n))
-    end
-    map(Dual{Tg}, e, δe...)
-end
-function DftFunctionals.energy_density(func::LibxcFunctional{:gga}, ρ_δρ::AbstractMatrix{DT},
-                        σ_δσ::AbstractMatrix{DT}, args...
-                        ) where {N,T,Tg,DT<:Dual{Tg,T,N}}
-    has_energy(func) || return zero(T)
-    ρ = ForwardDiff.value.(ρ_δρ)
-    σ = ForwardDiff.value.(σ_δσ)
-    (; e, Vρ, Vσ) = potential_terms(func, ρ, σ)
-    δe = ntuple(Val(N)) do n
-        libxc_assemble_δe(Vρ, get_partials_(ρ_δρ, n),
-                          Vσ, get_partials_(σ_δσ, n))
-    end
-    map(Dual{Tg}, e, δe...)
-end
-function DftFunctionals.energy_density(func::LibxcFunctional{:mgga}, ρ_δρ::AbstractMatrix{DT},
-                                       σ_δσ::AbstractMatrix{DT}, τ_δτ::AbstractMatrix{DT}, args...
-                                       ) where {N,T,Tg,DT<:Dual{Tg,T,N}}
-    has_energy(func) || return zero(T)
-    ρ = ForwardDiff.value.(ρ_δρ)
-    σ = ForwardDiff.value.(σ_δσ)
-    τ = ForwardDiff.value.(τ_δτ)
-    (; e, Vρ, Vσ, Vτ) = potential_terms(func, ρ, σ, τ)
+    ρ     = ForwardDiff.value.(ρ_δρ)
+    σ     = ForwardDiff.value.(σ_δσ)
+    τ     = ForwardDiff.value.(τ_δτ)
+    lapl  = ForwardDiff.value.(l_δl)
+    terms = potential_terms(func, ρ, σ, τ, lapl)
+
+    Vρ = terms.Vρ
+    Vσ = get(terms, :Vσ, nothing)
+    Vτ = get(terms, :Vτ, nothing)
+    Vl = get(terms, :Vl, nothing)
     δe = ntuple(Val(N)) do n
         libxc_assemble_δe(Vρ, get_partials_(ρ_δρ, n),
                           Vσ, get_partials_(σ_δσ, n),
-                          Vτ, get_partials_(τ_δτ, n))
-    end
-    map(Dual{Tg}, e, δe...)
-end
-function DftFunctionals.energy_density(func::LibxcFunctional{:mggal},
-                                       ρ_δρ::AbstractMatrix{DT},
-                                       σ_δσ::AbstractMatrix{DT},
-                                       τ_δτ::Union{Nothing,AbstractMatrix{DT}},
-                                       l_δl::AbstractMatrix{DT}
-                                       ) where {N,T,Tg,DT<:Dual{Tg,T,N}}
-    has_energy(func) || return zero(T)
-    ρ = ForwardDiff.value.(ρ_δρ)
-    σ = ForwardDiff.value.(σ_δσ)
-    τ = ForwardDiff.value.(τ_δτ)
-    lapl = ForwardDiff.value.(l_δl)
-    terms = potential_terms(func, ρ, σ, τ, lapl)
-
-    δe = ntuple(Val(N)) do n
-        Vτ = get(terms, :Vτ, nothing)
-        libxc_assemble_δe(terms.Vρ, get_partials_(ρ_δρ, n),
-                          terms.Vσ, get_partials_(σ_δσ, n),
-                                Vτ, get_partials_(τ_δτ, n),
-                          terms.Vl, get_partials_(l_δl, n))
+                          Vτ, get_partials_(τ_δτ, n),
+                          Vl, get_partials_(l_δl, n))
     end
     map(Dual{Tg}, terms.e, δe...)
 end
