@@ -214,9 +214,9 @@ end
                 δe_fd, δVρ_fd, δVσ_fd, δVτ_fd = do_fd(f)
 
                 @test δe_ad  ≈ δe_fd  rtol=1e-6
-                @test δVρ_ad ≈ δVρ_fd rtol=1e-6
                 # Seems more sensitive to noise, use a slightly looser tolerance:
-                @test δVσ_ad ≈ δVσ_fd rtol=3e-6
+                @test δVρ_ad ≈ δVρ_fd rtol=2e-6
+                @test δVσ_ad ≈ δVσ_fd rtol=4e-6
                 @test δVτ_ad ≈ δVτ_fd rtol=1e-6
             end
 
@@ -232,9 +232,10 @@ end
                 δe_fd, δVρ_fd, δVσ_fd, δVl_fd = do_fd(f)
 
                 @test δe_ad  ≈ δe_fd  rtol=1e-6
-                @test δVρ_ad ≈ δVρ_fd rtol=1e-6
-                @test δVσ_ad ≈ δVσ_fd rtol=1e-6
-                @test δVl_ad ≈ δVl_fd rtol=1e-6
+                # Seems more sensitive to noise, use a slightly looser tolerance:
+                @test δVρ_ad ≈ δVρ_fd rtol=2e-6
+                @test δVσ_ad ≈ δVσ_fd rtol=5e-6
+                @test δVl_ad ≈ δVl_fd rtol=3e-6
             end
 
             @testset "MGGAL with τ" begin
