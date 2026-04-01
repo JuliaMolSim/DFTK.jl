@@ -16,7 +16,7 @@ for details. In Voigt notation one would use the vector
 """
 @timing function compute_stresses_cart(scfres)
     # compute the Hellmann-Feynman energy (with fixed ψ/occ/ρ)
-    function HF_energy(lattice::AbstractMatrix{T}) where {T}
+    function HF_energy(lattice)
         basis = scfres.basis
         new_model = Model(basis.model; lattice)
         new_basis = PlaneWaveBasis(new_model,

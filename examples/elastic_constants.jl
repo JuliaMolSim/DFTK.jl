@@ -70,6 +70,7 @@ using AtomsBuilder
 using Unitful
 using UnitfulAtomic
 
+# ## Computing PBE elastic constants
 
 pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
 a0_pbe = 10.33u"bohr"  # Equilibrium lattice constant of silicon with PBE
@@ -143,3 +144,31 @@ println("C44 (FD): ", uconvert(u"GPa", dstress_fd[4] * u"hartree" / u"bohr"^3))
 # Note the discrepancy in c44, which is due to us not yet including
 # ionic relaxation in this example.
 
+# ## Moving to meta-GGA functionals
+#
+# To make the problem a little more interesting we will now compute the elastic
+# constant using deorbitalised r2-SCAN functional, again using AD-DFPT.
+
+model_scan = model_DFT(bulk(:Si; a=a0_pbe);
+                       pseudopotentials, functionals=[:mgga_c_r2scanl, :mgga_x_r2scanl])
+
+stress, (dstress,) = value_and_pushforward(AutoForwardDiff(), zeros(6),
+                                           (strain_pattern,)) do voigt_strain
+    stress_from_strain(model_scan, voigt_strain;
+                       symmetries=symmetries_strain, Ecut, kgrid, tol)
+
+end;
+
+# Note here that the `value_and_pushforward(...) do voigt_strain ... end` syntax defines
+# an anonymous function to compute the stress from a given strain, i.e. defining
+# the same kind of function as `stress_fn` in the above example.
+# See the [Julia documentation on the do-block-syntax](https://docs.julialang.org/en/v1/manual/functions/#Do-Block-Syntax-for-Function-Arguments) for details.
+
+# We again inspect the r2SCAN stress, which is still small (despite using the
+# PBE lattice constant), so we remain close to the equilibrium:
+stress
+
+# Finially the r2-SCAN elastic constants, which agree well with PBE:
+println("C11: ", uconvert(u"GPa", dstress[1] * u"hartree" / u"bohr"^3))
+println("C12: ", uconvert(u"GPa", dstress[2] * u"hartree" / u"bohr"^3))
+println("C44: ", uconvert(u"GPa", dstress[4] * u"hartree" / u"bohr"^3))

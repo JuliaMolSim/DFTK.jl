@@ -22,3 +22,11 @@ end
     cpuify(x::AbstractArray) = Array(x)
     potential_terms(fun, Array(ρ), cpuify.(args)...)
 end
+
+@eval function DftFunctionals.energy_density(fun::DispatchFunctional, ρ::AT,
+                                              args...) where {AT <: AbstractGPUArray}
+    # Fallback implementation for the GPU: Transfer to the CPU and run computation there
+    cpuify(::Nothing) = nothing
+    cpuify(x::AbstractArray) = Array(x)
+    energy_density(fun, Array(ρ), cpuify.(args)...)
+end
