@@ -25,8 +25,11 @@ for details. In Voigt notation one would use the vector
                                    basis.use_symmetries_for_kpoint_reduction,
                                    basis.comm_kpts, basis.architecture)
         ρ = compute_density(new_basis, scfres.ψ, scfres.occupation)
+        if any(needs_τ, basis.terms)
+            τ = compute_kinetic_energy_density(new_basis, scfres.ψ, scfres.occupation)
+        end
         (; energies) = energy(new_basis, scfres.ψ, scfres.occupation;
-                              ρ, scfres.eigenvalues, scfres.εF)
+                              ρ, τ, scfres.eigenvalues, scfres.εF)
         energies.total
     end
     L  = scfres.basis.model.lattice
