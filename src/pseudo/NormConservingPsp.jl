@@ -16,6 +16,7 @@ abstract type NormConservingPsp end
 # has_core_density(psp)
 # eval_psp_projector_real(psp, i, l, r::Real)
 # eval_psp_projector_fourier(psp, i, l, p::Real)
+# eval_psp_projector_fourier(psp, i, l, ps::AbstrcatArray{<Real})
 # eval_psp_local_real(psp, r::Real)
 # eval_psp_local_fourier(psp, p::Real)
 # eval_psp_local_fourier(psp, ps::AbstractArray{<Real})
@@ -53,8 +54,15 @@ at the reciprocal vector with modulus `p`:
 \end{aligned}
 ```
 """
-eval_psp_projector_fourier(psp::NormConservingPsp, p::AbstractVector) =
-    eval_psp_projector_fourier(psp, norm(p))
+eval_psp_projector_fourier(psp::NormConservingPsp, i, l, p::AbstractVector) =
+    eval_psp_projector_fourier(psp, i, l, norm(p))
+
+# Fallback vectorized implementation for non GPU-optimized code.
+function eval_psp_projector_fourier(psp::NormConservingPsp, i, l,
+                                    ps::AbstractVector{T}) where {T <: Real}
+    arch = architecture(ps)
+    to_device(arch, map(p -> eval_psp_projector_fourier(psp, i, l, p), to_cpu(ps)))
+end
 
 """
     eval_psp_local_real(psp, r)
