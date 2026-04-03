@@ -333,7 +333,7 @@ function compute_δocc!(δocc, basis::PlaneWaveBasis{T}, ψ, εF, ε, δHψ, δt
         end
         D = mpi_sum(D, basis.comm_kpts)
 
-        if isnothing(model.εF)  # εF === nothing means that Fermi level is fixed by model
+        if isnothing(model.εF)  # εF === nothing means that Fermi level is not fixed by model
             # Compute δεF from δ ∑ occ = 0…
             δocc_tot = mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)
             δεF = -δocc_tot / D
@@ -343,6 +343,20 @@ function compute_δocc!(δocc, basis::PlaneWaveBasis{T}, ψ, εF, ε, δHψ, δt
                 fpnk = filled_occ * Smearing.occupation_derivative(smearing, (εnk - εF) / temperature)
                 δocc[ik][n] -= fpnk * δεF / temperature
             end
+        end
+    elseif isnothing(model.εF)
+        # Effective insulator (zero temperature or large gap): occupations don't change,
+        # but εF = (HOMO + LUMO) / 2 shifts with the eigenvalues.
+        # We reuse find_HOMO_LUMO to identify the relevant (k, band) indices,
+        # consistent with guess_fermi_level_intocc_.
+        (; ik_HOMO, n_HOMO, ik_LUMO, n_LUMO) = find_HOMO_LUMO(basis, ε)
+        if !isnothing(ik_LUMO)
+            δε_HOMO = real(dot(ψ[ik_HOMO][:, n_HOMO], δHψ[ik_HOMO][:, n_HOMO]))
+            δε_LUMO = real(dot(ψ[ik_LUMO][:, n_LUMO], δHψ[ik_LUMO][:, n_LUMO]))
+            # In MPI, each rank computes δε at its local argmax/argmin;
+            # the global extremum picks the correct derivative.
+            δεF = (mpi_max(δε_HOMO, basis.comm_kpts) +
+                   mpi_min(δε_LUMO, basis.comm_kpts)) / 2
         end
     end
 
@@ -435,7 +449,7 @@ end
 
 """
 Compute the orbital and occupation changes as a result of applying the ``χ_0`` superoperator
-to the Hamiltonian change `δH` represented by the matrix-vector products `δHψ`. 
+to the Hamiltonian change `δH` represented by the matrix-vector products `δHψ`.
 """
 @views @timing function apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                                     δtemperature=zero(eltype(ham.basis)),
@@ -469,16 +483,17 @@ to the Hamiltonian change `δH` represented by the matrix-vector products `δHψ
     bandtol_minus_q_occ = [bandtol_occ[k_to_k_minus_q[ik]] for ik in 1:length(basis.kpoints)]
     @assert bandtolalg.occupation_threshold == occupation_threshold
 
-    # First we compute δoccupation. We only need to do this for the actually occupied
-    # orbitals. So we make a fresh array padded with zeros, but only alter the elements
-    # corresponding to the occupied orbitals. (Note both compute_δocc! and compute_δψ!
-    # assume that the first array argument has already been initialised to zero).
+    # First we compute δoccupation and δεF. We pass the full eigenvalues, ψ and δHψ
+    # (not just the occupied subset) so that compute_δocc! can compute δεF for
+    # effective insulators, where εF = (HOMO + LUMO) / 2 requires LUMO data.
+    # For the metallic/finite-temperature path the extra empty bands contribute ≈ 0
+    # (exponentially small occupation derivatives). Both compute_δocc! and compute_δψ!
+    # assume that the first array argument has already been initialised to zero.
     # For phonon calculations when q ≠ 0, we do not use δoccupation, and compute directly
     # the full perturbation δψ.
     δoccupation = zero.(occupation)
     if iszero(q)
-        δocc_occ = [δoccupation[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-        (; δεF) = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, δtemperature)
+        (; δεF) = compute_δocc!(δoccupation, basis, ψ, εF, eigenvalues, δHψ, δtemperature)
     else
         # When δH is not periodic, δH ψnk is a Bloch wave at k+q and ψnk at k,
         # so that δεnk = <ψnk|δH|ψnk> = 0 and there is no occupation shift
