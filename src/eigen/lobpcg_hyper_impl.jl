@@ -105,27 +105,37 @@ Base.adjoint(A::LazyHcat) = Adjoint(A)
     end
 end
 
+mul_hermi(A, B) = Hermitian(A * B)
+function mul_hermi(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
+    _mul(A, B; hermitian=Val(true))
+end
+
 Base.:*(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}       = _mul(A, B)
 Base.:*(A::Adjoint{T,<:LazyHcat}, B::AbstractMatrix) where {T} = A * LazyHcat(B)
 
-@views function *(Ablock::LazyHcat, B::AbstractMatrix)
-    res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
+function _mul_blocks!(res::AbstractMatrix, Ablock::LazyHcat, B::AbstractMatrix, α::Number)
     offset = size(Ablock.blocks[1], 2)
     for block in Ablock.blocks[2:end]
-        mul!(res, block, B[offset .+ (1:size(block, 2)), :], 1, 1)
+        mul!(res, block, B[offset .+ (1:size(block, 2)), :], α, 1)
         offset += size(block, 2)
     end
     res
 end
 
-function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::LazyHcat,
-                            B::AbstractVecOrMat, α::Number, β::Number)
-    mul!(res, Ablock*B, I, α, β)
+@views function *(Ablock::LazyHcat, B::AbstractMatrix)
+    res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
+    _mul_blocks!(res, Ablock, B, 1)  # Rest of A blocks
 end
 
-mul_hermi(A, B) = Hermitian(A * B)
-function mul_hermi(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
-    _mul(A, B; hermitian=Val(true))
+@views function mul!(res::AbstractMatrix, Ablock::LazyHcat, B::AbstractMatrix)
+    mul!(res, Ablock.blocks[1], B[1:size(Ablock.blocks[1], 2), :])  # First multiplication
+    _mul_blocks!(res, Ablock, B, 1)  # Rest of A blocks
+end
+
+@views function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::LazyHcat,
+                                   B::AbstractMatrix, α::Number, β::Number)
+    mul!(res, Ablock.blocks[1], B[1:size(Ablock.blocks[1], 2), :], α, β)
+    _mul_blocks!(res, Ablock, B, α)  # Rest of A blocks
 end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
@@ -375,6 +385,12 @@ end
     AP = zero(X)
     R = zero(X)
     AR = zero(X)
+    # Pre-allocating work arrays
+    new_R = zero(X)
+    new_X = copy(X)
+    new_AX = copy(AX)
+    new_P = zero(X)
+    new_AP = zero(X)
     if B != I
         BR = zero(X)
         # BX was already computed
@@ -388,8 +404,6 @@ end
     nlocked = 0
     niter = 0  # the first iteration is fake
     λs = compute_λ(X, AX, BX)
-    new_X  = X
-    new_AX = AX
     new_BX = BX
     # The full_ arrays contain all the vectors, the others only get the active ones
     full_X  = X
@@ -420,14 +434,14 @@ end
             # wait on updating P because we have to know which vectors
             # to lock (and therefore the residuals) before computing P
             # only for the unlocked vectors. This results in better convergence.
-            new_X  = Y * cX
-            new_AX = AY * cX  # no accuracy loss, since cX orthogonal
+            mul!(new_X, Y, cX)
+            mul!(new_AX, AY, cX)  # no accuracy loss, since cX orthogonal
             new_BX = (B == I) ? new_X : BY * cX
         end
 
         ### Compute new residuals
         @timing "Update residuals" begin
-            new_R = new_AX .- new_BX .* λs'
+            new_R .= new_AX .- new_BX .* λs'
             norms = to_cpu(columnwise_norms(new_R))
             @views resid_history[1 + nlocked: size(new_R, 2) + nlocked, niter+1] .= norms[:]
         end
@@ -491,9 +505,15 @@ end
             # orthogonalize against all Xn (including newly locked)
             ortho!(cP, cX, cX, tol=ortho_tol)
 
+            @views begin
+                new_P = new_P[:, Xn_indices]
+                new_AP = new_AP[:, Xn_indices]
+                B != I && (new_BP = new_BP[:, Xn_indices])
+            end
+
             # Get new P
-            new_P  = Y  * cP
-            new_AP = AY * cP
+            mul!(new_P, Y, cP)
+            mul!(new_AP, AY, cP)
             if B != I
                 new_BP = BY * cP
             else
@@ -504,6 +524,7 @@ end
         # Update all X, even newly locked
         X  .= new_X
         AX .= new_AX
+        R  .= new_R
         if B != I
             BX .= new_BX
         end
@@ -517,9 +538,12 @@ end
         # Restrict all views to active
         @views begin
             X = X[:, active]
+            new_X = new_X[:, active]
             AX = AX[:, active]
+            new_AX = new_AX[:, active]
             BX = BX[:, active]
-            R = new_R[:, active]
+            R = R[:, active]
+            new_R = new_R[:, active]
             AR = AR[:, active]
             BR = BR[:, active]
             P = P[:, active]
