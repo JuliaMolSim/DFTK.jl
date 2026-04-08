@@ -113,29 +113,20 @@ end
 Base.:*(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}       = _mul(A, B)
 Base.:*(A::Adjoint{T,<:LazyHcat}, B::AbstractMatrix) where {T} = A * LazyHcat(B)
 
-function _mul_blocks!(res::AbstractMatrix, Ablock::LazyHcat, B::AbstractMatrix, α::Number)
-    offset = size(Ablock.blocks[1], 2)
-    for block in Ablock.blocks[2:end]
-        mul!(res, block, B[offset .+ (1:size(block, 2)), :], α, 1)
+@views function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::LazyHcat,
+                                   B::AbstractMatrix, α::Number, β::Number)
+    offset = 0
+    for (i, block) in enumerate(Ablock.blocks)
+        mul!(res, block, B[offset .+ (1:size(block, 2)), :], α, i == 1 ? β : true)
         offset += size(block, 2)
     end
     res
 end
+mul!(res::AbstractMatrix, Ablock::LazyHcat, B::AbstractMatrix) = mul!(res, Ablock, B, true, false)
 
-@views function *(Ablock::LazyHcat, B::AbstractMatrix)
-    res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
-    _mul_blocks!(res, Ablock, B, 1)  # Rest of A blocks
-end
-
-@views function mul!(res::AbstractMatrix, Ablock::LazyHcat, B::AbstractMatrix)
-    mul!(res, Ablock.blocks[1], B[1:size(Ablock.blocks[1], 2), :])  # First multiplication
-    _mul_blocks!(res, Ablock, B, 1)  # Rest of A blocks
-end
-
-@views function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::LazyHcat,
-                                   B::AbstractMatrix, α::Number, β::Number)
-    mul!(res, Ablock.blocks[1], B[1:size(Ablock.blocks[1], 2), :], α, β)
-    _mul_blocks!(res, Ablock, B, α)  # Rest of A blocks
+function *(Ablock::LazyHcat, B::AbstractMatrix)
+    res = zeros_like(B, size(Ablock, 1), size(B, 2))
+    mul!(res, Ablock, B)
 end
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
@@ -452,7 +443,7 @@ end
         # done before or after
         if precon !== I
             @timing "preconditioning" begin
-                precondprep!(precon, X)  # update preconditioner if needed; defaults to noop
+                precondprep!(precon, new_X)  # update preconditioner if needed; defaults to noop
                 ldiv!(precon, new_R)
             end
         end
