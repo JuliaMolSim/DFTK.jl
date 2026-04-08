@@ -49,17 +49,24 @@ import Base: *
 import Base.size, Base.adjoint, Base.Array
 
 """
-Simple wrapper to represent a matrix formed by the concatenation of column blocks:
-it is mostly equivalent to hcat, but doesn't allocate the full matrix.
-LazyHcat only supports a few multiplication routines: furthermore, a multiplication
-involving this structure will always yield a plain array (and not a LazyHcat structure).
-LazyHcat is a lightweight subset of BlockArrays.jl's functionalities, but has the
-advantage to be able to store GPU Arrays (BlockArrays is heavily built on Julia's CPU Array).
+Simple wrapper to represent a matrix formed by the concatenation of
+column blocks: it is mostly equivalent to hcat, but doesn't allocate
+the full matrix.
+
+A multiplication involving this structure will always yield a plain
+array (and not a LazyHcat structure).
+
+LazyHcat is a lightweight subset of BlockArrays.jl's functionalities,
+but has the advantage to be able to store GPU Arrays (BlockArrays is
+heavily built on Julia's CPU Array). LazyHcat only supports a few
+multiplication routines, those needed by LOBPCG : A'B with A and B
+LazyHcat, and A*B with A LazyHCat and B a plain matrix.
 """
 struct LazyHcat{T<:Number, D<:Tuple} <: AbstractMatrix{T}
     blocks::D
 end
 
+# Convenience functions
 function LazyHcat(arrays::AbstractArray...)
     @assert length(arrays) != 0
     n_ref = size(arrays[1], 1)
@@ -69,24 +76,23 @@ function LazyHcat(arrays::AbstractArray...)
 
     LazyHcat{T, typeof(arrays)}(arrays)
 end
-
 function Base.size(A::LazyHcat)
     n = size(A.blocks[1], 1)
     m = sum(size(block, 2) for block in A.blocks)
     (n, m)
 end
-
 Base.Array(A::LazyHcat)   = stack(A.blocks)
 Base.adjoint(A::LazyHcat) = Adjoint(A)
 
-# Computes A*B matrix product for LazyHcat type. Special case if product is assumed to be Hermitian
+# Computes A*B matrix product when B is a LazyHcat and A is a LazyVcat (adjoint of LazyHcat).
+# Special case if product is known to be Hermitian
 @views function _mul(A::Adjoint{T,<:LazyHcat}, B::LazyHcat; hermitian=Val(false)) where {T}
     Ap = A.parent
     rows = size(Ap, 2)
     cols = size(B, 2)
     ret = similar(B.blocks[1], rows, cols)
 
-    # Only popuplate the upper block diagonal in Hermitian case
+    # Only populate the upper block diagonal in Hermitian case
     ocol = 0  # column offset
     for (ib, blB) in enumerate(B.blocks)
         orow = 0  # row offset
@@ -104,15 +110,10 @@ Base.adjoint(A::LazyHcat) = Adjoint(A)
         ret
     end
 end
-
-mul_hermi(A, B) = Hermitian(A * B)
-function mul_hermi(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
-    _mul(A, B; hermitian=Val(true))
-end
-
 Base.:*(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}       = _mul(A, B)
 Base.:*(A::Adjoint{T,<:LazyHcat}, B::AbstractMatrix) where {T} = A * LazyHcat(B)
 
+# LazyHCat * Matrix
 @views function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::LazyHcat,
                                    B::AbstractMatrix, α::Number, β::Number)
     offset = 0
@@ -123,11 +124,18 @@ Base.:*(A::Adjoint{T,<:LazyHcat}, B::AbstractMatrix) where {T} = A * LazyHcat(B)
     res
 end
 mul!(res::AbstractMatrix, Ablock::LazyHcat, B::AbstractMatrix) = mul!(res, Ablock, B, true, false)
-
 function *(Ablock::LazyHcat, B::AbstractMatrix)
     res = zeros_like(B, size(Ablock, 1), size(B, 2))
     mul!(res, Ablock, B)
 end
+
+
+# General A*B product when the result is known to be Hermitian
+mul_hermi(A, B) = Hermitian(A * B)
+function mul_hermi(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
+    _mul(A, B; hermitian=Val(true))
+end
+
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 @timing function rayleigh_ritz(X, AX, N)
