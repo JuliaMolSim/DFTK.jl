@@ -97,7 +97,7 @@ end
 
 @testitem "Truncated Coulomb: direct Ewald pair sum" tags=[:minimal] begin
     using DFTK
-    using DFTK: energy_forces_ewald_direct
+    using DFTK: energy_forces_ewald
     using LinearAlgebra
 
     # H₂: 2 protons at distance 1.4 Bohr — simple repulsive ion-ion test
@@ -107,7 +107,8 @@ end
     positions = [[0.5 - d/2/L, 0.5, 0.5], [0.5 + d/2/L, 0.5, 0.5]]
     charges = [1.0, 1.0]
 
-    (; energy, forces) = energy_forces_ewald_direct(Float64, lattice, charges, positions)
+    (; energy, forces) = energy_forces_ewald(lattice, charges, positions;
+                                             periodicity=(false, false, false))
     # Ion-ion Coulomb: Z²/d = 1/1.4
     @test energy ≈ 1.0 / d atol=1e-12
 

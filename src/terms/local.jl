@@ -110,9 +110,28 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
     # pot_fourier is <e_G|V|e_G'> expanded in a basis of e_{G-G'}
     # Since V is a sum of radial functions located at atomic
     # positions, this involves a form factor (`local_potential_fourier`)
-    # and a structure factor e^{-i G·r}
+    # and a structure factor e^{-i G·r}.
+    #
+    # To support the Rozzi et al. (2006) truncated Coulomb, the periodic long-range
+    # tail -4πZ/|G|² of the atomic form factor is replaced on-the-fly by the
+    # truncated kernel -Z·v_c(G). We do this by subtracting Z·(v_c(G) - 4π/|G|²)
+    # from `local_potential_fourier(|G|)`. This quantity vanishes identically in
+    # the fully-periodic case (where v_c ≡ 4π/|G|²) so exactly the same loop
+    # handles both the periodic and non-periodic electrostatics — no branching.
+    model = basis.model
+    recip_lattice = model.recip_lattice
     form_factors, iG2ifnorm = atomic_local_form_factors(basis; q)
     Gqs = map(G -> G+q, G_vectors(basis))
+
+    # Per-G Coulomb-tail correction v_c(G) - 4π/|G|² (identically 0 in the
+    # fully-periodic case; finite in 0D / 2D).
+    (; n_per, R, aiso_unit) = truncated_coulomb_params(model)
+    coulomb_correction = map(Gqs) do Gq
+        Gcart = recip_lattice * Gq
+        Gsq = sum(abs2, Gcart)
+        vc_per = iszero(Gsq) ? zero(T) : 4T(π) / Gsq
+        truncated_coulomb_fourier(Gcart, n_per, R, aiso_unit) - vc_per
+    end
 
     # Pre-allocation of large arrays for GPU efficiency
     Tpot = promote_type(eltype(form_factors), eltype(eltype(positions)))
@@ -120,19 +139,17 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
     pot_tmp = similar(pot)
     indices = to_device(basis.architecture, collect(1:length(Gqs)))
 
-    for (igroup, group) in enumerate(basis.model.atom_groups)
+    for (igroup, group) in enumerate(model.atom_groups)
+        element = model.atoms[first(group)]
+        Za = T(charge_ionic(element))
         for r in positions[group]
             ff_group = @view form_factors[:, igroup]
-            map!(iG -> cis2pi(-dot(Gqs[iG], r)) * ff_group[iG2ifnorm[iG]], pot_tmp, indices)
-            pot .+= pot_tmp ./ sqrt(basis.model.unit_cell_volume)
+            map!(pot_tmp, indices) do iG
+                ff = ff_group[iG2ifnorm[iG]] - Za * coulomb_correction[iG]
+                cis2pi(-dot(Gqs[iG], r)) * ff
+            end
+            pot .+= pot_tmp ./ sqrt(model.unit_cell_volume)
         end
-    end
-
-    # Apply the Rozzi truncated Coulomb correction to the long-range tail of
-    # each atom's local potential whenever the electrostatics is not fully
-    # periodic. This replaces -Z_a/r by -Z_a · v_c(r) at long range.
-    if !is_fully_periodic_electrostatics(basis.model)
-        add_truncated_coulomb_ionic_correction!(pot, basis, positions, q)
     end
 
     pot_fourier = reshape(pot, basis.fft_size)
@@ -143,88 +160,33 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
         return ifft(basis, pot_fourier)
     end
 end
-
-"""
-Add the Rozzi truncated Coulomb correction to a fully-assembled periodic
-atomic local potential `pot` (flattened Fourier coefficients in `sqrt(Ω)`
-normalisation). This in-place modifies `pot` so that each atom's long-range
-``-Z_a/r`` tail is replaced by the truncated Coulomb ``-Z_a · v_c(r)`` tail.
-
-Only `q = 0` is currently supported.
-"""
-function add_truncated_coulomb_ionic_correction!(pot, basis::PlaneWaveBasis{T},
-                                                 positions, q) where {T}
-    model = basis.model
-    iszero(q) || error("Truncated Coulomb corrections with q ≠ 0 are not yet " *
-                       "supported (no phonon support yet).")
-
-    # G_vectors returns a 3D array; flatten to 1D so we can index linearly.
-    Gs_cpu = vec(to_cpu(G_vectors(basis)))  # Vector{Vec3{Int}}, length = prod(fft_size)
-    recip_lattice = model.recip_lattice
-
-    # Per-G correction factor Z_a * (4π/|G|² - v_c(G)), evaluated for each
-    # atomic group (all atoms in a group share the same ionic charge). At G=0
-    # we substitute the correct finite limit: V_short_a(0) - Z_a · v_c(0),
-    # with V_short_a(0) = eval_psp_energy_correction(T, el_a).
-    vc0 = truncated_coulomb_fourier(zero(Vec3{T}), model)
-    Ω = model.unit_cell_volume
-
-    # Precompute per-G correction factor (same for all atoms of the same group)
-    # to avoid redundant kernel evaluations. correction_cpu is 1D, same length as Gs_cpu.
-    n_G = length(Gs_cpu)
-    correction_cpu = zeros(Complex{T}, n_G)
-
-    for (igroup, group) in enumerate(model.atom_groups)
-        element = model.atoms[first(group)]
-        Za = T(charge_ionic(element))
-        Vshort0 = T(eval_psp_energy_correction(T, element))
-
-        # Per-G correction form factor for this element group
-        fG_group = Vector{T}(undef, n_G)
-        for iG = 1:n_G
-            Gcart = recip_lattice * Gs_cpu[iG]
-            Gsq = sum(abs2, Gcart)
-            if iszero(Gsq)
-                fG_group[iG] = Vshort0 - Za * vc0
-            else
-                vc = truncated_coulomb_fourier(Gcart, model)
-                fG_group[iG] = Za * (4T(π) / Gsq - vc)
-            end
-        end
-
-        # Accumulate structure-factor-weighted correction for each atom
-        for idx in group
-            r = positions[idx]
-            for iG = 1:n_G
-                G = Gs_cpu[iG]
-                correction_cpu[iG] += cis2pi(-dot(G, r)) * fG_group[iG] / sqrt(Ω)
-            end
-        end
-    end
-
-    pot .+= to_device(basis.architecture, correction_cpu)
-    pot
-end
 (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T} =
     TermAtomicLocal(compute_local_potential(basis))
 
 function compute_forces(::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occupation;
                         ρ, kwargs...) where {T}
-    # TODO: for non-periodic electrostatics the correction term added in
-    # compute_local_potential (add_truncated_coulomb_ionic_correction!) also
-    # contributes to the forces. This derivative is not yet implemented and
-    # forces will be approximate in the truncated-Coulomb case.
     S = promote_type(T, real(eltype(ψ[1])))
     forces_local(S, basis, ρ, zero(Vec3{T}))
 end
 @timing "forces: local" function forces_local(S, basis::PlaneWaveBasis{T}, ρ, q) where {T}
     model = basis.model
+    recip_lattice = model.recip_lattice
     real_ifSreal = S <: Real ? real : identity
 
     form_factors, iG2ifnorm = atomic_local_form_factors(basis; q)
 
     Gqs = map(G -> G+q, G_vectors(basis))
     ρ_fourier = reshape(fft(basis, total_density(ρ)), length(Gqs))
+
+    # Same Coulomb-tail truncation as in `compute_local_potential`: identically
+    # zero in the fully-periodic case.
+    (; n_per, R, aiso_unit) = truncated_coulomb_params(model)
+    coulomb_correction = map(Gqs) do Gq
+        Gcart = recip_lattice * Gq
+        Gsq = sum(abs2, Gcart)
+        vc_per = iszero(Gsq) ? zero(T) : 4T(π) / Gsq
+        truncated_coulomb_fourier(Gcart, n_per, R, aiso_unit) - vc_per
+    end
 
     # Pre-allocation of large arrays for GPU efficiency
     indices = to_device(basis.architecture, collect(1:length(Gqs)))
@@ -234,12 +196,15 @@ end
     # where struct_factor(G) = e^{-i G·r}
     forces = Vec3{S}[zero(Vec3{S}) for _ = 1:length(model.positions)]
     for (igroup, group) in enumerate(model.atom_groups)
+        element = model.atoms[first(group)]
+        Za = T(charge_ionic(element))
         for idx in group
             r = model.positions[idx]
 
             ff_group = @view form_factors[:, igroup]
             map!(ρ_pot, indices) do iG
-                cis2pi(-dot(Gqs[iG], r)) * conj(ρ_fourier[iG]) * ff_group[iG2ifnorm[iG]]
+                ff = ff_group[iG2ifnorm[iG]] - Za * coulomb_correction[iG]
+                cis2pi(-dot(Gqs[iG], r)) * conj(ρ_fourier[iG]) * ff
             end
 
             forces[idx] += map(1:3) do α
