@@ -1,4 +1,4 @@
-# CLAUDE.md — AI Assistant Guide for DFTK.jl
+# AGENTS.md — AI Assistant Guide for DFTK.jl
 
 ## Project Overview
 
