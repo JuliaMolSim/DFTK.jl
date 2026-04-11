@@ -28,17 +28,30 @@ struct TermHartree <: TermNonlinear
 end
 function compute_poisson_green_coeffs(basis::PlaneWaveBasis{T}, scaling_factor;
                                       q=zero(Vec3{T})) where {T}
-    recip_lattice = basis.model.recip_lattice
+    model = basis.model
+    recip_lattice = model.recip_lattice
 
-    # Solving the Poisson equation ΔV = -4π ρ in Fourier space
-    # is multiplying elementwise by 4π / |G|^2.
-    poisson_green_coeffs = map(G -> 4T(π) / sum(abs2, recip_lattice * (G + q)),
-                               G_vectors(basis))
-    if iszero(q)
-        # Compensating charge background => Zero DC.
-        GPUArraysCore.@allowscalar poisson_green_coeffs[1] = 0
-        # Symmetrize Fourier coeffs to have real iFFT.
-        enforce_real!(poisson_green_coeffs, basis)
+    if is_fully_periodic_electrostatics(model)
+        # Solving the periodic Poisson equation ΔV = -4π ρ in Fourier space
+        # is multiplying elementwise by 4π / |G|^2 (with neutralising background,
+        # i.e. dropping G=0).
+        poisson_green_coeffs = map(G -> 4T(π) / sum(abs2, recip_lattice * (G + q)),
+                                   G_vectors(basis))
+        if iszero(q)
+            # Compensating charge background => Zero DC.
+            GPUArraysCore.@allowscalar poisson_green_coeffs[1] = 0
+            # Symmetrize Fourier coeffs to have real iFFT.
+            enforce_real!(poisson_green_coeffs, basis)
+        end
+    else
+        # Non-periodic directions: use the Rozzi et al. truncated Coulomb kernel.
+        # The kernel is finite (and generally non-zero) at G=0 in the 0D case.
+        poisson_green_coeffs = map(G_vectors(basis)) do G
+            truncated_coulomb_fourier(recip_lattice * (G + q), model)
+        end
+        if iszero(q)
+            enforce_real!(poisson_green_coeffs, basis)
+        end
     end
     scaling_factor .* poisson_green_coeffs
 end

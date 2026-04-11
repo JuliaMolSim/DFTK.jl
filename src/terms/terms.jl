@@ -52,6 +52,8 @@ breaks_symmetries(::Any) = false
 
 include("kinetic.jl")
 
+include("truncated_coulomb.jl")
+
 include("local.jl")
 breaks_symmetries(::ExternalFromReal) = true
 breaks_symmetries(::ExternalFromFourier) = true

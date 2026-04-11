@@ -128,6 +128,13 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
         end
     end
 
+    # Apply the Rozzi truncated Coulomb correction to the long-range tail of
+    # each atom's local potential whenever the electrostatics is not fully
+    # periodic. This replaces -Z_a/r by -Z_a · v_c(r) at long range.
+    if !is_fully_periodic_electrostatics(basis.model)
+        add_truncated_coulomb_ionic_correction!(pot, basis, positions, q)
+    end
+
     pot_fourier = reshape(pot, basis.fft_size)
     if iszero(q)
         enforce_real!(pot, basis)  # Symmetrize coeffs to have real iFFT
@@ -136,11 +143,77 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
         return ifft(basis, pot_fourier)
     end
 end
+
+"""
+Add the Rozzi truncated Coulomb correction to a fully-assembled periodic
+atomic local potential `pot` (flattened Fourier coefficients in `sqrt(Ω)`
+normalisation). This in-place modifies `pot` so that each atom's long-range
+``-Z_a/r`` tail is replaced by the truncated Coulomb ``-Z_a · v_c(r)`` tail.
+
+Only `q = 0` is currently supported.
+"""
+function add_truncated_coulomb_ionic_correction!(pot, basis::PlaneWaveBasis{T},
+                                                 positions, q) where {T}
+    model = basis.model
+    iszero(q) || error("Truncated Coulomb corrections with q ≠ 0 are not yet " *
+                       "supported (no phonon support yet).")
+
+    # G_vectors returns a 3D array; flatten to 1D so we can index linearly.
+    Gs_cpu = vec(to_cpu(G_vectors(basis)))  # Vector{Vec3{Int}}, length = prod(fft_size)
+    recip_lattice = model.recip_lattice
+
+    # Per-G correction factor Z_a * (4π/|G|² - v_c(G)), evaluated for each
+    # atomic group (all atoms in a group share the same ionic charge). At G=0
+    # we substitute the correct finite limit: V_short_a(0) - Z_a · v_c(0),
+    # with V_short_a(0) = eval_psp_energy_correction(T, el_a).
+    vc0 = truncated_coulomb_fourier(zero(Vec3{T}), model)
+    Ω = model.unit_cell_volume
+
+    # Precompute per-G correction factor (same for all atoms of the same group)
+    # to avoid redundant kernel evaluations. correction_cpu is 1D, same length as Gs_cpu.
+    n_G = length(Gs_cpu)
+    correction_cpu = zeros(Complex{T}, n_G)
+
+    for (igroup, group) in enumerate(model.atom_groups)
+        element = model.atoms[first(group)]
+        Za = T(charge_ionic(element))
+        Vshort0 = T(eval_psp_energy_correction(T, element))
+
+        # Per-G correction form factor for this element group
+        fG_group = Vector{T}(undef, n_G)
+        for iG = 1:n_G
+            Gcart = recip_lattice * Gs_cpu[iG]
+            Gsq = sum(abs2, Gcart)
+            if iszero(Gsq)
+                fG_group[iG] = Vshort0 - Za * vc0
+            else
+                vc = truncated_coulomb_fourier(Gcart, model)
+                fG_group[iG] = Za * (4T(π) / Gsq - vc)
+            end
+        end
+
+        # Accumulate structure-factor-weighted correction for each atom
+        for idx in group
+            r = positions[idx]
+            for iG = 1:n_G
+                G = Gs_cpu[iG]
+                correction_cpu[iG] += cis2pi(-dot(G, r)) * fG_group[iG] / sqrt(Ω)
+            end
+        end
+    end
+
+    pot .+= to_device(basis.architecture, correction_cpu)
+    pot
+end
 (::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T} =
     TermAtomicLocal(compute_local_potential(basis))
 
 function compute_forces(::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occupation;
                         ρ, kwargs...) where {T}
+    # TODO: for non-periodic electrostatics the correction term added in
+    # compute_local_potential (add_truncated_coulomb_ionic_correction!) also
+    # contributes to the forces. This derivative is not yet implemented and
+    # forces will be approximate in the truncated-Coulomb case.
     S = promote_type(T, real(eltype(ψ[1])))
     forces_local(S, basis, ρ, zero(Vec3{T}))
 end
@@ -182,6 +255,9 @@ end
 
 @views function compute_dynmat(::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occupation;
                                ρ, δρs, q=zero(Vec3{T}), kwargs...) where {T}
+    !is_fully_periodic_electrostatics(basis.model) && error(
+        "Phonon dynamical matrices with truncated Coulomb electrostatics " *
+        "are not yet implemented.")
     S = complex(T)
     model = basis.model
     positions = model.positions

@@ -4,25 +4,42 @@ import SpecialFunctions: erfc
 Ewald term: electrostatic energy per unit cell of the array of point
 charges defined by `model.atoms` in a uniform background of
 compensating charge yielding net neutrality.
+For non-periodic electrostatics (any direction with `periodicity != true`)
+the ion-ion interaction is computed as a bare direct pair sum with no
+periodic images and no compensating background.
 """
 Base.@kwdef struct Ewald
     η = nothing  # Parameter used for the splitting 1/r ≡ erf(η·r)/r + erfc(η·r)/r
                  # (or nothing if autoselected)
 end
-(ewald::Ewald)(basis) = TermEwald(basis; η=something(ewald.η, default_η(basis.model.lattice)))
+function (ewald::Ewald)(basis)
+    model = basis.model
+    if is_fully_periodic_electrostatics(model)
+        TermEwald(basis; η=something(ewald.η, default_η(basis.model.lattice)))
+    else
+        TermEwald(basis; direct=true)
+    end
+end
 
 struct TermEwald{T} <: TermLinear
     energy::T                # precomputed energy
     forces::Vector{Vec3{T}}  # and forces
-    η::T                     # Parameter used for the splitting
-    #                          1/r ≡ erf(η·r)/r + erfc(η·r)/r
+    η::T                     # Ewald splitting parameter (zero for direct-sum mode)
 end
 @timing "precomp: Ewald" function TermEwald(basis::PlaneWaveBasis{T};
-                                            η=default_η(basis.model.lattice)) where {T}
+                                            η=default_η(basis.model.lattice),
+                                            direct=false) where {T}
     model = basis.model
     charges = charge_ionic.(model.atoms)
-    (; energy, forces) = energy_forces_ewald(model.lattice, charges, model.positions; η)
-    TermEwald(energy, forces, η)
+    if direct
+        # Non-periodic: bare direct pair sum, no images, no background charge.
+        (; energy, forces) = energy_forces_ewald_direct(T, model.lattice,
+                                                        charges, model.positions)
+        TermEwald(energy, forces, zero(T))
+    else
+        (; energy, forces) = energy_forces_ewald(model.lattice, charges, model.positions; η)
+        TermEwald(energy, forces, η)
+    end
 end
 
 function ene_ops(term::TermEwald, basis::PlaneWaveBasis, ψ, occupation; kwargs...)
@@ -175,6 +192,32 @@ function energy_forces_ewald(lattice::AbstractArray{T}, charges, positions, q,
                              ph_disp; kwargs...) where{T}
     S = promote_type(complex(T), eltype(ph_disp[1]))
     energy_forces_ewald(S, lattice, charges, positions, q, ph_disp; kwargs...)
+end
+
+"""
+Compute the direct (non-periodic) ion-ion electrostatic energy and forces.
+Only the pair sum within a single unit cell is computed (no images, no
+compensating background). This is appropriate when the electrostatics is
+treated as isolated in all directions.
+"""
+function energy_forces_ewald_direct(T, lattice, charges, positions)
+    n = length(positions)
+    energy = zero(T)
+    forces = [zero(Vec3{T}) for _ = 1:n]
+    for i = 1:n, j = 1:n
+        i == j && continue
+        ri_cart = lattice * positions[i]
+        rj_cart = lattice * positions[j]
+        Δr = ri_cart - rj_cart
+        dist = norm(Δr)
+        energy += charges[i] * charges[j] / dist
+        # Force on i in reduced coordinates: F_red = L^T * F_cart
+        # F_cart = -dE/d(ri_cart), dE/d(ri_cart) = -Zi*Zj * Δr / dist^3
+        F_cart = charges[i] * charges[j] * Δr / dist^3
+        forces[i] += lattice' * F_cart
+    end
+    # Divide by 2 to remove double-counting
+    (; energy=energy / 2, forces=forces)
 end
 
 # TODO: See if there is a way to express this with AD.

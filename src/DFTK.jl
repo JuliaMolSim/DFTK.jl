@@ -69,6 +69,8 @@ include("SymOp.jl")
 
 export Smearing
 export Model
+export is_wavefunctions_periodic, is_electrostatics_periodic
+export n_periodic_electrostatics, is_fully_periodic_electrostatics
 export FFTGrid
 export MonkhorstPack, ExplicitKpoints
 export PlaneWaveBasis

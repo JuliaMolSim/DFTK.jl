@@ -35,6 +35,9 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
     end
 
     println(io)
+    if !is_fully_periodic_electrostatics(model)
+        showfieldln(io, "periodicity", model.periodicity)
+    end
     if !isnothing(model.n_electrons)
         showfieldln(io, "num. electrons", model.n_electrons)
     end
@@ -89,6 +92,7 @@ function todict!(dict, model::Model)
     dict["atomic_positions_cart"] = vector_red_to_cart.(model, model.positions)
     !isnothing(model.εF)          && (dict["εF"]          = model.εF)
     !isnothing(model.n_electrons) && (dict["n_electrons"] = model.n_electrons)
+    dict["periodicity"] = collect(string.(model.periodicity))
 
     family = pseudofamily(model)
     if isnothing(family)
