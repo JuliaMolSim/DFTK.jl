@@ -126,6 +126,56 @@ To disable precompilation (recommended during development), add `LocalPreference
 precompile_workload = false
 ```
 
+### A Note on Julia Compilation Times
+
+**Be patient.** Julia's first-run compilation ("time to first X") can be substantial:
+- Initial `using DFTK` after a fresh install or package change may take **several minutes**
+- The first SCF calculation in a session is slower than subsequent ones due to JIT compilation
+- `Pkg.test(...)` itself spends significant time precompiling before any tests run
+
+This is normal. Do not assume a hang is a bug if the process has been running for under 5 minutes without output. Subsequent runs in the same Julia session will be much faster. Disabling precompilation via `LocalPreferences.toml` (see above) reduces startup overhead during iterative development.
+
+### Iterative Development: Testing a Single Feature
+
+**Do not run the full test suite while iterating.** Instead, work interactively:
+
+1. Start a Julia REPL with the project loaded:
+   ```bash
+   julia --project=/path/to/DFTK.jl
+   ```
+
+2. Load Revise before DFTK so source changes are picked up automatically:
+   ```julia
+   using Revise
+   using DFTK
+   ```
+
+3. Test your feature directly in the REPL. For example, to test a change to a term:
+   ```julia
+   using AtomsBuilder, PseudoPotentialData
+   pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
+   model = model_DFT(bulk(:Si); functionals=LDA(), pseudopotentials)
+   basis = PlaneWaveBasis(model; Ecut=10, kgrid=[2, 2, 2])  # small for speed
+   scfres = self_consistent_field(basis; tol=1e-4)
+   ```
+
+4. After editing a source file, Revise picks up changes automatically — no need to restart. Just re-run the relevant code.
+
+5. To run a **single test file** without the full suite:
+   ```julia
+   # From within a Julia session with DFTK loaded
+   include("test/silicon_lda.jl")
+   ```
+   Or from the shell:
+   ```bash
+   julia --project -e 'include("test/silicon_lda.jl")'
+   ```
+
+6. When satisfied, run only the `minimal` tag to check for obvious regressions before a full CI run:
+   ```bash
+   julia --project -e 'import Pkg; Pkg.test("DFTK"; test_args=["minimal"])'
+   ```
+
 ### Running Tests
 
 Tests support filtering via `test_args`:
