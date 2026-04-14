@@ -38,6 +38,11 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
         ρcore = ρ_from_total(basis, atomic_total_density(basis, CoreDensity()))
         minimum(ρcore) < -sqrt(eps(T)) && @warn("Negative ρcore detected: $(minimum(ρcore))")
     end
+    τcore = nothing
+    if xc.use_nlcc && any(needs_τ, xc.functionals) && any(has_core_kinetic_energy_density, basis.model.atoms)
+        τcore = ρ_from_total(basis, atomic_total_density(basis, CoreKineticEnergyDensity()))
+        minimum(τcore) < -sqrt(eps(T)) && @warn("Negative τcore detected: $(minimum(τcore))")
+    end
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
         params = parameters(fun)
@@ -49,7 +54,7 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     end
     TermXc(convert(Vector{Functional}, functionals),
            convert_dual(T, xc.scaling_factor),
-           T(xc.potential_threshold), ρcore)
+           T(xc.potential_threshold), ρcore, τcore)
 end
 
 function hybrid_parameters(xc::Xc)
@@ -57,11 +62,12 @@ function hybrid_parameters(xc::Xc)
     isempty(res) ? nothing : only(res)
 end
 
-struct TermXc{T,CT} <: TermNonlinear where {T,CT}
+struct TermXc{T,CT,TCT} <: TermNonlinear where {T,CT,TCT}
     functionals::Vector{Functional}
     scaling_factor::T
     potential_threshold::T
     ρcore::CT
+    τcore::TCT
 end
 DftFunctionals.needs_τ(term::TermXc) = any(needs_τ, term.functionals)
 
@@ -78,6 +84,9 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     # Add the model core charge density (non-linear core correction)
     if !isnothing(term.ρcore)
         ρ = ρ + term.ρcore
+    end
+    if !isnothing(term.τcore)
+        τ = τ + term.τcore
     end
 
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
@@ -166,6 +175,9 @@ end
     if !isnothing(term.ρcore)
         ρ = ρ + term.ρcore
     end
+    if !isnothing(term.τcore)
+        τ = τ + term.τcore
+    end
 
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
     densities = LibxcDensities(basis, max_ρ_derivs, ρ, τ)
@@ -178,6 +190,7 @@ end
 @timing "forces: xc" function compute_forces(term::TermXc, basis::PlaneWaveBasis{T},
                                              ψ, occupation; ρ, τ=nothing,
                                              kwargs...) where {T}
+    isnothing(term.τcore) || error("Forces with non-linear core correction on the kinetic energy density are not yet implemented.")
     # The only non-zero force contribution is from the nlcc core charge:
     # early return if nlcc is disabled / no elements have model core charges.
     isnothing(term.ρcore) && return nothing

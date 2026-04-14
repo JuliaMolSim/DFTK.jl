@@ -33,6 +33,10 @@ pseudofamily(::Element) = nothing
 
 """Check presence of model core charge density (non-linear core correction)."""
 has_core_density(::Element) = false
+
+"""Check presence of model core kinetic energy density (non-linear core correction for τ)."""
+has_core_kinetic_energy_density(::Element) = false
+
 # The preceding functions are fallback implementations that should be altered as needed.
 
 eval_psp_energy_correction(T, ::Element) = zero(T)
@@ -50,6 +54,10 @@ end
 
 function core_charge_density_fourier(::Element, ::T)::T where {T <: Real}
     error("Abstract elements do not necesesarily provide core charge density.")
+end
+
+function core_kinetic_energy_density_fourier(::Element, ::T)::T where {T <: Real}
+    error("Abstract elements do not necesesarily provide core kinetic energy density.")
 end
 
 # Generic vectorized version of local_potential_fourier, GPU-safe
@@ -164,6 +172,7 @@ AtomsBase.mass(el::ElementPsp)    = el.mass
 AtomsBase.species(el::ElementPsp) = el.species
 charge_ionic(el::ElementPsp)      = charge_ionic(el.psp)
 has_core_density(el::ElementPsp)  = has_core_density(el.psp)
+has_core_kinetic_energy_density(el::ElementPsp) = has_core_kinetic_energy_density(el.psp)
 eval_psp_energy_correction(T, el::ElementPsp) = eval_psp_energy_correction(T, el.psp)
 
 function local_potential_fourier(el::ElementPsp, p::T) where {T <: Real}

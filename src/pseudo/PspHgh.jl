@@ -14,6 +14,7 @@ end
 charge_ionic(psp::PspHgh) = psp.Zion
 has_valence_density(psp::PspHgh) = false
 has_core_density(psp::PspHgh) = false
+has_core_kinetic_energy_density(psp::PspHgh) = false
 
 """
     PspHgh(path[, identifier, description])

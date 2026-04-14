@@ -38,6 +38,9 @@ struct PspUpf{T,I} <: NormConservingPsp
     # used for non-linear core correction.
     # UPF: `PP_NLCC`
     r2_ρcore::Vector{T}
+    # same as `r2_ρcore` but for the kinetic energy density τ
+    # UPF: `PP_TAUMOD`
+    r2_τcore::Vector{T}
 
     ## Precomputed for performance
     # (USED IN TESTS) Local potential interpolator, stored for performance.
@@ -149,7 +152,8 @@ function PspUpf(pseudo::UpfFile; identifier, rcut=nothing)
     end
 
     r2_ρion = pseudo.rhoatom ./ (4π)
-    r2_ρcore = rgrid .^ 2 .* (@something pseudo.nlcc zeros(length(rgrid)))
+    r2_ρcore = rgrid .^ 2 .* (@something pseudo.nlcc   zeros(length(rgrid)))
+    r2_τcore = rgrid .^ 2 .* (@something pseudo.taumod zeros(length(rgrid)))
 
     vloc_interp = linear_interpolation((rgrid,), vloc)
     r2_projs_interp = map(r2_projs) do r2_projs_l
@@ -161,7 +165,7 @@ function PspUpf(pseudo::UpfFile; identifier, rcut=nothing)
     PspUpf{eltype(rgrid),typeof(vloc_interp)}(
         Zion, lmax, rgrid, drgrid,
         vloc, r2_projs, h, r2_pswfcs, pswfc_occs, pswfc_energies, pswfc_labels,
-        r2_ρion, r2_ρcore,
+        r2_ρion, r2_ρcore, r2_τcore,
         vloc_interp, r2_projs_interp, r2_ρion_interp, r2_ρcore_interp,
         rcut, ircut, identifier, description
     )
@@ -170,6 +174,7 @@ end
 charge_ionic(psp::PspUpf) = psp.Zion
 has_valence_density(psp::PspUpf) = !all(iszero, psp.r2_ρion)
 has_core_density(psp::PspUpf) = !all(iszero, psp.r2_ρcore)
+has_core_kinetic_energy_density(psp::PspUpf) = !all(iszero, psp.r2_τcore)
 
 function eval_psp_projector_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
     psp.r2_projs_interp[l+1][i](r) / r^2  # TODO if r is below a threshold, return zero
@@ -271,6 +276,12 @@ function eval_psp_density_core_fourier(psp::PspUpf, p::T) where {T<:Real}
     rgrid = @view psp.rgrid[1:psp.ircut]
     r2_ρcore = @view psp.r2_ρcore[1:psp.ircut]
     return hankel(rgrid, r2_ρcore, 0, p)
+end
+
+function eval_psp_kinetic_energy_density_core_fourier(psp::PspUpf, p::T) where {T<:Real}
+    rgrid = @view psp.rgrid[1:psp.ircut]
+    r2_τcore = @view psp.r2_τcore[1:psp.ircut]
+    return hankel(rgrid, r2_τcore, 0, p)
 end
 
 function eval_psp_energy_correction(T, psp::PspUpf)

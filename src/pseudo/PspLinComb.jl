@@ -24,6 +24,7 @@ function PspLinComb(coefficients::Vector{T}, pseudos::Vector{<:NormConservingPsp
     @assert allequal(charge_ionic,        pseudos)
     @assert allequal(has_valence_density, pseudos)
     @assert allequal(has_core_density,    pseudos)
+    @assert allequal(has_core_kinetic_energy_density, pseudos)
     @assert allequal(p -> p.lmax,         pseudos)
 
     TT   = promote_type(T, eltype(eltype(first(pseudos).h)))
@@ -53,6 +54,7 @@ end
 charge_ionic(psp::PspLinComb)        = charge_ionic(first(psp.pseudos))
 has_valence_density(psp::PspLinComb) = all(has_valence_density, psp.pseudos)
 has_core_density(psp::PspLinComb)    = any(has_core_density,    psp.pseudos)
+has_core_kinetic_energy_density(psp::PspLinComb) = any(has_core_kinetic_energy_density, psp.pseudos)
 
 function eval_psp_projector_real(psp::PspLinComb, i, l, r::Real)
     (ipsp, iproj) = psp.hidx_to_psp_proj[l+1][i]
@@ -80,3 +82,4 @@ end
 @make_psplincomb_call DFTK.eval_psp_density_valence_fourier
 @make_psplincomb_call DFTK.eval_psp_density_core_real
 @make_psplincomb_call DFTK.eval_psp_density_core_fourier
+@make_psplincomb_call DFTK.eval_psp_kinetic_energy_density_core_fourier

@@ -3,11 +3,12 @@
 abstract type DensityConstructionMethod                  end
 abstract type AtomicDensity <: DensityConstructionMethod end
 
-struct RandomDensity           <: DensityConstructionMethod end
-struct CoreDensity             <: AtomicDensity end
-struct ValenceDensityGaussian  <: AtomicDensity end
-struct ValenceDensityPseudo    <: AtomicDensity end
-struct ValenceDensityAuto      <: AtomicDensity end
+struct RandomDensity            <: DensityConstructionMethod end
+struct CoreDensity              <: AtomicDensity end
+struct CoreKineticEnergyDensity <: AtomicDensity end
+struct ValenceDensityGaussian   <: AtomicDensity end
+struct ValenceDensityPseudo     <: AtomicDensity end
+struct ValenceDensityAuto       <: AtomicDensity end
 
 # Random density method
 function guess_density(basis::PlaneWaveBasis, ::RandomDensity;
@@ -211,6 +212,11 @@ end
 function atomic_density(element::Element, Gnorm::T,
                         ::CoreDensity)::T where {T <: Real}
     has_core_density(element) ? core_charge_density_fourier(element, Gnorm) : zero(T)
+end
+
+function atomic_density(element::Element, Gnorm::T,
+                        ::CoreKineticEnergyDensity)::T where {T <: Real}
+    has_core_kinetic_energy_density(element) ? eval_psp_kinetic_energy_density_core_fourier(element.psp, Gnorm) : zero(T)
 end
 
 # Get the lengthscale of the valence density for an atom with `n_elec_core` core
