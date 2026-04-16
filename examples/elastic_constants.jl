@@ -7,7 +7,8 @@
 # [^SPH25]: 
 #     Schmitz, N. F., Ploumhans, B., & Herbst, M. F. (2025)
 #     *Algorithmic differentiation for plane-wave DFT: materials design, error control and learning model parameters.*
-#     [arXiv:2509.07785](https://arxiv.org/abs/2509.07785)
+#     [npj Computational Materials **12**, 6 (2026)](https://doi.org/10.1038/s41524-025-01880-3).  
+#     ([Supplementary material and computational scripts](https://github.com/niklasschmitz/ad-dfpt)).  
 #
 # We consider a crystal in its equilibrium configuration, where all atomic forces
 # and stresses vanish.  Homogeneous strains $η$ are then applied
