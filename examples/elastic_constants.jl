@@ -5,7 +5,7 @@
 # as introduced in [^SPH25].
 # 
 # [^SPH25]: 
-#     Schmitz, N. F., Ploumhans, B., & Herbst, M. F. (2025)
+#     Schmitz, N. F., Ploumhans, B., & Herbst, M. F. (2026)
 #     *Algorithmic differentiation for plane-wave DFT: materials design, error control and learning model parameters.*
 #     [npj Computational Materials **12**, 6 (2026)](https://doi.org/10.1038/s41524-025-01880-3).  
 #     ([Supplementary material and computational scripts](https://github.com/niklasschmitz/ad-dfpt)).  
