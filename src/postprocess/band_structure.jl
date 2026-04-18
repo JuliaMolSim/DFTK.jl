@@ -31,12 +31,15 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
               "quantity to compute_bands as the τ keyword argument or use the " *
               "compute_bands(scfres) function.")
     end
-    seed = seed_task_local_rng!(seed, MPI.COMM_WORLD)
+    if any(t isa TermExactExchange for t in basis.terms)
+        error("Band structure computations with exact exchange not yet supported.")
+    end
+    seed = seed_task_local_rng!(seed, basis.comm_kpts)
 
     # Create new basis with new kpoints
     bs_basis = PlaneWaveBasis(basis, kgrid)
 
-    ham = Hamiltonian(bs_basis; ρ, τ, hubbard_n)
+    ham = Hamiltonian(bs_basis; ρ, τ, hubbard_n, exxalg=VanillaExx())
     eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + n_extra;
                                      n_conv_check=n_bands, tol, kwargs...)
     if !eigres.converged
@@ -302,7 +305,7 @@ of [`compute_bands`](@ref) and [`self_consistent_field`](@ref).
     (including patch versions).
 """
 function save_bands(filename::AbstractString, band_data::NamedTuple; save_ψ=false)
-    filename = MPI.bcast(filename, 0, MPI.COMM_WORLD)
+    filename = mpi_bcast(filename, 0, band_data.basis.comm_kpts)
     _, ext = splitext(filename)
     ext = Symbol(ext[2:end])
 

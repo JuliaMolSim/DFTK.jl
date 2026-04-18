@@ -33,7 +33,7 @@ end
 end
 
 @testitem "Smearing for insulators" tags=[:dont_test_mpi] setup=[Occupation, TestCases] begin
-    using DFTK: FermiZeroTemperature
+    using DFTK
     using Logging
     silicon = TestCases.silicon
 
@@ -57,7 +57,7 @@ end
         model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                       temperature=0.0, terms=[Kinetic()])
         basis = PlaneWaveBasis(model; Ecut, silicon.kgrid, fft_size)
-        (; occupation, εF) = DFTK.compute_occupation(basis, eigenvalues, FermiZeroTemperature())
+        (; occupation, εF) = DFTK.compute_occupation(basis, eigenvalues, DFTK.FermiZeroTemperature())
         @test εHOMO < εF < εLUMO
         @test DFTK.weighted_ksum(basis, sum.(occupation)) ≈ model.n_electrons
         @test (εHOMO + εLUMO)/2 ≈ εF

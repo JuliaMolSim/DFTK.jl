@@ -255,7 +255,7 @@ end
         ham_dual * scfres.ψ
     end
     # Implicit differentiation
-    response.verbose && println("Solving response problem")
+    response.verbose && mpi_master(basis_primal.comm_kpts) && println("Solving response problem")
     δresults = ntuple(N) do α
         δHextψ = [ForwardDiff.partials.(δHextψk, α) for δHextψk in Hψ_dual]
         δtemperature = ForwardDiff.partials(basis_dual.model.temperature, α)

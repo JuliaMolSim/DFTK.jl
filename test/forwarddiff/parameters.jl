@@ -48,7 +48,7 @@ function run_test(; architecture)
 end
 end
 
-@testitem "scfres PSP sensitivity using ForwardDiff" tags=[:dont_test_mpi, :minimal] #=
+@testitem "scfres PSP sensitivity using ForwardDiff" tags=[:minimal] #=
     =#    setup=[TestCases, ForwardDiffWrappers, PspSensitivity] begin
     using DFTK
     PspSensitivity.run_test(; architecture=DFTK.CPU())
@@ -101,7 +101,7 @@ function run_test(; architecture)
 end
 end
 
-@testitem "Functional force sensitivity using ForwardDiff" tags=[:dont_test_mpi, :minimal] #=
+@testitem "Functional force sensitivity using ForwardDiff" tags=[:minimal] #=
     =#    setup=[TestCases, ForwardDiffWrappers, ForceSensitivity] begin
     using DFTK
     ForceSensitivity.run_test(; architecture=DFTK.CPU())
@@ -152,7 +152,7 @@ function run_test(; architecture)
 end
 end
 
-@testitem "LocalNonlinearity sensitivity using ForwardDiff" tags=[:dont_test_mpi, :minimal] #=
+@testitem "LocalNonlinearity sensitivity using ForwardDiff" tags=[:minimal] #=
     =#    setup=[ForwardDiffWrappers, LocalNonlinearitySensitivity] begin
     using DFTK
     LocalNonlinearitySensitivity.run_test(; architecture=DFTK.CPU())
@@ -200,7 +200,7 @@ function run_test(; architecture)
 end
 end
 
-@testitem "Test scfres dual has the same params as scfres primal" tags=[:dont_test_mpi, :minimal] #=
+@testitem "Test scfres dual has the same params as scfres primal" tags=[:minimal] #=
     =#    setup=[TestCases, ScfresParameterConsistency] begin
     using DFTK
     ScfresParameterConsistency.run_test(; architecture=DFTK.CPU())
@@ -249,7 +249,7 @@ function run_test(; architecture)
 end
 end
 
-@testitem "ForwardDiff wrt temperature" tags=[:dont_test_mpi, :minimal] #=
+@testitem "ForwardDiff wrt temperature" tags=[:minimal] #=
     =#    setup=[ForwardDiffWrappers, TemperatureSensitivity] begin
     using DFTK
     TemperatureSensitivity.run_test(; architecture=DFTK.CPU())

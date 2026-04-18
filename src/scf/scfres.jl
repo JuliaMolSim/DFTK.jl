@@ -69,7 +69,7 @@ Keyword arguments:
 @timing function save_scfres(filename::AbstractString, scfres::NamedTuple;
                              save_ψ=nothing, extra_data=Dict{String,Any}(),
                              compress=false, save_ρ=true)
-    filename = MPI.bcast(filename, 0, MPI.COMM_WORLD)
+    filename = mpi_bcast(filename, 0, scfres.basis.comm_kpts)
 
     _, ext = splitext(filename)
     ext = Symbol(ext[2:end])
@@ -79,7 +79,7 @@ Keyword arguments:
     save_ψ = something(save_ψ, (ext == :jld2))
     save_scfres(Val(ext), filename, scfres; save_ψ, save_ρ, extra_data, compress)
 end
-function save_scfres(::Any, filename::AbstractString, ::NamedTuple; kwargs...)
+function save_scfres(::Val, filename::AbstractString, ::NamedTuple; kwargs...)
     error("The extension $(last(splitext(filename))) is currently not available. " *
           "A required package (e.g. JLD2 or JSON3) is not yet loaded.")
 end

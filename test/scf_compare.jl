@@ -14,7 +14,7 @@
     ρ_def = self_consistent_field(basis; ρ=ρ0, tol=tol/10).ρ
 
     # Run DM
-    if mpi_nprocs() == 1  # Distributed implementation not yet available
+    if mpi_nprocs(basis.comm_kpts) == 1  # Distributed implementation not yet available
         @testset "Direct minimization" begin
             ρ_dm = direct_minimization(basis; tol).ρ
             @test maximum(abs, ρ_dm - ρ_def) < 10tol
@@ -22,7 +22,7 @@
     end
 
     # Run Newton algorithm
-    if mpi_nprocs() == 1  # Distributed implementation not yet available
+    if mpi_nprocs(basis.comm_kpts) == 1  # Distributed implementation not yet available
         @testset "Newton" begin
             scfres_start = self_consistent_field(basis, maxiter=1)
             # remove virtual orbitals
@@ -79,7 +79,7 @@ end
     (; ψ) = select_occupied_orbitals(basis, scfres_start.ψ, scfres_start.occupation)
 
     # Run DM
-    if mpi_nprocs() == 1  # Distributed implementation not yet available
+    if mpi_nprocs(basis.comm_kpts) == 1  # Distributed implementation not yet available
         @testset "Direct minimization" begin
             ρ_dm = direct_minimization(basis; ψ, tol).ρ
             @test maximum(abs.(ρ_dm - ρ_def)) < 10tol
@@ -87,7 +87,7 @@ end
     end
 
     # Run Newton algorithm
-    if mpi_nprocs() == 1  # Distributed implementation not yet available
+    if mpi_nprocs(basis.comm_kpts) == 1  # Distributed implementation not yet available
         @testset "Newton" begin
             ρ_newton = newton(basis, ψ; tol).ρ
             @test maximum(abs.(ρ_newton - ρ_def)) < 10tol

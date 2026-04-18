@@ -257,6 +257,7 @@ end
 
 @testitem "All pseudopotentials from common UPF families can be loaded" begin
     using PseudoPotentialData
+    using DFTK
 
     for key in ("dojo.nc.sr.lda.v0_4_1.standard.upf",
                 "dojo.nc.sr.pbe.v0_5.standard.upf",

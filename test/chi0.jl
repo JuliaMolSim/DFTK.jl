@@ -2,7 +2,6 @@
 using Test
 using DFTK
 using DFTK: mpi_mean!
-using MPI
 using LinearAlgebra
 
 function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=:none,
@@ -39,7 +38,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         # create external small perturbation εδV
         n_spin = model.n_spin_components
         δV = randn(eltype(basis), basis.fft_size..., n_spin)
-        mpi_mean!(δV, MPI.COMM_WORLD)
+        mpi_mean!(δV, basis.comm_kpts)
         δV_sym = DFTK.symmetrize_ρ(basis, δV; model.symmetries)
         if symmetries
             δV = δV_sym
@@ -93,8 +92,8 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
             # Test that apply_χ0 is self-adjoint
             δV1 = randn(eltype(basis), basis.fft_size..., n_spin)
             δV2 = randn(eltype(basis), basis.fft_size..., n_spin)
-            mpi_mean!(δV1, MPI.COMM_WORLD)
-            mpi_mean!(δV2, MPI.COMM_WORLD)
+            mpi_mean!(δV1, basis.comm_kpts)
+            mpi_mean!(δV2, basis.comm_kpts)
 
             χ0δV1 = apply_χ0(scfres, δV1).δρ
             χ0δV2 = apply_χ0(scfres, δV2).δρ

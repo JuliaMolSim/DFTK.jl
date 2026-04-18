@@ -1,69 +1,134 @@
-using LinearMaps
 using LinearAlgebra: dot
+using LinearMaps
 
 function default_cg_print(info)
+    # Default callback prints on all MPI ranks
     @printf("%3d\t%1.2e\n", info.n_iter, info.residual_norm)
 end
 
 """
-Implementation of the conjugate gradient method which allows for preconditioning
-and projection operations along iterations.
+Matrix-vector product used in the CG solver. The CG locking mechanism is such that the first
+and last converged columns of x in Ax = b are ignored by considering a contiguous active set
+of columns,defined by first(!converged_columns):last(!converged_columns). The mask must be a
+contiguous range for GPU compatibility. This is the default implementation for matrix-like A.
+Custom opertators must implement their own method for mul_masked!.
 """
-function cg!(x::AbstractVector{T}, A::LinearMap{T}, b::AbstractVector{T};
-             precon=I, proj=identity, callback=identity,
-             tol=1e-10, maxiter=100, miniter=1,
-             my_dot=dot) where {T}
-    my_norm(x) = sqrt(real(my_dot(x, x)))
+@views @timing function mul_masked!(Ax, A::Union{AbstractArray{T}, LinearMap{T}}, x;
+                                    mask::UnitRange) where {T}
+     mul!(Ax[:, mask], A, x[:, mask])
+end
+
+"""
+Implementation of the conjugate gradient method which allows for preconditioning
+and projection operations along iterations. The solver is optimized for generic
+input arrays with multiple columns, i.e. solutions of A x[:, n] = b[:, n] for all
+columns n are sought simultaneously. Single column vectors, i.e. size(x, 2) == 1,
+are also supported. To reduce allocations, an in-place mul_masked! matrix-vector
+product is used for A*x,  and projector proj! is also expected to be in-place.
+A basic locking meachnism for converged columns is implemented.
+"""
+function cg!(x::AbstractArray{T}, A, b::AbstractArray{T};
+             precon=I, proj! =copy!, callback=identity,
+             tol=1e-10*ones(real(T), size(b, 2)), maxiter=100, miniter=1,
+             my_columnwise_dots=columnwise_dots) where {T}
+
+    # Columnwise dot products and norms. A custom definition of the dot product can be provided,
+    # from which the norms are derived. The default is the standard dot porduct: 
+    # [dot(x[:, i], x[:, i])] for all columns i.
+    my_columnwise_norms(x) = sqrt.(real.(my_columnwise_dots(x, x)))
 
     # initialisation
     # r = b - Ax is the residual
     r = copy(b)
     # c is an intermediate variable to store A*p and precon\r
-    c = zero(b)
+    c = zeros_like(b)
+
+    # projection buffer to avoid allocations
+    proj_buffer = similar(b)
 
     # save one matrix-vector product
     if !iszero(x)
-        mul!(c, A, x)
+        mul_masked!(c, A, x; mask=1:size(x, 2))
         r .-= c
     end
     ldiv!(c, precon, r)
-    γ = my_dot(r, c)
+    γ = similar(b, T, size(b, 2))  # explicit type for stability
+    γ .= my_columnwise_dots(r, c)
     # p is the descent direction
     p = copy(c)
     n_iter = 0
-    residual_norm = my_norm(r)
+    residual_norms = zeros(real(T), size(b, 2))  # explicit type stability
+    residual_norms .= to_cpu(my_columnwise_norms(r))
+    converged_cols = falses(size(b, 2))
 
     # convergence history
     converged = false
 
+    # Keep track of full arrays to enable locking of converged columns
+    full_x = x
+    full_r = r
+    full_c = c
+    full_p = p
+    full_b = b
+    full_buff = proj_buffer
+    full_γ = γ
+    full_residuals = residual_norms
+
     # preconditioned conjugate gradient
     while n_iter < maxiter
         # output
-        info = (; A, b, n_iter, x, r, residual_norm, converged, stage=:iterate)
+        info = (; A, b=full_b, n_iter, x=full_x, r=full_r, residual_norms=full_residuals,
+                  converged, stage=:iterate)
         callback(info)
         n_iter += 1
-        if (n_iter ≥ miniter) && residual_norm ≤ tol
+        converged_cols .= full_residuals .<= tol
+        if (n_iter ≥ miniter) && all(converged_cols)
             converged = true
             break
         end
-        mul!(c, A, p)
-        α = γ / my_dot(p, c)
+
+        # Lock columns that are already converged. Because we can only take views with
+        # contiguous ranges in GPU arrays, we lock the first and last converged columns.
+        locked_lb = findfirst(!, converged_cols)
+        locked_ub = findlast(!, converged_cols)
+        active = locked_lb : locked_ub
+
+        @views begin
+            x = full_x[:, active]
+            r = full_r[:, active]
+            c = full_c[:, active]
+            p = full_p[:, active]
+            b = full_b[:, active]
+            proj_buffer = full_buff[:, active]
+            γ = full_γ[active]
+            residual_norms = full_residuals[active]
+        end
+
+        mul_masked!(full_c, A, full_p; mask=active)  # full_c[:, active] = A*full_p[:, active]
+        tmp = zeros_like(γ)
+        tmp .= my_columnwise_dots(p, c)
+        α = γ ./ tmp
 
         # update iterate and residual while ensuring they stay in Ran(proj)
-        x .= proj(x .+ α .* p)
-        r .= proj(r .- α .* c)
-        residual_norm = my_norm(r)
+        proj_buffer .= x .+ p .* α'
+        proj!(x, proj_buffer)  # x .= proj(x .+ p .* α')
+        proj_buffer .= r .- c .* α'
+        proj!(r, proj_buffer)  # r .= proj(r .- c .* α')
+        residual_norms .= to_cpu(my_columnwise_norms(r))
 
-        # apply preconditioner and prepare next iteration
-        ldiv!(c, precon, r)
-        γ_prev, γ = γ, my_dot(r, c)
-        β = γ / γ_prev
-        p .= proj(c .+ β .* p)
+        # apply preconditioner and prepare next iteration. Preconditioner applied to full
+        # arrays, because the FunctionPreconditioner type makes it hard to change the
+        # active set (cheap enough). c is also updated, as it is a view into full_c
+        # TODO: allow masking in the preconditioner ?
+        ldiv!(full_c, precon, full_r)
+        copy!(tmp, γ)  # previous γ stored in tmp array 
+        γ .= my_columnwise_dots(r, c)
+        β = γ ./ tmp
+        proj_buffer .= c .+ p .* β'
+        proj!(p, proj_buffer)  # p .= proj(c .+ p .* β')/
     end
-    info = (; x, converged, tol, residual_norm, n_iter, maxiter, stage=:finalize)
+    info = (; x=full_x, converged, tol, residual_norms=full_residuals, n_iter, maxiter, stage=:finalize)
     callback(info)
     info
 end
-cg!(x::AbstractVector, A::AbstractMatrix, b::AbstractVector; kwargs...) = cg!(x, LinearMap(A), b; kwargs...)
-cg(A::LinearMap, b::AbstractVector; kwargs...) = cg!(zero(b), A, b; kwargs...)
-cg(A::AbstractMatrix, b::AbstractVector; kwargs...) = cg(LinearMap(A), b; kwargs...)
+cg(A, b::AbstractArray; kwargs...) = cg!(zeros_like(b), A, b; kwargs...)

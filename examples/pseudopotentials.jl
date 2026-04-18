@@ -5,9 +5,11 @@
 # pseudopotentials.
 #
 # Currently, DFTK supports norm-conserving (NC) PSPs in
-# separable (Kleinman-Bylander) form. Two file formats can currently
-# be read and used: analytical Goedecker-Teter-Hutter (GTH) PSPs
-# and numeric Unified Pseudopotential Format (UPF) PSPs.
+# separable (Kleinman-Bylander) form. Currently the following pseudopotential file formats
+# are supported:
+#   - Analytical Goedecker-Teter-Hutter (GTH) PSPs in the CP2K file format
+#   - Numeric Unified Pseudopotential Format (UPF) PSPs
+#   - Numeric pseudopotentials in the PSP8 (ABINIT) format.
 #
 # In brief, the pseudopotential approach replaces the all-electron
 # atomic potential with an effective atomic potential. In this pseudopotential,
@@ -21,7 +23,7 @@
 # Different PSP generation codes produce various file formats which contain the
 # same general quantities required for pesudopotential evaluation. GTH PSPs
 # are constructed from a fixed functional form based on Gaussians, and the files
-# simply tablulate various coefficients fitted for a given element. UPF PSPs
+# simply tablulate various coefficients fitted for a given element. UPF and PSP8 PSPs
 # take a more flexible approach where the functional form used to generate the
 # PSP is arbitrary, and the resulting functions are tabulated on a radial grid
 # in the file. The UPF file format is documented

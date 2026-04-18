@@ -205,7 +205,8 @@ normest(M) = maximum(abs, diag(M)) + norm(M - Diagonal(diag(M)))
 # Returns the new X, the number of Cholesky factorizations algorithm, and the
 # growth factor by which small perturbations of X can have been magnified
 @timing function ortho!(X::AbstractArray{T}; tol=2eps(real(T))) where {T}
-    growth_factor = one(real(T))
+    growth_factor   = one(real(T))
+    estimated_error = one(real(T))
 
     nchol_total = 0
     while true
@@ -343,7 +344,7 @@ end
 # but X and the history on the device (for GPU runs)
 @timing function LOBPCG(A, X, B=I, precon=I, tol=1e-10, maxiter=100;
                         miniter=1, ortho_tol=2eps(real(eltype(X))),
-                        n_conv_check=nothing, display_progress=false)
+                        n_conv_check=nothing, callback=identity)
     N, M = size(X)
 
     # If N is too small, we will likely get in trouble
@@ -457,10 +458,11 @@ end
             end
         end
 
-        if display_progress
-            println("Iter $niter, converged $(nlocked)/$(n_conv_check), resid ",
-                    norm(resid_history[1:n_conv_check, niter+1]))
-        end
+        # TODO: Some of these info field have not so canonical names compared to the
+        #       rest of DFTK, we should change this in the future.
+        info = (; n_iter=niter, n_matvec, n_locked=nlocked, resid_history,
+                  n_conv_check, λs, X, AX, BX, stage=:iterate)
+        callback(info)
 
         if nlocked >= n_conv_check  # Converged!
             X  .= new_X  # Update the part of X which is still active
@@ -554,4 +556,35 @@ end
     end
 
     final_retval(full_X, full_AX, full_BX, full_λs, resid_history, maxiter, n_matvec)
+end
+
+struct DefaultLobpcgCallback
+    prev_time::Ref{UInt64}
+end
+DefaultLobpcgCallback() = DefaultLobpcgCallback(Ref(zero(UInt64)))
+
+function (cb::DefaultLobpcgCallback)(info)
+    if info.stage == :finalize
+        info.converged || @warn "Lobpcg not converged."
+        return info
+    end
+
+    if info.n_iter == 0
+        cb.prev_time[] = time_ns()
+        println("Iter     Converged     log10(resid)    time  \n")
+        println("----   -------------   ------------   -------\n")
+    end
+
+    current_time = time_ns()
+    runtime_ns = current_time - cb.prev_time[]
+    cb.prev_time[] = current_time
+
+    time = @sprintf "% 6s" TimerOutputs.prettytime(runtime_ns)
+    resid_norm = norm(info.resid_history[1:info.n_conv_check, info.n_iter+1])
+    resid_str = " " * format_log8(resid_norm)
+
+    @printf("% 4d   %5d / %5d   %s       %s\n",
+            info.n_iter, info.n_locked, info.n_conv_check, resid_str, time)
+    flush(stdout)
+    info
 end

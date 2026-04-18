@@ -1,7 +1,6 @@
 @testitem "Save_bands" setup=[TestCases, DictAgreement] tags=[:serialisation, :minimal] begin
 using Test
 using DFTK
-using MPI
 using JSON3
 using JLD2
 testcase = TestCases.silicon
@@ -27,7 +26,7 @@ function test_save_bands(label; spin_polarization=:none, Ecut=7, temperature=0.0
             dumpfile = joinpath(tmpdir, "bands.json")
             save_bands(dumpfile, band_data; save_ψ=false)
 
-            if mpi_master()
+            if mpi_master(basis.comm_kpts)
                 data = open(JSON3.read, dumpfile)  # Get data back as dict
             else
                 data = nothing
@@ -43,7 +42,7 @@ function test_save_bands(label; spin_polarization=:none, Ecut=7, temperature=0.0
             dumpfile = joinpath(tmpdir, "bands.jld2")
             save_bands(dumpfile, band_data; save_ψ=true)
 
-            if mpi_master()
+            if mpi_master(basis.comm_kpts)
                 JLD2.jldopen(dumpfile, "r") do jld
                     DictAgreement.test_agreement_bands(band_data, jld)
                 end

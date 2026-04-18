@@ -120,7 +120,8 @@ function Hubbard(manifolds::Vector{OrbitalManifold}, U::Vector{T}) where {T}
     U = austrip.(U)
     Hubbard{eltype(U)}(manifolds, U)
 end
-function Hubbard(manifold_to_U::Vararg{<:Pair})
+Hubbard() = Hubbard(OrbitalManifold[], Float64[])
+function Hubbard(manifold_to_U::Vararg{T}) where {T <: Pair}
     Hubbard([m[1] for m in manifold_to_U], [m[2] for m in manifold_to_U])
 end
 
@@ -149,7 +150,7 @@ end
                                             basis::PlaneWaveBasis{T},
                                             ψ, occupation; hubbard_n=nothing,
                                             kwargs...) where {T}
-    if isnothing(hubbard_n)
+    if isnothing(hubbard_n) || isempty(term.U)
        return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
     end
    
