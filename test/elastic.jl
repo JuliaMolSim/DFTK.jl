@@ -46,7 +46,7 @@
     h = 1e-5
     strain_pattern = [1, 0, 0, 1, 0, 0]
     strained_lattice = DFTK.voigt_strain_to_full(0.01 * strain_pattern) * model0.lattice
-    stress_fn(η) = DFTK._stress_from_strain(basis, η; tol=1e-10)
+    stress_fn(η) = DFTK._stress_from_strain(basis, η; ρ=scfres.ρ, tol=1e-10)
     dstress_fd = (stress_fn(h * strain_pattern) - stress_fn(-h * strain_pattern)) / 2h
 
     @test C * strain_pattern ≈ dstress_fd   atol=h

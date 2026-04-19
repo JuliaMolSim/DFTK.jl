@@ -2,13 +2,12 @@ import DifferentiationInterface as DI
 
 
 function _stress_from_strain(basis0::PlaneWaveBasis, voigt_strain;
-                             symmetries=true, ρ=nothing, kwargs_scf...)
+                             symmetries=true, ρ, kwargs_scf...)
     model0 = basis0.model
     lattice = DFTK.voigt_strain_to_full(voigt_strain) * model0.lattice
     model = Model(model0; lattice, symmetries)
     basis = PlaneWaveBasis(basis0; model)
-    scfres = self_consistent_field(basis; ρ=something(ρ, guess_density(basis)),
-                                   kwargs_scf...)
+    scfres = self_consistent_field(basis; ρ, kwargs_scf...)
     DFTK.full_stress_to_voigt(compute_stresses_cart(scfres))
 end
 
