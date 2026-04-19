@@ -65,7 +65,7 @@ tol = 1e-6
 
 basis = PlaneWaveBasis(model0; Ecut, kgrid)
 scfres = self_consistent_field(basis; tol)
-(; C) = elastic_tensor(scfres; tol)
+(; C) = elastic_tensor(scfres)
 
 println("C11: ", uconvert(u"GPa", C[1, 1] * u"hartree" / u"bohr"^3))
 println("C12: ", uconvert(u"GPa", C[1, 2] * u"hartree" / u"bohr"^3))
@@ -101,7 +101,7 @@ model_r2scanl = model_DFT(bulk(:Si; a=a0_pbe);
                        pseudopotentials, functionals=[:mgga_x_r2scanl, :mgga_c_r2scanl])
 basis_r2scanl = PlaneWaveBasis(model_r2scanl; Ecut, kgrid)
 scfres_r2scanl = self_consistent_field(basis_r2scanl; tol)
-(; C) = elastic_tensor(scfres_r2scanl; tol)
+(; C) = elastic_tensor(scfres_r2scanl)
 
 # The r2SCAN-L elastic constants, which agree well with PBE:
 println("C11: ", uconvert(u"GPa", C[1, 1] * u"hartree" / u"bohr"^3))
