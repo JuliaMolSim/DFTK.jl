@@ -13,13 +13,18 @@ function _stress_from_strain(basis0::PlaneWaveBasis, voigt_strain;
 end
 
 """
-    elastic_tensor(scfres; magnetic_moments=[], tol=scfres.history_Δρ[end],
-                   response=ResponseOptions())
+    elastic_tensor(scfres; magnetic_moments=[],
+                   tol_symmetry=SYMMETRY_TOLERANCE,
+                   kwargs_scf...)
 
 Computes the *clamped-ion* elastic tensor (without ionic relaxation) via
 automatic differentiation of the stress tensor with respect to strain.
 Returns a named tuple `(; voigt_stress, C)` where `C[i,j] = ∂σᵢ/∂ηⱼ` is
 the 6×6 elastic tensor in Voigt notation.
+
+`tol_symmetry` controls the tolerance for symmetry detection on the
+strained lattice. Extra keyword arguments are forwarded to
+`self_consistent_field` (e.g. `tol`, `response`, `mixing`).
 
 For cubic systems the three independent constants (C11, C12, C44) are
 obtained from a single directional derivative; for other symmetries the
@@ -27,9 +32,9 @@ full Jacobian is computed.
 """
 function elastic_tensor(scfres::NamedTuple;
                         magnetic_moments=[],
-                        response=ResponseOptions(),
+                        tol_symmetry=SYMMETRY_TOLERANCE,
                         tol=scfres.history_Δρ[end],
-                        tol_symmetry=SYMMETRY_TOLERANCE)
+                        kwargs_scf...)
     basis0 = scfres.basis
     T = eltype(basis0)
     model0 = basis0.model
@@ -54,7 +59,8 @@ function elastic_tensor(scfres::NamedTuple;
         # TODO unfold scfres partially to symmetries_strain and initialize 2nd scf with it
 
         stress_fn(η) = _stress_from_strain(basis0, η;
-                                           symmetries=symmetries_strain, response, tol)
+                                           symmetries=symmetries_strain,
+                                           tol, kwargs_scf...)
         voigt_stress, (dstress,) = DI.value_and_pushforward(
             stress_fn, DI.AutoForwardDiff(), η0, (strain_pattern,))
         (C11, C12, _, C44, _, _) = dstress
@@ -67,7 +73,7 @@ function elastic_tensor(scfres::NamedTuple;
     # TODO add hexagonal, tetragonal, etc. cases here
     else
         # General elastic constants fallback: no symmetries & 6 strain perturbations
-        f(η) = _stress_from_strain(basis0, η; symmetries=false, response, tol)
+        f(η) = _stress_from_strain(basis0, η; symmetries=false, tol, kwargs_scf...)
         (voigt_stress, C) = DI.value_and_jacobian(f, DI.AutoForwardDiff(), η0)
     end
 
