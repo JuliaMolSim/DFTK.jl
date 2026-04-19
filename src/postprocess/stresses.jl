@@ -19,7 +19,7 @@ for details. In Voigt notation one would use the vector
     function HF_energy(lattice)
         basis = scfres.basis
         new_model = Model(basis.model; lattice)
-        new_basis = PlaneWaveBasis(basis, new_model)
+        new_basis = PlaneWaveBasis(basis; model=new_model)
         ρ = compute_density(new_basis, scfres.ψ, scfres.occupation)
         τ = nothing
         if any(needs_τ, basis.terms)

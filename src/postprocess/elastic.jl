@@ -1,18 +1,20 @@
 import DifferentiationInterface as DI
 
 
-function _stress_from_strain(basis0::PlaneWaveBasis, voigt_strain; symmetries=true, tol)
+function _stress_from_strain(basis0::PlaneWaveBasis, voigt_strain;
+                             symmetries=true, kwargs_scf...)
     # TODO restart SCF from previous
     model0 = basis0.model
     lattice = DFTK.voigt_strain_to_full(voigt_strain) * model0.lattice
-    new_model = Model(model0; lattice, symmetries)
-    new_basis = PlaneWaveBasis(basis0, new_model)
-    scfres = self_consistent_field(new_basis; tol)
+    model = Model(model0; lattice, symmetries)
+    basis = PlaneWaveBasis(basis0; model)
+    scfres = self_consistent_field(basis; kwargs_scf...)
     DFTK.full_stress_to_voigt(compute_stresses_cart(scfres))
 end
 
 """
-    elastic_tensor(scfres; magnetic_moments=[], tol=scfres.history_Δρ[end])
+    elastic_tensor(scfres; magnetic_moments=[], tol=scfres.history_Δρ[end],
+                   response=ResponseOptions())
 
 Computes the *clamped-ion* elastic tensor (without ionic relaxation) via
 automatic differentiation of the stress tensor with respect to strain.
@@ -25,7 +27,9 @@ full Jacobian is computed.
 """
 function elastic_tensor(scfres::NamedTuple;
                         magnetic_moments=[],
-                        tol=scfres.history_Δρ[end])
+                        response=ResponseOptions(),
+                        tol=scfres.history_Δρ[end],
+                        tol_symmetry=SYMMETRY_TOLERANCE)
     basis0 = scfres.basis
     T = eltype(basis0)
     model0 = basis0.model
@@ -40,13 +44,17 @@ function elastic_tensor(scfres::NamedTuple;
         strain_pattern = [1., 0., 0., 1., 0., 0.];  # recovers [C11, C12, C12, C44, 0, 0]
 
         # The finitely strained lattice is only used for symmetry determination
-        strained_lattice = DFTK.voigt_strain_to_full(0.01 * strain_pattern) * model0.lattice
+        displacement = 100 * tol_symmetry
+        strained_lattice = DFTK.voigt_strain_to_full(
+            displacement * strain_pattern) * model0.lattice
         symmetries_strain = symmetry_operations(strained_lattice,
-                                                 model0.atoms, model0.positions)
+                                                 model0.atoms, model0.positions;
+                                                 tol_symmetry)
 
         # TODO unfold scfres partially to symmetries_strain and initialize 2nd scf with it
 
-        stress_fn(η) = _stress_from_strain(basis0, η; symmetries=symmetries_strain, tol)
+        stress_fn(η) = _stress_from_strain(basis0, η;
+                                           symmetries=symmetries_strain, response, tol)
         voigt_stress, (dstress,) = DI.value_and_pushforward(
             stress_fn, DI.AutoForwardDiff(), η0, (strain_pattern,))
         (C11, C12, _, C44, _, _) = dstress
@@ -59,7 +67,7 @@ function elastic_tensor(scfres::NamedTuple;
     # TODO add hexagonal, tetragonal, etc. cases here
     else
         # General elastic constants fallback: no symmetries & 6 strain perturbations
-        f(η) = _stress_from_strain(basis0, η; symmetries=false, tol)
+        f(η) = _stress_from_strain(basis0, η; symmetries=false, response, tol)
         (voigt_stress, C) = DI.value_and_jacobian(f, DI.AutoForwardDiff(), η0)
     end
 
