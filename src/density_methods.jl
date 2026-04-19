@@ -26,7 +26,8 @@ function random_density(basis::PlaneWaveBasis{T}, n_electrons::Integer) where {T
         ρspin = rand((-1, 1), basis.fft_size) .* rand(T, basis.fft_size) .* ρtot
         @assert all(abs.(ρspin) .≤ ρtot)
     end
-    ρ_from_total_and_spin(ρtot, ρspin)
+    ρ = ρ_from_total_and_spin(ρtot, ρspin)
+    mpi_bcast!(ρ, basis.comm_kpts)  # Enforce numerically identical density across MPI ranks
 end
 
 # Atomic density methods

@@ -275,8 +275,9 @@ end
 
 function eval_psp_energy_correction(T, psp::PspUpf)
     rgrid = @view psp.rgrid[1:psp.ircut]
-    vloc = @view psp.vloc[1:psp.ircut]
-    4T(π) * simpson(rgrid) do i, r
+    vloc  = @view psp.vloc[1:psp.ircut]
+    res = 4T(π) * simpson(rgrid) do i, r
         r * (r * vloc[i] - -psp.Zion)
     end
+    convert(T, res)
 end

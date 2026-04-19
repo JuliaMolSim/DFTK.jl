@@ -1,4 +1,5 @@
 using KrylovKit
+using LinearMaps
 
 # The Hessian of P -> E(P) (E being the energy) is Ω+K, where Ω and K are
 # defined below (cf. [1] for more details).
@@ -29,8 +30,12 @@ from ψ and Λ is the set of Rayleigh coefficients ψk' * Hk * ψk at each k-poi
 """
 @timing function apply_Ω(δψ, ψ, H::Hamiltonian, Λ)
     δψ = proj_tangent(δψ, ψ)
-    Ωδψ = [H.blocks[ik] * δψk - δψk * Λ[ik] for (ik, δψk) in enumerate(δψ)]
-    proj_tangent!(Ωδψ, ψ)
+    map(enumerate(δψ)) do (ik, δψk)
+        Ωδψ = H.blocks[ik] * δψk
+        mul!(Ωδψ, δψk, Λ[ik], -1, 1)
+        proj_tangent_kpt!(Ωδψ, ψ[ik])
+        Ωδψ
+    end
 end
 
 """
@@ -48,6 +53,8 @@ Compute the application of K defined at ψ to δψ. ρ is the density issued fro
     δψ = proj_tangent(δψ, ψ)
     δρ = compute_δρ(basis, ψ, δψ, occupation)
     δV = apply_kernel(basis, δρ; ρ)
+    # normalize here so we can use unnormalized FFTs for extra speed
+    δV .*= basis.fft_grid.ifft_normalization * basis.fft_grid.fft_normalization
 
     ψnk_real = similar(G_vectors(basis), promote_type(T, eltype(ψ[1])))
     Kδψ = map(enumerate(ψ)) do (ik, ψk)
@@ -55,9 +62,9 @@ Compute the application of K defined at ψ to δψ. ρ is the density issued fro
         δVψk = similar(ψk)
 
         for n = 1:size(ψk, 2)
-            ifft!(ψnk_real, basis, kpt, ψk[:, n])
+            ifft!(ψnk_real, basis, kpt, ψk[:, n]; normalize=false)
             ψnk_real .*= δV[:, :, :, kpt.spin]
-            fft!(δVψk[:, n], basis, kpt, ψnk_real)
+            fft!(δVψk[:, n], basis, kpt, ψnk_real; normalize=false)
         end
         δVψk
     end
@@ -76,7 +83,7 @@ function ResponseCallback()
     ResponseCallback(Ref(zero(UInt64)))
 end
 function (cb::ResponseCallback)(info)
-    mpi_master(info.basis.comm_kpts) && return info  # Only print on master
+    mpi_master(info.basis.comm_kpts) || return info  # Only print on master
 
     if info.stage == :finalize
         info.converged || @warn "solve_ΩplusK not converged."
@@ -94,7 +101,7 @@ function (cb::ResponseCallback)(info)
     runtime_ns = current_time - cb.prev_time[]
     cb.prev_time[] = current_time
 
-    resnorm = @sprintf "%20.2f" log10(info.residual_norm)
+    resnorm = @sprintf "%20.2f" log10(only(info.residual_norms))
     time = @sprintf "% 6s" TimerOutputs.prettytime(runtime_ns)
     @printf "% 3d   %s   %s\n" info.n_iter resnorm time
     flush(stdout)
@@ -149,21 +156,22 @@ that is return δψ where (Ω+K) δψ = -δHextψ.
     J = LinearMap{T}(ΩpK, size(δHextψ_pack, 1))
 
     # solve (Ω+K) δψ = -δHextψ on the tangent space with CG
-    function proj(x)
+    function proj!(Px, x)
         δψ = unpack(x)
         proj_tangent!(δψ, ψ)
-        pack(δψ)
+        Px .= pack(δψ)
     end
     # custom inner product that Ω+K is self-adjoint with respect to
-    function weighted_dot(x, y)
+    function weighted_dots(x, y)
         δψx = unsafe_unpack(x)
         δψy = unsafe_unpack(y)
         # real(dot) here because we work in R^2N rather than C^N
-        weighted_ksum(basis, [real(dot(δψx[ik], δψy[ik])) for ik in 1:length(basis.kpoints)])
+        [weighted_ksum(basis, [real(dot(δψx[ik], δψy[ik])) for ik in 1:length(basis.kpoints)])]
     end
-    res = cg(J, -δHextψ_pack; precon=FunctionPreconditioner(f_ldiv!), proj, tol,
-             callback=info -> callback(merge(info, (; basis=basis))), my_dot=weighted_dot)
-    (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norm,
+    res = cg(J, -δHextψ_pack; precon=FunctionPreconditioner(f_ldiv!), proj!,
+             tol=tol, callback=info -> callback(merge(info, (; basis=basis))),
+             my_columnwise_dots=weighted_dots)
+    (; δψ=unpack(res.x), res.converged, res.tol, res.residual_norms,
      res.n_iter)
 end
 
@@ -227,6 +235,7 @@ function (cb::OmegaPlusKDefaultCallback)(info)
         @printf(io, "%21s%s  %10s  %7.1f%s  %s\n",
                 "", label_s[3], "", avgCG, tstr, "Final orbitals")
     end
+    flush(stdout)
     info
 end
 
@@ -284,16 +293,12 @@ Input parameters:
     @assert size(δHextψ[1]) == size(ψ[1])
     start_ns = time_ns()
 
-    # TODO Better initial guess handling. Especially between the last iteration of the GMRES
-    #      and the concluding Sternheimer solve we should be able to benefit from passing
-    #      around the orbitals
-
     # TODO Use tol_density=tol/10 to make sure that the density is very accurate.
     #      This is likely overdoing it and we should investigate if a smaller
     #      value also does the trick.
 
     # compute δρ0 (ignoring interactions)
-    δρ0 = let  # Make sure memory owned by res0 is freed
+    δρ0, δψ0 = let  # Make sure memory owned by res0 is freed
         res0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHextψ;
                            δtemperature,
                            maxiter=maxiter_sternheimer, tol=tol * factor_initial,
@@ -301,8 +306,8 @@ Input parameters:
                            q, kwargs...)  # = χ04P * δHext
         callback((; stage=:noninteracting, runtime_ns=time_ns() - start_ns, basis,
                     Axinfos=[(; tol=tol*factor_initial, res0...)]))
-        compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
-                   occupation_threshold, q)
+        (compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
+                    occupation_threshold, q), res0.δψ)
     end
 
     # compute total δρ
@@ -340,7 +345,7 @@ Input parameters:
     resfinal = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHtotψ;
                            δtemperature,
                            maxiter=maxiter_sternheimer, tol=tol * factor_final,
-                           bandtolalg, occupation_threshold, q, kwargs...)
+                           bandtolalg, occupation_threshold, q, δψ0, kwargs...)
     callback((; stage=:final, runtime_ns=time_ns() - start_ns, basis,
                 Axinfos=[(; tol=tol*factor_final, resfinal...)]))
     # Compute total change in eigenvalues

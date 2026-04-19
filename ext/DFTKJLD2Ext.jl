@@ -105,11 +105,12 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict, comm)
         e_values = [jld["energies"][k] for k in e_keys]
 
         scfdict = Dict{Symbol, Any}(
-            :εF       => get(jld, "εF", nothing),
-            :ρ        => get(jld, "ρ",  nothing),
-            :τ        => get(jld, "τ",  nothing),
-            :ψ        => nothing,
-            :energies => DFTK.Energies(e_keys, e_values),
+            :εF        => get(jld, "εF",         nothing),
+            :ρ         => get(jld, "ρ",          nothing),
+            :τ         => get(jld, "τ",          nothing),
+            :hubbard_n => get(jld, "hubbard_n",  nothing),
+            :ψ         => nothing,
+            :energies  => DFTK.Energies(e_keys, e_values),
         )
         for key in jld["scfres_extra_keys"]
             scfdict[get(propmap, Symbol(key), Symbol(key))] = jld[key]
@@ -159,6 +160,7 @@ function load_scfres_jld2(jld, basis; skip_hamiltonian, strict, comm)
         energies, ham = DFTK.energy_hamiltonian(basis, scfdict[:ψ], scfdict[:occupation];
                                                 ρ=scfdict[:ρ],
                                                 τ=scfdict[:τ],
+                                                hubbard_n=scfdict[:hubbard_n],
                                                 eigenvalues=scfdict[:eigenvalues],
                                                 εF=scfdict[:εF])
         scfdict[:energies] = energies

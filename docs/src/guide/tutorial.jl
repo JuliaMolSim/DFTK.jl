@@ -6,7 +6,7 @@
 #
 # Basic familiarity with the concepts of plane-wave density functional theory
 # is assumed in this tutorial. Take a look at the [Introductory resources](@ref introductory-resources)
-# for some broader introductory material. There is also a [Mathematical Tutorial](@ref).
+# for some broader introductory material.
 #
 # !!! tip "Mathematical tutorial"
 #     There is also a [Mathematical Tutorial](@ref)

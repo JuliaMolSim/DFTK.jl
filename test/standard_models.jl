@@ -1,5 +1,7 @@
 @testitem "Standard DFT model construction" setup=[TestCases] tags=[:minimal] begin
     using DFTK
+    using Unitful
+    using UnitfulAtomic
     using PseudoPotentialData
     using DFTK: _parse_functionals
     using .TestCases: silicon
@@ -54,8 +56,7 @@
     end
 
     @testset "hybrid with explicit exx" begin
-        exx = ExactExchange(; scaling_factor=0.2,
-                              singularity_treatment=SphericallyTruncated())
+        exx = ExactExchange(; scaling_factor=0.2, kernel=SphericallyTruncatedCoulomb())
         (; dftterms, model_name) = _parse_functionals([:hyb_gga_xc_pbeh, exx])
         @test length(dftterms) == 2
         @test dftterms[1] isa Xc
@@ -66,7 +67,7 @@
     end
 
     @testset "pbe0 with exx parameters" begin
-        pbe0 = PBE0(; potential_threshold=1e-2, singularity_treatment=SphericallyTruncated())
+        pbe0 = PBE0(; potential_threshold=1e-2, exx_kernel=SphericallyTruncatedCoulomb())
         (; dftterms, model_name) = _parse_functionals(pbe0)
         @test length(dftterms) == 2
         @test dftterms[1] isa Xc
@@ -74,6 +75,29 @@
         @test dftterms[1].potential_threshold == 1e-2
         @test dftterms[2] isa ExactExchange
         @test dftterms[2] == ExactExchange(; scaling_factor=0.25,
-                                             singularity_treatment=SphericallyTruncated())
+                                           kernel=SphericallyTruncatedCoulomb())
+    end
+
+    @testset "HSE with default parameters" begin
+        hse = HSE()
+        (; dftterms, model_name) = _parse_functionals(hse)
+        @test length(dftterms) == 2
+        @test dftterms[1] isa Xc
+        @test identifier.(dftterms[1].functionals) == [:hyb_gga_xc_hse06]
+        @test dftterms[2] isa ExactExchange
+        @test dftterms[2] == ExactExchange(; scaling_factor=0.25,
+                                           kernel=ShortRangeCoulomb(μ=0.11))
+    end
+
+    @testset "HSE with custom parameters" begin
+        hse = HSE(; μ=0.3/u"Å", exx_fraction=0.1, potential_threshold=1e-2)
+        (; dftterms, model_name) = _parse_functionals(hse)
+        @test length(dftterms) == 2
+        @test dftterms[1] isa Xc
+        @test identifier.(dftterms[1].functionals) == [:hyb_gga_xc_hse06]
+        @test dftterms[1].potential_threshold == 1e-2
+        @test dftterms[2] isa ExactExchange
+        @test dftterms[2] == ExactExchange(; scaling_factor=0.1,
+                                           kernel=ShortRangeCoulomb(μ=0.3/u"Å"))
     end
 end

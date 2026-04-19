@@ -79,7 +79,7 @@ Keyword arguments:
     save_ψ = something(save_ψ, (ext == :jld2))
     save_scfres(Val(ext), filename, scfres; save_ψ, save_ρ, extra_data, compress)
 end
-function save_scfres(::Any, filename::AbstractString, ::NamedTuple; kwargs...)
+function save_scfres(::Val, filename::AbstractString, ::NamedTuple; kwargs...)
     error("The extension $(last(splitext(filename))) is currently not available. " *
           "A required package (e.g. JLD2 or JSON3) is not yet loaded.")
 end

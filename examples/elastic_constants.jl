@@ -5,9 +5,10 @@
 # as introduced in [^SPH25].
 # 
 # [^SPH25]: 
-#     Schmitz, N. F., Ploumhans, B., & Herbst, M. F. (2025)
+#     Schmitz, N. F., Ploumhans, B., & Herbst, M. F. (2026)
 #     *Algorithmic differentiation for plane-wave DFT: materials design, error control and learning model parameters.*
-#     [arXiv:2509.07785](https://arxiv.org/abs/2509.07785)
+#     [npj Computational Materials **12**, 6 (2026)](https://doi.org/10.1038/s41524-025-01880-3).  
+#     ([Supplementary material and computational scripts](https://github.com/niklasschmitz/ad-dfpt)).  
 #
 # We consider a crystal in its equilibrium configuration, where all atomic forces
 # and stresses vanish.  Homogeneous strains $η$ are then applied
@@ -70,6 +71,14 @@ using AtomsBuilder
 using Unitful
 using UnitfulAtomic
 
+# ## Computing PBE elastic constants
+#
+# We start with the PBE [^PBE1996] functional.
+#
+# [^PBE1996]:
+#     Perdew, J. P., Burke, K., & Ernzerhof, M. (1996).
+#     *Generalized Gradient Approximation Made Simple.*
+#     [Physical Review Letters, 77(18), 3865-3868](https://doi.org/10.1103/PhysRevLett.77.3865).
 
 pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
 a0_pbe = 10.33u"bohr"  # Equilibrium lattice constant of silicon with PBE
@@ -143,3 +152,37 @@ println("C44 (FD): ", uconvert(u"GPa", dstress_fd[4] * u"hartree" / u"bohr"^3))
 # Note the discrepancy in c44, which is due to us not yet including
 # ionic relaxation in this example.
 
+# ## Moving to meta-GGA functionals
+#
+# To make the problem a little more interesting we will now compute the elastic
+# constants using the Laplacian-dependent r2SCAN-L functional (a deorbitalized version of r2SCAN,
+# see [^MT2020]), again using AD-DFPT.
+#
+# [^MT2020]:
+#     Mejía-Rodríguez, D., & Trickey, S. B. (2020).
+#     *Meta-GGA performance in solids at almost GGA cost.*
+#     [Physical Review B, 102(12), 121109(R)](https://doi.org/10.1103/PhysRevB.102.121109).
+
+model_r2scanl = model_DFT(bulk(:Si; a=a0_pbe);
+                       pseudopotentials, functionals=[:mgga_x_r2scanl, :mgga_c_r2scanl])
+
+stress, (dstress,) = value_and_pushforward(AutoForwardDiff(), zeros(6),
+                                           (strain_pattern,)) do voigt_strain
+    stress_from_strain(model_r2scanl, voigt_strain;
+                       symmetries=symmetries_strain, Ecut, kgrid, tol)
+end;
+
+# Note here that the `value_and_pushforward(...) do voigt_strain ... end` syntax defines
+# an anonymous function to compute the stress from a given strain, i.e. defining
+# the same kind of function as `stress_fn` in the above example.
+# See the [Julia documentation on the do-block-syntax](https://docs.julialang.org/en/v1/manual/functions/#Do-Block-Syntax-for-Function-Arguments)
+# for details.
+
+# We again inspect the r2SCAN-L stress, which is still small (despite using the
+# PBE lattice constant), so we remain close to the equilibrium:
+stress
+
+# Finally, the r2SCAN-L elastic constants, which agree well with PBE:
+println("C11: ", uconvert(u"GPa", dstress[1] * u"hartree" / u"bohr"^3))
+println("C12: ", uconvert(u"GPa", dstress[2] * u"hartree" / u"bohr"^3))
+println("C44: ", uconvert(u"GPa", dstress[4] * u"hartree" / u"bohr"^3))
