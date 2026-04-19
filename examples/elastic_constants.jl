@@ -152,6 +152,21 @@ println("C44 (FD): ", uconvert(u"GPa", dstress_fd[4] * u"hartree" / u"bohr"^3))
 # Note the discrepancy in c44, which is due to us not yet including
 # ionic relaxation in this example.
 
+# ## Using the `elastic_tensor` postprocessing function
+#
+# For convenience, the above workflow is also available as a
+# postprocessing function `elastic_tensor`, which automatically
+# detects crystal symmetry and chooses the appropriate strain
+# patterns:
+
+basis = PlaneWaveBasis(model0; Ecut, kgrid)
+scfres = self_consistent_field(basis; tol)
+(; C) = elastic_tensor(scfres; tol)
+
+println("C11: ", uconvert(u"GPa", C[1, 1] * u"hartree" / u"bohr"^3))
+println("C12: ", uconvert(u"GPa", C[1, 2] * u"hartree" / u"bohr"^3))
+println("C44: ", uconvert(u"GPa", C[4, 4] * u"hartree" / u"bohr"^3))
+
 # ## Moving to meta-GGA functionals
 #
 # To make the problem a little more interesting we will now compute the elastic
