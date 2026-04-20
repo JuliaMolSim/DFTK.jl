@@ -57,13 +57,13 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Julia stable
-        uses: julia-actions/setup-julia@v2
+        uses: julia-actions/setup-julia@v3
         with:
           version: '1.10'
           arch: ${{ matrix.arch }}
         if: ${{ matrix.mode == 'stable' }}
       - name: Setup Julia latest (pre-releases excluded)
-        uses: julia-actions/setup-julia@v2
+        uses: julia-actions/setup-julia@v3
         with:
           version: '1'
           include-all-prereleases: false
