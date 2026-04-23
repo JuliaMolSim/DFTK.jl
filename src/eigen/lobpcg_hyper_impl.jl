@@ -85,7 +85,8 @@ Base.Array(A::LazyHcat)   = stack(A.blocks)
 Base.adjoint(A::LazyHcat) = Adjoint(A)
 
 # Computes A*B matrix product when B is a LazyHcat and A is a LazyVcat (adjoint of LazyHcat).
-# Special case if product is known to be Hermitian
+# Special case if product is known to be Hermitian, since only the upper block diagonal is needed.
+# This _mul function is used for the standard and Hermitian cases (see mul_hermi function below)
 @views function _mul(A::Adjoint{T,<:LazyHcat}, B::LazyHcat; hermitian=Val(false)) where {T}
     Ap = A.parent
     rows = size(Ap, 2)
@@ -113,6 +114,12 @@ end
 Base.:*(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}       = _mul(A, B)
 Base.:*(A::Adjoint{T,<:LazyHcat}, B::AbstractMatrix) where {T} = A * LazyHcat(B)
 
+# General A*B product when the result is known to be Hermitian
+mul_hermi(A, B) = Hermitian(A * B)
+function mul_hermi(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
+    _mul(A, B; hermitian=Val(true))
+end
+
 # LazyHCat * Matrix
 @views function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::LazyHcat,
                                    B::AbstractMatrix, α::Number, β::Number)
@@ -127,13 +134,6 @@ mul!(res::AbstractMatrix, Ablock::LazyHcat, B::AbstractMatrix) = mul!(res, Abloc
 function *(Ablock::LazyHcat, B::AbstractMatrix)
     res = zeros_like(B, size(Ablock, 1), size(B, 2))
     mul!(res, Ablock, B)
-end
-
-
-# General A*B product when the result is known to be Hermitian
-mul_hermi(A, B) = Hermitian(A * B)
-function mul_hermi(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
-    _mul(A, B; hermitian=Val(true))
 end
 
 
