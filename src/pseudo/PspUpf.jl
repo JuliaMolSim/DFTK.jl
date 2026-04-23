@@ -51,6 +51,8 @@ struct PspUpf{T,I} <: NormConservingPsp
     r2_ρion_interp::I
     # (USED IN TESTS) Core charge density interpolator, stored for performance.
     r2_ρcore_interp::I
+    # (USED IN TESTS) Core kinetic energy density interpolator, stored for performance.
+    r2_τcore_interp::I
 
     ## Extras
     rcut::T              # Radial cutoff for all quantities except pswfc.
@@ -161,12 +163,13 @@ function PspUpf(pseudo::UpfFile; identifier, rcut=nothing)
     end
     r2_ρion_interp = linear_interpolation((rgrid,), r2_ρion)
     r2_ρcore_interp = linear_interpolation((rgrid,), r2_ρcore)
+    r2_τcore_interp = linear_interpolation((rgrid,), r2_τcore)
 
     PspUpf{eltype(rgrid),typeof(vloc_interp)}(
         Zion, lmax, rgrid, drgrid,
         vloc, r2_projs, h, r2_pswfcs, pswfc_occs, pswfc_energies, pswfc_labels,
         r2_ρion, r2_ρcore, r2_τcore,
-        vloc_interp, r2_projs_interp, r2_ρion_interp, r2_ρcore_interp,
+        vloc_interp, r2_projs_interp, r2_ρion_interp, r2_ρcore_interp, r2_τcore_interp,
         rcut, ircut, identifier, description
     )
 end
@@ -276,6 +279,10 @@ function eval_psp_density_core_fourier(psp::PspUpf, p::T) where {T<:Real}
     rgrid = @view psp.rgrid[1:psp.ircut]
     r2_ρcore = @view psp.r2_ρcore[1:psp.ircut]
     return hankel(rgrid, r2_ρcore, 0, p)
+end
+
+function eval_psp_kinetic_energy_density_core_real(psp::PspUpf, r::T) where {T<:Real}
+    psp.r2_τcore_interp(r) / r^2  # TODO if r is below a threshold, return zero
 end
 
 function eval_psp_kinetic_energy_density_core_fourier(psp::PspUpf, p::T) where {T<:Real}

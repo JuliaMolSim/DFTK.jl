@@ -28,6 +28,7 @@ abstract type NormConservingPsp end
 # eval_psp_density_valence_fourier(psp, p::Real)
 # eval_psp_density_core_real(psp, r::Real)
 # eval_psp_density_core_fourier(psp, p::Real)
+# eval_psp_kinetic_energy_density_core_real(psp, r::Real)
 # eval_psp_kinetic_energy_density_core_fourier(psp, p::Real)
 # eval_psp_pswfc_real(psp, i::Int, l::Int, p::Real)
 # eval_psp_pswfc_fourier(psp, i::Int, l::Int, p::Real)
@@ -174,6 +175,10 @@ Evaluate the atomic core charge density in reciprocal space:
 eval_psp_density_core_fourier(::NormConservingPsp, ::T) where {T <: Real} = zero(T)
 eval_psp_density_core_fourier(psp::NormConservingPsp, p::AbstractVector) = 
     eval_psp_density_core_fourier(psp, norm(p))
+
+eval_psp_kinetic_energy_density_core_real(::NormConservingPsp, ::T) where {T <: Real} = zero(T)
+eval_psp_kinetic_energy_density_core_real(psp::NormConservingPsp, r::AbstractVector) =
+    eval_psp_kinetic_energy_density_core_real(psp, norm(r))
 
 eval_psp_kinetic_energy_density_core_fourier(::NormConservingPsp, ::T) where {T <: Real} = zero(T)
 eval_psp_kinetic_energy_density_core_fourier(psp::NormConservingPsp, p::AbstractVector) = 

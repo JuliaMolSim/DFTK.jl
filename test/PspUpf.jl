@@ -209,6 +209,27 @@ end
     end
 end
 
+@testitem "Core kinetic energy densities are consistent in real and Fourier space" #=
+    =#    tags=[:psp] begin
+    using DFTK: eval_psp_kinetic_energy_density_core_real,
+                eval_psp_kinetic_energy_density_core_fourier,
+                load_psp
+    using SpecialFunctions: sphericalbesselj
+    using QuadGK
+
+    function integrand(psp, p, r)
+        4π * r^2 * eval_psp_kinetic_energy_density_core_real(psp, r) * sphericalbesselj(0, p * r)
+    end
+    for psp in [load_psp(joinpath(@__DIR__, "pseudos", "C_m.upf"))]
+        ir_start = iszero(psp.rgrid[1]) ? 2 : 1
+        for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
+            reference = quadgk(r -> integrand(psp, p, r), psp.rgrid[ir_start],
+                               psp.rgrid[psp.ircut])[1]
+            @test reference ≈ eval_psp_kinetic_energy_density_core_fourier(psp, p) atol=1e-2 rtol=1e-2
+        end
+    end
+end
+
 @testitem "PSP energy correction is consistent with fourier-space potential" #=
     =#    tags=[:psp] setup=[mPspUpf] begin
     using DFTK: eval_psp_local_fourier, eval_psp_energy_correction

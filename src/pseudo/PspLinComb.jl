@@ -82,4 +82,5 @@ end
 @make_psplincomb_call DFTK.eval_psp_density_valence_fourier
 @make_psplincomb_call DFTK.eval_psp_density_core_real
 @make_psplincomb_call DFTK.eval_psp_density_core_fourier
+@make_psplincomb_call DFTK.eval_psp_kinetic_energy_density_core_real
 @make_psplincomb_call DFTK.eval_psp_kinetic_energy_density_core_fourier
