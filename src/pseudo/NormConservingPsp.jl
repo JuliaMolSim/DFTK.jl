@@ -60,7 +60,7 @@ abstract type NormConservingPsp end
 # have their own GPU-optimized implementation instead of relying on this macro. The
 # different norm-conserving pseudopotential types are responsible for the implementation
 # of vectorized functions, whether by using these macros or not.
-macro vectorize_psp_function(fn, PspType)
+macro vectorize_psp_function(PspType, fn)
     quote
         function $fn(psp::$PspType, vec::AbstractVector{T}) where {T <: Real}
             arch = architecture(vec)
@@ -68,7 +68,7 @@ macro vectorize_psp_function(fn, PspType)
         end
     end
 end
-macro vectorize_psp_projector_function(fn, PspType)
+macro vectorize_psp_projector_function(PspType, fn)
     quote
         function $fn(psp::$PspType, i, l, vec::AbstractVector{T}) where {T <: Real}
             arch = architecture(vec)
