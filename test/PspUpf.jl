@@ -6,8 +6,8 @@
     pd_pbe_family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
     upf_pseudos = Dict(
         # Converted from cp2k repo (in GTH format) to UPF
-        :Si => load_psp(joinpath(@__DIR__, "gth_pseudos", "Si.pbe-hgh.upf")),
-        :Tl => load_psp(joinpath(@__DIR__, "gth_pseudos", "Tl.pbe-d-hgh.upf")),
+        :Si => load_psp(joinpath(@__DIR__, "pseudos", "gth", "Si.pbe-hgh.upf")),
+        :Tl => load_psp(joinpath(@__DIR__, "pseudos", "gth", "Tl.pbe-d-hgh.upf")),
         # No NLCC
         :Li => load_psp(pd_lda_family[:Li]),
         :Mg => load_psp(pd_lda_family[:Mg]),
@@ -19,11 +19,11 @@
         :Cr => load_psp(pd_pbe_family[:Cr]; rcut=12.0)
     )
     gth_pseudos = [
-        (; gth=load_psp(joinpath(@__DIR__, "gth_pseudos", "Si-q4.gth")),  upf=upf_pseudos[:Si]),
-        (; gth=load_psp(joinpath(@__DIR__, "gth_pseudos", "Tl-q13.gth")), upf=upf_pseudos[:Tl]),
+        (; gth=load_psp(joinpath(@__DIR__, "pseudos", "gth", "Si-q4.gth")),  upf=upf_pseudos[:Si]),
+        (; gth=load_psp(joinpath(@__DIR__, "pseudos", "gth", "Tl-q13.gth")), upf=upf_pseudos[:Tl]),
     ]
     psp8_pseudos = Dict(
-        :Li_pbe => load_psp(joinpath(@__DIR__, "psp8_pseudos", "Li.psp8")),
+        :Li_pbe => load_psp(joinpath(@__DIR__, "pseudos", "Li.psp8")),
     )
 end
 
