@@ -190,26 +190,45 @@ end
 @timing "forces: xc" function compute_forces(term::TermXc, basis::PlaneWaveBasis{T},
                                              ψ, occupation; ρ, τ=nothing,
                                              kwargs...) where {T}
-    isnothing(term.τcore) || error("Forces with non-linear core correction on the kinetic energy density are not yet implemented.")
     # The only non-zero force contribution is from the nlcc core charge:
     # early return if nlcc is disabled / no elements have model core charges.
-    isnothing(term.ρcore) && return nothing
+    isnothing(term.ρcore) && isnothing(term.τcore) && return nothing
 
     model = basis.model
-    Vxc_real = xc_potential_real(term, basis, ψ, occupation; ρ, τ).potential
+    _, Vρ_real, Vτ_real = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
+    Vτ_fourier = nothing
     if model.spin_polarization in (:none, :spinless)
-        Vxc_fourier = fft(basis, Vxc_real[:,:,:,1])
+        Vρ_fourier = fft(basis, Vρ_real[:,:,:,1])
+        if !isnothing(Vτ_real)
+            Vτ_fourier = fft(basis, Vτ_real[:,:,:,1])
+        end
     else
-        Vxc_fourier = fft(basis, mean(Vxc_real, dims=4))
+        Vρ_fourier = fft(basis, mean(Vρ_real, dims=4))
+        if !isnothing(Vτ_real)
+            Vτ_fourier = fft(basis, mean(Vτ_real, dims=4))
+        end
     end
 
-    form_factors, iG2ifnorm = atomic_density_form_factors(basis, CoreDensity())
-    nlcc_groups = findall(group -> has_core_density(model.atoms[first(group)]),
-                          model.atom_groups)
-    @assert !isempty(nlcc_groups)
+    forces_ρ = let
+        form_factors, iG2ifnorm = atomic_density_form_factors(basis, CoreDensity())
+        nlcc_groups = findall(group -> has_core_density(model.atoms[first(group)]),
+                            model.atom_groups)
 
-    _forces_xc(basis, Vxc_fourier, form_factors[:, nlcc_groups], iG2ifnorm,
-               model.atom_groups[nlcc_groups])
+        _forces_xc(basis, Vρ_fourier, form_factors[:, nlcc_groups], iG2ifnorm,
+                model.atom_groups[nlcc_groups])
+    end
+    if isnothing(Vτ_fourier)
+        return forces_ρ
+    end
+    forces_τ = let
+        form_factors, iG2ifnorm = atomic_density_form_factors(basis, CoreKineticEnergyDensity())
+        nlcc_groups = findall(group -> has_core_kinetic_energy_density(model.atoms[first(group)]),
+                            model.atom_groups)
+
+        _forces_xc(basis, Vτ_fourier, form_factors[:, nlcc_groups], iG2ifnorm,
+                model.atom_groups[nlcc_groups])
+    end
+    forces_ρ + forces_τ
 end
 
 # Function barrier to work around various type instabilities.
@@ -393,9 +412,8 @@ function _check_negative_bonding_indicator_α(densities::LibxcDensities{T}) wher
             @warn "Exchange-correlation term: the kinetic energy density τ is smaller " *
                   "than the von Weizsäcker kinetic energy density τ_W somewhere. " *
                   "This can lead to unphysical results. " *
-                  "This is typically caused by the non-linear core correction, " *
-                  "which is currently not applied for the kinetic energy density τ. " *
-                  "See also https://github.com/JuliaMolSim/DFTK.jl/issues/1180. " *
+                  "This can be caused by pseudopotentials without a non-linear core correction " *
+                  "for τ, or by an unphysical initial guess for τ. " *
                   "This message is only logged once." maxlog=1
         end
     end

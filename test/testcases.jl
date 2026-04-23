@@ -30,6 +30,22 @@ silicon = (;
 silicon = merge(silicon,
                 (; atoms=fill(ElementPsp(silicon.atnum, load_psp(silicon.psp_gth)), 2)))
 
+diamond = (;
+    lattice = [0.0  3.3703265432700613 3.3703265432700613;
+               3.3703265432700613 0.0 3.3703265432700613;
+               3.3703265432700613 3.3703265432700613  0.0],
+    atnum = 6,
+    mass = 12.011u"u",
+    n_electrons = 8,
+    temperature = 0.0,
+    is_metal = false,
+    psp_gth = gth_lda_semi[:C],
+    psp_upf = pd_lda_family[:C],
+    positions = [ones(3)/8, -ones(3)/8],
+)
+diamond = merge(diamond,
+                (; atoms=fill(ElementPsp(diamond.atnum, load_psp(diamond.psp_gth)), 2)))
+
 magnesium = (;
     lattice = [-3.0179389205999998 -3.0179389205999998 0.0000000000000000;
                -5.2272235447000002 5.2272235447000002 0.0000000000000000;
@@ -133,6 +149,6 @@ o2molecule = merge(o2molecule,
                    (; atoms=fill(ElementPsp(o2molecule.atnum,
                                             load_psp(o2molecule.psp_gth)), 2)))
 
-all_testcases = (; silicon, magnesium, aluminium, aluminium_primitive, platinum_hcp,
-                 iron_bcc, o2molecule)
+all_testcases = (; silicon, diamond, magnesium, aluminium, aluminium_primitive,
+                   platinum_hcp, iron_bcc, o2molecule)
 end
