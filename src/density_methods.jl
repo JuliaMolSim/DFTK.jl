@@ -216,7 +216,11 @@ end
 
 function atomic_density(element::Element, Gnorm::T,
                         ::CoreKineticEnergyDensity)::T where {T <: Real}
-    has_core_kinetic_energy_density(element) ? eval_psp_kinetic_energy_density_core_fourier(element.psp, Gnorm) : zero(T)
+    if has_core_kinetic_energy_density(element)
+        eval_psp_kinetic_energy_density_core_fourier(element.psp, Gnorm)
+    else
+        zero(T)
+    end
 end
 
 # Get the lengthscale of the valence density for an atom with `n_elec_core` core

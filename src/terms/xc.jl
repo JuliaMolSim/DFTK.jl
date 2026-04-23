@@ -39,7 +39,8 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
         minimum(ρcore) < -sqrt(eps(T)) && @warn("Negative ρcore detected: $(minimum(ρcore))")
     end
     τcore = nothing
-    if xc.use_nlcc && any(needs_τ, xc.functionals) && any(has_core_kinetic_energy_density, basis.model.atoms)
+    if (   xc.use_nlcc && any(needs_τ, xc.functionals)
+        && any(has_core_kinetic_energy_density, basis.model.atoms))
         τcore = ρ_from_total(basis, atomic_total_density(basis, CoreKineticEnergyDensity()))
         minimum(τcore) < -sqrt(eps(T)) && @warn("Negative τcore detected: $(minimum(τcore))")
     end
