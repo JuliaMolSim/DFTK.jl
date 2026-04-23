@@ -261,31 +261,31 @@ function eval_psp_local_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Re
     end
 end
 
-function eval_psp_density_valence_real(psp::PspUpf, r::T) where {T<:Real}
+function eval_psp_valence_density_real(psp::PspUpf, r::T) where {T<:Real}
     psp.r2_ρion_interp(r) / r^2  # TODO if r is below a threshold, return zero
 end
 
-function eval_psp_density_valence_fourier(psp::PspUpf, p::T) where {T<:Real}
+function eval_psp_valence_density_fourier(psp::PspUpf, p::T) where {T<:Real}
     rgrid = @view psp.rgrid[1:psp.ircut]
     r2_ρion = @view psp.r2_ρion[1:psp.ircut]
     return hankel(rgrid, r2_ρion, 0, p)
 end
 
-function eval_psp_density_core_real(psp::PspUpf, r::T) where {T<:Real}
+function eval_psp_core_density_real(psp::PspUpf, r::T) where {T<:Real}
     psp.r2_ρcore_interp(r) / r^2  # TODO if r is below a threshold, return zero
 end
 
-function eval_psp_density_core_fourier(psp::PspUpf, p::T) where {T<:Real}
+function eval_psp_core_density_fourier(psp::PspUpf, p::T) where {T<:Real}
     rgrid = @view psp.rgrid[1:psp.ircut]
     r2_ρcore = @view psp.r2_ρcore[1:psp.ircut]
     return hankel(rgrid, r2_ρcore, 0, p)
 end
 
-function eval_psp_kinetic_energy_density_core_real(psp::PspUpf, r::T) where {T<:Real}
+function eval_psp_core_kinetic_energy_density_real(psp::PspUpf, r::T) where {T<:Real}
     psp.r2_τcore_interp(r) / r^2  # TODO if r is below a threshold, return zero
 end
 
-function eval_psp_kinetic_energy_density_core_fourier(psp::PspUpf, p::T) where {T<:Real}
+function eval_psp_core_kinetic_energy_density_fourier(psp::PspUpf, p::T) where {T<:Real}
     rgrid = @view psp.rgrid[1:psp.ircut]
     r2_τcore = @view psp.r2_τcore[1:psp.ircut]
     return hankel(rgrid, r2_τcore, 0, p)

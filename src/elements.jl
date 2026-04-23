@@ -186,13 +186,13 @@ local_potential_real(el::ElementPsp, r::Real) = eval_psp_local_real(el.psp, r)
 
 function valence_charge_density_fourier(el::ElementPsp, p::T) where {T <: Real}
     if has_valence_density(el.psp)
-        eval_psp_density_valence_fourier(el.psp, p)
+        eval_psp_valence_density_fourier(el.psp, p)
     else
         gaussian_valence_charge_density_fourier(el, p)
     end
 end
 function core_charge_density_fourier(el::ElementPsp, p::T) where {T <: Real}
-    eval_psp_density_core_fourier(el.psp, p)
+    eval_psp_core_density_fourier(el.psp, p)
 end
 
 

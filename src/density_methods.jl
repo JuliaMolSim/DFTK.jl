@@ -201,7 +201,7 @@ end
 
 function atomic_density(element::Element, Gnorm::T,
                         ::ValenceDensityPseudo)::T where {T <: Real}
-    eval_psp_density_valence_fourier(element.psp, Gnorm)
+    eval_psp_valence_density_fourier(element.psp, Gnorm)
 end
 
 function atomic_density(element::Element, Gnorm::T,
@@ -217,7 +217,7 @@ end
 function atomic_density(element::Element, Gnorm::T,
                         ::CoreKineticEnergyDensity)::T where {T <: Real}
     if has_core_kinetic_energy_density(element)
-        eval_psp_kinetic_energy_density_core_fourier(element.psp, Gnorm)
+        eval_psp_core_kinetic_energy_density_fourier(element.psp, Gnorm)
     else
         zero(T)
     end

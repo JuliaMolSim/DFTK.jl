@@ -173,59 +173,59 @@ end
 
 @testitem "Valence charge densities are consistent in real and Fourier space" #=
     =#    tags=[:psp] setup=[mPspUpf] begin
-    using DFTK: eval_psp_density_valence_real, eval_psp_density_valence_fourier
+    using DFTK: eval_psp_valence_density_real, eval_psp_valence_density_fourier
     using SpecialFunctions: sphericalbesselj
     using QuadGK
 
     function integrand(psp, p, r)
-        4π * r^2 * eval_psp_density_valence_real(psp, r) * sphericalbesselj(0, p * r)
+        4π * r^2 * eval_psp_valence_density_real(psp, r) * sphericalbesselj(0, p * r)
     end
     for psp in values(mPspUpf.upf_pseudos)
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1
         for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
             reference = quadgk(r -> integrand(psp, p, r), psp.rgrid[ir_start],
                                psp.rgrid[psp.ircut])[1]
-            @test reference  ≈ eval_psp_density_valence_fourier(psp, p) atol=1e-2 rtol=1e-2
+            @test reference  ≈ eval_psp_valence_density_fourier(psp, p) atol=1e-2 rtol=1e-2
         end
     end
 end
 
 @testitem "Core charge densities are consistent in real and Fourier space" #=
     =#    tags=[:psp] setup=[mPspUpf] begin
-    using DFTK: eval_psp_density_core_real, eval_psp_density_core_fourier
+    using DFTK: eval_psp_core_density_real, eval_psp_core_density_fourier
     using SpecialFunctions: sphericalbesselj
     using QuadGK
 
     function integrand(psp, p, r)
-        4π * r^2 * eval_psp_density_core_real(psp, r) * sphericalbesselj(0, p * r)
+        4π * r^2 * eval_psp_core_density_real(psp, r) * sphericalbesselj(0, p * r)
     end
     for psp in values(mPspUpf.upf_pseudos)
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1
         for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
             reference = quadgk(r -> integrand(psp, p, r), psp.rgrid[ir_start],
                                psp.rgrid[psp.ircut])[1]
-            @test reference  ≈ eval_psp_density_core_fourier(psp, p) atol=1e-2 rtol=1e-2
+            @test reference  ≈ eval_psp_core_density_fourier(psp, p) atol=1e-2 rtol=1e-2
         end
     end
 end
 
 @testitem "Core kinetic energy densities are consistent in real and Fourier space" #=
     =#    tags=[:psp] begin
-    using DFTK: eval_psp_kinetic_energy_density_core_real,
-                eval_psp_kinetic_energy_density_core_fourier,
+    using DFTK: eval_psp_core_kinetic_energy_density_real,
+                eval_psp_core_kinetic_energy_density_fourier,
                 load_psp
     using SpecialFunctions: sphericalbesselj
     using QuadGK
 
     function integrand(psp, p, r)
-        4π * r^2 * eval_psp_kinetic_energy_density_core_real(psp, r) * sphericalbesselj(0, p * r)
+        4π * r^2 * eval_psp_core_kinetic_energy_density_real(psp, r) * sphericalbesselj(0, p * r)
     end
     for psp in [load_psp(joinpath(@__DIR__, "pseudos", "C_m.upf"))]
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1
         for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
             reference = quadgk(r -> integrand(psp, p, r), psp.rgrid[ir_start],
                                psp.rgrid[psp.ircut])[1]
-            @test reference ≈ eval_psp_kinetic_energy_density_core_fourier(psp, p) atol=1e-2 rtol=1e-2
+            @test reference ≈ eval_psp_core_kinetic_energy_density_fourier(psp, p) atol=1e-2 rtol=1e-2
         end
     end
 end
