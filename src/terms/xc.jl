@@ -38,6 +38,12 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
         ρcore = ρ_from_total(basis, atomic_total_density(basis, CoreDensity()))
         minimum(ρcore) < -sqrt(eps(T)) && @warn("Negative ρcore detected: $(minimum(ρcore))")
     end
+    τcore = nothing
+    if (   xc.use_nlcc && any(needs_τ, xc.functionals)
+        && any(has_core_kinetic_energy_density, basis.model.atoms))
+        τcore = ρ_from_total(basis, atomic_total_density(basis, CoreKineticEnergyDensity()))
+        minimum(τcore) < -sqrt(eps(T)) && @warn("Negative τcore detected: $(minimum(τcore))")
+    end
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
         params = parameters(fun)
@@ -49,7 +55,7 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     end
     TermXc(convert(Vector{Functional}, functionals),
            convert_dual(T, xc.scaling_factor),
-           T(xc.potential_threshold), ρcore)
+           T(xc.potential_threshold), ρcore, τcore)
 end
 
 function hybrid_parameters(xc::Xc)
@@ -57,11 +63,12 @@ function hybrid_parameters(xc::Xc)
     isempty(res) ? nothing : only(res)
 end
 
-struct TermXc{T,CT} <: TermNonlinear where {T,CT}
+struct TermXc{T,CT,TCT} <: TermNonlinear where {T,CT,TCT}
     functionals::Vector{Functional}
     scaling_factor::T
     potential_threshold::T
     ρcore::CT
+    τcore::TCT
 end
 DftFunctionals.needs_τ(term::TermXc) = any(needs_τ, term.functionals)
 
@@ -78,6 +85,9 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     # Add the model core charge density (non-linear core correction)
     if !isnothing(term.ρcore)
         ρ = ρ + term.ρcore
+    end
+    if !isnothing(term.τcore)
+        τ = τ + term.τcore
     end
 
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
@@ -166,6 +176,9 @@ end
     if !isnothing(term.ρcore)
         ρ = ρ + term.ρcore
     end
+    if !isnothing(term.τcore)
+        τ = τ + term.τcore
+    end
 
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
     densities = LibxcDensities(basis, max_ρ_derivs, ρ, τ)
@@ -180,23 +193,43 @@ end
                                              kwargs...) where {T}
     # The only non-zero force contribution is from the nlcc core charge:
     # early return if nlcc is disabled / no elements have model core charges.
-    isnothing(term.ρcore) && return nothing
+    isnothing(term.ρcore) && isnothing(term.τcore) && return nothing
 
     model = basis.model
-    Vxc_real = xc_potential_real(term, basis, ψ, occupation; ρ, τ).potential
+    _, Vρ_real, Vτ_real = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
+    Vτ_fourier = nothing
     if model.spin_polarization in (:none, :spinless)
-        Vxc_fourier = fft(basis, Vxc_real[:,:,:,1])
+        Vρ_fourier = fft(basis, Vρ_real[:,:,:,1])
+        if !isnothing(Vτ_real)
+            Vτ_fourier = fft(basis, Vτ_real[:,:,:,1])
+        end
     else
-        Vxc_fourier = fft(basis, mean(Vxc_real, dims=4))
+        Vρ_fourier = fft(basis, mean(Vρ_real, dims=4))
+        if !isnothing(Vτ_real)
+            Vτ_fourier = fft(basis, mean(Vτ_real, dims=4))
+        end
     end
 
-    form_factors, iG2ifnorm = atomic_density_form_factors(basis, CoreDensity())
-    nlcc_groups = findall(group -> has_core_density(model.atoms[first(group)]),
-                          model.atom_groups)
-    @assert !isempty(nlcc_groups)
+    forces_ρ = let
+        form_factors, iG2ifnorm = atomic_density_form_factors(basis, CoreDensity())
+        nlcc_groups = findall(group -> has_core_density(model.atoms[first(group)]),
+                            model.atom_groups)
 
-    _forces_xc(basis, Vxc_fourier, form_factors[:, nlcc_groups], iG2ifnorm,
-               model.atom_groups[nlcc_groups])
+        _forces_xc(basis, Vρ_fourier, form_factors[:, nlcc_groups], iG2ifnorm,
+                model.atom_groups[nlcc_groups])
+    end
+    if isnothing(Vτ_fourier)
+        return forces_ρ
+    end
+    forces_τ = let
+        form_factors, iG2ifnorm = atomic_density_form_factors(basis, CoreKineticEnergyDensity())
+        nlcc_groups = findall(group -> has_core_kinetic_energy_density(model.atoms[first(group)]),
+                            model.atom_groups)
+
+        _forces_xc(basis, Vτ_fourier, form_factors[:, nlcc_groups], iG2ifnorm,
+                model.atom_groups[nlcc_groups])
+    end
+    forces_ρ + forces_τ
 end
 
 # Function barrier to work around various type instabilities.
@@ -380,9 +413,8 @@ function _check_negative_bonding_indicator_α(densities::LibxcDensities{T}) wher
             @warn "Exchange-correlation term: the kinetic energy density τ is smaller " *
                   "than the von Weizsäcker kinetic energy density τ_W somewhere. " *
                   "This can lead to unphysical results. " *
-                  "This is typically caused by the non-linear core correction, " *
-                  "which is currently not applied for the kinetic energy density τ. " *
-                  "See also https://github.com/JuliaMolSim/DFTK.jl/issues/1180. " *
+                  "This can be caused by pseudopotentials without a non-linear core correction " *
+                  "for τ, or by an unphysical initial guess for τ. " *
                   "This message is only logged once." maxlog=1
         end
     end
