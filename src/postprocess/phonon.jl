@@ -66,7 +66,10 @@ end
 
 @doc raw"""
 Compute the dynamical matrix in the form of a ``3×n_{\rm atoms}×3×n_{\rm atoms}`` tensor
-in reduced coordinates.
+in reduced coordinates:
+```
+dynmat[β, t, α, s] = ∂²E/∂u_sα(-q)∂u_tβ(q).
+```
 """
 @timing function compute_dynmat(basis::PlaneWaveBasis{T}, ψ, occupation; q=zero(Vec3{T}),
                                 ρ=nothing, ham=nothing, εF=nothing, eigenvalues=nothing,
@@ -78,7 +81,7 @@ in reduced coordinates.
     δψs = [zero.(ψ) for _ = 1:3, _ = 1:n_atoms]
     for s = 1:n_atoms, α = 1:basis.model.n_dim
         # Get δH ψ
-        δHψs_αs = compute_δHψ_αs(basis, ψ, α, s, q)
+        δHψs_αs = compute_δHψ_αs(basis, ψ, α, s, q; ρ)
         isnothing(δHψs_αs) && continue
         # Response solver to get δψ
         (; δψ, δρ, δoccupation) = solve_ΩplusK_split(ham, ρ, ψ, occupation, εF, eigenvalues,
@@ -99,8 +102,8 @@ Get ``δH·ψ``, with ``δH`` the perturbation of the Hamiltonian with respect t
 displacement ``e^{iq·r}`` of the ``α`` coordinate of atom ``s``.
 `δHψ[ik]` is ``δH·ψ_{k-q}``, expressed in `basis.kpoints[ik]`.
 """
-@timing function compute_δHψ_αs(basis::PlaneWaveBasis, ψ, α, s, q)
-    δHψ_per_term = [compute_δHψ_αs(term, basis, ψ, α, s, q) for term in basis.terms]
+@timing function compute_δHψ_αs(basis::PlaneWaveBasis, ψ, α, s, q; ρ)
+    δHψ_per_term = [compute_δHψ_αs(term, basis, ψ, α, s, q; ρ) for term in basis.terms]
     filter!(!isnothing, δHψ_per_term)
     isempty(δHψ_per_term) && return nothing
     sum(δHψ_per_term)

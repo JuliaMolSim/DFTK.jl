@@ -1,5 +1,5 @@
 @testitem "Phonon: LDA: comparison to ref testcase" #=
-    =#    tags=[:phonon, :dont_test_mpi] setup=[Phonon, PhononNonlocal, TestCases] begin
+    =#    tags=[:phonon, :dont_test_mpi] setup=[Phonon, TestCases] begin
     using .Phonon: test_frequencies
     using DFTK
 
@@ -27,12 +27,43 @@
     test_frequencies(model_LDA, TestCases.aluminium_primitive; ω_ref)
 end
 
-@testitem "Phonon: LDA: NLCC not implemented" #=
-    =#    tags=[:phonon, :dont_test_mpi] setup=[Phonon, PhononNonlocal, TestCases] begin
+@testitem "Phonon: LDA+NLCC: comparison to ref testcase" #=
+    =#    tags=[:phonon, :dont_test_mpi] setup=[Phonon, TestCases] begin
+    using .Phonon: test_frequencies
+    using DFTK
+
+    # Values computed offline with automatic differentiation.
+    ω_ref = [ -0.002291246044167315
+              -0.0008322141414252373
+              -0.0008322141414235875
+              -0.0006277141258580046
+              -9.265838548786679e-9
+               2.7728753822878845e-9
+               1.723854614577606e-8
+               0.0005132198029985638
+               0.000513219803002495
+               0.0005311935317559987
+               0.0005311935317559987
+               0.0006681073906670919
+               0.0008491725632174406
+               0.0008491725632198118
+               0.0012978110205401107
+               0.001297811020540865
+               0.0015922296328008808
+               0.0015922296328024783  ]
+
+    Al = ElementPsp(:Al, load_psp(TestCases.aluminium_primitive.psp_upf))
+    aluminium_primitive = merge(TestCases.aluminium_primitive, (; atoms=[Al]))
+    model_LDA(args...; kwargs...) = model_DFT(args...; functionals=LDA(), kwargs...)
+    test_frequencies(model_LDA, aluminium_primitive; ω_ref)
+end
+
+@testitem "Phonon: LDA+NLCC: comparison to supercell" #=
+    =#    tags=[:phonon, :dont_test_mpi, :slow] setup=[Phonon, TestCases] begin
     using .Phonon: test_frequencies
     using DFTK
     Al = ElementPsp(:Al, load_psp(TestCases.aluminium_primitive.psp_upf))
     aluminium_primitive = merge(TestCases.aluminium_primitive, (; atoms=[Al]))
     model_LDA(args...; kwargs...) = model_DFT(args...; functionals=LDA(), kwargs...)
-    @test_throws ErrorException test_frequencies(model_LDA, aluminium_primitive)
+    test_frequencies(model_LDA, aluminium_primitive)
 end

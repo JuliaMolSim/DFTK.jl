@@ -102,8 +102,10 @@ end
 # Build a total charge density without spin information from a superposition of atomic
 # densities.
 function atomic_total_density(basis::PlaneWaveBasis{T}, method::AtomicDensity;
-                              coefficients=ones(T, length(basis.model.atoms))) where {T}
-    atomic_density_superposition(basis, method; coefficients)
+                              coefficients=ones(T, length(basis.model.atoms)),
+                              positions=basis.model.positions,
+                              q=zero(Vec3{T})) where {T}
+    atomic_density_superposition(basis, method; coefficients, positions, q)
 end
 
 # Build a spin density from a superposition of atomic densities and provided magnetic
@@ -143,27 +145,34 @@ end
 # transform to yield the real-space density.
 function atomic_density_superposition(basis::PlaneWaveBasis{T},
                                       method::AtomicDensity;
-                                      coefficients=ones(T, length(basis.model.atoms))
-                                      ) where {T}
-    form_factors, iG2ifnorm = atomic_density_form_factors(basis, method)
+                                      coefficients=ones(T, length(basis.model.atoms)),
+                                      positions=basis.model.positions,
+                                      q=zero(Vec3{T})) where {T}
+    form_factors, iG2ifnorm = atomic_density_form_factors(basis, method; q)
 
     # Pre-allocation of large arrays for GPU efficiency
-    Gs = G_vectors(basis)
-    ρ = to_device(basis.architecture, zeros(Complex{T}, length(Gs)))
+    Gqs = map(G -> G+q, G_vectors(basis))
+    Tρ = promote_type(T, eltype(eltype(positions)))
+    ρ = to_device(basis.architecture, zeros(Complex{Tρ}, length(Gqs)))
     ρ_tmp = similar(ρ)
-    indices = to_device(basis.architecture, collect(1:length(Gs)))
+    indices = to_device(basis.architecture, collect(1:length(Gqs)))
 
     for (igroup, group) in enumerate(basis.model.atom_groups)
         for iatom in group
-            r = basis.model.positions[iatom]
+            r = positions[iatom]
             ff_group = @view form_factors[:, igroup]
-            map!(iG -> cis2pi(-dot(Gs[iG], r)) * ff_group[iG2ifnorm[iG]], ρ_tmp, indices)
+            map!(iG -> cis2pi(-dot(Gqs[iG], r)) * ff_group[iG2ifnorm[iG]], ρ_tmp, indices)
             ρ .+= ρ_tmp .* (coefficients[iatom] / sqrt(basis.model.unit_cell_volume))
         end
     end
 
-    enforce_real!(ρ, basis)  # Symmetrize Fourier coeffs to have real iFFT
-    irfft(basis, reshape(ρ, basis.fft_size))
+    ρ_fourier = reshape(ρ, basis.fft_size)
+    if iszero(q)
+        enforce_real!(ρ_fourier, basis)  # Symmetrize Fourier coeffs to have real iFFT
+        irfft(basis, ρ_fourier)
+    else
+        ifft(basis, ρ_fourier)
+    end
 end
 
 """
@@ -171,13 +180,14 @@ Returns the form factors at unique values of |G + q| (in Cartesian coordinates).
 Additionally, returns a mapping from any G index to the corresponding entry in the form_factors array.
 """
 function atomic_density_form_factors(basis::PlaneWaveBasis{T},
-                                     method::AtomicDensity ) where {T<:Real}
-    G_cart = to_cpu(G_vectors_cart(basis))
+                                     method::AtomicDensity;
+                                     q=zero(Vec3{T})) where {T<:Real}
+    Gqs_cart = [basis.model.recip_lattice * (G + q) for G in to_cpu(G_vectors(basis))]
 
-    iG2ifnorm_cpu = zeros(Int, length(G_cart))
+    iG2ifnorm_cpu = zeros(Int, length(Gqs_cart))
     norm_indices = IdDict{T, Int}()
-    for (iG, G) in enumerate(G_cart)
-        p = norm(G)
+    for (iG, Gq) in enumerate(Gqs_cart)
+        p = norm(Gq)
         iG2ifnorm_cpu[iG] = get!(norm_indices, p, length(norm_indices) + 1)
     end
 
