@@ -9,7 +9,6 @@
 #     - symmetries must be disabled (pass `symmetries=false` to the model)
 #     - only LDA functionals are supported
 #     - q-points must be commensurate with the k-point grid of the SCF calculation
-#     - non-linear core corrections from the pseudopotentials are not supported
 #     - MPI parallelization over k-points is not supported (due to ``k`` and ``k+q`` interactions)
 #     We appreciate any issues, bug reports or PRs.
 #

@@ -542,7 +542,6 @@ function compute_δHψ_αs(term::TermXc, basis::PlaneWaveBasis, ψ, α, s, q; ρ
         ρ_from_total(basis, atomic_total_density(basis, CoreDensity();
                                                  q, positions=positions_αs))
     end
-
     δV_αs = apply_kernel(term, basis, δρcore_αs; ρ, q)
     multiply_ψ_by_blochwave(basis, ψ, δV_αs, q)
 end
