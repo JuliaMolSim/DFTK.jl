@@ -29,14 +29,14 @@
 
     @testset "Atomic $(string(typeof(method)))" for (method, elements) in zip(methods, elements)
         basis = build_basis(elements, :none)
-        ρ = @inferred guess_density(basis, method)
+        ρ = guess_density(basis, method)
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
 
         basis = build_basis(elements, :collinear)
-        ρ = @inferred guess_density(basis, method)
+        ρ = guess_density(basis, method)
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
 
-        ρ = @inferred guess_density(basis, method, magnetic_moments)
+        ρ = guess_density(basis, method, magnetic_moments)
         @test total_charge(basis, ρ) ≈ basis.model.n_electrons
     end
 end
