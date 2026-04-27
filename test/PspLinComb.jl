@@ -38,10 +38,10 @@
         functions = [
             DFTK.eval_psp_local_real
             DFTK.eval_psp_local_fourier
-            DFTK.eval_psp_density_valence_real
-            DFTK.eval_psp_density_valence_fourier
-            DFTK.eval_psp_density_core_real
-            DFTK.eval_psp_density_core_fourier
+            DFTK.eval_psp_valence_density_real
+            DFTK.eval_psp_valence_density_fourier
+            DFTK.eval_psp_core_density_real
+            DFTK.eval_psp_core_density_fourier
         ]
         for fun in functions
             for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)

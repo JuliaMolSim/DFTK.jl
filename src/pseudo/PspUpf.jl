@@ -38,6 +38,9 @@ struct PspUpf{T,I} <: NormConservingPsp
     # used for non-linear core correction.
     # UPF: `PP_NLCC`
     r2_ρcore::Vector{T}
+    # same as `r2_ρcore` but for the kinetic energy density τ
+    # UPF: `PP_TAUMOD`
+    r2_τcore::Vector{T}
 
     ## Precomputed for performance
     # (USED IN TESTS) Local potential interpolator, stored for performance.
@@ -48,6 +51,8 @@ struct PspUpf{T,I} <: NormConservingPsp
     r2_ρion_interp::I
     # (USED IN TESTS) Core charge density interpolator, stored for performance.
     r2_ρcore_interp::I
+    # (USED IN TESTS) Core kinetic energy density interpolator, stored for performance.
+    r2_τcore_interp::I
 
     ## Extras
     rcut::T              # Radial cutoff for all quantities except pswfc.
@@ -149,7 +154,8 @@ function PspUpf(pseudo::UpfFile; identifier, rcut=nothing)
     end
 
     r2_ρion = pseudo.rhoatom ./ (4π)
-    r2_ρcore = rgrid .^ 2 .* (@something pseudo.nlcc zeros(length(rgrid)))
+    r2_ρcore = rgrid .^ 2 .* (@something pseudo.nlcc   zeros(length(rgrid)))
+    r2_τcore = rgrid .^ 2 .* (@something pseudo.taumod zeros(length(rgrid)))
 
     vloc_interp = linear_interpolation((rgrid,), vloc)
     r2_projs_interp = map(r2_projs) do r2_projs_l
@@ -157,12 +163,13 @@ function PspUpf(pseudo::UpfFile; identifier, rcut=nothing)
     end
     r2_ρion_interp = linear_interpolation((rgrid,), r2_ρion)
     r2_ρcore_interp = linear_interpolation((rgrid,), r2_ρcore)
+    r2_τcore_interp = linear_interpolation((rgrid,), r2_τcore)
 
     PspUpf{eltype(rgrid),typeof(vloc_interp)}(
         Zion, lmax, rgrid, drgrid,
         vloc, r2_projs, h, r2_pswfcs, pswfc_occs, pswfc_energies, pswfc_labels,
-        r2_ρion, r2_ρcore,
-        vloc_interp, r2_projs_interp, r2_ρion_interp, r2_ρcore_interp,
+        r2_ρion, r2_ρcore, r2_τcore,
+        vloc_interp, r2_projs_interp, r2_ρion_interp, r2_ρcore_interp, r2_τcore_interp,
         rcut, ircut, identifier, description
     )
 end
@@ -170,6 +177,7 @@ end
 charge_ionic(psp::PspUpf) = psp.Zion
 has_valence_density(psp::PspUpf) = !all(iszero, psp.r2_ρion)
 has_core_density(psp::PspUpf) = !all(iszero, psp.r2_ρcore)
+has_core_kinetic_energy_density(psp::PspUpf) = !all(iszero, psp.r2_τcore)
 
 function eval_psp_projector_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
     psp.r2_projs_interp[l+1][i](r) / r^2  # TODO if r is below a threshold, return zero
@@ -183,6 +191,20 @@ function eval_psp_projector_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     rgrid = @view psp.rgrid[1:ircut_proj]
     r2_proj = @view psp.r2_projs[l+1][i][1:ircut_proj]
     hankel(rgrid, r2_proj, l, p)
+end
+
+# Vectorized version of the above, GPU compatible
+function eval_psp_projector_fourier(psp::PspUpf, i, l, ps::AbstractVector{T}) where {T<:Real}
+    quadrature = default_psp_quadrature(psp.rgrid)
+    arch = architecture(ps)
+    ircut_proj = min(psp.ircut, length(psp.r2_projs[l+1][i]))
+    rgrid = to_device(arch, @view psp.rgrid[1:ircut_proj])
+    r2_proj = to_device(arch, @view psp.r2_projs[l+1][i][1:ircut_proj])
+    map(ps) do p
+        # GPU kernels with dynamic function calls do not compile,
+        # hence the pre-determined explicit integration function
+        hankel(quadrature, rgrid, r2_proj, l, p)
+    end
 end
 
 count_n_pswfc_radial(psp::PspUpf, l) = length(psp.r2_pswfcs[l+1])
@@ -239,24 +261,34 @@ function eval_psp_local_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Re
     end
 end
 
-function eval_psp_density_valence_real(psp::PspUpf, r::T) where {T<:Real}
+function eval_psp_valence_density_real(psp::PspUpf, r::T) where {T<:Real}
     psp.r2_ρion_interp(r) / r^2  # TODO if r is below a threshold, return zero
 end
 
-function eval_psp_density_valence_fourier(psp::PspUpf, p::T) where {T<:Real}
+function eval_psp_valence_density_fourier(psp::PspUpf, p::T) where {T<:Real}
     rgrid = @view psp.rgrid[1:psp.ircut]
     r2_ρion = @view psp.r2_ρion[1:psp.ircut]
     return hankel(rgrid, r2_ρion, 0, p)
 end
 
-function eval_psp_density_core_real(psp::PspUpf, r::T) where {T<:Real}
+function eval_psp_core_density_real(psp::PspUpf, r::T) where {T<:Real}
     psp.r2_ρcore_interp(r) / r^2  # TODO if r is below a threshold, return zero
 end
 
-function eval_psp_density_core_fourier(psp::PspUpf, p::T) where {T<:Real}
+function eval_psp_core_density_fourier(psp::PspUpf, p::T) where {T<:Real}
     rgrid = @view psp.rgrid[1:psp.ircut]
     r2_ρcore = @view psp.r2_ρcore[1:psp.ircut]
     return hankel(rgrid, r2_ρcore, 0, p)
+end
+
+function eval_psp_core_kinetic_energy_density_real(psp::PspUpf, r::T) where {T<:Real}
+    psp.r2_τcore_interp(r) / r^2  # TODO if r is below a threshold, return zero
+end
+
+function eval_psp_core_kinetic_energy_density_fourier(psp::PspUpf, p::T) where {T<:Real}
+    rgrid = @view psp.rgrid[1:psp.ircut]
+    r2_τcore = @view psp.r2_τcore[1:psp.ircut]
+    return hankel(rgrid, r2_τcore, 0, p)
 end
 
 function eval_psp_energy_correction(T, psp::PspUpf)

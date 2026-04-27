@@ -14,18 +14,22 @@ abstract type NormConservingPsp end
 # charge_ionic(psp)
 # has_valence_density(psp)
 # has_core_density(psp)
+# has_core_kinetic_energy_density(psp)
 # eval_psp_projector_real(psp, i, l, r::Real)
 # eval_psp_projector_fourier(psp, i, l, p::Real)
+# eval_psp_projector_fourier(psp, i, l, ps::AbstrcatArray{<Real})
 # eval_psp_local_real(psp, r::Real)
 # eval_psp_local_fourier(psp, p::Real)
 # eval_psp_local_fourier(psp, ps::AbstractArray{<Real})
 # eval_psp_energy_correction(T::Type, psp)
 
 #### Optional methods:
-# eval_psp_density_valence_real(psp, r::Real)
-# eval_psp_density_valence_fourier(psp, p::Real)
-# eval_psp_density_core_real(psp, r::Real)
-# eval_psp_density_core_fourier(psp, p::Real)
+# eval_psp_valence_density_real(psp, r::Real)
+# eval_psp_valence_density_fourier(psp, p::Real)
+# eval_psp_core_density_real(psp, r::Real)
+# eval_psp_core_density_fourier(psp, p::Real)
+# eval_psp_core_kinetic_energy_density_real(psp, r::Real)
+# eval_psp_core_kinetic_energy_density_fourier(psp, p::Real)
 # eval_psp_pswfc_real(psp, i::Int, l::Int, p::Real)
 # eval_psp_pswfc_fourier(psp, i::Int, l::Int, p::Real)
 # count_n_pswfc(psp, l::Integer)
@@ -53,8 +57,15 @@ at the reciprocal vector with modulus `p`:
 \end{aligned}
 ```
 """
-eval_psp_projector_fourier(psp::NormConservingPsp, p::AbstractVector) =
-    eval_psp_projector_fourier(psp, norm(p))
+eval_psp_projector_fourier(psp::NormConservingPsp, i, l, p::AbstractVector) =
+    eval_psp_projector_fourier(psp, i, l, norm(p))
+
+# Fallback vectorized implementation for non GPU-optimized code.
+function eval_psp_projector_fourier(psp::NormConservingPsp, i, l,
+                                    ps::AbstractVector{T}) where {T <: Real}
+    arch = architecture(ps)
+    to_device(arch, map(p -> eval_psp_projector_fourier(psp, i, l, p), to_cpu(ps)))
+end
 
 """
     eval_psp_local_real(psp, r)
@@ -120,15 +131,15 @@ function eval_psp_energy_correction end
 eval_psp_energy_correction(psp::NormConservingPsp) = eval_psp_energy_correction(Float64, psp)
 
 """
-    eval_psp_density_valence_real(psp, r)
+    eval_psp_valence_density_real(psp, r)
 
 Evaluate the atomic valence charge density in real space.
 """
-eval_psp_density_valence_real(psp::NormConservingPsp, r::AbstractVector) = 
-    eval_psp_density_valence_real(psp, norm(r))
+eval_psp_valence_density_real(psp::NormConservingPsp, r::AbstractVector) =
+    eval_psp_valence_density_real(psp, norm(r))
 
 @doc raw"""
-    eval_psp_density_valence_fourier(psp, p)
+    eval_psp_valence_density_fourier(psp, p)
 
 Evaluate the atomic valence charge density in reciprocal space:
 ```math
@@ -138,20 +149,20 @@ Evaluate the atomic valence charge density in reciprocal space:
 \end{aligned}
 ```
 """
-eval_psp_density_valence_fourier(psp::NormConservingPsp, p::AbstractVector) = 
-    eval_psp_density_valence_fourier(psp, norm(p))
+eval_psp_valence_density_fourier(psp::NormConservingPsp, p::AbstractVector) =
+    eval_psp_valence_density_fourier(psp, norm(p))
 
 """
-    eval_psp_density_core_real(psp, r)
+    eval_psp_core_density_real(psp, r)
 
 Evaluate the atomic core charge density in real space.
 """
-eval_psp_density_core_real(::NormConservingPsp, ::T) where {T <: Real} = zero(T)
-eval_psp_density_core_real(psp::NormConservingPsp, r::AbstractVector) = 
-    eval_psp_density_core_real(psp, norm(r))
+eval_psp_core_density_real(::NormConservingPsp, ::T) where {T <: Real} = zero(T)
+eval_psp_core_density_real(psp::NormConservingPsp, r::AbstractVector) =
+    eval_psp_core_density_real(psp, norm(r))
 
 @doc raw"""
-    eval_psp_density_core_fourier(psp, p)
+    eval_psp_core_density_fourier(psp, p)
 
 Evaluate the atomic core charge density in reciprocal space:
 ```math
@@ -161,9 +172,17 @@ Evaluate the atomic core charge density in reciprocal space:
 \end{aligned}
 ```
 """
-eval_psp_density_core_fourier(::NormConservingPsp, ::T) where {T <: Real} = zero(T)
-eval_psp_density_core_fourier(psp::NormConservingPsp, p::AbstractVector) = 
-    eval_psp_density_core_fourier(psp, norm(p))
+eval_psp_core_density_fourier(::NormConservingPsp, ::T) where {T <: Real} = zero(T)
+eval_psp_core_density_fourier(psp::NormConservingPsp, p::AbstractVector) =
+    eval_psp_core_density_fourier(psp, norm(p))
+
+eval_psp_core_kinetic_energy_density_real(::NormConservingPsp, ::T) where {T <: Real} = zero(T)
+eval_psp_core_kinetic_energy_density_real(psp::NormConservingPsp, r::AbstractVector) =
+    eval_psp_core_kinetic_energy_density_real(psp, norm(r))
+
+eval_psp_core_kinetic_energy_density_fourier(::NormConservingPsp, ::T) where {T <: Real} = zero(T)
+eval_psp_core_kinetic_energy_density_fourier(psp::NormConservingPsp, p::AbstractVector) =
+    eval_psp_core_kinetic_energy_density_fourier(psp, norm(p))
 
 
 #### Methods defined on a NormConservingPsp
