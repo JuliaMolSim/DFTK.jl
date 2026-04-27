@@ -16,7 +16,7 @@
         atoms = [ElementPsp(element, pd_lda_family)]
         model = model_DFT(lattice, atoms, positions; functionals=LDA())
         basis = PlaneWaveBasis(model; Ecut=24, kgrid=[2, 2, 2])
-        ρ_core = @inferred atomic_total_density(basis, CoreDensity())
+        ρ_core = atomic_total_density(basis, CoreDensity())
         ρ_core_neg = abs(sum(ρ_core[ρ_core .< 0]))
         @test ρ_core_neg * model.unit_cell_volume / prod(basis.fft_size) < 1e-6
     end
