@@ -1,3 +1,6 @@
+# Computation of phonon modes. Most of the heavy lifting is done
+# in the response functions when q != 0.
+
 # Convert to Cartesian a dynamical matrix in reduced coordinates.
 function dynmat_red_to_cart(model::Model, dynmat)
     inv_lattice = model.inv_lattice

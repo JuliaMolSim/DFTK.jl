@@ -77,8 +77,11 @@ end
 
     # The variation of the orbital ψ_k defined in the basis ℬ_k is δψ_{[k+q]} in ℬ_{[k+q]},
     # where [k+q] is equivalent to the basis k+q (see find_equivalent_kpt).
-    # The perturbation of the density
-    #   |ψ_{n,k}|² is 2 ψ_{n,k} * δψ_{n,k+q}.
+    # The perturbation of the density |ψ_{n,k}|² is
+    # 2 ψ_{n,k} * δψ_{n,k+q}
+    # and not the real part of that; for a discussion see
+    # See https://github.com/JuliaMolSim/DFTK.jl/issues/1310#issuecomment-4318880401
+
     # Hence, we first get the δψ_{[k+q]} as δψ_{k+q}…
     δψ_plus_k = transfer_blochwave_equivalent_to_actual(basis, δψ, q)
     storages = parallel_loop_over_range(range; allocate_local_storage) do kn, storage
