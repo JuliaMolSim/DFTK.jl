@@ -193,7 +193,6 @@ function eval_psp_projector_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     r2_proj = @view psp.r2_projs[l+1][i][1:ircut_proj]
     hankel(rgrid, r2_proj, l, p)
 end
-@vectorize_psp_projector_function PspUpf DFTK.eval_psp_projector_fourier
 
 # Vectorized version of the above, GPU compatible
 function eval_psp_projector_fourier(psp::PspUpf, i, l, ps::AbstractVector{T}) where {T<:Real}
@@ -269,19 +268,19 @@ end
 function eval_psp_valence_density_real(psp::PspUpf, r::T) where {T<:Real}
     psp.r2_ρion_interp(r) / r^2  # TODO if r is below a threshold, return zero
 end
-@vectorize_psp_function PspUpf DFTK.eval_psp_density_valence_real
+@vectorize_psp_function PspUpf DFTK.eval_psp_valence_density_real
 
 function eval_psp_valence_density_fourier(psp::PspUpf, p::T) where {T<:Real}
     rgrid = @view psp.rgrid[1:psp.ircut]
     r2_ρion = @view psp.r2_ρion[1:psp.ircut]
     return hankel(rgrid, r2_ρion, 0, p)
 end
-@vectorize_psp_function PspUpf DFTK.eval_psp_density_valence_fourier
+@vectorize_psp_function PspUpf DFTK.eval_psp_valence_density_fourier
 
 function eval_psp_core_density_real(psp::PspUpf, r::T) where {T<:Real}
     psp.r2_ρcore_interp(r) / r^2  # TODO if r is below a threshold, return zero
 end
-@vectorize_psp_function PspUpf DFTK.eval_psp_density_core_real
+@vectorize_psp_function PspUpf DFTK.eval_psp_core_density_real
 
 function eval_psp_core_density_fourier(psp::PspUpf, p::T) where {T<:Real}
     rgrid = @view psp.rgrid[1:psp.ircut]
@@ -290,7 +289,7 @@ function eval_psp_core_density_fourier(psp::PspUpf, p::T) where {T<:Real}
 end
 
 # Vectorized version of the above, GPU optimized
-function eval_psp_density_core_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Real}
+function eval_psp_core_density_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Real}
     quadrature = default_psp_quadrature(psp.rgrid)
     arch = architecture(ps)
     rgrid = to_device(arch, @view psp.rgrid[1:psp.ircut])
@@ -305,12 +304,14 @@ end
 function eval_psp_core_kinetic_energy_density_real(psp::PspUpf, r::T) where {T<:Real}
     psp.r2_τcore_interp(r) / r^2  # TODO if r is below a threshold, return zero
 end
+@vectorize_psp_function PspUpf DFTK.eval_psp_core_kinetic_energy_density_real
 
 function eval_psp_core_kinetic_energy_density_fourier(psp::PspUpf, p::T) where {T<:Real}
     rgrid = @view psp.rgrid[1:psp.ircut]
     r2_τcore = @view psp.r2_τcore[1:psp.ircut]
     return hankel(rgrid, r2_τcore, 0, p)
 end
+@vectorize_psp_function PspUpf DFTK.eval_psp_core_kinetic_energy_density_fourier
 
 function eval_psp_energy_correction(T, psp::PspUpf)
     rgrid = @view psp.rgrid[1:psp.ircut]

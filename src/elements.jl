@@ -64,12 +64,6 @@ function core_kinetic_energy_density_fourier(::Element, ::T)::T where {T <: Real
     error("Abstract elements do not necesesarily provide core kinetic energy density.")
 end
 
-# Generic vectorized version of local_potential_fourier, GPU-safe
-function local_potential_fourier(el::Element, ps::AbstractVector{T}) where {T <: Real}
-    arch = architecture(ps)
-    to_device(arch, map(p -> local_potential_fourier(el, p), to_cpu(ps)))
-end
-
 Base.show(io::IO, el::Element) = print(io, "$(typeof(el))(:$(species(el)))")
 
 #
@@ -189,7 +183,7 @@ function valence_charge_density_fourier(el::ElementPsp, p)
         gaussian_valence_charge_density_fourier(el, p)
     end
 end
-core_charge_density_fourier(el::ElementPsp, p) = eval_psp_density_core_fourier(el.psp, p)
+core_charge_density_fourier(el::ElementPsp, p) = eval_psp_core_density_fourier(el.psp, p)
 
 #
 # ElementCohenBergstresser
