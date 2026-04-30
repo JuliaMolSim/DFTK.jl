@@ -58,6 +58,18 @@ end
 @views @timing function compute_δρ(basis::PlaneWaveBasis{T}, ψ, δψ, occupation,
                                    δoccupation=zero.(occupation);
                                    occupation_threshold=zero(T), q=zero(Vec3{T})) where {T}
+    # The phonon δρ formula below uses `2 ψ̄ δψ` instead of `ψ̄ δψ + δψ̄ ψ`,
+    # implicitly relying on time-reversal symmetry to fold in the -q contribution.
+    # For systems with broken TRS (spin polarization) this is silently incorrect.
+    # See #1310 for the full discussion.
+    if !iszero(q) && basis.model.spin_polarization != :none
+        @warn """
+        Phonon δρ formula at q ≠ 0 assumes time-reversal symmetry.
+        For spin_polarization=$(basis.model.spin_polarization), results may be incorrect.
+        See https://github.com/JuliaMolSim/DFTK.jl/issues/1310.
+        """ maxlog=1
+    end
+
     Tψ = promote_type(T, eltype(ψ[1]))
     # δρ is expected to be real when computations are not phonon-related.
     Tδρ = iszero(q) ? real(Tψ) : Tψ
