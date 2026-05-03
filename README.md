@@ -42,6 +42,34 @@ Our performance is of the same order of magnitude
 as other plane-wave DFT packages and  systems of 1000 electrons
 can be routinely treated.
 
+Basic usage is demonstrated below:
+```julia
+using DFTK
+using PseudoPotentialData
+
+# Define the geometry
+a = 10.26 # Everything in DFTK is in atomic units, here Bohrs
+lattice = a / 2 * [[0 1 1.];
+                   [1 0 1.];
+                   [1 1 0.]]
+
+# Define the pseudopotential and atomic positions
+Si = ElementPsp(:Si, PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf"))
+atoms     = [Si, Si]
+positions = [ones(3)/8, -ones(3)/8] # relative coordinates
+
+# First define the model (problem to be solved, without numerical parameters);
+# here, a standard DFT with LDA exchange-correlation
+model = model_DFT(lattice, atoms, positions; functionals=LDA())
+
+# `basis` holds the discretization parameters (energy cutoff, kpoint sampling, etc)
+# and everything needed to specify the solution numerically
+basis = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
+
+scfres = self_consistent_field(basis, tol=1e-8)
+# scfres contains the result of the calculation (energy, density, orbitals, etc)
+```
+
 For getting started with DFTK, see [our documentation](https://docs.dftk.org):
 - [Installation instructions](https://docs.dftk.org/stable/guide/installation/)
 - [Tutorial](https://docs.dftk.org/stable/guide/tutorial/)
@@ -74,13 +102,6 @@ or have suggestions for future developments
 we are more than happy to hear about it.
 In this case please [open an issue](https://github.com/JuliaMolSim/DFTK.jl/issues)
 or contact us ([@mfherbst](https://github.com/mfherbst)
-and [@antoine-levitt](https://github.com/antoine-levitt)) directly.
+and [@antoine-levitt](https://github.com/antoine-levitt)) directly. 
 
-Contributions to the code in any form is very welcome,
-just [submit a pull request](https://github.com/JuliaMolSim/DFTK.jl/pulls)
-on github. If you want to contribute but are unsure where to start, take a look
-at the list of issues tagged [good first issue](https://github.com/JuliaMolSim/DFTK.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
-(relatively easy tasks suitable for newcomers) or [help wanted](https://github.com/JuliaMolSim/DFTK.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
-(more sizeable but well-defined and isolated).
-Don't hesitate to ask for help, through github,
-email, [JuliaMolSim zulip][chat-url] or [Matrix chat][matrix-url].
+If you want to start contributing to the code, please read the [CONTRIBUTING.md](CONTRIBUTING.md) file first.
