@@ -101,24 +101,40 @@ So:
 
 ### `src/bzmesh.jl`
 
-- Line 66 (`rotations = [symop.W for symop in symmetries]`): this feeds spglib's
-  k-mesh reducer (`get_ir_reciprocal_mesh` / `get_stabilized_reciprocal_mesh`).
-  Spglib's k-mesh API does have a `is_time_reversal` flag — but checking the
-  Spglib.jl wrapper before relying on it; if it's exposed cleanly, pass our `θ`
-  through and let spglib handle the orbit. If not, the cheap workaround is to
-  pre-pend `-W` for each `θ=−1` partner so spglib sees an ordinary spatial
-  symmetry that gives the right orbit (`θ·S·k = −Sk`). Either way works; the
-  flag-based path is cleaner if available.
-- Line 294 (`symop.S * k` equivalence test): use `symop.θ * symop.S * k`.
+**Even bigger simplification: this file already has a one-line TODO for exactly
+this project.** Line 61:
+
+```julia
+# TODO implement time-reversal symmetry and turn the flag below to true
+is_shift = ...
+spg_mesh = Spglib.get_stabilized_reciprocal_mesh(rotations, kgrid.kgrid_size, qpoints;
+                                                 is_shift, is_time_reversal=false)
+```
+
+Spglib's k-mesh reducer handles TRS natively. Change `is_time_reversal=false` to
+`is_time_reversal = !any(breaks_TRS, basis.model.term_types) && spin_polarization
+allows TRS`. Spglib then returns the correctly halved irreducible mesh and a
+mapping table that already accounts for ±k folding — no `-W` trickery needed.
+
+- Line 294 (`symop.S * k` equivalence test in `irreducible_kcoords` / similar):
+  use `symop.θ * symop.S * k` so the orbit on the DFTK side matches what spglib
+  computed.
 
 ### `src/transfer.jl`
 
 - `find_equivalent_kpt` (line 180): currently looks for `kcoord` modulo a reciprocal
-  lattice vector. With antiunitaries you also need to consider `−kcoord`, but
-  **only** for code paths that actually want the antiunitary-equivalent k. Most
-  callers want a concrete kpt-in-the-stored-list mapping; for those, the existing
-  semantics is right. Decide on a per-caller basis. Likely safe default: don't
-  change `find_equivalent_kpt`; only change *where* it's called.
+  lattice vector only — *not* modulo TRS. After k-point reduction shrinks
+  `basis.kpoints`, callers may ask for `kcoord = k + q` and find that only `−(k+q)`
+  is in the list. Either:
+  (a) extend `find_equivalent_kpt` to also try `−kcoord` and return a flag
+      `needs_conj::Bool` (or a θ); callers that handle wavefunctions then apply
+      `conj` and the G-flip when `needs_conj`, while callers that only care about
+      indices can ignore the flag at their own risk.
+  (b) leave it strict and audit every caller (currently `k_to_kpq_permutation`
+      → `compute_δρ` flow, `transfer_blochwave_equivalent_to_actual`, and
+      `PlaneWaveBasis.jl:115`).
+  Recommended: (a). The signature change is small and makes the TRS-aware
+  semantics explicit at every call site.
 - `transfer_blochwave_kpt`, `transfer_blochwave_equivalent_to_actual`: these act
   on coefficients of ψ. If the equivalence used to identify `kpt_in` and `kpt_out`
   is antiunitary, the coefficient transfer must include `conj` and a sign flip on
