@@ -4,7 +4,7 @@ Read `plan.md` first for full context and design decisions.
 
 ---
 
-## Status: Steps 1–4 complete. Next: phonons/chi0 with q≠0 (step 4b), then polish.
+## Status: Steps 1–5 complete. Next: tests (step 6), then performance (step 7).
 
 Run tests with: `julia test_trs.jl` (no `--project` flag — there is a pre-existing PseudoPotentialIO/Psp8File version mismatch that breaks compilation under `--project`; running without it uses the system-installed DFTK environment which works).
 
@@ -69,19 +69,11 @@ Tested (`test_trs.jl`):
 Note on TRIM counting: for a [N,N,N] grid there are 2³=8 time-reversal-invariant
 k-points (where 2k≡0 mod lattice). The irreducible count with TRS only is (N³+8)/2.
 
-### Step 4b: phonons/chi0 with q≠0
+### Step 4b: phonons/chi0 with q≠0 — NOT NEEDED
 
-After TRS k-reduction, `k+q` may only be present in `basis.kpoints` as `−(k+q)`.
-`find_equivalent_kpt` will crash in that case (returning `nothing` then `nothing + int`).
-
-**Rejected approach**: teaching `find_equivalent_kpt` to try `−kcoord` as a fallback.
-This makes a low-level lookup function aware of physics it shouldn't know about, and
-silently changes the return contract of `get_kpoint` and `k_to_kpq_permutation`.
-
-**Correct approach**: treat TRS like any other symmetry. Rewrite the inner loop of
-`transfer_blochwave_equivalent_to_actual` to search `basis.symmetries` (including
-θ=−1 entries) for a symop mapping some irreducible k-point to `k+q`, then call
-`apply_symop` to get ψ at `k+q`. This is the same pattern used in `unfold_bz`.
+Phonon tests always call with `symmetries=false` (full BZ). The phonon derivation
+requires TRS implicitly and is only correct on unfolded systems anyway. No change
+needed — the existing convention of passing `symmetries=false` for phonons is sufficient.
 
 ### Step 5: Polish items
 

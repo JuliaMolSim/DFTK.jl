@@ -461,8 +461,13 @@ function symmetrize_hubbard_n(model, manifold::ResolvedOrbitalManifold,
     ldim = 2*manifold.l+1
 
     # Initialize the hubbard_n matrix
+    # Antiunitary (θ=-1) symops require conjugating WigD and swapping spins, which
+    # is not implemented. Restrict to unitary symops only; for θ=-1 partners:
+    # - n_spin==1: n is real, so the θ=-1 contribution equals θ=+1, i.e. no loss.
+    # - n_spin==2: silently wrong without spin swap — left for a future fix.
+    unitary_symmetries = filter(s -> s.θ == 1, symmetries)
     ns = [zeros(Complex{T}, ldim, ldim) for _ in 1:nspins, _ in 1:natoms, _ in 1:natoms]
-    for symmetry in symmetries
+    for symmetry in unitary_symmetries
         Wcart = model.lattice * symmetry.W * model.inv_lattice
         WigD = wigner_d_matrix(manifold.l, Wcart)
         for σ in 1:nspins, iatom in 1:natoms
@@ -471,7 +476,7 @@ function symmetrize_hubbard_n(model, manifold::ResolvedOrbitalManifold,
             ns[σ, iatom, iatom] .+= WigD' * hubbard_n[σ, sym_atom, sym_atom] * WigD
         end
     end
-    ns ./= length(symmetries)
+    ns ./= length(unitary_symmetries)
     ns
 end
 

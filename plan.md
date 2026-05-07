@@ -311,9 +311,9 @@ meshes differ.
 4. **Forces/stresses verification** (½ day): these use q=0 and bypass
    `find_equivalent_kpt` entirely. Run regression on Si/GaAs to confirm they already
    work after step 3.
-4b. **Phonons/chi0 with q≠0** (2–3 days): rewrite `transfer_blochwave_equivalent_to_actual`
-   to find the right symop (including θ=−1) in `basis.symmetries` and call `apply_symop`,
-   rather than extending `find_equivalent_kpt`.
+4b. **Phonons/chi0 with q≠0** — skip. Phonon tests always pass `symmetries=false`
+   (full BZ); the derivation requires TRS implicitly and is only correct on
+   unfolded systems. No code change needed.
 5. **Currents + Hubbard + GPU kernel + extensions** (1–2 days): polish.
 6. **Performance pass + θ=+1 fast path in symmetrise_ρ** (½ day).
 
