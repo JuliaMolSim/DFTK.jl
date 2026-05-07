@@ -57,16 +57,17 @@ function irreducible_kcoords(kgrid::MonkhorstPack, symmetries::AbstractVector{<:
         return (; kcoords=[Vec3{Float64}(kgrid.kshift)], kweights=[1.0])
     end
 
-    # Give the remaining symmetries to spglib to compute an irreducible k-point mesh
-    # TODO implement time-reversal symmetry and turn the flag below to true
+    # Give the remaining symmetries to spglib to compute an irreducible k-point mesh.
+    # Use time-reversal if the symmetry group contains antiunitary (θ=-1) operations.
     is_shift = map(kgrid.kshift) do ks
         ks in (0, 1//2) || error("Only kshifts of 0 or 1//2 implemented.")
         ks == 1//2
     end
     rotations = [symop.W for symop in symmetries]
     qpoints = [Vec3(0, 0, 0)]
+    is_time_reversal = any(symop -> symop.θ == -1, symmetries)
     spg_mesh = Spglib.get_stabilized_reciprocal_mesh(rotations, kgrid.kgrid_size, qpoints;
-                                                     is_shift, is_time_reversal=false)
+                                                     is_shift, is_time_reversal)
     kirreds = map(Spglib.eachpoint(spg_mesh)) do kcoord
         normalize_kpoint_coordinate(Vec3(kcoord))
     end
@@ -288,10 +289,9 @@ end
     for (iks_reducible, k) in zip(k_all_reducible, kirreds), ikred in iks_reducible
         kred = (kgrid.kshift .+ grid_address[ikred]) .// kgrid.kgrid_size
         found_mapping = any(symmetries) do symop
-            # If the difference between kred and W' * k == W^{-1} * k
-            # is only integer in fractional reciprocal-space coordinates, then
-            # kred and S' * k are equivalent k-points
-            all(isinteger, kred - (symop.S * k))
+            # If the difference between kred and θ·S·k is only integer in fractional
+            # reciprocal-space coordinates, then kred and θ·S·k are equivalent k-points
+            all(isinteger, kred - symop.θ * (symop.S * k))
         end
         if !found_mapping
             error("The reducible k-point $kred could not be generated from " *

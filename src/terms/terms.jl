@@ -50,6 +50,9 @@ include("Hamiltonian.jl")
 # is invalid)
 breaks_symmetries(::Any) = false
 
+# breaks_TRS answers true if this term breaks time-reversal symmetry
+breaks_TRS(::Any) = false
+
 include("kinetic.jl")
 
 include("local.jl")
@@ -69,9 +72,11 @@ include("exact_exchange.jl")
 
 include("magnetic.jl")
 breaks_symmetries(::Magnetic) = true
+breaks_TRS(::Magnetic) = true
 
 include("anyonic.jl")
 breaks_symmetries(::Anyonic) = true
+breaks_TRS(::Anyonic) = true
 
 # forces computes either nothing or an array forces[at][α] (by default no forces)
 compute_forces(::Term, ::AbstractBasis, ψ, occupation; kwargs...) = nothing

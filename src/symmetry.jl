@@ -86,20 +86,17 @@ on each of the atoms. The symmetries are determined using spglib.
 
     atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
     cell = spglib_cell(lattice, atom_groups, positions, magnetic_moments)
-    Ws, ws = try
+    symmetries = try
         if spin_polarization == :none
-            Spglib.get_symmetry(cell, tol_symmetry)
+            Ws, ws = Spglib.get_symmetry(cell, tol_symmetry)
+            [SymOp(W, w) for (W, w) in zip(Ws, ws)]
         elseif spin_polarization == :collinear
             rotations, translations, spin_flips = Spglib.get_symmetry_with_site_tensors(
                 cell, tol_symmetry)
-            # Keep only the symmetries that don't flip the spins
-            rotations[spin_flips.==1], translations[spin_flips.==1]
-            # Taking into account the symmetries that flip spins here would mean detecting 
-            # antiferromagnetic order (where the down orbitals are the up orbitals 
-            # translated by half a cell) and optimizing by computing only the up channel of 
-            # the orbitals and building the density by symmetry. So, the density has two 
-            # components, but the orbitals have only one spin channel.
-            # This would cut runtime by a factor 2.
+            # spin_flips ∈ {+1, -1}: +1 keeps spin, -1 flips spin (antiunitary, θ=-1).
+            # For AFM order, spin_flips==-1 rows detect the spin-flipping symmetry that
+            # relates the up and down channels — we keep all rows tagged with θ.
+            [SymOp(W, w; θ=sf) for (W, w, sf) in zip(rotations, translations, spin_flips)]
         end
     catch e
         if e isa Spglib.SpglibError
@@ -110,8 +107,6 @@ on each of the atoms. The symmetries are determined using spglib.
             rethrow()
         end
     end
-
-    symmetries = [SymOp(W, w) for (W, w) in zip(Ws, ws)]
     if check_symmetry
         _check_symmetries(symmetries, lattice, atom_groups, positions; tol_symmetry)
     end
@@ -165,7 +160,7 @@ function symmetries_preserving_kgrid(symmetries, kgrid::AbstractKgrid)
     all_kcoords = unfold_kcoords(reducible_kcoords(kgrid).kcoords, symmetries)
     kcoords_normalized = normalize_kpoint_coordinate.(all_kcoords)
     function preserves_grid(symop)
-        all(_is_approx_in(normalize_kpoint_coordinate(symop.S * k), kcoords_normalized)
+        all(_is_approx_in(normalize_kpoint_coordinate(symop.θ * symop.S * k), kcoords_normalized)
             for k in kcoords_normalized)
     end
     filter(preserves_grid, symmetries)
@@ -181,7 +176,7 @@ function symmetries_preserving_kgrid(symmetries, kgrid::MonkhorstPack)
     function preserves_kgrid(symop)
         function _check(dx, dy, dz)
             k = (kgrid.kshift .+ Vec3(dx, dy, dz)) .// kgrid.kgrid_size
-            normalize_kpoint_coordinate(symop.S * k) ∈ kcoords_normalized
+            normalize_kpoint_coordinate(symop.θ * symop.S * k) ∈ kcoords_normalized
         end
         _check(0, 0, 0) && _check(1, 0, 0) && _check(0, 1, 0) && _check(0, 0, 1)
     end
@@ -227,14 +222,13 @@ equivalent point in [-0.5, 0.5)^3 and associated eigenvectors (expressed in the
 basis of the new ``k``-point).
 """
 function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
-    S, τ = symop.S, symop.τ
+    S, τ, θ = symop.S, symop.τ, symop.θ
     isone(symop) && return kpoint, ψk
 
-    # Apply S and reduce coordinates to interval [-0.5, 0.5)
-    # Doing this reduction is important because
-    # of the finite kinetic energy basis cutoff
+    # Apply θ·S to k and reduce coordinates to interval [-0.5, 0.5)
+    # Doing this reduction is important because of the finite kinetic energy basis cutoff
     @assert all(-0.5 .≤ kpoint.coordinate .< 0.5)
-    Sk_raw = S * kpoint.coordinate
+    Sk_raw = θ * S * kpoint.coordinate
     Sk = normalize_kpoint_coordinate(Sk_raw)
     kshift = convert.(Int, Sk - Sk_raw)
     @assert all(-0.5 .≤ Sk .< 0.5)
@@ -251,18 +245,27 @@ function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
         @assert Skpoint.coordinate ≈ Sk
     end
 
-    # Since the eigenfunctions of the Hamiltonian at k and Sk satisfy
-    #      u_{Sk}(x) = u_{k}(S^{-1} (x - τ))
-    # their Fourier transform is related as
-    #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
     invS = Mat3{Int}(inv(S))
     Gs_full = [G + kshift for G in G_vectors(basis, Skpoint)]
     ψSk = zero(ψk)
-    for iband = 1:size(ψk, 2)
-        for (ig, G_full) in enumerate(Gs_full)
-            igired = index_G_vectors(basis, kpoint, invS * G_full)
-            @assert igired !== nothing
-            ψSk[ig, iband] = cis2pi(-dot(G_full, τ)) * ψk[igired, iband]
+
+    if θ == 1
+        # Unitary: u_{Sk}(G) = e^{-i G·τ} u_k(S^{-1} G)
+        for iband = 1:size(ψk, 2)
+            for (ig, G_full) in enumerate(Gs_full)
+                igired = index_G_vectors(basis, kpoint, invS * G_full)
+                @assert igired !== nothing
+                ψSk[ig, iband] = cis2pi(-dot(G_full, τ)) * ψk[igired, iband]
+            end
+        end
+    else
+        # Antiunitary (θ=-1): u_{-Sk}(G) = e^{+i G·τ} conj(u_k(-S^{-1} G))
+        for iband = 1:size(ψk, 2)
+            for (ig, G_full) in enumerate(Gs_full)
+                igired = index_G_vectors(basis, kpoint, -(invS * G_full))
+                @assert igired !== nothing
+                ψSk[ig, iband] = cis2pi(+dot(G_full, τ)) * conj(ψk[igired, iband])
+            end
         end
     end
 
@@ -347,10 +350,31 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
                                      symmetries=basis.symmetries, do_lowpass=true) where {T}
     ρin_fourier  = fft(basis, ρ)
     ρout_fourier = zero(ρin_fourier)
-    for σ = 1:size(ρ, 4)
-        accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
-                                    ρin_fourier[:, :, :, σ], basis, symmetries)
-        do_lowpass && lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
+    n_spin = size(ρ, 4)
+
+    symops_plus  = filter(s -> s.θ == +1, symmetries)
+    symops_minus = filter(s -> s.θ == -1, symmetries)
+
+    if isempty(symops_minus) || n_spin == 1
+        # For scalar density (n_spin == 1): θ=-1 acts identically to θ=+1 on real ρ
+        # (complex conjugation is a no-op on a real density), so we can treat all symops
+        # uniformly. The division by length(symmetries) correctly normalizes.
+        for σ = 1:n_spin
+            accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
+                                        ρin_fourier[:, :, :, σ], basis, symmetries)
+            do_lowpass && lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
+        end
+    else
+        # Collinear (n_spin == 2) with antiunitary symmetries: θ=-1 partners swap ↑↔↓.
+        ρtmp = similar(ρout_fourier[:, :, :, 1])
+        for σ = 1:2
+            σ_other = 3 - σ
+            accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
+                                        ρin_fourier[:, :, :, σ], basis, symops_plus)
+            accumulate_over_symmetries!(ρtmp, ρin_fourier[:, :, :, σ_other], basis, symops_minus)
+            ρout_fourier[:, :, :, σ] .+= ρtmp
+            do_lowpass && lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
+        end
     end
     inv_fft = T <: Real ? irfft : ifft
     inv_fft(basis, ρout_fourier ./ length(symmetries))
@@ -476,7 +500,7 @@ function unfold_mapping(basis_irred, kpt_unfolded)
     for ik_irred = 1:length(basis_irred.kpoints)
         kpt_irred = basis_irred.kpoints[ik_irred]
         for symop in basis_irred.symmetries
-            Sk_irred = normalize_kpoint_coordinate(symop.S * kpt_irred.coordinate)
+            Sk_irred = normalize_kpoint_coordinate(symop.θ * symop.S * kpt_irred.coordinate)
             k_unfolded = normalize_kpoint_coordinate(kpt_unfolded.coordinate)
             if (Sk_irred ≈ k_unfolded) && (kpt_unfolded.spin == kpt_irred.spin)
                 return ik_irred, symop
@@ -531,7 +555,7 @@ end
 
 function unfold_kcoords(kcoords, symmetries)
     # unfold
-    all_kcoords = [normalize_kpoint_coordinate(symop.S * kcoord)
+    all_kcoords = [normalize_kpoint_coordinate(symop.θ * symop.S * kcoord)
                    for kcoord in kcoords, symop in symmetries]
     # uniquify
     digits = ceil(Int, -log10(SYMMETRY_TOLERANCE))
