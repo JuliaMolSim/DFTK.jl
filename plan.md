@@ -59,14 +59,36 @@ and `basis.symmetries` continues to be the subgroup preserving the kgrid.
 
 ### `src/symmetry.jl`
 
-- `_check_symmetries`: when `θ = −1`, the check `W·a + w` in atom positions is unchanged
-  (TRS preserves the lattice/positions). If magnetic moments are present, antiunitary
-  partners require **flipping the moment sign**: only valid if the flipped configuration
-  matches the original up to a unitary symmetry — i.e. spin-paired.
-- `default_symmetries` (`Model.jl:324`): after the spglib call, if `!any(breaks_TRS, terms)`
-  *and* `spin_polarization ∈ (:none, :spinless, :collinear-without-net-moment)`,
-  duplicate each `(W, w, +1)` to `(W, w, −1)` and pass through `complete_symop_group`.
-  Skip duplication for `:full` (SOC) — see "Spin gotchas" below.
+**Important: spglib already returns the antiunitary partners — we just throw them
+away today.** `symmetry_operations` calls
+`Spglib.get_symmetry_with_site_tensors(cell, tol_symmetry)` (line 93) which returns
+a third array `spin_flips ∈ {+1, −1}`. The current code (line 96) does
+`rotations[spin_flips.==1], translations[spin_flips.==1]`, dropping the spin-flipping
+ops. The comment immediately below acknowledges this is leaving a 2× speedup on the
+table for antiferromagnetic order. **This project is essentially: stop throwing
+those away, and tag them as `θ=−1`.**
+
+So:
+
+- For `:none` / `:spinless`: spglib doesn't return spin-flips (no spin info). When
+  `!any(breaks_TRS, terms)`, synthesise TRS partners ourselves by duplicating each
+  `(W, w, +1)` to `(W, w, −1)`. (The TRS partner of identity is `(I, 0, −1)` which
+  is plain complex conjugation — i.e. the `k → −k` reduction.)
+- For `:collinear`: keep all rows from `get_symmetry_with_site_tensors`. Map
+  `spin_flips == +1 → θ = +1` and `spin_flips == −1 → θ = −1`. The θ=−1 partners
+  are antiunitaries that *also swap the two spin channels* — see "Spin gotchas".
+  Drop these only when `any(breaks_TRS, terms)` (since antiunitarity is broken).
+- For `:full` (SOC): out of scope; spglib's site-tensor call also handles vector
+  moments differently. Skip.
+
+- `_check_symmetries`: when `θ = −1`, the atom-position check `W·a + w ≡ a' (mod 1)`
+  is *unchanged* (the spatial part is the same). What does change is the
+  magnetic-moment check: `W·m_a` must equal `+m_{a'}` for `θ=+1` and `−m_{a'}` for
+  `θ=−1`. Spglib has already verified this for us; we just need to not break the
+  invariant when manipulating SymOps.
+
+- `default_symmetries` (`Model.jl:324`): the gating logic above. Skip duplication
+  / drop spin-flips when `any(breaks_TRS, terms)`.
 - `symmetrize_ρ`, `accumulate_over_symmetries!`, `lowpass_for_symmetry!`:
   **For real total densities the antiunitary action equals the unitary action** because
   `ρ` is real (`conj` is no-op). With `n_spin = 1` you can short-circuit `θ=−1` partners
@@ -80,13 +102,13 @@ and `basis.symmetries` continues to be the subgroup preserving the kgrid.
 ### `src/bzmesh.jl`
 
 - Line 66 (`rotations = [symop.W for symop in symmetries]`): this feeds spglib's
-  k-mesh reducer, which has no concept of antiunitaries. **Either** filter to
-  `θ=+1` symops before this call (correct but loses the TRS reduction at the
-  spglib stage), **or** add the `θ=−1` partners to the rotation list as the
-  inversions of their `θ=+1` counterparts (`-W`) — spglib will treat them
-  as ordinary spatial symmetries, which gives exactly the right k-orbit since
-  `θ·S·k = −Sk`. Recommended path: pre-pend `-W` for each `θ=−1` partner before
-  the spglib call.
+  k-mesh reducer (`get_ir_reciprocal_mesh` / `get_stabilized_reciprocal_mesh`).
+  Spglib's k-mesh API does have a `is_time_reversal` flag — but checking the
+  Spglib.jl wrapper before relying on it; if it's exposed cleanly, pass our `θ`
+  through and let spglib handle the orbit. If not, the cheap workaround is to
+  pre-pend `-W` for each `θ=−1` partner so spglib sees an ordinary spatial
+  symmetry that gives the right orbit (`θ·S·k = −Sk`). Either way works; the
+  flag-based path is cleaner if available.
 - Line 294 (`symop.S * k` equivalence test): use `symop.θ * symop.S * k`.
 
 ### `src/transfer.jl`
@@ -167,15 +189,22 @@ TRS acts on spin as `iσ_y K` (K = complex conjugation). Concretely:
 | `:collinear`, net moment | swaps `ρ_↑ ↔ ρ_↓` | **breaks TRS at the model level**; do not add partners |
 | `:full` (SOC, noncollinear) | `iσ_y K` on the spinor | requires Pauli-spinor support; **out of scope** |
 
-In `default_symmetries`, gate the duplication on:
+In `default_symmetries`, gate the duplication / spin-flip retention on:
 1. `!any(breaks_TRS, terms)`,
-2. `spin_polarization ∈ (:none, :spinless)` *or* (`:collinear` *and* the moment
-   configuration is TRS-invariant under up-down swap).
+2. `spin_polarization ∈ (:none, :spinless)` (synthesise partners) *or*
+   `:collinear` (keep spglib's spin-flip rows as `θ=−1` SymOps).
 
-Be careful: spglib's symmetry detection takes magnetic moments into account and
-already returns the magnetic point group. We're *augmenting* its output, not
-replacing it. If spglib already returned a symmetry that flips moments
-(magnetic-coloured group), the antiunitary version must not double-count.
+For `:collinear` with `θ=−1`, the antiunitary action on the spin-resolved density
+swaps `ρ_↑ ↔ ρ_↓` *and* applies the spatial part `(W, w)`. Symmetrisation must
+therefore be aware of the spin index — `symmetrize_ρ` currently iterates over the
+spin axis independently per symop, which is wrong for `θ=−1` in the collinear
+case. Specifically, line ~290 of `symmetry.jl` (`accumulate_over_symmetries!` or
+its caller) needs branching on `θ`: for `θ=+1` keep the per-spin loop, for `θ=−1`
+swap the spin index of the source density before accumulating.
+
+Don't worry about double-counting between spglib's spin-flip rows and "synthesised"
+TRS partners — for `:collinear` we *only* use spglib's output (no synthesis), and
+for `:none`/`:spinless` spglib never returns spin-flip rows.
 
 ---
 
