@@ -55,6 +55,37 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
 end
 
 # Variation in density corresponding to a variation in the orbitals and occupations.
+#
+# Density response and the "factor of 2" / dropped δψ̄·ψ term
+# ---------------------------------------------------------
+# A real perturbation at wavevector q has two complex Fourier components,
+# δV(r) = δV_q e^{iq·r} + δV_q* e^{−iq·r}. Each Bloch state ψ_k acquires a response
+# with two pieces: δψ_k^{(+)} at momentum k+q (sourced by δV_q) and δψ_k^{(−)} at
+# k−q (sourced by δV_q*). Differentiating ρ = ∑_k f_k |ψ_k|² gives
+#   δρ = ∑_k f_k (ψ̄_k δψ_k + δψ̄_k ψ_k).
+# Picking out the +q Fourier component of δρ, by counting momenta:
+#   • ψ̄_k δψ_k^{(+)}   contributes at  −k + (k+q) = +q   ← what we compute below
+#   • ψ̄_k δψ_k^{(−)}   contributes at  −q                (drops out of δρ_{+q})
+#   • δψ̄_k^{(+)} ψ_k   contributes at  −q                (drops out)
+#   • δψ̄_k^{(−)} ψ_k   contributes at  +q                ← *not* computed directly
+# So naively δρ_{+q} would need both δψ_k^{(+)} (Sternheimer at +q) and δψ_k^{(−)}
+# (Sternheimer at −q).
+#
+# Time-reversal symmetry rescues us. Under TRS the Bloch state ψ_{−k} = ψ_k* is
+# also occupied with the same energy, and conjugating its Sternheimer equation
+# at +q,
+#   (H_{−k+q} − ε_{−k}) δu_{−k}^{(+)} = −δV_q u_{−k},
+# turns it (using H̄_{−k+q} = H_{k−q} and ū_{−k} = u_k) into
+#   (H_{k−q} − ε_k) (δu_{−k}^{(+)})* = −δV_q* u_k,
+# which is exactly the Sternheimer equation defining δu_k^{(−)}. Hence
+# δψ_k^{(−)} = (δψ_{−k}^{(+)})*, and after summing over k the missing term
+# δψ̄_k^{(−)} ψ_k just reproduces ψ̄_k δψ_k^{(+)}. The two +q contributions are
+# therefore equal — we compute one and multiply by 2 below.
+#
+# Without TRS this identification fails and the −q Sternheimer equation must be
+# solved separately (see JuliaMolSim/DFTK.jl#1310 and Dal Corso,
+# https://arxiv.org/abs/1906.11673). compute_dynmat asserts !breaks_TRS to keep
+# this routine valid in the phonon use-case.
 @views @timing function compute_δρ(basis::PlaneWaveBasis{T}, ψ, δψ, occupation,
                                    δoccupation=zero.(occupation);
                                    occupation_threshold=zero(T), q=zero(Vec3{T})) where {T}

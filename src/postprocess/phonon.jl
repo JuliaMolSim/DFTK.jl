@@ -71,6 +71,13 @@ in reduced coordinates.
 @timing function compute_dynmat(basis::PlaneWaveBasis{T}, ψ, occupation; q=zero(Vec3{T}),
                                 ρ=nothing, ham=nothing, εF=nothing, eigenvalues=nothing,
                                 kwargs...) where {T}
+    # The phonon response solver assumes time-reversal symmetry: the trick used
+    # to compute δρ from a single Sternheimer equation at +q (instead of one at
+    # +q and one at -q) is only valid under TRS. See the discussion in
+    # JuliaMolSim/DFTK.jl#1310 and Dal Corso, https://arxiv.org/abs/1906.11673.
+    @assert !any(breaks_TRS, basis.model.term_types) (
+        "compute_dynmat is currently only implemented for time-reversal-symmetric "
+        * "Hamiltonians; see JuliaMolSim/DFTK.jl#1310.")
     n_atoms = length(basis.model.positions)
     δρs = [zeros(complex(T), basis.fft_size..., basis.model.n_spin_components)
            for _ = 1:3, _ = 1:n_atoms]
