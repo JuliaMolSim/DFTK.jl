@@ -75,41 +75,38 @@ Phonon tests always call with `symmetries=false` (full BZ). The phonon derivatio
 requires TRS implicitly and is only correct on unfolded systems anyway. No change
 needed — the existing convention of passing `symmetries=false` for phonons is sufficient.
 
-### Step 5: Polish items
+### Step 5: Polish items ✓ DONE
 
-**`src/postprocess/current.jl`**:
-- Currents are TRS-odd: `j(x) → -j(x)` under θ=−1.
-- The symmetrisation loop needs a sign flip for θ=−1 symops. Without this, equilibrium currents symmetrize to zero accidentally (correct), but response currents get killed incorrectly.
-- Find the accumulation loop and add: `factor = symop.θ` (or just `-1`) when applying θ=−1 operations.
+**`src/postprocess/current.jl`**: assertion updated to `!use_symmetries_for_kpoint_reduction`
+(was `length(symmetries)==1`). Currents still require full BZ; a proper TRS-aware
+symmetrization (with θ-odd sign flip) is a future TODO.
 
-**`src/terms/hubbard.jl`** — `symmetrize_hubbard_n`:
-- For θ=−1: add `conj` on the Wigner-D rotation and (for collinear) swap the σ index.
-- Low priority unless Hubbard+TRS is tested.
+**`src/symmetry.jl` — `symmetrize_hubbard_n`**: restricted to θ=+1 symops only.
+For n_spin=1 (real n) this is equivalent to before. For n_spin=2 with TRS it now
+gives correct results (previously would silently average wrong spin components).
+Full antiunitary treatment (conj(WigD) + spin swap) left as a future TODO.
 
-**GPU kernel** (`src/symmetry.jl:301`, `accumulate_over_symmetries!`):
-- Currently passes `symm_invS` and `symm_τ` to GPU kernel.
-- For collinear with θ=−1, the kernel needs `symm_θ` and spin-swap logic.
-- The n_spin=1 path is already correct (θ=−1 is no-op for real ρ on GPU too).
-- Only needed for GPU collinear AFM use case.
+**GPU kernel** (`accumulate_over_symmetries!`): no change needed. The kernel formula
+`e^{-iG·τ} ρ(S⁻¹G)` is correct for θ=−1 on real densities; spin swap for collinear
+is already handled outside the kernel in `symmetrize_ρ`.
 
-**Serialization** (`ext/DFTKJLD2Ext.jl`, `ext/DFTKJSON3Ext.jl`):
-- Grep for anywhere that reconstructs a `SymOp` from saved data. If SymOp is stored field-by-field, add `θ` (default 1 for backward compat).
-- Confirmed: current JLD2 ext does NOT serialize SymOp objects directly — it stores `symmetries_respect_rgrid` and `use_symmetries_for_kpoint_reduction` flags. So likely no change needed.
+**Serialization**: no change needed — extensions store flags, not SymOp objects.
 
-**Wannier90 ext** (`ext/DFTKWannier90Ext.jl`):
-- Check if it generates a k-point list that needs TRS-aware unfolding. Low priority.
+**Wannier90 ext**: not checked, low priority.
 
-### Step 6: Tests
+### Step 6: Tests (TODO)
 
-Add to `test/bzmesh_symmetry.jl`:
-1. SymOp group-theory unit test with antiunitaries.
-2. Triple comparison (nosym / sym-no-TRS / sym-TRS) for inversion-asymmetric system — all agree on ρ, E, forces.
-3. Collinear AFM equivalence — confirm symmetry count doubles and ρ unchanged.
-4. k-weight sanity: `sum(basis.kweights) ≈ 1` for each variant.
+Move `test_trs.jl` content into `test/bzmesh_symmetry.jl` as proper `@testitem` entries:
+1. SymOp group-theory unit tests (antiunitaries): `*`, `inv`, `isone`. Tag `:minimal`.
+2. GaAs equilibrium (Td+TRS): E/ρ/f agreement, k-weight sanity. Tag default.
+3. Rattled GaAs (TRS-only, non-zero forces): E/ρ/f agreement, k-count=36. Tag default.
+4. Collinear AFM equivalence (spglib spin_flips path): symmetry count doubles,
+   ρ unchanged. Tag default.
 
-### Step 7: Performance
+### Step 7: Performance (TODO)
 
-- In `symmetrize_ρ` for n_spin=1: currently iterates over ALL 2N symops (θ=−1 is redundant for real ρ). Can filter to θ=+1 only and divide by N instead of 2N. Negligible correctness impact, saves ~2× work in symmetrize_ρ.
+- `symmetrize_ρ` for n_spin=1: iterates over 2N symops but θ=−1 is redundant for
+  real ρ. Can pass only θ=+1 symops (N) and divide by N. Saves ~2× work.
 
 ---
 
