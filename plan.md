@@ -296,6 +296,114 @@ for `:none`/`:spinless` spglib never returns spin-flip rows.
 Total estimate: ~2 weeks for someone familiar with the symmetry code; ~3–4 weeks
 otherwise.
 
+## Test strategy
+
+The existing pattern in `test/bzmesh_symmetry.jl` is exactly what we want to mirror:
+SCF with `symmetries=false` (full reducible BZ) versus default symmetries on the
+same lattice/Ecut/kgrid; assert ρ and E agree to ~1e-8 / 1e-10. **Add the new TRS
+tests in that same file**, parameterised over inversion-asymmetric systems where
+TRS actually buys a reduction.
+
+### Required new tests
+
+1. **SymOp group-theory unit tests** — small fabricated groups containing
+   antiunitaries: identity, closure under `*`, inverse, associativity, `θ`
+   bookkeeping under composition. Doesn't need a full SCF.
+
+2. **TRS k-reduction equivalence**, mirroring `bzmesh_symmetry.jl`:
+   - System A: GaAs (zincblende, no inversion). Variants: `(symmetries=false)`
+     vs `(symmetries=true, use_TRS=false)` vs `(symmetries=true, use_TRS=true)`.
+     All three must agree on ρ, E, forces, stresses to SCF tolerance. The
+     irreducible k-count for the third variant should be ~half the second.
+   - System B: an inversion-asymmetric polar/non-centrosymmetric structure
+     (h-BN monolayer is fine and small). Same comparison.
+   - System C (the *important* one): a collinear antiferromagnet — exercises
+     the spglib `spin_flips == −1` path that DFTK currently throws away.
+     A 2-atom AFM toy with paired magnetic moments works (e.g. simple cubic
+     Cr with up/down moments, or replicate one of the existing collinear test
+     setups in `testcases.jl` and add AFM moments). Confirm that
+     post-TRS-merge symmetry count = pre-merge count × 2 and ρ unchanged.
+
+3. **k-weight sanity** (cheap): for each (system, kgrid) variant above,
+   `@test sum(basis.kweights) ≈ 1` and `@test sum(basis.kweights .* one) ≈ 1`.
+
+4. **Currents** (since they're TRS-odd, easy to silently break): verify
+   `compute_current` on a TRS-symmetric ground state returns ~zero with
+   TRS-augmented symmetries (it should — symmetrising an odd quantity over a
+   group containing an antiunitary kills it). On a magnetic-field-perturbed
+   state where `breaks_TRS` is true, the current should be non-zero — this
+   protects against accidentally symmetrising it to zero.
+
+5. **Phonon non-regression**: existing phonon tests must keep working.
+   Phonons under TRS-unbroken Hamiltonians benefit from the k-reduction with
+   no other change required; assert dynmat agrees with `symmetries=false` to
+   tighter than the existing test tolerance.
+
+6. **Forces / stresses regression** on GaAs, via
+   `test/run_scf_and_compare.jl`-style helpers if applicable.
+
+7. **Serialisation round-trip**: `save_scfres → load_scfres` preserves `θ` on
+   each SymOp. (One-line test in the JLD2 / JSON3 test files.)
+
+### Tags
+
+- Group-theory unit tests, k-weight sanity, serialisation round-trip → `:minimal`.
+- GaAs / h-BN equivalence, AFM, currents → default (`nominimal-noslow`).
+- Anything that runs SCF on >2 systems back-to-back → `:slow`.
+
+### What *not* to test
+
+Don't write tests that compare raw ψ at a specific k-index across symmetry
+modes — the irreducible mesh is different, so per-k arrays don't line up. Test
+through derived quantities (ρ, E, forces, stresses, eigenvalues at a fixed
+external k-path) instead.
+
+---
+
+## Hand-off context for the implementing session
+
+**Required context to load first**:
+- `docs/src/developer/symmetries.md` — DFTK's symmetry conventions.
+- `src/SymOp.jl`, `src/symmetry.jl`, `src/bzmesh.jl`, `src/transfer.jl` — read all.
+- This plan.
+- The discussion in #224, #203, and #1316 (the `breaks_TRS` predicate this plan
+  builds on).
+
+**Assumptions**:
+- PR #1316 (the `breaks_TRS` predicate + phonon assertion + `compute_δρ` derivation
+  comment) has landed or is cherry-picked. If not, land that first; this plan
+  assumes `breaks_TRS(::Any) = false` and per-term overloads exist.
+- The `compute_dynmat` `!breaks_TRS` assertion stays as-is. This plan does *not*
+  attempt phonons-under-broken-TRS; that's a separate project (Dal Corso 2019).
+
+**Coding-style reminders specific to this work**:
+- `SymOp` is a struct with public-ish field access (`.W`, `.w`, `.S`, `.τ`).
+  Adding a field is a breaking change to anyone constructing `SymOp` positionally.
+  Default `θ = +1` in the constructor and bump the version, but don't change the
+  struct field order in a way that breaks `SymOp(W, w)`.
+- Don't `using` GPU/Spglib magnetic APIs at the top of `src/`; if magnetic-dataset
+  calls are needed, they live in `src/external/spglib.jl` or behind the existing
+  Spglib import.
+- The plotting / Wannier extensions live in `ext/`; if they break, fix in `ext/`,
+  not by `import`-ing those packages from `src/`.
+
+**Things that do *not* need to change (verified)**:
+- `model.lattice`, `model.atoms`, `model.positions` handling — unchanged.
+- The SCF driver, mixing, eigensolvers — unchanged.
+- `Hamiltonian` assembly — unchanged.
+- Real-space density representation — unchanged (TRS is no-op on real ρ).
+- `breaks_symmetries` predicate — orthogonal; don't touch.
+
+**Smell tests as you go**:
+- After each phase, run `Pkg.test("DFTK"; test_args=["minimal"])`. If it passes
+  *and* the symop count for GaAs is unchanged, you've broken nothing — but you
+  also haven't actually wired up TRS yet.
+- The first place TRS should become *visible* is `length(basis.kpoints)` for
+  GaAs at, say, `kgrid=[4,4,4]`: it should drop from N to N/2 (roughly) once
+  step 3 (k-mesh reduction) is wired.
+
+---
+
 ## Reference materials to consult while coding
 
 - `docs/src/developer/symmetries.md` — DFTK's symmetry conventions (read first).
