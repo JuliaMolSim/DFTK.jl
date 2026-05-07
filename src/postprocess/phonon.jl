@@ -1,3 +1,27 @@
+# Calculation of phonons from DFPT.
+#
+# This implementation relies on time-reversal symmetry in the following way.
+# A real perturbation at wavevector q has two complex Fourier components,
+# δV(r) = δVq e^{iq·r} + δVq* e^{-iq·r}. Each Bloch state ψk acquires a response
+# δψk = δψk+ + δψk- with two pieces: δψk+ at momentum k+q, and δψk- at momentum k-q.
+# Differentiating ρ = ∑_k fk |ψk|² gives
+#   δρ = ∑_k fk (ψk* δψk + δψk* ψk).
+# Because of the δψk*, everything is coupled: one cannot just
+# separate the + and - parts, and would need two Sternheimer solves.
+# More abstractly, the map δV -> δρ that one gets naively by
+# δρ = ∑_k fk (ψk* δψk + δψk* ψk) is R-linear but not C-linear
+# so it's not valid to close our eyes and take δVq e^{iq·r} as a perturbation
+# (similar structure to Casida equations in TDDFT).
+
+# Under time-reversal symmetry (TRS) however, the contribution to δρ of +k and -k are linked:
+# δψk+ = (δψ(-k)-)*.
+# so
+# δρ = 2 ∑_k fk (ψk* δψk) (this is the central equation)
+# In this form, the map δV -> δρ becomes complex-linear and only one Sternheimer per kpoint is needed
+# Without TRS this fails and one needs two Sternheimer (see
+# JuliaMolSim/DFTK.jl#1310 and eg Dal Corso,
+# https://arxiv.org/abs/1906.11673).
+
 # Convert to Cartesian a dynamical matrix in reduced coordinates.
 function dynmat_red_to_cart(model::Model, dynmat)
     inv_lattice = model.inv_lattice
@@ -75,9 +99,8 @@ in reduced coordinates.
     # to compute δρ from a single Sternheimer equation at +q (instead of one at
     # +q and one at -q) is only valid under TRS. See the discussion in
     # JuliaMolSim/DFTK.jl#1310 and Dal Corso, https://arxiv.org/abs/1906.11673.
-    @assert !any(breaks_TRS, basis.model.term_types) (
-        "compute_dynmat is currently only implemented for time-reversal-symmetric "
-        * "Hamiltonians; see JuliaMolSim/DFTK.jl#1310.")
+    @assert !any(breaks_time_reversal_symmetry, basis.model.term_types) (
+        "Phonons are currently only implemented in the presence of time-reversal-symmetry.")
     n_atoms = length(basis.model.positions)
     δρs = [zeros(complex(T), basis.fft_size..., basis.model.n_spin_components)
            for _ = 1:3, _ = 1:n_atoms]
