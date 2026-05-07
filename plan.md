@@ -1,415 +1,349 @@
-# Plan: implement time-reversal symmetry for k-point reduction
+# Plan: time-reversal symmetry for k-point reduction
 
-Tracking issue: [JuliaMolSim/DFTK.jl#224](https://github.com/JuliaMolSim/DFTK.jl/issues/224).
-Related: discussion thread on [#203](https://github.com/JuliaMolSim/DFTK.jl/issues/203).
+Tracking: [#224](https://github.com/JuliaMolSim/DFTK.jl/issues/224). Related: [#203](https://github.com/JuliaMolSim/DFTK.jl/issues/203). Depends on [#1316](https://github.com/JuliaMolSim/DFTK.jl/pull/1316) (the `breaks_TRS` predicate).
 
-The goal is to halve the irreducible-BZ k-point count in inversion-asymmetric crystals
-(GaAs, ZnO, h-BN…) by treating time-reversal as an additional symmetry of the
-single-particle Hamiltonian. This is *not* about exploiting TRS at high-symmetry points
-(e.g. Γ) to reduce real DOFs in the wavefunctions — that is a separate, harder problem.
+Goal: halve the irreducible k-point count in inversion-asymmetric crystals (GaAs,
+h-BN, ZnO…) and unlock a separate 2× speedup for collinear antiferromagnets, by
+treating time-reversal as a regular antiunitary symmetry of the single-particle
+Hamiltonian.
 
-A `breaks_TRS` predicate on terms already exists (PR #1316). When `!breaks_TRS(any_term)`
-and the spin sector permits, this work synthesises antiunitary partners of every
-spglib-detected symmetry and adds them to `model.symmetries`.
+Out of scope: exploiting TRS at high-symmetry points (e.g. Γ) to reduce real DOFs in ψ
+itself; spin-orbit / `:full` polarisation; phonons under broken TRS (Dal Corso 2019).
 
 ---
 
-## Design (from antoine-levitt's sketch in #224)
+## Two free wins to start from
 
-Extend `SymOp` from `(W, w)` to `(W, w, θ)` with `θ ∈ {+1, −1}`. The action of an antiunitary
-(`θ = −1`) on a wavefunction is
+The codebase is much closer to this feature than it looks:
+
+1. **`bzmesh.jl:61` already has the TODO**:
+   ```julia
+   # TODO implement time-reversal symmetry and turn the flag below to true
+   is_shift = ...
+   spg_mesh = Spglib.get_stabilized_reciprocal_mesh(rotations, kgrid.kgrid_size, qpoints;
+                                                    is_shift, is_time_reversal=false)
+   ```
+   Spglib's k-mesh reducer handles TRS natively. Once SymOp carries θ, this flag is
+   just `is_time_reversal = !any(breaks_TRS, basis.model.term_types)` (gated on spin
+   sector — see below). No `−W` workaround, no manual k-orbit code.
+
+2. **`symmetry.jl:93–96` already calls the right spglib API and throws away the
+   answer**:
+   ```julia
+   rotations, translations, spin_flips = Spglib.get_symmetry_with_site_tensors(cell, tol_symmetry)
+   rotations[spin_flips.==1], translations[spin_flips.==1]    # discards spin_flips==-1!
+   ```
+   The comment immediately below explicitly notes the discarded rows would give a
+   2× speedup for AFM order. Spglib's `spin_flips ∈ {±1}` is *exactly* our θ. Stop
+   dropping them; tag the `−1` rows as `θ=−1` SymOps.
+
+So the actual project is: extend SymOp with a θ field, stop discarding spglib's
+output, flip the bzmesh flag, and audit the wavefunction-touching code that now
+needs to apply complex conjugation when consuming a θ=−1 partner.
+
+---
+
+## Design
+
+Extend `SymOp` from `(W, w)` to `(W, w, θ)` with `θ ∈ {+1, −1}`. The action of an
+antiunitary (`θ = −1`) on a wavefunction is
 
 ```
-(Uu)(x) = conj(u(W·x + w))           (real space)
-(Uu)(G) = e^{+iG·τ} conj(u(−S^{-1}·G))   (reciprocal space)
+(Uu)(x) = conj(u(W·x + w))             (real space)
+(Uu)(G) = e^{+iG·τ} conj(u(−S^{-1}·G))  (reciprocal space)
 ```
 
 with `S = Wᵀ`, `τ = −W^{-1}·w` as today. The action on a k-point is `θ · S · k`.
-`model.symmetries` continues to be the full group (now possibly antiunitary-augmented),
-and `basis.symmetries` continues to be the subgroup preserving the kgrid.
+`model.symmetries` continues to be the full group; `basis.symmetries` continues to
+be the subgroup preserving the kgrid.
+
+### Source of θ=−1 partners by spin sector
+
+| `spin_polarization` | Where partners come from | Action on ρ |
+|---|---|---|
+| `:none`, `:spinless` | synthesise: duplicate every `(W,w,+1)` to `(W,w,−1)` | identity (ρ is real) |
+| `:collinear` | keep spglib's `spin_flips==−1` rows as `θ=−1` | swaps `ρ_↑ ↔ ρ_↓` *and* applies `(W,w)` |
+| `:full` (SOC) | out of scope | `iσ_y K` on the spinor |
+
+In all cases, gate on `!any(breaks_TRS, terms)`. For `:collinear` with a net moment,
+spglib won't return spin-flip rows in the first place (the magnetic point group
+doesn't contain them), so no extra gating needed.
+
+### Group composition
+
+A bit of case analysis: `(U₁ U₂ u)(x)` works out to `(W₁W₂, w₁ + W₁w₂, θ₁·θ₂)` in
+all four sign combinations. So composition is "spatial parts compose normally, θ
+multiplies". Inverse: `(W^{-1}, −W^{-1}·w, θ)` (θ unchanged — `inv` of antiunitary
+is antiunitary). Verify both with unit tests on small fabricated groups.
 
 ---
 
-## File-by-file change list
+## File-by-file changes
 
-### `src/SymOp.jl` — core data type
+### `src/SymOp.jl`
 
-- Add field `θ::Int` (or a `Bool`/`UnitaryKind` enum). Default constructor sets `θ = +1`.
-- `Base.:(==)`, `Base.isapprox`: include `θ`.
-- `Base.one(::Type{SymOp{T}})`: `θ = +1`.
-- `Base.isone`: require `θ = +1`.
-- **Composition `*`**:
-  - `θ_out = θ₁ · θ₂`
-  - `W_out = W₁ · W₂` (always — the spatial part composes the same way)
-  - `w_out = w₁ + W₁ · w₂` if `θ₁ = +1`, else `w₁ + W₁ · (−w₂)`? **No** — work this out carefully.
-    The product of antiunitaries `U₁ U₂` acting on `u`: `(U₁ U₂ u)(x) = conj((U₂u)(W₁x + w₁))`
-    if `θ₁=−1`. Substitute `(U₂u)(y) = conj(u(W₂y+w₂))` if `θ₂=−1`; else without conj.
-    Cases:
-    - `(+,+)`: `u(W₁W₂x + W₁w₂ + w₁)`. Standard.
-    - `(+,−)`: `conj(u(W₁W₂x + W₁w₂ + w₁))`. θ_out=−1, same affine.
-    - `(−,+)`: `conj(u(W₁W₂x + W₁w₂ + w₁))`. θ_out=−1, same affine.
-    - `(−,−)`: `u(W₁W₂x + W₁w₂ + w₁)`. θ_out=+1.
-    So in all cases `(W_out, w_out) = (W₁W₂, w₁ + W₁w₂)` and `θ_out = θ₁·θ₂`. Simple — verify with a unit test.
-- `Base.inv`: the inverse of `(W, w, θ)` has `θ_inv = θ`, `W_inv = W^{-1}`, `w_inv = −W^{-1}·w`.
-  (Apply the case analysis above with `U·U^{-1} = id` to confirm.)
-- `complete_symop_group` and `check_group`: should just work once `*`/`inv`/`isapprox`
-  carry `θ`, but smoke-test it.
-- The action helpers (currently inlined as `S = Wᵀ`, `τ = −W^{-1}·w` cached in struct):
-  add a method `apply_to_kpoint(symop, k) = symop.θ * symop.S * k`.
+- Add `θ::Int` field. Default `θ=+1` in the convenience constructor `SymOp(W, w)`.
+- `==`, `isapprox`, `one`, `isone`, `inv`: include θ.
+- `*`: `(W₁W₂, w₁ + W₁w₂, θ₁·θ₂)` — case analysis above.
+- `complete_symop_group` / `check_group`: should just work once `*`/`inv`/`isapprox`
+  carry θ. Add a regression test on a group containing antiunitaries.
+- Helper `apply_to_kpoint(symop, k) = symop.θ * symop.S * k`.
 
 ### `src/symmetry.jl`
 
-**Important: spglib already returns the antiunitary partners — we just throw them
-away today.** `symmetry_operations` calls
-`Spglib.get_symmetry_with_site_tensors(cell, tol_symmetry)` (line 93) which returns
-a third array `spin_flips ∈ {+1, −1}`. The current code (line 96) does
-`rotations[spin_flips.==1], translations[spin_flips.==1]`, dropping the spin-flipping
-ops. The comment immediately below acknowledges this is leaving a 2× speedup on the
-table for antiferromagnetic order. **This project is essentially: stop throwing
-those away, and tag them as `θ=−1`.**
-
-So:
-
-- For `:none` / `:spinless`: spglib doesn't return spin-flips (no spin info). When
-  `!any(breaks_TRS, terms)`, synthesise TRS partners ourselves by duplicating each
-  `(W, w, +1)` to `(W, w, −1)`. (The TRS partner of identity is `(I, 0, −1)` which
-  is plain complex conjugation — i.e. the `k → −k` reduction.)
-- For `:collinear`: keep all rows from `get_symmetry_with_site_tensors`. Map
-  `spin_flips == +1 → θ = +1` and `spin_flips == −1 → θ = −1`. The θ=−1 partners
-  are antiunitaries that *also swap the two spin channels* — see "Spin gotchas".
-  Drop these only when `any(breaks_TRS, terms)` (since antiunitarity is broken).
-- For `:full` (SOC): out of scope; spglib's site-tensor call also handles vector
-  moments differently. Skip.
-
-- `_check_symmetries`: when `θ = −1`, the atom-position check `W·a + w ≡ a' (mod 1)`
-  is *unchanged* (the spatial part is the same). What does change is the
-  magnetic-moment check: `W·m_a` must equal `+m_{a'}` for `θ=+1` and `−m_{a'}` for
-  `θ=−1`. Spglib has already verified this for us; we just need to not break the
-  invariant when manipulating SymOps.
-
-- `default_symmetries` (`Model.jl:324`): the gating logic above. Skip duplication
-  / drop spin-flips when `any(breaks_TRS, terms)`.
+- Lines 90–103 (the `spin_polarization` switch in `symmetry_operations`):
+  - `:none` / `:spinless`: keep current `Spglib.get_symmetry` call, then duplicate
+    each returned `(W, w, +1)` to `(W, w, −1)` *iff* `!any(breaks_TRS, terms)`.
+    (Caller will pass `terms` through.)
+  - `:collinear`: replace the discard
+    `rotations[spin_flips.==1], translations[spin_flips.==1]`
+    with returning *all* rows along with the `spin_flips` array, and build
+    `SymOp(W, w; θ=spin_flip)` for each. Keep the existing AFM-comment intent;
+    delete the "this would cut runtime by 2×" sentence (we're delivering it).
+- `_check_symmetries`: spatial check `W·a + w ≡ a' (mod 1)` is unchanged for θ=±1.
+  Spglib has already verified the moment-flipping consistency for `:collinear`. No
+  code change expected — but verify with a test that the assertions still pass for
+  AFM systems.
+- `symmetries_preserving_kgrid` (lines 162, 175, 184): `symop.S * k` →
+  `symop.θ * symop.S * k`.
 - `symmetrize_ρ`, `accumulate_over_symmetries!`, `lowpass_for_symmetry!`:
-  **For real total densities the antiunitary action equals the unitary action** because
-  `ρ` is real (`conj` is no-op). With `n_spin = 1` you can short-circuit `θ=−1` partners
-  and *do nothing* — they don't add information. With `n_spin = 2` the antiunitary
-  swaps the two spin channels (see below). Decide whether to optimise by skipping
-  `θ=−1` symops when symmetrising real scalars; if you don't optimise, the result is
-  still correct (you double the count and divide by `length(symmetries)`), just wasteful.
-- `symmetries_preserving_kgrid` (`symmetry.jl:162`, `175`): replace `symop.S * k` with
-  `symop.θ * symop.S * k` everywhere in the orbit/preserves test.
+  - `n_spin == 1` (`:none`/`:spinless`): θ=−1 is a no-op on real ρ — can skip
+    those iterations as a fast path. Without the optimisation, the loop is just
+    redundant work but still correct.
+  - `n_spin == 2` (`:collinear`): θ=−1 partners must swap the spin index of the
+    source density before accumulating into the target. Branch on θ inside the
+    accumulate loop.
+- `unfold_bz` (line 459): rebuilds the full k-mesh from the irreducible one.
+  Needs to also unfold via θ=−1 partners — i.e., for each θ=−1 symop, the
+  unfolded k is `−Sk` and the corresponding ψ at that k is `conj` of ψ at the
+  irreducible k (with G-flip in reciprocal space).
 
 ### `src/bzmesh.jl`
 
-**Even bigger simplification: this file already has a one-line TODO for exactly
-this project.** Line 61:
+- Line 69: change `is_time_reversal=false` to a value derived from
+  `!any(breaks_TRS, model.term_types)` and the spin sector. This is the
+  one-line core of the speedup.
+- Line 294 (`symop.S * k` equivalence test inside `irreducible_kcoords`): use
+  `symop.θ * symop.S * k`.
+- Remove the `# TODO implement time-reversal symmetry...` comment once done.
 
-```julia
-# TODO implement time-reversal symmetry and turn the flag below to true
-is_shift = ...
-spg_mesh = Spglib.get_stabilized_reciprocal_mesh(rotations, kgrid.kgrid_size, qpoints;
-                                                 is_shift, is_time_reversal=false)
-```
+### `src/transfer.jl` *(highest-risk file)*
 
-Spglib's k-mesh reducer handles TRS natively. Change `is_time_reversal=false` to
-`is_time_reversal = !any(breaks_TRS, basis.model.term_types) && spin_polarization
-allows TRS`. Spglib then returns the correctly halved irreducible mesh and a
-mapping table that already accounts for ±k folding — no `-W` trickery needed.
-
-- Line 294 (`symop.S * k` equivalence test in `irreducible_kcoords` / similar):
-  use `symop.θ * symop.S * k` so the orbit on the DFTK side matches what spglib
-  computed.
-
-### `src/transfer.jl`
-
-- `find_equivalent_kpt` (line 180): currently looks for `kcoord` modulo a reciprocal
-  lattice vector only — *not* modulo TRS. After k-point reduction shrinks
-  `basis.kpoints`, callers may ask for `kcoord = k + q` and find that only `−(k+q)`
-  is in the list. Either:
-  (a) extend `find_equivalent_kpt` to also try `−kcoord` and return a flag
-      `needs_conj::Bool` (or a θ); callers that handle wavefunctions then apply
-      `conj` and the G-flip when `needs_conj`, while callers that only care about
-      indices can ignore the flag at their own risk.
-  (b) leave it strict and audit every caller (currently `k_to_kpq_permutation`
-      → `compute_δρ` flow, `transfer_blochwave_equivalent_to_actual`, and
-      `PlaneWaveBasis.jl:115`).
-  Recommended: (a). The signature change is small and makes the TRS-aware
-  semantics explicit at every call site.
-- `transfer_blochwave_kpt`, `transfer_blochwave_equivalent_to_actual`: these act
-  on coefficients of ψ. If the equivalence used to identify `kpt_in` and `kpt_out`
-  is antiunitary, the coefficient transfer must include `conj` and a sign flip on
-  G-indices. **This is the single trickiest site in the project.**
-
-### `src/PlaneWaveBasis.jl`
-
-- The k-point construction loop reduces the user's kgrid via `model.symmetries`.
-  Make sure it filters by `basis.symmetries` (already does) and that the irreducible
-  set respects `θ·S·k`.
-- `find_equivalent_kpt` caller at line 115: likely only used in the q-shifted phonon
-  flow; double-check.
+- `find_equivalent_kpt` (line 180) currently looks for `kcoord` modulo a
+  reciprocal lattice vector only. After TRS reduction, callers asking for `k+q`
+  may find only `−(k+q)` is in `basis.kpoints`. Extend the signature to also try
+  `−kcoord` and return a `θ` (or `needs_conj::Bool`) alongside `index, ΔG`.
+  Update both callers (line 115 of `PlaneWaveBasis.jl`, and
+  `k_to_kpq_permutation` on line 200 of `transfer.jl`).
+- `transfer_blochwave_kpt`, `transfer_blochwave_equivalent_to_actual`: when the
+  source/target k-mapping is via an antiunitary, the coefficient transfer needs
+  `conj` and a sign flip on G-indices. Audit all uses; in the phonon flow
+  (`compute_δρ` at `densities.jl:83`), this is what determines whether
+  `δψ_plus_k` is correctly assembled when k+q is only equivalent to −(k+q) in
+  the irreducible mesh.
 
 ### `src/response/chi0.jl`, `src/response/hessian.jl`
 
-- The Sternheimer / response solvers iterate over irreducible k. With TRS k-reduction
-  the orbit-completion step that reconstructs full-BZ quantities from irreducible
-  ones must apply `conj` for `θ=−1` partners. Audit every loop that says
-  "for each symop, accumulate" with eigenvectors, not just densities.
+- The Sternheimer / response solvers iterate over irreducible k. Any orbit-completion
+  step that reconstructs full-BZ ψ-level quantities from irreducible ones must apply
+  `conj` for θ=−1 partners. Density-level accumulation is fine because it goes
+  through `compute_δρ` → `symmetrize_ρ` which we've already fixed.
 
 ### `src/postprocess/current.jl`
 
-- Currents are **odd under TRS**: `j(x) → −j(x)` under `θ=−1`. Symmetrising over
-  a TRS-augmented group must include this sign flip, otherwise currents will be
-  symmetrised to zero in non-magnetic systems (which is correct in equilibrium,
-  but wrong if you're computing a response current).
+Currents are TRS-odd: `j(x) → −j(x)` under θ=−1. Symmetrising over a
+TRS-augmented group must include this sign flip — otherwise equilibrium currents
+in non-magnetic systems get symmetrised to zero (correct by accident) while
+field-induced response currents get incorrectly killed. Add a θ-aware sign in
+the symmetrisation loop.
 
 ### `src/terms/hubbard.jl`
 
-- Hubbard occupation matrices `n_{mm'}^{Iσ}` transform as `n → S·n·S†` under unitary
-  symmetries (in the spherical-harmonic basis). Antiunitaries add a complex
-  conjugation: `n → S·conj(n)·S†` and swap spin in the collinear case. If we don't
-  break TRS in the model, this should be consistent — but please add a regression
-  test on a Hubbard system without inversion.
+Hubbard occupation matrices `n^{Iσ}_{mm'}` transform as `n → S·n·S†` under unitary
+symmetries (in the spherical-harmonic basis). For θ=−1 add a `conj` on the
+matrix and (for collinear) swap the σ index. Audit + add a regression test on
+a Hubbard system without inversion.
 
 ### `src/postprocess/phonon.jl`
 
-- Already guarded by the `!breaks_TRS` assertion landed in #1316. Don't relax that
-  assertion as part of this PR; phonons under broken TRS is a separate project
-  (Dal Corso 2019). The TRS k-point reduction *helps* phonons in the unbroken case
-  by halving k-point work, no special handling needed.
+Already guarded by the `!breaks_TRS` assertion landed in #1316. No change. The
+TRS k-reduction *helps* phonons in the unbroken case for free.
 
-### `src/input_output.jl`, `ext/DFTKJLD2Ext`, `ext/DFTKJSON3Ext`
+### `src/external/spglib.jl`, `src/external/DFTKCalculator.jl`, `src/workarounds/forwarddiff_rules.jl`
 
-- Serialisation of `SymOp` gains a field. Bump the on-disk version tag and add
-  a back-compat reader that defaults `θ = +1` for old files.
+Grep for `SymOp(`. Anywhere a `SymOp` is constructed by hand passes `θ=+1` by
+default. No semantic change.
 
-### `src/external/DFTKCalculator.jl`, `src/workarounds/forwarddiff_rules.jl`
+### Extensions: `ext/DFTKJLD2Ext`, `ext/DFTKJSON3Ext`, `ext/DFTKWannier90Ext`, `ext/DFTKPlotsExt`
 
-- Anywhere a `SymOp` is constructed by hand, default `θ = +1`. Grep for `SymOp(`.
+- JLD2 / JSON3: serialised SymOp gains a field. Bump the on-disk version tag and
+  default-fill `θ=+1` when reading old files.
+- Wannier90: it cares about k-point lists and full-BZ unfolding; check the
+  interface still produces a sensible reducible k-set after TRS reduction.
+- Plots: band-structure k-paths are user-specified, not affected. But if any
+  helper auto-generates a path through the irreducible BZ, double-check.
 
-### `src/postprocess/elastic.jl`, `src/postprocess/forces.jl` (if it uses symmetrise)
+### GPU kernel: `src/symmetry.jl:301`
 
-- Forces and stresses are TRS-even. Symmetrising them over the doubled group is
-  correct but wasteful; same optimisation note as `symmetrize_ρ`.
+`accumulate_over_symmetries!` pushes `symop.S` and `symop.τ` to device arrays.
+Add `symop.θ` to the device array and special-case in the kernel (no-op for
+θ=+1, swap-spin / sign-flip / conj as appropriate for θ=−1).
 
 ---
 
-## Spin gotchas (read carefully before starting)
+## Spin gotchas (read carefully)
 
-TRS acts on spin as `iσ_y K` (K = complex conjugation). Concretely:
-
-| `spin_polarization` | TRS action on density | Action when adding `θ=−1` partners |
-|---|---|---|
-| `:none` | identity (ρ is real scalar) | always safe to add |
-| `:spinless` | identity | always safe to add |
-| `:collinear`, no net moment | swaps `ρ_↑ ↔ ρ_↓` | safe iff initial moments are zero or paired so that swapping is a self-symmetry |
-| `:collinear`, net moment | swaps `ρ_↑ ↔ ρ_↓` | **breaks TRS at the model level**; do not add partners |
-| `:full` (SOC, noncollinear) | `iσ_y K` on the spinor | requires Pauli-spinor support; **out of scope** |
-
-In `default_symmetries`, gate the duplication / spin-flip retention on:
-1. `!any(breaks_TRS, terms)`,
-2. `spin_polarization ∈ (:none, :spinless)` (synthesise partners) *or*
-   `:collinear` (keep spglib's spin-flip rows as `θ=−1` SymOps).
-
-For `:collinear` with `θ=−1`, the antiunitary action on the spin-resolved density
-swaps `ρ_↑ ↔ ρ_↓` *and* applies the spatial part `(W, w)`. Symmetrisation must
-therefore be aware of the spin index — `symmetrize_ρ` currently iterates over the
-spin axis independently per symop, which is wrong for `θ=−1` in the collinear
-case. Specifically, line ~290 of `symmetry.jl` (`accumulate_over_symmetries!` or
-its caller) needs branching on `θ`: for `θ=+1` keep the per-spin loop, for `θ=−1`
-swap the spin index of the source density before accumulating.
-
-Don't worry about double-counting between spglib's spin-flip rows and "synthesised"
-TRS partners — for `:collinear` we *only* use spglib's output (no synthesis), and
-for `:none`/`:spinless` spglib never returns spin-flip rows.
+- **`:collinear`, θ=−1**: action is "spatial `(W, w)` *plus* spin swap `↑ ↔ ↓`".
+  The current `symmetrize_ρ` iterates over the spin axis independently per symop,
+  which is wrong for θ=−1. Branch on θ inside the accumulate loop.
+- **AFM with paired moments** is the headline win here, not just an edge case:
+  spglib already detects the spin-flipping symmetries; we just stopped throwing
+  them away. The existing comment at `symmetry.jl:97–102` documents this exact
+  optimisation as future work.
+- **Net magnetic moment**: spglib's magnetic point group already excludes the
+  spin-flip rows. No extra check needed; `breaks_TRS` (on `Magnetic` term, not
+  on initial moments) is the user-side gate.
+- **`:full` (SOC)**: TRS acts as `iσ_y K` on the spinor. Skip — DFTK has limited
+  SOC support anyway. Hard-assert `θ=+1` when `spin_polarization == :full`.
 
 ---
 
 ## Other gotchas
 
-- **`accumulate_over_symmetries!` GPU kernel** (`symmetry.jl:301`): currently
-  pushes `symop.S` and `symop.τ` to the device. Add `symop.θ` to the device array
-  as well, and special-case it in the kernel. With `n_spin = 1`, `θ=−1` is no-op
-  on real ρ and you can skip the kernel iteration; keep the array shapes consistent.
-
-- **`SYMMETRY_CHECK = true`** (in `SymOp.jl:24`): the `_check_symmetries` routine
-  must accept antiunitaries. The atom-position check `W·a + w ≡ a' (mod 1)` is
-  *the same* for `θ=±1`. The check should pass without modification; verify.
-
-- **Band structure plotting** (`docs/src/examples`, `ext/DFTKPlotsExt`): `compute_bands`
-  evaluates eigenvalues on a user-provided k-path. With TRS, `ε_n(k) = ε_n(−k)`, so
-  the path is unchanged but the irreducible BZ is half the size. Don't accidentally
-  drop k-points from the path that the user explicitly asked for.
-
-- **Wannier90 extension**: w90 cares about k-point lists and sometimes about the
-  irreducible vs full BZ. The interface in `ext/DFTKWannier90Ext` may need
-  updating if it expects "no antiunitaries". Check before releasing.
-
-- **`compute_dynmat` factor-of-2 trick**: the derivation we wrote in
-  `src/densities.jl` (above `compute_δρ`) assumes TRS, which is exactly the
-  predicate enforced by `breaks_TRS`. With this PR, k-point reduction *uses*
-  TRS too — make sure the two uses are consistent. There should be no
-  double-counting.
-
-- **k-weights**: the irreducible k-weights must reflect the orbit size *under the
-  full augmented group*. Easy to get wrong by a factor of 2 if you augment the
-  group but forget to recompute weights. Add a sanity check: `sum(basis.kweights) == 1`
-  and that integrating `1` over BZ via the irreducible mesh gives 1.
-
-- **Test data**: existing reference data in `test/` was generated with k-point
-  reduction over the spatial group only. After this change, the *irreducible* sets
-  shrink for inversion-asymmetric crystals, and accumulated quantities (which are
-  averaged over the orbit) should be identical to within numerical noise — but
-  intermediate per-k arrays (e.g. ψ at given irreducible k) are **not the same
-  objects** as before. Tests that read raw ψ from disk, or compare against
-  pre-computed eigenvalues at a specific k-index, may need regenerated data or
-  index-agnostic comparisons.
-
-- **Performance regression risk**: doubling the symop count temporarily (before
-  optimising trivial `θ=−1` actions on real scalars) makes `symmetrize_ρ` 2× slower.
-  If this shows up in benchmarks, add a `θ == +1` fast path.
-
-- **MPI**: k-points are MPI-distributed. Halving the irreducible set could leave
-  some ranks idle on small jobs. Not a correctness issue but worth noting.
+- **k-weights**: irreducible k-weights must reflect the orbit size *under the
+  full augmented group*. Easy off-by-2× if you flip the spglib flag but forget
+  that `basis.symmetries` doubled. Spglib returns the correct mapping table
+  (`ir_mapping_table`); use it. Sanity: `sum(basis.kweights) ≈ 1`.
+- **`find_equivalent_kpt` is the single most error-prone site** because it
+  silently returns a wrong index instead of failing if `−k` is what it needs.
+  Extend the signature; don't add a `try`.
+- **Test data & ψ comparisons**: irreducible meshes shrink, so per-k indices
+  don't line up across symmetry modes. Tests must compare derived quantities
+  (ρ, E, forces, eigenvalues at fixed external k-paths), never raw ψ.
+- **Performance regression for non-TRS cases**: don't accidentally make
+  symmetrise_ρ slower when no antiunitaries are present. Benchmark Si (no TRS
+  benefit) before/after.
+- **MPI**: halving k-points may leave ranks idle on small jobs. Not a correctness
+  issue; document it.
+- **Consistency with the phonon δρ derivation** (in `compute_δρ` comment block,
+  if PR #1316 has landed): both that derivation and this k-reduction *use* TRS.
+  No double-counting, but verify by running phonon tests with TRS-reduced k-grids.
+- **`SYMMETRY_CHECK = true`** (`SymOp.jl:24`): assertions on group closure must
+  accept antiunitaries. Should be automatic once `*` and `isapprox` carry θ.
 
 ---
-
-## Suggested implementation order
-
-1. **SymOp + tests** (1 day): add `θ` field, fix composition / inv / equality,
-   write group-theory unit tests (associativity, closure, identity, inverse) on
-   small fabricated groups including antiunitaries.
-2. **default_symmetries duplication** (½ day): wire up the `breaks_TRS` gate and
-   add antiunitary partners. Run the full test suite and confirm everything
-   still passes (since antiunitaries are redundant for ρ at this stage and we
-   haven't yet wired k-reduction to use them).
-3. **k-mesh reduction** (1–2 days): teach `bzmesh.jl` and
-   `symmetries_preserving_kgrid` about `θ`. Verify on Si (no change — already has
-   inversion) and GaAs (irreducible count should halve from `(N+1)(N+2)(N+3)/6`
-   territory; check against QE's `kpoints.x` for the same lattice).
-4. **transfer / chi0 / response audit** (3–5 days): the wavefunction-touching code.
-   This is the long tail. Cover with a forces-and-stresses regression test on
-   GaAs (TRS-augmented vs forced-`θ=+1`-only — should agree to SCF tolerance).
-5. **Currents** (½ day): the only quantity that's TRS-odd, easy to forget.
-6. **Hubbard, Wannier90, serialisation** (1–2 days): polish.
-7. **Performance pass + skip θ=−1 for real scalars** (½ day).
-
-Total estimate: ~2 weeks for someone familiar with the symmetry code; ~3–4 weeks
-otherwise.
 
 ## Test strategy
 
-The existing pattern in `test/bzmesh_symmetry.jl` is exactly what we want to mirror:
-SCF with `symmetries=false` (full reducible BZ) versus default symmetries on the
-same lattice/Ecut/kgrid; assert ρ and E agree to ~1e-8 / 1e-10. **Add the new TRS
-tests in that same file**, parameterised over inversion-asymmetric systems where
-TRS actually buys a reduction.
+The existing pattern in `test/bzmesh_symmetry.jl` — SCF with `symmetries=false`
+versus default symmetries on the same system, asserting ρ and E agree — is
+exactly what we extend. **Add the new TRS tests in that file.**
 
-### Required new tests
+Required new tests:
 
-1. **SymOp group-theory unit tests** — small fabricated groups containing
-   antiunitaries: identity, closure under `*`, inverse, associativity, `θ`
-   bookkeeping under composition. Doesn't need a full SCF.
+1. **SymOp group-theory unit tests**. Small fabricated group containing
+   antiunitaries: identity, closure under `*`, inverse, associativity. No SCF.
 
-2. **TRS k-reduction equivalence**, mirroring `bzmesh_symmetry.jl`:
-   - System A: GaAs (zincblende, no inversion). Variants: `(symmetries=false)`
-     vs `(symmetries=true, use_TRS=false)` vs `(symmetries=true, use_TRS=true)`.
-     All three must agree on ρ, E, forces, stresses to SCF tolerance. The
-     irreducible k-count for the third variant should be ~half the second.
-   - System B: an inversion-asymmetric polar/non-centrosymmetric structure
-     (h-BN monolayer is fine and small). Same comparison.
-   - System C (the *important* one): a collinear antiferromagnet — exercises
-     the spglib `spin_flips == −1` path that DFTK currently throws away.
-     A 2-atom AFM toy with paired magnetic moments works (e.g. simple cubic
-     Cr with up/down moments, or replicate one of the existing collinear test
-     setups in `testcases.jl` and add AFM moments). Confirm that
-     post-TRS-merge symmetry count = pre-merge count × 2 and ρ unchanged.
+2. **Triple-comparison equivalence** on inversion-asymmetric systems:
+   `(symmetries=false)` vs `(symmetries on, no TRS)` vs `(symmetries on, TRS on)`
+   — all three must agree on ρ, E, forces, stresses to SCF tolerance, and the
+   third should have ~half the k-count of the second.
+   - **GaAs** (zincblende, no inversion) — primary case.
+   - **h-BN monolayer** (small, polar, non-centrosymmetric) — secondary.
 
-3. **k-weight sanity** (cheap): for each (system, kgrid) variant above,
-   `@test sum(basis.kweights) ≈ 1` and `@test sum(basis.kweights .* one) ≈ 1`.
+3. **Collinear AFM equivalence** — exercises spglib's `spin_flips==−1` path that
+   DFTK currently discards. A 2-atom AFM toy with paired up/down moments suffices
+   (e.g. simple-cubic Cr or extend an existing collinear `testcases.jl` setup).
+   Confirm post-TRS symmetry count is exactly 2× the pre-TRS count and ρ unchanged.
 
-4. **Currents** (since they're TRS-odd, easy to silently break): verify
-   `compute_current` on a TRS-symmetric ground state returns ~zero with
-   TRS-augmented symmetries (it should — symmetrising an odd quantity over a
-   group containing an antiunitary kills it). On a magnetic-field-perturbed
-   state where `breaks_TRS` is true, the current should be non-zero — this
-   protects against accidentally symmetrising it to zero.
+4. **k-weight sanity**: `sum(basis.kweights) ≈ 1` for every variant above.
 
-5. **Phonon non-regression**: existing phonon tests must keep working.
-   Phonons under TRS-unbroken Hamiltonians benefit from the k-reduction with
-   no other change required; assert dynmat agrees with `symmetries=false` to
-   tighter than the existing test tolerance.
+5. **Currents** (TRS-odd, easy to silently break):
+   - On a TRS-symmetric ground state with TRS-augmented symmetries, current
+     symmetrises to ~zero. (It would anyway in equilibrium, but this catches sign
+     errors.)
+   - On a state with a `Magnetic` term (so `breaks_TRS` is true and TRS partners
+     are absent), current is *not* symmetrised to zero.
 
-6. **Forces / stresses regression** on GaAs, via
-   `test/run_scf_and_compare.jl`-style helpers if applicable.
+6. **Phonon non-regression**: existing phonon tests must keep passing. Phonons
+   under unbroken TRS should silently benefit from k-reduction.
 
-7. **Serialisation round-trip**: `save_scfres → load_scfres` preserves `θ` on
-   each SymOp. (One-line test in the JLD2 / JSON3 test files.)
+7. **Forces / stresses** on GaAs via the existing
+   `test/run_scf_and_compare.jl`-style helpers.
 
-### Tags
+8. **Serialisation round-trip**: `save_scfres → load_scfres` preserves θ. One-line
+   check in the JLD2 / JSON3 test files.
 
-- Group-theory unit tests, k-weight sanity, serialisation round-trip → `:minimal`.
-- GaAs / h-BN equivalence, AFM, currents → default (`nominimal-noslow`).
-- Anything that runs SCF on >2 systems back-to-back → `:slow`.
+Tags: group-theory units + k-weight sanity + serialisation → `:minimal`. GaAs /
+h-BN / AFM / currents → default. Heavy combinations → `:slow`.
 
-### What *not* to test
-
-Don't write tests that compare raw ψ at a specific k-index across symmetry
-modes — the irreducible mesh is different, so per-k arrays don't line up. Test
-through derived quantities (ρ, E, forces, stresses, eigenvalues at a fixed
-external k-path) instead.
+What *not* to test: raw ψ at a specific k-index across symmetry modes — irreducible
+meshes differ.
 
 ---
 
-## Hand-off context for the implementing session
+## Implementation order
 
-**Required context to load first**:
-- `docs/src/developer/symmetries.md` — DFTK's symmetry conventions.
-- `src/SymOp.jl`, `src/symmetry.jl`, `src/bzmesh.jl`, `src/transfer.jl` — read all.
-- This plan.
-- The discussion in #224, #203, and #1316 (the `breaks_TRS` predicate this plan
-  builds on).
+1. **SymOp + group-theory unit tests** (½–1 day): θ field, composition, inverse,
+   equality. No behaviour change beyond the field existing.
+2. **`default_symmetries` wiring** (½ day): stop discarding `spin_flips==−1`;
+   synthesise `:none`/`:spinless` partners. Gate on `breaks_TRS`. Full test suite
+   should still pass — k-reduction isn't using TRS yet, so this is a no-op for
+   actual k-counts but exercises the new SymOp paths in symmetrise_ρ etc.
+3. **Flip the spglib flag** (½ day): `is_time_reversal=true` in `bzmesh.jl`
+   when allowed. *This is the moment k-counts halve* on GaAs. Smell test:
+   `length(basis.kpoints)` for GaAs at `kgrid=[4,4,4]` drops by ~2×.
+4. **`transfer.jl` audit** (2–3 days): the long tail. Extend
+   `find_equivalent_kpt`, fix `transfer_blochwave_*` callers, run forces/stresses
+   regression on GaAs.
+5. **Currents + Hubbard + GPU kernel + extensions** (1–2 days): polish.
+6. **Performance pass + θ=+1 fast path in symmetrise_ρ** (½ day).
+
+Total: ~1.5 weeks for someone familiar with the symmetry code. Step 4 is the
+unknown — could expand if there are subtler ψ-level uses than the obvious ones.
+
+**Smell-test trip-wires** along the way:
+- After step 2: full test suite green; `length(basis.symmetries)` for GaAs is
+  exactly 2× what it was.
+- After step 3: GaAs at `kgrid=[4,4,4]` has roughly half the k-points; SCF energy
+  matches the no-symmetry run to 1e-10.
+- After step 4: forces and stresses on GaAs match the no-symmetry run to SCF
+  tolerance.
+
+---
+
+## Hand-off context
+
+**Read first**: `docs/src/developer/symmetries.md`, `src/SymOp.jl`,
+`src/symmetry.jl`, `src/bzmesh.jl`, `src/transfer.jl`, this plan, the discussion
+in #224 and #1316.
 
 **Assumptions**:
-- PR #1316 (the `breaks_TRS` predicate + phonon assertion + `compute_δρ` derivation
-  comment) has landed or is cherry-picked. If not, land that first; this plan
-  assumes `breaks_TRS(::Any) = false` and per-term overloads exist.
-- The `compute_dynmat` `!breaks_TRS` assertion stays as-is. This plan does *not*
-  attempt phonons-under-broken-TRS; that's a separate project (Dal Corso 2019).
+- PR #1316 has landed (or is cherry-picked). It provides `breaks_TRS(::Any) = false`
+  and overloads on `Magnetic`, `Anyonic`, plus the `compute_dynmat` assertion that
+  no term breaks TRS.
+- The phonon `δρ` comment block in `src/densities.jl` (also from #1316) describes
+  the *other* TRS-dependent trick. This project is consistent with it; both rely on
+  the same `breaks_TRS` predicate.
 
-**Coding-style reminders specific to this work**:
-- `SymOp` is a struct with public-ish field access (`.W`, `.w`, `.S`, `.τ`).
-  Adding a field is a breaking change to anyone constructing `SymOp` positionally.
-  Default `θ = +1` in the constructor and bump the version, but don't change the
-  struct field order in a way that breaks `SymOp(W, w)`.
-- Don't `using` GPU/Spglib magnetic APIs at the top of `src/`; if magnetic-dataset
-  calls are needed, they live in `src/external/spglib.jl` or behind the existing
-  Spglib import.
-- The plotting / Wannier extensions live in `ext/`; if they break, fix in `ext/`,
-  not by `import`-ing those packages from `src/`.
+**Conventions**:
+- `SymOp` is constructed in many places via `SymOp(W, w)`. Default `θ=+1` in that
+  constructor; don't reorder fields.
+- Spglib magnetic / dataset APIs are accessed through the existing `Spglib` import
+  in `src/external/spglib.jl`. Don't `using Spglib` from new files.
+- GPU/Wannier/JLD2 etc. live in `ext/`. Don't import them from `src/`.
 
-**Things that do *not* need to change (verified)**:
-- `model.lattice`, `model.atoms`, `model.positions` handling — unchanged.
-- The SCF driver, mixing, eigensolvers — unchanged.
-- `Hamiltonian` assembly — unchanged.
-- Real-space density representation — unchanged (TRS is no-op on real ρ).
-- `breaks_symmetries` predicate — orthogonal; don't touch.
-
-**Smell tests as you go**:
-- After each phase, run `Pkg.test("DFTK"; test_args=["minimal"])`. If it passes
-  *and* the symop count for GaAs is unchanged, you've broken nothing — but you
-  also haven't actually wired up TRS yet.
-- The first place TRS should become *visible* is `length(basis.kpoints)` for
-  GaAs at, say, `kgrid=[4,4,4]`: it should drop from N to N/2 (roughly) once
-  step 3 (k-mesh reduction) is wired.
+**What does *not* change**: SCF driver, mixing, eigensolvers, Hamiltonian assembly,
+real-space density representation, `breaks_symmetries` predicate, model construction.
 
 ---
 
-## Reference materials to consult while coding
+## References
 
-- `docs/src/developer/symmetries.md` — DFTK's symmetry conventions (read first).
-- The discussion thread in [#224](https://github.com/JuliaMolSim/DFTK.jl/issues/224) and [#203](https://github.com/JuliaMolSim/DFTK.jl/issues/203).
-- Quantum ESPRESSO's `Modules/symm_base.f90` for how `t_rev` (their θ) is
-  threaded through. Useful sanity-check on conventions.
-- Dal Corso, "Density functional perturbation theory within the projector
-  augmented wave method", https://arxiv.org/abs/1906.11673 — for the broken-TRS
-  case (out of scope here, but useful to know what we're *not* implementing).
+- DFTK developer docs: `docs/src/developer/symmetries.md`.
+- Issue threads: [#224](https://github.com/JuliaMolSim/DFTK.jl/issues/224), [#203](https://github.com/JuliaMolSim/DFTK.jl/issues/203), [#1316](https://github.com/JuliaMolSim/DFTK.jl/pull/1316).
+- Quantum ESPRESSO `Modules/symm_base.f90` — sanity-check on conventions (their
+  `t_rev` is our θ).
+- Dal Corso, *Density-functional perturbation theory within the projector
+  augmented wave method*, https://arxiv.org/abs/1906.11673 — for the
+  broken-TRS phonon case (out of scope here).
