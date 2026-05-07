@@ -1,5 +1,5 @@
 # Quick test script for TRS k-point reduction
-# Run as: julia --project test_trs.jl
+# Run as: julia test_trs.jl
 
 using Revise
 using DFTK
@@ -7,7 +7,6 @@ using LinearAlgebra
 
 println("=== Testing SymOp with θ field ===")
 
-# Test basic SymOp construction
 s1 = SymOp(Mat3{Int}(I), Vec3(0.0, 0.0, 0.0))
 s2 = SymOp(Mat3{Int}(I), Vec3(0.0, 0.0, 0.0); θ=-1)
 @assert s1.θ == 1 "Default θ should be +1"
@@ -15,60 +14,91 @@ s2 = SymOp(Mat3{Int}(I), Vec3(0.0, 0.0, 0.0); θ=-1)
 @assert isone(s1) "Identity should be isone"
 @assert !isone(s2) "θ=-1 identity is not isone"
 @assert s1 != s2 "θ=+1 ≠ θ=-1"
-println("  SymOp construction: OK")
-
-# Test group composition
-s3 = s1 * s2
-@assert s3.θ == -1 "(+1)×(-1) = -1"
-s4 = s2 * s2
-@assert s4.θ == 1 "(-1)×(-1) = +1"
-println("  Group composition: OK")
-
-# Test inverse
-@assert inv(s1).θ == 1 "inv of unitary is unitary"
+s3 = s1 * s2; @assert s3.θ == -1 "(+1)×(-1) = -1"
+s4 = s2 * s2; @assert s4.θ == 1  "(-1)×(-1) = +1"
+@assert inv(s1).θ == 1  "inv of unitary is unitary"
 @assert inv(s2).θ == -1 "inv of antiunitary is antiunitary"
-println("  Inverse: OK")
+println("  OK")
 
-println()
-println("=== Testing Si SCF with TRS symmetry ===")
+# -----------------------------------------------------------------------
+# Helper: run SCF + forces, return (scfres, forces)
+# -----------------------------------------------------------------------
+function run_system(lattice, atoms, positions; use_symmetries)
+    model = model_LDA(lattice, atoms, positions; symmetries=use_symmetries)
+    basis = PlaneWaveBasis(model; Ecut=10, kgrid=[4, 4, 4])
+    scfres = self_consistent_field(basis; tol=1e-10, callback=identity)
+    forces = compute_forces_cart(scfres)
+    scfres, forces
+end
 
-a = 10.263141334305642  # Si lattice constant in Bohr
-lattice = a / 2 * [[0 1 1]; [1 0 1]; [1 1 0]]
-Si = ElementPsp(:Si, load_psp("hgh/lda/Si-q4"))
-atoms = [Si, Si]
-positions = [ones(3)/8, -ones(3)/8]
+function check_results(scf_nosym, f_nosym, scf_trs, f_trs; tol_E=1e-6, tol_f=1e-4, tol_ρ=1e-6)
+    ΔE = abs(scf_nosym.energies.total - scf_trs.energies.total)
+    Δf = maximum(norm.(f_nosym .- f_trs))
+    Δρ = maximum(abs.(scf_nosym.ρ .- scf_trs.ρ))
+    println("  ΔE = $ΔE,  max|Δf| = $Δf,  max|Δρ| = $Δρ")
+    @assert ΔE < tol_E  "Energies should agree (got $ΔE)"
+    @assert Δf < tol_f  "Forces should agree (got $Δf)"
+    @assert Δρ < tol_ρ  "Densities should agree (got $Δρ)"
+end
 
-# No-symmetry run
-model_nosym = model_LDA(lattice, atoms, positions; symmetries=false)
-basis_nosym = PlaneWaveBasis(model_nosym; Ecut=10, kgrid=[4, 4, 4])
-println("  No-symmetry k-points: $(length(basis_nosym.kpoints))")
+Ga = ElementPsp(:Ga, load_psp("hgh/lda/Ga-q3"))
+As = ElementPsp(:As, load_psp("hgh/lda/As-q5"))
+a_gaas = 10.68   # Bohr
+lattice_gaas = a_gaas / 2 * [[0 1 1]; [1 0 1]; [1 1 0]]
 
-# Default (with TRS) run
-model_trs = model_LDA(lattice, atoms, positions)
-basis_trs = PlaneWaveBasis(model_trs; Ecut=10, kgrid=[4, 4, 4])
-n_trs_symops = count(s -> s.θ == -1, model_trs.symmetries)
-println("  TRS symmetry k-points: $(length(basis_trs.kpoints))")
-println("  Model TRS symops count: $n_trs_symops")
-println("  k-weight sum: $(sum(basis_trs.kweights))")
+# -----------------------------------------------------------------------
+# Test 1: GaAs zinc-blende (equilibrium) — Td spatial + TRS
+# Forces are zero (equilibrium geometry).
+# -----------------------------------------------------------------------
+println("\n=== Test 1: GaAs zinc-blende (equilibrium) ===")
 
-@assert abs(sum(basis_trs.kweights) - 1.0) < 1e-10 "k-weights must sum to 1"
+pos_gaas = [[0, 0, 0], [1/4, 1/4, 1/4]]
 
-# Check k-count is less with TRS
-@assert length(basis_trs.kpoints) <= length(basis_nosym.kpoints) "TRS should not increase k-count"
-println("  k-point counts: nosym=$(length(basis_nosym.kpoints)), TRS=$(length(basis_trs.kpoints))")
+scf_nosym1, f_nosym1 = run_system(lattice_gaas, [Ga, As], pos_gaas; use_symmetries=false)
+scf_trs1,   f_trs1   = run_system(lattice_gaas, [Ga, As], pos_gaas; use_symmetries=true)
 
-println()
-println("=== Running SCF with TRS symmetry ===")
+n_sp1 = count(s -> s.θ == 1, scf_trs1.basis.model.symmetries) - 1
+n_tr1 = count(s -> s.θ == -1, scf_trs1.basis.model.symmetries)
+println("  Spatial symops: $n_sp1,  TRS symops: $n_tr1")
+println("  k-points: nosym=$(length(scf_nosym1.basis.kpoints)), TRS=$(length(scf_trs1.basis.kpoints))")
+@assert n_sp1 == 23  "GaAs Td has 23 non-identity spatial symops"
+@assert n_tr1 == 24  "GaAs has 24 TRS symops"
+@assert abs(sum(scf_trs1.basis.kweights) - 1.0) < 1e-10
+check_results(scf_nosym1, f_nosym1, scf_trs1, f_trs1)
+println("  OK")
 
-scfres_nosym = self_consistent_field(basis_nosym; tol=1e-8)
-scfres_trs   = self_consistent_field(basis_trs;   tol=1e-8)
+# -----------------------------------------------------------------------
+# Test 2: rattled GaAs — breaks all spatial symmetries, only TRS remains.
+# Non-zero forces: exercises the full symmetrize_ρ + force path with TRS.
+# Two different species → no generalized inversion even after rattling.
+# -----------------------------------------------------------------------
+println("\n=== Test 2: rattled GaAs (TRS-only, non-zero forces) ===")
 
-E_nosym = scfres_nosym.energies.total
-E_trs   = scfres_trs.energies.total
-println("  Energy (no-sym): $E_nosym")
-println("  Energy (TRS):    $E_trs")
-println("  Difference:      $(abs(E_nosym - E_trs))")
-@assert abs(E_nosym - E_trs) < 1e-6 "Energies should agree"
+δ = 0.04
+pos_rattle = [[0, 0, 0] .+ δ * [0.3, -0.2, 0.5],
+              [1/4, 1/4, 1/4] .+ δ * [-0.4, 0.1, -0.3]]
 
-println()
-println("All tests passed!")
+scf_nosym2, f_nosym2 = run_system(lattice_gaas, [Ga, As], pos_rattle; use_symmetries=false)
+scf_trs2,   f_trs2   = run_system(lattice_gaas, [Ga, As], pos_rattle; use_symmetries=true)
+
+n_sp2 = count(s -> s.θ == 1, scf_trs2.basis.model.symmetries) - 1
+n_tr2 = count(s -> s.θ == -1, scf_trs2.basis.model.symmetries)
+println("  Spatial symops: $n_sp2,  TRS symops: $n_tr2")
+println("  k-points: nosym=$(length(scf_nosym2.basis.kpoints)), TRS=$(length(scf_trs2.basis.kpoints))")
+@assert n_sp2 == 0 "Rattled GaAs should have no spatial symmetries"
+@assert n_tr2 == 1 "Rattled GaAs should have 1 TRS symop"
+# With TRS only, TRIM points (2k≡0 mod lattice) aren't halved; for [4,4,4] there
+# are 8 such points so the irreducible count is (64+8)/2 = 36, not 64/2 = 32.
+@assert length(scf_trs2.basis.kpoints) < length(scf_nosym2.basis.kpoints) "TRS should reduce k-count"
+@assert length(scf_trs2.basis.kpoints) == 36 "Expected 36 irreducible k-points with TRS only on [4,4,4]"
+@assert abs(sum(scf_trs2.basis.kweights) - 1.0) < 1e-10
+
+# Sanity check: forces are genuinely non-zero
+f_mag = maximum(norm.(f_nosym2))
+println("  Max |f| (nosym) = $f_mag  [should be >> 0]")
+@assert f_mag > 0.01 "Forces should be non-zero for rattled geometry"
+
+check_results(scf_nosym2, f_nosym2, scf_trs2, f_trs2)
+println("  OK")
+
+println("\nAll tests passed!")

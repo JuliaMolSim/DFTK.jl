@@ -4,7 +4,7 @@ Read `plan.md` first for full context and design decisions.
 
 ---
 
-## Status: Steps 1–3 complete and tested. Step 4 (transfer.jl) in progress.
+## Status: Steps 1–4 complete. Next: phonons/chi0 with q≠0 (step 4b), then polish.
 
 Run tests with: `julia test_trs.jl` (no `--project` flag — there is a pre-existing PseudoPotentialIO/Psp8File version mismatch that breaks compilation under `--project`; running without it uses the system-installed DFTK environment which works).
 
@@ -54,30 +54,34 @@ Run tests with: `julia test_trs.jl` (no `--project` flag — there is a pre-exis
 
 ## What is NOT done (remaining steps from plan)
 
-### Step 4: `transfer.jl` audit (HIGH PRIORITY — forces/stresses broken without this)
+### Step 4: verify forces/stresses ✓ DONE
 
-**Problem**: After TRS k-reduction, `k+q` may not be in `basis.kpoints` — only `-(k+q)` is. The current `find_equivalent_kpt` will crash (returns `nothing`, then `nothing + integer` fails) when forces/chi0/phonons are computed.
+Forces use `q=0`. `transfer_blochwave_equivalent_to_actual` short-circuits immediately
+for `iszero(q)` — `find_equivalent_kpt` is never reached. Forces work correctly.
 
-**`find_equivalent_kpt`** (`src/transfer.jl:180`):
-- Needs to try `-kcoord` as fallback when `kcoord` is not found.
-- Return signature should become `(; index, ΔG, needs_conj::Bool)`.
-- Add `allow_conj=true` keyword (default true so callers get TRS for free).
+Tested (`test_trs.jl`):
+- GaAs zinc-blende [4,4,4]: 23 spatial (Td, no inversion) + 24 TRS → 8 k-points.
+  ΔE=3.6e-15, max|Δf|=4e-12, max|Δρ|=4.4e-12. Forces zero (equilibrium).
+- Rattled GaAs [4,4,4]: 0 spatial + 1 TRS → 36 k-points (64→36; TRIM points
+  are TRS-invariant so not halved: (64+8)/2=36). Forces non-zero (0.033 Ha/Bohr).
+  ΔE=1.8e-15, max|Δf|=2.6e-11, max|Δρ|=6.2e-12. All machine precision.
 
-**`get_kpoint`** (`src/PlaneWaveBasis.jl:114`):
-- Calls `find_equivalent_kpt`. Must pass through `needs_conj`.
-- When `needs_conj=true`: `equivalent_kpt` is at `-kcoord + ΔG`. Need to create `kpt` at `kcoord` using `Kpoint(basis, kcoord, spin)` (full recompute — the G-vectors at `-(k)` are exactly `-G_{k}` so `construct_from_equivalent_kpt` with a ΔG shift is wrong here).
-- Return `(; kpt, equivalent_kpt, needs_conj)`.
+Note on TRIM counting: for a [N,N,N] grid there are 2³=8 time-reversal-invariant
+k-points (where 2k≡0 mod lattice). The irreducible count with TRS only is (N³+8)/2.
 
-**`k_to_kpq_permutation`** (`src/transfer.jl:200`):
-- Returns indices. Needs to also return `conj_flags::BitVector` (true when TRS was used).
-- Update the single caller `transfer_blochwave_equivalent_to_actual`.
+### Step 4b: phonons/chi0 with q≠0
 
-**`transfer_blochwave_equivalent_to_actual`** (`src/transfer.jl:234`):
-- When `conj_flags[ik] = true` for a given k: instead of `transfer_blochwave_kpt`, apply `apply_symop` with the pure-TRS operation `SymOp(Mat3{Int}(I), Vec3(0,0,0); θ=-1)` to the ψ at `-(k+q)` — this yields ψ at `k+q` via conjugation + G-flip, which is already implemented correctly in `apply_symop`.
+After TRS k-reduction, `k+q` may only be present in `basis.kpoints` as `−(k+q)`.
+`find_equivalent_kpt` will crash in that case (returning `nothing` then `nothing + int`).
 
-**Implementation note on `get_kpoint` / `apply_symop` interaction**: `apply_symop` already handles the case where the resulting kpoint is not in `basis.kpoints` (it creates a new `Kpoint`). So for the TRS path in `transfer_blochwave_equivalent_to_actual`, one can call `apply_symop(SymOp(I, 0; θ=-1), basis, equivalent_kpt, ψ_equivalent)` directly — it returns `(kpt_at_k_plus_q, ψ_at_k_plus_q)` without needing `get_kpoint` at all.
+**Rejected approach**: teaching `find_equivalent_kpt` to try `−kcoord` as a fallback.
+This makes a low-level lookup function aware of physics it shouldn't know about, and
+silently changes the return contract of `get_kpoint` and `k_to_kpq_permutation`.
 
-**Smell test after step 4**: `compute_forces_cart` and `compute_stresses_cart` on a GaAs-like system should match the `symmetries=false` run to SCF tolerance.
+**Correct approach**: treat TRS like any other symmetry. Rewrite the inner loop of
+`transfer_blochwave_equivalent_to_actual` to search `basis.symmetries` (including
+θ=−1 entries) for a symop mapping some irreducible k-point to `k+q`, then call
+`apply_symop` to get ψ at `k+q`. This is the same pattern used in `unfold_bz`.
 
 ### Step 5: Polish items
 

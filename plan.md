@@ -127,20 +127,30 @@ is antiunitary). Verify both with unit tests on small fabricated groups.
   `symop.θ * symop.S * k`.
 - Remove the `# TODO implement time-reversal symmetry...` comment once done.
 
-### `src/transfer.jl` *(highest-risk file)*
+### `src/transfer.jl`
 
-- `find_equivalent_kpt` (line 180) currently looks for `kcoord` modulo a
-  reciprocal lattice vector only. After TRS reduction, callers asking for `k+q`
-  may find only `−(k+q)` is in `basis.kpoints`. Extend the signature to also try
-  `−kcoord` and return a `θ` (or `needs_conj::Bool`) alongside `index, ΔG`.
-  Update both callers (line 115 of `PlaneWaveBasis.jl`, and
-  `k_to_kpq_permutation` on line 200 of `transfer.jl`).
-- `transfer_blochwave_kpt`, `transfer_blochwave_equivalent_to_actual`: when the
-  source/target k-mapping is via an antiunitary, the coefficient transfer needs
-  `conj` and a sign flip on G-indices. Audit all uses; in the phonon flow
-  (`compute_δρ` at `densities.jl:83`), this is what determines whether
-  `δψ_plus_k` is correctly assembled when k+q is only equivalent to −(k+q) in
-  the irreducible mesh.
+**Forces (q=0)**: `transfer_blochwave_equivalent_to_actual` short-circuits immediately
+for `iszero(q)` without calling `find_equivalent_kpt`. Forces and stresses are unaffected
+by TRS k-reduction and should work as-is after steps 1–3. Verify with a test.
+
+**Phonons and chi0 (q≠0)**: After TRS k-reduction, `k+q` may only be present in
+`basis.kpoints` as `−(k+q)`. `find_equivalent_kpt` will crash in that case.
+
+Do **not** fix this by teaching `find_equivalent_kpt` to try `−kcoord` — that makes a
+low-level lookup function aware of physics it shouldn't know about. Instead, treat TRS
+like any other symmetry: the caller (`transfer_blochwave_equivalent_to_actual`) should
+look for a symop in `basis.symmetries` (including θ=−1 ones) that maps some irreducible
+k-point to `k+q`, then call `apply_symop` to obtain ψ at `k+q`. This is the same pattern
+used everywhere else in the codebase for symmetry-based wavefunction reconstruction.
+
+Concretely, replace the inner loop of `transfer_blochwave_equivalent_to_actual` with:
+```julia
+for (ik, kpt) in enumerate(basis.kpoints)
+    # Find symop and irred kpoint s.t. θ*S*k_irred ≡ k+q (mod integers)
+    # then ψ_{k+q} = apply_symop(symop, basis, basis.kpoints[ik_irred], ψ[ik_irred])
+end
+```
+This is analogous to `unfold_bz` in `symmetry.jl`.
 
 ### `src/response/chi0.jl`, `src/response/hessian.jl`
 
@@ -298,9 +308,12 @@ meshes differ.
 3. **Flip the spglib flag** (½ day): `is_time_reversal=true` in `bzmesh.jl`
    when allowed. *This is the moment k-counts halve* on GaAs. Smell test:
    `length(basis.kpoints)` for GaAs at `kgrid=[4,4,4]` drops by ~2×.
-4. **`transfer.jl` audit** (2–3 days): the long tail. Extend
-   `find_equivalent_kpt`, fix `transfer_blochwave_*` callers, run forces/stresses
-   regression on GaAs.
+4. **Forces/stresses verification** (½ day): these use q=0 and bypass
+   `find_equivalent_kpt` entirely. Run regression on Si/GaAs to confirm they already
+   work after step 3.
+4b. **Phonons/chi0 with q≠0** (2–3 days): rewrite `transfer_blochwave_equivalent_to_actual`
+   to find the right symop (including θ=−1) in `basis.symmetries` and call `apply_symop`,
+   rather than extending `find_equivalent_kpt`.
 5. **Currents + Hubbard + GPU kernel + extensions** (1–2 days): polish.
 6. **Performance pass + θ=+1 fast path in symmetrise_ρ** (½ day).
 
