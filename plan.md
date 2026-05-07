@@ -235,6 +235,11 @@ Add `symop.θ` to the device array and special-case in the kernel (no-op for
 
 ## Test strategy
 
+In a first step, when doing iterative development, do *not* test using
+the julia test infrastructure. Just write a test file and run it in
+Julia directly. Disable the precompilation of DFTK for all iterative
+	development with __precompile__(false).
+
 The existing pattern in `test/bzmesh_symmetry.jl` — SCF with `symmetries=false`
 versus default symmetries on the same system, asserting ρ and E agree — is
 exactly what we extend. **Add the new TRS tests in that file.**
@@ -245,11 +250,11 @@ Required new tests:
    antiunitaries: identity, closure under `*`, inverse, associativity. No SCF.
 
 2. **Triple-comparison equivalence** on inversion-asymmetric systems:
-   `(symmetries=false)` vs `(symmetries on, no TRS)` vs `(symmetries on, TRS on)`
-   — all three must agree on ρ, E, forces, stresses to SCF tolerance, and the
-   third should have ~half the k-count of the second.
-   - **GaAs** (zincblende, no inversion) — primary case.
-   - **h-BN monolayer** (small, polar, non-centrosymmetric) — secondary.
+   `(symmetries=false)` vs `(symmetries on, no TRS)` vs `(symmetries
+   on, TRS on)` — all three must agree on ρ, E, forces, stresses to
+   SCF tolerance, and the third should have ~half the k-count of the
+   second. Test on silicon and move the atoms to break all geometric
+   symmetries except TRS. If not sufficient, add atoms maybe?
 
 3. **Collinear AFM equivalence** — exercises spglib's `spin_flips==−1` path that
    DFTK currently discards. A 2-atom AFM toy with paired up/down moments suffices
