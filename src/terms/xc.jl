@@ -459,9 +459,8 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArra
     isempty(term.functionals) && return nothing
     @assert (all(family(xc) in (:lda, :gga, :mggal) && !needs_τ(xc) for xc in term.functionals))
 
-    if !iszero(q) && !isnothing(term.ρcore)
-        error("Phonon computations are not supported for models using nonlinear core "
-              * "correction.")
+    if !iszero(q) && !all(family(xc) == :lda for xc in term.functionals)
+        error("Phonons are currently only implemented for LDA")
     end
 
     # Key insight: kernel application is just a Hessian-vector product,
@@ -480,6 +479,71 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArra
         potential = f(ρ .+ ε1 .* real.(δρ) .+ ε2 .* imag.(δρ))
         ForwardDiff.partials.(potential, 1) .+ im .* ForwardDiff.partials.(potential, 2)
     end
+end
+
+@views function compute_dynmat(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupation;
+                               ρ, δρs, q=zero(Vec3{T}), kwargs...) where {T}
+    isnothing(term.ρcore) && return nothing
+
+    # Hellmann-Feynman:
+    # ∂E/∂u_tβ(q) = ∫ Vxc ∂ρcore/∂u_tβ(q)
+    # Differentiate again wrt. u_sα(-q) to get the dynamical matrix element:
+    # ∂²E/∂u_sα(-q)∂u_tβ(q) = ∫ Kxc (∂ρ/∂u_sα(-q) + ∂ρcore/∂u_sα(-q)) (∂ρcore/∂u_tβ(q))
+    #                       + ∫ Vxc ∂²ρcore/∂u_sα(-q)∂u_tβ(q)
+
+    n_atoms = length(basis.model.positions)
+    n_dim = basis.model.n_dim
+    δρcores = zero.(δρs)
+    for s = 1:n_atoms, α = 1:n_dim
+        δρcores[α, s] .= derivative_wrt_αs(basis.model.positions, α, s) do positions_αs
+            ρ_from_total(basis, atomic_total_density(basis, CoreDensity();
+                                                     q, positions=positions_αs))
+        end
+    end
+
+    dynmat = zeros(complex(T), 3, n_atoms, 3, n_atoms)
+    # Assemble first term directly
+    for s = 1:n_atoms, α = 1:n_dim
+        # We actually receive ∂ρ/∂u_sα(q) (note: +q and not -q),
+        # however since the potential is real, we conjugate to obtain the -q term:
+        # δV =       Kxc (∂ρ/∂u_sα(-q) + ∂ρcore/∂u_sα(-q))
+        #    = conj( Kxc (∂ρ/∂u_sα( q) + ∂ρcore/∂u_sα( q)) )
+        δV_αs = conj.(apply_kernel(term, basis, δρs[α, s] + δρcores[α, s]; ρ, q))
+        for t = 1:n_atoms, β = 1:n_dim
+            δρcore_tβ = δρcores[β, t]
+            dynmat[β, t, α, s] = sum(δV_αs .* δρcore_tβ) * basis.dvol
+        end
+    end
+
+    # For the second term ∫ Vxc ∂²ρcore/∂u_sα(-q)∂u_tβ(q),
+    # we only have contributions for s == t.
+    # Additionally the -q and +q phases cancel out.
+    Vxc = xc_potential_real(term, basis, ψ, occupation; ρ).potential
+    for s = 1:n_atoms, α = 1:n_dim, β = 1:n_dim
+        δ²ρcore = derivative_wrt_αs(basis.model.positions, β, s) do positions_βs
+            derivative_wrt_αs(positions_βs, α, s) do positions_βsαs
+                ρ_from_total(basis, atomic_total_density(basis, CoreDensity();
+                                                         positions=positions_βsαs))
+            end
+        end
+        dynmat[β, s, α, s] += sum(Vxc .* δ²ρcore) * basis.dvol
+    end
+
+    dynmat
+end
+
+function compute_δHψ_αs(term::TermXc, basis::PlaneWaveBasis, ψ, α, s, q; ρ)
+    isnothing(term.ρcore) && return nothing
+
+    # With an NLCC, an atom displacement triggers a change in the XC potential.
+    # We compute the change in the NLCC first, then we apply the kernel to get the
+    # change in potential. Finally, we apply it to the wavefunctions.
+    δρcore_αs = derivative_wrt_αs(basis.model.positions, α, s) do positions_αs
+        ρ_from_total(basis, atomic_total_density(basis, CoreDensity();
+                                                 q, positions=positions_αs))
+    end
+    δV_αs = apply_kernel(term, basis, δρcore_αs; ρ, q)
+    multiply_ψ_by_blochwave(basis, ψ, δV_αs, q)
 end
 
 function mergesum(nt1::NamedTuple{An}, nt2::NamedTuple{Bn}) where {An, Bn}

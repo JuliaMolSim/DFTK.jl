@@ -383,7 +383,8 @@ end
 
 # δH is the Fourier transform perturbation of the nonlocal potential due to a position
 # displacement e^{iq·r} of the α coordinate of atom s.
-function compute_δHψ_αs(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, α, s, q) where {T}
+function compute_δHψ_αs(::TermAtomicNonlocal, basis::PlaneWaveBasis{T}, ψ, α, s, q;
+                        kwargs...) where {T}
     model = basis.model
     psp_groups = [group for group in model.atom_groups
                   if model.atoms[first(group)] isa ElementPsp]

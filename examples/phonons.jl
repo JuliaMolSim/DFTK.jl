@@ -8,7 +8,6 @@
 #     calculations. Some of the limitations are:
 #     - symmetries must be disabled (pass `symmetries=false` to the model)
 #     - only LDA functionals are supported
-#     - non-linear core corrections from the pseudopotentials are not supported
 #     - MPI parallelization over k-points is not supported (due to ``k`` and ``k+q`` interactions)
 #     We appreciate any issues, bug reports or PRs.
 #
