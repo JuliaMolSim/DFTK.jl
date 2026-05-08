@@ -43,13 +43,17 @@ eval_psp_energy_correction(T, ::Element) = zero(T)
 eval_psp_energy_correction(psp::Element) = eval_psp_energy_correction(Float64, psp)
 
 # Fall back to the Gaussian table for Elements without pseudopotentials
-function valence_charge_density_fourier(el::Element, p::T)::T where {T <: Real}
+function valence_charge_density_fourier(el::Element, p)
     gaussian_valence_charge_density_fourier(el, p)
 end
 
 """Gaussian valence charge density using Abinit's coefficient table, in Fourier space."""
 function gaussian_valence_charge_density_fourier(el::Element, p::T)::T where {T <: Real}
     charge_ionic(el) * exp(-(p * atom_decay_length(el))^2)
+end
+function gaussian_valence_charge_density_fourier(el::Element, ps::AbstractVector{T}) where {T <: Real}
+    arch = architecture(ps)
+    to_device(arch, map(p -> gaussian_valence_charge_density_fourier(el, p), to_cpu(ps)))
 end
 
 function core_charge_density_fourier(::Element, ::T)::T where {T <: Real}
@@ -58,12 +62,6 @@ end
 
 function core_kinetic_energy_density_fourier(::Element, ::T)::T where {T <: Real}
     error("Abstract elements do not necesesarily provide core kinetic energy density.")
-end
-
-# Generic vectorized version of local_potential_fourier, GPU-safe
-function local_potential_fourier(el::Element, ps::AbstractVector{T}) where {T <: Real}
-    arch = architecture(ps)
-    to_device(arch, map(p -> local_potential_fourier(el, p), to_cpu(ps)))
 end
 
 Base.show(io::IO, el::Element) = print(io, "$(typeof(el))(:$(species(el)))")
@@ -175,26 +173,17 @@ has_core_density(el::ElementPsp)  = has_core_density(el.psp)
 has_core_kinetic_energy_density(el::ElementPsp) = has_core_kinetic_energy_density(el.psp)
 eval_psp_energy_correction(T, el::ElementPsp) = eval_psp_energy_correction(T, el.psp)
 
-function local_potential_fourier(el::ElementPsp, p::T) where {T <: Real}
-    eval_psp_local_fourier(el.psp, p)
-end
-# Vectorized version of the above
-function local_potential_fourier(el::ElementPsp, ps::AbstractVector{T}) where {T <: Real}
-    eval_psp_local_fourier(el.psp, ps)
-end
-local_potential_real(el::ElementPsp, r::Real) = eval_psp_local_real(el.psp, r)
+local_potential_fourier(el::ElementPsp, p) = eval_psp_local_fourier(el.psp, p)
+local_potential_real(el::ElementPsp, r) = eval_psp_local_real(el.psp, r)
 
-function valence_charge_density_fourier(el::ElementPsp, p::T) where {T <: Real}
+function valence_charge_density_fourier(el::ElementPsp, p)
     if has_valence_density(el.psp)
         eval_psp_valence_density_fourier(el.psp, p)
     else
         gaussian_valence_charge_density_fourier(el, p)
     end
 end
-function core_charge_density_fourier(el::ElementPsp, p::T) where {T <: Real}
-    eval_psp_core_density_fourier(el.psp, p)
-end
-
+core_charge_density_fourier(el::ElementPsp, p) = eval_psp_core_density_fourier(el.psp, p)
 
 #
 # ElementCohenBergstresser
@@ -264,7 +253,6 @@ function local_potential_fourier(el::ElementCohenBergstresser, p::T) where {T <:
 end
 # TODO Strictly speaking needs a eval_psp_energy_correction
 
-
 #
 # ElementGaussian
 #
@@ -296,6 +284,24 @@ function local_potential_fourier(el::ElementGaussian, p::Real)
     -el.α * exp(- (p * el.L)^2 / 2)  # = ∫_ℝ³ V(x) exp(-ix⋅p) dx
 end
 # TODO Strictly speaking needs a eval_psp_energy_correction
+
+# Generic API expectations: all element functions taking a real space scalar |r| or a
+# reciprocal space scalar |p| should have a vectorized version accepting vectors of |r| or |p|.
+# The following loop vectorizes element functions by calling the single-value version
+# elementwise. This is GPU safe and generic. Performance critical functions should have their
+# own GPU-optimized implementation. Note: explicit loop over Element types in order to avoid
+# ambiguities with the specific ElementPsp functions.
+for fn in [:gaussian_valence_charge_density_fourier, :core_charge_density_fourier,
+           :local_potential_fourier, :local_potential_real]
+    for el_type in [ElementCoulomb, ElementCohenBergstresser, ElementGaussian]
+        @eval begin
+            function DFTK.$fn(el::$el_type, arg::AbstractVector{T}) where {T <: Real}
+                arch = architecture(arg)
+                to_device(arch, map(p -> $fn(el, p), to_cpu(arg)))
+            end
+        end
+    end
+end
 
 #
 # Helper functions

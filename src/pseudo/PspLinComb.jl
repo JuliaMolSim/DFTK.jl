@@ -76,6 +76,15 @@ macro make_psplincomb_call(fn)
         end
     end
 end
+
+macro make_psplincomb_call_vectorized(fn)
+    quote
+        function $fn(psp::PspLinComb, arg::AbstractVector{<:Real})
+            sum(c * $fn(pp, arg) for (c, pp) in zip(psp.coefficients, psp.pseudos))
+        end
+    end
+end
+
 @make_psplincomb_call DFTK.eval_psp_local_real
 @make_psplincomb_call DFTK.eval_psp_local_fourier
 @make_psplincomb_call DFTK.eval_psp_valence_density_real
@@ -84,3 +93,14 @@ end
 @make_psplincomb_call DFTK.eval_psp_core_density_fourier
 @make_psplincomb_call DFTK.eval_psp_core_kinetic_energy_density_real
 @make_psplincomb_call DFTK.eval_psp_core_kinetic_energy_density_fourier
+
+@vectorize_psp_function PspLinComb DFTK.eval_psp_local_real
+@vectorize_psp_function PspLinComb DFTK.eval_psp_local_fourier
+@vectorize_psp_function PspLinComb DFTK.eval_psp_valence_density_real
+@vectorize_psp_function PspLinComb DFTK.eval_psp_valence_density_fourier
+@vectorize_psp_function PspLinComb DFTK.eval_psp_core_density_real
+@vectorize_psp_function PspLinComb DFTK.eval_psp_core_density_fourier
+@vectorize_psp_function PspLinComb DFTK.eval_psp_core_kinetic_energy_density_real
+@vectorize_psp_function PspLinComb DFTK.eval_psp_core_kinetic_energy_density_fourier
+@vectorize_psp_projector_function PspLinComb DFTK.eval_psp_projector_real
+@vectorize_psp_projector_function PspLinComb DFTK.eval_psp_projector_fourier
