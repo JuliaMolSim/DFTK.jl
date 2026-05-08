@@ -1,119 +1,112 @@
-# TRS k-point reduction: implementation progress
+# TRS k-point reduction: status
 
-Read `plan.md` first for full context and design decisions.
-
----
-
-## Status: Steps 1–7 complete. Tests live in `test/bzmesh_symmetry.jl`.
+Read `plan.md` for the design. This file summarises what shipped and what's left.
 
 ---
 
-## What is done
+## Shipped
 
-### Files modified
+### Core data structure — `src/SymOp.jl`
+- New `θ::Int ∈ {+1, -1}` field on `SymOp`. Default `θ=+1` everywhere.
+- `==`, `isapprox`, `isone`, `*`, `inv`, `convert` all carry θ. Composition
+  multiplies θ; inverse preserves it (antiunitary inverse is antiunitary).
+- `check_group` / `complete_symop_group` work unchanged on the augmented group.
 
-**`src/SymOp.jl`**
-- Added `θ::Int` field to `SymOp{T}` struct (after `τ`). θ ∈ {+1, -1}: +1 unitary, -1 antiunitary.
-- `SymOp(W, w; θ=1)` constructor: keyword arg, accepts `Cint` from spglib, stores `Int(θ)`.
-- `convert`: includes θ.
-- `==`, `isapprox`: include θ comparison.
-- `isone`: requires θ == 1.
-- `*`: θ multiplies (θ₁·θ₂).
-- `inv`: θ preserved (antiunitary inverse is antiunitary).
+### Symmetry detection — `src/symmetry.jl`, `src/Model.jl`
+- `symmetry_operations(...; time_reversal=true)` now augments the group with
+  antiunitary partners for `spin_polarization == :none` when the flag is set.
+- For `:collinear`, the spglib `spin_flips==-1` rows that were previously
+  *discarded* (with a TODO comment) are now kept and tagged θ=-1 — this is the
+  AFM 2× speedup.
+- `default_symmetries` (in `Model.jl`) passes `time_reversal = (spin ∈ :none/:spinless)
+  && !any(breaks_TRS, terms)`.
 
-**`src/terms/terms.jl`**
-- Added `breaks_TRS(::Any) = false`.
-- Added `breaks_TRS(::Magnetic) = true`.
-- Added `breaks_TRS(::Anyonic) = true`.
+### k-point reduction — `src/bzmesh.jl`
+- `irreducible_kcoords` flips spglib's `is_time_reversal` to `any(s -> s.θ == -1, symmetries)`.
+  This is the moment GaAs / h-BN / non-centrosymmetric lattices halve their k-count.
+- `_check_kpoint_reduction` checks `kred ≡ θ·S·k`.
 
-**`src/symmetry.jl`**
-- `symmetry_operations`: new `time_reversal::Bool=true` keyword. For `spin_polarization == :none`, when set, augments the returned list with θ=−1 antiunitary partners.
-- `symmetry_operations` for `:collinear`: returns ALL rows from spglib's `get_symmetry_with_site_tensors`, including `spin_flips == -1` as θ=−1 SymOps (was previously discarded).
-- `symmetries_preserving_kgrid` (both overloads): uses `symop.θ * symop.S * k`.
-- `unfold_kcoords`, `unfold_mapping`: use `symop.θ * symop.S * k`. `unfold_mapping`
-  also handles the ↑↔↓ spin swap for collinear with θ=−1 symops.
-- `accumulate_over_symmetries!`: now operates on the full 4D ρ (Nx, Ny, Nz, n_spin) and handles θ-dependent spin source: for θ=−1 with n_spin==2 the source spin is swapped (↑↔↓); for n_spin==1 (real ρ) θ acts trivially.
-- `symmetrize_ρ`: simplified — single call into `accumulate_over_symmetries!` with the whole ρ; lowpass loops over spin.
-- `apply_symop` for wavefunctions: unified loop using θ — index by `θ·invS·G`, phase `cis2pi(-θ·G·τ)`, conjugate when θ=−1.
+### k-action and consumers — `src/symmetry.jl`
+- `symmetries_preserving_kgrid` (both overloads), `unfold_kcoords`, `unfold_mapping`:
+  use `θ·S·k`.
+- `unfold_mapping` also handles the ↑↔↓ spin swap induced by θ=-1 in collinear.
+- `apply_symop` (wavefunctions): one unified loop — index by `θ·invS·G`, phase
+  `cis2pi(-θ·G·τ)`, `conj` the source coefficient when θ=-1.
+- `accumulate_over_symmetries!` now operates on the full 4D ρ (Nx, Ny, Nz, n_spin)
+  and handles the θ-dependent source-spin selection inside the kernel
+  (collinear ↑↔↓ swap; trivial on real n_spin==1 density). Single GPU launch
+  per spin component as before.
+- `symmetrize_ρ`: simplified to a single accumulate call. Fast path filters to
+  θ=+1 symops up front when `n_spin == 1` (real ρ), halving the per-iteration work.
 
-**`src/Model.jl`**
-- `default_symmetries`: passes `time_reversal = spin_polarization ∈ (:none, :spinless) && !any(breaks_TRS, terms)` to `symmetry_operations`. The augmentation itself lives in `symmetry_operations`.
+### Polish
+- `src/postprocess/current.jl`: assert kept as `length(basis.symmetries) == 1`
+  pending TRS-aware sign flip — currents are TRS-odd.
+- `symmetrize_hubbard_n`: restricted to θ=+1 (full antiunitary handling needs
+  conj(WigD) + spin swap; future TODO).
+- GPU kernel: `symm_θ` device array added; spin-swap branch is GPU-friendly.
+- `_check_symmetries`, serialization extensions (JLD2/JSON3), Wannier ext: no
+  change needed (they don't materialise SymOp objects).
 
-**`src/bzmesh.jl`**
-- `irreducible_kcoords`: `is_time_reversal = any(s -> s.θ == -1, symmetries)` — flips the spglib flag when the symmetry group contains antiunitary operations. Removes old TODO comment.
-- `_check_kpoint_reduction`: uses `symop.θ * (symop.S * k)`.
+### Tests — `test/bzmesh_symmetry.jl`
+- SymOp group-theory units (`*`, `inv`, `isone`, `check_group`) — `:minimal`.
+- GaAs equilibrium (Td + TRS): E/ρ/forces agreement, k-weight = 1, k-count drops.
+- Rattled GaAs (TRS-only): k-count = 36 on `[4,4,4]` (TRIM points unhalved),
+  non-zero forces, agreement with no-symmetry run.
+- `unfold_bz` round-trip on GaAs: exercises `unfold_mapping` + `apply_symop`
+  on θ=-1 partners.
+- Collinear AFM (Si with `magnetic_moments=[1,-1]`): asserts θ=-1 partners
+  present, group closes.
 
-### Test result (from `test_trs.jl`)
-- Si at `kgrid=[4,4,4]`: nosym=64 k-points, TRS=8 k-points (was ~28 with spatial symmetry only, now ~4× reduction from full TRS exploitation).
-- k-weights sum to 1.0.
-- Energy matches no-symmetry run to 0.0 difference.
+Other touched tests:
+- `test/symmetry_issues.jl` (CuO2 group): expected count updated 48 → 96 (×2 TRS).
+- `test/bzmesh.jl` (irreducible k reduction): reconstruction loop uses `θ·S·k`.
 
----
-
-## What is NOT done (remaining steps from plan)
-
-### Step 4: verify forces/stresses ✓ DONE
-
-Forces use `q=0`. `transfer_blochwave_equivalent_to_actual` short-circuits immediately
-for `iszero(q)` — `find_equivalent_kpt` is never reached. Forces work correctly.
-
-Tested (`test_trs.jl`):
-- GaAs zinc-blende [4,4,4]: 23 spatial (Td, no inversion) + 24 TRS → 8 k-points.
-  ΔE=3.6e-15, max|Δf|=4e-12, max|Δρ|=4.4e-12. Forces zero (equilibrium).
-- Rattled GaAs [4,4,4]: 0 spatial + 1 TRS → 36 k-points (64→36; TRIM points
-  are TRS-invariant so not halved: (64+8)/2=36). Forces non-zero (0.033 Ha/Bohr).
-  ΔE=1.8e-15, max|Δf|=2.6e-11, max|Δρ|=6.2e-12. All machine precision.
-
-Note on TRIM counting: for a [N,N,N] grid there are 2³=8 time-reversal-invariant
-k-points (where 2k≡0 mod lattice). The irreducible count with TRS only is (N³+8)/2.
-
-### Step 4b: phonons/chi0 with q≠0 — NOT NEEDED
-
-Phonon tests always call with `symmetries=false` (full BZ). The phonon derivation
-requires TRS implicitly and is only correct on unfolded systems anyway. No change
-needed — the existing convention of passing `symmetries=false` for phonons is sufficient.
-
-### Step 5: Polish items ✓ DONE
-
-**`src/postprocess/current.jl`**: assertion left as `length(basis.symmetries) == 1` (per
-review). Currents still require full BZ; a proper TRS-aware symmetrization (with θ-odd
-sign flip) is a future TODO.
-
-**`src/symmetry.jl` — `symmetrize_hubbard_n`**: restricted to θ=+1 symops only.
-For n_spin=1 (real n) this is equivalent to before. For n_spin=2 with TRS it now
-gives correct results (previously would silently average wrong spin components).
-Full antiunitary treatment (conj(WigD) + spin swap) left as a future TODO.
-
-**GPU kernel** (`accumulate_over_symmetries!`): no change needed. The kernel formula
-`e^{-iG·τ} ρ(S⁻¹G)` is correct for θ=−1 on real densities; spin swap for collinear
-is already handled outside the kernel in `symmetrize_ρ`.
-
-**Serialization**: no change needed — extensions store flags, not SymOp objects.
-
-**Wannier90 ext**: not checked, low priority.
-
-### Step 6: Tests ✓ DONE
-
-`test/bzmesh_symmetry.jl` now contains four `@testitem` entries:
-1. SymOp group-theory units (`*`, `inv`, `isone`, `check_group`) — tag `:minimal`.
-2. GaAs equilibrium (Td + TRS): E/ρ/f agreement, k-weight = 1, k-count drops — tag `:slow`.
-3. Rattled GaAs (TRS-only): E/ρ/f agreement, k-count = 36 on `[4,4,4]`, non-zero
-   forces sanity check — tag `:slow`.
-4. Collinear AFM (spglib spin_flips path): asserts θ=−1 partners present, group
-   closes, k-weight = 1.
-
-### Step 7: Performance ✓ DONE
-
-`symmetrize_ρ` now filters to θ=+1 symops up front when `n_spin == 1` (real ρ —
-the θ=−1 contributions are identical) and divides by the reduced count. The
-collinear (n_spin == 2) path is unchanged: `accumulate_over_symmetries!` handles
-the ↑↔↓ source-spin swap inside its kernel.
+### Defensive
+- `find_equivalent_kpt`: clean error message instead of the implicit
+  `nothing + Int` crash, pointing users to `unfold_bz` /
+  `use_symmetries_for_kpoint_reduction=false` when they hit a missing k+q.
 
 ---
 
-## Key invariants to preserve
+## What is left
 
-- `sum(basis.kweights) ≈ 1` always.
-- Energies with TRS must match `symmetries=false` to SCF tolerance.
-- `check_group` passes for the augmented symmetry group (it currently does — `*` and `isapprox` carry θ).
-- The `SYMMETRY_CHECK = true` path: `_check_symmetries` checks spatial atom mapping (W, w) only, unaffected by θ. `_check_kpoint_reduction` already updated to use θ·S·k.
+### `transfer_blochwave_equivalent_to_actual` for q ≠ 0
+Plan called for replacing the inner loop with a symop-based lookup so chi0 /
+phonon paths can run on TRS-reduced bases. Not done — phonon tests already pass
+`symmetries=false` and chi0 with q ≠ 0 is exercised on unfolded bases. The
+defensive error in `find_equivalent_kpt` makes the misuse fail cleanly.
+
+### `compute_current` TRS symmetrisation
+Currently asserts `length(basis.symmetries) == 1`. Lifting this needs a
+θ-aware sign flip in the symmetrisation loop (currents are TRS-odd).
+
+### `symmetrize_hubbard_n` for θ=-1
+Restricted to θ=+1 symops with a TODO. For `n_spin == 1` this is exact (n is
+real, θ=-1 contributions equal θ=+1). For `n_spin == 2` it silently drops the
+spin-swap contribution; needs `conj(WigD) + σ swap` for AFM Hubbard runs.
+
+### Docs
+`docs/src/developer/symmetries.md` covers only unitary symmetries. A short
+section on time-reversal (and a link to spin sectors) would be in order.
+
+### Possibly worth investigating
+- For collinear AFM, `irreducible_kcoords` passes the full rotation list
+  (including θ=-1 rotations whose W differs from any θ=+1 rotation) plus
+  `is_time_reversal=true` to spglib. spglib treats every rotation as spatial and
+  pairs each with TRS, which may slightly over-reduce the orbit relative to the
+  true magnetic point group. The current AFM test only checks group closure /
+  k-weight sum, not orbit cardinality. Worth a dedicated test on a known AFM
+  cell once one is available in `testcases.jl`.
+
+---
+
+## Key invariants
+
+- `sum(basis.kweights) ≈ basis.model.n_spin_components` (1 for non-collinear, 2
+  for collinear).
+- Energies / densities / forces with TRS match `symmetries=false` to SCF
+  tolerance on GaAs (equilibrium and rattled).
+- `check_group` passes for the augmented group (`*`, `inv`, `isapprox` carry θ).
+- For non-magnetic systems, `length(model.symmetries)` is exactly 2× the
+  pre-TRS count.

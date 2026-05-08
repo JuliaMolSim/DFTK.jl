@@ -361,11 +361,9 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
     # Fast path: for scalar (n_spin==1) ρ which is real, antiunitary partners contribute
     # identically to their unitary halves — skip them to halve the work.
     symmetries_eff = symmetries
-    if n_spin == 1
+    if n_spin == 1 && any(s -> s.θ == -1, symmetries)
         plus_only = filter(s -> s.θ == +1, symmetries)
-        if !isempty(plus_only)
-            symmetries_eff = plus_only
-        end
+        isempty(plus_only) || (symmetries_eff = plus_only)
     end
     ρin_fourier  = fft(basis, ρ)
     ρout_fourier = zero(ρin_fourier)
