@@ -42,11 +42,14 @@ Read `plan.md` for the design. This file summarises what shipped and what's left
 ### Polish
 - `src/postprocess/current.jl`: assert kept as `length(basis.symmetries) == 1`
   pending TRS-aware sign flip — currents are TRS-odd.
-- `symmetrize_hubbard_n`: restricted to θ=+1 (full antiunitary handling needs
-  conj(WigD) + spin swap; future TODO).
+- `symmetrize_hubbard_n`: now handles θ=-1 partners — the contribution is
+  `WigD' · conj(n_src) · WigD`, with `n_src` drawn from the opposite spin
+  channel for collinear (`σ_src = 3 - σ` when n_spin == 2).
 - GPU kernel: `symm_θ` device array added; spin-swap branch is GPU-friendly.
 - `_check_symmetries`, serialization extensions (JLD2/JSON3), Wannier ext: no
   change needed (they don't materialise SymOp objects).
+- Docs (`docs/src/developer/symmetries.md`): theory section now includes
+  the antiunitary action and the `θ·S·k` Brillouin-zone action.
 
 ### Tests — `test/bzmesh_symmetry.jl`
 - SymOp group-theory units (`*`, `inv`, `isone`, `check_group`) — `:minimal`.
@@ -81,23 +84,29 @@ defensive error in `find_equivalent_kpt` makes the misuse fail cleanly.
 Currently asserts `length(basis.symmetries) == 1`. Lifting this needs a
 θ-aware sign flip in the symmetrisation loop (currents are TRS-odd).
 
-### `symmetrize_hubbard_n` for θ=-1
-Restricted to θ=+1 symops with a TODO. For `n_spin == 1` this is exact (n is
-real, θ=-1 contributions equal θ=+1). For `n_spin == 2` it silently drops the
-spin-swap contribution; needs `conj(WigD) + σ swap` for AFM Hubbard runs.
+### Collinear AFM and the spglib k-orbit
+For non-magnetic systems the θ=-1 partners share W with a θ=+1 partner (we
+synthesise them as exact duplicates), and spglib's `is_time_reversal=true`
+flag pairs each rotation with T — exactly the right group. For collinear AFM
+the θ=-1 partners come from spglib's `spin_flips==-1` rows, where W is
+typically *not* in the θ=+1 set: only `W·T` is a magnetic-group element, not
+W alone. Naively passing every rotation to spglib + `is_time_reversal=true`
+would tell it that `W` *and* `W·T` are both symmetries, over-reducing the BZ.
 
-### Docs
-`docs/src/developer/symmetries.md` covers only unitary symmetries. A short
-section on time-reversal (and a link to spin sectors) would be in order.
+`irreducible_kcoords` therefore passes only θ=+1 rotations to spglib and sets
+`is_time_reversal=true` only when the θ=-1 rotation set is contained in the
+θ=+1 set (i.e., the synthesis case). For AFM, k-orbit reduction falls back to
+the unitary part — this matches pre-PR behaviour, since for the most common
+AFM cases the antiunitary k-action coincides with the unitary one (e.g., AFM
+Si: `θ=-1 = T_d·(-I)`, whose k-action equals the T_d-orbit). Cases where the
+antiunitary part adds genuinely new BZ-orbit elements would need a custom
+orbit reduction (spglib's API doesn't accept a magnetic point group); not
+implemented.
 
-### Possibly worth investigating
-- For collinear AFM, `irreducible_kcoords` passes the full rotation list
-  (including θ=-1 rotations whose W differs from any θ=+1 rotation) plus
-  `is_time_reversal=true` to spglib. spglib treats every rotation as spatial and
-  pairs each with TRS, which may slightly over-reduce the orbit relative to the
-  true magnetic point group. The current AFM test only checks group closure /
-  k-weight sum, not orbit cardinality. Worth a dedicated test on a known AFM
-  cell once one is available in `testcases.jl`.
+### Tests
+- An SCF-level AFM equivalence test (sym vs no-sym energies/densities) would
+  give us a real correctness signal for the path above. The current AFM test
+  only checks group closure and k-weight sum.
 
 ---
 

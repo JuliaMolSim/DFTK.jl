@@ -63,9 +63,19 @@ function irreducible_kcoords(kgrid::MonkhorstPack, symmetries::AbstractVector{<:
         ks in (0, 1//2) || error("Only kshifts of 0 or 1//2 implemented.")
         ks == 1//2
     end
-    rotations = [symop.W for symop in symmetries]
+    # spglib expects spatial rotations + a single is_time_reversal flag (which pairs
+    # *every* rotation with T). That matches our :none/:spinless TRS augmentation, where
+    # each θ=+1 W has a θ=-1 partner with the same W. For collinear AFM the θ=-1 partners
+    # come with *different* W's (spglib's spin_flips==-1 rows), and pairing every rotation
+    # with T would over-reduce the BZ. Detect both cases by checking whether the θ=-1
+    # rotation set is a subset of the θ=+1 rotation set. If not, fall back to the spatial
+    # θ=+1 group only — the antiunitary part is then exercised at the symmetrize_ρ /
+    # symmetrize_hubbard_n / unfold_bz level, just not in the spglib k-orbit reduction.
+    plus_W = Set(symop.W for symop in symmetries if symop.θ == +1)
+    rotations = [symop.W for symop in symmetries if symop.θ == +1]
+    is_time_reversal = any(symop -> symop.θ == -1, symmetries) &&
+                       all(symop.W in plus_W for symop in symmetries if symop.θ == -1)
     qpoints = [Vec3(0, 0, 0)]
-    is_time_reversal = any(symop -> symop.θ == -1, symmetries)
     spg_mesh = Spglib.get_stabilized_reciprocal_mesh(rotations, kgrid.kgrid_size, qpoints;
                                                      is_shift, is_time_reversal)
     kirreds = map(Spglib.eachpoint(spg_mesh)) do kcoord

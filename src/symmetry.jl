@@ -330,24 +330,25 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, sym
     ρaccu
 end
 
-# Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
-# This function is optimized for CPU and GPU.
+# Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid.
 function lowpass_for_symmetry!(ρ::AbstractArray, basis; symmetries=basis.symmetries)
     all(isone, symmetries) && return ρ
 
-    Gs = reshape(G_vectors(basis), size(ρ))
+    Gs = G_vectors(basis)
     fft_size = basis.fft_size
-
     symm_S = to_device(basis.architecture, [symop.S for symop in symmetries])
 
-    # Loop structure optimized for both CPU and GPU
-    map!(ρ, ρ, Gs) do ρ_i, G
-        acc = ρ_i
-        for S in symm_S
-            idx = index_G_vectors(fft_size, S * G)
-            acc *= isnothing(idx) ? 0 : 1
+    n_spin = size(ρ, 4)
+    for σ = 1:n_spin
+        ρσ = @view ρ[:, :, :, σ]
+        map!(ρσ, ρσ, Gs) do ρ_i, G
+            acc = ρ_i
+            for S in symm_S
+                idx = index_G_vectors(fft_size, S * G)
+                acc *= isnothing(idx) ? 0 : 1
+            end
+            acc
         end
-        acc
     end
     ρ
 end
@@ -458,23 +459,23 @@ function symmetrize_hubbard_n(model, manifold::ResolvedOrbitalManifold,
     natoms = size(hubbard_n, 2)
     ldim = 2*manifold.l+1
 
-    # Initialize the hubbard_n matrix
-    # Antiunitary (θ=-1) symops require conjugating WigD and swapping spins, which
-    # is not implemented. Restrict to unitary symops only; for θ=-1 partners:
-    # - n_spin==1: n is real, so the θ=-1 contribution equals θ=+1, i.e. no loss.
-    # - n_spin==2: silently wrong without spin swap — left for a future fix.
-    unitary_symmetries = filter(s -> s.θ == 1, symmetries)
+    # An antiunitary symop K = W·T transforms n via complex conjugation:
+    #   n' = WigD' · conj(n_src) · WigD
+    # and, in the collinear case, draws from the opposite spin channel (↑↔↓).
     ns = [zeros(Complex{T}, ldim, ldim) for _ in 1:nspins, _ in 1:natoms, _ in 1:natoms]
-    for symmetry in unitary_symmetries
+    for symmetry in symmetries
         Wcart = model.lattice * symmetry.W * model.inv_lattice
         WigD = wigner_d_matrix(manifold.l, Wcart)
         for σ in 1:nspins, iatom in 1:natoms
             sym_atom = find_symmetry_preimage(positions, positions[iatom], symmetry;
                                               tol_symmetry)
-            ns[σ, iatom, iatom] .+= WigD' * hubbard_n[σ, sym_atom, sym_atom] * WigD
+            σ_src = (nspins == 2 && symmetry.θ == -1) ? 3 - σ : σ
+            n_src = hubbard_n[σ_src, sym_atom, sym_atom]
+            symmetry.θ == -1 && (n_src = conj(n_src))
+            ns[σ, iatom, iatom] .+= WigD' * n_src * WigD
         end
     end
-    ns ./= length(unitary_symmetries)
+    ns ./= length(symmetries)
     ns
 end
 

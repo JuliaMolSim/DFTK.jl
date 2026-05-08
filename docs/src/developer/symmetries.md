@@ -10,13 +10,23 @@ W \mathcal{C} + w = \mathcal{C}.
 The symmetries where ``W = 1`` and ``w``
 is a lattice vector are always assumed and ignored in the following.
 
-We can define a corresponding unitary operator ``U`` on ``L^2(\mathbb R^3)``
-with action
+In addition to these spatial (unitary) symmetries, time-reversal acts as an
+*antiunitary* operator. We tag each symmetry with a sign
+``θ \in \{+1, -1\}``: ``θ = +1`` for unitary symmetries and ``θ = -1`` when
+the spatial transformation is composed with time reversal. Each ``(W, w, θ)``
+defines an operator ``U`` on ``L^2(\mathbb R^3)`` with action
 ```math
- (Uu)(x) = u\left( W x + w \right).
+ (Uu)(x) = \begin{cases}
+   u\left( W x + w \right)            & \text{if } θ = +1, \\
+   \overline{u\left( W x + w \right)} & \text{if } θ = -1.
+ \end{cases}
 ```
 We assume that the atomic potentials are radial and that any self-consistent potential
-also respects this symmetry, so that ``U`` commutes with the Hamiltonian.
+also respects these symmetries, so that ``U`` commutes with the Hamiltonian.
+Time reversal (``θ = -1``) is a valid symmetry whenever no term in the
+Hamiltonian breaks it (no external magnetic field, no anyonic statistics, etc.),
+and for collinear magnetism it can additionally swap the up and down channels
+when the lattice has a spin-flipping rotation (e.g. antiferromagnetic order).
 
 This operator acts on a plane-wave as
 ```math
@@ -34,15 +44,20 @@ S &= W^{T}\\
 ```
 It follows that the Fourier transform satisfies
 ```math
-\widehat{Uu}(q) = e^{- iq \cdot \tau} \widehat u(S^{-1} q)
+\widehat{Uu}(q) = \begin{cases}
+  e^{- iq \cdot \tau} \,\widehat u(S^{-1} q)              & \text{if } θ = +1, \\
+  e^{+ iq \cdot \tau} \,\overline{\widehat u(-S^{-1} q)}  & \text{if } θ = -1
+\end{cases}
 ```
 (all of these equations being also valid in reduced coordinates).
 In particular, if ``e^{ik\cdot x} u_{k}(x)`` is an eigenfunction, then by decomposing
 ``u_k`` over plane-waves ``e^{i G \cdot x}`` one can see that
-``e^{i(S^T k) \cdot x} (U u_k)(x)`` is also an eigenfunction: we can choose
+``e^{i(θ S^T k) \cdot x} (U u_k)(x)`` is also an eigenfunction: we can choose
 ```math
-u_{Sk} = U u_k.
+u_{θ Sk} = U u_k.
 ```
+The Brillouin zone action is therefore ``k \mapsto θ S k``, which reduces to
+the usual ``Sk`` for unitary symmetries and to ``-Sk`` for time-reversal partners.
 
 This is used to reduce the computations needed. For a uniform sampling of the
 Brillouin zone (the *reducible ``k``-points*),
@@ -144,7 +159,7 @@ ikpt_red = rand(1:length(basis_nosym.kpoints))
 # find a (non-unique) corresponding irreducible point in basis_nosym,
 # and the symmetry that relates them
 ikpt_irred, symop = DFTK.unfold_mapping(basis_sym, basis_nosym.kpoints[ikpt_red])
-[basis_sym.kpoints[ikpt_irred].coordinate symop.S * basis_nosym.kpoints[ikpt_red].coordinate]
+[basis_sym.kpoints[ikpt_irred].coordinate symop.θ * symop.S * basis_sym.kpoints[ikpt_irred].coordinate]
 ```
 The eigenvalues match also:
 ```@example symmetries
