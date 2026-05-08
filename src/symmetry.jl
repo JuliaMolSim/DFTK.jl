@@ -370,10 +370,7 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
     ρout_fourier = zero(ρin_fourier)
     accumulate_over_symmetries!(ρout_fourier, ρin_fourier, basis, symmetries_eff)
     if do_lowpass
-        for σ = 1:n_spin
-            lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis;
-                                  symmetries=symmetries_eff)
-        end
+        lowpass_for_symmetry!(ρout_fourier, basis; symmetries=symmetries_eff)
     end
     inv_fft = T <: Real ? irfft : ifft
     inv_fft(basis, ρout_fourier ./ length(symmetries_eff))
