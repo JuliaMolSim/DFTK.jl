@@ -188,8 +188,8 @@ end
     @test n_unitary  > 0
     @test sum(s -> s.θ == 0, model.symmetries) == 0
 
-    # Build a basis and verify k-weights still sum to one and the symop group closes.
+    # Build a basis and verify k-weights and the symop group closes.
     basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
     DFTK.check_group(basis.symmetries)
-    @test sum(basis.kweights) ≈ 1
+    @test sum(basis.kweights) ≈ basis.model.n_spin_components
 end
