@@ -50,7 +50,7 @@ include("Hamiltonian.jl")
 # is invalid)
 breaks_symmetries(::Any) = false
 
-# breaks_TRS on a term builder answers true if this term breaks
+# breaks_time_reversal_symmetry on a term builder answers true if this term breaks
 # time-reversal symmetry. Phonon computations rely implicitly on TRS
 # to avoid solving Sternheimer equations at both +q and -q (cf.
 # discussion in JuliaMolSim/DFTK.jl#1310).
