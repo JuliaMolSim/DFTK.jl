@@ -70,7 +70,8 @@ on each of the atoms. The symmetries are determined using spglib.
 """
 @timing function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
                                      tol_symmetry=SYMMETRY_TOLERANCE,
-                                     check_symmetry=SYMMETRY_CHECK)
+                                     check_symmetry=SYMMETRY_CHECK,
+                                     time_reversal=true)
     spin_polarization = determine_spin_polarization(magnetic_moments)
     dimension   = count(!iszero, eachcol(lattice))
     if isempty(atoms) || dimension != 3
@@ -109,6 +110,12 @@ on each of the atoms. The symmetries are determined using spglib.
     end
     if check_symmetry
         _check_symmetries(symmetries, lattice, atom_groups, positions; tol_symmetry)
+    end
+    # For non-spin-polarized systems, augment with antiunitary (θ=-1) partners so the
+    # irreducible BZ is halved by time-reversal. For collinear, the spin_flips==-1 path
+    # above already produces the antiunitary symops.
+    if time_reversal && spin_polarization == :none
+        symmetries = vcat(symmetries, [SymOp(s.W, s.w; θ=-1) for s in symmetries])
     end
     symmetries
 end
@@ -248,24 +255,15 @@ function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
     invS = Mat3{Int}(inv(S))
     Gs_full = [G + kshift for G in G_vectors(basis, Skpoint)]
     ψSk = zero(ψk)
-
-    if θ == 1
-        # Unitary: u_{Sk}(G) = e^{-i G·τ} u_k(S^{-1} G)
-        for iband = 1:size(ψk, 2)
-            for (ig, G_full) in enumerate(Gs_full)
-                igired = index_G_vectors(basis, kpoint, invS * G_full)
-                @assert igired !== nothing
-                ψSk[ig, iband] = cis2pi(-dot(G_full, τ)) * ψk[igired, iband]
-            end
-        end
-    else
-        # Antiunitary (θ=-1): u_{-Sk}(G) = e^{+i G·τ} conj(u_k(-S^{-1} G))
-        for iband = 1:size(ψk, 2)
-            for (ig, G_full) in enumerate(Gs_full)
-                igired = index_G_vectors(basis, kpoint, -(invS * G_full))
-                @assert igired !== nothing
-                ψSk[ig, iband] = cis2pi(+dot(G_full, τ)) * conj(ψk[igired, iband])
-            end
+    # Unitary (θ=+1): u_{Sk}(G)  = e^{-i G·τ} u_k(S^{-1} G)
+    # Antiunitary (θ=-1): u_{-Sk}(G) = e^{+i G·τ} conj(u_k(-S^{-1} G))
+    # Both cases collapse to: index by (θ * invS * G), phase e^{-i θ G·τ}, conjugate if θ=-1.
+    maybe_conj = θ == 1 ? identity : conj
+    for iband = 1:size(ψk, 2)
+        for (ig, G_full) in enumerate(Gs_full)
+            igired = index_G_vectors(basis, kpoint, θ * (invS * G_full))
+            @assert igired !== nothing
+            ψSk[ig, iband] = cis2pi(-θ * dot(G_full, τ)) * maybe_conj(ψk[igired, iband])
         end
     end
 
@@ -280,8 +278,9 @@ function apply_symop(symop::SymOp, basis, ρin; kwargs...)
     symmetrize_ρ(basis, ρin; symmetries=[symop], kwargs...)
 end
 
-# Accumulates the symmetrized versions of the density ρin into ρout (in Fourier space).
-# No normalization is performed. This function is optimized for CPU and GPU.
+# Accumulates the symmetrized versions of the density ρin into ρaccu (in Fourier space).
+# Both ρin and ρaccu are 4D arrays (Nx, Ny, Nz, n_spin). No normalization is performed.
+# This function is optimized for CPU and GPU.
 function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, symmetries) where {T}
     # For each G vector and symmetry S:
     # Transform ρin -> to the partial density at S * k.
@@ -291,32 +290,42 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, sym
     # with Fourier transform
     #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
     # equivalently
-    #     ρ ̂_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G) 
+    #     ρ ̂_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
+    # For antiunitary symops (θ=-1) on a collinear (n_spin==2) density, the source spin
+    # is swapped (↑↔↓); on n_spin==1 (real ρ) θ acts trivially.
+    n_spin = size(ρin, 4)
     if all(isone, symmetries)
         ρaccu .= ρin
         return ρaccu
     end
 
-    Gs = reshape(G_vectors(basis), size(ρaccu))
+    Gs = reshape(G_vectors(basis), size(ρaccu)[1:3])
     fft_size = basis.fft_size
 
     # Need to transfer  symmetry data to the GPU as isbit data
     symm_invS = to_device(basis.architecture, [Mat3{Int}(inv(symop.S)) for symop in symmetries])
-    symm_τ = to_device(basis.architecture, [symop.τ for symop in symmetries])
+    symm_τ    = to_device(basis.architecture, [symop.τ for symop in symmetries])
+    symm_θ    = to_device(basis.architecture, [symop.θ  for symop in symmetries])
     n_symm = length(symmetries)
 
-    # Looping over symmetries inside of map! on G vectors allow for a single GPU kernel launch
-    map!(ρaccu, Gs) do G
-        acc = zero(complex(T))
-        # Explicit loop over indices because AMDGPU does not support zip() in map!
-        for i_symm in 1:n_symm
-            invS = symm_invS[i_symm]
-            τ = symm_τ[i_symm]
-            idx = index_G_vectors(fft_size, invS * G)
-            acc += isnothing(idx) ? zero(complex(T)) :
-                        iszero(τ) ? ρin[idx] : cis2pi(-T(dot(G, τ))) * ρin[idx]
+    for σ = 1:n_spin
+        ρaccu_σ = @view ρaccu[:, :, :, σ]
+        # Looping over symmetries inside of map! on G vectors allows for a single GPU kernel launch
+        map!(ρaccu_σ, Gs) do G
+            acc = zero(complex(T))
+            # Explicit loop over indices because AMDGPU does not support zip() in map!
+            for i_symm in 1:n_symm
+                invS = symm_invS[i_symm]
+                τ = symm_τ[i_symm]
+                θ = symm_θ[i_symm]
+                σ_src = (n_spin == 2 && θ == -1) ? 3 - σ : σ
+                idx = index_G_vectors(fft_size, invS * G)
+                acc += isnothing(idx) ? zero(complex(T)) :
+                            iszero(τ) ? ρin[idx, σ_src] :
+                                        cis2pi(-T(dot(G, τ))) * ρin[idx, σ_src]
+            end
+            acc
         end
-        acc
     end
     ρaccu
 end
@@ -350,30 +359,10 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
                                      symmetries=basis.symmetries, do_lowpass=true) where {T}
     ρin_fourier  = fft(basis, ρ)
     ρout_fourier = zero(ρin_fourier)
-    n_spin = size(ρ, 4)
-
-    symops_plus  = filter(s -> s.θ == +1, symmetries)
-    symops_minus = filter(s -> s.θ == -1, symmetries)
-
-    if isempty(symops_minus) || n_spin == 1
-        # For scalar density (n_spin == 1): θ=-1 acts identically to θ=+1 on real ρ
-        # (complex conjugation is a no-op on a real density), so we can treat all symops
-        # uniformly. The division by length(symmetries) correctly normalizes.
-        for σ = 1:n_spin
-            accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
-                                        ρin_fourier[:, :, :, σ], basis, symmetries)
-            do_lowpass && lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
-        end
-    else
-        # Collinear (n_spin == 2) with antiunitary symmetries: θ=-1 partners swap ↑↔↓.
-        ρtmp = similar(ρout_fourier[:, :, :, 1])
-        for σ = 1:2
-            σ_other = 3 - σ
-            accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
-                                        ρin_fourier[:, :, :, σ], basis, symops_plus)
-            accumulate_over_symmetries!(ρtmp, ρin_fourier[:, :, :, σ_other], basis, symops_minus)
-            ρout_fourier[:, :, :, σ] .+= ρtmp
-            do_lowpass && lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
+    accumulate_over_symmetries!(ρout_fourier, ρin_fourier, basis, symmetries)
+    if do_lowpass
+        for σ = 1:size(ρ, 4)
+            lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
         end
     end
     inv_fft = T <: Real ? irfft : ifft

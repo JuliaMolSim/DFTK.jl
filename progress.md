@@ -29,17 +29,16 @@ Run tests with: `julia test_trs.jl` (no `--project` flag — there is a pre-exis
 - Added `breaks_TRS(::Anyonic) = true`.
 
 **`src/symmetry.jl`**
-- `symmetry_operations` for `:collinear`: now returns ALL rows from spglib's `get_symmetry_with_site_tensors`, including `spin_flips == -1` as θ=−1 SymOps (was previously discarded).
-- `symmetries_preserving_kgrid` (both overloads): uses `symop.θ * symop.S * k` instead of `symop.S * k`.
-- `unfold_kcoords`: uses `symop.θ * symop.S * kcoord`.
-- `unfold_mapping`: uses `symop.θ * symop.S * kpt_irred.coordinate`.
-- `symmetrize_ρ`: split into two paths:
-  - `n_spin == 1` or no antiunitary symops: uniform loop over all symmetries (θ=−1 on real ρ is a no-op, just redundant work).
-  - `n_spin == 2` with antiunitary symops: θ=+1 symops accumulate same spin; θ=−1 symops accumulate from opposite spin (↑↔↓ swap).
-- `apply_symop` for wavefunctions: handles θ=−1 — uses `-invS * G_full` and `conj(ψk[igired])` with phase `e^{+iGτ}`.
+- `symmetry_operations`: new `time_reversal::Bool=true` keyword. For `spin_polarization == :none`, when set, augments the returned list with θ=−1 antiunitary partners.
+- `symmetry_operations` for `:collinear`: returns ALL rows from spglib's `get_symmetry_with_site_tensors`, including `spin_flips == -1` as θ=−1 SymOps (was previously discarded).
+- `symmetries_preserving_kgrid` (both overloads): uses `symop.θ * symop.S * k`.
+- `unfold_kcoords`, `unfold_mapping`: use `symop.θ * symop.S * k`.
+- `accumulate_over_symmetries!`: now operates on the full 4D ρ (Nx, Ny, Nz, n_spin) and handles θ-dependent spin source: for θ=−1 with n_spin==2 the source spin is swapped (↑↔↓); for n_spin==1 (real ρ) θ acts trivially.
+- `symmetrize_ρ`: simplified — single call into `accumulate_over_symmetries!` with the whole ρ; lowpass loops over spin.
+- `apply_symop` for wavefunctions: unified loop using θ — index by `θ·invS·G`, phase `cis2pi(-θ·G·τ)`, conjugate when θ=−1.
 
 **`src/Model.jl`**
-- `default_symmetries`: after calling `symmetry_operations`, if `spin_polarization ∈ (:none, :spinless)` and `!any(breaks_TRS, terms)`, appends θ=−1 duplicates of all θ=+1 symops.
+- `default_symmetries`: passes `time_reversal = spin_polarization ∈ (:none, :spinless) && !any(breaks_TRS, terms)` to `symmetry_operations`. The augmentation itself lives in `symmetry_operations`.
 
 **`src/bzmesh.jl`**
 - `irreducible_kcoords`: `is_time_reversal = any(s -> s.θ == -1, symmetries)` — flips the spglib flag when the symmetry group contains antiunitary operations. Removes old TODO comment.
@@ -77,9 +76,9 @@ needed — the existing convention of passing `symmetries=false` for phonons is 
 
 ### Step 5: Polish items ✓ DONE
 
-**`src/postprocess/current.jl`**: assertion updated to `!use_symmetries_for_kpoint_reduction`
-(was `length(symmetries)==1`). Currents still require full BZ; a proper TRS-aware
-symmetrization (with θ-odd sign flip) is a future TODO.
+**`src/postprocess/current.jl`**: assertion left as `length(basis.symmetries) == 1` (per
+review). Currents still require full BZ; a proper TRS-aware symmetrization (with θ-odd
+sign flip) is a future TODO.
 
 **`src/symmetry.jl` — `symmetrize_hubbard_n`**: restricted to θ=+1 symops only.
 For n_spin=1 (real n) this is equivalent to before. For n_spin=2 with TRS it now

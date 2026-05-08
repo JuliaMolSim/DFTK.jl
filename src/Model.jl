@@ -342,15 +342,11 @@ function default_symmetries(lattice, atoms, positions, magnetic_moments,
         error("Length of atoms and magnetic_moments vectors need to agree.")
     end
     magnetic_moments = normalize_magnetic_moment.(magnetic_moments)
-    symops = symmetry_operations(lattice, atoms, positions, magnetic_moments; tol_symmetry)
-
-    # For non-spin-polarized and spinless systems, time-reversal maps ρ to itself (ρ is
-    # real), so we can augment the symmetry group with antiunitary partners θ=-1, which
-    # halves the irreducible k-point count.
-    if spin_polarization in (:none, :spinless) && !any(breaks_TRS, terms)
-        symops = vcat(symops, [SymOp(s.W, s.w; θ=-1) for s in symops])
-    end
-    symops
+    # Augment with antiunitary partners only for spin-:none/:spinless and when no term
+    # breaks time-reversal symmetry.
+    time_reversal = spin_polarization in (:none, :spinless) && !any(breaks_TRS, terms)
+    symmetry_operations(lattice, atoms, positions, magnetic_moments;
+                        tol_symmetry, time_reversal)
 end
 
 

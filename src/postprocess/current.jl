@@ -3,9 +3,7 @@
 Computes the *probability* (not charge) current, ``∑_n f_n \Im(ψ_n · ∇ψ_n)``.
 """
 function compute_current(basis::PlaneWaveBasis, ψ, occupation)
-    # Current is TRS-odd so it vanishes for TRS-invariant systems; full-BZ required
-    # for non-trivial currents. TODO: lift by symmetrizing with θ-aware sign flip.
-    @assert !basis.use_symmetries_for_kpoint_reduction
+    @assert length(basis.symmetries) == 1  # TODO lift this
     current = [zeros(eltype(basis), basis.fft_size) for α = 1:3]
     for (ik, kpt) in enumerate(basis.kpoints)
         for (n, ψnk) in enumerate(eachcol(ψ[ik]))
