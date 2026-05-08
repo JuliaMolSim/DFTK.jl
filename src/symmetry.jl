@@ -357,16 +357,27 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
 """
 @views @timing function symmetrize_ρ(basis, ρ::AbstractArray{T};
                                      symmetries=basis.symmetries, do_lowpass=true) where {T}
+    n_spin = size(ρ, 4)
+    # Fast path: for scalar (n_spin==1) ρ which is real, antiunitary partners contribute
+    # identically to their unitary halves — skip them to halve the work.
+    symmetries_eff = symmetries
+    if n_spin == 1
+        plus_only = filter(s -> s.θ == +1, symmetries)
+        if !isempty(plus_only)
+            symmetries_eff = plus_only
+        end
+    end
     ρin_fourier  = fft(basis, ρ)
     ρout_fourier = zero(ρin_fourier)
-    accumulate_over_symmetries!(ρout_fourier, ρin_fourier, basis, symmetries)
+    accumulate_over_symmetries!(ρout_fourier, ρin_fourier, basis, symmetries_eff)
     if do_lowpass
-        for σ = 1:size(ρ, 4)
-            lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
+        for σ = 1:n_spin
+            lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis;
+                                  symmetries=symmetries_eff)
         end
     end
     inv_fft = T <: Real ? irfft : ifft
-    inv_fft(basis, ρout_fourier ./ length(symmetries))
+    inv_fft(basis, ρout_fourier ./ length(symmetries_eff))
 end
 
 """
@@ -491,12 +502,16 @@ end
 
 # find where in the irreducible basis `basis_irred` the k-point `kpt_unfolded` is handled
 function unfold_mapping(basis_irred, kpt_unfolded)
+    n_spin = basis_irred.model.n_spin_components
     for ik_irred = 1:length(basis_irred.kpoints)
         kpt_irred = basis_irred.kpoints[ik_irred]
         for symop in basis_irred.symmetries
             Sk_irred = normalize_kpoint_coordinate(symop.θ * symop.S * kpt_irred.coordinate)
             k_unfolded = normalize_kpoint_coordinate(kpt_unfolded.coordinate)
-            if (Sk_irred ≈ k_unfolded) && (kpt_unfolded.spin == kpt_irred.spin)
+            # Collinear antiunitary partners swap ↑↔↓; otherwise spin is preserved.
+            spin_target = (n_spin == 2 && symop.θ == -1) ? 3 - kpt_irred.spin :
+                                                           kpt_irred.spin
+            if (Sk_irred ≈ k_unfolded) && (kpt_unfolded.spin == spin_target)
                 return ik_irred, symop
             end
         end

@@ -4,9 +4,7 @@ Read `plan.md` first for full context and design decisions.
 
 ---
 
-## Status: Steps 1–5 complete. Next: tests (step 6), then performance (step 7).
-
-Run tests with: `julia test_trs.jl` (no `--project` flag — there is a pre-existing PseudoPotentialIO/Psp8File version mismatch that breaks compilation under `--project`; running without it uses the system-installed DFTK environment which works).
+## Status: Steps 1–7 complete. Tests live in `test/bzmesh_symmetry.jl`.
 
 ---
 
@@ -32,7 +30,8 @@ Run tests with: `julia test_trs.jl` (no `--project` flag — there is a pre-exis
 - `symmetry_operations`: new `time_reversal::Bool=true` keyword. For `spin_polarization == :none`, when set, augments the returned list with θ=−1 antiunitary partners.
 - `symmetry_operations` for `:collinear`: returns ALL rows from spglib's `get_symmetry_with_site_tensors`, including `spin_flips == -1` as θ=−1 SymOps (was previously discarded).
 - `symmetries_preserving_kgrid` (both overloads): uses `symop.θ * symop.S * k`.
-- `unfold_kcoords`, `unfold_mapping`: use `symop.θ * symop.S * k`.
+- `unfold_kcoords`, `unfold_mapping`: use `symop.θ * symop.S * k`. `unfold_mapping`
+  also handles the ↑↔↓ spin swap for collinear with θ=−1 symops.
 - `accumulate_over_symmetries!`: now operates on the full 4D ρ (Nx, Ny, Nz, n_spin) and handles θ-dependent spin source: for θ=−1 with n_spin==2 the source spin is swapped (↑↔↓); for n_spin==1 (real ρ) θ acts trivially.
 - `symmetrize_ρ`: simplified — single call into `accumulate_over_symmetries!` with the whole ρ; lowpass loops over spin.
 - `apply_symop` for wavefunctions: unified loop using θ — index by `θ·invS·G`, phase `cis2pi(-θ·G·τ)`, conjugate when θ=−1.
@@ -93,19 +92,22 @@ is already handled outside the kernel in `symmetrize_ρ`.
 
 **Wannier90 ext**: not checked, low priority.
 
-### Step 6: Tests (TODO)
+### Step 6: Tests ✓ DONE
 
-Move `test_trs.jl` content into `test/bzmesh_symmetry.jl` as proper `@testitem` entries:
-1. SymOp group-theory unit tests (antiunitaries): `*`, `inv`, `isone`. Tag `:minimal`.
-2. GaAs equilibrium (Td+TRS): E/ρ/f agreement, k-weight sanity. Tag default.
-3. Rattled GaAs (TRS-only, non-zero forces): E/ρ/f agreement, k-count=36. Tag default.
-4. Collinear AFM equivalence (spglib spin_flips path): symmetry count doubles,
-   ρ unchanged. Tag default.
+`test/bzmesh_symmetry.jl` now contains four `@testitem` entries:
+1. SymOp group-theory units (`*`, `inv`, `isone`, `check_group`) — tag `:minimal`.
+2. GaAs equilibrium (Td + TRS): E/ρ/f agreement, k-weight = 1, k-count drops — tag `:slow`.
+3. Rattled GaAs (TRS-only): E/ρ/f agreement, k-count = 36 on `[4,4,4]`, non-zero
+   forces sanity check — tag `:slow`.
+4. Collinear AFM (spglib spin_flips path): asserts θ=−1 partners present, group
+   closes, k-weight = 1.
 
-### Step 7: Performance (TODO)
+### Step 7: Performance ✓ DONE
 
-- `symmetrize_ρ` for n_spin=1: iterates over 2N symops but θ=−1 is redundant for
-  real ρ. Can pass only θ=+1 symops (N) and divide by N. Saves ~2× work.
+`symmetrize_ρ` now filters to θ=+1 symops up front when `n_spin == 1` (real ρ —
+the θ=−1 contributions are identical) and divides by the reduced count. The
+collinear (n_spin == 2) path is unchanged: `accumulate_over_symmetries!` handles
+the ↑↔↓ source-spin swap inside its kernel.
 
 ---
 
