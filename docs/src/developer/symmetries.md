@@ -10,10 +10,10 @@ W \mathcal{C} + w = \mathcal{C}.
 The symmetries where ``W = 1`` and ``w``
 is a lattice vector are always assumed and ignored in the following.
 
-In addition to these spatial (unitary) symmetries, time-reversal acts as an
+In addition to these spatial (unitary) symmetries, complex conjugation (``k \to -k``) acts as an
 *antiunitary* operator. We tag each symmetry with a sign
 ``θ \in \{+1, -1\}``: ``θ = +1`` for unitary symmetries and ``θ = -1`` when
-the spatial transformation is composed with time reversal. Each ``(W, w, θ)``
+the spatial transformation is composed with conjugation. Each ``(W, w, θ)``
 defines an operator ``U`` on ``L^2(\mathbb R^3)`` with action
 ```math
  (Uu)(x) = \begin{cases}
@@ -23,10 +23,10 @@ defines an operator ``U`` on ``L^2(\mathbb R^3)`` with action
 ```
 We assume that the atomic potentials are radial and that any self-consistent potential
 also respects these symmetries, so that ``U`` commutes with the Hamiltonian.
-Time reversal (``θ = -1``) is a valid symmetry whenever no term in the
-Hamiltonian breaks it (no external magnetic field, no anyonic statistics, etc.),
-and for collinear magnetism it can additionally swap the up and down channels
-when the lattice has a spin-flipping rotation (e.g. antiferromagnetic order).
+Conjugation (``θ = -1``) is a valid symmetry whenever no term in the
+Hamiltonian breaks it (no external magnetic field, no anyonic statistics, etc.).
+It acts diagonally on spin channels: each spin channel maps independently under
+``k \to -k`` with complex conjugation, without mixing the two channels.
 
 This operator acts on a plane-wave as
 ```math
@@ -57,7 +57,7 @@ In particular, if ``e^{ik\cdot x} u_{k}(x)`` is an eigenfunction, then by decomp
 u_{θ Sk} = U u_k.
 ```
 The Brillouin zone action is therefore ``k \mapsto θ S k``, which reduces to
-the usual ``Sk`` for unitary symmetries and to ``-Sk`` for time-reversal partners.
+the usual ``Sk`` for unitary symmetries and to ``-Sk`` for conjugation partners.
 
 This is used to reduce the computations needed. For a uniform sampling of the
 Brillouin zone (the *reducible ``k``-points*),

@@ -31,7 +31,7 @@ end
 
 struct SymOp{T <: Real}
     # (Uu)(x) = u(W x + w) in real space           (θ = +1, unitary)
-    # (Uu)(x) = conj(u(W x + w)) in real space     (θ = -1, antiunitary / time-reversal)
+    # (Uu)(x) = conj(u(W x + w)) in real space     (θ = -1, antiunitary / conjugation)
     W::Mat3{Int}
     w::Vec3{T}
 
@@ -40,7 +40,7 @@ struct SymOp{T <: Real}
     S::Mat3{Int}
     τ::Vec3{T}
 
-    # θ ∈ {+1, -1}: +1 for unitary, -1 for antiunitary (time-reversal)
+    # θ ∈ {+1, -1}: +1 for unitary, -1 for antiunitary (conjugation, maps k → -k)
     θ::Int
 end
 function SymOp(W, w::AbstractVector{T}; θ=1) where {T}

@@ -190,7 +190,7 @@ function find_equivalent_kpt(basis::PlaneWaveBasis{T}, kcoord, spin; tol=sqrt(ep
     # Unique by construction.
     found = findfirst(isapprox(kcoord_red; atol=tol), kcoords_σ)
     if isnothing(found)
-        # With BZ symmetry reduction (including TRS augmentation), `kcoord` may not be
+        # With BZ symmetry reduction (including conjugation), `kcoord` may not be
         # present in basis.kpoints — only a symmetry image of it. Callers operating on
         # arbitrary k-points (e.g. q≠0 transfer) need an unfolded basis.
         error("k-point $(kcoord) not found in basis.kpoints. Use unfold_bz or build " *
