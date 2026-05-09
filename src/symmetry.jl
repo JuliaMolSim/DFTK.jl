@@ -71,7 +71,7 @@ on each of the atoms. The symmetries are determined using spglib.
 @timing function symmetry_operations(lattice, atoms, positions, magnetic_moments=[];
                                      tol_symmetry=SYMMETRY_TOLERANCE,
                                      check_symmetry=SYMMETRY_CHECK,
-                                     time_reversal=true)
+                                     time_reversal=false)
     spin_polarization = determine_spin_polarization(magnetic_moments)
     dimension   = count(!iszero, eachcol(lattice))
     if isempty(atoms) || dimension != 3
@@ -94,10 +94,10 @@ on each of the atoms. The symmetries are determined using spglib.
         elseif spin_polarization == :collinear
             rotations, translations, spin_flips = Spglib.get_symmetry_with_site_tensors(
                 cell, tol_symmetry)
-            # spin_flips ∈ {+1, -1}: +1 keeps spin, -1 flips spin (antiunitary, θ=-1).
-            # For AFM order, spin_flips==-1 rows detect the spin-flipping symmetry that
-            # relates the up and down channels — we keep all rows tagged with θ.
-            [SymOp(W, w; θ=sf) for (W, w, sf) in zip(rotations, translations, spin_flips)]
+            # Keep only spin-preserving (spin_flips==1) symmetries. Spin-flipping symops
+            # (AFM order) are not yet exploited.
+            [SymOp(W, w) for (W, w, sf) in zip(rotations, translations, spin_flips)
+             if sf == 1]
         end
     catch e
         if e isa Spglib.SpglibError
@@ -111,10 +111,9 @@ on each of the atoms. The symmetries are determined using spglib.
     if check_symmetry
         _check_symmetries(symmetries, lattice, atom_groups, positions; tol_symmetry)
     end
-    # For non-spin-polarized systems, augment with antiunitary (θ=-1) partners so the
-    # irreducible BZ is halved by time-reversal. For collinear, the spin_flips==-1 path
-    # above already produces the antiunitary symops.
-    if time_reversal && spin_polarization == :none
+    # Augment with antiunitary (θ=-1) partners: conjugation acts diagonally on each spin
+    # channel, halving the irreducible BZ.
+    if time_reversal
         symmetries = vcat(symmetries, [SymOp(s.W, s.w; θ=-1) for s in symmetries])
     end
     symmetries
@@ -291,8 +290,8 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, sym
     #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
     # equivalently
     #     ρ ̂_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
-    # For antiunitary symops (θ=-1) on a collinear (n_spin==2) density, the source spin
-    # is swapped (↑↔↓); on n_spin==1 (real ρ) θ acts trivially.
+    # For θ=-1 (conjugation), the correct index is -S⁻¹G rather than S⁻¹G, but since ρ
+    # is real, ρ̂(-S⁻¹G) = conj(ρ̂(S⁻¹G)) = ρ̂(S⁻¹G), so both give the same value.
     n_spin = size(ρin, 4)
     if all(isone, symmetries)
         ρaccu .= ρin
@@ -302,10 +301,9 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, sym
     Gs = reshape(G_vectors(basis), size(ρaccu)[1:3])
     fft_size = basis.fft_size
 
-    # Need to transfer  symmetry data to the GPU as isbit data
+    # Need to transfer symmetry data to the GPU as isbit data
     symm_invS = to_device(basis.architecture, [Mat3{Int}(inv(symop.S)) for symop in symmetries])
     symm_τ    = to_device(basis.architecture, [symop.τ for symop in symmetries])
-    symm_θ    = to_device(basis.architecture, [symop.θ  for symop in symmetries])
     n_symm = length(symmetries)
 
     for σ = 1:n_spin
@@ -317,12 +315,10 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, sym
             for i_symm in 1:n_symm
                 invS = symm_invS[i_symm]
                 τ = symm_τ[i_symm]
-                θ = symm_θ[i_symm]
-                σ_src = (n_spin == 2 && θ == -1) ? 3 - σ : σ
                 idx = index_G_vectors(fft_size, invS * G)
                 acc += isnothing(idx) ? zero(complex(T)) :
-                            iszero(τ) ? ρin[idx, σ_src] :
-                                        cis2pi(-T(dot(G, τ))) * ρin[idx, σ_src]
+                            iszero(τ) ? ρin[idx, σ] :
+                                        cis2pi(-T(dot(G, τ))) * ρin[idx, σ]
             end
             acc
         end
@@ -336,15 +332,16 @@ function lowpass_for_symmetry!(ρ::AbstractArray, basis; symmetries=basis.symmet
 
     Gs = G_vectors(basis)
     fft_size = basis.fft_size
-    symm_S = to_device(basis.architecture, [symop.S for symop in symmetries])
+    # Use θ*S so antiunitary ops (θ=-1) correctly check membership of -S*G in the grid.
+    symm_θS = to_device(basis.architecture, [symop.θ * symop.S for symop in symmetries])
 
     n_spin = size(ρ, 4)
     for σ = 1:n_spin
         ρσ = @view ρ[:, :, :, σ]
         map!(ρσ, ρσ, Gs) do ρ_i, G
             acc = ρ_i
-            for S in symm_S
-                idx = index_G_vectors(fft_size, S * G)
+            for θS in symm_θS
+                idx = index_G_vectors(fft_size, θS * G)
                 acc *= isnothing(idx) ? 0 : 1
             end
             acc
@@ -358,11 +355,12 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
 """
 @views @timing function symmetrize_ρ(basis, ρ::AbstractArray{T};
                                      symmetries=basis.symmetries, do_lowpass=true) where {T}
-    n_spin = size(ρ, 4)
-    # Fast path: for scalar (n_spin==1) ρ which is real, antiunitary partners contribute
-    # identically to their unitary halves — skip them to halve the work.
+    # ρ is real, so conj(ρ̂(G)) = ρ̂(-G): conjugation (θ=-1) contributes identically to
+    # its unitary partner for every spin channel. Drop antiunitary ops to halve the work.
+    # Guard: if all ops are antiunitary (pathological), keep the full list rather than
+    # calling accumulate_over_symmetries! with an empty set.
     symmetries_eff = symmetries
-    if n_spin == 1 && any(s -> s.θ == -1, symmetries)
+    if any(s -> s.θ == -1, symmetries)
         plus_only = filter(s -> s.θ == +1, symmetries)
         isempty(plus_only) || (symmetries_eff = plus_only)
     end
@@ -456,9 +454,9 @@ function symmetrize_hubbard_n(model, manifold::ResolvedOrbitalManifold,
     natoms = size(hubbard_n, 2)
     ldim = 2*manifold.l+1
 
-    # An antiunitary symop K = W·T transforms n via complex conjugation:
+    # An antiunitary symop (θ=-1) transforms the occupation matrix via conjugation:
     #   n' = WigD' · conj(n_src) · WigD
-    # and, in the collinear case, draws from the opposite spin channel (↑↔↓).
+    # Conjugation acts diagonally on spin (no ↑↔↓ mixing).
     ns = [zeros(Complex{T}, ldim, ldim) for _ in 1:nspins, _ in 1:natoms, _ in 1:natoms]
     for symmetry in symmetries
         Wcart = model.lattice * symmetry.W * model.inv_lattice
@@ -466,8 +464,7 @@ function symmetrize_hubbard_n(model, manifold::ResolvedOrbitalManifold,
         for σ in 1:nspins, iatom in 1:natoms
             sym_atom = find_symmetry_preimage(positions, positions[iatom], symmetry;
                                               tol_symmetry)
-            σ_src = (nspins == 2 && symmetry.θ == -1) ? 3 - σ : σ
-            n_src = hubbard_n[σ_src, sym_atom, sym_atom]
+            n_src = hubbard_n[σ, sym_atom, sym_atom]
             symmetry.θ == -1 && (n_src = conj(n_src))
             ns[σ, iatom, iatom] .+= WigD' * n_src * WigD
         end
@@ -498,16 +495,13 @@ end
 
 # find where in the irreducible basis `basis_irred` the k-point `kpt_unfolded` is handled
 function unfold_mapping(basis_irred, kpt_unfolded)
-    n_spin = basis_irred.model.n_spin_components
     for ik_irred = 1:length(basis_irred.kpoints)
         kpt_irred = basis_irred.kpoints[ik_irred]
         for symop in basis_irred.symmetries
             Sk_irred = normalize_kpoint_coordinate(symop.θ * symop.S * kpt_irred.coordinate)
             k_unfolded = normalize_kpoint_coordinate(kpt_unfolded.coordinate)
-            # Collinear antiunitary partners swap ↑↔↓; otherwise spin is preserved.
-            spin_target = (n_spin == 2 && symop.θ == -1) ? 3 - kpt_irred.spin :
-                                                           kpt_irred.spin
-            if (Sk_irred ≈ k_unfolded) && (kpt_unfolded.spin == spin_target)
+            # Conjugation acts diagonally on spin: spin channel is preserved.
+            if (Sk_irred ≈ k_unfolded) && (kpt_unfolded.spin == kpt_irred.spin)
                 return ik_irred, symop
             end
         end
