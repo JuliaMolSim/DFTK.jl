@@ -1,4 +1,4 @@
-@testitem "SymOp θ field: composition, inverse, group closure" tags=[:minimal] begin
+@testitem "SymOp θ field: composition, inverse, group closure (conjugation)" tags=[:minimal] begin
     using DFTK
     using DFTK: SymOp, Mat3, Vec3, check_group
     using LinearAlgebra
@@ -29,23 +29,22 @@ end
 # (with and without BZ symmetry) and asserts the same battery of checks.
 #
 # Systems target distinct paths through the symmetry pipeline:
-#   - Si non-magnetic: :none with inversion (TRS adds nothing new in BZ orbits)
-#   - GaAs equilibrium: :none, no inversion (TRS halves the BZ — headline win)
-#   - Rattled GaAs: :none, only identity spatial (pure TRS, exercises TRIM points)
-#   - AFM Si  [+1, -1]: :collinear with paired moments → spglib spin_flips=-1
-#                        → real θ=-1 partners with W not in θ=+1 set
-#   - FM  Si  [+1, +1]: :collinear without antiunitary symops (sanity)
+#   - Si non-magnetic: :none with inversion (conjugation adds nothing new in BZ orbits)
+#   - GaAs equilibrium: :none, no inversion (conjugation halves the BZ — headline win)
+#   - Rattled GaAs: :none, only identity spatial (pure conjugation, exercises TRIM points)
+#   - FM  Si  [+1, +1]: :collinear, Si has inversion so conjugation adds nothing
+#   - FM  GaAs [+1, +1]: :collinear, no inversion — conjugation halves the collinear BZ
 #
 # Si is also exercised on a battery of kgrid/kshift combinations to keep the
 # kgrid-edge-case coverage that used to live in a separate testitem.
 #
-# Per-case checks (T1..T4, T6 from the design matrix):
+# Per-case checks:
 #   T1 SCF equivalence (sym vs no-sym): |ΔE|, |Δρ|, |Δforces| at SCF tolerance
 #   T2 unfold_bz round-trip preserves total energy and density
 #   T3 sum(basis.kweights) ≈ n_spin_components
 #   T4 check_group on basis.symmetries (augmented group closes)
 #   T6 length(basis.kpoints) drops where the geometry allows it
-@testitem "TRS coverage matrix: SCF equivalence, unfold, group closure" #=
+@testitem "Conjugation coverage matrix: SCF equivalence, unfold, group closure" #=
     =#    tags=[:slow] setup=[TestCases] begin
     using DFTK
     using LinearAlgebra
@@ -78,21 +77,21 @@ end
            magnetic_moments = [], Ecut = 5,
            basis_args = [(; kgrid=[3, 3, 3])],
            expect_halving = true),
-        (; name = "Rattled GaAs (TRS-only)",
+        (; name = "Rattled GaAs (conjugation-only)",
            lattice = lattice_GaAs, atoms = [Ga, As], positions = pos_GaAs_rattle,
            magnetic_moments = [], Ecut = 5,
            basis_args = [(; kgrid=[3, 3, 3])],
            expect_halving = true),
-        (; name = "AFM Si (paired moments)",
-           lattice = silicon.lattice, atoms = silicon.atoms,
-           positions = silicon.positions, magnetic_moments = [1, -1],
-           Ecut = 5, basis_args = [(; kgrid=[2, 2, 2])],
-           expect_halving = false),
-        (; name = "FM Si (parallel moments)",
+        (; name = "FM Si (collinear, Si has inversion so conjugation adds nothing)",
            lattice = silicon.lattice, atoms = silicon.atoms,
            positions = silicon.positions, magnetic_moments = [1, 1],
            Ecut = 5, basis_args = [(; kgrid=[2, 2, 2])],
            expect_halving = false),
+        (; name = "FM GaAs (collinear, no inversion — conjugation halves BZ)",
+           lattice = lattice_GaAs, atoms = [Ga, As], positions = pos_GaAs,
+           magnetic_moments = [1, 1], Ecut = 5,
+           basis_args = [(; kgrid=[3, 3, 3])],
+           expect_halving = true),
     ]
 
     function run(sys, basis_args; use_symmetries)
@@ -124,13 +123,12 @@ end
             @test norm(sym.scfres.ρ .- nosym.scfres.ρ) * sqrt(dvol)            < 1e-7
             @test maximum(norm.(sym.forces .- nosym.forces))                   < 1e-5
 
-            # T6 — k-count halving smell test where TRS adds new BZ-orbit elements
+            # T6 — k-count halving smell test where conjugation adds new BZ-orbit elements
             if sys.expect_halving
                 @test length(sym.basis.kpoints) < length(nosym.basis.kpoints)
             end
 
-            # T2 — unfold_bz round-trip exercises apply_symop on θ=-1 partners and
-            # unfold_mapping (with the collinear ↑↔↓ spin swap)
+            # T2 — unfold_bz round-trip exercises apply_symop on θ=-1 partners
             unfolded = DFTK.unfold_bz(sym.scfres)
             @test abs(unfolded.energies.total - sym.scfres.energies.total)     < 1e-9
             @test norm(unfolded.ρ .- sym.scfres.ρ) * sqrt(dvol)                < 1e-9
@@ -139,9 +137,35 @@ end
 end
 
 
-# Hubbard with paired AFM moments — exercises symmetrize_hubbard_n on θ=-1
-# (conj(n_src) + ↑↔↓ source-spin swap) which the matrix above does not touch.
-@testitem "TRS / Hubbard with collinear AFM (paired moments)" tags=[:slow] begin
+# apply_symop on a density with a θ=-1 (conjugation) op: for a real density,
+# conjugation acts identically to the same spatial op with θ=+1.
+@testitem "apply_symop density: θ=-1 equals θ=+1 for real ρ" tags=[:minimal] setup=[TestCases] begin
+    using DFTK
+    using DFTK: SymOp, Mat3, Vec3
+    using LinearAlgebra
+
+    testcase = TestCases.silicon
+    model = model_atomic(testcase.lattice, testcase.atoms, testcase.positions;
+                         symmetries=false)
+    basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
+    ρ = guess_density(basis)
+
+    # Pick any non-identity spatial symop from the crystal symmetry group
+    sym_model = model_atomic(testcase.lattice, testcase.atoms, testcase.positions)
+    sym_basis = PlaneWaveBasis(sym_model; Ecut=5, kgrid=[2, 2, 2])
+    s = first(filter(!isone, sym_basis.model.symmetries))
+    s_unitary    = SymOp(s.W, s.w; θ=+1)
+    s_antiunitary = SymOp(s.W, s.w; θ=-1)
+
+    ρ_u = DFTK.apply_symop(s_unitary,    basis, ρ)
+    ρ_a = DFTK.apply_symop(s_antiunitary, basis, ρ)
+    @test ρ_u ≈ ρ_a
+end
+
+
+# Hubbard with collinear magnetism — exercises symmetrize_hubbard_n with conjugation
+# (θ=-1 applies conj(n_src), acting diagonally on spin).
+@testitem "Conjugation / Hubbard with collinear magnetism" tags=[:slow] begin
     using DFTK
     using PseudoPotentialData
     using Unitful
