@@ -166,7 +166,7 @@ function symmetries_preserving_kgrid(symmetries, kgrid::AbstractKgrid)
     all_kcoords = unfold_kcoords(reducible_kcoords(kgrid).kcoords, symmetries)
     kcoords_normalized = normalize_kpoint_coordinate.(all_kcoords)
     function preserves_grid(symop)
-        all(_is_approx_in(normalize_kpoint_coordinate(symop.θ * symop.S * k), kcoords_normalized)
+        all(_is_approx_in(normalize_kpoint_coordinate(transform_kpoint_coordinate(symop, k)), kcoords_normalized)
             for k in kcoords_normalized)
     end
     filter(preserves_grid, symmetries)
@@ -182,7 +182,7 @@ function symmetries_preserving_kgrid(symmetries, kgrid::MonkhorstPack)
     function preserves_kgrid(symop)
         function _check(dx, dy, dz)
             k = (kgrid.kshift .+ Vec3(dx, dy, dz)) .// kgrid.kgrid_size
-            normalize_kpoint_coordinate(symop.θ * symop.S * k) ∈ kcoords_normalized
+            normalize_kpoint_coordinate(transform_kpoint_coordinate(symop, k)) ∈ kcoords_normalized
         end
         _check(0, 0, 0) && _check(1, 0, 0) && _check(0, 1, 0) && _check(0, 0, 1)
     end
@@ -234,7 +234,7 @@ function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
     # Apply θ·S to k and reduce coordinates to interval [-0.5, 0.5)
     # Doing this reduction is important because of the finite kinetic energy basis cutoff
     @assert all(-0.5 .≤ kpoint.coordinate .< 0.5)
-    Sk_raw = θ * S * kpoint.coordinate
+    Sk_raw = transform_kpoint_coordinate(symop, kpoint.coordinate)
     Sk = normalize_kpoint_coordinate(Sk_raw)
     kshift = convert.(Int, Sk - Sk_raw)
     @assert all(-0.5 .≤ Sk .< 0.5)
@@ -257,12 +257,11 @@ function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
     # Unitary (θ=+1): u_{Sk}(G)  = e^{-i G·τ} u_k(S^{-1} G)
     # Antiunitary (θ=-1): u_{-Sk}(G) = e^{+i G·τ} conj(u_k(-S^{-1} G))
     # Both cases collapse to: index by (θ * invS * G), phase e^{-i θ G·τ}, conjugate if θ=-1.
-    maybe_conj = θ == 1 ? identity : conj
     for iband = 1:size(ψk, 2)
         for (ig, G_full) in enumerate(Gs_full)
             igired = index_G_vectors(basis, kpoint, θ * (invS * G_full))
             @assert igired !== nothing
-            ψSk[ig, iband] = cis2pi(-θ * dot(G_full, τ)) * maybe_conj(ψk[igired, iband])
+            ψSk[ig, iband] = cis2pi(-θ * dot(G_full, τ)) * maybe_conjugate(symop, ψk[igired, iband])
         end
     end
 
@@ -464,8 +463,7 @@ function symmetrize_hubbard_n(model, manifold::ResolvedOrbitalManifold,
         for σ in 1:nspins, iatom in 1:natoms
             sym_atom = find_symmetry_preimage(positions, positions[iatom], symmetry;
                                               tol_symmetry)
-            n_src = hubbard_n[σ, sym_atom, sym_atom]
-            symmetry.θ == -1 && (n_src = conj(n_src))
+            n_src = maybe_conjugate(symmetry, hubbard_n[σ, sym_atom, sym_atom])
             ns[σ, iatom, iatom] .+= WigD' * n_src * WigD
         end
     end
@@ -498,7 +496,7 @@ function unfold_mapping(basis_irred, kpt_unfolded)
     for ik_irred = 1:length(basis_irred.kpoints)
         kpt_irred = basis_irred.kpoints[ik_irred]
         for symop in basis_irred.symmetries
-            Sk_irred = normalize_kpoint_coordinate(symop.θ * symop.S * kpt_irred.coordinate)
+            Sk_irred = normalize_kpoint_coordinate(transform_kpoint_coordinate(symop, kpt_irred.coordinate))
             k_unfolded = normalize_kpoint_coordinate(kpt_unfolded.coordinate)
             # Conjugation acts diagonally on spin: spin channel is preserved.
             if (Sk_irred ≈ k_unfolded) && (kpt_unfolded.spin == kpt_irred.spin)
@@ -554,7 +552,7 @@ end
 
 function unfold_kcoords(kcoords, symmetries)
     # unfold
-    all_kcoords = [normalize_kpoint_coordinate(symop.θ * symop.S * kcoord)
+    all_kcoords = [normalize_kpoint_coordinate(transform_kpoint_coordinate(symop, kcoord))
                    for kcoord in kcoords, symop in symmetries]
     # uniquify
     digits = ceil(Int, -log10(SYMMETRY_TOLERANCE))

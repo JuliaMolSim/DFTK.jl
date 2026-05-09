@@ -73,6 +73,12 @@ end
 # inverse: (W^{-1}, -W^{-1}w, θ) — θ unchanged, antiunitary inverse is antiunitary
 Base.inv(op::SymOp) = SymOp(inv(op.W), -op.W\op.w; θ=op.θ)
 
+# k → θ·S·k: the BZ action of a symop (maps k-points in reduced coordinates)
+transform_kpoint_coordinate(op::SymOp, k) = op.θ * op.S * k
+
+# Conjugate x when the symop is antiunitary (θ=-1), identity otherwise
+maybe_conjugate(op::SymOp, x) = op.θ == 1 ? x : conj(x)
+
 is_approx_in(symop, group; kwargs...) = any(s -> isapprox(s, symop; kwargs...), group)
 function check_group(symops::Vector; kwargs...)
     is_approx_in_symops(s1) = is_approx_in(s1, symops; kwargs...)

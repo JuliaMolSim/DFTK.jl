@@ -293,7 +293,7 @@ end
         found_mapping = any(symmetries) do symop
             # If the difference between kred and θ·S·k is only integer in fractional
             # reciprocal-space coordinates, then kred and θ·S·k are equivalent k-points
-            all(isinteger, kred - symop.θ * (symop.S * k))
+            all(isinteger, kred - transform_kpoint_coordinate(symop, k))
         end
         if !found_mapping
             error("The reducible k-point $kred could not be generated from " *
