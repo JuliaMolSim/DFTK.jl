@@ -342,7 +342,11 @@ function default_symmetries(lattice, atoms, positions, magnetic_moments,
         error("Length of atoms and magnetic_moments vectors need to agree.")
     end
     magnetic_moments = normalize_magnetic_moment.(magnetic_moments)
-    symmetry_operations(lattice, atoms, positions, magnetic_moments; tol_symmetry)
+    # Augment with antiunitary (conjugation) partners when no term breaks k → -k symmetry.
+    time_reversal = spin_polarization in (:none, :spinless, :collinear) &&
+                    !any(breaks_conjugation, terms)
+    symmetry_operations(lattice, atoms, positions, magnetic_moments;
+                        tol_symmetry, time_reversal)
 end
 
 

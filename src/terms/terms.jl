@@ -50,9 +50,14 @@ include("Hamiltonian.jl")
 # is invalid)
 breaks_symmetries(::Any) = false
 
+# breaks_conjugation answers true if this term breaks the conjugation symmetry k → -k
+breaks_conjugation(::Any) = false
+
 include("kinetic.jl")
 
 include("local.jl")
+# External potentials already set breaks_symmetries=true, which short-circuits before
+# breaks_conjugation is consulted in default_symmetries — no separate override needed.
 breaks_symmetries(::ExternalFromReal) = true
 breaks_symmetries(::ExternalFromFourier) = true
 
@@ -69,9 +74,11 @@ include("exact_exchange.jl")
 
 include("magnetic.jl")
 breaks_symmetries(::Magnetic) = true
+breaks_conjugation(::Magnetic) = true
 
 include("anyonic.jl")
 breaks_symmetries(::Anyonic) = true
+breaks_conjugation(::Anyonic) = true
 
 # forces computes either nothing or an array forces[at][α] (by default no forces)
 compute_forces(::Term, ::AbstractBasis, ψ, occupation; kwargs...) = nothing
