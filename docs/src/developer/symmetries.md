@@ -27,6 +27,8 @@ Conjugation (``θ = -1``) is a valid symmetry whenever no term in the
 Hamiltonian breaks it (no external magnetic field, no anyonic statistics, etc.).
 It acts diagonally on spin channels: each spin channel maps independently under
 ``k \to -k`` with complex conjugation, without mixing the two channels.
+In the future, a full SU(2) spin rotation matrix should be included to handle
+noncollinear magnetism and antiferromagnetic order.
 
 This operator acts on a plane-wave as
 ```math

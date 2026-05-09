@@ -32,6 +32,7 @@ end
 struct SymOp{T <: Real}
     # (Uu)(x) = u(W x + w) in real space           (θ = +1, unitary)
     # (Uu)(x) = conj(u(W x + w)) in real space     (θ = -1, antiunitary / conjugation)
+    # TODO: for noncollinear spin, this should carry a SU(2) matrix acting on the spinor
     W::Mat3{Int}
     w::Vec3{T}
 

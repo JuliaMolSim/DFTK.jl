@@ -96,6 +96,7 @@ on each of the atoms. The symmetries are determined using spglib.
                 cell, tol_symmetry)
             # Keep only spin-preserving (spin_flips==1) symmetries. Spin-flipping symops
             # (AFM order) are not yet exploited.
+            # TODO: use spin_flips==-1 rows to exploit AFM order (halves the collinear BZ)
             [SymOp(W, w) for (W, w, sf) in zip(rotations, translations, spin_flips)
              if sf == 1]
         end
