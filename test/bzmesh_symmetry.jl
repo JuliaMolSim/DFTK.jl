@@ -43,6 +43,7 @@ end
 #   T2 unfold_bz round-trip preserves total energy and density
 #   T3 sum(basis.kweights) ≈ n_spin_components
 #   T4 check_group on basis.symmetries (augmented group closes)
+#   T5 apply_symop density: θ=-1 and θ=+1 give the same result on real ρ
 #   T6 length(basis.kpoints) drops where the geometry allows it
 @testitem "Conjugation coverage matrix: SCF equivalence, unfold, group closure" #=
     =#    tags=[:slow] setup=[TestCases] begin
@@ -123,6 +124,15 @@ end
             @test norm(sym.scfres.ρ .- nosym.scfres.ρ) * sqrt(dvol)            < 1e-7
             @test maximum(norm.(sym.forces .- nosym.forces))                   < 1e-5
 
+            # T5 — apply_symop: θ=-1 and θ=+1 agree on real ρ (conjugation is trivial)
+            anti = filter(s -> s.θ == -1, sym.basis.symmetries)
+            if !isempty(anti)
+                s = first(anti)
+                s_u = DFTK.SymOp(s.W, s.w; θ=+1)
+                @test DFTK.apply_symop(s,   sym.basis, sym.scfres.ρ) ≈
+                      DFTK.apply_symop(s_u, sym.basis, sym.scfres.ρ)
+            end
+
             # T6 — k-count halving smell test where conjugation adds new BZ-orbit elements
             if sys.expect_halving
                 @test length(sym.basis.kpoints) < length(nosym.basis.kpoints)
@@ -134,32 +144,6 @@ end
             @test norm(unfolded.ρ .- sym.scfres.ρ) * sqrt(dvol)                < 1e-9
         end
     end
-end
-
-
-# apply_symop on a density with a θ=-1 (conjugation) op: for a real density,
-# conjugation acts identically to the same spatial op with θ=+1.
-@testitem "apply_symop density: θ=-1 equals θ=+1 for real ρ" tags=[:minimal] setup=[TestCases] begin
-    using DFTK
-    using DFTK: SymOp, Mat3, Vec3
-    using LinearAlgebra
-
-    testcase = TestCases.silicon
-    model = model_atomic(testcase.lattice, testcase.atoms, testcase.positions;
-                         symmetries=false)
-    basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
-    ρ = guess_density(basis)
-
-    # Pick any non-identity spatial symop from the crystal symmetry group
-    sym_model = model_atomic(testcase.lattice, testcase.atoms, testcase.positions)
-    sym_basis = PlaneWaveBasis(sym_model; Ecut=5, kgrid=[2, 2, 2])
-    s = first(filter(!isone, sym_basis.model.symmetries))
-    s_unitary    = SymOp(s.W, s.w; θ=+1)
-    s_antiunitary = SymOp(s.W, s.w; θ=-1)
-
-    ρ_u = DFTK.apply_symop(s_unitary,    basis, ρ)
-    ρ_a = DFTK.apply_symop(s_antiunitary, basis, ρ)
-    @test ρ_u ≈ ρ_a
 end
 
 
