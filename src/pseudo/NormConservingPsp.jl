@@ -49,11 +49,11 @@ eval_psp_projector_real(psp::NormConservingPsp, i, l, r::AbstractVector) =
     eval_psp_projector_fourier(psp, i, l, p)
 
 Evaluate the radial part of the `i`-th projector for angular momentum `l`
-at the reciprocal vector with modulus `p`:
+at the reciprocal vector with modulus `p`, regularized by p^l:
 ```math
 \begin{aligned}
-{\rm proj}(p) &= ∫_{ℝ^3} {\rm proj}_{il}(r) e^{-ip·r} dr \\
-              &= 4π ∫_{ℝ_+} r^2 {\rm proj}_{il}(r) j_l(p·r) dr.
+{\rm proj}(p) &= 1/p^l ∫_{ℝ^3} {\rm proj}_{il}(r) e^{-ip·r} dr \\
+              &= 1/p^l 4π ∫_{ℝ_+} r^2 {\rm proj}_{il}(r) j_l(p·r) dr.
 \end{aligned}
 ```
 """
