@@ -135,7 +135,8 @@ function eval_psp_local_real(psp::PspHgh, r::T) where {T <: Real}
 end
 
 
-# [HGH98] (7-15) except they do it with plane waves normalized by 1/sqrt(Ω).
+# [HGH98] (7-15) except they do it with plane waves normalized by 1/sqrt(Ω)
+# and we regularize by 1/p^l.
 function eval_psp_projector_fourier(psp::PspHgh, i, l, p::T) where {T <: Real}
     @assert 0 <= l <= length(psp.rp) - 1
     @assert i > 0
@@ -147,17 +148,17 @@ function eval_psp_projector_fourier(psp::PspHgh, i, l, p::T) where {T <: Real}
     #       The first 8 in equation (8) should not be under the sqrt-sign
     #       This is the right version (as shown in the GTH paper)
     (l == 0 && i == 1) && return common
-    (l == 0 && i == 2) && return common * 2 /  sqrt(T(  15))       * ( 3 -   t^2      )
-    (l == 0 && i == 3) && return common * 4 / 3sqrt(T( 105))       * (15 - 10t^2 + t^4)
+    (l == 0 && i == 2) && return common * 2 /  sqrt(T(  15))        * ( 3 -   t^2      )
+    (l == 0 && i == 3) && return common * 4 / 3sqrt(T( 105))        * (15 - 10t^2 + t^4)
     #
-    (l == 1 && i == 1) && return common * 1 /  sqrt(T(   3)) * t
-    (l == 1 && i == 2) && return common * 2 /  sqrt(T( 105)) * t   * ( 5 -   t^2)
-    (l == 1 && i == 3) && return common * 4 / 3sqrt(T(1155)) * t   * (35 - 14t^2 + t^4)
+    (l == 1 && i == 1) && return common * 1 /  sqrt(T(   3)) * rp
+    (l == 1 && i == 2) && return common * 2 /  sqrt(T( 105)) * rp   * ( 5 -   t^2)
+    (l == 1 && i == 3) && return common * 4 / 3sqrt(T(1155)) * rp   * (35 - 14t^2 + t^4)
     #
-    (l == 2 && i == 1) && return common * 1 /  sqrt(T(  15)) * t^2
-    (l == 2 && i == 2) && return common * 2 / 3sqrt(T( 105)) * t^2 * ( 7 -   t^2)
+    (l == 2 && i == 1) && return common * 1 /  sqrt(T(  15)) * rp^2
+    (l == 2 && i == 2) && return common * 2 / 3sqrt(T( 105)) * rp^2 * ( 7 -   t^2)
     #
-    (l == 3 && i == 1) && return common * 1 /  sqrt(T( 105)) * t^3
+    (l == 3 && i == 1) && return common * 1 /  sqrt(T( 105)) * rp^3
 
     error("Not implemented for l=$l and i=$i")
 end

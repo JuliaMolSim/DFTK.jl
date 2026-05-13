@@ -163,8 +163,8 @@ end
         for l = 0:psp.lmax, i in count_n_proj_radial(psp, l)
             ir_cut = min(psp.ircut, length(psp.r2_projs[l+1][i]))
             for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
-                reference = quadgk(r -> integrand(psp, i, l, p, r),
-                                   psp.rgrid[ir_start], psp.rgrid[ir_cut])[1]
+                reference = 1/p^l * quadgk(r -> integrand(psp, i, l, p, r),
+                                           psp.rgrid[ir_start], psp.rgrid[ir_cut])[1]
                 @test reference ≈ eval_psp_projector_fourier(psp, i, l, p) atol=1e-2 rtol=1e-2
             end
         end

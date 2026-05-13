@@ -234,7 +234,7 @@ function build_projector_form_factors(psp::NormConservingPsp,
             proj_li[p_indices] .= eval_psp_projector_fourier(psp, i, l, ps)
             for m = -l:l
                 map!(@view(form_factors[:, offset[m + l + 1] + i]), G_indices) do iG
-                    angular = (-im)^l * ylm_real(l, m, G_plus_k[iG])
+                    angular = (-im)^l * solid_harmonic_real(l, m, G_plus_k[iG])
                     proj_li[iG2ifnorm[iG]] * angular
                 end
             end
@@ -245,6 +245,7 @@ end
 
 """
 Build Fourier transform factors of an atomic function centered at 0 for a given l.
+The function is assumed to be regularized by 1/p^l already.
 """
 function build_form_factors(fun::Function, l::Int,
                             G_plus_ks::AbstractVector{<:AbstractVector{Vec3{TT}}}) where {TT}
@@ -272,7 +273,7 @@ function build_form_factors(fun::Function, l::Int,
             radials_p = radials[norm(p)]
             for m = -l:l
                 # see "Fourier transforms of centered functions" in the docs for the formula
-                angular = (-im)^l * ylm_real(l, m, p)
+                angular = (-im)^l * solid_harmonic_real(l, m, p)
                 form_factors_ik[ip, m+l+1] = radials_p * angular
             end
         end

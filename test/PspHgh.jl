@@ -68,16 +68,16 @@ end
         11.917710279480355, 10.249557409656868, 0.11180299205602792
     ]
 
-    @test map(p -> eval_psp_projector_fourier(psp, 1, 1, p), pnorms) ≈ [
+    @test map(p -> eval_psp_projector_fourier(psp, 1, 1, p)*p, pnorms) ≈ [
         0.0, 0.3149163627204332, 0.9853983576555614,
         1.667197861646941, 2.8039993470553535, 3.0863036233824626,
     ]
-    @test map(p -> eval_psp_projector_fourier(psp, 2, 1, p), pnorms) ≈ [
+    @test map(p -> eval_psp_projector_fourier(psp, 2, 1, p)*p, pnorms) ≈ [
         0.0, 0.5320561290084422, 1.657814585041487,
         2.778424038171201, 4.517311337690638, 2.7698566262467117,
     ]
 
-    @test map(p -> eval_psp_projector_fourier(psp, 3, 1, p), pnorms) ≈ [
+    @test map(p -> eval_psp_projector_fourier(psp, 3, 1, p)*p, pnorms) ≈ [
          0.0, 0.7482799478933317, 2.321676914155303,
          3.8541542745249706, 6.053770711942623, 1.6078748819430986,
     ]
@@ -109,7 +109,7 @@ end
         psp = load_psp(family, element)
         for l = 0:psp.lmax, i = 1:count_n_proj_radial(psp, l)
             for p in [0.01, 0.1, 0.2, 0.5, 1, 2, 5, 10]
-                reference = quadgk(r -> integrand(psp, i, l, p, r), 0, Inf)[1]
+                reference = 1/p^l * quadgk(r -> integrand(psp, i, l, p, r), 0, Inf)[1]
                 @test reference ≈ eval_psp_projector_fourier(psp, i, l, p) atol=5e-15 rtol=1e-8
             end
         end
