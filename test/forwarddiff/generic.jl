@@ -63,7 +63,7 @@ end
 
             ff_ad = ForwardDiff.derivative(f, 0.0)
 
-            # High l are sensitive to numerical noise, so we only use AD for l=1,
+            # High l are sensitive to numerical noise, so we only use FD for l=1,
             # and we know that the derivative should be zero for l=0,2,3
             ff_ref = zero(ff_ad)
             if l == 1
