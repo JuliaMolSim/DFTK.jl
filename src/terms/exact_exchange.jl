@@ -21,6 +21,7 @@ where the `kernel` keyword argument is an [`InteractionKernel`](@ref) , typicall
     kernel = Coulomb()
 end
 (ex::ExactExchange)(basis) = TermExactExchange(basis, ex.scaling_factor, ex.kernel)
+breaks_symmetries(::ExactExchange) = true  # TODO: make ExactExchange fit for symmetries 
 
 struct TermExactExchange{T, Tkernel, Tq, Tmap} <: Term
     scaling_factor::T             # scaling factor, absorbed into interaction_kernels
@@ -29,6 +30,9 @@ struct TermExactExchange{T, Tkernel, Tq, Tmap} <: Term
     kprime_mapping::Tmap          # Matrix{Int}: find index for k'=k-q
 end
 function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, kernel) where {T}
+    if mpi_nprocs(basis.comm_kpts) > 1
+        error("ExactExchange currently does not support MPI parallelization over k-points.")
+    end
     fac::T = scaling_factor 
 
     q_points, kprime_mapping = build_qpoints(basis)
@@ -120,12 +124,19 @@ function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, interaction_kernels, q_p
         # get occupied orbitals at k'
         ψkp_real = ψ_occ_real[ikp]
 
+        # Calculate the reciprocal lattice shift Gb from BZ folding
+        # k - q = k' + G_b  =>  G_b = k - q - k'
+        kpt_prime = basis.kpoints[ikp]
+        Gb_frac = kpt.coordinate - kpt_prime.coordinate - qpt.coordinate
+        Gb = round.(Int, Gb_frac)
+        phase_shift = map(r -> cis2pi(dot(Gb, r)), r_vectors(basis))
+
         for (n, ψnk_real) in enumerate(eachslice(ψk_real, dims=4))
             for (m, ψmkp_real) in enumerate(eachslice(ψkp_real, dims=4))
-                m > n && continue
+                m > n && ik == ikp && continue
                 
-                ρmn_real = conj(ψmkp_real) .* ψnk_real
-                ρmn_fourier = fft(basis, qpt, ρmn_real) 
+                ρmn_real = conj(ψmkp_real) .* ψnk_real .* phase_shift
+                ρmn_fourier = fft(basis, ρmn_real) 
 
                 # Exact exchange is quadratic in occupations but linear in spin,
                 # hence we need to undo the fact that in DFTK for non-spin-polarized calcuations
@@ -134,7 +145,7 @@ function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, interaction_kernels, q_p
                 fac_mn = occ_occ[ik][n] * occ_occ[ikp][m] / filled_occupation(basis.model)
                 
                 fac_mn *= basis.kweights[ikp] # k'-weight 
-                fac_mn *= (m != n ? 2 : 1)    # factor 2 because we skipped m>n    
+                fac_mn *= ((m != n && ik == ikp) ? 2 : 1)  # factor 2 because we skipped m>n    
 
                 Ek -= 1/T(2) * fac_mn * real(dot(ρmn_fourier .* kernel_q, ρmn_fourier)) 
             end
