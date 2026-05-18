@@ -207,15 +207,24 @@ function apply!(Hψ, op::ExchangeOperator, ψ)
         # get occupied orbitals at k' in real-space
         ψkp_real = op.ψ_occ_real[ikp]
 
+        # Calculate the reciprocal lattice shift Gb from BZ folding
+        # k - q = k' + G_b  =>  G_b = k - q - k'
+        kpt = basis.kpoints[ik]
+        kpt_prime = basis.kpoints[ikp]
+        Gb_frac = kpt.coordinate - kpt_prime.coordinate - qpt.coordinate
+        Gb = round.(Int, Gb_frac)
+        phase_forward = map(r -> cis2pi( dot(Gb, r)), r_vectors(basis))
+        phase_reverse = map(r -> cis2pi(-dot(Gb, r)), r_vectors(basis)) 
+
         # Hψ = - ∑_n f_n ψ_n(r) ∫ (ψ_n)†(r') * ψ(r') / |r-r'| dr'
         for (n, ψnkp_real) in enumerate(eachslice(ψkp_real, dims=4))
-            x_real   = conj(ψnkp_real) .* ψ.real
+            x_real   = conj(ψnkp_real) .* ψ.real .* phase_forward
             # TODO Some symmetrisation of x_real might be needed here ...
     
             # Compute integral by Poisson solve
-            x_four  = fft(basis, qpt, x_real) 
+            x_four  = fft(basis, x_real) 
             Vx_four = x_four .* kernel_q
-            Vx_real = ifft(basis, qpt, Vx_four) 
+            Vx_real = ifft(basis, Vx_four) 
     
             # Exact exchange is quadratic in occupations but linear in spin,
             # hence we need to undo the fact that in DFTK for non-spin-polarized calcuations
@@ -225,7 +234,7 @@ function apply!(Hψ, op::ExchangeOperator, ψ)
          
             fac_nk *= basis.kweights[ikp] # use k'-weight
     
-            Hψ.real .-= fac_nk .* ψnkp_real .* Vx_real  # Real-space multiply and accumulate
+            Hψ.real .-= fac_nk .* ψnkp_real .* Vx_real .* phase_reverse  # Real-space multiply and accumulate
         end
     end
 end
