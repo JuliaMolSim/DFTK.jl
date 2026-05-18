@@ -658,42 +658,45 @@ Computes the unique momentum transfers q = k - k' for a given basis.
 Returns the Kpoint objects for the q-grid and the integer mapping table
 `kprime_mapping[ik, iq]` such that k' = k - q.
 """
-function build_qpoints(basis::PlaneWaveBasis{T}; k_digits=10) where {T}
-    
-    # Helper function: map coordinates strictly to [-0.5, 0.5) and round out floating-point noise
-    snap(k) = round.(mod.(k .+ 0.5, 1.0) .- 0.5, digits=k_digits)
-    
+function build_qpoints(basis::PlaneWaveBasis{T}; tol=1e-12) where {T}
     # Since spin-polarization is encoded as additional k-points, we filter only unique
     # k-coordinates here to avoid confusion with spin and k-points.
-    spatial_k = unique(k -> round.(k.coordinate, digits=k_digits), basis.kpoints)
+    spatial_k = unique(k -> normalize_kpoint_coordinate(k.coordinate), basis.kpoints)
 
     # Find unique q-coordinates
     q_coords_all = [
-        snap(k1.coordinate .- k2.coordinate)
+        normalize_kpoint_coordinate(k1.coordinate .- k2.coordinate)
         for k1 in spatial_k, k2 in spatial_k
     ]
-    q_coords = unique(vec(q_coords_all))
-    
+    # Filter unique q-coordinates using tolerance
+    q_coords = Vec3{T}[]
+    for q in vec(q_coords_all)
+        if !any(qp -> isapprox(q, qp; atol=tol), q_coords)
+            push!(q_coords, q)
+        end
+    end
+
     # Build Kpoint objects
     # DFTK's build_kpoints duplicates points for spin-polarized models.
     # We must filter out these duplicates because q-transfers are spin-independent.
     q_points_all = build_kpoints(basis.model, basis.fft_size, q_coords, basis.Ecut; basis.architecture)
     q_points = unique(q -> q.coordinate, q_points_all)
-    
+
     # Build mapping table
     N_k = length(basis.kpoints)
     N_q = length(q_coords)
     kprime_mapping = zeros(Int, N_k, N_q)
-    
+
     for iq in 1:N_q
         q_coord = q_points[iq].coordinate
         for ik in 1:N_k
             kpt = basis.kpoints[ik]
-            k_prime_coord = snap(kpt.coordinate .- q_coord)
+            k_prime_target = normalize_kpoint_coordinate(kpt.coordinate .- q_coord)
 
             # For the mapping both have to match: coordinate and the spin
             ikp = findfirst(basis.kpoints) do kpt_prime
-                snap(kpt_prime.coordinate) == k_prime_coord && kpt_prime.spin == kpt.spin
+                isapprox(kpt_prime.coordinate, k_prime_target; atol=tol) &&
+                    kpt_prime.spin == kpt.spin
             end
 
             if !isnothing(ikp)
@@ -701,7 +704,7 @@ function build_qpoints(basis::PlaneWaveBasis{T}; k_digits=10) where {T}
             end
         end
     end
-    
+
     return q_points, kprime_mapping
 end
 
