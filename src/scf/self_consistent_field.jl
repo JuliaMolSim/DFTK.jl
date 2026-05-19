@@ -228,6 +228,10 @@ Overview of parameters:
         ρnext, info_next
     end
 
+    # Note: it is assumed that, upon entry, the input density ρ is numerically identical
+    #       across all MPI ranks. If not, unexpected behavior may occur. It is the caller's
+    #       responsibility to ensure this is the case.
+
     info_init = (; ρin=ρ, τ, hubbard_n, ψ, occupation, eigenvalues, εF=nothing,
                    n_iter=0, n_matvec=0, timedout=false, converged=false,
                    history_Etot=T[], history_Δρ=T[])
@@ -248,8 +252,9 @@ Overview of parameters:
     # Callback is run one last time with final state to allow callback to clean up
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
                 ρ=ρout, τ, hubbard_n, α=damping, eigenvalues, occupation, εF,
-                info.n_bands_converge, info.n_iter, info.n_matvec, ψ, info.diagonalization, 
-                stage=:finalize, info.history_Δρ, info.history_Etot, info.timedout, mixing, 
+                info.n_bands_converge, info.n_iter, info.n_matvec, ψ, info.diagonalization,
+                stage=:finalize, info.history_Δρ, info.history_Etot, info.timedout, mixing,
+                is_converged, nbandsalg, fermialg, diagtolalg, solver, eigensolver,
                 seed, runtime_ns=time_ns() - start_ns, algorithm="SCF")
     callback(scfres)
     scfres

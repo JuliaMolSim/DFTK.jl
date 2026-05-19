@@ -103,11 +103,10 @@ using ComponentArrays
 using ..TestCases: aluminium
 using ..ForwardDiffWrappers: tagged_derivative
 
-function run_test(; architecture)
-    Ecut = 5
+function run_test(; architecture, functionals=LDA(), Ecut=5)
     kgrid = [2, 2, 2]
     model = model_DFT(aluminium.lattice, aluminium.atoms, aluminium.positions;
-                      functionals=LDA(), temperature=1e-2, smearing=Smearing.Gaussian(),
+                      functionals, temperature=1e-2, smearing=Smearing.Gaussian(),
                       kinetic_blowup=BlowupCHV())
     basis = PlaneWaveBasis(model; Ecut, kgrid, architecture)
     nbandsalg = FixedBands(; n_bands_converge=10)
@@ -130,7 +129,7 @@ function run_test(; architecture)
         DFTK.voigt_strain_to_full([ε, 0., 0., 0., 0., 0.]) * model.lattice
     end
 
-    @testset "$strain_fn" for strain_fn in (strain_isotropic, strain_anisotropic)
+    @testset "$strain_fn $functionals" for strain_fn in (strain_isotropic, strain_anisotropic)
         f(ε) = compute_properties(strain_fn(ε))
         dx = tagged_derivative(f, 0.)
 

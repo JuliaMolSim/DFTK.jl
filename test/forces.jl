@@ -234,3 +234,17 @@ end
     test_forces(system; pseudopotentials, functionals=SCAN(),
                 temperature=0.01, Ecut=10, kgrid=[2, 2, 2], atol=1e-7)
 end
+
+@testitem "Forces diamond r2SCAN (MGGA NLCC)" setup=[TestCases,TestForces] tags=[:forces] begin
+    using DFTK
+    using PseudoPotentialData
+    diamond = TestCases.diamond
+    test_forces = TestForces.test_forces
+
+    positions = [([1.01, 1.02, 1.03]) / 8, -ones(3) / 8]  # displace a bit from equilibrium
+    system = atomic_system(diamond.lattice, diamond.atoms, positions)
+
+    pseudopotentials = Dict(:C => joinpath(@__DIR__, "pseudos", "C_m.upf"))
+    test_forces(system; pseudopotentials, functionals=r2SCAN(),
+                temperature=0.01, Ecut=10, kgrid=[2, 2, 2], atol=1e-7)
+end

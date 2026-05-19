@@ -103,6 +103,7 @@ function compute_scf(system::AbstractSystem, calc::DFTKCalculator, oldstate)
     # Check if we can re-use the density / wavefunction from the state
     # or interpolate one to the other.
     ρ = nothing
+    τ = nothing
     ψ = nothing
     basis = PlaneWaveBasis(model; calc.params.basis_kwargs...)
     if (haskey(oldstate, :basis) && haskey(oldstate, :ρ))
@@ -112,20 +113,27 @@ function compute_scf(system::AbstractSystem, calc::DFTKCalculator, oldstate)
         if lattice_agrees && fft_size_agrees
             @debug "compute_scf: Take ρ and ψ from oldstate"
             ρ = oldstate.ρ
+            τ = oldstate.τ
 
             # Note: In principle the ψ may not be matching in size here ...
             ψ = get(oldstate, :ψ, nothing)
         else
             @debug "compute_scf: Interpolate ρ"
             ρ = interpolate_density(oldstate.ρ, oldstate.basis, basis)
+            if any(needs_τ, basis.terms)
+                τ = interpolate_density(oldstate.τ, oldstate.basis, basis)
+            end
         end
     end
     if isnothing(ρ)
         @debug "compute_scf: Forming new guess density"
         ρ = guess_density(basis, system)
+        if any(needs_τ, basis.terms)
+            τ = zero(ρ)
+        end
     end
 
-    scfres = self_consistent_field(basis; ρ, ψ, calc.params.scf_kwargs...)
+    scfres = self_consistent_field(basis; ρ, τ, ψ, calc.params.scf_kwargs...)
     calc.enforce_convergence && !scfres.converged && error("SCF not converged.")
     calc.counter_n_iter[] += scfres.n_iter
     calc.counter_matvec[] += scfres.n_matvec

@@ -70,7 +70,7 @@
 #   provides the quantum-mechanical part of the electron-electron interaction
 #   and depends on $ρ$ as well as potentially its derivatives.
 # It can be shown that for the usual potentials
-# (Coulomb or more regular) that $H_k$ is self-adjoint with compact support, meaning that
+# (Coulomb or more regular) that $H_k$ is self-adjoint with compact resolvent, meaning that
 # its spectrum is entirely discrete and its eigenfunctions countable.
 #
 # In principle the sum over $n$ in the expression for the **electron density** $ρ$ in (1)

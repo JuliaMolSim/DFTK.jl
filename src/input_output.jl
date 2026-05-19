@@ -354,6 +354,7 @@ function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true, save_ρ=true)
     special = (:ham, :basis, :energies, :stage, :mixing,
                :τ, :ρ, :ψ, :hubbard_n, :eigenvalues, :occupation, :εF, :diagonalization,
                :optim_res, # from direct_minimization, ignore it as it can be huge
+               :is_converged, :nbandsalg, :fermialg, :diagtolalg, :solver, :eigensolver,
                )
     propmap = Dict(:α => :damping_value, )  # compatibility mapping
     if mpi_master(scfres.basis.comm_kpts)
@@ -368,6 +369,11 @@ function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true, save_ρ=true)
         end
         if hasproperty(scfres, :mixing)
             dict["mixing"] = string(scfres.mixing)
+        end
+        for sym in (:is_converged, :nbandsalg, :fermialg, :diagtolalg, :solver, :eigensolver)
+            if hasproperty(scfres, sym)
+                dict[string(sym)] = string(getproperty(scfres, sym))
+            end
         end
 
         scfres_extra_keys = String[]

@@ -3,11 +3,12 @@
 abstract type DensityConstructionMethod                  end
 abstract type AtomicDensity <: DensityConstructionMethod end
 
-struct RandomDensity           <: DensityConstructionMethod end
-struct CoreDensity             <: AtomicDensity end
-struct ValenceDensityGaussian  <: AtomicDensity end
-struct ValenceDensityPseudo    <: AtomicDensity end
-struct ValenceDensityAuto      <: AtomicDensity end
+struct RandomDensity            <: DensityConstructionMethod end
+struct CoreDensity              <: AtomicDensity end
+struct CoreKineticEnergyDensity <: AtomicDensity end
+struct ValenceDensityGaussian   <: AtomicDensity end
+struct ValenceDensityPseudo     <: AtomicDensity end
+struct ValenceDensityAuto       <: AtomicDensity end
 
 # Random density method
 function guess_density(basis::PlaneWaveBasis, ::RandomDensity;
@@ -26,7 +27,8 @@ function random_density(basis::PlaneWaveBasis{T}, n_electrons::Integer) where {T
         ρspin = rand((-1, 1), basis.fft_size) .* rand(T, basis.fft_size) .* ρtot
         @assert all(abs.(ρspin) .≤ ρtot)
     end
-    ρ_from_total_and_spin(ρtot, ρspin)
+    ρ = ρ_from_total_and_spin(ρtot, ρspin)
+    mpi_bcast!(ρ, basis.comm_kpts)  # Enforce numerically identical density across MPI ranks
 end
 
 # Atomic density methods
@@ -199,7 +201,7 @@ end
 
 function atomic_density(element::Element, Gnorm::T,
                         ::ValenceDensityPseudo)::T where {T <: Real}
-    eval_psp_density_valence_fourier(element.psp, Gnorm)
+    eval_psp_valence_density_fourier(element.psp, Gnorm)
 end
 
 function atomic_density(element::Element, Gnorm::T,
@@ -210,6 +212,15 @@ end
 function atomic_density(element::Element, Gnorm::T,
                         ::CoreDensity)::T where {T <: Real}
     has_core_density(element) ? core_charge_density_fourier(element, Gnorm) : zero(T)
+end
+
+function atomic_density(element::Element, Gnorm::T,
+                        ::CoreKineticEnergyDensity)::T where {T <: Real}
+    if has_core_kinetic_energy_density(element)
+        eval_psp_core_kinetic_energy_density_fourier(element.psp, Gnorm)
+    else
+        zero(T)
+    end
 end
 
 # Get the lengthscale of the valence density for an atom with `n_elec_core` core

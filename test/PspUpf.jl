@@ -6,8 +6,8 @@
     pd_pbe_family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
     upf_pseudos = Dict(
         # Converted from cp2k repo (in GTH format) to UPF
-        :Si => load_psp(joinpath(@__DIR__, "gth_pseudos", "Si.pbe-hgh.upf")),
-        :Tl => load_psp(joinpath(@__DIR__, "gth_pseudos", "Tl.pbe-d-hgh.upf")),
+        :Si => load_psp(joinpath(@__DIR__, "pseudos", "gth", "Si.pbe-hgh.upf")),
+        :Tl => load_psp(joinpath(@__DIR__, "pseudos", "gth", "Tl.pbe-d-hgh.upf")),
         # No NLCC
         :Li => load_psp(pd_lda_family[:Li]),
         :Mg => load_psp(pd_lda_family[:Mg]),
@@ -19,11 +19,11 @@
         :Cr => load_psp(pd_pbe_family[:Cr]; rcut=12.0)
     )
     gth_pseudos = [
-        (; gth=load_psp(joinpath(@__DIR__, "gth_pseudos", "Si-q4.gth")),  upf=upf_pseudos[:Si]),
-        (; gth=load_psp(joinpath(@__DIR__, "gth_pseudos", "Tl-q13.gth")), upf=upf_pseudos[:Tl]),
+        (; gth=load_psp(joinpath(@__DIR__, "pseudos", "gth", "Si-q4.gth")),  upf=upf_pseudos[:Si]),
+        (; gth=load_psp(joinpath(@__DIR__, "pseudos", "gth", "Tl-q13.gth")), upf=upf_pseudos[:Tl]),
     ]
     psp8_pseudos = Dict(
-        :Li_pbe => load_psp(joinpath(@__DIR__, "psp8_pseudos", "Li.psp8")),
+        :Li_pbe => load_psp(joinpath(@__DIR__, "pseudos", "Li.psp8")),
     )
 end
 
@@ -173,38 +173,59 @@ end
 
 @testitem "Valence charge densities are consistent in real and Fourier space" #=
     =#    tags=[:psp] setup=[mPspUpf] begin
-    using DFTK: eval_psp_density_valence_real, eval_psp_density_valence_fourier
+    using DFTK: eval_psp_valence_density_real, eval_psp_valence_density_fourier
     using SpecialFunctions: sphericalbesselj
     using QuadGK
 
     function integrand(psp, p, r)
-        4π * r^2 * eval_psp_density_valence_real(psp, r) * sphericalbesselj(0, p * r)
+        4π * r^2 * eval_psp_valence_density_real(psp, r) * sphericalbesselj(0, p * r)
     end
     for psp in values(mPspUpf.upf_pseudos)
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1
         for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
             reference = quadgk(r -> integrand(psp, p, r), psp.rgrid[ir_start],
                                psp.rgrid[psp.ircut])[1]
-            @test reference  ≈ eval_psp_density_valence_fourier(psp, p) atol=1e-2 rtol=1e-2
+            @test reference  ≈ eval_psp_valence_density_fourier(psp, p) atol=1e-2 rtol=1e-2
         end
     end
 end
 
 @testitem "Core charge densities are consistent in real and Fourier space" #=
     =#    tags=[:psp] setup=[mPspUpf] begin
-    using DFTK: eval_psp_density_core_real, eval_psp_density_core_fourier
+    using DFTK: eval_psp_core_density_real, eval_psp_core_density_fourier
     using SpecialFunctions: sphericalbesselj
     using QuadGK
 
     function integrand(psp, p, r)
-        4π * r^2 * eval_psp_density_core_real(psp, r) * sphericalbesselj(0, p * r)
+        4π * r^2 * eval_psp_core_density_real(psp, r) * sphericalbesselj(0, p * r)
     end
     for psp in values(mPspUpf.upf_pseudos)
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1
         for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
             reference = quadgk(r -> integrand(psp, p, r), psp.rgrid[ir_start],
                                psp.rgrid[psp.ircut])[1]
-            @test reference  ≈ eval_psp_density_core_fourier(psp, p) atol=1e-2 rtol=1e-2
+            @test reference  ≈ eval_psp_core_density_fourier(psp, p) atol=1e-2 rtol=1e-2
+        end
+    end
+end
+
+@testitem "Core kinetic energy densities are consistent in real and Fourier space" #=
+    =#    tags=[:psp] begin
+    using DFTK: eval_psp_core_kinetic_energy_density_real,
+                eval_psp_core_kinetic_energy_density_fourier,
+                load_psp
+    using SpecialFunctions: sphericalbesselj
+    using QuadGK
+
+    function integrand(psp, p, r)
+        4π * r^2 * eval_psp_core_kinetic_energy_density_real(psp, r) * sphericalbesselj(0, p * r)
+    end
+    for psp in [load_psp(joinpath(@__DIR__, "pseudos", "C_m.upf"))]
+        ir_start = iszero(psp.rgrid[1]) ? 2 : 1
+        for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
+            reference = quadgk(r -> integrand(psp, p, r), psp.rgrid[ir_start],
+                               psp.rgrid[psp.ircut])[1]
+            @test reference ≈ eval_psp_core_kinetic_energy_density_fourier(psp, p) atol=1e-2 rtol=1e-2
         end
     end
 end
