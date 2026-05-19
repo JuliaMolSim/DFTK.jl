@@ -2,11 +2,6 @@
 #
 # This is a quick sketch how to run a simple hybrid DFT calculation using DFTK.
 #
-# !!! warning "Preliminary implementation"
-#     Hybrid-DFT is not yet performance-optimised and has only seen rudimentary testing
-#     so far. Further only Gamma point calculations are supported and the interface is not
-#     yet considered stable. We appreciate any issues, bug reports or PRs.
-#
 using AtomsBuilder
 using DFTK
 using PseudoPotentialData
@@ -16,7 +11,7 @@ system = bulk(:Si)
 
 # First perform a PBE calculation to get a good starting point
 model  = model_DFT(system; pseudopotentials, functionals=PBE())
-basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[1, 1, 1])
+basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[2, 2, 2])
 scfres = self_consistent_field(basis; tol=1e-6);
 nothing  # hide
 
