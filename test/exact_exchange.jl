@@ -29,7 +29,9 @@
     end
 
     for kernel in (Coulomb(ProbeCharge()), ShortRangeCoulomb(), SphericallyTruncatedCoulomb())
-        test_acexx_consistency(; kgrid=(1, 1, 1), kshift=(0, 0, 0))
-        test_acexx_consistency(; kgrid=(1, 1, 1), kshift=(0, 0, 0), spin_polarization=:collinear)
+        test_acexx_consistency(; kgrid=(1, 1, 1), kshift=(0, 0, 0), kernel)
+        test_acexx_consistency(; kgrid=(1, 1, 1), kshift=(0, 0, 0), kernel, spin_polarization=:collinear)
+        test_acexx_consistency(; kgrid=(2, 1, 1), kshift=(0, 0, 0), kernel)
+        test_acexx_consistency(; kgrid=(2, 1, 2), kshift=(1/2, 1/2, 1/2), kernel)
     end
 end

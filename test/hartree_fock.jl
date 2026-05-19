@@ -55,6 +55,35 @@
     # TODO: This test is very brittle. I think QE converged to the wrong SCF minimum
 end
 
+@testitem "Hartree-Fock k-point consistency" tags=[:exx, :dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using .TestCases: silicon
+
+    # Comparison of a 3x2x1 k-grid with a 3x2x1 supercell at Gamma
+    # using ProbeCharge and AceExx.
+    Ecut  = 5
+    kgrid = [3, 2, 1]
+    Si    = ElementPsp(silicon.atnum, load_psp(silicon.psp_upf))
+    
+    # We use a temperature to ensure unique occupations and better convergence
+    model = model_HF(silicon.lattice, [Si, Si], silicon.positions;
+                     exx_kernel=Coulomb(ProbeCharge()),
+                     temperature=1e-3, smearing=DFTK.Smearing.Gaussian())
+    basis = PlaneWaveBasis(model; Ecut, kgrid)
+
+    # 1. Unit cell calculation
+    scfres = self_consistent_field(basis; is_converged=ScfConvergenceEnergy(1e-9), 
+                                   exxalg=AceExx(), solver=DFTK.scf_damping_solver(), damping=0.4)
+
+    # 2. Supercell calculation
+    basis_supercell = cell_to_supercell(basis)
+    scfres_supercell = self_consistent_field(basis_supercell; is_converged=ScfConvergenceEnergy(1e-9),
+                                             exxalg=AceExx(), solver=DFTK.scf_damping_solver(), 
+                                             damping=0.4)
+
+    # Energy per unit cell should be the same
+    @test scfres.energies.total * prod(kgrid) ≈ scfres_supercell.energies.total atol=1e-7
+end
 
 @testitem "LiH Hartree-Fock energy" tags=[:exx,:slow] setup=[RunSCF] begin
     using DFTK

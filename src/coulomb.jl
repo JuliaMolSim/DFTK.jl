@@ -111,10 +111,6 @@ evaluated only on the spherical cutoff |G+q|² < 2Ecut (not the full cubic FFT g
 
 In the most simple case this is essentially 4π/(G+q)².
 
-!!! note "Gamma-point only"
-    Currently only works for single k-point calculations (Gamma-only).
-    For general k-points, a q-dependent basis would be needed.
-
 ## Arguments
 - `basis::PlaneWaveBasis`: Plane-wave basis defining the grid
 - `q`: Momentum transfer vector in fractional coordinates
@@ -125,22 +121,11 @@ Vector of Coulomb kernel values for each G-vector in the spherical cutoff.
 """
 function compute_kernel_fourier(kernel::InteractionKernel, basis::PlaneWaveBasis{T},
                                 qpt::Kpoint) where {T}
-    ## TODO delete
-    #is_gamma_only = all(iszero(kpt.coordinate) for kpt in basis.kpoints)
-    #if !is_gamma_only
-    #    throw(ArgumentError("Currently only Gamma-point calculations are supported in " *
-    #                        "compute_kernel_fourier, respectively Hartree-Fock and " *
-    #                        "calculations involving exact exchange."))
-    #end
-    #if mpi_nprocs(basis.comm_kpts) > 1
-    #    error("MPI parallelisation not yet supported for coulomb kernel")
-    #end
-    #@assert iszero(q)
-    ## currently only works for Gamma-only (need correct q-point otherwise)
-    #qpt = basis.kpoints[1] 
-    #kernel_fourier =  _compute_kernel_fourier(kernel, basis, qpt, q)
-    
-    kernel_fourier =  _compute_kernel_fourier(kernel, basis, qpt)
+    if mpi_nprocs(basis.comm_kpts) > 1
+        error("MPI parallelisation not yet supported for coulomb kernel")
+    end
+
+    kernel_fourier = _compute_kernel_fourier(kernel, basis, qpt)
 
     # TODO: if q=0, symmetrize Fourier coeffs to have real iFFT 
 
