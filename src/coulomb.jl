@@ -319,8 +319,8 @@ end
 
         # Potential of Gaussian charge
         probe_charge_sum = sum(enumerate(Q_points)) do (iQ, Qpt)
-            # Uniform weight that handles spin and ensures the sum scales exactly like Nk
-            weight = (Nk / length(Q_points)) / basis.model.n_spin_components
+            # Uniform weight that ensures the sum scales exactly like Nk
+            weight = Nk / length(Q_points)
             
             weight * sum(enumerate(G_vectors(basis))) do (iG, G)
                 GpQ_cart = basis.model.recip_lattice * (G + Qpt.coordinate)
