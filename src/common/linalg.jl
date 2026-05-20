@@ -13,3 +13,25 @@ end
 @views function columnwise_dots(A::AbstractArray{T}, M, B::AbstractArray{T}) where {T}
     [dot(A[:, i], M, B[:, i]) for i = 1:size(A, 2)]
 end
+
+"""
+Compute a robust Cholesky factorization of a Hermitian matrix `A` by adding
+a small diagonal shift if necessary to ensure positive definiteness.
+"""
+function shifted_cholesky(A::AbstractMatrix{T}) where {T}
+    Treal = real(T)
+    α = Treal(100)
+    for _ = 1:5
+        chol = cholesky(A; check=false)
+        if issuccess(chol) && !any(isnan, chol.factors)
+            return chol
+        end
+
+        # Factorization failed or produced NaNs; add regularization and retry.
+        # Use @debug to avoid cluttering the standard output.
+        @debug "Cholesky failed; adding regularization" α
+        A += α * eps(Treal) * max(norm(A), one(Treal)) * I
+        α *= 10
+    end
+    error("Cholesky factorization failed even with regularization.")
+end
