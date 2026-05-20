@@ -314,21 +314,25 @@ end
         Γ = basis.model.recip_cell_volume
         Nk = isnothing(basis.kgrid) ? 1 : length(basis.kgrid)
         probe_charge_integral = eval_probe_charge_integral(kernel, α) * Nk / Γ
+    
+        Q_points, Kprime_mapping = build_qpoints(basis)
 
         # Potential of Gaussian charge
-        probe_charge_sum = sum(enumerate(basis.kpoints)) do (ik, kpt)
-            weight = basis.kweights[ik] / basis.model.n_spin_components * Nk
+        probe_charge_sum = sum(enumerate(Q_points)) do (iQ, Qpt)
+            # Uniform weight that handles spin and ensures the sum scales exactly like Nk
+            weight = (Nk / length(Q_points)) / basis.model.n_spin_components
+            
             weight * sum(enumerate(G_vectors(basis))) do (iG, G)
-                Gpk_cart = basis.model.recip_lattice * (G + kpt.coordinate)
-                Gsq = sum(abs2, Gpk_cart)
-                if iG == 1 && iszero(kpt.coordinate)
+                GpQ_cart = basis.model.recip_lattice * (G + Qpt.coordinate)
+                Gsq = sum(abs2, GpQ_cart)
+                if iG == 1 && iszero(Qpt.coordinate)
                     zero(T)
                 else
                     eval_kernel_fourier(kernel, Gsq) * exp(-α * Gsq)
                 end
             end
         end
-        probe_charge_sum = mpi_sum(probe_charge_sum, basis.comm_kpts)
+        #probe_charge_sum = mpi_sum(probe_charge_sum, basis.comm_kpts)
 
         GPUArraysCore.@allowscalar begin
             kernel_fourier[1] = probe_charge_integral - probe_charge_sum
