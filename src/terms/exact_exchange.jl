@@ -226,8 +226,10 @@ function compress_exchange(Kk::ExchangeOperator, ψk::AbstractMatrix,
         fft!(Wnk, basis, kpt, Wnk_real_tmp)
     end
 
-    Mk  = Hermitian(ψk' * Wk)
-    Bk  = InverseNegatedMap(cholesky(-Mk))
+    Mk = Hermitian(ψk' * Wk)
+    # -Mk is positive semi-definite. We use shifted_cholesky to handle
+    # potentially rank-deficient cases (e.g. HEG or extra bands).
+    Bk = InverseNegatedMap(shifted_cholesky(-Mk))
     opk = NonlocalOperator(basis, kpt, Wk, Bk)
     (; opk, Mk, Bk, Wk)
 end
