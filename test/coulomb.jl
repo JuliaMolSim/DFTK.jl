@@ -26,30 +26,30 @@
 
     k_probe = compute_kernel_fourier(Coulomb(ProbeCharge()), basis, qpt)
     @testset "Coulomb with ProbeCharge" begin
-        E_probe = exx_energy_only(basis, kpt, k_probe, ψk_real, occk)
-        E_ref = -2.3383063575660987
+        E_probe = exx_energy_only(basis, kpt, [k_probe], [qpt], ones(Int, 1, 1), [ψk_real], [occk])
+        E_ref = -2.3383182267689455
         @test abs(E_ref - E_probe) < 1e-6
     end
 
     @testset "Coulomb with ReplaceSingularity" begin
         k_neglect = compute_kernel_fourier(Coulomb(ReplaceSingularity(0.0)), basis, qpt)
-        E_neglect = exx_energy_only(basis, kpt, k_neglect, ψk_real, occk)
-        E_ref = -0.7349457693125514
+        E_neglect = exx_energy_only(basis, kpt, [k_neglect], [qpt], ones(Int, 1, 1), [ψk_real], [occk])
+        E_ref = -0.7349576391625812
         @test abs(E_ref - E_neglect) < 1e-6
         @test norm(k_neglect[2:end] - k_probe[2:end]) < 1e-6
     end
 
     @testset "LongRangeCoulomb with ProbeCharge" begin
         k_lr = compute_kernel_fourier(LongRangeCoulomb(0.1, ProbeCharge()), basis, qpt)
-        E_lr = exx_energy_only(basis, kpt, k_lr, ψk_real, occk)
+        E_lr = exx_energy_only(basis, kpt, [k_lr], [qpt], ones(Int, 1, 1), [ψk_real], [occk])
         E_ref = -0.44269774759135383
         @test abs(E_ref - E_lr) < 1e-6
     end
 
     @testset "ShortRangeCoulomb" begin
         k_sr = compute_kernel_fourier(ShortRangeCoulomb(0.1), basis, qpt)
-        E_sr = exx_energy_only(basis, kpt, k_sr, ψk_real, occk)
-        E_ref = -5.384688524633953
+        E_sr = exx_energy_only(basis, kpt, [k_sr], [qpt], ones(Int, 1, 1), [ψk_real], [occk])
+        E_ref = -5.384700394473846
         @test abs(E_ref - E_sr) < 1e-6
     end
 
@@ -68,8 +68,8 @@
 
     @testset "SphericallyTruncatedCoulomb" begin
         k_strunc = compute_kernel_fourier(SphericallyTruncatedCoulomb(), basis, qpt)
-        E_strunc = exx_energy_only(basis, kpt, k_strunc, ψk_real, occk)
-        E_ref = -2.360166200435632
+        E_strunc = exx_energy_only(basis, kpt, [k_strunc], [qpt], ones(Int, 1, 1), [ψk_real], [occk])
+        E_ref = -2.3601703303468677
         @test abs(E_ref - E_strunc) < 1e-6
 
         # TODO: Test this gives a spherically truncated function.
