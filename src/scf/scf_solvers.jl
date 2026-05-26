@@ -78,3 +78,31 @@ function scf_anderson_solver(; m_start::Integer=1, kwargs...)
         (; fixpoint=x, info)
     end
 end
+
+
+function scf_pcdiis_solver(; m_start::Integer=1, ψ_ref=nothing, nelec=0, kwargs...)
+    function pcdiis(f, x0, info0; maxiter)
+        x = x0
+        info = info0
+
+	acceleration = PcdiisAcceleration(;ψ_ref=deepcopy(ψ_ref), nelec=nelec, kwargs...)
+        for i = 1:maxiter
+            fx, finfo = f(x, info)
+
+            if finfo.converged || finfo.timedout
+		info = finfo
+                break
+            end
+
+            if i < m_start
+                @debug "Skipping Pcdiis acceleration in iteration $i"
+                x = fx
+		info = finfo
+            else 
+                @debug "Using Pcdiis acceleration in iteration $i"
+		x, info = acceleration(fx, info, finfo)
+            end
+        end
+        (; fixpoint=x, info)
+    end
+end
