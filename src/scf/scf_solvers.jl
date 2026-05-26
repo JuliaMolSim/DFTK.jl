@@ -55,6 +55,7 @@ Create an anderson-accelerated SCF solver for the [`self_consistent_field`](@ref
 
 [^CDLS21]: Chupin, Dupuy, Legendre, Séré. Math. Model. Num. Anal. **55**, 2785 (2021) dDOI [10.1051/m2an/2021069](https://doi.org/10.1051/m2an/2021069)
 """
+
 function scf_anderson_solver(; m_start::Integer=1, kwargs...)
     function anderson(f, x0, info0; maxiter)
         T = eltype(x0)
@@ -79,13 +80,23 @@ function scf_anderson_solver(; m_start::Integer=1, kwargs...)
     end
 end
 
+@doc raw"""
+Create a Pcdiis-accelerated SCF solver for the [`self_consistent_field`](@ref) solver.
+This also changes info.ψ!
 
-function scf_pcdiis_solver(; m_start::Integer=1, ψ_ref=nothing, nelec=0, kwargs...)
+## Keyword arguments
+- `depth::Integer`  (default: `10`) Maximal Pcdiis history size
+- `m_start::Integer`(default: `1`)  Start collecting history in the `m_start`th SCF iteration
+
+[^HLY17]: Hu, Lin, Yang. Journal of chemical theory and computation **13.11**, 5458-5467 (2017) DOI [10.1021/acs.jctc.7b00892](https://doi.org/10.1021/acs.jctc.7b00892) 
+"""
+
+function scf_pcdiis_solver(; m_start::Integer=1, ψ_ref=nothing, kwargs...)
     function pcdiis(f, x0, info0; maxiter)
         x = x0
         info = info0
 
-	acceleration = PcdiisAcceleration(;ψ_ref=deepcopy(ψ_ref), nelec=nelec, kwargs...)
+	acceleration = PcdiisAcceleration(; ψ_ref=ψ_ref, kwargs...)
         for i = 1:maxiter
             fx, finfo = f(x, info)
 
