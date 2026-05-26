@@ -68,6 +68,31 @@ but generally [`ScfAndersonDensitySolver`](@ref) is more reliable.
 struct ScfAndersonDensitySolver{Targs} <: ScfSolver
     m_start::Int
     anderson_kwargs::Targs
+=======
+
+function scf_anderson_solver(; m_start::Integer=1, kwargs...)
+    function anderson(f, x0, info0; maxiter)
+        T = eltype(x0)
+        x = x0
+        info = info0
+        acceleration = AndersonAcceleration(; kwargs...)
+        for i = 1:maxiter
+            fx, info = f(x, info)
+            if info.converged || info.timedout
+                break
+            end
+            if i < m_start
+                @debug "Skipping Anderson acceleration in iteration $i"
+                x = fx
+            else
+                @debug "Using Anderson acceleration in iteration $i"
+                residual = fx - x
+                x = acceleration(x, one(T), residual)
+            end
+        end
+        (; fixpoint=x, info)
+    end
+>>>>>>> f20cf929 (Pcdiis acceleration for SCF iterations including exact exchange)
 end
 function ScfAndersonDensitySolver(; m_start::Integer=1, kwargs...)
     ScfAndersonDensitySolver(m_start, kwargs)
@@ -189,13 +214,23 @@ end
 @deprecate scf_damping_solver(; damping=1.0)           ScfDampingSolver()
 @deprecate scf_anderson_solver(; m_start=1, kwargs...) ScfAndersonDensitySolver(; m_start, kwargs...)
 
+@doc raw"""
+Create a Pcdiis-accelerated SCF solver for the [`self_consistent_field`](@ref) solver.
+This also changes info.ψ!
 
-function scf_pcdiis_solver(; m_start::Integer=1, ψ_ref=nothing, nelec=0, kwargs...)
+## Keyword arguments
+- `depth::Integer`  (default: `10`) Maximal Pcdiis history size
+- `m_start::Integer`(default: `1`)  Start collecting history in the `m_start`th SCF iteration
+
+[^HLY17]: Hu, Lin, Yang. Journal of chemical theory and computation **13.11**, 5458-5467 (2017) DOI [10.1021/acs.jctc.7b00892](https://doi.org/10.1021/acs.jctc.7b00892) 
+"""
+
+function scf_pcdiis_solver(; m_start::Integer=1, ψ_ref=nothing, kwargs...)
     function pcdiis(f, x0, info0; maxiter)
         x = x0
         info = info0
 
-	acceleration = PcdiisAcceleration(;ψ_ref=deepcopy(ψ_ref), nelec=nelec, kwargs...)
+	acceleration = PcdiisAcceleration(; ψ_ref=ψ_ref, kwargs...)
         for i = 1:maxiter
             fx, finfo = f(x, info)
 
