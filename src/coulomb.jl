@@ -14,8 +14,7 @@ Available models:
 - [`SphericallyTruncatedCoulomb`](@ref): θ(R-r)/r
 - [`WignerSeitzTruncatedCoulomb`](@ref): χ(r)/r where χ(r)=1 inside Wigner-Seitz cell, otherwise 0.
 
-If an interaction model features a singularity, that requires some special treatment,
-the following are available:
+If an interaction model is long-range the following singularity corrections are available:
 - [`ProbeCharge`](@ref): Gygi-Baldereschi probe charge method
 - [`ReplaceSingularity`](@ref): Set G+q=0 component to given value (default is zero)
 
@@ -32,7 +31,9 @@ Base.Broadcast.broadcastable(k::InteractionKernel) = Ref(k)
 #      (where Γ is BZ volume) is used.
 #   _compute_kernel_fourier(::InteractionKernel, basis, qpt, q)
 #      The single q-point version of compute_kernel_fourier
+#   TODO: should we have a eval_kernel_real? 
 
+# TODO: rename "k" in _compute_kernel_fourier(k...
 
 """
 Coulomb interaction: 1/r 
@@ -48,8 +49,8 @@ _compute_kernel_fourier(k::Coulomb, basis, qpt, q) = _compute_kernel_fourier(k, 
 """
 Short-range Coulomb interaction via error function: erfc(μr)/r
 """
-struct ShortRangeCoulomb <: InteractionKernel 
-    μ::Float64  # Cutoff parameter in inverse length units
+struct ShortRangeCoulomb{T <: Real} <: InteractionKernel 
+    μ::T  # Cutoff parameter in inverse length units
 end
 ShortRangeCoulomb(; μ=0.2/u"Å") = ShortRangeCoulomb(austrip(μ))
 ShortRangeCoulomb(μ::Quantity) = ShortRangeCoulomb(austrip(μ))
@@ -61,13 +62,15 @@ function _compute_kernel_fourier(k::ShortRangeCoulomb, basis, qpt, q)
     # component the exact limit of the kernel for G->0, namely π/μ^2
     _compute_kernel_fourier(k, ReplaceSingularity(π/k.μ^2), basis, qpt, q)
 end
+# TODO: introduce a clever and AD-friendly way to deal with f(x)/x for x->0. E.g. intoduce phi(x) = iszero(x) ? one(x) : expm1(x) / x 
+# Also very useful for other InteractionKernels.
 
 
 """
 Long-range Coulomb interaction via error function: erf(μr)/r
 """
-struct LongRangeCoulomb{R} <: InteractionKernel 
-    μ::Float64  # Cutoff parameter in inverse length units
+struct LongRangeCoulomb{T <: Real, R} <: InteractionKernel 
+    μ::T  # Cutoff parameter in inverse length units
     regularization::R
 end
 function LongRangeCoulomb(; μ=0.2/u"Å", regularization=ProbeCharge())
@@ -196,14 +199,7 @@ struct WignerSeitzTruncatedCoulomb <: InteractionKernel end
     # to |n_i| <= a_min * |b_i| / 2π where b_i are reciprocal lattice vectors.
 
     L_min = minimum(norm, eachcol(model.lattice))
-    n_bounds = zeros(Int, 3)
-    for i in 1:3
-        b_vec = model.recip_lattice[:, i]
-        b_len = norm(b_vec)
-        N = (L_min * b_len) / (2π)
-        n_bounds[i] = ceil(Int, N)
-    end
-    nx, ny, nz = n_bounds # in case of a cubic cell nx=ny=nz=1
+    nx, ny, nz = estimate_integer_lattice_bounds(model.lattice, L_min)
 
     # finally compute R_in
     R_in = T(Inf)
@@ -230,20 +226,31 @@ struct WignerSeitzTruncatedCoulomb <: InteractionKernel end
     V_lr_real = zeros(Complex{T}, basis.fft_size...)
     for idx in CartesianIndices(V_lr_real)
         r_frac = r_vectors[idx]
-        r_centered = r_frac .- round.(r_frac) # MIC
+
+        # Map point to the [-0.5, 0.5)³ fractional cell (Minimum Image Convention)
+        r_centered = r_frac .- round.(r_frac) 
         r_cart = model.lattice * r_centered
         d_min = norm(r_cart)
-        for dx in -nx:nx, dy in -ny:ny, dz in -nz:nz # Check neighbors for non-orthorhombic cells
+
+        # For non-orthorhombic cells, the fractional Minimum Image Convention
+        # does NOT guarantee the shortest Cartesian distance. A point in a
+        # neighboring fractional cell could be physically closer. We exhaustively
+        # check all nearby cells (bounds nx,ny,nz) to find the absolute minimum.
+        for dx in -nx:nx, dy in -ny:ny, dz in -nz:nz 
             dx == 0 && dy == 0 && dz == 0 && continue 
             r_shifted = r_centered - T[dx, dy, dz]
             d = norm(model.lattice * r_shifted)
             d_min = min(d_min, d)
         end
+
+        # Evaluate erf(ωr)/r 
         if d_min > sqrt(eps(T))
             V_lr_real[idx] = erf(ω * d_min) / d_min
         else
             V_lr_real[idx] = 2*ω / sqrt(T(π))
         end
+
+        # Add the Bloch phase factor for q-point evaluation
         V_lr_real[idx] *= exp(-im * 2*T(π) * dot(q, r_frac)) # add phase e^{-2πiqr}
     end
     kernel_fourier_lr = real.(fft(basis, qpt, V_lr_real))
@@ -254,9 +261,8 @@ struct WignerSeitzTruncatedCoulomb <: InteractionKernel end
     for (iG, G) in enumerate(to_cpu(qpt.G_vectors))
         G_cart = model.recip_lattice * (G+q)
         Gnorm2 = sum(abs2, G_cart)
-        found_singularity = (iG==1 && iszero(q))
         Rcut = cbrt(basis.model.unit_cell_volume*3/4/π)
-        if !found_singularity
+        if !(iG==1 && iszero(q))  # singularity
             kernel_fourier[iG] = 4T(π) / Gnorm2 * (1 - exp(-Gnorm2/(4ω^2))) + kernel_fourier_lr[iG]
         else
             kernel_fourier[iG] = T(π)/ω^2 + kernel_fourier_lr[iG]
@@ -325,8 +331,8 @@ or for testing/comparison purposes.
 For Coulomb and the case of Gpq_zero_value=0 this leads to slow `O(1/L) = O(1 / ∛(Nk))`
 convergence where `L` is the size of the supercell,`Nk` is the number of k-points.
 """
-struct ReplaceSingularity
-    Gpq_zero_value::Float64
+struct ReplaceSingularity{T <: Real}
+    Gpq_zero_value::T
 end
 @views function _compute_kernel_fourier(kernel, regularization::ReplaceSingularity,
                                         basis::PlaneWaveBasis{T}, qpt, q) where {T}
