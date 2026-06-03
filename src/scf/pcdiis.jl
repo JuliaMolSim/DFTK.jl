@@ -26,13 +26,13 @@ For now, there is no history management implemented except for a maximal depth.
 """
 
 @kwdef struct PcdiisAcceleration
-    errorhistory::Vector = [] #error vectors
-    statehistory::Vector = [] #gauge fixed orbitals
-    B::Vector            = [] #stores B_ij = Tr(e_ie_j*) for each kpoint
+    errorhistory = Vector{Vector{Matrix{ComplexF64}}}() #error vectors
+    statehistory = Vector{Vector{Matrix{ComplexF64}}}() #gauge fixed orbitals
+    B            = Vector{Matrix{Float64}}()            #stores B_ij = Tr(e_ie_j*) for each kpoint
 
-    depth::Int           = 10 #maximal depth of Pcdiis accelerator
-    ψ_ref                = nothing #reference states. Have to be set manually when 
-#calling self_consistent_field() with the scf_pcdiis_solver()
+    ψ_ref        = Vector{Matrix{ComplexF64}}()         #reference states. 
+    depth::Int8  = 10                                   #maximal depth of Pcdiis accelerator
+    nb::Int8     = 0 
 end
 
 function Base.deleteat!(pcdiis::PcdiisAcceleration, idx)
@@ -59,7 +59,7 @@ function Base.push!(pcdiis::PcdiisAcceleration, cₙ, ψ_gfₙ)
 end
 
 @timing "Pcdiis acceleration" function (pcdiis::PcdiisAcceleration)(fxₙ, infoₙ,finfoₙ)
-	if pcdiis.depth <= 1 || isnothing(pcdiis.ψ_ref) || isnothing(infoₙ.ψ)
+	if pcdiis.depth <= 1 || isnothing(infoₙ.ψ)
 		return fxₙ, finfoₙ
 	end
 
@@ -68,7 +68,9 @@ end
 	occ = finfoₙ.occupation
 	H = finfoₙ.ham
 
-	#creating maks to obtain occupied orbitals only
+    isempty(pcdiis.ψ_ref) && append!(pcdiis.ψ_ref, [ψk[:, begin:max(pcdiis.nb, size(ψ_old,2))] for ψk in ψ_old])
+
+	#creating mask to obtain occupied orbitals only
 	#will fail if non-integer occupations are provided
 	mask = occ[1] .> 0
 	old_length = length(mask)
@@ -139,7 +141,7 @@ end
 			axpy!(cs[ii],pcdiis.statehistory[ii][ik],mixstate)
 		end
 
-		#orthonormalization
+        #orthonormalization
 		ψ[ik][:,mask] = mixstate
 		ψ[ik] = Matrix(qr(ψ[ik]).Q)
 	end
