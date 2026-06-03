@@ -17,7 +17,6 @@ abstract type NormConservingPsp end
 # has_core_kinetic_energy_density(psp)
 # eval_psp_projector_real(psp, i, l, r::Real)
 # eval_psp_projector_fourier(psp, i, l, p::Real)
-# eval_psp_projector_fourier(psp, i, l, ps::AbstrcatArray{<Real})
 # eval_psp_local_real(psp, r::Real)
 # eval_psp_local_fourier(psp, p::Real)
 # eval_psp_energy_correction(T::Type, psp)
