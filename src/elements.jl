@@ -164,9 +164,9 @@ charge_ionic(el::ElementPsp)      = charge_ionic(el.psp)
 eval_psp_energy_correction(T, el::ElementPsp) = eval_psp_energy_correction(T, el.psp)
 
 # Function forwarding for ElementPsp (for each case both versions are needed to resolve ambiguities)
-local_potential_fourier(el::ElementPsp, p) = eval_psp_local_fourier(el.psp, p)
+local_potential_fourier(el::ElementPsp, p::Real) = eval_psp_local_fourier(el.psp, p)
 local_potential_fourier(el::ElementPsp, p::AbstractVector{<:Real}) = eval_psp_local_fourier(el.psp, p)
-local_potential_real(el::ElementPsp, r) = eval_psp_local_real(el.psp, r)
+local_potential_real(el::ElementPsp, r::Real) = eval_psp_local_real(el.psp, r)
 local_potential_real(el::ElementPsp, r::AbstractVector{<:Real}) = eval_psp_local_real(el.psp, r)
 
 #
@@ -261,7 +261,7 @@ function ElementGaussian(α, L; symbol=:X, mass=nothing)
     T = promote_type(typeof(α), typeof(L))
     ElementGaussian{T}(α, L, symbol, mass)
 end
-function local_potential_real(el::ElementGaussian, r)
+function local_potential_real(el::ElementGaussian, r::Real)
     -el.α / (√(2π) * el.L) * exp(- (r / el.L)^2 / 2)
 end
 function local_potential_fourier(el::ElementGaussian, p::Real)

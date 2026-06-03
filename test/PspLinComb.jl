@@ -29,7 +29,7 @@
 
         for dens in (CoreDensity(), ValenceDensityPseudo())
             for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
-                @test atomic_density(mix, p, dens) == atomic_density(Si, p, dens)
+                @test DFTK.atomic_density(mix, p, dens) == DFTK.atomic_density(Si, p, dens)
             end  # p
         end
     end
