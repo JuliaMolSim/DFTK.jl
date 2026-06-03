@@ -21,15 +21,15 @@
     end
 
     @testset "Local potentials / densities agree on element" begin
-        functions = [
-            DFTK.local_potential_fourier,
-            DFTK.local_potential_real,
-            DFTK.valence_charge_density_fourier,
-            DFTK.core_charge_density_fourier,
-        ]
-        for fun in functions
+        for fun in (DFTK.local_potential_fourier, DFTK.local_potential_real)
             for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
                 @test fun(mix, p) == fun(Si, p)
+            end  # p
+        end
+
+        for dens in (CoreDensity(), ValenceDensityPseudo())
+            for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
+                @test atomic_density(mix, p, dens) == atomic_density(Si, p, dens)
             end  # p
         end
     end
