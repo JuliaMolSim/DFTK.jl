@@ -91,6 +91,8 @@ end
         # use unnormalized plans for extra speed, normalize at the end
         ifft_normalization = basis.fft_grid.ifft_normalization
 
+        # For the (non-trivial) explanation of why we don't take real parts when q!=0,
+        # see comment in phonon.jl
         storage.δρ[:, :, :, kpt.spin] .+= ifft_normalization^2 .* real_qzero.(
             2 .* occupation[ik][n]  .* basis.kweights[ik] .* conj.(storage.ψnk_real)
                                                           .* storage.δψnk_real
