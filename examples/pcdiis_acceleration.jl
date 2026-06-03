@@ -1,102 +1,69 @@
 using DFTK
 using TimerOutputs: reset_timer!, print_timer
-using NPZ
 using LinearAlgebra
 using PseudoPotentialData
 using AtomsBuilder
-using GLMakie
 
 pd_pbe_family = PseudoFamily("dojo.nc.sr.pbe.v0_5.stringent.upf")
 
-Al = ElementPsp(:Al, pd_pbe_family)
+Si = ElementPsp(:Si, pd_pbe_family)
+atoms = [Si, Si]
 
-atoms = [Al, Al, Al, Al]
+# Silicon FCC conventional cell in bohr (experimental: 10.263 bohr = 5.431 Å)
+a = 10.263
+lattice = a / 2 * [[ 0.0  1.0  1.0];
+                   [ 1.0  0.0  1.0];
+                   [ 1.0  1.0  0.0]]
 
-a = 7.653  # in bohr
-lattice = a * [[1.0 0.0 0.0];
-               [0.0 1.0 0.0];
-               [0.0 0.0 1.0]]
-
+# Two-atom FCC primitive cell (diamond structure)
 positions = [
     [0.00, 0.00, 0.00],
-    [0.50, 0.50, 0.00],
-    [0.50, 0.00, 0.50],
-    [0.00, 0.50, 0.50],
+    [0.25, 0.25, 0.25],
 ]
 
 model_hf = model_HF(lattice,
-		    atoms,
-		    positions
-)
+                    atoms,
+                    positions,
+                    symmetries = false)
 
-nelec=model_hf.n_electrons
-nelec=floor(Int,nelec/2)
-nelecbig=4*nelec
-pad=3
+nelec     = model_hf.n_electrons
+nbocc     = floor(Int, nelec / 2)
+nbbig     = 4 * nbocc
 
-model_lda = model_LDA(lattice,
-		      atoms,
-		      positions,
-)
+Ecut      = 24
+basis_hf  = PlaneWaveBasis(model_hf;  Ecut=Ecut, kgrid=[1, 1, 1])
 
-Ecut = 26
+Etol = 1e-10 / 27.211 #ΔE convergence threshold of 1e-10 eV
 
-basis_hf  = PlaneWaveBasis(model_hf; Ecut=Ecut, kgrid=[1, 1, 1])
-basis_lda  = PlaneWaveBasis(model_lda; Ecut=Ecut, kgrid=[1, 1, 1])
-
-scfres_lda = self_consistent_field(basis_lda;
-			           seed=1234,
-			           nbandsalg=FixedBands(; n_bands_converge=nelecbig));
-
-ψ_ref = scfres_lda.ψ
-ψ_start = deepcopy(ψ_ref)
-occ_lda = scfres_lda.occupation
-eig_lda = scfres_lda.eigenvalues
-
-
-for ik in 1:length(ψ_ref)
-	ψ_ref[ik] = ψ_ref[ik][:,1:nelecbig]
-	ψ_start[ik] = ψ_start[ik][:,1:nelec+pad]
-	occ_lda[ik] = occ_lda[ik][begin:nelec+pad] 
-	eig_lda[ik] = eig_lda[ik][begin:nelec+pad] 
-end
-
-ρ_lda = scfres_lda.ρ
-
-etol = 1e-10 / 27.211
-
-reset_timer!(DFTK.timer)
+# ── PCDIIS solver with ψ_ref provided ─────────────────────────────────────────
 scfres_hf = self_consistent_field(basis_hf;
-				  is_converged = ScfConvergenceEnergy(etol),
-				  ρ = deepcopy(ρ_lda),
-				  ψ = deepcopy(ψ_start),
-				  occupation = deepcopy(occ_lda),
-				  eigenvalues = deepcopy(eig_lda),
-       			       	  seed=1234,
-       			       	  mixing=SimpleMixing(),
-				  solver=DFTK.scf_pcdiis_solver(;ψ_ref=ψ_ref));
-print_timer(DFTK.timer)
+                                  maxiter      = 1,
+                                  seed         = 1234,
+                                  nbandsalg    = FixedBands(;n_bands_converge=nbbig))
 
-reset_timer!(DFTK.timer)
 scfres_hf = self_consistent_field(basis_hf;
-				  is_converged = ScfConvergenceEnergy(etol),
-				  ρ = deepcopy(ρ_lda),
-				  ψ = deepcopy(ψ_start),
-				  occupation = deepcopy(occ_lda),
-				  eigenvalues = deepcopy(eig_lda),
-       			       	  seed=1234,
-       			       	  mixing=SimpleMixing(),
-				  solver=DFTK.scf_damping_solver());
-print_timer(DFTK.timer)
+   			                      is_converged = ScfConvergenceEnergy(Etol),
+                                  seed         = 1234,
+                                  ρ            = scfres_hf.ρ,
+                                  ψ            = [ψk[:, begin:nbocc+3] for ψk in scfres_hf.ψ],
+                                  occupation   = [ok[begin:nbocc+3] for ok in scfres_hf.occupation],
+                                  eigenvalues  = [ek[begin:nbocc+3] for ek in scfres_hf.eigenvalues],
+                                  mixing       = SimpleMixing(),
+                                  solver       = DFTK.scf_pcdiis_solver(;nb=nbbig, ψ_ref=scfres_hf.ψ))
 
-reset_timer!(DFTK.timer)
+# ── PCDIIS solver with ψ_ref set automatically ────────────────────────────────
+#Note: Here the number of bands is kept high throughout the whole calculation!
 scfres_hf = self_consistent_field(basis_hf;
-				  is_converged = ScfConvergenceEnergy(etol),
-				  ρ = deepcopy(ρ_lda),
-				  ψ = deepcopy(ψ_start),
-				  occupation = deepcopy(occ_lda),
-				  eigenvalues = deepcopy(eig_lda),
-       			       	  seed=1234,
-       			       	  mixing=SimpleMixing(),
-				  solver=DFTK.scf_anderson_solver());
-print_timer(DFTK.timer)
+   			                      is_converged = ScfConvergenceEnergy(Etol),
+                                  seed         = 1234,
+                                  nbandsalg    = FixedBands(;n_bands_converge=nbbig),
+                                  mixing       = SimpleMixing(),
+                                  solver       = DFTK.scf_pcdiis_solver(;nb=nbbig))
+
+# ── Damping solver ───────────────────────────────────────────────────────────
+scfres_hf = self_consistent_field(basis_hf;
+   			                      is_converged = ScfConvergenceEnergy(Etol),
+                                  seed         = 1234,
+                                  mixing       = SimpleMixing(),
+                                  solver       = DFTK.scf_damping_solver())
+
