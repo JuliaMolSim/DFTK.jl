@@ -21,12 +21,12 @@ CustomPotential() = CustomPotential(1.0, 0.5);
 
 # We extend the two methods providing access to the real and Fourier
 # representation of the potential to DFTK.
-function DFTK.local_potential_real(el::CustomPotential, rs::Vector)
-    map(r -> -el.α / (√(2π) * el.L) * exp(- (r / el.L)^2 / 2), rs)
+function DFTK.local_potential_real(el::CustomPotential, r::Real)
+    -el.α / (√(2π) * el.L) * exp(- (r / el.L)^2 / 2)
 end
-function DFTK.local_potential_fourier(el::CustomPotential, ps::Vector)
+function DFTK.local_potential_fourier(el::CustomPotential, p::Real)
     ## = ∫ V(r) exp(-ix⋅p) dx
-    map(p -> -el.α * exp(- (p * el.L)^2 / 2), ps)
+    -el.α * exp(- (p * el.L)^2 / 2)
 end
 
 # !!! tip "Gaussian potentials and DFTK"

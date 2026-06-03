@@ -170,8 +170,7 @@ end
 Returns the form factors at unique values of |G + q| (in Cartesian coordinates).
 Additionally, returns a mapping from any G index to the corresponding entry in the form_factors array.
 """
-function atomic_density_form_factors(basis::PlaneWaveBasis{T},
-                                     method::AtomicDensity ) where {T<:Real}
+function atomic_density_form_factors(basis::PlaneWaveBasis{T}, method::AtomicDensity) where {T<:Real}
     G_cart = to_cpu(G_vectors_cart(basis))
 
     iG2ifnorm_cpu = zeros(Int, length(G_cart))
@@ -195,54 +194,75 @@ function atomic_density_form_factors(basis::PlaneWaveBasis{T},
     (; form_factors, iG2ifnorm)
 end
 
-function atomic_density(element::Element, Gnorm::T,
-                        ::ValenceDensityGaussian)::T where {T <: Real}
-    gaussian_valence_charge_density_fourier(element, Gnorm)
+#
+# Check for presence of certain densities in elements
+#
+
+"""Check presence of model valence density (as an initial guess)."""
+has_valence_density(::Element) = false
+
+"""Check presence of model core charge density (non-linear core correction)."""
+has_core_density(::Element) = false
+
+"""Check presence of model core kinetic energy density (non-linear core correction for τ)."""
+has_core_kinetic_energy_density(::Element) = false
+
+has_core_density(el::ElementPsp)  = has_core_density(el.psp)
+has_core_kinetic_energy_density(el::ElementPsp) = has_core_kinetic_energy_density(el.psp)
+has_valence_density(el::ElementPsp) = has_valence_density(el.psp)
+
+#
+# Atomic density dispatches
+#
+
+function atomic_density(element::Union{Element,<:ElementPsp}, Gnorm::Real, dens::AtomicDensity)
+    first(atomic_density(element, [Gnorm], dens))  # Dispatch to vector version
 end
 
-function atomic_density(element::Element, Gnorm::T,
-                        ::ValenceDensityPseudo)::T where {T <: Real}
-    eval_psp_valence_density_fourier(element.psp, Gnorm)
+"""Gaussian valence charge density using Abinit's coefficient table, in Fourier space."""
+function atomic_density(element::Element, Gnorms::AbstractVector, ::ValenceDensityGaussian)
+    map(Gnorms) do Gnorm
+        charge_ionic(element) * exp(-(Gnorm * atom_decay_length(element))^2)
+    end
 end
-
-function atomic_density(element::Element, Gnorm::T,
-                        ::ValenceDensityAuto)::T where {T <: Real}
-    valence_charge_density_fourier(element, Gnorm)
-end
-
-function atomic_density(element::Element, Gnorm::T,
-                        ::CoreDensity)::T where {T <: Real}
-    has_core_density(element) ? core_charge_density_fourier(element, Gnorm) : zero(T)
-end
-
-#TODO: vectorize and check GPU
-function atomic_density(element::Element, Gnorm::T,
-                        ::CoreKineticEnergyDensity)::T where {T <: Real}
-    if has_core_kinetic_energy_density(element)
-        eval_psp_core_kinetic_energy_density_fourier(element.psp, Gnorm)
+function atomic_density(element::Element, Gnorms::AbstractVector, ::ValenceDensityAuto)
+    if has_valence_density(element)
+        atomic_density(element, Gnorms, ValenceDensityPseudo())
     else
-        zero(T)
+        atomic_density(element, Gnorms, ValenceDensityGaussian())
     end
 end
 
-# Generic vectoriezed version of the above
-function atomic_density(element::Element, Gnorms::AbstractVector{T},
-                        method::AtomicDensity) where {T <: Real}
-    arch = architecture(Gnorms)
-    to_device(arch,
-              map(Gnorm -> atomic_density(element, Gnorm, method),
-                  to_cpu(Gnorms)))
+function atomic_density(element::Element, Gnorms::AbstractVector, ::CoreDensity)
+    @assert !has_core_density(element)
+    zeros_like(Gnorms)
+end
+function atomic_density(element::Element, Gnorms::AbstractVector, ::CoreKineticEnergyDensity)
+    @assert !has_core_kinetic_energy_density(element)
+    zeros_like(Gnorms)
 end
 
-# Vectorized version for CoreDensity, GPU optimized
-function atomic_density(element::Element, Gnorms::AbstractVector{T},
-                        ::CoreDensity) where {T <: Real}
+function atomic_density(element::ElementPsp, Gnorms::AbstractVector, ::ValenceDensityPseudo)
+    eval_psp_valence_density_fourier(element.psp, Gnorms)
+end
+function atomic_density(element::ElementPsp, Gnorms::AbstractVector, ::CoreDensity)
     if has_core_density(element)
-        core_charge_density_fourier(element, Gnorms)
+        eval_psp_core_density_fourier(element.psp, Gnorms)
     else
         zeros_like(Gnorms)
     end
 end
+function atomic_density(element::ElementPsp, Gnorms::AbstractVector, ::CoreKineticEnergyDensity)
+    if has_core_kinetic_energy_density(element)
+        eval_psp_core_kinetic_energy_density_fourier(element.psp, Gnorms)
+    else
+        zeros_like(Gnorms)
+    end
+end
+
+#
+# Some data we need for the Gaussian densities
+#
 
 # Get the lengthscale of the valence density for an atom with `n_elec_core` core
 # and `n_elec_valence` valence electrons.
