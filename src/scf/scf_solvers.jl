@@ -91,27 +91,27 @@ This also changes info.ψ!
 [^HLY17]: Hu, Lin, Yang. Journal of chemical theory and computation **13.11**, 5458-5467 (2017) DOI [10.1021/acs.jctc.7b00892](https://doi.org/10.1021/acs.jctc.7b00892) 
 """
 
-function scf_pcdiis_solver(; m_start::Integer=1, ψ_ref=nothing, kwargs...)
+function scf_pcdiis_solver(; m_start::Integer=1, ψ_ref=Vector{Matrix{ComplexF64}}(), nb=0, kwargs...)
     function pcdiis(f, x0, info0; maxiter)
         x = x0
         info = info0
 
-	acceleration = PcdiisAcceleration(; ψ_ref=ψ_ref, kwargs...)
+	    acceleration = PcdiisAcceleration(; ψ_ref=ψ_ref, nb=nb, kwargs...)
         for i = 1:maxiter
             fx, finfo = f(x, info)
 
             if finfo.converged || finfo.timedout
-		info = finfo
+		        info = finfo
                 break
             end
 
             if i < m_start
                 @debug "Skipping Pcdiis acceleration in iteration $i"
                 x = fx
-		info = finfo
+		        info = finfo
             else 
                 @debug "Using Pcdiis acceleration in iteration $i"
-		x, info = acceleration(fx, info, finfo)
+		        x, info = acceleration(fx, info, finfo)
             end
         end
         (; fixpoint=x, info)
