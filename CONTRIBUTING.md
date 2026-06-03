@@ -1,5 +1,6 @@
-[docs-url]: https://docs.dftk.org/stable
 [chat-url]: https://juliamolsim.zulipchat.com/#narrow/stream/332493-dftk
+[matrix-url]: https://matrix.epfl.ch/#/#/room/#dftk:epfl.ch
+
 # Contributions
 Contributions to the code in any form is very welcome,
 just [submit a pull request](https://github.com/JuliaMolSim/DFTK.jl/pulls)
