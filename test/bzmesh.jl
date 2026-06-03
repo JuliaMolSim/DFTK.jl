@@ -50,7 +50,8 @@ end
         # Try to reproduce all kcoords from irred_kcoords
         all_kcoords = Vector{Vec3{Rational{Int}}}()
         for k in irred_kcoords
-            append!(all_kcoords, [symop.S * k for symop in sym_preserving_grid])
+            append!(all_kcoords,
+                    [transform_kpoint_coordinate(symop, k) for symop in sym_preserving_grid])
         end
 
         # Normalize the obtained k-points and test for equality

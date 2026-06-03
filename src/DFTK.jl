@@ -64,7 +64,7 @@ export element_symbol, mass, species  # Note: Re-exported from AtomsBase
 export virtual_crystal_approximation
 include("elements.jl")
 
-export SymOp
+export SymOp, transform_kpoint_coordinate
 include("SymOp.jl")
 
 export Smearing

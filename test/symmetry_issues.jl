@@ -20,8 +20,10 @@
         ]
         system = periodic_system(atoms, lattice)
 
-        symmetries = DFTK.symmetry_operations(system; check_symmetry=true)
-        @test length(symmetries) == 48
+        symmetries = DFTK.symmetry_operations(system; check_symmetry=true, time_reversal=true)
+        # 48 spatial Fm-3m ops, augmented with 48 antiunitary (θ=-1) conjugation partners
+        @test length(symmetries) == 96
+        @test count(s -> s.θ == +1, symmetries) == 48
         @test spglib_dataset(system).spacegroup_number == 225
     end
 
