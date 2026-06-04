@@ -22,6 +22,14 @@ function mix_potential(args...; kwargs...)
     mix_density(args...; kwargs...)
 end
 
+# Compatibility function to test adapted mixing in both ρ and τ
+function mix_density_tau(mixing, basis, Δρ, Δτ; kwargs...)
+    # TODO: We should prepare a bit for the state refactor and make this less messy.
+    Pinv_Δρ = mix_density(mixing, basis, Δρ; kwargs...)
+    Pinv_Δτ = Δτ
+    (; Pinv_Δρ, Pinv_Δτ)
+end
+
 @doc raw"""
 Simple mixing: ``J^{-1} ≈ 1``
 """
@@ -266,7 +274,7 @@ is increased by a `factor`, which is then smoothly lowered towards the temperatu
 within the model as the SCF converges. Once the density change is below `above_ρdiff` the
 mixing temperature is equal to the model temperature.
 """
-function IncreaseMixingTemperature(; factor=25, above_ρdiff=1e-2, temperature_max=0.5)
+function IncreaseMixingTemperatureAdaptive(; factor=25, above_ρdiff=1e-2, temperature_max=0.5)
     function callback(temperature; n_iter=nothing, ρin=nothing, ρout=nothing, info...)
         if iszero(temperature) || temperature > temperature_max
             return temperature
@@ -289,4 +297,13 @@ function IncreaseMixingTemperature(; factor=25, above_ρdiff=1e-2, temperature_m
 end
 function UseScfTemperature()
     callback(temperature; info...) = temperature
+end
+function IncreaseMixingTemperature(; factor=25, temperature_max=0.5)
+    function callback(temperature; info...)
+        if iszero(temperature)
+            return temperature
+        else
+            return min(factor * temperature, temperature_max)
+        end
+    end
 end

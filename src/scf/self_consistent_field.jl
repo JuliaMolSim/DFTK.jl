@@ -188,6 +188,7 @@ Overview of parameters:
         #      on the same footing. In the future such principles will also apply
         #      to other quantities. See discussion in
         #      https://github.com/JuliaMolSim/DFTK.jl/issues/1065
+        τin = τ
         if any(needs_τ, basis.terms)
             τ = compute_kinetic_energy_density(basis, ψ, occupation)
         end
@@ -198,7 +199,7 @@ Overview of parameters:
 
         # Update info with results gathered so far
         info_next = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
-                       ρin, τ, hubbard_n, α=damping, n_iter, nbandsalg.occupation_threshold,
+                       ρin, hubbard_n, α=damping, n_iter, nbandsalg.occupation_threshold,
                        seed, runtime_ns=time_ns() - start_ns, nextstate...,
                        diagonalization=[nextstate.diagonalization])
 
@@ -213,14 +214,24 @@ Overview of parameters:
         n_matvec = info.n_matvec + nextstate.n_matvec
         info_next = merge(info_next, (; energies, history_Etot, history_Δρ, n_matvec))
 
-        # Apply mixing and pass it the full info as kwargs
-        ρnext = ρin .+ T(damping) .* mix_density(mixing, basis, Δρ; info_next...)
+        if !isnothing(τin) && !isnothing(τ)
+            # TODO: This is really bad and should get refactored
+            Δτ = τ - τin
+            Pinv_Δρ, Pinv_Δτ = mix_density_tau(mixing, basis, Δρ, Δτ; τin, info_next...)
+            ρnext = ρin .+ T(damping) .* Pinv_Δρ
+            τnext = τin .+ T(damping) .* Pinv_Δτ
+        else
+            # Apply mixing and pass it the full info as kwargs
+            ρnext = ρin .+ T(damping) .* mix_density(mixing, basis, Δρ; info_next...)
+            τnext = τ
+        end
+        info_next = merge(info_next, (; τ=τnext))
 
         converged = n_iter ≥ miniter && is_converged(info_next)
         converged = mpi_bcast(converged, 0, basis.comm_kpts)
         info_next = merge(info_next, (; converged))
 
-        timedout = mpi_bcast(Dates.now() ≥ timeout_date, basis.comm_kpts)
+        timedout  = mpi_bcast(Dates.now() ≥ timeout_date, basis.comm_kpts)
         info_next = merge(info_next, (; timedout))
 
         callback(info_next)

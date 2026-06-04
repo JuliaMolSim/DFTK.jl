@@ -286,7 +286,7 @@ energy. Then the potential Vxc is defined by
     δEtot = ∫ Vρ δρ + Vσ δσ + Vτ δτ + Vl δΔρ
           = 2 ∫ Vρ ϕᵢ δϕᵢ + 4 ∫ Vσ ∇ρ ⋅ ∇(ϕᵢ δϕᵢ) +  ∫ Vτ ∇ϕᵢ ⋅ ∇δϕᵢ   + 2 ∫   Vl Δ(ϕᵢ δϕᵢ)
           = 2 ∫ Vρ ϕᵢ δϕᵢ - 4 ∫ div(Vσ ∇ρ) ϕᵢ δϕᵢ -  ∫ div(Vτ ∇ϕᵢ) δϕᵢ + 2 ∫ Δ(Vl)  ϕᵢ δϕᵢ
-where we performed an integration by parts in the last tho equations
+where we performed an integration by parts in the last two equations
 (boundary terms drop by periodicity). For GGA functionals we identify
     Vxc = Vρ - 2 div(Vσ ∇ρ),
 see also Richard Martin, Electronic structure, p. 158. For meta-GGAs an extra term ΔVl appears
