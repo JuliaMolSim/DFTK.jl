@@ -225,7 +225,7 @@ Overview of parameters:
             ρnext = ρin .+ T(damping) .* mix_density(mixing, basis, Δρ; info_next...)
             τnext = τ
         end
-        info_next = merge(info_next, (; τ=τnext))
+        info_next = merge(info_next, (; τ=τnext, τin))
 
         converged = n_iter ≥ miniter && is_converged(info_next)
         converged = mpi_bcast(converged, 0, basis.comm_kpts)
