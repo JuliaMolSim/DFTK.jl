@@ -28,6 +28,16 @@ of the conventions used in the equations.
   ```
   This also holds true for real spherical harmonics.
 
+  Introducing the solid harmonics ``R_l^m(x) = x^l \, Y_l^m(x/|x|)``
+  this can equivalently be written as
+  ```math
+  \hat f( q) = 4 \pi R_{l}^{m}(q) (-i)^{l}
+  \int_{{\mathbb R}^+} r^2 R(r) j_{l}(|q| r) / |q|^l dr.
+  ```
+  The main advantage of this formulation is that the solid harmonics are
+  simple homogeneous polynomials
+  (which are e.g. well behaved for algorithmic differentiation close to ``q=0``).
+
 ## Spherical harmonics
 - Plane wave expansion formula
   ```math

@@ -303,29 +303,23 @@ end
        scfres.seed, scfres.algorithm, scfres.runtime_ns)
 end
 
-function hankel(r::AbstractVector, r2_f::AbstractVector, l::Integer, p::TT) where {TT <: ForwardDiff.Dual}
+function hankel(quadrature, r::AbstractVector, r2_f::AbstractVector, l::Integer, p::TT) where {TT <: ForwardDiff.Dual}
     # This custom rule uses two properties of the hankel transform:
-    #   d H[f] / dp = 4\pi \int_0^∞ r^2 f(r) j_l'(p⋅r)⋅r dr
+    #   d H[f] / dp = 4\pi \int_0^∞ r^2 f(r) [ j_l'(p⋅r)⋅r/p^l - l * j_l(p⋅r)/p^{l+1} ] dr
     # and that
     #   j_l'(x) = l / x * j_l(x) - j_{l+1}(x)
-    # and tries to avoid allocations as much as possible, which hurt in this inner loop.
-    #
-    # One could implement this by custom rules in integration and spherical bessels, but
-    # the tricky bit is to exploit that one needs both the j_l'(p⋅r) and j_l(p⋅r) values
-    # but one does not want to precompute and allocate them into arrays
-    # TODO Investigate custom rules for bessels and integration
+    # giving
+    #   d H[f] / dp = -4\pi \int_0^∞ r^2 f(r) j_{l+1}(p⋅r)⋅r/p^l ] dr
 
     T  = ForwardDiff.valtype(TT)
     pv = ForwardDiff.value(p)
 
-    jl = sphericalbesselj_fast.(l, pv .* r)
-    value = 4T(π) * simpson((i, r) -> r2_f[i] * jl[i], r)
-
+    value = hankel(quadrature, r, r2_f, l, pv)
     if iszero(pv)
         return TT(value, zero(T) * ForwardDiff.partials(p))
     end
-    derivative = 4T(π) * simpson(r) do i, r
-        (r2_f[i] * (l * jl[i] / pv - r * sphericalbesselj_fast(l+1, pv * r)))
+    derivative = -4T(π) / pv^l * quadrature(r) do i, ri
+        r2_f[i] * r[i] * sphericalbesselj_fast(l+1, pv * ri)
     end
     TT(value, derivative * ForwardDiff.partials(p))
 end
