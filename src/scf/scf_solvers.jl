@@ -55,6 +55,7 @@ Create an anderson-accelerated SCF solver for the [`self_consistent_field`](@ref
 
 [^CDLS21]: Chupin, Dupuy, Legendre, Séré. Math. Model. Num. Anal. **55**, 2785 (2021) dDOI [10.1051/m2an/2021069](https://doi.org/10.1051/m2an/2021069)
 """
+
 function scf_anderson_solver(; m_start::Integer=1, kwargs...)
     function anderson(f, x0, info0; maxiter)
         T = eltype(x0)
@@ -73,6 +74,44 @@ function scf_anderson_solver(; m_start::Integer=1, kwargs...)
                 @debug "Using Anderson acceleration in iteration $i"
                 residual = fx - x
                 x = acceleration(x, one(T), residual)
+            end
+        end
+        (; fixpoint=x, info)
+    end
+end
+
+@doc raw"""
+Create a Pcdiis-accelerated SCF solver for the [`self_consistent_field`](@ref) solver.
+This also changes info.ψ!
+
+## Keyword arguments
+- `depth::Integer`  (default: `10`) Maximal Pcdiis history size
+- `m_start::Integer`(default: `1`)  Start collecting history in the `m_start`th SCF iteration
+
+[^HLY17]: Hu, Lin, Yang. Journal of chemical theory and computation **13.11**, 5458-5467 (2017) DOI [10.1021/acs.jctc.7b00892](https://doi.org/10.1021/acs.jctc.7b00892) 
+"""
+
+function scf_pcdiis_solver(; m_start::Integer=1, ψ_ref=Vector{Matrix{ComplexF64}}(), nb=0, kwargs...)
+    function pcdiis(f, x0, info0; maxiter)
+        x = x0
+        info = info0
+
+	    acceleration = PcdiisAcceleration(; ψ_ref=ψ_ref, nb=nb, kwargs...)
+        for i = 1:maxiter
+            fx, finfo = f(x, info)
+
+            if finfo.converged || finfo.timedout
+		        info = finfo
+                break
+            end
+
+            if i < m_start
+                @debug "Skipping Pcdiis acceleration in iteration $i"
+                x = fx
+		        info = finfo
+            else 
+                @debug "Using Pcdiis acceleration in iteration $i"
+		        x, info = acceleration(fx, info, finfo)
             end
         end
         (; fixpoint=x, info)
