@@ -135,7 +135,7 @@ Overview of parameters:
 @timing function self_consistent_field(
     basis::PlaneWaveBasis{T};
     ρ=guess_density(basis),
-    τ=any(needs_τ, basis.terms) ? zero(ρ) : nothing,
+    τ=any(needs_τ, basis.terms) ? von_weizsaecker_kinetic_energy_density(basis, ρ) : nothing,
     hubbard_n=nothing,
     ψ=nothing,
     occupation=nothing,

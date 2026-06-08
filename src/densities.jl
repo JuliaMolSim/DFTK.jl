@@ -122,6 +122,24 @@ end
     symmetrize_ρ(basis, τ; do_lowpass=false)
 end
 
+"""
+Von Weizsäcker kinetic energy density, which is exact for one-electron systems
+(i.e. if only one spin channels is occupied or both spin channels singly occupied).
+"""
+function von_weizsaecker_kinetic_energy_density(basis::PlaneWaveBasis, ρ)
+    ρ_fourier = fft(basis, ρ)
+    τ = zero(ρ)
+    for α = 1:3
+        iGα = map(G -> im * G[α], G_vectors_cart(basis))
+        for σ = 1:basis.model.n_spin_components
+            ∇ρ_ασ = irfft(basis, iGα .* @view ρ_fourier[:, :, :, σ])
+            τ[:, :, :, σ] += conj(∇ρ_ασ) .* ∇ρ_ασ
+        end
+    end
+    τ ./ (8ρ)
+end
+
+
 total_density(ρ) = dropdims(sum(ρ; dims=4); dims=4)
 @views function spin_density(ρ)
     if size(ρ, 4) == 2

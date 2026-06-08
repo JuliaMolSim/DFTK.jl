@@ -18,8 +18,6 @@ For details see [Herbst, Levitt 2020](https://arxiv.org/abs/2009.01665).
     adjust_temperature = IncreaseMixingTemperature()
 end
 function (χ0::LdosModel)(basis::PlaneWaveBasis{T}; eigenvalues, ψ, εF, kwargs...) where {T}
-    n_spin = basis.model.n_spin_components
-
     # Catch cases that will yield no contribution
     temperature = χ0.adjust_temperature(basis.model.temperature; kwargs...)
     iszero(temperature) && return nothing

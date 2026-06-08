@@ -214,7 +214,7 @@ real space using a GMRES. Either the full kernel (`RPA=false`) or only the Hartr
 """
 @kwdef struct χ0Mixing <: Mixing
     χ0terms   = χ0Model[Applyχ0Model()]  # The terms to use as the model for χ0
-    RPA::Bool = true       # Use RPA, i.e. only apply the Hartree and not the XC Kernel
+    RPA::Bool = true        # Use RPA, i.e. only apply the Hartree and not the XC Kernel
     verbose::Bool = false   # Run the GMRES verbosely
     reltol::Float64 = 0.01  # Relative tolerance for GMRES
 end

@@ -68,7 +68,7 @@ Keyword arguments:
 """
 @timing function save_scfres(filename::AbstractString, scfres::NamedTuple;
                              save_ψ=nothing, extra_data=Dict{String,Any}(),
-                             compress=false, save_ρ=true)
+                             compress=false, save_ρ=nothing)
     filename = mpi_bcast(filename, 0, scfres.basis.comm_kpts)
 
     _, ext = splitext(filename)
@@ -77,6 +77,7 @@ Keyword arguments:
         error("Extension '$ext' not supported by DFTK.")
     end
     save_ψ = something(save_ψ, (ext == :jld2))
+    save_ρ = something(save_ρ, (ext != :json))
     save_scfres(Val(ext), filename, scfres; save_ψ, save_ρ, extra_data, compress)
 end
 function save_scfres(::Val, filename::AbstractString, ::NamedTuple; kwargs...)
