@@ -32,9 +32,11 @@ of the conventions used in the equations.
   this can equivalently be written as
   ```math
   \hat f( q) = 4 \pi R_{l}^{m}(q) (-i)^{l}
-  \int_{{\mathbb R}^+} r^2 R(r) \ j_{l}(|q| r) / |q|^l dr,
+  \int_{{\mathbb R}^+} r^2 R(r) j_{l}(|q| r) / |q|^l dr.
   ```
-  which is better behaved for algorithmic differentiation at ``q=0``.
+  The main advantage of this formulation is that the solid harmonics are
+  simple homogeneous polynomials
+  (which are e.g. well behaved for algorithmic differentiation close to ``q=0``).
 
 ## Spherical harmonics
 - Plane wave expansion formula

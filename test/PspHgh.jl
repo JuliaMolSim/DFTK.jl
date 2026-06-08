@@ -109,6 +109,7 @@ end
         psp = load_psp(family, element)
         for l = 0:psp.lmax, i = 1:count_n_proj_radial(psp, l)
             for p in [0.01, 0.1, 0.2, 0.5, 1, 2, 5, 10]
+                # DFTK uses a modified Hankel, hence divide by 1/p^l
                 reference = 1/p^l * quadgk(r -> integrand(psp, i, l, p, r), 0, Inf)[1]
                 @test reference ≈ eval_psp_projector_fourier(psp, i, l, p) atol=5e-15 rtol=1e-8
             end

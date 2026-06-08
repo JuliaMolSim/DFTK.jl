@@ -136,7 +136,7 @@ end
 
 
 # [HGH98] (7-15) except they do it with plane waves normalized by 1/sqrt(Ω)
-# and we regularize by 1/p^l.
+# and we divide by 1/p^l.
 function eval_psp_projector_fourier(psp::PspHgh, i, l, p::T) where {T <: Real}
     @assert 0 <= l <= length(psp.rp) - 1
     @assert i > 0
