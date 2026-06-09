@@ -191,6 +191,9 @@ Overview of parameters:
         τin = τ
         if any(needs_τ, basis.terms)
             τ = compute_kinetic_energy_density(basis, ψ, occupation)
+            Δτ = τ - τin
+        else
+            Δτ = false
         end
         ihubbard = findfirst(t -> t isa TermHubbard, basis.terms)
         if !isnothing(ihubbard)
@@ -211,12 +214,12 @@ Overview of parameters:
         end
         history_Etot = vcat(info.history_Etot, energies.total)
         history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
+        history_Δτ = vcat(info.history_Δτ, norm(Δτ) * sqrt(basis.dvol))
         n_matvec = info.n_matvec + nextstate.n_matvec
-        info_next = merge(info_next, (; energies, history_Etot, history_Δρ, n_matvec))
+        info_next = merge(info_next, (; energies, history_Etot, history_Δρ, history_Δτ, n_matvec))
 
         if !isnothing(τin) && !isnothing(τ)
             # TODO: This is really bad and should get refactored
-            Δτ = τ - τin
             Pinv_Δρ, Pinv_Δτ = mix_density_tau(mixing, basis, Δρ, Δτ; τin, info_next...)
             ρnext = ρin .+ T(damping) .* Pinv_Δρ
             τnext = τin .+ T(damping) .* Pinv_Δτ
@@ -245,7 +248,7 @@ Overview of parameters:
 
     info_init = (; ρin=ρ, τ, hubbard_n, ψ, occupation, eigenvalues, εF=nothing,
                    n_iter=0, n_matvec=0, timedout=false, converged=false,
-                   history_Etot=T[], history_Δρ=T[])
+                   history_Etot=T[], history_Δρ=T[], history_Δτ=T[])
 
     # Convergence is flagged by is_converged inside the fixpoint_map.
     _, info = solver(fixpoint_map, ρ, info_init; maxiter)
@@ -264,9 +267,9 @@ Overview of parameters:
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
                 ρ=ρout, τ, hubbard_n, α=damping, eigenvalues, occupation, εF,
                 info.n_bands_converge, info.n_iter, info.n_matvec, ψ, info.diagonalization,
-                stage=:finalize, info.history_Δρ, info.history_Etot, info.timedout, mixing,
-                is_converged, nbandsalg, fermialg, diagtolalg, solver, eigensolver,
-                seed, runtime_ns=time_ns() - start_ns, algorithm="SCF")
+                stage=:finalize, info.history_Δρ, info.history_Δτ, info.history_Etot,
+                info.timedout, mixing, is_converged, nbandsalg, fermialg, diagtolalg,
+                solver, eigensolver, seed, runtime_ns=time_ns() - start_ns, algorithm="SCF")
     callback(scfres)
     scfres
 end

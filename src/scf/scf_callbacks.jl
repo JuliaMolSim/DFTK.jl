@@ -36,12 +36,14 @@ which prints a convergence table.
     show_time::Bool        = true
     show_memory::Bool      = SCF_CALLBACK_SHOW_MEMORY
     prev_time::Ref{UInt64} = Ref(zero(UInt64))
+    show_magnetic_moments::Bool = true
 end
 function (cb::ScfDefaultCallback)(info)
     # If first iteration clear a potentially cached previous time
     info.n_iter ≤ 1 && (cb.prev_time[] = 0)
 
-    show_magn = info.basis.model.spin_polarization == :collinear
+    show_dtau = hasproperty(info, :history_Δτ) && !isnothing(info.τ)
+    show_magn = info.basis.model.spin_polarization == :collinear && cb.show_magnetic_moments
     show_diag = hasproperty(info, :diagonalization)
     show_damp = hasproperty(info, :α) && cb.show_damping
     show_time = hasproperty(info, :runtime_ns) && cb.show_time
@@ -71,16 +73,17 @@ function (cb::ScfDefaultCallback)(info)
 
     # TODO We should really do this properly ... this is really messy
     if info.n_iter == 1
+        label_dtau = show_dtau   ? ("   log10(Δτ)",   "   ---------")   : ("", "")
         label_magn = show_magn   ? ("   Magnet   |Magn|", "   ------   ------") : ("", "")
         label_damp = show_damp   ? ("   α   ",   "   ----")   : ("", "")
         label_diag = show_diag   ? ("   Diag",   "   ----")   : ("", "")
         label_time = show_time   ? ("   Δtime ",  "   ------") : ("", "")
         label_memo = show_memory ? ("   Memory",  "   ------") : ("", "")
         label_dmem = show_gpumem ? ("   GPUmem",  "   ------") : ("", "")
-        @printf "n     Energy            log10(ΔE)   log10(Δρ)"
-        println(label_magn[1], label_damp[1], label_diag[1], label_time[1], label_memo[1], label_dmem[1])
-        @printf "---   ---------------   ---------   ---------"
-        println(label_magn[2], label_damp[2], label_diag[2], label_time[2], label_memo[2], label_dmem[2])
+        print("n     Energy            log10(ΔE)   log10(Δρ)", label_dtau[1], label_magn[1])
+        println(label_damp[1], label_diag[1], label_time[1], label_memo[1], label_dmem[1])
+        print("---   ---------------   ---------   ---------", label_dtau[2], label_magn[2])
+        println(label_damp[2], label_diag[2], label_time[2], label_memo[2], label_dmem[2])
     end
     E    = isnothing(info.energies) ? Inf : info.energies.total
     magn = sum(spin_density(info.ρout)) * info.basis.dvol
@@ -109,6 +112,7 @@ function (cb::ScfDefaultCallback)(info)
         ΔE = sign * format_log8(E - prev_energy)
     end
     Δρstr   = " " * format_log8(last(info.history_Δρ))
+    Δτstr   = show_dtau ? "    " * format_log8(last(info.history_Δτ)) : ""
     Mstr    = show_magn ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
     absMstr = show_magn ? "   $((@sprintf "%6.3f" round(abs_magn, sigdigits=4))[1:6])" : ""
     diagstr = show_diag ? "  $(@sprintf "% 5.1f" diagiter)" : ""
@@ -117,9 +121,7 @@ function (cb::ScfDefaultCallback)(info)
     show_damp && (αstr = isnan(info.α) ? "       " : @sprintf "  % 4.2f" info.α)
 
     @printf "% 3d   %s   %s   %s" info.n_iter Estr ΔE Δρstr
-    println(Mstr, absMstr, αstr, diagstr, tstr, memstr)
-
-    # TODO: Show change in τ here as well for mGGA methods !
+    println(Δτstr, Mstr, absMstr, αstr, diagstr, tstr, memstr)
 
     flush(stdout)
     info
