@@ -119,6 +119,8 @@ function (cb::ScfDefaultCallback)(info)
     @printf "% 3d   %s   %s   %s" info.n_iter Estr ΔE Δρstr
     println(Mstr, absMstr, αstr, diagstr, tstr, memstr)
 
+    # TODO: Show change in τ here as well for mGGA methods !
+
     flush(stdout)
     info
 end
