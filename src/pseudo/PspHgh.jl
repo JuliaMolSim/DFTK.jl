@@ -162,7 +162,6 @@ function eval_psp_projector_fourier(psp::PspHgh, i, l, p::T) where {T <: Real}
     error("Not implemented for l=$l and i=$i")
 end
 
-
 # [HGH98] (3)
 function eval_psp_projector_real(psp::PspHgh, i, l, r::T) where {T <: Real}
     rp = T(psp.rp[l + 1])
