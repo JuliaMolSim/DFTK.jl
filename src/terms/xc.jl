@@ -535,9 +535,6 @@ end
 function compute_δHψ_αs(term::TermXc, basis::PlaneWaveBasis, ψ, α, s, q; ρ)
     isnothing(term.ρcore) && return nothing
 
-    # With an NLCC, an atom displacement triggers a change in the XC potential.
-    # We compute the change in the NLCC first, then we apply the kernel to get the
-    # change in potential. Finally, we apply it to the wavefunctions.
     δρcore_αs = derivative_wrt_αs(basis.model.positions, α, s) do positions_αs
         ρ_from_total(basis, atomic_total_density(basis, CoreDensity();
                                                  q, positions=positions_αs))
