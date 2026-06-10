@@ -84,6 +84,20 @@ function guess_density(basis::PlaneWaveBasis, method::AtomicDensity, magnetic_mo
     atomic_density(basis, method, magnetic_moments, n_electrons)
 end
 
+"""
+Guess a reasonable kinetic energy density starting from a density `ρ` or
+`nothing` if no kinetic energy density is required by the model. For now uses
+the von Weizsäcker kinetic energy density; this may change in the future.
+"""
+function guess_kinetic_energy_density(basis::PlaneWaveBasis, ρ::AbstractArray)
+    if any(needs_τ, basis.terms)
+        von_weizsaecker_kinetic_energy_density(basis, ρ)
+    else
+        nothing
+    end
+end
+
+
 # Build a charge density from total and spin densities constructed as superpositions of
 # atomic densities.
 function atomic_density(basis::PlaneWaveBasis, method::AtomicDensity, magnetic_moments,

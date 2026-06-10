@@ -150,7 +150,7 @@ total_density(ρ) = dropdims(sum(ρ; dims=4); dims=4)
 end
 
 function ρ_from_total_and_spin(ρtot, ρspin=nothing)
-    if ρspin === nothing
+    if isnothing(ρspin)
         # Val used to ensure inferability
         cat(ρtot; dims=Val(4))  # copy for consistency with other case
     else
@@ -166,4 +166,19 @@ function ρ_from_total(basis, ρtot::AbstractArray{T}) where {T}
         ρspin = zeros_like(G_vectors(basis), T, basis.fft_size...)
     end
     ρ_from_total_and_spin(ρtot, ρspin)
+end
+
+# TODO: When we do the state refactor we should think how to deal with this;
+#       probably a ComponentArray or some form of custom struct is reasonable here
+pack_density(ρ::AbstractArray, ::Nothing) = ρ
+pack_density(ρ::AbstractArray, τ::AbstractArray) = cat(ρ, τ; dims=Val(1))
+function unpack_density(basis::PlaneWaveBasis, x::AbstractArray{T, 4}) where {T}
+    @assert size(x, 1) == basis.fft_size[1] || size(x, 1) == 2basis.fft_size[1]
+    if size(x, 1) == 2basis.fft_size[1]
+        ρ = @view x[1:basis.fft_size[1], :, :, :]
+        τ = @view x[basis.fft_size[1]+1:end, :, :, :]
+        (ρ, τ)
+    else
+        (x, nothing)
+    end
 end

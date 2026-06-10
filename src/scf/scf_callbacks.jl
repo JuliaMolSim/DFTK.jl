@@ -17,11 +17,7 @@ writing the output file (usually JLD2) to be loaded.
     save_ψ::Bool     = false
 end
 function (cb::ScfSaveCheckpoints)(info)
-    if info.stage == :iterate
-        scfres = (; (k => v for (k, v) in pairs(info) if !startswith(string(k), "ρ"))...)
-        scfres = merge(scfres, (; ρ=info.ρout))
-        save_scfres(cb.filename, scfres; cb.save_ψ, cb.compress)
-    end
+    info.stage == :iterate && save_scfres(cb.filename, info; cb.save_ψ, cb.compress)
     info
 end
 
@@ -86,8 +82,8 @@ function (cb::ScfDefaultCallback)(info)
         println(label_damp[2], label_diag[2], label_time[2], label_memo[2], label_dmem[2])
     end
     E    = isnothing(info.energies) ? Inf : info.energies.total
-    magn = sum(spin_density(info.ρout)) * info.basis.dvol
-    abs_magn = sum(abs, spin_density(info.ρout)) * info.basis.dvol
+    magn = sum(spin_density(info.ρ)) * info.basis.dvol
+    abs_magn = sum(abs, spin_density(info.ρ)) * info.basis.dvol
 
     tstr = cb.show_time ? " "^9 : ""
     if show_time
@@ -170,7 +166,7 @@ ScfConvergenceForce(tolerance) = ScfConvergenceForce(tolerance, nothing)
 function (conv::ScfConvergenceForce)(info)
     # If first iteration clear a potentially cached previous force
     info.n_iter ≤ 1 && (conv.previous_force = nothing)
-    force = compute_forces_cart(info.basis, info.ψ, info.occupation; ρ=info.ρout)
+    force = compute_forces_cart(info.basis, info.ψ, info.occupation; info.ρ)
     error = isnothing(conv.previous_force) ? NaN : norm(conv.previous_force - force)
     conv.previous_force = force
     error < conv.tolerance

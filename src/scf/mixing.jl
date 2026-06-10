@@ -22,12 +22,14 @@ function mix_potential(args...; kwargs...)
     mix_density(args...; kwargs...)
 end
 
-# Compatibility function to test adapted mixing in both ρ and τ
-function mix_density_tau(mixing, basis, Δρ, Δτ; kwargs...)
-    # TODO: We should prepare a bit for the state refactor and make this less messy.
+# Mixing in both ρ and τ: For now just fall back to ρ-only mixing
+function mix_density(mixing, basis, Δρ, Δτ::AbstractArray; kwargs...)
     Pinv_Δρ = mix_density(mixing, basis, Δρ; kwargs...)
-    Pinv_Δτ = Δτ
-    (; Pinv_Δρ, Pinv_Δτ)
+    (; ρ=Pinv_Δρ, τ=Δτ)
+end
+function mix_density(mixing, basis, Δρ, ::Nothing; kwargs...)
+    Pinv_Δρ = mix_density(mixing, basis, Δρ; kwargs...)
+    (; ρ=Pinv_Δρ, τ=nothing)
 end
 
 @doc raw"""
