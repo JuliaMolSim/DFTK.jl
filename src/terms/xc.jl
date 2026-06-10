@@ -409,7 +409,7 @@ function _check_negative_bonding_indicator_α(densities::LibxcDensities{T}) wher
                        .- densities.σ_real[DftFunctionals.spinindex_σ(iσ, iσ), :, :, :])
             any(α_check .<= -sqrt(eps(T)))
         end
-        if has_negative_α
+        if has_negative_α && mpi_master(densities.basis.comm_kpts)
             @warn "Exchange-correlation term: the kinetic energy density τ is smaller " *
                   "than the von Weizsäcker kinetic energy density τ_W somewhere. " *
                   "This can lead to unphysical results. " *
