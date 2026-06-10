@@ -108,7 +108,8 @@ The same as [`KerkerMixing`](@ref), but the Thomas-Fermi wavevector is computed
 from the current density of states at the Fermi level.
 """
 @kwdef struct KerkerDosMixing <: Mixing
-    adjust_temperature = IncreaseMixingTemperature()
+    # TODO: switch to non-adaptive version below
+    adjust_temperature = IncreaseMixingTemperatureAdaptive()
 end
 Base.show(io::IO, ::KerkerDosMixing) = print(io, "KerkerDosMixing()")
 @timing "KerkerDosMixing" function mix_density(mixing::KerkerDosMixing, basis::PlaneWaveBasis,
@@ -178,7 +179,8 @@ Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `reltol`: Relative tolerance for GMRES
 """
 function HybridMixing(; εr=10.0, kTF=0.8, localization=identity,
-                      adjust_temperature=IncreaseMixingTemperature(), kwargs...)
+                      adjust_temperature=IncreaseMixingTemperatureAdaptive(), kwargs...)
+    # TODO: switch to non-adaptive version above
     χ0terms = [DielectricModel(; εr, kTF, localization),
                LdosModel(;adjust_temperature)]
     χ0Mixing(; χ0terms, kwargs...)
@@ -202,7 +204,8 @@ Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `verbose`: Run the GMRES in verbose mode.
 - `reltol`: Relative tolerance for GMRES
 """
-function LdosMixing(; adjust_temperature=IncreaseMixingTemperature(), kwargs...)
+function LdosMixing(; adjust_temperature=IncreaseMixingTemperatureAdaptive(), kwargs...)
+    # TODO: switch to non-adaptive version above
     χ0Mixing(; χ0terms=[LdosModel(;adjust_temperature)], kwargs...)
 end
 
@@ -271,6 +274,31 @@ end
 
 
 """
+Increase the SCF temperature by a `factor` when computing densities of states
+in SCF preconditioners. This tends to improve convergence.
+"""
+function IncreaseMixingTemperature(; factor=25, temperature_max=0.5)
+    # TODO: In theory this `factor` should be adaptively chosen such that the
+    #       local density of states is "smooth"; no idea how to do that properly though.
+    function callback(temperature; info...)
+        if iszero(temperature)
+            return temperature
+        else
+            return min(factor * temperature, temperature_max)
+        end
+    end
+end
+
+
+"""
+Use the SCF temperature when computing densities of states or similar in SCF preconditioners.
+"""
+function UseScfTemperature()
+    callback(temperature; info...) = temperature
+end
+
+
+"""
 Increase the temperature used for computing the SCF preconditioners. Initially the temperature
 is increased by a `factor`, which is then smoothly lowered towards the temperature used
 within the model as the SCF converges. Once the density change is below `above_ρdiff` the
@@ -295,17 +323,5 @@ function IncreaseMixingTemperatureAdaptive(; factor=25, above_ρdiff=1e-2, tempe
         temperature = clamp(enhancement * temperature, temperature, temperature_max)
         temperature_max = temperature
         return temperature
-    end
-end
-function UseScfTemperature()
-    callback(temperature; info...) = temperature
-end
-function IncreaseMixingTemperature(; factor=25, temperature_max=0.5)
-    function callback(temperature; info...)
-        if iszero(temperature)
-            return temperature
-        else
-            return min(factor * temperature, temperature_max)
-        end
     end
 end

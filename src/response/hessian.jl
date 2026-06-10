@@ -276,9 +276,8 @@ Input parameters:
                                     maxiter=100, krylovdim=20, s=100,
                                     callback=verbose ? OmegaPlusKDefaultCallback() : identity,
                                     kwargs...) where {T}
-    # TODO mixing=LdosMixing(; adjust_temperature=UseScfTemperature()) would be a better
-    #      default in theory, but does not work out of the box, so not done for now
-    # TODO Debug why and enable LdosMixing by default
+    # TODO: mixing=LdosMixing() would be a better default in theory, but does not work
+    #       out of the box, so not done for now; debug why and enable LdosMixing by default
     if !(mixing isa SimpleMixing || mixing isa KerkerMixing || mixing isa KerkerDosMixing)
         @warn("solve_ΩplusK_split has only been tested with one of SimpleMixing, " *
               "KerkerMixing or KerkerDosMixing")

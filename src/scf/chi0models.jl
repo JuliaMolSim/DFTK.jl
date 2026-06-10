@@ -15,7 +15,8 @@ where ``D_\text{loc}`` is the local density of states and ``D`` the density of s
 For details see [Herbst, Levitt 2020](https://arxiv.org/abs/2009.01665).
 """
 @kwdef struct LdosModel <: χ0Model
-    adjust_temperature = IncreaseMixingTemperature()
+    # TODO: switch to non-adaptive version below
+    adjust_temperature = IncreaseMixingTemperatureAdaptive()
 end
 function (χ0::LdosModel)(basis::PlaneWaveBasis{T}; eigenvalues, ψ, εF, kwargs...) where {T}
     # Catch cases that will yield no contribution
