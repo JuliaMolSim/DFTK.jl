@@ -254,7 +254,7 @@ Overview of parameters:
     _, info = solver(fixpoint_map, pack_density(ρ, τ), info_init; maxiter)
 
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
-    # ψ is consistent with ρout, so we return that. We also perform a last energy computation
+    # ψ is consistent with ρ, so we return that. We also perform a last energy computation
     # to return a correct variational energy and to build a Hamiltonian without any compression
     # applied to the exchange operator.
     (; ρ, τ, hubbard_n, ψ, occupation, eigenvalues, εF, converged) = info

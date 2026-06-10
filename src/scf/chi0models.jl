@@ -21,6 +21,7 @@ end
 function (χ0::LdosModel)(basis::PlaneWaveBasis{T}; eigenvalues, ψ, εF, kwargs...) where {T}
     # Catch cases that will yield no contribution
     temperature = χ0.adjust_temperature(basis.model.temperature; kwargs...)
+    @debug "Mixing temperature: $temperature"
     iszero(temperature) && return nothing
     ldos = compute_ldos(εF, basis, eigenvalues, ψ; temperature)
     maximum(abs, ldos) < sqrt(eps(T)) && return nothing

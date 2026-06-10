@@ -120,6 +120,7 @@ Base.show(io::IO, ::KerkerDosMixing) = print(io, "KerkerDosMixing()")
         n_spin = basis.model.n_spin_components
         Ω = basis.model.unit_cell_volume
         temperature = mixing.adjust_temperature(basis.model.temperature; kwargs...)
+        @debug "Mixing temperature: $temperature"
         dos_per_vol  = compute_dos(εF, basis, eigenvalues; temperature) ./ Ω
         kTF  = sqrt(4π * sum(dos_per_vol))
         ΔDOS_Ω = n_spin == 2 ? dos_per_vol[1] - dos_per_vol[2] : zero(kTF)
@@ -305,10 +306,10 @@ within the model as the SCF converges. Once the density change is below `above_�
 mixing temperature is equal to the model temperature.
 """
 function IncreaseMixingTemperatureAdaptive(; factor=25, above_ρdiff=1e-2, temperature_max=0.5)
-    function callback(temperature; n_iter=nothing, ρin=nothing, ρout=nothing, info...)
+    function callback(temperature; n_iter=nothing, ρin=nothing, ρ=nothing, info...)
         if iszero(temperature) || temperature > temperature_max
             return temperature
-        elseif isnothing(ρin) || isnothing(ρout)
+        elseif isnothing(ρin) || isnothing(ρ)
             return temperature
         elseif !isnothing(n_iter) && n_iter ≤ 1
             return factor * temperature
@@ -316,7 +317,7 @@ function IncreaseMixingTemperatureAdaptive(; factor=25, above_ρdiff=1e-2, tempe
 
         # Continuous piecewise linear function on a logarithmic scale
         # In [log(above_ρdiff), log(above_ρdiff) + 1] it switches from 1 to factor
-        ρdiff = norm(ρout .- ρin)
+        ρdiff = norm(ρ .- ρin)
         enhancement = clamp(1 + (factor - 1) * log10(ρdiff / above_ρdiff), 1, factor)
 
         # Between SCF iterations temperature may never grow
