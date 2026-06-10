@@ -226,7 +226,7 @@ Overview of parameters:
 
         # Note: For now (June 2026) mix_density when called with both Δρ and Δτ is an identity
         #       in Δτ; this may change in the future.
-        Pinv_Δρ, Pinv_Δτ = mix_density(mixing, basis, Δρ, Δτ; τin, ρin, info_next...)
+        Pinv_Δρ, Pinv_Δτ = mix_density(mixing, basis, Δρ, Δτ; info_next...)
         ρnext = ρin .+ T(damping) .* Pinv_Δρ
         τnext = isnothing(τin) ? nothing : τin .+ T(damping) .* Pinv_Δτ
 
