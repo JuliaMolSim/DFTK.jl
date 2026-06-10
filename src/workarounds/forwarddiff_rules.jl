@@ -238,14 +238,15 @@ end
         basis_dual::PlaneWaveBasis{<:Dual{Tg,V,N}};
         response=ResponseOptions(),
         kwargs...) where {Tg,V,N}
-    # Note: No guarantees on this interface yet.
+    if any(needs_τ, basis_dual.terms)
+        error("Cannot yet compute SCF derivatives with meta-GGA functionals.")
+    end
 
-    # Primal pass
     basis_primal = construct_value(basis_dual)
     scfres = self_consistent_field(basis_primal; kwargs...)
 
     # Compute explicit density perturbation (including strain) due to normalization
-    ρ_basis = compute_density(basis_dual, scfres.ψ, scfres.occupation)
+    ρ_basis = compute_density(basis_dual, scfres.ψ, scfres.occupation; scfres.occupation_threshold)
 
     # Compute external perturbation (contained in ham_dual)
     Hψ_dual = let
@@ -254,6 +255,7 @@ end
                                       scfres.εF).ham
         ham_dual * scfres.ψ
     end
+
     # Implicit differentiation
     response.verbose && mpi_master(basis_primal.comm_kpts) && println("Solving response problem")
     δresults = ntuple(N) do α
@@ -282,7 +284,7 @@ end
 
     # For strain, basis_dual contributes an explicit lattice contribution which
     # is not contained in δresults, so we need to recompute ρ here
-    ρ = compute_density(basis_dual, ψ, occupation)
+    ρ = compute_density(basis_dual, ψ, occupation; scfres.occupation_threshold)
 
     # TODO Could add δresults[α].δVind the dual part of the total local potential in ham_dual
     # and in this way return a ham that represents also the total change in Hamiltonian
@@ -297,9 +299,9 @@ end
        response=getfield.(δresults, :info_gmres),
        scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter,
        scfres.n_bands_converge, scfres.n_matvec, scfres.diagonalization, scfres.stage,
-       scfres.history_Δρ, scfres.history_Etot, scfres.timedout, scfres.mixing,
-       scfres.is_converged, scfres.nbandsalg, scfres.fermialg, scfres.diagtolalg,
-       scfres.solver, scfres.eigensolver,
+       scfres.history_Δρ, scfres.history_Δτ, scfres.history_Etot, scfres.timedout,
+       scfres.mixing, scfres.is_converged, scfres.nbandsalg, scfres.fermialg,
+       scfres.diagtolalg, scfres.solver, scfres.eigensolver,
        scfres.seed, scfres.algorithm, scfres.runtime_ns)
 end
 
