@@ -306,6 +306,9 @@ within the model as the SCF converges. Once the density change is below `above_�
 mixing temperature is equal to the model temperature.
 """
 function IncreaseMixingTemperatureAdaptive(; factor=25, above_ρdiff=1e-2, temperature_max=0.5)
+    # XXX: Reducing the temperature makes little sense as this makes the preconditioner
+    #      very sensitive to choices of k-points and smearing, so we should remove this
+    #      function in the long run.
     function callback(temperature; n_iter=nothing, ρin=nothing, ρ=nothing, info...)
         if iszero(temperature) || temperature > temperature_max
             return temperature
