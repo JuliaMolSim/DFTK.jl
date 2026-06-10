@@ -199,14 +199,14 @@ Overview of parameters:
         end
 
         # Update info with results gathered so far
-        info_next = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
+        info_next = (; ham, basis, ρin, τin, converged, stage=:iterate, algorithm="SCF",
                        hubbard_n, α=damping, n_iter, nbandsalg.occupation_threshold,
                        seed, runtime_ns=time_ns() - start_ns, nextstate...,
                        diagonalization=[nextstate.diagonalization])
 
         # Compute the energy of the new state
         if compute_consistent_energies
-            (; energies) = energy(basis, ψ, occupation; 
+            (; energies) = energy(basis, ψ, occupation;
                                   exxalg, ρ, τ, hubbard_n, eigenvalues, εF,
                                   nbandsalg.occupation_threshold)
         end
