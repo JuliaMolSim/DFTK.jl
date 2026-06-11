@@ -261,8 +261,7 @@ end
     δresults = ntuple(N) do α
         δHextψ = [ForwardDiff.partials.(δHextψk, α) for δHextψk in Hψ_dual]
         δtemperature = ForwardDiff.partials(basis_dual.model.temperature, α)
-        solve_ΩplusK_split(scfres, δHextψ; δtemperature,
-                           tol=last(scfres.history_Δρ), response.verbose)
+        solve_ΩplusK_split(scfres, response, δHextψ; δtemperature)
     end
 
     # Convert and combine

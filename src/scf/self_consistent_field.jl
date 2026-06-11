@@ -46,10 +46,28 @@ function kwargs_scf_checkpoints(basis::AbstractBasis;
 end
 
 
-# Struct to store some options for forward-diff / reverse-diff response
-# (unused in primal calculations)
+"""
+Options to pass to the response solver function such as `solve_ΩplusK_split`.
+
+## Keyword arguments
+- `verbose::Bool` (default: `true`): Be more verbose and display progress
+- `tol::Float64` (default: `last(scfres.history_Δρ)`: The global tolerance
+  to which to solve the response problem.
+- `krylovdim::Int` (default: `20`): Default Krylov subspace dimension to use
+  in the inexact GMRES.
+- `maxiter::Int` (default: `100`): Maximal number of iterations to use in
+  the inexact GMRES.
+
+## Keyword arguments (Expert level)
+- `s::Int` (default: `100`): Initial guess for the smallest singular value
+  of the upper Hessenberg matrix in the ineact GMRES. Lowering this can sometimes
+  improve solver efficiency.
+"""
 @kwdef struct ResponseOptions
-    verbose = true
+    verbose::Bool = true
+    tol::Union{Nothing,Float64} = nothing
+    krylovdim::Int = 20
+    s::Float64 = 100.0
 end
 
 """
