@@ -105,23 +105,29 @@ end
 
 @doc raw"""
 The same as [`KerkerMixing`](@ref), but the Thomas-Fermi wavevector is computed
-from the current density of states at the Fermi level.
+from the current density of states at the Fermi level. To determine the DOS
+by default the smearing of `basis.model.smearing` and a temperature of
+`min(50basis.model.temperature, 0.1)` are used, but this may be changed using
+the `smearing` and `temperature` arguments.
 """
 @kwdef struct KerkerDosMixing <: Mixing
-    # TODO: switch to non-adaptive version below
-    adjust_temperature = IncreaseMixingTemperatureAdaptive()
+    smearing::Union{Nothing,Smearing.SmearingFunction} = nothing
+    temperature::Union{Nothing,Int} = nothing
 end
 Base.show(io::IO, ::KerkerDosMixing) = print(io, "KerkerDosMixing()")
 @timing "KerkerDosMixing" function mix_density(mixing::KerkerDosMixing, basis::PlaneWaveBasis,
                                                δF; εF, eigenvalues, kwargs...)
-    if iszero(basis.model.temperature)
+    defaults = default_smearing_temperature(basis.model)
+    temperature = @something(mixing.temperature, defaults.temperature)
+    smearing    = @something(mixing.smearing,    defaults.smearing)
+    @debug "Mixing smearing and temperature: $smearing $temperature"
+
+    if iszero(temperature)
         return mix_density(SimpleMixing(), basis, δF)
     else
         n_spin = basis.model.n_spin_components
         Ω = basis.model.unit_cell_volume
-        temperature = mixing.adjust_temperature(basis.model.temperature; kwargs...)
-        @debug "Mixing temperature: $temperature"
-        dos_per_vol  = compute_dos(εF, basis, eigenvalues; temperature) ./ Ω
+        dos_per_vol  = compute_dos(εF, basis, eigenvalues; temperature, smearing) ./ Ω
         kTF  = sqrt(4π * sum(dos_per_vol))
         ΔDOS_Ω = n_spin == 2 ? dos_per_vol[1] - dos_per_vol[2] : zero(kTF)
         mix_density(KerkerMixing(; kTF, ΔDOS_Ω), basis, δF)
@@ -173,6 +179,10 @@ the same convention for parameters are used as in [`DielectricMixing`](@ref).
 Additionally there is the real-space localization function `L(r)`.
 For details see  [Herbst, Levitt 2020](https://arxiv.org/abs/2009.01665).
 
+By default the LdosModel is constructed using the smearing of
+`basis.model.smearing` and a temperature of `min(50basis.model.temperature, 0.1)`,
+but this may be changed using the `smearing` and `temperature` keyword arguments.
+
 Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `RPA`: Is the random-phase approximation used for the kernel (i.e. only Hartree kernel is
   used and not XC kernel)
@@ -180,10 +190,10 @@ Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `reltol`: Relative tolerance for GMRES
 """
 function HybridMixing(; εr=10.0, kTF=0.8, localization=identity,
-                      adjust_temperature=IncreaseMixingTemperatureAdaptive(), kwargs...)
+                        smearing=nothing, temperature=nothing, kwargs...)
     # TODO: switch to non-adaptive version above
     χ0terms = [DielectricModel(; εr, kTF, localization),
-               LdosModel(;adjust_temperature)]
+               LdosModel(; smearing, temperature)]
     χ0Mixing(; χ0terms, kwargs...)
 end
 
@@ -199,15 +209,19 @@ where ``D_\text{loc}`` is the local density of states,
 ``D`` is the density of states.
 For details see [Herbst, Levitt 2020](https://arxiv.org/abs/2009.01665).
 
+By default the LdosModel is constructed using the smearing of
+`basis.model.smearing` and a temperature of `min(50basis.model.temperature, 0.1)`,
+but this may be changed using the `smearing` and `temperature` keyword arguments.
+
 Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `RPA`: Is the random-phase approximation used for the kernel (i.e. only Hartree kernel is
   used and not XC kernel)
 - `verbose`: Run the GMRES in verbose mode.
 - `reltol`: Relative tolerance for GMRES
 """
-function LdosMixing(; adjust_temperature=IncreaseMixingTemperatureAdaptive(), kwargs...)
+function LdosMixing(; smearing=nothing, temperature=nothing, kwargs...)
     # TODO: switch to non-adaptive version above
-    χ0Mixing(; χ0terms=[LdosModel(;adjust_temperature)], kwargs...)
+    χ0Mixing(; χ0terms=[LdosModel(; smearing, temperature)], kwargs...)
 end
 
 
@@ -273,59 +287,8 @@ end
     error("Not yet implemented.")
 end
 
-
-"""
-Increase the SCF temperature by a `factor` when computing densities of states
-in SCF preconditioners. This tends to improve convergence.
-"""
-function IncreaseMixingTemperature(; factor=25, temperature_max=0.5)
-    # TODO: In theory this `factor` should be adaptively chosen such that the
-    #       local density of states is "smooth"; no idea how to do that properly though.
-    function callback(temperature; info...)
-        if iszero(temperature)
-            return temperature
-        else
-            return min(factor * temperature, temperature_max)
-        end
-    end
-end
-
-
-"""
-Use the SCF temperature when computing densities of states or similar in SCF preconditioners.
-"""
-function UseScfTemperature()
-    callback(temperature; info...) = temperature
-end
-
-
-"""
-Increase the temperature used for computing the SCF preconditioners. Initially the temperature
-is increased by a `factor`, which is then smoothly lowered towards the temperature used
-within the model as the SCF converges. Once the density change is below `above_ρdiff` the
-mixing temperature is equal to the model temperature.
-"""
-function IncreaseMixingTemperatureAdaptive(; factor=25, above_ρdiff=1e-2, temperature_max=0.5)
-    # XXX: Reducing the temperature makes little sense as this makes the preconditioner
-    #      very sensitive to choices of k-points and smearing, so we should remove this
-    #      function in the long run.
-    function callback(temperature; n_iter=nothing, ρin=nothing, ρ=nothing, info...)
-        if iszero(temperature) || temperature > temperature_max
-            return temperature
-        elseif isnothing(ρin) || isnothing(ρ)
-            return temperature
-        elseif !isnothing(n_iter) && n_iter ≤ 1
-            return factor * temperature
-        end
-
-        # Continuous piecewise linear function on a logarithmic scale
-        # In [log(above_ρdiff), log(above_ρdiff) + 1] it switches from 1 to factor
-        ρdiff = norm(ρ .- ρin)
-        enhancement = clamp(1 + (factor - 1) * log10(ρdiff / above_ρdiff), 1, factor)
-
-        # Between SCF iterations temperature may never grow
-        temperature = clamp(enhancement * temperature, temperature, temperature_max)
-        temperature_max = temperature
-        return temperature
-    end
+function default_smearing_temperature(model::Model)
+    # Set temperature to be 50 times the model temperature up to reaching a
+    # temperature of 0.1
+    (; model.smearing, temperature=min(0.1, 50model.temperature))
 end

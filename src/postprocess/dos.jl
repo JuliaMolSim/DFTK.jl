@@ -24,7 +24,7 @@ function compute_dos(ε, basis, eigenvalues; smearing=basis.model.smearing,
 
     D = zeros(typeof(ε), basis.model.n_spin_components)
     for σ = 1:basis.model.n_spin_components, ik = krange_spin(basis, σ)
-        for (iband, εnk) in enumerate(eigenvalues[ik])
+        for εnk in eigenvalues[ik]
             enred = (εnk - ε) / temperature
             D[σ] -= (filled_occ * basis.kweights[ik] / temperature
                      * Smearing.occupation_derivative(smearing, enred))
