@@ -36,13 +36,17 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     ρcore = nothing
     if xc.use_nlcc && any(has_core_density, basis.model.atoms)
         ρcore = ρ_from_total(basis, atomic_total_density(basis, CoreDensity()))
-        minimum(ρcore) < -sqrt(eps(T)) && @warn("Negative ρcore detected: $(minimum(ρcore))")
+        if mpi_master(basis.comm_kpts)
+            minimum(ρcore) < -sqrt(eps(T)) && @warn("Negative ρcore detected: $(minimum(ρcore))")
+        end
     end
     τcore = nothing
     if (   xc.use_nlcc && any(needs_τ, xc.functionals)
         && any(has_core_kinetic_energy_density, basis.model.atoms))
         τcore = ρ_from_total(basis, atomic_total_density(basis, CoreKineticEnergyDensity()))
-        minimum(τcore) < -sqrt(eps(T)) && @warn("Negative τcore detected: $(minimum(τcore))")
+        if mpi_master(basis.comm_kpts)
+            minimum(τcore) < -sqrt(eps(T)) && @warn("Negative τcore detected: $(minimum(τcore))")
+        end
     end
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed

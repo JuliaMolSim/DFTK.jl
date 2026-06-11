@@ -49,7 +49,9 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     # There can always be small negative densities, e.g. due to numerical fluctuations
     # in a vacuum region, so put some tolerance even if occupation_threshold == 0
     negtol = max(sqrt(eps(T)), 10occupation_threshold)
-    minimum(ρ) < -negtol && @warn("Negative ρ detected", min_ρ=minimum(ρ))
+    if mpi_master(basis.comm_kpts)
+        minimum(ρ) < -negtol && @warn("Negative ρ detected", min_ρ=minimum(ρ))
+    end
 
     ρ
 end
