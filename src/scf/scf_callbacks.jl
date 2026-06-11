@@ -206,7 +206,9 @@ function determine_diagtol(alg::AdaptiveDiagtol, info)
     @assert isfinite(diagtol)
 
     diagtol_min = something(alg.diagtol_min, 100eps(eltype(info.history_Δρ)))
-    clamp(diagtol, diagtol_min, alg.diagtol_max)
+    diagtol = clamp(diagtol, diagtol_min, alg.diagtol_max)
+    @debug "AdaptiveDiagtol: $diagtol"
+    diagtol
 end
 # Note: In the past we experimented with more involved criteria for adaptively
 # selecting the diagonalization tolerance, e.g. versions that take the system size
