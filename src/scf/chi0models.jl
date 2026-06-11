@@ -20,7 +20,7 @@ but this may be changed using the `smearing` and `temperature` arguments.
 """
 @kwdef struct LdosModel <: χ0Model
     smearing::Union{Nothing,Smearing.SmearingFunction} = nothing
-    temperature::Union{Nothing,Int} = nothing
+    temperature::Union{Nothing,Float64} = nothing
 end
 function (χ0::LdosModel)(basis::PlaneWaveBasis{T}; eigenvalues, ψ, εF, kwargs...) where {T}
     defaults = default_smearing_temperature(basis.model)

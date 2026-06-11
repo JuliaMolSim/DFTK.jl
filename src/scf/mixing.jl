@@ -112,7 +112,7 @@ the `smearing` and `temperature` arguments.
 """
 @kwdef struct KerkerDosMixing <: Mixing
     smearing::Union{Nothing,Smearing.SmearingFunction} = nothing
-    temperature::Union{Nothing,Int} = nothing
+    temperature::Union{Nothing,Float64} = nothing
 end
 Base.show(io::IO, ::KerkerDosMixing) = print(io, "KerkerDosMixing()")
 @timing "KerkerDosMixing" function mix_density(mixing::KerkerDosMixing, basis::PlaneWaveBasis,
@@ -288,7 +288,8 @@ end
 end
 
 function default_smearing_temperature(model::Model)
-    # Set temperature to be 50 times the model temperature up to reaching a
-    # temperature of 0.1
-    (; model.smearing, temperature=min(0.1, 50model.temperature))
+    # Set temperature to be 100 times the model temperature, but make sure
+    # to never overshoot 0.1 and never under-shoot the model.temperature
+    temperature = max(model.temperature, min(0.1, 100model.temperature))
+    (; model.smearing, temperature)
 end
