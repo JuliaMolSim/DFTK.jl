@@ -57,6 +57,8 @@ Options to pass to the response solver function such as `solve_ΩplusK_split`.
   in the inexact GMRES.
 - `maxiter::Int` (default: `100`): Maximal number of iterations to use in
   the inexact GMRES.
+- `mixing::Mixing` (default: `scfres.mixing`): Mixing (preconditioning) to use in
+  the GMRES iterations.
 
 ## Keyword arguments (Expert level)
 - `s::Int` (default: `100`): Initial guess for the smallest singular value
@@ -68,6 +70,7 @@ Options to pass to the response solver function such as `solve_ΩplusK_split`.
     tol::Union{Nothing,Float64} = nothing
     krylovdim::Int = 20
     s::Float64 = 100.0
+    mixing::Union{Nothing,Mixing} = nothing
 end
 
 """
