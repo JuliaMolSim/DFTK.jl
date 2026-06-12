@@ -267,7 +267,7 @@ Input parameters:
                                     eigenvalues, δHextψ;
                                     δtemperature=zero(real(T)),
                                     tol=1e-8, verbose=true,
-                                    mixing=LdosMixing(),
+                                    mixing=SimpleMixing(),
                                     occupation_threshold,
                                     bandtolalg=BandtolBalanced(ham.basis, ψ, occupation; occupation_threshold),
                                     factor_initial=1/10, factor_final=1/10,
@@ -276,6 +276,13 @@ Input parameters:
                                     maxiter=100, krylovdim=20, s=100,
                                     callback=verbose ? OmegaPlusKDefaultCallback() : identity,
                                     kwargs...) where {T}
+    # TODO: mixing=LdosMixing() would be a better default in theory, but does not work
+    #       out of the box, so not done for now; debug why and enable LdosMixing by default
+    if !(mixing isa SimpleMixing || mixing isa KerkerMixing || mixing isa KerkerDosMixing)
+        @warn("solve_ΩplusK_split has only been tested with one of SimpleMixing, " *
+              "KerkerMixing or KerkerDosMixing")
+    end
+
     # Using χ04P = -Ω^-1, E extension operator (2P->4P) and R restriction operator:
     # (Ω+K)^-1 =  Ω^-1 ( 1 -   K   (1 + Ω^-1 K  )^-1    Ω^-1  )
     #          = -χ04P ( 1 -   K   (1 - χ04P K  )^-1   (-χ04P))
@@ -359,10 +366,16 @@ function solve_ΩplusK_split(scfres::NamedTuple, δHextψ; kwargs...)
 end
 
 function solve_ΩplusK_split(scfres::NamedTuple, response::ResponseOptions, δHextψ; kwargs...)
+    if (scfres.mixing isa KerkerMixing || scfres.mixing isa KerkerDosMixing)
+        mixing = scfres.mixing
+    else
+        mixing = SimpleMixing()
+    end
+
     tol = @something response.tol last(scfres.history_Δρ)
     solve_ΩplusK_split(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation,
                        scfres.εF, scfres.eigenvalues, δHextψ;
-                       scfres.occupation_threshold, scfres.mixing,
+                       scfres.occupation_threshold, mixing,
                        bandtolalg=BandtolBalanced(scfres), tol,
                        response.verbose, response.krylovdim, response.s,
                        kwargs...)
