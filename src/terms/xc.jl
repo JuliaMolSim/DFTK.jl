@@ -36,13 +36,17 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     ρcore = nothing
     if xc.use_nlcc && any(has_core_density, basis.model.atoms)
         ρcore = ρ_from_total(basis, atomic_total_density(basis, CoreDensity()))
-        minimum(ρcore) < -sqrt(eps(T)) && @warn("Negative ρcore detected: $(minimum(ρcore))")
+        if mpi_master(basis.comm_kpts)
+            minimum(ρcore) < -sqrt(eps(T)) && @warn("Negative ρcore detected: $(minimum(ρcore))")
+        end
     end
     τcore = nothing
     if (   xc.use_nlcc && any(needs_τ, xc.functionals)
         && any(has_core_kinetic_energy_density, basis.model.atoms))
         τcore = ρ_from_total(basis, atomic_total_density(basis, CoreKineticEnergyDensity()))
-        minimum(τcore) < -sqrt(eps(T)) && @warn("Negative τcore detected: $(minimum(τcore))")
+        if mpi_master(basis.comm_kpts)
+            minimum(τcore) < -sqrt(eps(T)) && @warn("Negative τcore detected: $(minimum(τcore))")
+        end
     end
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
@@ -286,7 +290,7 @@ energy. Then the potential Vxc is defined by
     δEtot = ∫ Vρ δρ + Vσ δσ + Vτ δτ + Vl δΔρ
           = 2 ∫ Vρ ϕᵢ δϕᵢ + 4 ∫ Vσ ∇ρ ⋅ ∇(ϕᵢ δϕᵢ) +  ∫ Vτ ∇ϕᵢ ⋅ ∇δϕᵢ   + 2 ∫   Vl Δ(ϕᵢ δϕᵢ)
           = 2 ∫ Vρ ϕᵢ δϕᵢ - 4 ∫ div(Vσ ∇ρ) ϕᵢ δϕᵢ -  ∫ div(Vτ ∇ϕᵢ) δϕᵢ + 2 ∫ Δ(Vl)  ϕᵢ δϕᵢ
-where we performed an integration by parts in the last tho equations
+where we performed an integration by parts in the last two equations
 (boundary terms drop by periodicity). For GGA functionals we identify
     Vxc = Vρ - 2 div(Vσ ∇ρ),
 see also Richard Martin, Electronic structure, p. 158. For meta-GGAs an extra term ΔVl appears
@@ -409,7 +413,7 @@ function _check_negative_bonding_indicator_α(densities::LibxcDensities{T}) wher
                        .- densities.σ_real[DftFunctionals.spinindex_σ(iσ, iσ), :, :, :])
             any(α_check .<= -sqrt(eps(T)))
         end
-        if has_negative_α
+        if has_negative_α && mpi_master(densities.basis.comm_kpts)
             @warn "Exchange-correlation term: the kinetic energy density τ is smaller " *
                   "than the von Weizsäcker kinetic energy density τ_W somewhere. " *
                   "This can lead to unphysical results. " *
