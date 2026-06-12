@@ -249,11 +249,19 @@ Overview of parameters:
         #       in Δτ; this may change in the future.
         Pinv_Δρ, Pinv_Δτ = mix_density(mixing, basis, Δρ, Δτ; info_next...)
         ρnext = ρin .+ T(damping) .* Pinv_Δρ
-        τnext = isnothing(τin) ? nothing : τin .+ T(damping) .* Pinv_Δτ
+        if !isnothing(τin)
+            # TODO: Maybe actually only put the difference between τ and τW(ρ)
+            #       to the preconditioner and in this way disentangle the logic here ?
+            τW(ρ) = von_weizsaecker_kinetic_energy_density(basis, ρ)
+            ΔτW = τW(ρin) + T(damping) * (τW(ρ) - τW(ρin))
+            τnext = τW(ρnext) + τin + T(damping) .* Pinv_Δτ - ΔτW
+        else
+            τnext = nothing
+        end
 
         converged = n_iter ≥ miniter && is_converged(info_next)
         converged = mpi_bcast(converged, 0, basis.comm_kpts)
-        info_next = merge(info_next, (; converged))
+        info_next = merge(info_next, (; converged, τnext, ρnext))
 
         timedout  = mpi_bcast(Dates.now() ≥ timeout_date, basis.comm_kpts)
         info_next = merge(info_next, (; timedout))
