@@ -214,7 +214,7 @@ end
 
 # δH is the perturbation of the local potential due to a position displacement e^{iq·r} of
 # the α coordinate of atom s.
-function compute_δHψ_αs(::TermAtomicLocal, basis::PlaneWaveBasis, ψ, α, s, q)
+function compute_δHψ_αs(::TermAtomicLocal, basis::PlaneWaveBasis, ψ, α, s, q; kwargs...)
     δV_αs = similar(ψ[1], basis.fft_size..., basis.model.n_spin_components)
     # Perturbation of the local potential with respect to a displacement on the direction α
     # of the atom s. All spin components get the same.
