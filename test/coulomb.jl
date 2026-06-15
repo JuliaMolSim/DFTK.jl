@@ -101,14 +101,12 @@ end
         PlaneWaveBasis(model; Ecut=5, kgrid=(1, 1, 1))
     end
     basis_Ga = let  # orthorhombic
-        # ga = all_testcases.gallium_orthorhombic
-        ga = gallium_orthorhombic
+        ga = all_testcases.gallium_orthorhombic
         model = model_DFT(ga.lattice, ga.atoms, ga.positions; functionals=PBE())
         PlaneWaveBasis(model; Ecut=5, kgrid=(1, 1, 1))
     end
     basis_Sb = let  # rhombohedral
-        # sb = all_testcases.antimony_rhombohedral
-        sb = antimony_rhombohedral
+        sb = all_testcases.antimony_rhombohedral
         model = model_DFT(sb.lattice, sb.atoms, sb.positions; functionals=PBE())
         PlaneWaveBasis(model; Ecut=5, kgrid=(1, 1, 1))
     end
@@ -123,6 +121,9 @@ end
     end
 
     @testset "WignerSeitzTruncatedCoulomb" begin
+        # TODO: These tests are not super useful, they mainly enable refactoring; they
+        #       should really be replaced by tests of properties of WignerSeitzTruncatedCoulomb
+        #       against SphericallyTruncatedCoulomb, for example.
         k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis_Pt)
         @test k_wstrunc[1:5] ≈ [289.8199039694483, 39.805749013785956, 5.580324780990978,
                                 4.320510620666685, 1.71839014451522]
@@ -136,8 +137,8 @@ end
                                 1.6670099917149919, 1.6670099917149919] atol=1e-6
 
         k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis_illcond)
-        @test k_wstrunc[1:5] ≈ [0.788755184530642, 0.18261664078510959, 0.18261664078510959,
-                                0.46749738905001237, 0.1770357973746021] atol=1e-6
+        @test k_wstrunc[1:5] ≈ [0.6835202703428708, 0.10574224010892719, 0.10574224010892719,
+                                0.363208874652315, 0.10081120609383883] atol=1e-6
     end
 end
 
