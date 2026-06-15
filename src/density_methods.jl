@@ -163,9 +163,9 @@ function atomic_density_superposition(basis::PlaneWaveBasis{T},
 
     # Pre-allocation of large arrays for GPU efficiency
     Gs = G_vectors(basis)
-    ρ = to_device(basis.architecture, zeros(Complex{T}, length(Gs)))
-    ρ_tmp = similar(ρ)
     indices = to_device(basis.architecture, collect(1:length(Gs)))
+    ρ = zeros_like(indices, Complex{T})
+    ρ_tmp = similar(ρ)
 
     for (igroup, group) in enumerate(basis.model.atom_groups)
         for iatom in group
@@ -235,8 +235,11 @@ end
 
 """Gaussian valence charge density using Abinit's coefficient table, in Fourier space."""
 function atomic_density(element::Element, Gnorms::AbstractVector, ::ValenceDensityGaussian)
+    charge = charge_ionic(element)
+    decay_length = atom_decay_length(element)
     map(Gnorms) do Gnorm
-        charge_ionic(element) * exp(-(Gnorm * atom_decay_length(element))^2)
+        # Note: cannot pass element to GPU kernel, because not isbit
+        charge * exp(-(Gnorm * decay_length)^2)
     end
 end
 function atomic_density(element::Element, Gnorms::AbstractVector, ::ValenceDensityAuto)
