@@ -1,8 +1,9 @@
 @testitem "Reference energy tests of Coulomb kernels" tags=[:exx,:dont_test_mpi] setup=[TestCases] begin
     using DFTK
     using DFTK: exx_energy_only, compute_kernel_fourier
-    using .TestCases: silicon
+    using FastGaussQuadrature
     using LinearAlgebra
+    using .TestCases: silicon
 
     # TODO: This is a bad test, better test properties, see details at the end of file
 
@@ -90,8 +91,9 @@ end
         =# tags=[:exx,:dont_test_mpi] setup=[TestCases] begin
     using DFTK
     using DFTK: compute_kernel_fourier
-    using .TestCases: all_testcases
+    using FastGaussQuadrature
     using LinearAlgebra
+    using .TestCases: all_testcases
 
     basis_Pt = let  # hexagonal
         pt = all_testcases.platinum_hcp
