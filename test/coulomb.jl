@@ -1,4 +1,4 @@
-@testitem "Reference tests of Coulomb-like kernels" tags=[:exx,:dont_test_mpi] setup=[TestCases] begin
+@testitem "Reference energy tests of Coulomb kernels" tags=[:exx,:dont_test_mpi] setup=[TestCases] begin
     using DFTK
     using DFTK: exx_energy_only, compute_kernel_fourier
     using .TestCases: silicon
@@ -83,6 +83,59 @@
         E_voxavg = exx_energy_only(basis, kpt, k_voxavg, ψk_real, occk)
         E_ref = -2.249032672407079
         @test abs(E_ref - E_voxavg) < 1e-6
+    end
+end
+
+@testitem "Reference kernel tests of Coulomb kernels (non-cubic lattices)" #=
+        =# tags=[:exx,:dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using DFTK: compute_kernel_fourier
+    using .TestCases: all_testcases
+    using LinearAlgebra
+
+    basis_Pt = let  # hexagonal
+        pt = all_testcases.platinum_hcp
+        model = model_DFT(pt.lattice, pt.atoms, pt.positions; functionals=PBE())
+        PlaneWaveBasis(model; Ecut=5, kgrid=(1, 1, 1))
+    end
+    basis_Ga = let  # orthorhombic
+        # ga = all_testcases.gallium_orthorhombic
+        ga = gallium_orthorhombic
+        model = model_DFT(ga.lattice, ga.atoms, ga.positions; functionals=PBE())
+        PlaneWaveBasis(model; Ecut=5, kgrid=(1, 1, 1))
+    end
+    basis_Sb = let  # rhombohedral
+        # sb = all_testcases.antimony_rhombohedral
+        sb = antimony_rhombohedral
+        model = model_DFT(sb.lattice, sb.atoms, sb.positions; functionals=PBE())
+        PlaneWaveBasis(model; Ecut=5, kgrid=(1, 1, 1))
+    end
+    basis_illcond = let  # Needle-like and very ill-conditioned lattice
+        illconditioned = Float64[1.0 1.0 0.0
+                                 1.0 1.1 0.0
+                                 0.0 0.0 6.0]
+        silicon = all_testcases.silicon
+        model = model_DFT(illconditioned, silicon.atoms, silicon.positions; functionals=PBE())
+        PlaneWaveBasis(model; Ecut=50, kgrid=(1, 1, 1))
+        # Ecut=50 is ok because the lattice is ill-conditioned
+    end
+
+    @testset "WignerSeitzTruncatedCoulomb" begin
+        k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis_Pt)
+        @test k_wstrunc[1:5] ≈ [289.8199039694483, 39.805749013785956, 5.580324780990978,
+                                4.320510620666685, 1.71839014451522]
+
+        k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis_Ga)
+        @test k_wstrunc[1:5] ≈ [133.48675852141807, 12.54391563903425, 1.0201128711380307,
+                                1.0201128711380307, 12.54391563903425]
+
+        k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis_Sb)
+        @test k_wstrunc[1:5] ≈ [133.5869934680494, 17.875585010939407, 3.0560733842605785,
+                                1.6670099917149919, 1.6670099917149919] atol=1e-6
+
+        k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis_illcond)
+        @test k_wstrunc[1:5] ≈ [0.788755184530642, 0.18261664078510959, 0.18261664078510959,
+                                0.46749738905001237, 0.1770357973746021] atol=1e-6
     end
 end
 
