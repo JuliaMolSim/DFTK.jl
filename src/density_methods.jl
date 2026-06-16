@@ -163,9 +163,9 @@ function atomic_density_superposition(basis::PlaneWaveBasis{T},
 
     # Pre-allocation of large arrays for GPU efficiency
     Gs = G_vectors(basis)
-    ρ = to_device(basis.architecture, zeros(Complex{T}, length(Gs)))
-    ρ_tmp = similar(ρ)
     indices = to_device(basis.architecture, collect(1:length(Gs)))
+    ρ = zeros_like(indices, Complex{T})
+    ρ_tmp = similar(ρ)
 
     for (igroup, group) in enumerate(basis.model.atom_groups)
         for iatom in group
@@ -184,8 +184,7 @@ end
 Returns the form factors at unique values of |G + q| (in Cartesian coordinates).
 Additionally, returns a mapping from any G index to the corresponding entry in the form_factors array.
 """
-function atomic_density_form_factors(basis::PlaneWaveBasis{T},
-                                     method::AtomicDensity ) where {T<:Real}
+function atomic_density_form_factors(basis::PlaneWaveBasis{T}, method::AtomicDensity) where {T<:Real}
     G_cart = to_cpu(G_vectors_cart(basis))
 
     iG2ifnorm_cpu = zeros(Int, length(G_cart))
@@ -194,48 +193,93 @@ function atomic_density_form_factors(basis::PlaneWaveBasis{T},
         p = norm(G)
         iG2ifnorm_cpu[iG] = get!(norm_indices, p, length(norm_indices) + 1)
     end
+    iG2ifnorm = to_device(basis.architecture, iG2ifnorm_cpu)
 
-    form_factors_cpu = zeros(T, length(norm_indices), length(basis.model.atom_groups))
-    for (p, ifnorm) in norm_indices
-        for (igroup, group) in enumerate(basis.model.atom_groups)
-            element = basis.model.atoms[first(group)]
-            form_factors_cpu[ifnorm, igroup] = atomic_density(element, p, method)
-        end
+    ni_pairs = collect(pairs(norm_indices))
+    ps = to_device(basis.architecture, first.(ni_pairs))
+    indices = to_device(basis.architecture, last.(ni_pairs))
+
+    form_factors = similar(ps, length(norm_indices), length(basis.model.atom_groups))
+    for (igroup, group) in enumerate(basis.model.atom_groups)
+        element = basis.model.atoms[first(group)]
+        @inbounds form_factors[indices, igroup] .= atomic_density(element, ps, method)
     end
 
-    form_factors = to_device(basis.architecture, form_factors_cpu)
-    iG2ifnorm = to_device(basis.architecture, iG2ifnorm_cpu)
     (; form_factors, iG2ifnorm)
 end
 
-function atomic_density(element::Element, Gnorm::T,
-                        ::ValenceDensityGaussian)::T where {T <: Real}
-    gaussian_valence_charge_density_fourier(element, Gnorm)
+#
+# Check for presence of certain densities in elements
+#
+
+"""Check presence of model valence density (as an initial guess)."""
+has_valence_density(::Element) = false
+
+"""Check presence of model core charge density (non-linear core correction)."""
+has_core_density(::Element) = false
+
+"""Check presence of model core kinetic energy density (non-linear core correction for τ)."""
+has_core_kinetic_energy_density(::Element) = false
+
+has_core_density(el::ElementPsp)  = has_core_density(el.psp)
+has_core_kinetic_energy_density(el::ElementPsp) = has_core_kinetic_energy_density(el.psp)
+has_valence_density(el::ElementPsp) = has_valence_density(el.psp)
+
+#
+# Atomic density dispatches
+#
+
+function atomic_density(element::Union{Element,<:ElementPsp}, Gnorm::Real, dens::AtomicDensity)
+    first(atomic_density(element, [Gnorm], dens))  # Dispatch to vector version
 end
 
-function atomic_density(element::Element, Gnorm::T,
-                        ::ValenceDensityPseudo)::T where {T <: Real}
-    eval_psp_valence_density_fourier(element.psp, Gnorm)
-end
-
-function atomic_density(element::Element, Gnorm::T,
-                        ::ValenceDensityAuto)::T where {T <: Real}
-    valence_charge_density_fourier(element, Gnorm)
-end
-
-function atomic_density(element::Element, Gnorm::T,
-                        ::CoreDensity)::T where {T <: Real}
-    has_core_density(element) ? core_charge_density_fourier(element, Gnorm) : zero(T)
-end
-
-function atomic_density(element::Element, Gnorm::T,
-                        ::CoreKineticEnergyDensity)::T where {T <: Real}
-    if has_core_kinetic_energy_density(element)
-        eval_psp_core_kinetic_energy_density_fourier(element.psp, Gnorm)
-    else
-        zero(T)
+"""Gaussian valence charge density using Abinit's coefficient table, in Fourier space."""
+function atomic_density(element::Element, Gnorms::AbstractVector, ::ValenceDensityGaussian)
+    charge = charge_ionic(element)
+    decay_length = atom_decay_length(element)
+    map(Gnorms) do Gnorm
+        # Note: cannot pass element to GPU kernel, because not isbit
+        charge * exp(-(Gnorm * decay_length)^2)
     end
 end
+function atomic_density(element::Element, Gnorms::AbstractVector, ::ValenceDensityAuto)
+    if has_valence_density(element)
+        atomic_density(element, Gnorms, ValenceDensityPseudo())
+    else
+        atomic_density(element, Gnorms, ValenceDensityGaussian())
+    end
+end
+
+function atomic_density(element::Element, Gnorms::AbstractVector, ::CoreDensity)
+    @assert !has_core_density(element)
+    zeros_like(Gnorms)
+end
+function atomic_density(element::Element, Gnorms::AbstractVector, ::CoreKineticEnergyDensity)
+    @assert !has_core_kinetic_energy_density(element)
+    zeros_like(Gnorms)
+end
+
+function atomic_density(element::ElementPsp, Gnorms::AbstractVector, ::ValenceDensityPseudo)
+    eval_psp_valence_density_fourier(element.psp, Gnorms)
+end
+function atomic_density(element::ElementPsp, Gnorms::AbstractVector, ::CoreDensity)
+    if has_core_density(element)
+        eval_psp_core_density_fourier(element.psp, Gnorms)
+    else
+        zeros_like(Gnorms)
+    end
+end
+function atomic_density(element::ElementPsp, Gnorms::AbstractVector, ::CoreKineticEnergyDensity)
+    if has_core_kinetic_energy_density(element)
+        eval_psp_core_kinetic_energy_density_fourier(element.psp, Gnorms)
+    else
+        zeros_like(Gnorms)
+    end
+end
+
+#
+# Some data we need for the Gaussian densities
+#
 
 # Get the lengthscale of the valence density for an atom with `n_elec_core` core
 # and `n_elec_valence` valence electrons.

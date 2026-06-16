@@ -76,6 +76,7 @@ macro make_psplincomb_call(fn)
         end
     end
 end
+
 @make_psplincomb_call DFTK.eval_psp_local_real
 @make_psplincomb_call DFTK.eval_psp_local_fourier
 @make_psplincomb_call DFTK.eval_psp_valence_density_real
