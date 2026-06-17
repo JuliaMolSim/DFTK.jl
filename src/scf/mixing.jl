@@ -22,15 +22,15 @@ function mix_potential(args...; kwargs...)
     mix_density(args...; kwargs...)
 end
 
-# Mixing in both ρ and τ: For now just fall back to ρ-only mixing
-function mix_density(mixing, basis, Δρ, Δτ::AbstractArray; kwargs...)
+
+# Mixing in the generalised density (essentially an adapted tuple of ρ and τ;
+# see pack_gdensity in densities.jl): For now just fall back to ρ-only mixing
+function mix_gdensity(mixing, basis, ΔD; kwargs...)
+    Δρ, Δτ  = split_gdensity_flat_(basis, ΔD)
     Pinv_Δρ = mix_density(mixing, basis, Δρ; kwargs...)
-    (; ρ=Pinv_Δρ, τ=Δτ)
+    pack_gdensity_flat_(basis, Pinv_Δρ, Δτ)
 end
-function mix_density(mixing, basis, Δρ, ::Nothing; kwargs...)
-    Pinv_Δρ = mix_density(mixing, basis, Δρ; kwargs...)
-    (; ρ=Pinv_Δρ, τ=nothing)
-end
+
 
 @doc raw"""
 Simple mixing: ``J^{-1} ≈ 1``

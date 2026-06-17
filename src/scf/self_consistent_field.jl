@@ -192,7 +192,9 @@ Overview of parameters:
     timeout_date = Dates.now() + maxtime
     seed = seed_task_local_rng!(seed, basis.comm_kpts)
 
-    # We do density mixing in the real representation
+    # We use a "generalised density" representation in the variable D/Din, that is adapted to
+    # linear combinations (such as mixing or Anderson); see split_gdensity and pack_gdensity in
+    # densities.jl for details.
     function fixpoint_map(Din, info)
         (; ψ, occupation, eigenvalues, εF, n_iter, converged, timedout, hubbard_n) = info
         n_iter += 1
@@ -209,15 +211,11 @@ Overview of parameters:
                                  occupation, miniter=1,
                                  tol=determine_diagtol(diagtolalg, info))
         (; ψ, eigenvalues, occupation, εF, ρ, τ) = nextstate
-
-
-        # Make a representation of ρ and τ, that is keeps important properties under linear
-        # combinations, e.g. which does not break the inequality τ ≥ τW(ρ)
         D = pack_gdensity(basis, ρ, τ)
 
         # TODO: Dirty hack. This should be solved more generally and hubbard should be on
-        #       the same footing as τ and ρ; see discussion in
-        #       https://github.com/JuliaMolSim/DFTK.jl/issues/1065
+        #       the same footing as τ and ρ as part of the generalised density;
+        #       see discussion in https://github.com/JuliaMolSim/DFTK.jl/issues/1065
         ihubbard = findfirst(t -> t isa TermHubbard, basis.terms)
         if !isnothing(ihubbard)
             hubbard_n = compute_hubbard_n(basis.terms[ihubbard], basis, ψ, occupation)
@@ -237,7 +235,7 @@ Overview of parameters:
         end
 
         ΔD = D - Din
-        Δρ, Δτ = split_gdensity_flat_(basis, ΔD)  # until state refactor
+        Δρ, Δτ = split_gdensity_flat_(basis, ΔD)
         history_Etot = vcat(info.history_Etot, energies.total)
         history_Δρ   = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
         history_Δτ   = vcat(info.history_Δτ, isnothing(Δτ) ? zero(eltype(Δρ))
@@ -245,11 +243,8 @@ Overview of parameters:
         info_next = merge(info_next, (; energies, history_Etot, history_Δρ, history_Δτ,
                                         n_matvec=info.n_matvec + nextstate.n_matvec))
 
-        # Note: For now (June 2026) mix_density when called with both Δρ and Δτ is an identity
-        #       in Δτ; this may change in the future.
-        Pinv_Δρ, Pinv_Δτ = mix_density(mixing, basis, Δρ, Δτ; info_next...)
-        # TODO: Mix_gdensity
-        Pinv_ΔD = pack_gdensity_flat_(basis, Pinv_Δρ, Pinv_Δτ)
+        # Mix generalised density (i.e. both ρ and τ)
+        Pinv_ΔD = mix_gdensity(mixing, basis, ΔD; info_next...)
         Dnext = Din .+ T(damping) .* Pinv_ΔD
 
         converged = mpi_bcast(n_iter ≥ miniter && is_converged(info_next), basis.comm_kpts)
