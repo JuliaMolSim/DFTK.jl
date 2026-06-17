@@ -257,17 +257,14 @@ Overview of parameters:
         else
             τnext = nothing
         end
+        Dnext = pack_density(basis, ρnext, τnext)
 
-        converged = n_iter ≥ miniter && is_converged(info_next)
-        converged = mpi_bcast(converged, 0, basis.comm_kpts)
-        info_next = merge(info_next, (; converged, τnext, ρnext))
-
-        timedout  = mpi_bcast(Dates.now() ≥ timeout_date, basis.comm_kpts)
-        info_next = merge(info_next, (; timedout))
-
+        converged = mpi_bcast(n_iter ≥ miniter && is_converged(info_next), basis.comm_kpts)
+        timedout  = mpi_bcast(Dates.now() ≥ timeout_date,                  basis.comm_kpts)
+        info_next = merge(info_next, (; converged, timedout))
         callback(info_next)
 
-        pack_density(basis, ρnext, τnext), info_next
+        Dnext, info_next
     end
 
     # Note: it is assumed that, upon entry, the input density ρ is numerically identical
