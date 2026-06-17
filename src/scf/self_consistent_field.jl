@@ -15,7 +15,7 @@ function kwargs_scf_checkpoints(basis::AbstractBasis;
                                 callback=ScfDefaultCallback(),
                                 diagtolalg::AdaptiveDiagtol=AdaptiveDiagtol(),
                                 ρ=guess_density(basis),
-                                τ=any(needs_τ, basis.terms) ? zero(ρ) : nothing,
+                                τ=guess_kinetic_energy_density(basis, ρ),
                                 hubbard_n=nothing, ψ=nothing, occupation=nothing,
                                 save_ψ=false, kwargs...)
     if isfile(filename)
@@ -46,10 +46,31 @@ function kwargs_scf_checkpoints(basis::AbstractBasis;
 end
 
 
-# Struct to store some options for forward-diff / reverse-diff response
-# (unused in primal calculations)
+"""
+Options to pass to the response solver function such as `solve_ΩplusK_split`.
+
+## Keyword arguments
+- `verbose::Bool` (default: `true`): Be more verbose and display progress
+- `tol::Float64` (default: `last(scfres.history_Δρ)`: The global tolerance
+  to which to solve the response problem.
+- `krylovdim::Int` (default: `20`): Default Krylov subspace dimension to use
+  in the inexact GMRES.
+- `maxiter::Int` (default: `100`): Maximal number of iterations to use in
+  the inexact GMRES.
+- `mixing::Mixing` (default: `scfres.mixing`): Mixing (preconditioning) to use in
+  the GMRES iterations.
+
+## Keyword arguments (Expert level)
+- `s::Int` (default: `100`): Initial guess for the smallest singular value
+  of the upper Hessenberg matrix in the ineact GMRES. Lowering this can sometimes
+  improve solver efficiency.
+"""
 @kwdef struct ResponseOptions
-    verbose = true
+    verbose::Bool = true
+    tol::Union{Nothing,Float64} = nothing
+    krylovdim::Int = 20
+    s::Float64 = 100.0
+    mixing::Union{Nothing,Mixing} = nothing
 end
 
 """
@@ -95,8 +116,14 @@ function next_density(ham::Hamiltonian,
               "`nbandsalg=AdaptiveBands(model; n_bands_converge=$(n_bands_converge + 3)`)")
     end
 
-    ρout = compute_density(ham.basis, eigres.X, occupation; nbandsalg.occupation_threshold)
-    (; ψ=eigres.X, eigenvalues=eigres.λ, occupation, εF, ρout, diagonalization=eigres,
+    ρ = compute_density(ham.basis, eigres.X, occupation; nbandsalg.occupation_threshold)
+    if any(needs_τ, ham.basis.terms)
+        τ = compute_kinetic_energy_density(ham.basis, eigres.X, occupation)
+    else
+        τ = nothing
+    end
+
+    (; ψ=eigres.X, eigenvalues=eigres.λ, occupation, εF, ρ, τ, diagonalization=eigres,
      n_bands_converge, nbandsalg.occupation_threshold,
      n_matvec=mpi_sum(eigres.n_matvec, ham.basis.comm_kpts))
 end
@@ -135,7 +162,7 @@ Overview of parameters:
 @timing function self_consistent_field(
     basis::PlaneWaveBasis{T};
     ρ=guess_density(basis),
-    τ=any(needs_τ, basis.terms) ? zero(ρ) : nothing,
+    τ=guess_kinetic_energy_density(basis, ρ),
     hubbard_n=nothing,
     ψ=nothing,
     occupation=nothing,
@@ -167,95 +194,103 @@ Overview of parameters:
 
     # We do density mixing in the real representation
     # TODO support other mixing types
-    function fixpoint_map(ρin, info)
-        (; ψ, occupation, eigenvalues, εF, n_iter, converged, timedout, τ, hubbard_n) = info
+    function fixpoint_map(Din, info)
+        (; ψ, occupation, eigenvalues, εF, n_iter, converged, timedout, hubbard_n) = info
         n_iter += 1
+        (ρin, τin) = unpack_density(basis, Din)
 
         # Note that ρin is not the density of ψ, and the eigenvalues
         # are not the self-consistent ones, which makes this energy non-variational
         energies, ham = energy_hamiltonian(basis, ψ, occupation;
-                                           exxalg, ρ=ρin, τ, hubbard_n, eigenvalues, εF, 
+                                           exxalg, ρ=ρin, τ=τin, hubbard_n, eigenvalues, εF, 
                                            nbandsalg.occupation_threshold)
 
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
                                  occupation, miniter=1,
                                  tol=determine_diagtol(diagtolalg, info))
-        (; ψ, eigenvalues, occupation, εF, ρout) = nextstate
-        Δρ = ρout - ρin
+        (; ψ, eigenvalues, occupation, εF, ρ, τ) = nextstate
 
-        # TODO Dirty hack. This should be solved more generally and τ and ρ should be put
-        #      on the same footing. In the future such principles will also apply
-        #      to other quantities. See discussion in
-        #      https://github.com/JuliaMolSim/DFTK.jl/issues/1065
-        if any(needs_τ, basis.terms)
-            τ = compute_kinetic_energy_density(basis, ψ, occupation)
-        end
+        # TODO: Dirty hack. This should be solved more generally and hubbard should be on
+        #       the same footing as τ and ρ; see discussion in
+        #       https://github.com/JuliaMolSim/DFTK.jl/issues/1065
         ihubbard = findfirst(t -> t isa TermHubbard, basis.terms)
         if !isnothing(ihubbard)
             hubbard_n = compute_hubbard_n(basis.terms[ihubbard], basis, ψ, occupation)
         end
 
         # Update info with results gathered so far
-        info_next = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
-                       ρin, τ, hubbard_n, α=damping, n_iter, nbandsalg.occupation_threshold,
+        info_next = (; ham, basis, ρin, τin, converged, stage=:iterate, algorithm="SCF",
+                       hubbard_n, α=damping, n_iter, nbandsalg.occupation_threshold,
                        seed, runtime_ns=time_ns() - start_ns, nextstate...,
                        diagonalization=[nextstate.diagonalization])
 
         # Compute the energy of the new state
         if compute_consistent_energies
-            (; energies) = energy(basis, ψ, occupation; 
-                                  exxalg, ρ=ρout, τ, hubbard_n, eigenvalues, εF,
+            (; energies) = energy(basis, ψ, occupation;
+                                  exxalg, ρ, τ, hubbard_n, eigenvalues, εF,
                                   nbandsalg.occupation_threshold)
         end
-        history_Etot = vcat(info.history_Etot, energies.total)
-        history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
-        n_matvec = info.n_matvec + nextstate.n_matvec
-        info_next = merge(info_next, (; energies, history_Etot, history_Δρ, n_matvec))
 
-        # Apply mixing and pass it the full info as kwargs
-        ρnext = ρin .+ T(damping) .* mix_density(mixing, basis, Δρ; info_next...)
+        Δρ = ρ - ρin
+        history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
+        if !isnothing(τ) && !isnothing(τin)
+            Δτ = τ - τin
+            history_Δτ = vcat(info.history_Δτ, norm(Δτ) * sqrt(basis.dvol))
+        else
+            Δτ = nothing
+            history_Δτ = vcat(info.history_Δτ, zero(eltype(Δρ)))
+        end
+        history_Etot = vcat(info.history_Etot, energies.total)
+        n_matvec = info.n_matvec + nextstate.n_matvec
+        info_next = merge(info_next, (; energies, history_Etot, history_Δρ, history_Δτ, n_matvec))
+
+        # Note: For now (June 2026) mix_density when called with both Δρ and Δτ is an identity
+        #       in Δτ; this may change in the future.
+        Pinv_Δρ, Pinv_Δτ = mix_density(mixing, basis, Δρ, Δτ; info_next...)
+        ρnext = ρin .+ T(damping) .* Pinv_Δρ
+        τnext = isnothing(τin) ? nothing : τin .+ T(damping) .* Pinv_Δτ
 
         converged = n_iter ≥ miniter && is_converged(info_next)
         converged = mpi_bcast(converged, 0, basis.comm_kpts)
         info_next = merge(info_next, (; converged))
 
-        timedout = mpi_bcast(Dates.now() ≥ timeout_date, basis.comm_kpts)
+        timedout  = mpi_bcast(Dates.now() ≥ timeout_date, basis.comm_kpts)
         info_next = merge(info_next, (; timedout))
 
         callback(info_next)
 
-        ρnext, info_next
+        pack_density(ρnext, τnext), info_next
     end
 
     # Note: it is assumed that, upon entry, the input density ρ is numerically identical
     #       across all MPI ranks. If not, unexpected behavior may occur. It is the caller's
     #       responsibility to ensure this is the case.
 
-    info_init = (; ρin=ρ, τ, hubbard_n, ψ, occupation, eigenvalues, εF=nothing,
+    info_init = (; ρ, τ, hubbard_n, ψ, occupation, eigenvalues, εF=nothing,
                    n_iter=0, n_matvec=0, timedout=false, converged=false,
-                   history_Etot=T[], history_Δρ=T[])
+                   history_Etot=T[], history_Δρ=T[], history_Δτ=T[])
 
     # Convergence is flagged by is_converged inside the fixpoint_map.
-    _, info = solver(fixpoint_map, ρ, info_init; maxiter)
+    _, info = solver(fixpoint_map, pack_density(ρ, τ), info_init; maxiter)
 
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
-    # ψ is consistent with ρout, so we return that. We also perform a last energy computation
+    # ψ is consistent with ρ, so we return that. We also perform a last energy computation
     # to return a correct variational energy and to build a Hamiltonian without any compression
     # applied to the exchange operator.
-    (; ρin, ρout, τ, hubbard_n, ψ, occupation, eigenvalues, εF, converged) = info
+    (; ρ, τ, hubbard_n, ψ, occupation, eigenvalues, εF, converged) = info
     energies, ham = energy_hamiltonian(basis, ψ, occupation; 
                                        exxalg=VanillaExx(),
-                                       ρ=ρout, τ, hubbard_n, eigenvalues, εF, 
+                                       ρ, τ, hubbard_n, eigenvalues, εF, 
                                        nbandsalg.occupation_threshold)
 
     # Callback is run one last time with final state to allow callback to clean up
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
-                ρ=ρout, τ, hubbard_n, α=damping, eigenvalues, occupation, εF,
+                ρ, τ, hubbard_n, α=damping, eigenvalues, occupation, εF,
                 info.n_bands_converge, info.n_iter, info.n_matvec, ψ, info.diagonalization,
-                stage=:finalize, info.history_Δρ, info.history_Etot, info.timedout, mixing,
-                is_converged, nbandsalg, fermialg, diagtolalg, solver, eigensolver,
-                seed, runtime_ns=time_ns() - start_ns, algorithm="SCF")
+                stage=:finalize, info.history_Δρ, info.history_Δτ, info.history_Etot,
+                info.timedout, is_converged, nbandsalg, fermialg, diagtolalg, solver,
+                eigensolver, mixing, seed, runtime_ns=time_ns() - start_ns, algorithm="SCF")
     callback(scfres)
     scfres
 end

@@ -7,6 +7,13 @@ using AtomsBase
 # Very likely `species`, and `charge_ionic` need to be defined as well.
 abstract type Element end
 
+"""Return the local potential for a passed coordinate or vector of coordinates in frequency space"""
+function local_potential_fourier end
+
+"""Return the local potential for a passed coordinate or vector of coordinates in real space"""
+function local_potential_real end
+
+
 """Return the chemical species corresponding to an element"""
 AtomsBase.species(::Element) = ChemicalSpecies(0)  # dummy atom
 
@@ -31,40 +38,23 @@ n_elec_core(el::Element) = charge_nuclear(el) - charge_ionic(el)
 """Return the pseudopotential family for the element if this is known, else `nothing`"""
 pseudofamily(::Element) = nothing
 
-"""Check presence of model core charge density (non-linear core correction)."""
-has_core_density(::Element) = false
-
-"""Check presence of model core kinetic energy density (non-linear core correction for τ)."""
-has_core_kinetic_energy_density(::Element) = false
-
 # The preceding functions are fallback implementations that should be altered as needed.
 
 eval_psp_energy_correction(T, ::Element) = zero(T)
-eval_psp_energy_correction(psp::Element) = eval_psp_energy_correction(Float64, psp)
+eval_psp_energy_correction(el::Element) = eval_psp_energy_correction(Float64, el)
 
 # Fall back to the Gaussian table for Elements without pseudopotentials
-function valence_charge_density_fourier(el::Element, p::T)::T where {T <: Real}
-    gaussian_valence_charge_density_fourier(el, p)
+
+# Vector to single-argument fallbacks in the Elements
+for fn in [:local_potential_fourier, :local_potential_real]
+    @eval begin
+        function DFTK.$fn(el::Element, arg::AbstractVector{<:Real})
+            arch = architecture(arg)
+            to_device(arch, map(p -> $fn(el, p), to_cpu(arg)))
+        end
+    end
 end
 
-"""Gaussian valence charge density using Abinit's coefficient table, in Fourier space."""
-function gaussian_valence_charge_density_fourier(el::Element, p::T)::T where {T <: Real}
-    charge_ionic(el) * exp(-(p * atom_decay_length(el))^2)
-end
-
-function core_charge_density_fourier(::Element, ::T)::T where {T <: Real}
-    error("Abstract elements do not necesesarily provide core charge density.")
-end
-
-function core_kinetic_energy_density_fourier(::Element, ::T)::T where {T <: Real}
-    error("Abstract elements do not necesesarily provide core kinetic energy density.")
-end
-
-# Generic vectorized version of local_potential_fourier, GPU-safe
-function local_potential_fourier(el::Element, ps::AbstractVector{T}) where {T <: Real}
-    arch = architecture(ps)
-    to_device(arch, map(p -> local_potential_fourier(el, p), to_cpu(ps)))
-end
 
 Base.show(io::IO, el::Element) = print(io, "$(typeof(el))(:$(species(el)))")
 
@@ -171,30 +161,13 @@ end
 AtomsBase.mass(el::ElementPsp)    = el.mass
 AtomsBase.species(el::ElementPsp) = el.species
 charge_ionic(el::ElementPsp)      = charge_ionic(el.psp)
-has_core_density(el::ElementPsp)  = has_core_density(el.psp)
-has_core_kinetic_energy_density(el::ElementPsp) = has_core_kinetic_energy_density(el.psp)
 eval_psp_energy_correction(T, el::ElementPsp) = eval_psp_energy_correction(T, el.psp)
 
-function local_potential_fourier(el::ElementPsp, p::T) where {T <: Real}
-    eval_psp_local_fourier(el.psp, p)
-end
-# Vectorized version of the above
-function local_potential_fourier(el::ElementPsp, ps::AbstractVector{T}) where {T <: Real}
-    eval_psp_local_fourier(el.psp, ps)
-end
+# Function forwarding for ElementPsp (for each case both versions are needed to resolve ambiguities)
+local_potential_fourier(el::ElementPsp, p::Real) = eval_psp_local_fourier(el.psp, p)
+local_potential_fourier(el::ElementPsp, p::AbstractVector{<:Real}) = eval_psp_local_fourier(el.psp, p)
 local_potential_real(el::ElementPsp, r::Real) = eval_psp_local_real(el.psp, r)
-
-function valence_charge_density_fourier(el::ElementPsp, p::T) where {T <: Real}
-    if has_valence_density(el.psp)
-        eval_psp_valence_density_fourier(el.psp, p)
-    else
-        gaussian_valence_charge_density_fourier(el, p)
-    end
-end
-function core_charge_density_fourier(el::ElementPsp, p::T) where {T <: Real}
-    eval_psp_core_density_fourier(el.psp, p)
-end
-
+local_potential_real(el::ElementPsp, r::AbstractVector{<:Real}) = eval_psp_local_real(el.psp, r)
 
 #
 # ElementCohenBergstresser
@@ -264,7 +237,6 @@ function local_potential_fourier(el::ElementCohenBergstresser, p::T) where {T <:
 end
 # TODO Strictly speaking needs a eval_psp_energy_correction
 
-
 #
 # ElementGaussian
 #
@@ -289,7 +261,7 @@ function ElementGaussian(α, L; symbol=:X, mass=nothing)
     T = promote_type(typeof(α), typeof(L))
     ElementGaussian{T}(α, L, symbol, mass)
 end
-function local_potential_real(el::ElementGaussian, r)
+function local_potential_real(el::ElementGaussian, r::Real)
     -el.α / (√(2π) * el.L) * exp(- (r / el.L)^2 / 2)
 end
 function local_potential_fourier(el::ElementGaussian, p::Real)

@@ -122,7 +122,7 @@ end
         @testset "JSON ($label)" begin
             mktempdir() do tmpdir
                 dumpfile = mpi_bcast(joinpath(tmpdir, "scfres.json"), 0, basis.comm_kpts)
-                save_scfres(dumpfile, scfres)
+                save_scfres(dumpfile, scfres; save_ρ=true)
                 @test isfile(dumpfile)
                 data = open(JSON3.read, dumpfile)  # Get data back as dict
                 DictAgreement.test_agreement_scfres(scfres, data;

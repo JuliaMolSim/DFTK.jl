@@ -49,7 +49,9 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     # There can always be small negative densities, e.g. due to numerical fluctuations
     # in a vacuum region, so put some tolerance even if occupation_threshold == 0
     negtol = max(sqrt(eps(T)), 10occupation_threshold)
-    minimum(ρ) < -negtol && @warn("Negative ρ detected", min_ρ=minimum(ρ))
+    if mpi_master(basis.comm_kpts)
+        minimum(ρ) < -negtol && @warn("Negative ρ detected", min_ρ=minimum(ρ))
+    end
 
     ρ
 end
@@ -91,6 +93,8 @@ end
         # use unnormalized plans for extra speed, normalize at the end
         ifft_normalization = basis.fft_grid.ifft_normalization
 
+        # For the (non-trivial) explanation of why we don't take real parts when q!=0,
+        # see comment in phonon.jl
         storage.δρ[:, :, :, kpt.spin] .+= ifft_normalization^2 .* real_qzero.(
             2 .* occupation[ik][n]  .* basis.kweights[ik] .* conj.(storage.ψnk_real)
                                                           .* storage.δψnk_real
@@ -120,6 +124,25 @@ end
     symmetrize_ρ(basis, τ; do_lowpass=false)
 end
 
+"""
+Von Weizsäcker kinetic energy density, which is exact for one-electron systems
+(i.e. if only one spin channels is occupied or both spin channels singly occupied).
+"""
+@timing function von_weizsaecker_kinetic_energy_density(basis::PlaneWaveBasis, ρ::AbstractArray{T}) where {T}
+    ρ_fourier = fft(basis, ρ)
+    τ = zero(ρ)
+    G = [map(G -> G[α], G_vectors_cart(basis)) for α = 1:3]
+    for σ = 1:basis.model.n_spin_components, α = 1:3
+        ∇ρ_ασ = ifft(basis, im .* G[α] .* @view ρ_fourier[:, :, :, σ])
+        τ[:, :, :, σ] += abs2.(∇ρ_ασ)
+    end
+    τ = τ ./ (8ρ)
+    τ[abs.(ρ) .< eps(T)] .= zero(T)
+
+    τ
+end
+
+
 total_density(ρ) = dropdims(sum(ρ; dims=4); dims=4)
 @views function spin_density(ρ)
     if size(ρ, 4) == 2
@@ -130,7 +153,7 @@ total_density(ρ) = dropdims(sum(ρ; dims=4); dims=4)
 end
 
 function ρ_from_total_and_spin(ρtot, ρspin=nothing)
-    if ρspin === nothing
+    if isnothing(ρspin)
         # Val used to ensure inferability
         cat(ρtot; dims=Val(4))  # copy for consistency with other case
     else
@@ -146,4 +169,19 @@ function ρ_from_total(basis, ρtot::AbstractArray{T}) where {T}
         ρspin = zeros_like(G_vectors(basis), T, basis.fft_size...)
     end
     ρ_from_total_and_spin(ρtot, ρspin)
+end
+
+# TODO: When we do the state refactor we should think how to deal with this;
+#       probably a ComponentArray or some form of custom struct is reasonable here
+pack_density(ρ::AbstractArray, ::Nothing) = ρ
+pack_density(ρ::AbstractArray, τ::AbstractArray) = cat(ρ, τ; dims=Val(1))
+function unpack_density(basis::PlaneWaveBasis, x::AbstractArray{T, 4}) where {T}
+    @assert size(x, 1) == basis.fft_size[1] || size(x, 1) == 2basis.fft_size[1]
+    if size(x, 1) == 2basis.fft_size[1]
+        ρ = @view x[1:basis.fft_size[1], :, :, :]
+        τ = @view x[basis.fft_size[1]+1:end, :, :, :]
+        (ρ, τ)
+    else
+        (x, nothing)
+    end
 end

@@ -238,14 +238,15 @@ end
         basis_dual::PlaneWaveBasis{<:Dual{Tg,V,N}};
         response=ResponseOptions(),
         kwargs...) where {Tg,V,N}
-    # Note: No guarantees on this interface yet.
+    if any(needs_τ, basis_dual.terms)
+        error("Cannot yet compute SCF derivatives with meta-GGA functionals.")
+    end
 
-    # Primal pass
     basis_primal = construct_value(basis_dual)
     scfres = self_consistent_field(basis_primal; kwargs...)
 
     # Compute explicit density perturbation (including strain) due to normalization
-    ρ_basis = compute_density(basis_dual, scfres.ψ, scfres.occupation)
+    ρ_basis = compute_density(basis_dual, scfres.ψ, scfres.occupation; scfres.occupation_threshold)
 
     # Compute external perturbation (contained in ham_dual)
     Hψ_dual = let
@@ -254,13 +255,13 @@ end
                                       scfres.εF).ham
         ham_dual * scfres.ψ
     end
+
     # Implicit differentiation
     response.verbose && mpi_master(basis_primal.comm_kpts) && println("Solving response problem")
     δresults = ntuple(N) do α
         δHextψ = [ForwardDiff.partials.(δHextψk, α) for δHextψk in Hψ_dual]
         δtemperature = ForwardDiff.partials(basis_dual.model.temperature, α)
-        solve_ΩplusK_split(scfres, δHextψ; δtemperature,
-                           tol=last(scfres.history_Δρ), response.verbose)
+        solve_ΩplusK_split(scfres, response, δHextψ; δtemperature)
     end
 
     # Convert and combine
@@ -282,7 +283,7 @@ end
 
     # For strain, basis_dual contributes an explicit lattice contribution which
     # is not contained in δresults, so we need to recompute ρ here
-    ρ = compute_density(basis_dual, ψ, occupation)
+    ρ = compute_density(basis_dual, ψ, occupation; scfres.occupation_threshold)
 
     # TODO Could add δresults[α].δVind the dual part of the total local potential in ham_dual
     # and in this way return a ham that represents also the total change in Hamiltonian
@@ -297,31 +298,36 @@ end
        response=getfield.(δresults, :info_gmres),
        scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter,
        scfres.n_bands_converge, scfres.n_matvec, scfres.diagonalization, scfres.stage,
-       scfres.history_Δρ, scfres.history_Etot, scfres.timedout, scfres.mixing,
-       scfres.is_converged, scfres.nbandsalg, scfres.fermialg, scfres.diagtolalg,
-       scfres.solver, scfres.eigensolver,
+       scfres.history_Δρ, scfres.history_Δτ, scfres.history_Etot, scfres.timedout,
+       scfres.mixing, scfres.is_converged, scfres.nbandsalg, scfres.fermialg,
+       scfres.diagtolalg, scfres.solver, scfres.eigensolver,
        scfres.seed, scfres.algorithm, scfres.runtime_ns)
 end
 
-function hankel(quadrature, r::AbstractVector, r2_f::AbstractVector, l::Integer, p::TT) where {TT <: ForwardDiff.Dual}
+function hankel(r::AbstractVector, r2_f::AbstractVector, l::Integer, p::TT) where {TT <: ForwardDiff.Dual}
+    quadrature = default_psp_quadrature(r)
+    hankel(quadrature, r, r2_f, l, p)
+end
+
+# For GPU kernels to compile, dynamic function calls must be avoided. Therefore, the quadrature
+# must be known and passed ahead of time, and the Dual type explicitly parametrized.
+function hankel(quadrature, r::AbstractVector, r2_f::AbstractVector, l::Integer, p::Dual{Tg,V,N}) where {Tg,V,N}
     # This custom rule uses two properties of the hankel transform:
     #   d H[f] / dp = 4\pi \int_0^∞ r^2 f(r) [ j_l'(p⋅r)⋅r/p^l - l * j_l(p⋅r)/p^{l+1} ] dr
     # and that
     #   j_l'(x) = l / x * j_l(x) - j_{l+1}(x)
     # giving
     #   d H[f] / dp = -4\pi \int_0^∞ r^2 f(r) j_{l+1}(p⋅r)⋅r/p^l ] dr
-
-    T  = ForwardDiff.valtype(TT)
     pv = ForwardDiff.value(p)
 
     value = hankel(quadrature, r, r2_f, l, pv)
     if iszero(pv)
-        return TT(value, zero(T) * ForwardDiff.partials(p))
+        return Dual{Tg,V,N}(value, zero(V) * ForwardDiff.partials(p))
     end
     derivative = -4T(π) / pv^l * quadrature(r) do i, ri
         r2_f[i] * r[i] * sphericalbesselj_fast(l+1, pv * ri)
     end
-    TT(value, derivative * ForwardDiff.partials(p))
+    Dual{Tg,V,N}(value, derivative * ForwardDiff.partials(p))
 end
 
 # other workarounds
