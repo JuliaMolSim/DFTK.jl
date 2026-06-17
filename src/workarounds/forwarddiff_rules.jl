@@ -324,7 +324,7 @@ function hankel(quadrature, r::AbstractVector, r2_f::AbstractVector, l::Integer,
     if iszero(pv)
         return Dual{Tg,V,N}(value, zero(V) * ForwardDiff.partials(p))
     end
-    derivative = -4T(π) / pv^l * quadrature(r) do i, ri
+    derivative = -4V(π) / pv^l * quadrature(r) do i, ri
         r2_f[i] * r[i] * sphericalbesselj_fast(l+1, pv * ri)
     end
     Dual{Tg,V,N}(value, derivative * ForwardDiff.partials(p))
