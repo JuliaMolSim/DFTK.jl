@@ -234,8 +234,8 @@ function _eval_psp_local_fourier(quadrature, rgrid, vloc, Zion, p::T)::T where {
     # ABINIT uses a more 'pure' Coulomb term with the same asymptotic behavior
     # C(r) = -Z/r; H[-Z/r] = -Z/p^2
     p == 0 && return zero(T)  # Compensating charge background
-    I = quadrature(rgrid) do i, r
-         r * (r * vloc[i] - -Zion * erf(r)) * sphericalbesselj_fast(0, p * r)
+    I = 1/p * quadrature(rgrid) do i, r
+         (r * vloc[i] - -Zion * erf(r)) * sin(p * r)
     end
     4T(π) * (I + -Zion / p^2 * exp(-p^2 / T(4)))
 end

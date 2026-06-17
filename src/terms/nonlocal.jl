@@ -245,7 +245,8 @@ end
 
 """
 Build Fourier transform factors of an atomic function centered at 0 for a given l.
-The function is assumed to be regularized by 1/p^l already.
+The function should return a Hankel transform or equivalent,
+with a division by p^l already included.
 """
 function build_form_factors(fun::Function, l::Int,
                             G_plus_ks::AbstractVector{<:AbstractVector{Vec3{TT}}}) where {TT}

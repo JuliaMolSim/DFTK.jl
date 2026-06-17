@@ -20,8 +20,10 @@ end
 
 function hankel(quadrature, r::AbstractVector, r2_f::AbstractVector, l::Integer, p::T)::T where {T<:Real}
     @assert length(r) == length(r2_f)
+    # TODO: 10*eps is somewhat arbitrary, should find a proper bound
+    #       based on the stability of sphericalbesselj_fast
     if abs(p) <= 10 * eps(T)
-        # Use j_l(x) ≈ x^l / (2l+1)!! for small p
+        # Use j_l(x) ≈ x^l / (2l+1)!! for small x
         l == 0 && return 4T(π) * quadrature((i, ri) -> r2_f[i], r)
         l == 1 && return 4T(π) * quadrature((i, ri) -> r2_f[i] * ri, r) / 3
         l == 2 && return 4T(π) * quadrature((i, ri) -> r2_f[i] * ri^2, r) / 15

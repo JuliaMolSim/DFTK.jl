@@ -24,6 +24,9 @@ Returns the ``(l,m)`` real solid harmonic, defined as ``R_l^m(r) = r^l Y_l^m(r)`
 The solid harmonics are homogeneous polynomials of degree l,
 which makes them cleanly defined and smooth at the origin,
 unlike the spherical harmonics.
+Obtained from the spherical harmonics table on
+[Wikipedia](https://en.wikipedia.org/wiki/Table_of_spherical_harmonics#Real_spherical_harmonics)
+without the division by r^l.
 """
 function solid_harmonic_real(l::Integer, m::Integer, rvec::AbstractVector{T}) where {T}
     @assert 0 ≤ l
