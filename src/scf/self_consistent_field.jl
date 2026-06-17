@@ -250,7 +250,7 @@ Overview of parameters:
         Pinv_Δρ, Pinv_Δτ = mix_density(mixing, basis, Δρ, Δτ; info_next...)
         # TODO: Mix_gdensity
         Pinv_ΔD = pack_gdensity_flat_(basis, Pinv_Δρ, Pinv_Δτ)
-        Dnext = Din + T(damping) * Pinv_ΔD
+        Dnext = Din .+ T(damping) .* Pinv_ΔD
 
         converged = mpi_bcast(n_iter ≥ miniter && is_converged(info_next), basis.comm_kpts)
         timedout  = mpi_bcast(Dates.now() ≥ timeout_date,                  basis.comm_kpts)
