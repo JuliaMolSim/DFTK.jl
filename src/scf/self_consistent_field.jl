@@ -192,19 +192,11 @@ Overview of parameters:
     timeout_date = Dates.now() + maxtime
     seed = seed_task_local_rng!(seed, basis.comm_kpts)
 
-    τW(ρ::AbstractArray) = von_weizsaecker_kinetic_energy_density(basis, ρ)
-    τfull(ρ, τex::AbstractArray) = τex + τW(ρ)
-    τfull(ρ, τ::Nothing) = nothing
-    τexcess(ρ, τ::AbstractArray) = τ - τW(ρ)
-    τexcess(ρ, τ::Nothing) = nothing
-
     # We do density mixing in the real representation
     function fixpoint_map(Din, info)
         (; ψ, occupation, eigenvalues, εF, n_iter, converged, timedout, hubbard_n) = info
         n_iter += 1
-        (ρin, τexcess_in) = unpack_density(basis, Din)
-        τin = τfull(ρin, τexcess_in)
-        # TODO: Test for anderson: τin is only the excess of τ beyond the von-Weizsäcker value
+        (ρin, τin) = unpack_density(basis, Din)
 
         # Note that ρin is not the density of ψ, and the eigenvalues
         # are not the self-consistent ones, which makes this energy non-variational
@@ -259,6 +251,7 @@ Overview of parameters:
         if !isnothing(τin)
             # TODO: Maybe actually only put the difference between τ and τW(ρ)
             #       to the preconditioner and in this way disentangle the logic here ?
+            τW(ρ::AbstractArray) = von_weizsaecker_kinetic_energy_density(basis, ρ)
             ΔτW = τW(ρin) + T(damping) * (τW(ρ) - τW(ρin))
             τnext = τW(ρnext) + τin + T(damping) .* Pinv_Δτ - ΔτW
         else
@@ -274,7 +267,7 @@ Overview of parameters:
 
         callback(info_next)
 
-        pack_density(ρnext, τexcess(ρnext, τnext)), info_next
+        pack_density(basis, ρnext, τnext), info_next
     end
 
     # Note: it is assumed that, upon entry, the input density ρ is numerically identical
@@ -286,7 +279,7 @@ Overview of parameters:
                    history_Etot=T[], history_Δρ=T[], history_Δτ=T[])
 
     # Convergence is flagged by is_converged inside the fixpoint_map.
-    _, info = solver(fixpoint_map, pack_density(ρ, τexcess(ρ, τ)), info_init; maxiter)
+    _, info = solver(fixpoint_map, pack_density(basis, ρ, τ), info_init; maxiter)
 
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρ, so we return that. We also perform a last energy computation
