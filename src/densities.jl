@@ -172,6 +172,8 @@ function ρ_from_total(basis, ρtot::AbstractArray{T}) where {T}
 end
 
 #
+# Generalised density representation
+#
 # Many DFT functionals rely on the Hoffmann-Ostenhoff inequality τW(ρ) ≤ τ, i.e. that the
 # von Weizsäcker kinetic energy density is strictly a lower bound to the kinetic energy density.
 # This is satisfied if ρ and τ are built from the same orbitals, but may not be true if we
@@ -182,19 +184,30 @@ end
 #       - Probably a ComponentArray or some form of custom struct is reasonable here
 #       - Do we want to compute the τW implicitly in here ? It's not a very cheap operation
 #         (i.e. not order-1) so that may be unexpected for such an operation. On the other
-#         hand one could argue that (ρ/τ) are our variables and this is just a choice of
-#         representation that one may be able to transparently change at a later point
-pack_density(basis::PlaneWaveBasis, ρ::AbstractArray, ::Nothing) = ρ
-function pack_density(basis::PlaneWaveBasis, ρ::AbstractArray, τ::AbstractArray)
-    τ_excess = τ - von_weizsaecker_kinetic_energy_density(basis, ρ)
-    cat(ρ, τ_excess; dims=Val(1))
+#         hand we will probably not get around to have some form of additional computation
+#         that happens upon the construction of these "densities".
+pack_gdensity(basis::PlaneWaveBasis, ρ::AbstractArray, τ::Nothing) = pack_gdensity_flat_(basis, ρ, τ)
+function pack_gdensity(basis::PlaneWaveBasis, ρ::AbstractArray, τ::AbstractArray)
+    pack_gdensity_flat_(basis, ρ, τ - von_weizsaecker_kinetic_energy_density(basis, ρ))
 end
-function unpack_density(basis::PlaneWaveBasis, x::AbstractArray{T, 4}) where {T}
-    @assert size(x, 1) == basis.fft_size[1] || size(x, 1) == 2basis.fft_size[1]
-    if size(x, 1) == 2basis.fft_size[1]
-        ρ = x[1:basis.fft_size[1], :, :, :]  # deliberately a copy
-        τW = von_weizsaecker_kinetic_energy_density(basis, ρ)
-        τ = τW + @view x[basis.fft_size[1]+1:end, :, :, :]
+function split_gdensity(basis::PlaneWaveBasis, x::AbstractArray{T, 4}) where {T}
+    ρ, τ = split_gdensity_flat_(basis, x)
+    if isnothing(τ)
+        return ρ, τ
+    else
+        return ρ, τ + von_weizsaecker_kinetic_energy_density(basis, ρ)
+    end
+end
+
+pack_gdensity_flat_(basis, ρ::AbstractArray, ::Nothing) = ρ
+pack_gdensity_flat_(basis, ρ::AbstractArray, τ::AbstractArray) = cat(ρ, τ; dims=Val(4))
+function split_gdensity_flat_(basis::PlaneWaveBasis, x::AbstractArray{T, 4}) where {T}
+    # TODO: This breaks when non-collinear spin is implemented
+    n_spin = basis.model.n_spin_components
+    @assert size(x, 4) == n_spin || size(x, 4) == 2n_spin
+    if size(x, 4) == 2n_spin
+        ρ = @view x[:, :, :,        1:n_spin]
+        τ = @view x[:, :, :, n_spin+1:end   ]
         (ρ, τ)
     else
         (x, nothing)

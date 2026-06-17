@@ -196,7 +196,7 @@ Overview of parameters:
     function fixpoint_map(Din, info)
         (; ψ, occupation, eigenvalues, εF, n_iter, converged, timedout, hubbard_n) = info
         n_iter += 1
-        (ρin, τin) = unpack_density(basis, Din)
+        (ρin, τin) = split_gdensity(basis, Din)
 
         # Note that ρin is not the density of ψ, and the eigenvalues
         # are not the self-consistent ones, which makes this energy non-variational
@@ -209,6 +209,11 @@ Overview of parameters:
                                  occupation, miniter=1,
                                  tol=determine_diagtol(diagtolalg, info))
         (; ψ, eigenvalues, occupation, εF, ρ, τ) = nextstate
+
+
+        # Make a representation of ρ and τ, that is keeps important properties under linear
+        # combinations, e.g. which does not break the inequality τ ≥ τW(ρ)
+        D = pack_gdensity(basis, ρ, τ)
 
         # TODO: Dirty hack. This should be solved more generally and hubbard should be on
         #       the same footing as τ and ρ; see discussion in
@@ -231,33 +236,21 @@ Overview of parameters:
                                   nbandsalg.occupation_threshold)
         end
 
-        Δρ = ρ - ρin
-        history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
-        if !isnothing(τ) && !isnothing(τin)
-            Δτ = τ - τin
-            history_Δτ = vcat(info.history_Δτ, norm(Δτ) * sqrt(basis.dvol))
-        else
-            Δτ = nothing
-            history_Δτ = vcat(info.history_Δτ, zero(eltype(Δρ)))
-        end
+        ΔD = D - Din
+        Δρ, Δτ = split_gdensity_flat_(basis, ΔD)  # until state refactor
         history_Etot = vcat(info.history_Etot, energies.total)
-        n_matvec = info.n_matvec + nextstate.n_matvec
-        info_next = merge(info_next, (; energies, history_Etot, history_Δρ, history_Δτ, n_matvec))
+        history_Δρ   = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
+        history_Δτ   = vcat(info.history_Δτ, isnothing(Δτ) ? zero(eltype(Δρ))
+                                                           : norm(Δτ) * sqrt(basis.dvol))
+        info_next = merge(info_next, (; energies, history_Etot, history_Δρ, history_Δτ,
+                                        n_matvec=info.n_matvec + nextstate.n_matvec))
 
         # Note: For now (June 2026) mix_density when called with both Δρ and Δτ is an identity
         #       in Δτ; this may change in the future.
         Pinv_Δρ, Pinv_Δτ = mix_density(mixing, basis, Δρ, Δτ; info_next...)
-        ρnext = ρin .+ T(damping) .* Pinv_Δρ
-        if !isnothing(τin)
-            # TODO: Maybe actually only put the difference between τ and τW(ρ)
-            #       to the preconditioner and in this way disentangle the logic here ?
-            τW(ρ::AbstractArray) = von_weizsaecker_kinetic_energy_density(basis, ρ)
-            ΔτW = τW(ρin) + T(damping) * (τW(ρ) - τW(ρin))
-            τnext = τW(ρnext) + τin + T(damping) .* Pinv_Δτ - ΔτW
-        else
-            τnext = nothing
-        end
-        Dnext = pack_density(basis, ρnext, τnext)
+        # TODO: Mix_gdensity
+        Pinv_ΔD = pack_gdensity_flat_(basis, Pinv_Δρ, Pinv_Δτ)
+        Dnext = Din + T(damping) * Pinv_ΔD
 
         converged = mpi_bcast(n_iter ≥ miniter && is_converged(info_next), basis.comm_kpts)
         timedout  = mpi_bcast(Dates.now() ≥ timeout_date,                  basis.comm_kpts)
@@ -276,7 +269,7 @@ Overview of parameters:
                    history_Etot=T[], history_Δρ=T[], history_Δτ=T[])
 
     # Convergence is flagged by is_converged inside the fixpoint_map.
-    _, info = solver(fixpoint_map, pack_density(basis, ρ, τ), info_init; maxiter)
+    _, info = solver(fixpoint_map, pack_gdensity(basis, ρ, τ), info_init; maxiter)
 
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρ, so we return that. We also perform a last energy computation
