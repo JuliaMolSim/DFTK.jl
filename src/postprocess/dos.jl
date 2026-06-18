@@ -61,7 +61,7 @@ function compute_ldos(ε, basis::PlaneWaveBasis{T}, eigenvalues, ψ;
     # Use compute_density routine to compute LDOS, using just the modified
     # weights (as "occupations") at each k-point. Note, that this automatically puts in the
     # required symmetrization with respect to kpoints and BZ symmetry
-    compute_density(basis, ψ, weights; occupation_threshold=weight_threshold)
+    compute_density(basis, ψ, weights; occupation_threshold=weight_threshold, label=:ldos)
 end
 function compute_ldos(scfres::NamedTuple; ε=scfres.εF, kwargs...)
     compute_ldos(ε, scfres.basis, scfres.eigenvalues, scfres.ψ; kwargs...)

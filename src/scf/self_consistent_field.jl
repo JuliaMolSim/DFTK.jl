@@ -109,7 +109,7 @@ function next_density(ham::Hamiltonian,
     # TODO This is a bit hackish, but needed right now as we increase the number of bands
     #      to be computed only between SCF steps. Should be revisited once we have a better
     #      way to deal with such things in LOBPCG.
-    if !increased_n_bands && minocc > nbandsalg.occupation_threshold
+    if !increased_n_bands && minocc > nbandsalg.occupation_threshold && mpi_master(ham.basis.comm_kpts)
         @warn("Detected large minimal occupation $minocc. SCF could be unstable. " *
               "Try switching to adaptive band selection (`nbandsalg=AdaptiveBands(model)`) " *
               "or request more converged bands than $n_bands_converge (e.g. " *

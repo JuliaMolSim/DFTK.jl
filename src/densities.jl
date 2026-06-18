@@ -11,7 +11,7 @@ It is possible to ask only for occupations higher than a certain level to be com
 using an optional `occupation_threshold`. By default all occupation numbers are considered.
 """
 @views @timing function compute_density(basis::PlaneWaveBasis{T,VT}, ψ, occupation;
-                                        occupation_threshold=zero(T)) where {T,VT}
+                                        occupation_threshold=zero(T), label=:ρ) where {T,VT}
     # Occupation should be on the CPU as we are going to be doing scalar indexing.
     occupation = [to_cpu(oc) for oc in occupation]
     mask_occ = [findall(occnk -> abs(occnk) ≥ occupation_threshold, occk)
@@ -50,7 +50,7 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     # in a vacuum region, so put some tolerance even if occupation_threshold == 0
     negtol = max(sqrt(eps(T)), 10occupation_threshold)
     if mpi_master(basis.comm_kpts)
-        minimum(ρ) < -negtol && @warn("Negative ρ detected", min_ρ=minimum(ρ))
+        minimum(ρ) < -negtol && @warn("Negative $label detected", min_ρ=minimum(ρ))
     end
 
     ρ
