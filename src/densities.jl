@@ -137,7 +137,7 @@ Von Weizsäcker kinetic energy density, which is exact for one-electron systems
         τ[:, :, :, σ] += abs2.(∇ρ_ασ)
     end
     τ = τ ./ (8ρ)
-    τ[abs.(ρ) .< eps(T)] .= zero(T)
+    τ[abs.(ρ) .< eps(T)] .= zero(T)  # Ad hoc modification, there is likely something better
 
     τ
 end

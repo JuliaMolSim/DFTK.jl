@@ -418,7 +418,7 @@ function _check_negative_bonding_indicator_α(densities::LibxcDensities{T}) wher
                   "than the von Weizsäcker kinetic energy density τ_W somewhere. " *
                   "This can lead to unphysical results. " *
                   "This can be caused by pseudopotentials without a non-linear core correction " *
-                  "for τ, or by an unphysical initial guess for τ. " *
+                  "for τ, a too small Ecut value or by an unphysical initial guess for τ. " *
                   "This message is only logged once." maxlog=1
         end
     end
