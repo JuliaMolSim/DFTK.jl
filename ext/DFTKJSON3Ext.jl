@@ -1,6 +1,7 @@
 module DFTKJSON3Ext
 using DFTK
 using JSON3
+using MPI
 
 function save_json(todict_function, filename::AbstractString, scfres::NamedTuple;
                    save_ψ=false, extra_data=Dict{String,Any}(), save_ρ=false, kwargs...)
@@ -25,6 +26,17 @@ function DFTK.save_scfres(::Val{:json}, filename::AbstractString, scfres::NamedT
 end
 function DFTK.save_bands(::Val{:json}, filename::AbstractString, band_data::NamedTuple; kwargs...)
     save_json(DFTK.band_data_to_dict, filename, band_data; kwargs...)
+end
+
+function DFTK.save_debugdump(::Val{:json}, comm::MPI.Comm, subsystem::AbstractString, data::AbstractDict)
+    if mpi_master(comm) && DFTK.debugdump_enabled()
+        prefix = @load_preference("debugdump_prefix", "")
+        fn = "$(prefix)-$(subsystem)-$(getpid()).json"
+        open(fn, "w") do io
+            JSON3.write(io, data)
+        end
+        @info "Saved debug dump for $(subsystem) to $(fn)."
+    end
 end
 
 end

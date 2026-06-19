@@ -20,14 +20,14 @@ default_fermialg(::Smearing.Gaussian)   = FermiBisection()  # Monotonic smearing
 default_fermialg(::Smearing.FermiDirac) = FermiBisection()  # Monotonic smearing
 default_fermialg(model::Model)          = default_fermialg(model.smearing)
 
-function excess_n_electrons(basis::PlaneWaveBasis, eigenvalues, εF; smearing, temperature)
+function excess_n_electrons(basis::AbstractBasis, eigenvalues, εF; smearing, temperature)
     occupation = compute_occupation(basis, eigenvalues, εF;
                                     smearing, temperature).occupation
     weighted_ksum(basis, sum.(occupation)) - basis.model.n_electrons
 end
 
 """Compute occupation given eigenvalues and Fermi level"""
-function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues::AbstractVector, εF::Number;
+function compute_occupation(basis::AbstractBasis{T}, eigenvalues::AbstractVector, εF::Number;
                             temperature=basis.model.temperature,
                             smearing=basis.model.smearing) where {T}
     # Check that eigenvalues are increasing monotonically, for contiguous occupations
@@ -50,7 +50,7 @@ end
 """Compute occupation and Fermi level given eigenvalues and using `fermialg`.
 The `tol_n_elec` gives the accuracy on the electron count which should be at least achieved.
 """
-function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues::AbstractVector,
+function compute_occupation(basis::AbstractBasis{T}, eigenvalues::AbstractVector,
                             fermialg::AbstractFermiAlgorithm=default_fermialg(basis.model);
                             tol_n_elec=default_occupation_threshold(T),
                             temperature=basis.model.temperature,
@@ -73,24 +73,31 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues::AbstractVecto
             excess_n_electrons(basis, eigenvalues, εF; smearing, temperature)
         end
 
-        if abs(excess) > tol_n_elec && mpi_master(basis.comm_kpts)
-            @warn("Large deviation of electron count in compute_occupation. (excess=$excess). " *
-                  "This may lead to an unphysical solution. Try decreasing the temperature " *
-                  "or using a different smearing function.")
+        if abs(excess) > tol_n_elec
+            if mpi_master(basis.comm_kpts)
+                @warn("Large deviation of electron count in compute_occupation. (excess=$excess). " *
+                      "This may lead to an unphysical solution. Try decreasing the temperature " *
+                      "or using a different smearing function.")
+            end
+            debugdump_fermialg(basis, eigenvalues, fermialg;
+                               temperature, smearing, εF, excess, dexcess)
         end
-        if dexcess < -sqrt(eps(T)) && mpi_master(basis.comm_kpts)
-            @warn("Negative density of states (electron count versus Fermi level derivative) " *
-                  "encountered in compute_occupation. This may lead to an unphysical " *
-                  "solution. Try decreasing the temperature or using a different smearing " *
-                  "function.")
+        if dexcess < -sqrt(eps(T))
+            if mpi_master(basis.comm_kpts)
+                @warn("Negative density of states (electron count versus Fermi level derivative) " *
+                      "encountered in compute_occupation. This may lead to an unphysical " *
+                      "solution. Try decreasing the temperature or using a different smearing " *
+                      "function.")
+            end
+            debugdump_fermialg(basis, eigenvalues, fermialg;
+                               temperature, smearing, εF, excess, dexcess)
         end
     end
     compute_occupation(basis, eigenvalues, εF; temperature, smearing)
 end
 
-
 struct FermiBisection <: AbstractFermiAlgorithm end
-function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiBisection;
+function compute_fermi_level(basis::AbstractBasis{T}, eigenvalues, ::FermiBisection;
                              temperature, smearing, tol_n_elec) where {T}
     if iszero(temperature)
         return compute_fermi_level(basis, eigenvalues, FermiZeroTemperature();
@@ -129,7 +136,7 @@ end
 Two-stage Fermi level finding algorithm starting from a Gaussian-smearing guess.
 """
 struct FermiTwoStage <: AbstractFermiAlgorithm end
-function compute_fermi_level(basis::PlaneWaveBasis{T}, eigenvalues, ::FermiTwoStage;
+function compute_fermi_level(basis::AbstractBasis{T}, eigenvalues, ::FermiTwoStage;
                              temperature, smearing, tol_n_elec) where {T}
     if iszero(temperature)
         return compute_fermi_level(basis, eigenvalues, FermiZeroTemperature();
@@ -150,7 +157,7 @@ end
 # Note: This is not exported, but only called by the above algorithms for
 # the zero-temperature case.
 struct FermiZeroTemperature <: AbstractFermiAlgorithm end
-function compute_fermi_level(basis::PlaneWaveBasis, eigenvalues, ::FermiZeroTemperature;
+function compute_fermi_level(basis::AbstractBasis, eigenvalues, ::FermiZeroTemperature;
                              temperature, smearing, tol_n_elec)
     # Sanity check that we can indeed fill the appropriate number of states
     filled_occ  = filled_occupation(basis.model)
@@ -180,7 +187,7 @@ Note, that while this function can be used in cases with spin or with temperatur
 is no guarantee that the Fermi-level estimated by this function *is* the actual Fermi level.
 Therefore this function should generally only be used as a starting point for other routines.
 """
-function guess_fermi_level_intocc_(basis::PlaneWaveBasis, eigenvalues)
+function guess_fermi_level_intocc_(basis::AbstractBasis, eigenvalues)
     filled_occ = filled_occupation(basis.model)
     n_spin = basis.model.n_spin_components
     n_fill = div(basis.model.n_electrons, n_spin * filled_occ, RoundUp)
@@ -203,10 +210,25 @@ function guess_fermi_level_intocc_(basis::PlaneWaveBasis, eigenvalues)
     end
 end
 
+"""Debug dumping for Fermi algorithms."""
+function debugdump_fermialg(basis, eigenvalues, fermialg;
+                            temperature, smearing, εF, excess, dexcess)
+    if debugdump_enabled()
+        data = band_data_to_dict((; basis, eigenvalues, εF))
+        data["temperature"] = temperature
+        data["smearing"]    = string(smearing)
+        data["fermialg"]    = string(fermialg)
+        data["excess"]      = excess
+        data["dexcess"]     = dexcess
+        save_debugdump(basis.comm, "fermialg", data)
+    end
+end
+
+
 """
 Check that all orbitals are fully occupied.
 """
-function check_full_occupation(basis::PlaneWaveBasis, occupation)
+function check_full_occupation(basis::AbstractBasis, occupation)
     filled_occ = filled_occupation(basis.model)
     for occ_k in occupation
         all(occ_k .== filled_occ) || error("Only full occupation is supported, but $occ_k has partial occupation.")
