@@ -11,7 +11,7 @@ It is possible to ask only for occupations higher than a certain level to be com
 using an optional `occupation_threshold`. By default all occupation numbers are considered.
 """
 @views @timing function compute_density(basis::PlaneWaveBasis{T,VT}, ψ, occupation;
-                                        occupation_threshold=zero(T)) where {T,VT}
+                                        occupation_threshold=zero(T), label=:ρ) where {T,VT}
     # Occupation should be on the CPU as we are going to be doing scalar indexing.
     occupation = [to_cpu(oc) for oc in occupation]
     mask_occ = [findall(occnk -> abs(occnk) ≥ occupation_threshold, occk)
@@ -50,7 +50,7 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     # in a vacuum region, so put some tolerance even if occupation_threshold == 0
     negtol = max(sqrt(eps(T)), 10occupation_threshold)
     if mpi_master(basis.comm_kpts)
-        minimum(ρ) < -negtol && @warn("Negative ρ detected", min_ρ=minimum(ρ))
+        minimum(ρ) < -negtol && @warn("Negative $label detected", min_ρ=minimum(ρ))
     end
 
     ρ
@@ -137,7 +137,7 @@ Von Weizsäcker kinetic energy density, which is exact for one-electron systems
         τ[:, :, :, σ] += abs2.(∇ρ_ασ)
     end
     τ = τ ./ (8ρ)
-    τ[abs.(ρ) .< eps(T)] .= zero(T)
+    τ[abs.(ρ) .< eps(T)] .= zero(T)  # Ad hoc modification, there is likely something better
 
     τ
 end
@@ -171,15 +171,43 @@ function ρ_from_total(basis, ρtot::AbstractArray{T}) where {T}
     ρ_from_total_and_spin(ρtot, ρspin)
 end
 
+#
+# Generalised density representation
+#
+# Many DFT functionals rely on the Hoffmann-Ostenhoff inequality τW(ρ) ≤ τ, i.e. that the
+# von Weizsäcker kinetic energy density is strictly a lower bound to the kinetic energy density.
+# This is satisfied if ρ and τ are built from the same orbitals, but may not be true if we
+# take (convex) combinations of the vector (ρ, τ). This is why we represent the packed
+# density as (ρ, τ_excess) where τ_excess = τ - τW(ρ).
+#
 # TODO: When we do the state refactor we should think how to deal with this;
-#       probably a ComponentArray or some form of custom struct is reasonable here
-pack_density(ρ::AbstractArray, ::Nothing) = ρ
-pack_density(ρ::AbstractArray, τ::AbstractArray) = cat(ρ, τ; dims=Val(1))
-function unpack_density(basis::PlaneWaveBasis, x::AbstractArray{T, 4}) where {T}
-    @assert size(x, 1) == basis.fft_size[1] || size(x, 1) == 2basis.fft_size[1]
-    if size(x, 1) == 2basis.fft_size[1]
-        ρ = @view x[1:basis.fft_size[1], :, :, :]
-        τ = @view x[basis.fft_size[1]+1:end, :, :, :]
+#       - Probably a ComponentArray or some form of custom struct is reasonable here
+#       - Do we want to compute the τW implicitly in here ? It's not a very cheap operation
+#         (i.e. not order-1) so that may be unexpected for such an operation. On the other
+#         hand we will probably not get around to have some form of additional computation
+#         that happens upon the construction of these "densities".
+pack_gdensity(basis::PlaneWaveBasis, ρ::AbstractArray, τ::Nothing) = pack_gdensity_flat_(basis, ρ, τ)
+function pack_gdensity(basis::PlaneWaveBasis, ρ::AbstractArray, τ::AbstractArray)
+    pack_gdensity_flat_(basis, ρ, τ - von_weizsaecker_kinetic_energy_density(basis, ρ))
+end
+function split_gdensity(basis::PlaneWaveBasis, x::AbstractArray{T, 4}) where {T}
+    ρ, τ = split_gdensity_flat_(basis, x)
+    if isnothing(τ)
+        return ρ, τ
+    else
+        return ρ, τ + von_weizsaecker_kinetic_energy_density(basis, ρ)
+    end
+end
+
+pack_gdensity_flat_(basis, ρ::AbstractArray, ::Nothing) = ρ
+pack_gdensity_flat_(basis, ρ::AbstractArray, τ::AbstractArray) = cat(ρ, τ; dims=Val(4))
+function split_gdensity_flat_(basis::PlaneWaveBasis, x::AbstractArray{T, 4}) where {T}
+    # TODO: This breaks when non-collinear spin is implemented
+    n_spin = basis.model.n_spin_components
+    @assert size(x, 4) == n_spin || size(x, 4) == 2n_spin
+    if size(x, 4) == 2n_spin
+        ρ = @view x[:, :, :,        1:n_spin]
+        τ = @view x[:, :, :, n_spin+1:end   ]
         (ρ, τ)
     else
         (x, nothing)

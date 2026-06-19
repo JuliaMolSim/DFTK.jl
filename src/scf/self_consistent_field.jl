@@ -109,7 +109,7 @@ function next_density(ham::Hamiltonian,
     # TODO This is a bit hackish, but needed right now as we increase the number of bands
     #      to be computed only between SCF steps. Should be revisited once we have a better
     #      way to deal with such things in LOBPCG.
-    if !increased_n_bands && minocc > nbandsalg.occupation_threshold
+    if !increased_n_bands && minocc > nbandsalg.occupation_threshold && mpi_master(ham.basis.comm_kpts)
         @warn("Detected large minimal occupation $minocc. SCF could be unstable. " *
               "Try switching to adaptive band selection (`nbandsalg=AdaptiveBands(model)`) " *
               "or request more converged bands than $n_bands_converge (e.g. " *
@@ -192,12 +192,13 @@ Overview of parameters:
     timeout_date = Dates.now() + maxtime
     seed = seed_task_local_rng!(seed, basis.comm_kpts)
 
-    # We do density mixing in the real representation
-    # TODO support other mixing types
+    # We use a "generalised density" representation in the variable D/Din, that is adapted to
+    # linear combinations (such as mixing or Anderson); see split_gdensity and pack_gdensity in
+    # densities.jl for details.
     function fixpoint_map(Din, info)
         (; ψ, occupation, eigenvalues, εF, n_iter, converged, timedout, hubbard_n) = info
         n_iter += 1
-        (ρin, τin) = unpack_density(basis, Din)
+        (ρin, τin) = split_gdensity(basis, Din)
 
         # Note that ρin is not the density of ψ, and the eigenvalues
         # are not the self-consistent ones, which makes this energy non-variational
@@ -210,10 +211,11 @@ Overview of parameters:
                                  occupation, miniter=1,
                                  tol=determine_diagtol(diagtolalg, info))
         (; ψ, eigenvalues, occupation, εF, ρ, τ) = nextstate
+        D = pack_gdensity(basis, ρ, τ)
 
         # TODO: Dirty hack. This should be solved more generally and hubbard should be on
-        #       the same footing as τ and ρ; see discussion in
-        #       https://github.com/JuliaMolSim/DFTK.jl/issues/1065
+        #       the same footing as τ and ρ as part of the generalised density;
+        #       see discussion in https://github.com/JuliaMolSim/DFTK.jl/issues/1065
         ihubbard = findfirst(t -> t isa TermHubbard, basis.terms)
         if !isnothing(ihubbard)
             hubbard_n = compute_hubbard_n(basis.terms[ihubbard], basis, ψ, occupation)
@@ -232,35 +234,25 @@ Overview of parameters:
                                   nbandsalg.occupation_threshold)
         end
 
-        Δρ = ρ - ρin
-        history_Δρ = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
-        if !isnothing(τ) && !isnothing(τin)
-            Δτ = τ - τin
-            history_Δτ = vcat(info.history_Δτ, norm(Δτ) * sqrt(basis.dvol))
-        else
-            Δτ = nothing
-            history_Δτ = vcat(info.history_Δτ, zero(eltype(Δρ)))
-        end
+        ΔD = D - Din
+        Δρ, Δτ = split_gdensity_flat_(basis, ΔD)
         history_Etot = vcat(info.history_Etot, energies.total)
-        n_matvec = info.n_matvec + nextstate.n_matvec
-        info_next = merge(info_next, (; energies, history_Etot, history_Δρ, history_Δτ, n_matvec))
+        history_Δρ   = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
+        history_Δτ   = vcat(info.history_Δτ, isnothing(Δτ) ? zero(eltype(Δρ))
+                                                           : norm(Δτ) * sqrt(basis.dvol))
+        info_next = merge(info_next, (; energies, history_Etot, history_Δρ, history_Δτ,
+                                        n_matvec=info.n_matvec + nextstate.n_matvec))
 
-        # Note: For now (June 2026) mix_density when called with both Δρ and Δτ is an identity
-        #       in Δτ; this may change in the future.
-        Pinv_Δρ, Pinv_Δτ = mix_density(mixing, basis, Δρ, Δτ; info_next...)
-        ρnext = ρin .+ T(damping) .* Pinv_Δρ
-        τnext = isnothing(τin) ? nothing : τin .+ T(damping) .* Pinv_Δτ
+        # Mix generalised density (i.e. both ρ and τ)
+        Pinv_ΔD = mix_gdensity(mixing, basis, ΔD; info_next...)
+        Dnext = Din .+ T(damping) .* Pinv_ΔD
 
-        converged = n_iter ≥ miniter && is_converged(info_next)
-        converged = mpi_bcast(converged, 0, basis.comm_kpts)
-        info_next = merge(info_next, (; converged))
-
-        timedout  = mpi_bcast(Dates.now() ≥ timeout_date, basis.comm_kpts)
-        info_next = merge(info_next, (; timedout))
-
+        converged = mpi_bcast(n_iter ≥ miniter && is_converged(info_next), basis.comm_kpts)
+        timedout  = mpi_bcast(Dates.now() ≥ timeout_date,                  basis.comm_kpts)
+        info_next = merge(info_next, (; converged, timedout))
         callback(info_next)
 
-        pack_density(ρnext, τnext), info_next
+        Dnext, info_next
     end
 
     # Note: it is assumed that, upon entry, the input density ρ is numerically identical
@@ -272,7 +264,7 @@ Overview of parameters:
                    history_Etot=T[], history_Δρ=T[], history_Δτ=T[])
 
     # Convergence is flagged by is_converged inside the fixpoint_map.
-    _, info = solver(fixpoint_map, pack_density(ρ, τ), info_init; maxiter)
+    _, info = solver(fixpoint_map, pack_gdensity(basis, ρ, τ), info_init; maxiter)
 
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρ, so we return that. We also perform a last energy computation

@@ -22,15 +22,15 @@ function mix_potential(args...; kwargs...)
     mix_density(args...; kwargs...)
 end
 
-# Mixing in both ρ and τ: For now just fall back to ρ-only mixing
-function mix_density(mixing, basis, Δρ, Δτ::AbstractArray; kwargs...)
+
+# Mixing in the generalised density (essentially an adapted tuple of ρ and τ;
+# see pack_gdensity in densities.jl): For now just fall back to ρ-only mixing
+function mix_gdensity(mixing, basis, ΔD; kwargs...)
+    Δρ, Δτ  = split_gdensity_flat_(basis, ΔD)
     Pinv_Δρ = mix_density(mixing, basis, Δρ; kwargs...)
-    (; ρ=Pinv_Δρ, τ=Δτ)
+    pack_gdensity_flat_(basis, Pinv_Δρ, Δτ)
 end
-function mix_density(mixing, basis, Δρ, ::Nothing; kwargs...)
-    Pinv_Δρ = mix_density(mixing, basis, Δρ; kwargs...)
-    (; ρ=Pinv_Δρ, τ=nothing)
-end
+
 
 @doc raw"""
 Simple mixing: ``J^{-1} ≈ 1``
@@ -106,9 +106,11 @@ end
 @doc raw"""
 The same as [`KerkerMixing`](@ref), but the Thomas-Fermi wavevector is computed
 from the current density of states at the Fermi level. To determine the DOS
-by default the smearing of `basis.model.smearing` and a temperature of
-`min(50basis.model.temperature, 0.1)` are used, but this may be changed using
-the `smearing` and `temperature` arguments.
+by default a temperature of `min(50basis.model.temperature, 0.1)` and `Smearing.Gaussian`
+smearing is employed (irrespective of the SCF smearing), but this may be changed using the
+`smearing` and `temperature` arguments. Note, that using a non-monotonous smearing at
+temperatures much above the SCF temperature can lead to artefacts (e.g. negative LDOS)
+and is thus not recommended.
 """
 @kwdef struct KerkerDosMixing <: Mixing
     smearing::Union{Nothing,Smearing.SmearingFunction} = nothing
@@ -179,9 +181,11 @@ the same convention for parameters are used as in [`DielectricMixing`](@ref).
 Additionally there is the real-space localization function `L(r)`.
 For details see  [Herbst, Levitt 2020](https://arxiv.org/abs/2009.01665).
 
-By default the LdosModel is constructed using the smearing of
-`basis.model.smearing` and a temperature of `min(50basis.model.temperature, 0.1)`,
-but this may be changed using the `smearing` and `temperature` keyword arguments.
+By default the LdosModel is constructed using a temperature of
+`min(50basis.model.temperature, 0.1)` and `Smearing.Gaussian` smearing (irrespective of the
+`model.smearing`), but this may be changed using the `smearing` and `temperature` arguments.
+Note, that using a non-monotonous smearing at temperatures much above the SCF temperature
+can lead to artefacts (e.g. negative LDOS) and is thus not recommended.
 
 Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `RPA`: Is the random-phase approximation used for the kernel (i.e. only Hartree kernel is
@@ -209,9 +213,11 @@ where ``D_\text{loc}`` is the local density of states,
 ``D`` is the density of states.
 For details see [Herbst, Levitt 2020](https://arxiv.org/abs/2009.01665).
 
-By default the LdosModel is constructed using the smearing of
-`basis.model.smearing` and a temperature of `min(50basis.model.temperature, 0.1)`,
-but this may be changed using the `smearing` and `temperature` keyword arguments.
+By default the LdosModel is constructed using a temperature of
+`min(50basis.model.temperature, 0.1)` and `Smearing.Gaussian` smearing (irrespective of the
+`model.smearing`), but this may be changed using the `smearing` and `temperature` arguments.
+Note, that using a non-monotonous smearing at temperatures much above the SCF temperature
+can lead to artefacts (e.g. negative LDOS) and is thus not recommended.
 
 Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `RPA`: Is the random-phase approximation used for the kernel (i.e. only Hartree kernel is
@@ -291,5 +297,5 @@ function default_smearing_temperature(model::Model)
     # Set temperature to be 100 times the model temperature, but make sure
     # to never overshoot 0.1 and never under-shoot the model.temperature
     temperature = max(model.temperature, min(0.1, 100model.temperature))
-    (; model.smearing, temperature)
+    (; smearing=Smearing.Gaussian(), temperature)
 end
