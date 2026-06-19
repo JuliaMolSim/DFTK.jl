@@ -304,11 +304,6 @@ end
        scfres.seed, scfres.algorithm, scfres.runtime_ns)
 end
 
-function hankel(r::AbstractVector, r2_f::AbstractVector, l::Integer, p::TT) where {TT <: ForwardDiff.Dual}
-    quadrature = default_psp_quadrature(r)
-    hankel(quadrature, r, r2_f, l, p)
-end
-
 # For GPU kernels to compile, dynamic function calls must be avoided. Therefore, the quadrature
 # must be known and passed ahead of time, and the Dual type explicitly parametrized.
 function hankel(quadrature, r::AbstractVector, r2_f::AbstractVector, l::Integer, p::Dual{Tg,V,N}) where {Tg,V,N}
