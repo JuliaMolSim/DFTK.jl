@@ -49,17 +49,24 @@ import Base: *
 import Base.size, Base.adjoint, Base.Array
 
 """
-Simple wrapper to represent a matrix formed by the concatenation of column blocks:
-it is mostly equivalent to hcat, but doesn't allocate the full matrix.
-LazyHcat only supports a few multiplication routines: furthermore, a multiplication
-involving this structure will always yield a plain array (and not a LazyHcat structure).
-LazyHcat is a lightweight subset of BlockArrays.jl's functionalities, but has the
-advantage to be able to store GPU Arrays (BlockArrays is heavily built on Julia's CPU Array).
+Simple wrapper to represent a matrix formed by the concatenation of
+column blocks: it is mostly equivalent to hcat, but doesn't allocate
+the full matrix.
+
+A multiplication involving this structure will always yield a plain
+array (and not a LazyHcat structure).
+
+LazyHcat is a lightweight subset of BlockArrays.jl's functionalities,
+but has the advantage to be able to store GPU Arrays (BlockArrays is
+heavily built on Julia's CPU Array). LazyHcat only supports a few
+multiplication routines, those needed by LOBPCG : A'B with A and B
+LazyHcat, and A*B with A LazyHCat and B a plain matrix.
 """
 struct LazyHcat{T<:Number, D<:Tuple} <: AbstractMatrix{T}
     blocks::D
 end
 
+# Convenience functions
 function LazyHcat(arrays::AbstractArray...)
     @assert length(arrays) != 0
     n_ref = size(arrays[1], 1)
@@ -69,24 +76,24 @@ function LazyHcat(arrays::AbstractArray...)
 
     LazyHcat{T, typeof(arrays)}(arrays)
 end
-
 function Base.size(A::LazyHcat)
     n = size(A.blocks[1], 1)
     m = sum(size(block, 2) for block in A.blocks)
     (n, m)
 end
-
 Base.Array(A::LazyHcat)   = stack(A.blocks)
 Base.adjoint(A::LazyHcat) = Adjoint(A)
 
-# Computes A*B matrix product for LazyHcat type. Special case if product is assumed to be Hermitian
+# Computes A*B matrix product when B is a LazyHcat and A is a LazyVcat (adjoint of LazyHcat).
+# Special case if product is known to be Hermitian, since only the upper block diagonal is needed.
+# This _mul function is used for the standard and Hermitian cases (see mul_hermi function below)
 @views function _mul(A::Adjoint{T,<:LazyHcat}, B::LazyHcat; hermitian=Val(false)) where {T}
     Ap = A.parent
     rows = size(Ap, 2)
     cols = size(B, 2)
     ret = similar(B.blocks[1], rows, cols)
 
-    # Only popuplate the upper block diagonal in Hermitian case
+    # Only populate the upper block diagonal in Hermitian case
     ocol = 0  # column offset
     for (ib, blB) in enumerate(B.blocks)
         orow = 0  # row offset
@@ -104,29 +111,31 @@ Base.adjoint(A::LazyHcat) = Adjoint(A)
         ret
     end
 end
-
 Base.:*(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}       = _mul(A, B)
 Base.:*(A::Adjoint{T,<:LazyHcat}, B::AbstractMatrix) where {T} = A * LazyHcat(B)
 
-@views function *(Ablock::LazyHcat, B::AbstractMatrix)
-    res = Ablock.blocks[1] * B[1:size(Ablock.blocks[1], 2), :]  # First multiplication
-    offset = size(Ablock.blocks[1], 2)
-    for block in Ablock.blocks[2:end]
-        mul!(res, block, B[offset .+ (1:size(block, 2)), :], 1, 1)
-        offset += size(block, 2)
-    end
-    res
-end
-
-function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::LazyHcat,
-                            B::AbstractVecOrMat, α::Number, β::Number)
-    mul!(res, Ablock*B, I, α, β)
-end
-
+# General A*B product when the result is known to be Hermitian
 mul_hermi(A, B) = Hermitian(A * B)
 function mul_hermi(A::Adjoint{T,<:LazyHcat}, B::LazyHcat) where {T}
     _mul(A, B; hermitian=Val(true))
 end
+
+# LazyHCat * Matrix
+@views function LinearAlgebra.mul!(res::AbstractMatrix, Ablock::LazyHcat,
+                                   B::AbstractMatrix, α::Number, β::Number)
+    offset = 0
+    for (i, block) in enumerate(Ablock.blocks)
+        mul!(res, block, B[offset .+ (1:size(block, 2)), :], α, i == 1 ? β : true)
+        offset += size(block, 2)
+    end
+    res
+end
+mul!(res::AbstractMatrix, Ablock::LazyHcat, B::AbstractMatrix) = mul!(res, Ablock, B, true, false)
+function *(Ablock::LazyHcat, B::AbstractMatrix)
+    res = zeros_like(B, size(Ablock, 1), size(B, 2))
+    mul!(res, Ablock, B)
+end
+
 
 # Perform a Rayleigh-Ritz for the N first eigenvectors.
 @timing function rayleigh_ritz(X, AX, N)
@@ -375,6 +384,12 @@ end
     AP = zero(X)
     R = zero(X)
     AR = zero(X)
+    # Pre-allocating work arrays
+    new_R = zero(X)
+    new_X = copy(X)
+    new_AX = copy(AX)
+    new_P = zero(X)
+    new_AP = zero(X)
     if B != I
         BR = zero(X)
         # BX was already computed
@@ -388,8 +403,6 @@ end
     nlocked = 0
     niter = 0  # the first iteration is fake
     λs = compute_λ(X, AX, BX)
-    new_X  = X
-    new_AX = AX
     new_BX = BX
     # The full_ arrays contain all the vectors, the others only get the active ones
     full_X  = X
@@ -420,14 +433,14 @@ end
             # wait on updating P because we have to know which vectors
             # to lock (and therefore the residuals) before computing P
             # only for the unlocked vectors. This results in better convergence.
-            new_X  = Y * cX
-            new_AX = AY * cX  # no accuracy loss, since cX orthogonal
+            mul!(new_X, Y, cX)
+            mul!(new_AX, AY, cX)  # no accuracy loss, since cX orthogonal
             new_BX = (B == I) ? new_X : BY * cX
         end
 
         ### Compute new residuals
         @timing "Update residuals" begin
-            new_R = new_AX .- new_BX .* λs'
+            new_R .= new_AX .- new_BX .* λs'
             norms = to_cpu(columnwise_norms(new_R))
             @views resid_history[1 + nlocked: size(new_R, 2) + nlocked, niter+1] .= norms[:]
         end
@@ -438,7 +451,7 @@ end
         # done before or after
         if precon !== I
             @timing "preconditioning" begin
-                precondprep!(precon, X)  # update preconditioner if needed; defaults to noop
+                precondprep!(precon, new_X)  # update preconditioner if needed; defaults to noop
                 ldiv!(precon, new_R)
             end
         end
@@ -491,9 +504,15 @@ end
             # orthogonalize against all Xn (including newly locked)
             ortho!(cP, cX, cX, tol=ortho_tol)
 
+            @views begin
+                new_P = new_P[:, Xn_indices]
+                new_AP = new_AP[:, Xn_indices]
+                B != I && (new_BP = new_BP[:, Xn_indices])
+            end
+
             # Get new P
-            new_P  = Y  * cP
-            new_AP = AY * cP
+            mul!(new_P, Y, cP)
+            mul!(new_AP, AY, cP)
             if B != I
                 new_BP = BY * cP
             else
@@ -504,6 +523,7 @@ end
         # Update all X, even newly locked
         X  .= new_X
         AX .= new_AX
+        R  .= new_R
         if B != I
             BX .= new_BX
         end
@@ -517,9 +537,12 @@ end
         # Restrict all views to active
         @views begin
             X = X[:, active]
+            new_X = new_X[:, active]
             AX = AX[:, active]
+            new_AX = new_AX[:, active]
             BX = BX[:, active]
-            R = new_R[:, active]
+            R = R[:, active]
+            new_R = new_R[:, active]
             AR = AR[:, active]
             BR = BR[:, active]
             P = P[:, active]

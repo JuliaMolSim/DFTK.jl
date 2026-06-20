@@ -81,6 +81,10 @@ function direct_minimization(basis::PlaneWaveBasis{T};
         # need synchronization in Optim
         error("Direct minimization with MPI is not supported yet")
     end
+    if any(needs_τ, basis.terms)
+        error("meta-GGA functionals not yet supported in direct optimization.")
+    end
+
     seed = seed_task_local_rng!(seed, basis.comm_kpts)
     model = basis.model
     @assert iszero(model.temperature)  # temperature is not yet supported
@@ -120,7 +124,6 @@ function direct_minimization(basis::PlaneWaveBasis{T};
         # the next step would be ρout - ρ. We thus record convergence, but let Optim do
         # one more step.
         δψ = unsafe_unpack(optim_state.s)
-        # TODO This looks weird ... should there not be a retraction ?
         ψ_next = [ortho_qr(ψ[ik] - δψ[ik]) for ik in 1:Nk]
         compute_density(basis, ψ_next, occupation)
     end
@@ -129,11 +132,10 @@ function direct_minimization(basis::PlaneWaveBasis{T};
         ts.iteration < 1 && return false
         converged        && return true
         ρout = compute_ρout(ψ, optim_state)
-        Δρ = ρout - ρ
-        push!(history_Δρ,   norm(Δρ) * sqrt(basis.dvol))
+        push!(history_Δρ,   norm(ρout - ρ) * sqrt(basis.dvol))
         push!(history_Etot, energies.total)
 
-        info = (; ham, basis, energies, occupation, ρout, ρin=ρ, ψ,
+        info = (; ham, basis, energies, occupation, ρ=ρout, ρin=ρ, ψ,
                 runtime_ns=time_ns() - start_ns, history_Δρ, history_Etot,
                 stage=:iterate, algorithm="DM", n_iter=ts.iteration, optim_state)
 

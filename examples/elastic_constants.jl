@@ -3,11 +3,12 @@
 # We compute *clamped-ion* elastic constants of a crystal using
 # the algorithmic differentiation density-functional perturbation theory (AD-DFPT) approach
 # as introduced in [^SPH25].
-# 
-# [^SPH25]: 
-#     Schmitz, N. F., Ploumhans, B., & Herbst, M. F. (2025)
+#
+# [^SPH25]:
+#     Schmitz, N. F., Ploumhans, B., & Herbst, M. F. (2026)
 #     *Algorithmic differentiation for plane-wave DFT: materials design, error control and learning model parameters.*
-#     [arXiv:2509.07785](https://arxiv.org/abs/2509.07785)
+#     [npj Computational Materials **12**, 6 (2026)](https://doi.org/10.1038/s41524-025-01880-3).
+#     ([Supplementary material and computational scripts](https://github.com/niklasschmitz/ad-dfpt)).
 #
 # We consider a crystal in its equilibrium configuration, where all atomic forces
 # and stresses vanish.  Homogeneous strains $η$ are then applied
@@ -20,35 +21,6 @@
 # ```math
 #   C = \frac{\partial \sigma}{\partial \eta}.
 # ```
-#
-# The sparsity pattern of the matrix $C$ follows from crystal symmetry
-# and is tabulated in standard references (eg. Table 9 in [^Nye1985]).
-# This sparsity can be used a priori to reduce the number of strain patterns
-# that need to be probed to extract all independent components of $C$.
-# For example, cubic crystals have only three independent elastic constants
-# $C_{11}$, $C_{12}$ and $C_{44}$, with the pattern
-# ```math
-# C = \begin{pmatrix}
-#   C_{11} & C_{12} & C_{12} & 0      & 0      & 0 \\
-#   C_{12} & C_{11} & C_{12} & 0      & 0      & 0 \\
-#   C_{12} & C_{12} & C_{11} & 0      & 0      & 0 \\
-#   0      & 0      & 0      & C_{44} & 0      & 0 \\
-#   0      & 0      & 0      & 0      & C_{44} & 0 \\
-#   0      & 0      & 0      & 0      & 0      & C_{44} \\
-# \end{pmatrix}.
-# ```
-# Thus we can just choose a suitable strain pattern $\dot{\eta} = (1, 0, 0, 1, 0, 0)^\top$,
-# such that $C\dot{\eta} = (C_{11}, C_{12}, C_{12}, C_{44}, 0, 0)^\top$. That is,
-# for cubic crystals like diamond silicon we obtain all independent elastic
-# constants from a single Jacobian-vector product on the stress-strain function.
-#
-# [^Nye1985]:
-#      Nye, J. F. (1985).
-#      *Physical Properties of Crystals*. Oxford University Press.
-#      Comment: Since the elastic tensor transforms equivariantly under rotations,
-#      its numerical components depend on the chosen Cartesian coordinate frame.
-#      These tabulated patterns assume a standardized orientation of the structure
-#      with respect to conventional crystallographic axes.
 #
 # This example computes the *clamped-ion* elastic tensor, keeping internal
 # atomic positions fixed under strain.  The *relaxed-ion* tensor includes
@@ -71,6 +43,13 @@ using Unitful
 using UnitfulAtomic
 
 # ## Computing PBE elastic constants
+#
+# We start with the PBE [^PBE1996] functional.
+#
+# [^PBE1996]:
+#     Perdew, J. P., Burke, K., & Ernzerhof, M. (1996).
+#     *Generalized Gradient Approximation Made Simple.*
+#     [Physical Review Letters, 77(18), 3865-3868](https://doi.org/10.1103/PhysRevLett.77.3865).
 
 pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
 a0_pbe = 10.33u"bohr"  # Equilibrium lattice constant of silicon with PBE
@@ -79,6 +58,87 @@ model0 = model_DFT(bulk(:Si; a=a0_pbe); pseudopotentials, functionals=PBE())
 Ecut = recommended_cutoff(model0).Ecut
 kgrid = [4, 4, 4]
 tol = 1e-6
+
+# The `elastic_tensor` postprocessing function automatically detects crystal
+# symmetry and chooses the appropriate strain patterns to extract all
+# independent elastic constants:
+
+basis = PlaneWaveBasis(model0; Ecut, kgrid)
+scfres = self_consistent_field(basis; tol)
+(; C) = elastic_tensor(scfres)
+
+println("C11: ", uconvert(u"GPa", C[1, 1] * u"hartree" / u"bohr"^3))
+println("C12: ", uconvert(u"GPa", C[1, 2] * u"hartree" / u"bohr"^3))
+println("C44: ", uconvert(u"GPa", C[4, 4] * u"hartree" / u"bohr"^3))
+
+# Here are AD-DFPT results from increasing discretization parameters:
+#
+# | Ecut | kgrid         | c11    | c12   | c44    |
+# |------|---------------|-------:|------:|-------:|
+# | 18   | [4, 4, 4]     | 156.51 | 59.57 |  98.61 |
+# | 18   | [8, 8, 8]     | 153.53 | 56.90 | 100.07 |
+# | 24   | [8, 8, 8]     | 153.26 | 56.82 |  99.97 |
+# | 24   | [14, 14, 14]  | 153.03 | 56.71 | 100.09 |
+#
+# For comparison, Materials Project for PBE *relaxed-ion* elastic constants of
+# silicon [mp-149](https://next-gen.materialsproject.org/materials/mp-149):
+# c11 = 153 GPa, c12 = 57 GPa, c44 = 74 GPa.
+# Note the discrepancy in c44, which is due to us not yet including
+# ionic relaxation in this example.
+
+# ## Moving to meta-GGA functionals
+#
+# To make the problem a little more interesting we will now compute the elastic
+# constants using the Laplacian-dependent r2SCAN-L functional (a deorbitalized version of r2SCAN,
+# see [^MT2020]), again using AD-DFPT.
+#
+# [^MT2020]:
+#     Mejía-Rodríguez, D., & Trickey, S. B. (2020).
+#     *Meta-GGA performance in solids at almost GGA cost.*
+#     [Physical Review B, 102(12), 121109(R)](https://doi.org/10.1103/PhysRevB.102.121109).
+
+model_r2scanl = model_DFT(bulk(:Si; a=a0_pbe);
+                       pseudopotentials, functionals=[:mgga_x_r2scanl, :mgga_c_r2scanl])
+basis_r2scanl = PlaneWaveBasis(model_r2scanl; Ecut, kgrid)
+scfres_r2scanl = self_consistent_field(basis_r2scanl; tol)
+(; C) = elastic_tensor(scfres_r2scanl)
+
+# The r2SCAN-L elastic constants, which agree well with PBE:
+println("C11: ", uconvert(u"GPa", C[1, 1] * u"hartree" / u"bohr"^3))
+println("C12: ", uconvert(u"GPa", C[1, 2] * u"hartree" / u"bohr"^3))
+println("C44: ", uconvert(u"GPa", C[4, 4] * u"hartree" / u"bohr"^3))
+
+# ## Manual AD-DFPT derivation
+#
+# For reference, the following shows how `elastic_tensor` works under the hood
+# for cubic crystals. The sparsity pattern of the matrix $C$ follows from
+# crystal symmetry and is tabulated in standard references (eg. Table 9 in
+# [^Nye1985]). This sparsity can be used a priori to reduce the number of
+# strain patterns that need to be probed to extract all independent components
+# of $C$. For example, cubic crystals have only three independent elastic
+# constants $C_{11}$, $C_{12}$ and $C_{44}$, with the pattern
+# ```math
+# C = \begin{pmatrix}
+#   C_{11} & C_{12} & C_{12} & 0      & 0      & 0 \\
+#   C_{12} & C_{11} & C_{12} & 0      & 0      & 0 \\
+#   C_{12} & C_{12} & C_{11} & 0      & 0      & 0 \\
+#   0      & 0      & 0      & C_{44} & 0      & 0 \\
+#   0      & 0      & 0      & 0      & C_{44} & 0 \\
+#   0      & 0      & 0      & 0      & 0      & C_{44} \\
+# \end{pmatrix}.
+# ```
+# Thus we can just choose a suitable strain pattern $\dot{\eta} = (1, 0, 0, 1, 0, 0)^\top$,
+# such that $C\dot{\eta} = (C_{11}, C_{12}, C_{12}, C_{44}, 0, 0)^\top$. That is,
+# for cubic crystals like diamond silicon we obtain all independent elastic
+# constants from a single Jacobian-vector product on the stress-strain function.
+#
+# [^Nye1985]:
+#      Nye, J. F. (1985).
+#      *Physical Properties of Crystals*. Oxford University Press.
+#      Comment: Since the elastic tensor transforms equivariantly under rotations,
+#      its numerical components depend on the chosen Cartesian coordinate frame.
+#      These tabulated patterns assume a standardized orientation of the structure
+#      with respect to conventional crystallographic axes.
 
 function symmetries_from_strain(model0, voigt_strain)
     lattice = DFTK.voigt_strain_to_full(voigt_strain) * model0.lattice
@@ -101,7 +161,7 @@ function stress_from_strain(model0, voigt_strain; symmetries, Ecut, kgrid, tol)
     basis = PlaneWaveBasis(model; Ecut, kgrid)
     scfres = self_consistent_field(basis; tol)
     DFTK.full_stress_to_voigt(compute_stresses_cart(scfres))
-end 
+end
 
 stress_fn(voigt_strain) = stress_from_strain(model0, voigt_strain;
                                              symmetries=symmetries_strain,
@@ -127,48 +187,3 @@ dstress_fd = (stress_fn(h * strain_pattern) - stress_fn(-h * strain_pattern)) / 
 println("C11 (FD): ", uconvert(u"GPa", dstress_fd[1] * u"hartree" / u"bohr"^3))
 println("C12 (FD): ", uconvert(u"GPa", dstress_fd[2] * u"hartree" / u"bohr"^3))
 println("C44 (FD): ", uconvert(u"GPa", dstress_fd[4] * u"hartree" / u"bohr"^3))
-
-
-# Here are AD-DFPT results from increasing discretization parameters:
-#
-# | Ecut | kgrid         | c11    | c12   | c44    |
-# |------|---------------|-------:|------:|-------:|
-# | 18   | [4, 4, 4]     | 156.51 | 59.57 |  98.61 |
-# | 18   | [8, 8, 8]     | 153.53 | 56.90 | 100.07 |
-# | 24   | [8, 8, 8]     | 153.26 | 56.82 |  99.97 |
-# | 24   | [14, 14, 14]  | 153.03 | 56.71 | 100.09 |
-#
-# For comparison, Materials Project for PBE *relaxed-ion* elastic constants of
-# silicon [mp-149](https://next-gen.materialsproject.org/materials/mp-149):
-# c11 = 153 GPa, c12 = 57 GPa, c44 = 74 GPa.
-# Note the discrepancy in c44, which is due to us not yet including
-# ionic relaxation in this example.
-
-# ## Moving to meta-GGA functionals
-#
-# To make the problem a little more interesting we will now compute the elastic
-# constant using deorbitalised r2-SCAN functional, again using AD-DFPT.
-
-model_scan = model_DFT(bulk(:Si; a=a0_pbe);
-                       pseudopotentials, functionals=[:mgga_c_r2scanl, :mgga_x_r2scanl])
-
-stress, (dstress,) = value_and_pushforward(AutoForwardDiff(), zeros(6),
-                                           (strain_pattern,)) do voigt_strain
-    stress_from_strain(model_scan, voigt_strain;
-                       symmetries=symmetries_strain, Ecut, kgrid, tol)
-
-end;
-
-# Note here that the `value_and_pushforward(...) do voigt_strain ... end` syntax defines
-# an anonymous function to compute the stress from a given strain, i.e. defining
-# the same kind of function as `stress_fn` in the above example.
-# See the [Julia documentation on the do-block-syntax](https://docs.julialang.org/en/v1/manual/functions/#Do-Block-Syntax-for-Function-Arguments) for details.
-
-# We again inspect the r2SCAN stress, which is still small (despite using the
-# PBE lattice constant), so we remain close to the equilibrium:
-stress
-
-# Finially the r2-SCAN elastic constants, which agree well with PBE:
-println("C11: ", uconvert(u"GPa", dstress[1] * u"hartree" / u"bohr"^3))
-println("C12: ", uconvert(u"GPa", dstress[2] * u"hartree" / u"bohr"^3))
-println("C44: ", uconvert(u"GPa", dstress[4] * u"hartree" / u"bohr"^3))

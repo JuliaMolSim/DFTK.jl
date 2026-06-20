@@ -240,6 +240,8 @@ include("response/chi0.jl")
 include("response/hessian.jl")
 export compute_current
 include("postprocess/current.jl")
+export elastic_tensor
+include("postprocess/elastic.jl")
 export phonon_modes
 include("postprocess/phonon.jl")
 export refine_scfres
@@ -281,7 +283,7 @@ end
     lattice = a / 2 * [[0 1 1.];
                        [1 0 1.];
                        [1 1 0.]]
-    pseudofile = joinpath(@__DIR__, "..", "test", "gth_pseudos", "Si.pbe-hgh.upf")
+    pseudofile = joinpath(@__DIR__, "..", "test", "pseudos", "gth", "Si.pbe-hgh.upf")
     Si = ElementPsp(:Si, Dict(:Si => pseudofile))
     atoms     = [Si, Si]
     positions = [ones(3)/8, -ones(3)/8]

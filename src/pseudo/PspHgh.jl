@@ -14,6 +14,7 @@ end
 charge_ionic(psp::PspHgh) = psp.Zion
 has_valence_density(psp::PspHgh) = false
 has_core_density(psp::PspHgh) = false
+has_core_kinetic_energy_density(psp::PspHgh) = false
 
 """
     PspHgh(path[, identifier, description])
@@ -160,7 +161,6 @@ function eval_psp_projector_fourier(psp::PspHgh, i, l, p::T) where {T <: Real}
 
     error("Not implemented for l=$l and i=$i")
 end
-
 
 # [HGH98] (3)
 function eval_psp_projector_real(psp::PspHgh, i, l, r::T) where {T <: Real}
