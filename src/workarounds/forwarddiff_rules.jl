@@ -308,23 +308,19 @@ end
 # must be known and passed ahead of time, and the Dual type explicitly parametrized.
 function hankel(quadrature, r::AbstractVector, r2_f::AbstractVector, l::Integer, p::Dual{Tg,V,N}) where {Tg,V,N}
     # This custom rule uses two properties of the hankel transform:
-    #   d H[f] / dp = 4\pi \int_0^∞ r^2 f(r) j_l'(p⋅r)⋅r dr
+    #   d H[f] / dp = 4\pi \int_0^∞ r^2 f(r) [ j_l'(p⋅r)⋅r/p^l - l * j_l(p⋅r)/p^{l+1} ] dr
     # and that
     #   j_l'(x) = l / x * j_l(x) - j_{l+1}(x)
-    # and tries to avoid allocations as much as possible, which hurt in this inner loop.
-    #
-    # One could implement this by custom rules in integration and spherical bessels, but
-    # the tricky bit is to exploit that one needs both the j_l'(p⋅r) and j_l(p⋅r) values
-    # but one does not want to precompute and allocate them into arrays
-    # TODO Investigate custom rules for bessels and integration
+    # giving
+    #   d H[f] / dp = -4\pi \int_0^∞ r^2 f(r) j_{l+1}(p⋅r)⋅r/p^l ] dr
     pv = ForwardDiff.value(p)
 
-    # To reduce allocations, compute value and derivative simultaneously, using a SVector as integrand
-    value, derivative = 4V(π) * quadrature(r) do i, r
-        jl_i = sphericalbesselj_fast(l, pv * r)
-        val = r2_f[i] * jl_i
-        deriv = iszero(pv) ? zero(V) : r2_f[i] * (l * jl_i / pv - r * sphericalbesselj_fast(l+1, pv * r))
-        SVector(val, deriv)
+    value = hankel(quadrature, r, r2_f, l, pv)
+    if iszero(pv)
+        return Dual{Tg,V,N}(value, zero(V) * ForwardDiff.partials(p))
+    end
+    derivative = -4V(π) / pv^l * quadrature(r) do i, ri
+        r2_f[i] * r[i] * sphericalbesselj_fast(l+1, pv * ri)
     end
     Dual{Tg,V,N}(value, derivative * ForwardDiff.partials(p))
 end
