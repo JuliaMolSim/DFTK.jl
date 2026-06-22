@@ -128,7 +128,9 @@ end
 Von Weizsäcker kinetic energy density, which is exact for one-electron systems
 (i.e. if only one spin channels is occupied or both spin channels singly occupied).
 """
-@timing function von_weizsaecker_kinetic_energy_density(basis::PlaneWaveBasis, ρ::AbstractArray{T}) where {T}
+@timing function von_weizsaecker_kinetic_energy_density(basis::PlaneWaveBasis,
+                                                        ρ::AbstractArray{T};
+                                                        ε_regularization=10eps(T)) where {T}
     ρ_fourier = fft(basis, ρ)
     τ = zero(ρ)
     G = [map(G -> G[α], G_vectors_cart(basis)) for α = 1:3]
@@ -136,8 +138,9 @@ Von Weizsäcker kinetic energy density, which is exact for one-electron systems
         ∇ρ_ασ = ifft(basis, im .* G[α] .* @view ρ_fourier[:, :, :, σ])
         τ[:, :, :, σ] += abs2.(∇ρ_ασ)
     end
-    τ = τ ./ (8ρ)
-    τ[abs.(ρ) .< eps(T)] .= zero(T)  # Ad hoc modification, there is likely something better
+
+    # The maximum regularises for cases where ρ is small to avoid an Inf or NaN appearing.
+    τ = @. τ / (8max(ρ, ε_regularization))
 
     τ
 end

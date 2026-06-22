@@ -403,15 +403,21 @@ function LibxcDensities(basis::PlaneWaveBasis{T}, max_derivative::Integer, ρ, �
     LibxcDensities{T}(basis, max_derivative, ρ_real, ∇ρ_real, σ_real, Δρ_real, τ_Libxc)
 end
 
-function _check_negative_bonding_indicator_α(densities::LibxcDensities{T}) where {T}
+function _check_negative_bonding_indicator_α(densities::LibxcDensities{T}, density_threshold=10eps(T)) where {T}
+    # TODO: The idea here is that libxc cuts components of the XC evaluation anyway if
+    #       the density (or contracted density gradient) is below a certain threshold,
+    #       so we do the same here for the check to make sure this is not too noisy.
     if !isnothing(densities.τ_real) && !isnothing(densities.σ_real)
         n_spin = densities.basis.model.n_spin_components
         has_negative_α = @views any(1:n_spin) do iσ
             # α = (τ - τ_W) / τ_unif should be positive with τ_W = |∇ρ|² / 8ρ
             # equivalently, check 8ρτ - |∇ρ|² ≥ 0
-            α_check = (8 .* densities.ρ_real[iσ, :, :, :] .* densities.τ_real[iσ, :, :, :]
-                       .- densities.σ_real[DftFunctionals.spinindex_σ(iσ, iσ), :, :, :])
-            any(α_check .<= -sqrt(eps(T)))
+            ρ = densities.ρ_real[iσ, :, :, :]
+            σ = densities.σ_real[DftFunctionals.spinindex_σ(iσ, iσ), :, :, :]
+            τ = densities.τ_real[iσ, :, :, :]
+            α_check_failed = @. (8 * ρ * τ - σ ≤ -sqrt(eps(T))
+                                 && abs(ρ) > density_threshold)
+            any(α_check_failed)
         end
         if has_negative_α && mpi_master(densities.basis.comm_kpts)
             @warn "Exchange-correlation term: the kinetic energy density τ is smaller " *
