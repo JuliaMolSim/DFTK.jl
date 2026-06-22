@@ -2,6 +2,7 @@ module DFTKJSON3Ext
 using DFTK
 using JSON3
 using MPI
+using Preferences
 
 function save_json(todict_function, filename::AbstractString, scfres::NamedTuple;
                    save_ψ=false, extra_data=Dict{String,Any}(), save_ρ=false, kwargs...)
