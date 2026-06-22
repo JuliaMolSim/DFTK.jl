@@ -31,6 +31,21 @@ using LinearAlgebra
     nodes = T.(nodes_std ./ 2)
     weights = T.(weights_std ./ 2)
     
+    # Precompute all local q vectors and their weights for the voxel
+    q_locals = Vector{typeof(voxel_basis * Vec3{T}(0,0,0))}(undef, length(nodes)^3)
+    w_locals = Vector{T}(undef, length(nodes)^3)
+    let idx = 1
+        for (wx, x) in zip(weights, nodes)
+            for (wy, y) in zip(weights, nodes)
+                for (wz, z) in zip(weights, nodes)
+                    q_locals[idx] = voxel_basis * Vec3{T}(x, y, z)
+                    w_locals[idx] = wx * wy * wz
+                    idx += 1
+                end
+            end
+        end
+    end
+
     kernel_fourier = zeros(T, length(qpt.G_vectors))
 
     for (iG, G) in enumerate(to_cpu(qpt.G_vectors))
@@ -79,35 +94,31 @@ using LinearAlgebra
         end
 
         # === Use smooth 3D Gaussian Quadrature ===
-        integral = zero(T)
-        for (wx, x) in zip(weights, nodes)
-            for (wy, y) in zip(weights, nodes)
-                for (wz, z) in zip(weights, nodes)
-                    # q vector inside voxel
-                    q_local = x * voxel_basis[:, 1] + 
-                              y * voxel_basis[:, 2] + 
-                              z * voxel_basis[:, 3]
-                    
-                    G_total = G_cart + q_local
-                    Gsq = dot(G_total, G_total)
+        if norm(G) <= 10
+            integral = zero(T)
+            for i in 1:length(q_locals)
+                G_total = G_cart + q_locals[i]
+                Gsq = dot(G_total, G_total)
 
-                    # switch temporarily to BigFloat
+                if found_singularity
+                    # switch temporarily to BigFloat to avoid catastrophic cancellation
                     Gsq_big = BigFloat(Gsq)
                     val_big = eval_kernel_fourier(kernel, Gsq_big)
-
-                    # At singularity, already captured the 4π/(G+q)^2 contribution above: subtract
-                    if found_singularity
-                        val_big -= 4π/Gsq_big
-                    end
-
-                    # back to type T
+                    val_big -= 4π/Gsq_big
                     val = T(val_big)
-
-                    integral += wx * wy * wz * val
+                else
+                    val = eval_kernel_fourier(kernel, Gsq)
                 end
+
+                integral += w_locals[i] * val
             end
+            kernel_fourier[iG] += integral
+        else
+            # For G vectors far from the origin, the function is practically flat over the voxel.
+            # Bypassing the 1728-point quadrature and using the exact midpoint saves enormous CPU time.
+            Gsq = dot(G_cart, G_cart)
+            kernel_fourier[iG] += eval_kernel_fourier(kernel, Gsq)
         end
-        kernel_fourier[iG] += integral
     end
     
     kernel_fourier

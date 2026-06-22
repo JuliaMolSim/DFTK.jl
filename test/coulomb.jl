@@ -185,3 +185,96 @@ end
 #       - Test properties, such as the fact that
 #         the Coulomb energy converges to the same value as the supercell / k-grid
 #         more suprecells are used
+
+
+@testitem "Asymptotic consistency of interaction kernels for localized density" tags=[:exx,:dont_test_mpi] begin
+    using DFTK
+    using DFTK: exx_energy_only, compute_kernel_fourier
+    using LinearAlgebra
+    using FastGaussQuadrature
+
+    # We use kernel-specific lattice constants to bypass slow computations on huge grids
+    a_vals_for = Dict(
+        :sph   => [14.0, 18.0, 22.0],
+        :ws    => [14.0, 18.0, 22.0],
+        :probe => [14.0, 18.0, 22.0, 26.0],
+        :vox   => [50.0, 62.5, 75.0, 87.5, 100.0]
+    )
+    
+    # Pre-allocate dictionary to store evaluated EXX energies
+    E_exx = Dict(name => Float64[] for name in keys(a_vals_for))
+
+    kernels_dict = Dict(
+        :probe => Coulomb(ProbeCharge()),
+        :vox   => Coulomb(VoxelAveraged()),
+        :sph   => SphericallyTruncatedCoulomb(),
+        :ws    => WignerSeitzTruncatedCoulomb()
+    )
+
+    # Determine unique lattice constants
+    unique_a_vals = sort(unique(vcat(values(a_vals_for)...)))
+
+    # Evaluate exact exchange energies
+    # We use an analytical Gaussian charge to bypass the SCF loop and egg-box effects.
+    for a in unique_a_vals
+        active_names = [name for (name, a_vals) in a_vals_for if a in a_vals]
+        if isempty(active_names)
+            continue
+        end
+
+        lattice = [a 0.0 0.0; 0.0 a 0.0; 0.0 0.0 a]
+        model = Model(lattice; n_electrons=2)
+        basis = PlaneWaveBasis(model; Ecut=15, kgrid=(1, 1, 1))
+
+        kpt = basis.kpoints[1]
+        ψk = zeros(ComplexF64, length(kpt.G_vectors), 1)
+        
+        # Model a Gaussian localized charge with real-space standard deviation of 1/\sqrt{c}
+        # At Ecut=15 (Gsq_max = 30), exp(-30 / 2.0) ≈ 3e-7, guaranteeing zero truncation ringing.
+        c = 2.00
+        for (iG, G) in enumerate(kpt.G_vectors)
+            G_cart = basis.model.recip_lattice * G
+            Gsq = sum(abs2, G_cart)
+            ψk[iG, 1] = exp(-Gsq / c)
+        end
+
+        ψk_real = zeros(eltype(ψk), basis.fft_size..., 1)
+        @views ifft!(ψk_real[:, :, :, 1], basis, kpt, ψk[:, 1])
+        ψk_real ./= sqrt(sum(abs2, ψk_real) * basis.dvol)
+        occk = [2.0]
+
+        for name in active_names
+            kernel = kernels_dict[name]
+            kf = compute_kernel_fourier(kernel, basis)
+            E = exx_energy_only(basis, kpt, kf, ψk_real, occk)
+            push!(E_exx[name], E)
+        end
+    end
+
+    # Extrapolate E(a) = E_inf + c_1 / a + c_3 / a^3 + c_5 / a^5
+    # The true Makov-Payne expansion for a localized density in a simple cubic cell
+    # only contains odd powers. The 1/a^5 term is highly non-negligible for VoxelAveraged!
+    extrapolate_poly_vox(a_vals, E_vals) = ([ones(length(a_vals)) (1 ./ a_vals) (1 ./ a_vals).^3 (1 ./ a_vals).^5] \ E_vals)[1]
+
+    # Extrapolate E(a) = E_inf + c / a^3 (for ProbeCharge)
+    extrapolate_poly_probe(a_vals, E_vals) = ([ones(length(a_vals)) (1 ./ a_vals).^3] \ E_vals)[1]
+    
+    # Extrapolate E(a) = E_inf + c * exp(-alpha a) for equally spaced a_vals (for SphericallyTruncated and WignerSeitz)
+    function extrapolate_exp(E_vals)
+        d1, d2 = E_vals[1] - E_vals[2], E_vals[2] - E_vals[3]
+        abs(d1) < 1e-10 ? E_vals[3] : E_vals[3] - d2^2 / (d1 - d2)
+    end
+
+    E_inf = Dict(
+        :probe => extrapolate_poly_probe(a_vals_for[:probe], E_exx[:probe]),
+        :vox   => extrapolate_poly_vox(a_vals_for[:vox], E_exx[:vox]),
+        :sph   => extrapolate_exp(E_exx[:sph]),
+        :ws    => extrapolate_exp(E_exx[:ws])
+    )
+
+    # All extrapolated EXX energies should agree to roughly 1e-5 Ha
+    E_ref = E_inf[:ws]
+    for name in [:probe, :vox, :sph]
+        @test abs(E_inf[name] - E_ref) < 1e-5
+    end
+end
