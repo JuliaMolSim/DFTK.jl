@@ -403,31 +403,38 @@ function LibxcDensities(basis::PlaneWaveBasis{T}, max_derivative::Integer, ρ, �
     LibxcDensities{T}(basis, max_derivative, ρ_real, ∇ρ_real, σ_real, Δρ_real, τ_Libxc)
 end
 
-function _check_negative_bonding_indicator_α(densities::LibxcDensities{T}, density_threshold=10eps(T)) where {T}
+function _check_negative_bonding_indicator_α(densities::LibxcDensities{T};
+                                             density_threshold=100eps(T)) where {T}
     # TODO: The idea here is that libxc cuts components of the XC evaluation anyway if
     #       the density (or contracted density gradient) is below a certain threshold,
     #       so we do the same here for the check to make sure this is not too noisy.
-    if !isnothing(densities.τ_real) && !isnothing(densities.σ_real)
-        n_spin = densities.basis.model.n_spin_components
-        has_negative_α = @views any(1:n_spin) do iσ
-            # α = (τ - τ_W) / τ_unif should be positive with τ_W = |∇ρ|² / 8ρ
-            # equivalently, check 8ρτ - |∇ρ|² ≥ 0
-            ρ = densities.ρ_real[iσ, :, :, :]
-            σ = densities.σ_real[DftFunctionals.spinindex_σ(iσ, iσ), :, :, :]
-            τ = densities.τ_real[iσ, :, :, :]
-            α_check_failed = @. (8 * ρ * τ - σ ≤ -sqrt(eps(T))
-                                 && abs(ρ) > density_threshold)
-            any(α_check_failed)
+    if isnothing(densities.τ_real) || isnothing(densities.σ_real)
+        return
+    end
+
+    n_spin = densities.basis.model.n_spin_components
+    failure_indicator = @views minimum(1:n_spin) do iσ
+        # α = (τ - τ_W) / τ_unif should be positive with τ_W = |∇ρ|² / 8ρ
+        # equivalently, check 8ρτ - |∇ρ|² ≥ 0
+        ρ = densities.ρ_real[iσ, :, :, :]
+        σ = densities.σ_real[DftFunctionals.spinindex_σ(iσ, iσ), :, :, :]
+        τ = densities.τ_real[iσ, :, :, :]
+        failure_indicator = @. (ρ * τ - σ/8) * (abs(ρ) ≥ density_threshold)
+        minimum(failure_indicator)
+    end
+    if mpi_master(densities.basis.comm_kpts)
+        if failure_indicator < -eps(T)
+            @debug "XC computation: α failure indicator: $failure_indicator"
         end
-        if has_negative_α && mpi_master(densities.basis.comm_kpts)
+        if failure_indicator < -sqrt(eps(T))
             @warn "Exchange-correlation term: the kinetic energy density τ is smaller " *
                   "than the von Weizsäcker kinetic energy density τ_W somewhere. " *
                   "This can lead to unphysical results. " *
                   "This can be caused by pseudopotentials without a non-linear core correction " *
-                  "for τ, a too small Ecut value or by an unphysical initial guess for τ. " *
+                  "for τ, a too small Ecut value or an unphysical initial guess for τ. " *
                   "This message is only logged once." maxlog=1
         end
-    end
+    end  # master
 end
 
 function compute_kernel(term::TermXc, basis::PlaneWaveBasis{T}; ρ, kwargs...) where {T}
