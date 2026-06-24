@@ -10,10 +10,11 @@ struct Xc
 
     # Use non-linear core correction or not
     use_nlcc::Bool
+    nlcc_from_vw::Bool  # Use van Weizsäcker kinetic energy density as standin for τcore
 end
 function Xc(functionals::AbstractVector{<:Functional}; scaling_factor=1,
-            potential_threshold=0, use_nlcc=true)
-    Xc(functionals, scaling_factor, potential_threshold, use_nlcc)
+            potential_threshold=0, use_nlcc=true, nlcc_from_vw=false)
+    Xc(functionals, scaling_factor, potential_threshold, use_nlcc, nlcc_from_vw)
 end
 function Xc(functionals::AbstractVector; kwargs...)
     fun = map(functionals) do f
@@ -41,12 +42,15 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
         end
     end
     τcore = nothing
-    if (   xc.use_nlcc && any(needs_τ, xc.functionals)
-        && any(has_core_kinetic_energy_density, basis.model.atoms))
-        τcore = ρ_from_total(basis, atomic_total_density(basis, CoreKineticEnergyDensity()))
-        if mpi_master(basis.comm_kpts)
-            minimum(τcore) < -sqrt(eps(T)) && @warn("Negative τcore detected: $(minimum(τcore))")
+    if xc.use_nlcc && any(needs_τ, xc.functionals)
+        if any(has_core_kinetic_energy_density, basis.model.atoms)
+            τcore = ρ_from_total(basis, atomic_total_density(basis, CoreKineticEnergyDensity()))
+        elseif !isnothing(ρcore)
+            τcore = von_weizsaecker_kinetic_energy_density(basis, ρcore)
         end
+        # if mpi_master(basis.comm_kpts)
+        #     minimum(τcore) < -sqrt(eps(T)) && @warn("Negative τcore detected: $(minimum(τcore))")
+        # end
     end
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
