@@ -97,6 +97,7 @@ end
 function compute_scf(system::AbstractSystem, calc::DFTKCalculator, oldstate)
     # We re-use the symmetries from the oldstate to avoid issues if system
     # happens to be more symmetric than the structure used to make the oldstate.
+    # To not lose the symmetries we also symmetrize the forces (see below).
     symmetries = haskey(oldstate, :basis) ? oldstate.basis.model.symmetries : true
     model = model_DFT(system; symmetries, calc.params.model_kwargs...)
 
@@ -150,10 +151,21 @@ end
     (; energy=scfres.energies.total * u"hartree", state=scfres)
 end
 
+# Compute the Cartesian forces, symmetrized according to the model's symmetries.
+# This ensure that the symmetries are preserved throughout a geometry optimization
+# even if the forces are not perfectly symmetric due to numerical noise.
+# TODO: maybe compute_forces should always symmetrize (with basis or model symmetries?)
+function _computed_symmetrized_forces(scfres)
+    model = scfres.basis.model
+    forces_red = compute_forces(scfres)
+    forces_red = symmetrize_forces(model, forces_red; model.symmetries)
+    covector_red_to_cart.(model, forces_red)
+end
+
 @generate_interface function AtomsCalculators.calculate(::AtomsCalculators.Forces,
         system::AbstractSystem, calc::DFTKCalculator, ps=nothing, st=nothing; kwargs...)
     scfres = compute_scf(system, calc, st)
-    (; forces=compute_forces_cart(scfres) * u"hartree/bohr",
+    (; forces=_computed_symmetrized_forces(scfres) * u"hartree/bohr",
        energy=scfres.energies.total * u"hartree",
        state=scfres)
 end
@@ -172,5 +184,5 @@ end
 
 function AtomsCalculators.energy_forces_virial(system, calc::DFTKCalculator; kwargs...)
     res = AtomsCalculators.calculate(AtomsCalculators.Virial(), system, calc; kwargs...)
-    (; forces=compute_forces_cart(res.state) * u"hartree/bohr", res...)
+    (; forces=_computed_symmetrized_forces(res.state) * u"hartree/bohr", res...)
 end
