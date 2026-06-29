@@ -95,6 +95,8 @@ using LinearAlgebra
 
         # === Use smooth 3D Gaussian Quadrature ===
         if norm(G) <= 10
+            # assume that interaction kernel varies strongly only among the 
+            # first 10 (hard coded!) nearest neighbors of the origin voxel
             integral = zero(T)
             for i in 1:length(q_locals)
                 G_total = G_cart + q_locals[i]
@@ -114,7 +116,7 @@ using LinearAlgebra
             end
             kernel_fourier[iG] += integral
         else
-            # For G vectors far from the origin, the function is practically flat over the voxel.
+            # For G vectors far from the origin, the interaction kernel is practically flat over the voxel.
             # Bypassing the 1728-point quadrature and using the exact midpoint saves enormous CPU time.
             Gsq = dot(G_cart, G_cart)
             kernel_fourier[iG] += eval_kernel_fourier(kernel, Gsq)

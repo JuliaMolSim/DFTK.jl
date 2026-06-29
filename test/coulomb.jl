@@ -182,9 +182,6 @@ end
 
 # TODO: Tests ot include in the future are
 #       - Test for type stability (i.e. when Float32 is used)
-#       - Test properties, such as the fact that
-#         the Coulomb energy converges to the same value as the supercell / k-grid
-#         more suprecells are used
 
 
 @testitem "Asymptotic consistency of interaction kernels for localized density" tags=[:exx,:dont_test_mpi] begin
@@ -251,9 +248,8 @@ end
         end
     end
 
-    # Extrapolate E(a) = E_inf + c_1 / a + c_3 / a^3 + c_5 / a^5
-    # The true Makov-Payne expansion for a localized density in a simple cubic cell
-    # only contains odd powers. The 1/a^5 term is highly non-negligible for VoxelAveraged!
+    # Extrapolate E(a) = E_inf + c_1 / a + c_3 / a^3 + c_5 / a^5 (for VoxelAveraged)
+    # We use a multipole expansion (Makov-Payne style) of a localized density. Note that the 1/a^5 term is important!
     extrapolate_poly_vox(a_vals, E_vals) = ([ones(length(a_vals)) (1 ./ a_vals) (1 ./ a_vals).^3 (1 ./ a_vals).^5] \ E_vals)[1]
 
     # Extrapolate E(a) = E_inf + c / a^3 (for ProbeCharge)
@@ -273,7 +269,7 @@ end
     )
 
     # All extrapolated EXX energies should agree to roughly 1e-5 Ha
-    E_ref = E_inf[:ws]
+    E_ref = E_inf[:ws]  
     for name in [:probe, :vox, :sph]
         @test abs(E_inf[name] - E_ref) < 1e-5
     end
