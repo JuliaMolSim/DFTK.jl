@@ -180,97 +180,89 @@ end
     end
 end
 
-# TODO: Tests ot include in the future are
-#       - Test for type stability (i.e. when Float32 is used)
-
-
 @testitem "Asymptotic consistency of interaction kernels for localized density" tags=[:exx,:dont_test_mpi] begin
     using DFTK
     using DFTK: exx_energy_only, compute_kernel_fourier
     using LinearAlgebra
     using FastGaussQuadrature
 
-    # We use kernel-specific lattice constants to bypass slow computations on huge grids
-    a_vals_for = Dict(
-        :sph   => [14.0, 18.0, 22.0],
-        :ws    => [14.0, 18.0, 22.0],
-        :probe => [14.0, 18.0, 22.0, 26.0],
-        :vox   => [50.0, 62.5, 75.0, 87.5, 100.0]
-    )
-    
-    # Pre-allocate dictionary to store evaluated EXX energies
-    E_exx = Dict(name => Float64[] for name in keys(a_vals_for))
-
-    kernels_dict = Dict(
-        :probe => Coulomb(ProbeCharge()),
-        :vox   => Coulomb(VoxelAveraged()),
-        :sph   => SphericallyTruncatedCoulomb(),
-        :ws    => WignerSeitzTruncatedCoulomb()
-    )
-
-    # Determine unique lattice constants
-    unique_a_vals = sort(unique(vcat(values(a_vals_for)...)))
-
     # Evaluate exact exchange energies
     # We use an analytical Gaussian charge to bypass the SCF loop and egg-box effects.
-    for a in unique_a_vals
-        active_names = [name for (name, a_vals) in a_vals_for if a in a_vals]
-        if isempty(active_names)
-            continue
-        end
-
-        lattice = [a 0.0 0.0; 0.0 a 0.0; 0.0 0.0 a]
-        model = Model(lattice; n_electrons=2)
-        basis = PlaneWaveBasis(model; Ecut=15, kgrid=(1, 1, 1))
-
+    function evaluate_kernel_on_gaussian_charge(kernel, a; Ecut=15, c=2.0)
+        lattice = diagm([a, a, a])
+        model   = Model(lattice; n_electrons=2)
+        basis   = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
         kpt = basis.kpoints[1]
-        ψk = zeros(ComplexF64, length(kpt.G_vectors), 1)
         
         # Model a Gaussian localized charge with real-space standard deviation of 1/\sqrt{c}
         # At Ecut=15 (Gsq_max = 30), exp(-30 / 2.0) ≈ 3e-7, guaranteeing zero truncation ringing.
-        c = 2.00
+        ψk = zeros(ComplexF64, length(kpt.G_vectors), 1)
+        ψk_real = zeros(ComplexF64, basis.fft_size..., 1)
         for (iG, G) in enumerate(kpt.G_vectors)
             G_cart = basis.model.recip_lattice * G
             Gsq = sum(abs2, G_cart)
             ψk[iG, 1] = exp(-Gsq / c)
         end
-
-        ψk_real = zeros(eltype(ψk), basis.fft_size..., 1)
         @views ifft!(ψk_real[:, :, :, 1], basis, kpt, ψk[:, 1])
-        ψk_real ./= sqrt(sum(abs2, ψk_real) * basis.dvol)
+        ψk_real ./= sqrt(sum(abs2, ψk_real) * basis.dvol)  # normalise ψk
         occk = [2.0]
 
-        for name in active_names
-            kernel = kernels_dict[name]
-            kf = compute_kernel_fourier(kernel, basis)
-            E = exx_energy_only(basis, kpt, kf, ψk_real, occk)
-            push!(E_exx[name], E)
-        end
+        kernel_values = compute_kernel_fourier(kernel, basis)
+        exx_energy_only(basis, kpt, kernel_values, ψk_real, occk)
     end
 
-    # Extrapolate E(a) = E_inf + c_1 / a + c_3 / a^3 + c_5 / a^5 (for VoxelAveraged)
-    # We use a multipole expansion (Makov-Payne style) of a localized density. Note that the 1/a^5 term is important!
-    extrapolate_poly_vox(a_vals, E_vals) = ([ones(length(a_vals)) (1 ./ a_vals) (1 ./ a_vals).^3 (1 ./ a_vals).^5] \ E_vals)[1]
-
-    # Extrapolate E(a) = E_inf + c / a^3 (for ProbeCharge)
-    extrapolate_poly_probe(a_vals, E_vals) = ([ones(length(a_vals)) (1 ./ a_vals).^3] \ E_vals)[1]
-    
-    # Extrapolate E(a) = E_inf + c * exp(-alpha a) for equally spaced a_vals (for SphericallyTruncated and WignerSeitz)
-    function extrapolate_exp(E_vals)
+    # Extrapolate E(a) = E_inf + c * exp(-alpha a) for equally spaced a_vals
+    # (for SphericallyTruncated and WignerSeitz)
+    function extrapolate_exp(a_vals, E_vals)
+        @assert length(a_vals) == 3
+        @assert a_vals[1] - a_vals[2] == a_vals[2] - a_vals[3]
         d1, d2 = E_vals[1] - E_vals[2], E_vals[2] - E_vals[3]
         abs(d1) < 1e-10 ? E_vals[3] : E_vals[3] - d2^2 / (d1 - d2)
     end
 
-    E_inf = Dict(
-        :probe => extrapolate_poly_probe(a_vals_for[:probe], E_exx[:probe]),
-        :vox   => extrapolate_poly_vox(a_vals_for[:vox], E_exx[:vox]),
-        :sph   => extrapolate_exp(E_exx[:sph]),
-        :ws    => extrapolate_exp(E_exx[:ws])
-    )
+    # This is our reference value, against which we test all others
+    E_WignerSeitz = let a_vals = [14.0, 18.0, 22.0]
+        kernel = WignerSeitzTruncatedCoulomb()
+        E_vals = evaluate_kernel_on_gaussian_charge.(Ref(kernel), a_vals)
+        E_inf  = extrapolate_exp(a_vals, E_vals)
+    end
 
-    # All extrapolated EXX energies should agree to roughly 1e-5 Ha
-    E_ref = E_inf[:ws]  
-    for name in [:probe, :vox, :sph]
-        @test abs(E_inf[name] - E_ref) < 1e-5
+    @testset "WignerSeitz against SphericallyTruncated" begin
+        a_vals = [14.0, 18.0, 22.0]
+        kernel = SphericallyTruncatedCoulomb()
+        E_vals = evaluate_kernel_on_gaussian_charge.(Ref(kernel), a)
+        E_inf  = extrapolate_exp(a_vals, E_vals)
+
+        @test abs(E_inf - E_WignerSeitz) < 1e-5
+    end
+
+    @testset "WignerSeitz against ProbeCharge" begin
+        a_vals = [14.0, 18.0, 22.0, 26.0]
+        kernel = Coulomb(ProbeCharge())
+        E_vals = evaluate_kernel_on_gaussian_charge.(Ref(kernel), a)
+
+        # Extrapolate E(a) = E_inf + c / a^3 (for ProbeCharge)
+        V = [ones(length(a_vals)) (1 ./ a_vals).^3]
+        c = V \ E_vals  # Polynomial fit
+        E_inf = c[1]    # Constant coefficient
+    end
+
+    @testset "WignerSeitz against VoxelAveraged" begin
+        a_vals = [50.0, 62.5, 75.0, 87.5, 100.0]
+        kernel = Coulomb(VoxelAveraged())
+        E_vals = evaluate_kernel_on_gaussian_charge.(Ref(kernel), a_vals)
+
+        # Extrapolate E(a) = E_inf + c_1 / a + c_3 / a^3 + c_5 / a^5 (for VoxelAveraged)
+        # We use a multipole expansion (Makov-Payne style) of a localized density.
+        # Note that the 1/a^5 term is important!
+        V = [ones(length(a_vals)) (1 ./ a_vals) (1 ./ a_vals).^3 (1 ./ a_vals).^5]
+        c = V \ E_vals  # Polynomial fit
+        E_inf = c[1]    # Constant coefficient
+
+        @test abs(E_inf - E_WignerSeitz) < 1e-5
     end
 end
+
+
+# TODO: Tests ot include in the future are
+#       - Test for type stability (i.e. when Float32 is used)
