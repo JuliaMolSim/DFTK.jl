@@ -138,9 +138,7 @@ Ecuts = 20:1:50;
 
 # …one obtains the following two plots for the convergence in `kpoints` and `Ecut`.
 
-#md # ```@raw html
-#md # <img src="../../assets/convergence_study_kgrid.png" width=600 height=400 />
-#md # <img src="../../assets/convergence_study_ecut.png"  width=600 height=400 />
-#md # ```
-#nb # <img src="https://docs.dftk.org/stable/assets/convergence_study_kgrid.png" width=600 height=400 />
-#nb # <img src="https://docs.dftk.org/stable/assets/convergence_study_ecut.png"  width=600 height=400 />
+# ```@raw html
+# <img src="../../assets/convergence_study_kgrid.png" width=600 height=400 />
+# <img src="../../assets/convergence_study_ecut.png"  width=600 height=400 />
+# ```

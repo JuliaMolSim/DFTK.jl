@@ -277,7 +277,7 @@ function apply_symop(symop::SymOp, basis, ρin; kwargs...)
     symmetrize_ρ(basis, ρin; symmetries=[symop], kwargs...)
 end
 
-# Accumulates the symmetrized versions of the density ρin into ρout (in Fourier space).
+# Accumulates the symmetrized versions of the density ρin into ρaccu (in Fourier space).
 # No normalization is performed. This function is optimized for CPU and GPU.
 function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, symmetries) where {T}
     # For each G vector and symmetry S:

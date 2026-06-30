@@ -24,7 +24,7 @@ function compute_dos(ε, basis, eigenvalues; smearing=basis.model.smearing,
 
     D = zeros(typeof(ε), basis.model.n_spin_components)
     for σ = 1:basis.model.n_spin_components, ik = krange_spin(basis, σ)
-        for (iband, εnk) in enumerate(eigenvalues[ik])
+        for εnk in eigenvalues[ik]
             enred = (εnk - ε) / temperature
             D[σ] -= (filled_occ * basis.kweights[ik] / temperature
                      * Smearing.occupation_derivative(smearing, enred))
@@ -61,7 +61,7 @@ function compute_ldos(ε, basis::PlaneWaveBasis{T}, eigenvalues, ψ;
     # Use compute_density routine to compute LDOS, using just the modified
     # weights (as "occupations") at each k-point. Note, that this automatically puts in the
     # required symmetrization with respect to kpoints and BZ symmetry
-    compute_density(basis, ψ, weights; occupation_threshold=weight_threshold)
+    compute_density(basis, ψ, weights; occupation_threshold=weight_threshold, label=:ldos)
 end
 function compute_ldos(scfres::NamedTuple; ε=scfres.εF, kwargs...)
     compute_ldos(ε, scfres.basis, scfres.eigenvalues, scfres.ψ; kwargs...)

@@ -13,17 +13,24 @@ Represents the LDOS-based ``χ_0`` model
 ```
 where ``D_\text{loc}`` is the local density of states and ``D`` the density of states.
 For details see [Herbst, Levitt 2020](https://arxiv.org/abs/2009.01665).
+
+By default the LdosModel is constructed using the smearing of
+`basis.model.smearing` and a temperature of `min(50basis.model.temperature, 0.1)`,
+but this may be changed using the `smearing` and `temperature` arguments.
 """
 @kwdef struct LdosModel <: χ0Model
-    adjust_temperature = IncreaseMixingTemperature()
+    smearing::Union{Nothing,Smearing.SmearingFunction} = nothing
+    temperature::Union{Nothing,Float64} = nothing
 end
 function (χ0::LdosModel)(basis::PlaneWaveBasis{T}; eigenvalues, ψ, εF, kwargs...) where {T}
-    n_spin = basis.model.n_spin_components
+    defaults = default_smearing_temperature(basis.model)
+    temperature = @something(χ0.temperature, defaults.temperature)
+    smearing    = @something(χ0.smearing,    defaults.smearing)
+    @debug "Mixing smearing and temperature: $smearing $temperature"
 
-    # Catch cases that will yield no contribution
-    temperature = χ0.adjust_temperature(basis.model.temperature; kwargs...)
+    # Catch cases without contribution
     iszero(temperature) && return nothing
-    ldos = compute_ldos(εF, basis, eigenvalues, ψ; temperature)
+    ldos = compute_ldos(εF, basis, eigenvalues, ψ; smearing, temperature)
     maximum(abs, ldos) < sqrt(eps(T)) && return nothing
 
     tdos = sum(sum, ldos) * basis.dvol  # Integrate LDOS to form total DOS

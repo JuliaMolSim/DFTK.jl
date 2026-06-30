@@ -52,7 +52,7 @@ density_differences = Float64[];
 # The callback function itself gets passed a named tuple
 # similar to the one returned by `self_consistent_field`,
 # which contains the input and output density of the SCF step
-# as `ρin` and `ρout`. Since the callback gets called
+# as `ρin` and `ρ`. Since the callback gets called
 # both during the SCF iterations as well as after convergence
 # just before `self_consistent_field` finishes we can both
 # collect the data and initiate the plotting in one function.
@@ -61,9 +61,9 @@ using LinearAlgebra
 
 function plot_callback(info)
     if info.stage == :finalize
-        plot!(p, density_differences, label="|ρout - ρin|", markershape=:x)
+        plot!(p, density_differences, label="|ρ - ρin|", markershape=:x)
     else
-        push!(density_differences, norm(info.ρout - info.ρin))
+        push!(density_differences, norm(info.ρ - info.ρin))
     end
     info
 end

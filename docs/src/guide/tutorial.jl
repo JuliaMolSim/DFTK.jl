@@ -98,9 +98,7 @@ stack(scfres.eigenvalues)
 # [`self_consistent_field`](@ref) as well as the [`AdaptiveBands`](@ref) documentation).
 # There are only 8 k-points (instead of 4x4x4) because symmetry has been used to reduce the
 # amount of computations to just the irreducible k-points (see
-#md # [Crystal symmetries](@ref)
-#nb # [Crystal symmetries](https://docs.dftk.org/stable/developer/symmetries/)
-# for details).
+# [Crystal symmetries](@ref) for details).
 #
 # We can check the occupations ...
 stack(scfres.occupation)
