@@ -242,7 +242,7 @@ end
         E_vals = evaluate_kernel_on_gaussian_charge.(Ref(kernel), a_vals)
 
         # Extrapolate E(a) = E_inf + c / a^3 (for ProbeCharge)
-        V = [ones(length(a_vals)) (1 ./ a_vals).^3]
+        V = [ones(length(a_vals))   (1 ./ a_vals).^3]
         c = V \ E_vals  # Polynomial fit
         E_inf = c[1]    # Constant coefficient
     end
@@ -255,7 +255,7 @@ end
         # Extrapolate E(a) = E_inf + c_1 / a + c_3 / a^3 + c_5 / a^5 (for VoxelAveraged)
         # We use a multipole expansion (Makov-Payne style) of a localized density.
         # Note that the 1/a^5 term is important!
-        V = [ones(length(a_vals)) (1 ./ a_vals) (1 ./ a_vals).^3 (1 ./ a_vals).^5]
+        V = [ones(length(a_vals))   (1 ./ a_vals)   (1 ./ a_vals).^3   (1 ./ a_vals).^5]
         c = V \ E_vals  # Polynomial fit
         E_inf = c[1]    # Constant coefficient
 
