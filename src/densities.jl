@@ -189,22 +189,9 @@ end
 #         (i.e. not order-1) so that may be unexpected for such an operation. On the other
 #         hand we will probably not get around to have some form of additional computation
 #         that happens upon the construction of these "densities".
-pack_gdensity(basis::PlaneWaveBasis, ρ::AbstractArray, τ::Nothing) = pack_gdensity_flat_(basis, ρ, τ)
-function pack_gdensity(basis::PlaneWaveBasis, ρ::AbstractArray, τ::AbstractArray)
-    pack_gdensity_flat_(basis, ρ, τ - von_weizsaecker_kinetic_energy_density(basis, ρ))
-end
+pack_gdensity(basis::PlaneWaveBasis, ρ::AbstractArray, τ::Nothing) = ρ
+pack_gdensity(basis, ρ::AbstractArray, τ::AbstractArray) = cat(ρ, τ; dims=Val(4))
 function split_gdensity(basis::PlaneWaveBasis, x::AbstractArray{T, 4}) where {T}
-    ρ, τ = split_gdensity_flat_(basis, x)
-    if isnothing(τ)
-        return ρ, τ
-    else
-        return ρ, τ + von_weizsaecker_kinetic_energy_density(basis, ρ)
-    end
-end
-
-pack_gdensity_flat_(basis, ρ::AbstractArray, ::Nothing) = ρ
-pack_gdensity_flat_(basis, ρ::AbstractArray, τ::AbstractArray) = cat(ρ, τ; dims=Val(4))
-function split_gdensity_flat_(basis::PlaneWaveBasis, x::AbstractArray{T, 4}) where {T}
     # TODO: This breaks when non-collinear spin is implemented
     n_spin = basis.model.n_spin_components
     @assert size(x, 4) == n_spin || size(x, 4) == 2n_spin
