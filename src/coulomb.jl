@@ -3,13 +3,20 @@ Abstract type for different interaction models.
 
 ### Architecture
 
-Computing interaction kernels is split into two parts: the mathematical formula (e.g. 4\pi/G^2) and the grid discretization. This split is primarily driven by the need to handle singularities in long-range kernels.
-# TODO (Issue #XYZ): Refactor file structure and kernels as discussed
+Computing interaction kernels is split into two parts: the mathematical formula (e.g. 4\pi/G^2)
+and the grid discretization. This split is primarily driven by the need to handle singularities
+in long-range kernels. Note, that we already identified deficiencies with this design and a
+refactoring is discussed, which will change this file's structure in the future.
+# TODO (Issue #1322): Refactor file structure and kernels as discussed
 
 1. **InteractionKernel:** Defines the pure mathematical formula (via `eval_kernel_fourier`).
-2. **regularization:** Necessary for long-range kernels (like `Coulomb` and `LongRangeCoulomb`) diverge as ``G+q \to 0``. Evaluating them on a periodic grid requires a specific strategy to handle this divergence.
+2. **regularization:** Necessary for long-range kernels (like `Coulomb` and `LongRangeCoulomb`)
+   diverge as ``G+q \to 0``. Evaluating them on a periodic grid requires a specific strategy
+   to handle this divergence.
    
-Because of this divergence, long-range `InteractionKernel`s contain a `regularization` field to dictate how the ``G+q=0`` component is built via `_compute_kernel_fourier`. Short-range kernels have a finite limit at `G+q \to 0``` and don't need a regularizatin.
+Because of this divergence, long-range `InteractionKernel`s contain a `regularization` field to
+dictate how the ``G+q=0`` component is built via `_compute_kernel_fourier`. Short-range kernels
+have a finite limit at `G+q \to 0``` and don't need a regularizatin.
 
 Each InteractionKernel should support the following functions:
 eval_kernel_fourier(::InteractionKernel, Gsq)
@@ -40,7 +47,8 @@ Base.Broadcast.broadcastable(k::InteractionKernel) = Ref(k)
 # TODO: should we have a eval_kernel_real? 
 # TODO: rename "k" in _compute_kernel_fourier(k...
 # TODO: change notation: p instead of G, G+q, ...
-# TODO: introduce a clever and AD-friendly way to deal with f(x)/x for x->0. E.g. intoduce phi(x) = iszero(x) ? one(x) : expm1(x) / x 
+# TODO: introduce a clever and AD-friendly way to deal with f(x)/x for x->0.
+#       E.g. intoduce phi(x) = iszero(x) ? one(x) : expm1(x) / x 
 
 
 """
