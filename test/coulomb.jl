@@ -230,7 +230,7 @@ end
     @testset "WignerSeitz against SphericallyTruncated" begin
         a_vals = [14.0, 18.0, 22.0]
         kernel = SphericallyTruncatedCoulomb()
-        E_vals = evaluate_kernel_on_gaussian_charge.(Ref(kernel), a)
+        E_vals = evaluate_kernel_on_gaussian_charge.(Ref(kernel), a_vals)
         E_inf  = extrapolate_exp(a_vals, E_vals)
 
         @test abs(E_inf - E_WignerSeitz) < 1e-5
@@ -239,7 +239,7 @@ end
     @testset "WignerSeitz against ProbeCharge" begin
         a_vals = [14.0, 18.0, 22.0, 26.0]
         kernel = Coulomb(ProbeCharge())
-        E_vals = evaluate_kernel_on_gaussian_charge.(Ref(kernel), a)
+        E_vals = evaluate_kernel_on_gaussian_charge.(Ref(kernel), a_vals)
 
         # Extrapolate E(a) = E_inf + c / a^3 (for ProbeCharge)
         V = [ones(length(a_vals)) (1 ./ a_vals).^3]
