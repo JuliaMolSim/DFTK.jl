@@ -25,29 +25,16 @@ using LinearAlgebra
     voxel_basis = model.recip_lattice * Diagonal(1 ./ Vec3{T}(kgrid_size))
     voxel_vol = abs(det(voxel_basis))
     
-    # get Gauss-Legendre nodes and weights
+    # Get Gauss-Legendre nodes and weights and scale from [-1, 1] to [-0.5, 0.5]
     nodes_std, weights_std = gausslegendre(regularization.n_quadrature_points)
-    # Scale from [-1, 1] to [-0.5, 0.5]
     nodes = T.(nodes_std ./ 2)
     weights = T.(weights_std ./ 2)
     
     # Precompute all local q vectors and their weights for the voxel
-    q_locals = Vector{typeof(voxel_basis * Vec3{T}(0,0,0))}(undef, length(nodes)^3)
-    w_locals = Vector{T}(undef, length(nodes)^3)
-    let idx = 1
-        for (wx, x) in zip(weights, nodes)
-            for (wy, y) in zip(weights, nodes)
-                for (wz, z) in zip(weights, nodes)
-                    q_locals[idx] = voxel_basis * Vec3{T}(x, y, z)
-                    w_locals[idx] = wx * wy * wz
-                    idx += 1
-                end
-            end
-        end
-    end
+    q_locals = vec([voxel_basis * Vec3(x, y, z) for x in nodes, y in nodes, z in nodes])
+    w_locals = vec([wx * wy * wz for wx in weights, wy in weights, wz in weights])
 
     kernel_fourier = zeros(T, length(qpt.G_vectors))
-
     for (iG, G) in enumerate(to_cpu(qpt.G_vectors))
         G_cart = model.recip_lattice * (G+q)
 
@@ -116,8 +103,9 @@ using LinearAlgebra
             end
             kernel_fourier[iG] += integral
         else
-            # For G vectors far from the origin, the interaction kernel is practically flat over the voxel.
-            # Bypassing the 1728-point quadrature and using the exact midpoint saves enormous CPU time.
+            # For G vectors far from the origin, the interaction kernel is practically flat
+            # over the voxel. Bypassing the 1728-point quadrature and using the exact
+            # midpoint saves enormous CPU time.
             Gsq = dot(G_cart, G_cart)
             kernel_fourier[iG] += eval_kernel_fourier(kernel, Gsq)
         end
