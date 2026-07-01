@@ -48,7 +48,9 @@ function GO.minimize_energy!(system, calc::DFTKCalculator, solver;
         params = DFTK.DFTKParameters(; calc.params.model_kwargs,
                                        calc.params.basis_kwargs,
                                        scf_kwargs)
-        calc = DFTKCalculator(params, calc.st; enforce_convergence=false)
+        calc = DFTKCalculator(params, calc.st;
+                              enforce_convergence=false,
+                              derivatives_keep_model_symmetry=true)
     end
 
     callback_dftk = function (optim_state, geoopt_state)

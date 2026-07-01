@@ -13,6 +13,8 @@ where ``ϵ`` is the strain tensor.
 See [O. Nielsen, R. Martin Phys. Rev. B. **32**, 3792 (1985)](https://doi.org/10.1103/PhysRevB.32.3792)
 for details. In Voigt notation one would use the vector
 ``[σ_{xx} σ_{yy} σ_{zz} σ_{zy} σ_{zx} σ_{yx}]``.
+
+Stresses are symmetrised with respect to the basis symmetries (`basis.symmetries`).
 """
 @timing function compute_stresses_cart(scfres)
     # compute the Hellmann-Feynman energy (with fixed ψ/occ/ρ)

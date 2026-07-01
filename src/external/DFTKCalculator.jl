@@ -18,16 +18,20 @@ struct DFTKCalculator{T}
     #
     # Calculator counters
     # TODO The Ref thingies feel a little wrong, somehow this should be part of the
-    #      state, but this may make it hard to keep track during geometry optimisation
+    #      state, but this may make it hard to keep track during geometry optimization
     #      or similar. In any case don't rely on this for now, it may disappear.
     counter_n_iter::Ref{Int}
     counter_matvec::Ref{Int}
     #
     # Calculator parameters
     enforce_convergence::Bool  # If true, throws an error exception on non-convergence
+    derivatives_keep_model_symmetry::Bool # Enforces forces are always symmetric with respect
+                               # to the structure, see docs of `compute_forces` for details
 
-    function DFTKCalculator(params::DFTKParameters, st=nothing; enforce_convergence=true)
-        new{Nothing}(params, st, Ref(0), Ref(0), enforce_convergence)
+    function DFTKCalculator(params::DFTKParameters, st=nothing;
+                            enforce_convergence=true, derivatives_keep_model_symmetry=false)
+        new{Nothing}(params, st, Ref(0), Ref(0),
+                     enforce_convergence, derivatives_keep_model_symmetry)
     end
 end
 AtomsCalculators.energy_unit(::DFTKCalculator) = u"hartree"
@@ -59,9 +63,18 @@ By default the calculator preserves the symmetries that are stored inside the
 `st` (the basis is re-built, but symmetries are fixed and not re-computed).
 
 Calculator-specific keyword arguments are:
-- `verbose`: If true, the SCF iterations are printed.
-- `enforce_convergence`: If false, the calculator does not error out
+- `verbose::Bool` (default: `true`): If true, the SCF iterations are printed.
+- `enforce_convergence::Bool` (default: `true`): If false, the calculator does not error out
   in case of a non-converging SCF.
+- `derivatives_keep_model_symmetry::Bool` (default: `false`): If the parameters chosen for
+  the discretization is not able to represent all symmetries of the structure one can either
+  have (i) energy derivatives be consistent with the energy within the discretization used
+  for the computation (ii) or have these derivatives agree with the physical model.
+  See [`compute_forces`](@ref) for more details. By default we do (i), but setting this
+  to true switches to (ii), which can be useful for geometry optimizations, for example.
+  Using a `DFTKCalculator` in combination with
+  [GeometryOptimization.jl](https://github.com/JuliaMolSim/GeometryOptimization.jl)
+  automatically switches to (ii).
 
 ## Example
 ```julia-repl
@@ -90,7 +103,9 @@ end
 # TODO Do something with parameters ?
 AtomsCalculators.get_state(calc::DFTKCalculator) = calc.st
 function AtomsCalculators.set_state!(calc::DFTKCalculator, st)
-    DFTKCalculator(calc.params, st; calc.enforce_convergence)
+    DFTKCalculator(calc.params, st;
+                   calc.enforce_convergence,
+                   calc.derivatives_keep_model_symmetry)
 end
 
 
@@ -144,6 +159,13 @@ function compute_scf(system::AbstractSystem, calc::DFTKCalculator, ::Nothing)
     compute_scf(system, calc, (; ))
 end
 
+function compute_calculator_force(calc::DFTKCalculator, scfres)
+    if calc.derivatives_keep_model_symmetry
+        return _compute_forces_cart_symmetrised(scfres; scfres.basis.model.symmetries)
+    else
+        return compute_forces_cart(scfres)
+    end
+end
 
 @generate_interface function AtomsCalculators.calculate(::AtomsCalculators.Energy,
         system::AbstractSystem, calc::DFTKCalculator, ps=nothing, st=nothing; kwargs...)
@@ -151,21 +173,10 @@ end
     (; energy=scfres.energies.total * u"hartree", state=scfres)
 end
 
-# Compute the Cartesian forces, symmetrized according to the model's symmetries.
-# This ensure that the symmetries are preserved throughout a geometry optimization
-# even if the forces are not perfectly symmetric due to numerical noise.
-# TODO: maybe compute_forces should always symmetrize (with basis or model symmetries?)
-function _computed_symmetrized_forces(scfres)
-    model = scfres.basis.model
-    forces_red = compute_forces(scfres)
-    forces_red = symmetrize_forces(model, forces_red; model.symmetries)
-    covector_red_to_cart.(model, forces_red)
-end
-
 @generate_interface function AtomsCalculators.calculate(::AtomsCalculators.Forces,
         system::AbstractSystem, calc::DFTKCalculator, ps=nothing, st=nothing; kwargs...)
     scfres = compute_scf(system, calc, st)
-    (; forces=_computed_symmetrized_forces(scfres) * u"hartree/bohr",
+    (; forces=compute_calculator_force(calc, scfres) * u"hartree/bohr",
        energy=scfres.energies.total * u"hartree",
        state=scfres)
 end
@@ -184,5 +195,5 @@ end
 
 function AtomsCalculators.energy_forces_virial(system, calc::DFTKCalculator; kwargs...)
     res = AtomsCalculators.calculate(AtomsCalculators.Virial(), system, calc; kwargs...)
-    (; forces=_computed_symmetrized_forces(res.state) * u"hartree/bohr", res...)
+    (; forces=compute_calculator_force(calc, res.state) * u"hartree/bohr", res...)
 end
