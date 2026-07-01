@@ -112,7 +112,6 @@ end
 function compute_scf(system::AbstractSystem, calc::DFTKCalculator, oldstate)
     # We re-use the symmetries from the oldstate to avoid issues if system
     # happens to be more symmetric than the structure used to make the oldstate.
-    # To not lose the symmetries we also symmetrize the forces (see below).
     symmetries = haskey(oldstate, :basis) ? oldstate.basis.model.symmetries : true
     model = model_DFT(system; symmetries, calc.params.model_kwargs...)
 
@@ -160,6 +159,10 @@ function compute_scf(system::AbstractSystem, calc::DFTKCalculator, ::Nothing)
 end
 
 function compute_calculator_force(calc::DFTKCalculator, scfres)
+    # By default forces are only symmetric with respect to the basis (discretised problem),
+    # but not with respect to the model (original physical problem); see the compute_forces
+    # docs for details; for geometry optimisations we need the latter, thus we may explicitly
+    # symmetrise if the flag calc.derivatives_keep_model_symmetry is set.
     if calc.derivatives_keep_model_symmetry
         return _compute_forces_cart_symmetrised(scfres; scfres.basis.model.symmetries)
     else
