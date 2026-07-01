@@ -230,6 +230,15 @@ function LdosMixing(; smearing=nothing, temperature=nothing, kwargs...)
     χ0Mixing(; χ0terms=[LdosModel(; smearing, temperature)], kwargs...)
 end
 
+""" 
+Preconditioning with χ0_Δε, χ0_ΔεF and χ0_LDOS :
+    χ0_Δε = ∑_i f'(εᵢ)|ρᵢᵢ⟩⟨ρᵢᵢ|
+    χ0_ΔεF = 1/DOS |LDOS⟩⟨LDOS|
+    χ0_LDOS = LDOS(r)δ_rr'
+    ε† = I - χ0_LDOS vc - (χ0_Δε + χ0_ΔεF) Kxc
+"""
+Δε_ΔεF_LDOS_Mixing(; verbose=false, maxiter=10, reltol=1e-6, kwargs...) = mixedχ0Mixing(; χ0terms_Kxc=[ΔεModel(; kwargs...), ΔεFModel()], χ0terms_vc=[DFTK.LdosModel()], verbose, maxiter, reltol)
+
 
 @doc raw"""
 Generic mixing function using a model for the susceptibility composed of the sum of the `χ0terms`.
@@ -258,12 +267,11 @@ function Base.show(io::IO, mixing::χ0Mixing)
     print(io, "RPA=$(mixing.RPA), reltol=$(mixing.reltol))")
 end
 
-@views @timing "χ0Mixing" function mix_density(mixing::χ0Mixing, basis, δF::AbstractArray{T};
-                                               ρin, kwargs...) where {T}
-    # Initialise χ0terms and remove nothings (terms that don't yield a contribution)
+function get_ε_adj_op(mixing::χ0Mixing, basis::PlaneWaveBasis; ρ, kwargs...)
+    
     χ0applies = filter(!isnothing, [χ₀(basis; ρin, kwargs...) for χ₀ in mixing.χ0terms])
     # If no applies left, do not bother running GMRES and directly do simple mixing
-    isempty(χ0applies) && return mix_density(SimpleMixing(), basis, δF)
+    isempty(χ0applies) && return identity
 
     # Solve (ε^†) δρ = δF with ε^† = (1 - χ₀ vc) and χ₀ given as the sum of the χ0terms
     function dielectric_adjoint(δF)
@@ -277,17 +285,89 @@ end
         εδF .-= mean(εδF)
         εδF
     end
-
-    DC_δF = mean(δF)
-    δF .-= DC_δF
-    δρ, info = linsolve(dielectric_adjoint, δF;
-                        verbosity=(mixing.verbose ? 3 : 0),
-                        rtol=T(mixing.reltol),
-                        ishermitian=false)
-    info.converged == 0 && @warn "LDOS mixing GMRES not converged"
-    δρ .+= DC_δF  # Set DC from δF
-    mpi_bcast!(δρ, basis.comm_kpts)  # Enforce numerically identical density across MPI ranks
 end
+
+"""
+Generic mixing function using several χ0-model (adapted to each kernel).
+    ε† = I - [ χ0_Kh vc + χ0_Kxc Kxc + χ0_Khxc (vc+Kxc) ]
+"""
+@kwdef struct mixedχ0Mixing <: DFTK.Mixing
+    χ0terms_vc::Array{DFTK.χ0Model} = DFTK.χ0Model[]   # The terms to use as the model for χ0_Kh
+    χ0terms_Kxc::Array{DFTK.χ0Model} = DFTK.χ0Model[]   # The terms to use as the model for χ0_Kxc
+    χ0terms_Khxc::Array{DFTK.χ0Model} = DFTK.χ0Model[]   # The terms to use as the model for χ0_Khxc
+    verbose::Bool = false
+    reltol::Float64 = 1e-10  # Relative tolerance for the iterative solver.
+    maxiter::Int=10
+end
+
+function get_ε_adj_op(mixing::mixedχ0Mixing, basis::PlaneWaveBasis; ρ, kwargs...)
+    
+    χ0applies_vc = filter(!isnothing, [χ₀(basis; ρ, kwargs...) for χ₀ in mixing.χ0terms_vc])
+    χ0applies_Kxc = filter(!isnothing, [χ₀(basis; ρ, kwargs...) for χ₀ in mixing.χ0terms_Kxc])
+    χ0applies_Khxc = filter(!isnothing, [χ₀(basis; ρ, kwargs...) for χ₀ in mixing.χ0terms_Khxc])
+    need_vc = !isempty(χ0applies_vc) || !isempty(χ0applies_Khxc)
+    need_Kxc = !isempty(χ0applies_Kxc) || !isempty(χ0applies_Khxc)
+
+    !need_vc && !need_Kxc && return identity
+
+    function ε_adj(δρ)
+        # Apply kernel
+        vc_δρ = nothing
+        Kxc_δρ = nothing
+        if need_vc
+            vc_δρ = apply_kernel(basis, δρ; ρ, RPA=true)
+        end
+        if need_Kxc
+            Kxc_δρ = zero(δρ)
+            for term in basis.terms
+                if !(term isa DFTK.TermHartree)
+                    δV_term = apply_kernel(term, basis, δρ;  ρ)
+                    if !isnothing(δV_term)
+                        Kxc_δρ .+= δV_term
+                    end
+                end
+            end
+        end
+        εδρ = copy(δρ)
+        # Apply χ0 :
+        for apply_term! in χ0applies_vc
+            apply_term!(εδρ, vc_δρ, -1)  # εδρ .-= χ₀ * vc_δρ
+        end
+        for apply_term! in χ0applies_Kxc
+            apply_term!(εδρ, Kxc_δρ, -1)  # εδρ .-= χ₀ * Kxc_δρ
+        end
+        for apply_term! in χ0applies_Khxc
+            apply_term!(εδρ, vc_δρ .+ Kxc_δρ, -1)  # εδρ .-= χ₀ * (vc_δρ + Kxc_δρ)
+        end
+        return εδρ
+    end
+end
+
+@views @timing "χ0Mixing" function DFTK.mix_density(mixing::Union{χ0Mixing, mixedχ0Mixing}, basis, Δρ::AbstractArray{T};
+                                               ρin, kwargs...) where {T}
+
+    ε_adj_op = get_ε_adj_op(mixing, basis; ρ=ρin, kwargs...)
+    ε_adj_op == identity && return mix_density(SimpleMixing(), basis, Δρ)
+    
+    mixed_Δρ = similar(Δρ)
+    mixed_Δρ, info = linsolve(ε_adj_op, Δρ;
+        verbosity=(mixing.verbose ? 3 : 0),
+        rtol=T(mixing.reltol),
+        krylovdim=mixing.maxiter,
+        maxiter=1,
+        ishermitian=false,
+        isposdef=false,
+    )
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        info.converged == 0 && @warn "χ0-mixing GMRES not converged"
+    end
+
+    MPI.Bcast!(mixed_Δρ, 0, MPI.COMM_WORLD) 
+
+    return mixed_Δρ .+ DFTK.mean(Δρ) .- DFTK.mean(mixed_Δρ)     # Ensuring that the mean value of Δρ is unchanged 
+                                                                # (conservation of electron number).
+end
+
 
 @timing "χ0Mixing" function mix_potential(mixing::Mixing, basis::χ0Mixing, δF::AbstractArray; kwargs...)
     error("Not yet implemented.")
