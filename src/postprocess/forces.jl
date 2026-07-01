@@ -8,7 +8,7 @@ and `positions` in the underlying [`Model`](@ref).
 !!! info "Forces are not always symmetric with respect to the physical structure"
     We ensure that the returned forces are the derivatve of the obtained DFT
     energy with respect to positions *within the discretisation* encoded in
-    the [`PlaneWaveBases`](@ref). Note, that as a result we are unable to make sure
+    the [`PlaneWaveBasis`](@ref). Note, that as a result we are unable to make sure
     that forces always keep the symmetries of the physical structure, simply because
     the discretised problem (encoded in the `basis`) may be unable to represent numerically
     all physical symmetries, i.e. `basis.symmetries` may be only a subset
@@ -37,7 +37,7 @@ which has the same structure as the `atoms` object passed to the underlying [`Mo
 !!! info "Forces are not always symmetric with respect to the physical structure"
     We ensure that the returned forces are the derivative of the obtained DFT
     energy with respect to positions within the discretisation encoded in
-    the [`PlaneWaveBases`](@ref). As a result forces may not always be symmetric
+    the [`PlaneWaveBasis`](@ref). As a result forces may not always be symmetric
     with respect to the physical structure. For more details, see the documentation
     of [`compute_forces`](@ref).
 """
