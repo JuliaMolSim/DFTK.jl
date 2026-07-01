@@ -158,15 +158,27 @@ function compute_scf(system::AbstractSystem, calc::DFTKCalculator, ::Nothing)
     compute_scf(system, calc, (; ))
 end
 
-function compute_calculator_force(calc::DFTKCalculator, scfres)
-    # By default forces are only symmetric with respect to the basis (discretised problem),
+function compute_calculator_forces(calc::DFTKCalculator, scfres)
+    # By default forces are only symmetric with respect to the basis (discretized problem),
     # but not with respect to the model (original physical problem); see the compute_forces
     # docs for details; for geometry optimisations we need the latter, thus we may explicitly
     # symmetrise if the flag calc.derivatives_keep_model_symmetry is set.
     if calc.derivatives_keep_model_symmetry
-        return _compute_forces_cart_symmetrised(scfres; scfres.basis.model.symmetries)
+        return _compute_forces_cart_symmetrized(scfres; scfres.basis.model.symmetries)
     else
         return compute_forces_cart(scfres)
+    end
+end
+
+function compute_calculator_stresses(calc::DFTKCalculator, scfres)
+    # By default stresses are only symmetric with respect to the basis (discretized problem),
+    # but not with respect to the model (original physical problem); see the compute_stresses_cart
+    # docs for details; for geometry optimisations we need the latter, thus we may explicitly
+    # symmetrise if the flag calc.derivatives_keep_model_symmetry is set.
+    if calc.derivatives_keep_model_symmetry
+        return _compute_stresses_cart_symmetrized(scfres; scfres.basis.model.symmetries)
+    else
+        return compute_stresses_cart(scfres)
     end
 end
 
@@ -179,7 +191,7 @@ end
 @generate_interface function AtomsCalculators.calculate(::AtomsCalculators.Forces,
         system::AbstractSystem, calc::DFTKCalculator, ps=nothing, st=nothing; kwargs...)
     scfres = compute_scf(system, calc, st)
-    (; forces=compute_calculator_force(calc, scfres) * u"hartree/bohr",
+    (; forces=compute_calculator_forces(calc, scfres) * u"hartree/bohr",
        energy=scfres.energies.total * u"hartree",
        state=scfres)
 end
@@ -188,7 +200,7 @@ end
         system::AbstractSystem, calc::DFTKCalculator, ps=nothing, st=nothing; kwargs...)
     scfres  = compute_scf(system, calc, st)
     Ω = scfres.basis.model.unit_cell_volume
-    virial = (-Ω * compute_stresses_cart(scfres)) * u"hartree"
+    virial = (-Ω * compute_calculator_stresses(calc, scfres)) * u"hartree"
     (; virial, energy=scfres.energies.total * u"hartree", state=scfres)
 end
 
@@ -198,5 +210,5 @@ end
 
 function AtomsCalculators.energy_forces_virial(system, calc::DFTKCalculator; kwargs...)
     res = AtomsCalculators.calculate(AtomsCalculators.Virial(), system, calc; kwargs...)
-    (; forces=compute_calculator_force(calc, res.state) * u"hartree/bohr", res...)
+    (; forces=compute_calculator_forces(calc, res.state) * u"hartree/bohr", res...)
 end

@@ -7,7 +7,7 @@ and `positions` in the underlying [`Model`](@ref).
 
 !!! info "Forces are not always symmetric with respect to the physical structure"
     We ensure that the returned forces are the derivatve of the obtained DFT
-    energy with respect to positions within the discretisation encoded in
+    energy with respect to positions *within the discretisation* encoded in
     the [`PlaneWaveBases`](@ref). Note, that as a result we are unable to make sure
     that forces always keep the symmetries of the physical structure, simply because
     the discretised problem (encoded in the `basis`) may be unable to represent numerically
@@ -56,7 +56,7 @@ end
 # Internal function used to not only compute a force, but also symmetrise with respect
 # to a custom set of symmetries. Currently only used in the DFTK calculator; if it becomes
 # broadly useful, we should perhaps promote this to a proper API function.
-function _compute_forces_cart_symmetrised(scfres; symmetries)
+function _compute_forces_cart_symmetrized(scfres; symmetries)
     forces_reduced = compute_forces(scfres)
     forces_reduced = symmetrize_forces(scfres.basis.model, forces_reduced; symmetries)
     covector_red_to_cart.(scfres.basis.model, forces_reduced)
