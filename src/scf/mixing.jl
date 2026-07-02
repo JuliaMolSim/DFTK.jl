@@ -259,7 +259,7 @@ real space using a GMRES. Either the full kernel (`RPA=false`) or only the Hartr
     RPA::Bool = true        # Use RPA, i.e. only apply the Hartree and not the XC Kernel
     verbose::Bool = false   # Run the GMRES verbosely
     reltol::Float64 = 0.01  # Relative tolerance for GMRES
-    maxiter::Int = 100       # Maximum number of GMRES iterations
+    maxiter::Int = 100      # Maximum number of GMRES iterations
 end
 function Base.show(io::IO, mixing::χ0Mixing)
     χ0terms = mixing.χ0terms
