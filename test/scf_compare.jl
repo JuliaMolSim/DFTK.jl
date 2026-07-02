@@ -139,7 +139,8 @@ end
     ρ_ref  = scfres.ρ
 
     for mixing_str in ("KerkerMixing()", "KerkerDosMixing()", "DielectricMixing(; εr=10)",
-                       "HybridMixing(; εr=10)", "χ0Mixing(; χ0terms=[Applyχ0Model()], RPA=false)")
+                       "HybridMixing(; εr=10)", "χ0Mixing(; χ0terms=[Applyχ0Model()], RPA=false)",
+                       "HybridDiagonalMixing()")
         @testset "Testing $mixing_str" begin
             mixing = eval(Meta.parse(mixing_str))
             scfres = self_consistent_field(basis; ρ=ρ0, mixing, tol, damping=0.8)
