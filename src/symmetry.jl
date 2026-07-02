@@ -369,8 +369,8 @@ function symmetrize_stresses(model::Model, stresses; symmetries)
     stresses_symmetrized /= length(symmetries)
     stresses_symmetrized
 end
-function symmetrize_stresses(basis::PlaneWaveBasis, stresses)
-    symmetrize_stresses(basis.model, stresses; basis.symmetries)
+function symmetrize_stresses(basis::PlaneWaveBasis, stresses; symmetries=basis.symmetries)
+    symmetrize_stresses(basis.model, stresses; symmetries)
 end
 
 """
@@ -460,7 +460,7 @@ function unfold_bz(basis::PlaneWaveBasis)
     if length(basis.symmetries) == 1
         return basis
     else
-        # TODO This can be optimised much better by avoiding the recomputation
+        # TODO This can be optimized much better by avoiding the recomputation
         #      of the terms wherever possible.
         use_symmetry_for_kpoint_reduction = false
         return PlaneWaveBasis(basis.model, basis.Ecut, basis.fft_size,
@@ -494,7 +494,7 @@ function unfold_array(basis_irred, basis_unfolded, data, is_ψ)
         error("Brillouin zone symmetry unfolding not supported with MPI yet")
     end
     if basis_irred.n_irreducible_kpoints < mpi_nprocs(basis_irred.comm_kpts)
-        # Note: if this routine is ever generalised for MPI,
+        # Note: if this routine is ever generalized for MPI,
         # need special care for potentially duplicated KP
         error("Brillouin zone symmetry unfolding not supported with duplicated k-points")
     end
