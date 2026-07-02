@@ -37,8 +37,8 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     ρcore = nothing
     if xc.use_nlcc && any(has_core_density, basis.model.atoms)
         ρcore = ρ_from_total(basis, atomic_total_density(basis, CoreDensity()))
-        if mpi_master(basis.comm_kpts)
-            minimum(ρcore) < -sqrt(eps(T)) && @warn("Negative ρcore detected: $(minimum(ρcore))")
+        if mpi_master(basis.comm_kpts) && minimum(ρcore) < -sqrt(eps(T))
+            @debug "xc: Negative ρcore: $(minimum(ρcore))"
         end
     end
     τcore = nothing
@@ -48,9 +48,9 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
         elseif !isnothing(ρcore)
             τcore = von_weizsaecker_kinetic_energy_density(basis, ρcore)
         end
-        # if mpi_master(basis.comm_kpts)
-        #     minimum(τcore) < -sqrt(eps(T)) && @warn("Negative τcore detected: $(minimum(τcore))")
-        # end
+        if mpi_master(basis.comm_kpts) && minimum(τcore) < -sqrt(eps(T))
+            @debug "xc: Negative τcore: $(minimum(τcore))"
+        end
     end
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
@@ -423,12 +423,15 @@ function _check_negative_bonding_indicator_α(densities::LibxcDensities{T};
         ρ = densities.ρ_real[iσ, :, :, :]
         σ = densities.σ_real[DftFunctionals.spinindex_σ(iσ, iσ), :, :, :]
         τ = densities.τ_real[iσ, :, :, :]
-        failure_indicator = @. (ρ * τ - σ/8) * (abs(ρ) ≥ density_threshold)
+        failure_indicator = @. ((ρ * τ - σ/8)
+                                * (abs(ρ) ≥ density_threshold)
+                                * (abs(σ) ≥ density_threshold)
+                                * (abs(τ) ≥ density_threshold))
         minimum(failure_indicator)
     end
     if mpi_master(densities.basis.comm_kpts)
         if failure_indicator < -eps(T)
-            @debug "XC computation: α failure indicator: $failure_indicator"
+            @debug "xc: α failure indicator: $failure_indicator"
         end
         if failure_indicator < -sqrt(eps(T))
             @warn "Exchange-correlation term: the kinetic energy density τ is smaller " *
