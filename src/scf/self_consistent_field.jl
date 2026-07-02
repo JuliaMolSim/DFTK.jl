@@ -150,8 +150,8 @@ Overview of parameters:
   Typical mixings are [`LdosMixing`](@ref), [`KerkerMixing`](@ref), [`SimpleMixing`](@ref)
   or [`DielectricMixing`](@ref). Default is `LdosMixing()`
 - `damping`: Damping parameter ``α`` in the above equation. Default is `0.8`.
-- `solver`: Fixed-point solver to use, see [`ScfAndersonDensitySolver`](@ref)
-  and [`ScfDampingSolver`](@ref), for example.
+- `solver`: Fixed-point solver to use, see [`ScfAndersonSolver`](@ref)
+  and [`ScfAndersonDensitySolver`](@ref), for example.
 - `nbandsalg`: By default DFTK uses `nbandsalg=AdaptiveBands(model)`, which adaptively determines
   the number of bands to compute. If you want to influence this algorithm or use a predefined
   number of bands in each SCF step, pass a [`FixedBands`](@ref) or [`AdaptiveBands`](@ref).
@@ -176,7 +176,7 @@ Overview of parameters:
     maxtime=Year(1),
     mixing=LdosMixing(),
     damping=0.8,
-    solver=ScfAndersonDensitySolver(),
+    solver=ScfAndersonSolver(),
     eigensolver=lobpcg_hyper,
     diagtolalg=default_diagtolalg(basis; tol),
     nbandsalg::NbandsAlgorithm=AdaptiveBands(basis.model),
