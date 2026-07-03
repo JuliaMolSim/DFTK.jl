@@ -48,7 +48,17 @@ function GO.minimize_energy!(system, calc::DFTKCalculator, solver;
         params = DFTK.DFTKParameters(; calc.params.model_kwargs,
                                        calc.params.basis_kwargs,
                                        scf_kwargs)
-        calc = DFTKCalculator(params, calc.st; enforce_convergence=false)
+
+        # TODO: The derivatives_keep_model_symmetry=true is a bit of a hack here.
+        #       Ideally it should not be the responsibility of the calculator to return
+        #       forces that keep the symmetry of the model, i.e. the symmetry of the
+        #       structure to be optimized, but instead it should be the job of the optimiser
+        #       to choose a representation of the structure, which keeps the symmetry
+        #       OR to explicitly symmetrise the positions in each step to ensure the
+        #       user-selected symmetries are kept.
+        calc = DFTKCalculator(params, calc.st;
+                              enforce_convergence=false,
+                              derivatives_keep_model_symmetry=true)
     end
 
     callback_dftk = function (optim_state, geoopt_state)
