@@ -39,14 +39,15 @@ function (scf::ScfDampingSolver)(f, x0, info0; maxiter, damping)
 end
 
 
-
 @doc raw"""
 Create an anderson-accelerated SCF solver for the [`self_consistent_field`](@ref) solver.
 
 This solver only performs damping and anderson acceleration in the density, but
-not in the kinetic energy density. An alternative and our current default
-is [`ScfAndersonSolver`](@ref). See also [`ScfAndersonSolver`(@ref) for the list of keyword
-arguments and some documentation about their values.
+not in the kinetic energy density. For functionals not involving the kinetic energy
+density `τ` this algorithm is equivalent to our current default [`ScfAndersonSolver`](@ref)
+for meta-GGA functionals this algorithms is sometimes faster than [`ScfAndersonSolver`](@ref),
+but generally [`ScfAndersonSolver`](@ref) is more reliable. See the documentation of
+[`ScfAndersonSolver`](@ref) for documentation on keyword arguments and their default values.
 """
 struct ScfAndersonDensitySolver{Targs} <: ScfSolver
     m_start::Int
@@ -55,6 +56,7 @@ end
 function ScfAndersonDensitySolver(; m_start::Integer=1, kwargs...)
     ScfAndersonDensitySolver(m_start, kwargs)
 end
+# For the show function, see below
 function (scf::ScfAndersonDensitySolver)(f, x0, info0; maxiter, damping)
     T = eltype(x0)
     β = convert(T, damping)
@@ -91,9 +93,10 @@ where `τUEG` is the uniform electron gas kinetic energy densiy and `τW` is the
 Weizsäcker kinetic energy density.
 
 An alternative is [`ScfAndersonDensitySolver`](@ref), which only performs damping and
-anderson acceleration in the density, but not in the kinetic energy density. While
-`ScfAndersonSolver` usually performs well, sometimes switching to `ScfAndersonDensitySolver`
-can avoid numerical issues.
+anderson acceleration in the density, but not in the kinetic energy density. For functionals
+not involving the kinetic energy  density `τ` both algorithms are equivalent; for meta-GGA
+functionals this solver tends to be more reliable, but [`ScfAndersonDensitySolver`](@ref)
+is sometimes faster if both work.
 
 ## Keyword arguments
 - `m::Integer`       (default: `10`) Maximal Anderson history size
@@ -165,6 +168,21 @@ function from_representation!(::TauVwScaled, basis, x)
     end
     x
 end
+
+function Base.show(io::IO, scf::Union{ScfAndersonSolver,ScfAndersonDensitySolver})
+    if scf isa ScfAndersonSolver
+        print(io, "ScfAndersonSolver")
+    else
+        print(io, "ScfAndersonDensitySolver")
+    end
+    print(io, "(; m_start=$(scf.m_start)")
+    anderson = AndersonAcceleration(; scf.anderson_kwargs...)
+    for arg in (:m, :maxcond, :errorfactor)
+        print(io, ", $arg=$(getproperty(anderson, arg))")
+    end
+    print(io, ")")
+end
+
 
 @deprecate scf_damping_solver(; damping=1.0)           ScfDampingSolver()
 @deprecate scf_anderson_solver(; m_start=1, kwargs...) ScfAndersonDensitySolver(; m_start, kwargs...)
