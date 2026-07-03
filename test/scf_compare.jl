@@ -110,7 +110,8 @@ end
     ρ_ref = self_consistent_field(basis; ρ=ρ0, tol).ρ
 
     for mixing_str in ("KerkerDosMixing()", "HybridMixing(; RPA=true)",
-                       "LdosMixing(; RPA=false)", "HybridMixing(; εr=10, RPA=true)")
+                       "LdosMixing(; RPA=false)", "HybridMixing(; εr=10, RPA=true)",
+                       "HybridDiagonalMixing()")
         @testset "Testing $mixing_str" begin
             mixing = eval(Meta.parse(mixing_str))
             ρ_mix = self_consistent_field(basis; ρ=ρ0, mixing, tol, damping=0.8).ρ
