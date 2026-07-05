@@ -198,7 +198,7 @@ function HybridMixing(; εr=10.0, kTF=0.8, localization=identity,
     # TODO: switch to non-adaptive version above
     χ0terms = [DielectricModel(; εr, kTF, localization),
                LdosModel(; smearing, temperature)]
-    χ0Mixing(; χ0terms, kwargs...)
+    χ0Mixing(χ0terms; kwargs...)
 end
 
 
@@ -227,7 +227,7 @@ Important `kwargs` passed on to [`χ0Mixing`](@ref)
 """
 function LdosMixing(; smearing=nothing, temperature=nothing, kwargs...)
     # TODO: switch to non-adaptive version above
-    χ0Mixing(; χ0terms=[LdosModel(; smearing, temperature)], kwargs...)
+    χ0Mixing([LdosModel(; smearing, temperature)]; kwargs...)
 end
 
 @doc raw"""
@@ -241,38 +241,35 @@ kernel and a diagonal χ0-model for the exchange-correlation kernel:
 ```
 """
 function HybridDiagonalMixing(; verbose=false, maxiter=20, reltol=1e-6, kwargs...)
-    mixedχ0Mixing(; χ0terms_Kxc=[ΔεModel(; kwargs...), ΔεFModel()], 
-                    χ0terms_vc=[DFTK.LdosModel()], 
+    χ0Mixing(; χ0terms_mapping = Dict(TermHartree => [LdosModel()],
+                                      TermXc => [DiagonalModel(; kwargs...)]),
                     verbose, maxiter, reltol)
 end
 
-
 @doc raw"""
-Generic mixing function using a model for the susceptibility composed of the sum of the `χ0terms`.
-For valid `χ0terms` See the subtypes of `χ0Model`. The dielectric model is solved in
-real space using a GMRES. Either the full kernel (`RPA=false`) or only the Hartree kernel
-(`RPA=true`) are employed. `verbose=true` lets the GMRES run in verbose mode
-(useful for debugging).
+Generic mixing function using model susceptibilities. 
+`χ0terms_mapping` links term types (or union of term types) to a list of `χ0Model`s 
+used to approximate its response.
+Alternatively, the model susceptibility can be defined via a flat list of `χ0Model`s. 
+In this case, if `RPA=true`, it is applied only to the Hartree term and 
+if `RPA=false`, to the full kernel.
+The dielectric model is solved in real space using a GMRES, whose
+convergence is controlled by `reltol` and `maxiter`.
+`verbose=true` lets the GMRES run in verbose mode (useful for debugging).
 """
 @kwdef struct χ0Mixing <: Mixing
-    χ0terms   = χ0Model[Applyχ0Model()]  # The terms to use as the model for χ0
-    RPA::Bool = true        # Use RPA, i.e. only apply the Hartree and not the XC Kernel
+    χ0terms_mapping::Dict = Dict(Union{TermHartree, TermXc} => [Applyχ0Model()])
     verbose::Bool = false   # Run the GMRES verbosely
-    reltol::Float64 = 0.01  # Relative tolerance for GMRES
-    maxiter::Int = 100      # Maximum number of GMRES iterations
+    reltol::Float64 = 1e-6  # Relative tolerance for the GMRES.
+    maxiter::Int = 100      # Maximum number of iterations for the GMRES
 end
-function Base.show(io::IO, mixing::χ0Mixing)
-    χ0terms = mixing.χ0terms
-    if length(χ0terms) == 1 && χ0terms[1] isa Applyχ0Model
-        print(io, "χ0Mixing([Applyχ0Model()], ")
-    elseif length(χ0terms) == 1 && χ0terms[1] isa LdosModel
-        print(io, "LdosMixing(")
-    elseif length(χ0terms) == 2 && χ0terms[2] isa LdosModel && χ0terms[1] isa DielectricModel
-        print(io, "HybridMixing(")
+function χ0Mixing(χ0terms::Vector; RPA::Bool=true, kwargs...)
+    if RPA
+        χ0terms_mapping = Dict(TermHartree => χ0terms) 
     else
-        print(io, "χ0Mixing([$(length(mixing.χ0terms)) terms], ")
+        χ0terms_mapping = Dict(Union{TermHartree, TermXc} => χ0terms)
     end
-    print(io, "RPA=$(mixing.RPA), reltol=$(mixing.reltol))")
+    χ0Mixing(; χ0terms_mapping, kwargs...)
 end
 
 """
@@ -280,99 +277,71 @@ Get the model adjoint dielectric operator used for this mixing.
 """
 function get_ε_adj_op(mixing::χ0Mixing, basis::PlaneWaveBasis; ρin, kwargs...)
     
-    χ0applies = filter(!isnothing, [χ₀(basis; ρin, kwargs...) for χ₀ in mixing.χ0terms])
-    # If no applies left, do not bother running GMRES and directly do simple mixing
-    isempty(χ0applies) && return identity
-
-    # Solve (ε^†) δρ = δF with ε^† = (1 - χ₀ vc) and χ₀ given as the sum of the χ0terms
-    function dielectric_adjoint(δF)
-        # Apply Kernel (just vc for RPA and (vc + K_{xc}) if not RPA)
-        δV = apply_kernel(basis, δF; ρ=ρin, mixing.RPA)
-        δV .-= mean(δV)
-        εδF = copy(δF)
-        for apply_term! in χ0applies
-            apply_term!(εδF, δV, -1)  # εδF .-= χ₀ * δV
+    χ0applies_mapping = Dict()
+    for (term_type, χ0terms) in mixing.χ0terms_mapping
+        χ0applies = filter(!isnothing, [χ₀(basis; ρin, kwargs...) for χ₀ in χ0terms])
+        if !isempty(χ0applies)
+            χ0applies_mapping[term_type] = χ0applies
         end
-        εδF .-= mean(εδF)
-        εδF
     end
-end
 
-"""
-Generic mixing function using several χ0-models, adapted to each kernel.
-    ε† = I - [ χ0_Kh vc + χ0_Kxc Kxc + χ0_Khxc (vc+Kxc) ]
-"""
-@kwdef struct mixedχ0Mixing <: DFTK.Mixing
-    χ0terms_vc::Array{DFTK.χ0Model} = DFTK.χ0Model[]    # Terms for the χ0_Kh model
-    χ0terms_Kxc::Array{DFTK.χ0Model} = DFTK.χ0Model[]   # Terms for the χ0_Kxc model
-    χ0terms_Khxc::Array{DFTK.χ0Model} = DFTK.χ0Model[]  # Terms for the χ0_Khxc model
-    verbose::Bool = false   # Run the GMRES verbosely
-    reltol::Float64 = 1e-10 # Relative tolerance for the GMRES.
-    maxiter::Int = 20       # Maximum number of iterations for the GMRES
-end
-function Base.show(io::IO, mixing::mixedχ0Mixing)
-    χ0terms_vc   = mixing.χ0terms_vc
-    χ0terms_Kxc  = mixing.χ0terms_Kxc
-    χ0terms_Khxc = mixing.χ0terms_Khxc
-
-    if isempty(χ0terms_Khxc) && length(χ0terms_vc) == 1 && χ0terms_vc[1] isa LdosModel &&
-       length(χ0terms_Kxc) == 2 && χ0terms_Kxc[1] isa ΔεModel && χ0terms_Kxc[2] isa ΔεFModel
-        print(io, "HybridDiagonalMixing(temperature=$(χ0terms_Kxc[1].temperature), ")
-    else
-        print(io, "mixedχ0Mixing([$(length(χ0terms_vc)) Kh terms], ",
-                  "[$(length(χ0terms_Kxc)) Kxc terms], ",
-                  "[$(length(χ0terms_Khxc)) Khxc terms], ")
-    end
-    print(io, "reltol=$(mixing.reltol), maxiter=$(mixing.maxiter))")
-end
-
-"""
-Get the model adjoint dielectric operator used for this mixing.
-"""
-function get_ε_adj_op(mixing::mixedχ0Mixing, basis::PlaneWaveBasis; ρin, kwargs...)
-    
-    χ0applies_vc = filter(!isnothing, [χ₀(basis; ρin, kwargs...) for χ₀ in mixing.χ0terms_vc])
-    χ0applies_Kxc = filter(!isnothing, [χ₀(basis; ρin, kwargs...) for χ₀ in mixing.χ0terms_Kxc])
-    χ0applies_Khxc = filter(!isnothing, [χ₀(basis; ρin, kwargs...) for χ₀ in mixing.χ0terms_Khxc])
-    need_vc = !isempty(χ0applies_vc) || !isempty(χ0applies_Khxc)
-    need_Kxc = !isempty(χ0applies_Kxc) || !isempty(χ0applies_Khxc)
-
-    !need_vc && !need_Kxc && return identity
+    isempty(χ0applies_mapping) && return identity
 
     function ε_adj(δρ)
-        # Apply kernel
-        vc_δρ = nothing
-        Kxc_δρ = nothing
-        if need_vc
-            vc_δρ = apply_kernel(basis, δρ; ρ=ρin, RPA=true)
-        end
-        if need_Kxc
-            Kxc_δρ = zero(δρ)
+        εδρ = copy(δρ)
+        for (term_type, χ0applies) in χ0applies_mapping
+            # Apply kernel
+            Kδρ = zero(δρ)
             for term in basis.terms
-                if !(term isa DFTK.TermHartree)
-                    δV_term = apply_kernel(term, basis, δρ;  ρ=ρin)
-                    if !isnothing(δV_term)
-                        Kxc_δρ .+= δV_term
-                    end
+                if isa(term, term_type)
+                    Kδρ .+= apply_kernel(term, basis, δρ;  ρ=ρin)
                 end
             end
-        end
-        εδρ = copy(δρ)
-        # Apply χ0 :
-        for apply_term! in χ0applies_vc
-            apply_term!(εδρ, vc_δρ, -1)     # εδρ .-= χ₀ * vc_δρ
-        end
-        for apply_term! in χ0applies_Kxc
-            apply_term!(εδρ, Kxc_δρ, -1)    # εδρ .-= χ₀ * Kxc_δρ
-        end
-        for apply_term! in χ0applies_Khxc
-            apply_term!(εδρ, vc_δρ .+ Kxc_δρ, -1)  # εδρ .-= χ₀ * (vc_δρ + Kxc_δρ)
+            # Apply χ0 model
+            for apply_term! in χ0applies
+                apply_term!(εδρ, Kδρ, -1)     # εδρ .-= χ₀ * Kδρ
+            end
         end
         return εδρ
     end
 end
 
-@views @timing "χ0Mixing" function DFTK.mix_density(mixing::Union{χ0Mixing, mixedχ0Mixing}, 
+"""
+Get the model dielectric operator used for this mixing.
+"""
+function get_ε_op(mixing::χ0Mixing, basis::PlaneWaveBasis; ρin, kwargs...)
+    
+    χ0applies_mapping = Dict()
+    for (term_type, χ0terms) in mixing.χ0terms_mapping
+        χ0applies = filter(!isnothing, [χ₀(basis; ρin, kwargs...) for χ₀ in χ0terms])
+        if !isempty(χ0applies)
+            χ0applies_mapping[term_type] = χ0applies
+        end
+    end
+
+    isempty(χ0applies_mapping) && return identity
+
+    function ε(δV)
+        εδV = copy(δV)
+        for (term_type, χ0applies) in χ0applies_mapping
+            # Apply χ0 model
+            χ0δV = zero(δV)
+            for apply_term! in χ0applies
+                apply_term!(χ0δV, δV, 1)     # χ0δV .+= χ₀ * δV
+            end
+            # Apply kernel
+            for term in basis.terms
+                if isa(term, term_type)
+                    εδV .-= apply_kernel(term, basis, χ0δV;  ρ=ρin)
+                end
+            end
+
+        end
+        return εδρ
+    end
+end
+
+@views @timing "χ0Mixing" function mix_density(mixing::χ0Mixing, 
         basis, Δρ::AbstractArray{T};
         ρin, kwargs...) where {T}
 
@@ -396,12 +365,30 @@ end
 
     # Ensuring that the mean value of Δρ is unchanged 
     # (conservation of electron number).
-    return mixed_Δρ .+ DFTK.mean(Δρ) .- DFTK.mean(mixed_Δρ)
+    return mixed_Δρ .+ mean(Δρ) .- mean(mixed_Δρ)
 end
 
+@timing "χ0Mixing" function mix_potential(mixing::χ0Mixing, basis, ΔV::AbstractArray{T};
+        kwargs...) where {T}
 
-@timing "χ0Mixing" function mix_potential(mixing::Mixing, basis::χ0Mixing, δF::AbstractArray; kwargs...)
-    error("Not yet implemented.")
+    ε_op = get_ε_op(mixing, basis; ρin, kwargs...)
+    ε_op == identity && return mix_potential(SimpleMixing(), basis, ΔV)
+    
+    mixed_ΔV = similar(ΔV)
+    mixed_ΔV, info = linsolve(ε_op, ΔV;
+        verbosity=(mixing.verbose ? 3 : 0),
+        rtol=T(mixing.reltol),
+        krylovdim=mixing.maxiter,
+        maxiter=1,
+        ishermitian=false,
+        isposdef=false,
+    )
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        info.converged == 0 && @warn "χ0-mixing GMRES not converged"
+    end
+
+    MPI.Bcast!(mixed_ΔV, 0, MPI.COMM_WORLD) 
+    return mixed_ΔV
 end
 
 function default_smearing_temperature(model::Model)

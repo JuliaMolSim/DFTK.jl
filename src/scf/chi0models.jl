@@ -77,15 +77,17 @@ function (χ0::DielectricModel)(basis; kwargs...)
 end
 
 """
-χ0 reduced to eigenvalue variations
-    χ0_Δε = ∑_i f'(εᵢ-εF) |ρᵢᵢ⟩⟨ρᵢᵢ|.
+χ0 reduced to eigenvalue variations and Fermi-level variations
+    χ0_Δε = ∑_i f'(εᵢ-εF) |ρᵢᵢ⟩⟨ρᵢᵢ| + 1/DOS |LDOS⟩⟨LDOS|.
 """
-@kwdef struct ΔεModel <: χ0Model
+@kwdef struct DiagonalModel <: χ0Model
     temperature = 0.01
 end
-function (χ0::ΔεModel)(basis::PlaneWaveBasis{T}; eigenvalues, ψ, εF, kwargs...) where {T}
+function (χ0::DiagonalModel)(basis::PlaneWaveBasis{T}; eigenvalues, ψ, εF, kwargs...) where {T}
 
     mixing_temperature = χ0.temperature
+    ldos = compute_ldos(εF, basis, eigenvalues, ψ)
+    tdos = sum(sum, ldos) * basis.dvol  # Integrate LDOS to form total DOS
 
     function apply!(δρ, δV, α=1)
 
@@ -116,25 +118,12 @@ function (χ0::ΔεModel)(basis::PlaneWaveBasis{T}; eigenvalues, ψ, εF, kwargs
 
         δρ .+= α * compute_density(basis, ψ, weights; warn=false)
 
-    return δρ
-
-    end
-end
-
-"""
-χ0 reduced to the fermi-level variation
-    χ0_ΔεF = 1/DOS |LDOS⟩⟨LDOS|.
-"""
-struct ΔεFModel <: χ0Model; end
-function (χ0::ΔεFModel)(basis::PlaneWaveBasis; eigenvalues, ψ, εF, kwargs...)
-
-    ldos = compute_ldos(εF, basis, eigenvalues, ψ)
-    tdos = sum(sum, ldos) * basis.dvol  # Integrate LDOS to form total DOS
-
-    function apply!(δρ, δV, α=1)
+        # Fermi-level variation
         δεF = dot(ldos, δV) .* basis.dvol
         δρ .+= α .* (ldos .* δεF ./ tdos)
-        return δρ
+
+    return δρ
+
     end
 end
 
