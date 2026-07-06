@@ -68,10 +68,9 @@ pseudopotentials_gth = Dict(:Si => family_gth[:Si])
 # For both pseudos, a reference energy is calculated with a cutoff of 140 Hartree, and
 # SCF calculations are run at increasing cutoffs until 1 meV / atom convergence is reached.
 
-#md # ```@raw html
-#md # <img src="../../assets/si_pseudos_ecut_convergence.png" width=600 height=400 />
-#md # ```
-#nb # <img src="https://docs.dftk.org/stable/assets/si_pseudos_ecut_convergence.png" width=600 height=400 />
+# ```@raw html
+# <img src="../../assets/si_pseudos_ecut_convergence.png" width=600 height=400 />
+# ```
 
 # The converged cutoffs are 26 Ha and 18 Ha for the GTH
 # and UPF pseudos respectively. We see that the GTH pseudopotential

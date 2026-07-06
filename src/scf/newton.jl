@@ -81,6 +81,9 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
                 callback=ScfDefaultCallback(),
                 is_converged=ScfConvergenceDensity(tol),
                 seed=nothing) where {T}
+    if any(needs_τ, basis.terms)
+        error("meta-GGA functionals not yet supported in newton.")
+    end
 
     seed = seed_task_local_rng!(seed, basis.comm_kpts)
     # setting parameters
@@ -106,9 +109,9 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
     history_Δρ   = T[]
 
     # orbitals, densities and energies to be updated along the iterations
-    ψ = deepcopy(ψ0)
-    ρ = compute_density(basis, ψ, occupation)
-    energies, H = energy_hamiltonian(basis, ψ, occupation; ρ)
+    ψ   = deepcopy(ψ0)
+    ρin = compute_density(basis, ψ, occupation)
+    energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρin)
 
     # perform iterations
     while !converged && n_iter < maxiter
@@ -120,18 +123,18 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
         δψ = solve_ΩplusK(basis, ψ, res, occupation; tol=tol_cg, callback=identity).δψ
         ψ  = [ortho_qr(ψ[ik] + δψ[ik]) for ik = 1:Nk]
 
-        ρout        = compute_density(basis, ψ, occupation)
-        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρout)
-        push!(history_Δρ,   norm(ρout - ρ) * sqrt(basis.dvol))
+        ρ           = compute_density(basis, ψ, occupation)
+        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ)
+        push!(history_Δρ,   norm(ρ - ρin) * sqrt(basis.dvol))
         push!(history_Etot, energies.total)
-        info = (; ham=H, basis, converged, stage=:iterate, ρin=ρ, ρout=ρout, n_iter,
+        info = (; ham=H, basis, converged, stage=:iterate, ρin, ρ, n_iter,
                 energies, algorithm="Newton", runtime_ns=time_ns() - start_ns,
                 history_Δρ, history_Etot)
         callback(info)
 
         # update and test convergence
         converged = is_converged(info)
-        ρ = ρout
+        ρin = ρ
     end
 
     # Rayleigh-Ritz
@@ -148,7 +151,7 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
 
     # return results and call callback one last time with final state for clean
     # up
-    info = (; ham=H, basis, energies, converged, ρ, eigenvalues, occupation, εF, n_iter, ψ,
+    info = (; ham=H, basis, energies, converged, ρ=ρin, eigenvalues, occupation, εF, n_iter, ψ,
             stage=:finalize, algorithm="Newton", seed, runtime_ns=time_ns() - start_ns)
     callback(info)
     info

@@ -26,11 +26,11 @@ function my_callback(info)
     info.stage == :finalize && return
     global resids
     info.n_iter == 1 && (resids = [])
-    err = norm(info.ρout - info.ρin)
+    err = norm(info.ρ - info.ρin)
     println(info.n_iter, " ", err)
     push!(resids, err)
 end
-my_isconverged = info -> norm(info.ρout - info.ρin) < tol
+my_isconverged = info -> norm(info.ρ - info.ρin) < tol
 opts = (; callback=my_callback, is_converged=my_isconverged, maxiter, tol,
         diagtolalg=AdaptiveDiagtol(; diagtol_max=diagtol))
 

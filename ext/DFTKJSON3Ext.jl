@@ -3,7 +3,7 @@ using DFTK
 using JSON3
 
 function save_json(todict_function, filename::AbstractString, scfres::NamedTuple;
-                   save_ψ=false, extra_data=Dict{String,Any}(), save_ρ=true, kwargs...)
+                   save_ψ=false, extra_data=Dict{String,Any}(), save_ρ=false, kwargs...)
     if save_ψ
         @warn "Saving the bloch waves (save_ψ=true) not supported with the json format."
     end

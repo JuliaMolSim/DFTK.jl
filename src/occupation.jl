@@ -73,12 +73,12 @@ function compute_occupation(basis::PlaneWaveBasis{T}, eigenvalues::AbstractVecto
             excess_n_electrons(basis, eigenvalues, εF; smearing, temperature)
         end
 
-        if abs(excess) > tol_n_elec
+        if abs(excess) > tol_n_elec && mpi_master(basis.comm_kpts)
             @warn("Large deviation of electron count in compute_occupation. (excess=$excess). " *
                   "This may lead to an unphysical solution. Try decreasing the temperature " *
                   "or using a different smearing function.")
         end
-        if dexcess < -sqrt(eps(T))
+        if dexcess < -sqrt(eps(T)) && mpi_master(basis.comm_kpts)
             @warn("Negative density of states (electron count versus Fermi level derivative) " *
                   "encountered in compute_occupation. This may lead to an unphysical " *
                   "solution. Try decreasing the temperature or using a different smearing " *

@@ -53,7 +53,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
             basis = PlaneWaveBasis(model; basis_kwargs...)
             ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0).ham
             res = DFTK.next_density(ham, nbandsalg; tol, eigensolver)
-            res.ρout
+            res.ρ
         end
 
         # middle point finite difference for more precision

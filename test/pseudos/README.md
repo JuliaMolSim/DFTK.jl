@@ -1,2 +1,3 @@
-- `C_m.upf`: Generated using METAPSP, has kinetic energy density information.
-- `Li.psp8`: Taken from PseudoDojo SR PBE v0.4.1 standard, in psp8 format.
+- `Al_m.upf`: Generated using METAPSP, has kinetic energy density information.
+- `C_m.upf`:  Generated using METAPSP, has kinetic energy density information.
+- `Li.psp8`:  Taken from PseudoDojo SR PBE v0.4.1 standard, in psp8 format.

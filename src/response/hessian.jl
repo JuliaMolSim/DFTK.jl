@@ -276,9 +276,8 @@ Input parameters:
                                     maxiter=100, krylovdim=20, s=100,
                                     callback=verbose ? OmegaPlusKDefaultCallback() : identity,
                                     kwargs...) where {T}
-    # TODO mixing=LdosMixing(; adjust_temperature=UseScfTemperature()) would be a better
-    #      default in theory, but does not work out of the box, so not done for now
-    # TODO Debug why and enable LdosMixing by default
+    # TODO: mixing=LdosMixing() would be a better default in theory, but it is not yet clear
+    #       how accurate and efficient it is, so we don't disable it by default for now.
     if !(mixing isa SimpleMixing || mixing isa KerkerMixing || mixing isa KerkerDosMixing)
         @warn("solve_ΩplusK_split has only been tested with one of SimpleMixing, " *
               "KerkerMixing or KerkerDosMixing")
@@ -360,15 +359,32 @@ Input parameters:
 end
 
 function solve_ΩplusK_split(scfres::NamedTuple, δHextψ; kwargs...)
-    if (scfres.mixing isa KerkerMixing || scfres.mixing isa KerkerDosMixing)
-        mixing = scfres.mixing
+    solve_ΩplusK_split(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation,
+                       scfres.εF, scfres.eigenvalues, δHextψ;
+                       scfres.occupation_threshold, scfres.mixing,
+                       bandtolalg=BandtolBalanced(scfres), kwargs...)
+end
+
+function solve_ΩplusK_split(scfres::NamedTuple, response::ResponseOptions, δHextψ; kwargs...)
+    if isnothing(response.mixing)
+        if (scfres.mixing isa KerkerMixing || scfres.mixing isa KerkerDosMixing)
+            mixing = scfres.mixing
+        else
+            # TODO: LdosMixing works, but accuracy and performance has not been fully
+            #       checked to enable it by default.
+            mixing = SimpleMixing()
+        end
     else
-        mixing = SimpleMixing()
+        mixing = response.mixing
     end
+
+    tol = @something response.tol last(scfres.history_Δρ)
     solve_ΩplusK_split(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation,
                        scfres.εF, scfres.eigenvalues, δHextψ;
                        scfres.occupation_threshold, mixing,
-                       bandtolalg=BandtolBalanced(scfres), kwargs...)
+                       bandtolalg=BandtolBalanced(scfres), tol,
+                       response.verbose, response.krylovdim, response.s,
+                       kwargs...)
 end
 
 struct DielectricAdjoint{Tρ, Tψ, Toccupation, TεF, Teigenvalues, Tq}

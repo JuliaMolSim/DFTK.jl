@@ -17,11 +17,7 @@ writing the output file (usually JLD2) to be loaded.
     save_ψ::Bool     = false
 end
 function (cb::ScfSaveCheckpoints)(info)
-    if info.stage == :iterate
-        scfres = (; (k => v for (k, v) in pairs(info) if !startswith(string(k), "ρ"))...)
-        scfres = merge(scfres, (; ρ=info.ρout))
-        save_scfres(cb.filename, scfres; cb.save_ψ, cb.compress)
-    end
+    info.stage == :iterate && save_scfres(cb.filename, info; cb.save_ψ, cb.compress)
     info
 end
 
@@ -36,12 +32,14 @@ which prints a convergence table.
     show_time::Bool        = true
     show_memory::Bool      = SCF_CALLBACK_SHOW_MEMORY
     prev_time::Ref{UInt64} = Ref(zero(UInt64))
+    show_magnetic_moments::Bool = true
 end
 function (cb::ScfDefaultCallback)(info)
     # If first iteration clear a potentially cached previous time
     info.n_iter ≤ 1 && (cb.prev_time[] = 0)
 
-    show_magn = info.basis.model.spin_polarization == :collinear
+    show_dtau = hasproperty(info, :history_Δτ) && !isnothing(info.τ)
+    show_magn = info.basis.model.spin_polarization == :collinear && cb.show_magnetic_moments
     show_diag = hasproperty(info, :diagonalization)
     show_damp = hasproperty(info, :α) && cb.show_damping
     show_time = hasproperty(info, :runtime_ns) && cb.show_time
@@ -71,20 +69,21 @@ function (cb::ScfDefaultCallback)(info)
 
     # TODO We should really do this properly ... this is really messy
     if info.n_iter == 1
+        label_dtau = show_dtau   ? ("   log10(Δτ)",   "   ---------")   : ("", "")
         label_magn = show_magn   ? ("   Magnet   |Magn|", "   ------   ------") : ("", "")
         label_damp = show_damp   ? ("   α   ",   "   ----")   : ("", "")
         label_diag = show_diag   ? ("   Diag",   "   ----")   : ("", "")
         label_time = show_time   ? ("   Δtime ",  "   ------") : ("", "")
         label_memo = show_memory ? ("   Memory",  "   ------") : ("", "")
         label_dmem = show_gpumem ? ("   GPUmem",  "   ------") : ("", "")
-        @printf "n     Energy            log10(ΔE)   log10(Δρ)"
-        println(label_magn[1], label_damp[1], label_diag[1], label_time[1], label_memo[1], label_dmem[1])
-        @printf "---   ---------------   ---------   ---------"
-        println(label_magn[2], label_damp[2], label_diag[2], label_time[2], label_memo[2], label_dmem[2])
+        print("n     Energy            log10(ΔE)   log10(Δρ)", label_dtau[1], label_magn[1])
+        println(label_damp[1], label_diag[1], label_time[1], label_memo[1], label_dmem[1])
+        print("---   ---------------   ---------   ---------", label_dtau[2], label_magn[2])
+        println(label_damp[2], label_diag[2], label_time[2], label_memo[2], label_dmem[2])
     end
     E    = isnothing(info.energies) ? Inf : info.energies.total
-    magn = sum(spin_density(info.ρout)) * info.basis.dvol
-    abs_magn = sum(abs, spin_density(info.ρout)) * info.basis.dvol
+    magn = sum(spin_density(info.ρ)) * info.basis.dvol
+    abs_magn = sum(abs, spin_density(info.ρ)) * info.basis.dvol
 
     tstr = cb.show_time ? " "^9 : ""
     if show_time
@@ -109,6 +108,7 @@ function (cb::ScfDefaultCallback)(info)
         ΔE = sign * format_log8(E - prev_energy)
     end
     Δρstr   = " " * format_log8(last(info.history_Δρ))
+    Δτstr   = show_dtau ? "    " * format_log8(last(info.history_Δτ)) : ""
     Mstr    = show_magn ? "   $((@sprintf "%6.3f" round(magn, sigdigits=4))[1:6])" : ""
     absMstr = show_magn ? "   $((@sprintf "%6.3f" round(abs_magn, sigdigits=4))[1:6])" : ""
     diagstr = show_diag ? "  $(@sprintf "% 5.1f" diagiter)" : ""
@@ -117,7 +117,7 @@ function (cb::ScfDefaultCallback)(info)
     show_damp && (αstr = isnan(info.α) ? "       " : @sprintf "  % 4.2f" info.α)
 
     @printf "% 3d   %s   %s   %s" info.n_iter Estr ΔE Δρstr
-    println(Mstr, absMstr, αstr, diagstr, tstr, memstr)
+    println(Δτstr, Mstr, absMstr, αstr, diagstr, tstr, memstr)
 
     flush(stdout)
     info
@@ -166,7 +166,7 @@ ScfConvergenceForce(tolerance) = ScfConvergenceForce(tolerance, nothing)
 function (conv::ScfConvergenceForce)(info)
     # If first iteration clear a potentially cached previous force
     info.n_iter ≤ 1 && (conv.previous_force = nothing)
-    force = compute_forces_cart(info.basis, info.ψ, info.occupation; ρ=info.ρout)
+    force = compute_forces_cart(info.basis, info.ψ, info.occupation; info.ρ)
     error = isnothing(conv.previous_force) ? NaN : norm(conv.previous_force - force)
     conv.previous_force = force
     error < conv.tolerance
@@ -206,7 +206,9 @@ function determine_diagtol(alg::AdaptiveDiagtol, info)
     @assert isfinite(diagtol)
 
     diagtol_min = something(alg.diagtol_min, 100eps(eltype(info.history_Δρ)))
-    clamp(diagtol, diagtol_min, alg.diagtol_max)
+    diagtol = clamp(diagtol, diagtol_min, alg.diagtol_max)
+    @debug "AdaptiveDiagtol: $diagtol"
+    diagtol
 end
 # Note: In the past we experimented with more involved criteria for adaptively
 # selecting the diagonalization tolerance, e.g. versions that take the system size

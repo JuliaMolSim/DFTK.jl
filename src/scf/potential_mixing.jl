@@ -31,11 +31,11 @@ function scf_damping_quadratic_model(info, info_next; modeltol=0.1)
     dvol  = info.basis.dvol
 
     Vin   = info.Vin
-    ρin   = info.ρout      # = ρ(Vin)
+    ρin   = info.ρ         # = ρ(Vin)
     Vout  = info.Vout      # = step(Vin), where step(V) = (Vext + Vhxc(ρ(V)))
     α0    = info_next.α
     Vnext = info_next.Vin  # = Vin + α0 * (Anderson(Vin, P⁻¹( Vout - Vin )) - Vin)
-    ρnext = info_next.ρout # = ρ(Vnext)
+    ρnext = info_next.ρ    # = ρ(Vnext)
     δρ    = ρnext - ρin
     # α0 * δV = α0 * (Vnext - Vin) = α0 * (Anderson(Vin, P⁻¹( Vout - Vin )) - Vin)
 
@@ -183,6 +183,9 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
              || mixing isa KerkerMixing
              || mixing isa KerkerDosMixing)
     damping isa Number && (damping = FixedDamping(damping))
+    if any(needs_τ, basis.terms)
+        error("meta-GGA functionals not yet supported in scf_potential_mixing.")
+    end
 
     if !isnothing(ψ)
         @assert length(ψ) == length(basis.kpoints)
@@ -199,20 +202,18 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
         res_V = next_density(ham_V, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
                              occupation, miniter=diag_miniter, tol=diagtol)
         new_E, new_ham = energy_hamiltonian(basis, res_V.ψ, res_V.occupation;
-                                            ρ=res_V.ρout, eigenvalues=res_V.eigenvalues,
-                                            εF=res_V.εF)
+                                            res_V.ρ, res_V.eigenvalues, res_V.εF)
         (; basis, ham=new_ham, energies=new_E,
          Vin, Vout=total_local_potential(new_ham), res_V...)
     end
 
     n_iter    = 1
     converged = false
-    ΔEdown    = 0.0
     start_ns  = time_ns()
     α_trial   = trial_damping(damping)
     diagtol   = determine_diagtol(diagtolalg, (; ρin=ρ, Vin=V, n_iter))
     info      = EVρ(V; diagtol, ψ)
-    Pinv_δV   = mix_potential(mixing, basis, info.Vout - info.Vin; n_iter, info...)
+    Pinv_δV   = mix_potential(mixing, basis, info.Vout - info.Vin; ρin=ρ, n_iter, info...)
     info      = merge(info, (; α=NaN, diagonalization=[info.diagonalization], ρin=ρ,
                              n_iter, Pinv_δV))
     history_Etot = eltype(ρ)[]
@@ -220,7 +221,7 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
 
     while n_iter < maxiter
         push!(history_Etot, info.energies.total)
-        push!(history_Δρ,   norm(info.ρout - info.ρin) * sqrt(basis.dvol))
+        push!(history_Δρ,   norm(info.ρ - info.ρin) * sqrt(basis.dvol))
         info = merge(info, (; stage=:iterate, algorithm="SCF", converged,
                             runtime_ns=time_ns() - start_ns, history_Etot, history_Δρ))
         callback(info)
@@ -252,9 +253,9 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
 
             info_next    = EVρ(Vnext; ψ=guess, diagtol, info.eigenvalues, info.occupation)
             Pinv_δV_next = mix_potential(mixing, basis, info_next.Vout - info_next.Vin;
-                                         n_iter, info_next...)
+                                         ρin=info.ρ, n_iter, info_next...)
             push!(diagonalization, info_next.diagonalization)
-            info_next = merge(info_next, (; α, diagonalization, ρin=info.ρout, n_iter,
+            info_next = merge(info_next, (; α, diagonalization, ρin=info.ρ, n_iter,
                                           Pinv_δV=Pinv_δV_next, history_Δρ, history_Etot ))
 
             successful = accept_step(info, info_next)
@@ -276,17 +277,13 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
             α = α_next
         end
 
-        # Switch off acceleration in case of very bad steps
-        ΔE = info_next.energies.total - info.energies.total
-        ΔE < 0 && (ΔEdown = -max(abs(ΔE), tol))
-
         # Update α_trial and commit the next state
         α_trial = trial_damping(damping, info, info_next, successful)
         info = info_next
     end
 
     ham  = hamiltonian_with_total_potential(ham, info.Vout)
-    info = (; ham, basis, info.energies, converged, ρ=info.ρout, info.eigenvalues,
+    info = (; ham, basis, info.energies, converged, info.ρ, info.eigenvalues,
             info.occupation, info.εF, n_iter, info.ψ, info.n_bands_converge,
             info.diagonalization, stage=:finalize, algorithm="SCF",
             history_Δρ, history_Etot, info.occupation_threshold, seed,

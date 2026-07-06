@@ -36,7 +36,8 @@
                            functionals=PBE(), temperature=0.001,
                            smearing=DFTK.Smearing.Gaussian())
     basis_pbe  = PlaneWaveBasis(model_pbe; Ecut=20, kgrid=[1, 1, 1])
-    scfres_pbe = self_consistent_field(basis_pbe; tol=1e-4, seed=0xadcdb6c21c47beb1)
+    scfres_pbe = self_consistent_field(basis_pbe; callback=identity,
+                                       tol=1e-4, seed=0xadcdb6c21c47beb1)
 
     # Then run Hartree-Fock
     model = model_HF(lattice, atoms, positions;
@@ -45,7 +46,7 @@
     basis = PlaneWaveBasis(model; Ecut=20, kgrid=[1, 1, 1])
 
     run_scf_and_compare(Float64, basis, ref_hf, ref_etot; 
-                        scf_ene_tol=1e-7, test_tol=1e-4, maxiter=20,
+                        scf_dens_tol=5e-4, test_tol=1e-4, n_ignored=1, maxiter=30,
                         scfres_pbe.ψ, scfres_pbe.ρ,
                         scfres_pbe.eigenvalues, scfres_pbe.occupation, exxalg=VanillaExx(),
                         # TODO: Anderson right does not yet work well for Hartree-Fock
