@@ -240,10 +240,11 @@ kernel and a diagonal χ0-model for the exchange-correlation kernel:
 \end{aligned}
 ```
 """
-function HybridDiagonalMixing(; verbose=false, maxiter=20, reltol=1e-6, kwargs...)
-    χ0Mixing(; χ0terms_mapping = Dict(TermHartree => [LdosModel()],
-                                      TermXc => [DiagonalModel(; kwargs...)]),
-                    verbose, maxiter, reltol)
+function HybridDiagonalMixing(; verbose=false, maxiter=20, reltol=1e-6)
+    χ0Mixing(; χ0terms_mapping = Dict(
+                    TermHartree => [LdosModel()],
+                    TermXc => [Applyχ0Model((; disable_sternheimer=true))]),
+               verbose, maxiter, reltol)
 end
 
 @doc raw"""

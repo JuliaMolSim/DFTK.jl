@@ -77,57 +77,6 @@ function (χ0::DielectricModel)(basis; kwargs...)
 end
 
 """
-χ0 reduced to eigenvalue variations and Fermi-level variations
-    χ0_Δε = ∑_i f'(εᵢ-εF) |ρᵢᵢ⟩⟨ρᵢᵢ| + 1/DOS |LDOS⟩⟨LDOS|.
-"""
-@kwdef struct DiagonalModel <: χ0Model
-    temperature = 0.01
-end
-function (χ0::DiagonalModel)(basis::PlaneWaveBasis{T}; eigenvalues, ψ, εF, kwargs...) where {T}
-
-    mixing_temperature = χ0.temperature
-    ldos = compute_ldos(εF, basis, eigenvalues, ψ)
-    tdos = sum(sum, ldos) * basis.dvol  # Integrate LDOS to form total DOS
-
-    function apply!(δρ, δV, α=1)
-
-        filled_occ = filled_occupation(basis.model)
-        weights = deepcopy(eigenvalues)
-
-        # Compute the weights that will be use in compute_density 
-        # in place of the occupations : w_i = f'(εᵢ-εF)⟨ρᵢᵢ|δV⟩
-        for ik=1:length(basis.kpoints)
-            for (iband, ε) in enumerate(eigenvalues[ik])
-                enred = (ε - εF) / mixing_temperature
-                fp = (Smearing.occupation_derivative(basis.model.smearing, enred) 
-                        / mixing_temperature)
-                if abs(fp) > eps()
-                    ρii = abs.(ifft(basis.fft_grid, basis.kpoints[ik], ψ[ik][:, iband])).^2
-                    if size(δV, 4) == 1
-                        weights[ik][iband] = filled_occ * fp * dot(δV, ρii) * basis.dvol
-                    elseif size(δV, 4) == 2
-                        weights[ik][iband] = (filled_occ * fp 
-                            * dot(δV[:, :, :, basis.kpoints[ik].spin], ρii) * basis.dvol
-                        )
-                    end
-                else
-                    weights[ik][iband] = 0.
-                end
-            end
-        end
-
-        δρ .+= α * compute_density(basis, ψ, weights; warn=false)
-
-        # Fermi-level variation
-        δεF = dot(ldos, δV) .* basis.dvol
-        δρ .+= α .* (ldos .* δεF ./ tdos)
-
-    return δρ
-
-    end
-end
-
-"""
 Full χ0 application, optionally dropping terms or disabling Sternheimer.
 All keyword arguments passed to [`apply_χ0`](@ref).
 """
