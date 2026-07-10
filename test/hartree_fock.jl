@@ -42,7 +42,7 @@
     # Then run Hartree-Fock
     model = model_HF(lattice, atoms, positions;
                      temperature=0.001, smearing=DFTK.Smearing.Gaussian(),
-                     exx_kernel=Coulomb(ReplaceSingularity(0.0)))
+                     exx_kernel=ReplaceSingularity(BareCoulomb(), 0.0))
     basis = PlaneWaveBasis(model; Ecut=20, kgrid=[1, 1, 1])
 
     run_scf_and_compare(Float64, basis, ref_hf, ref_etot; 
@@ -129,7 +129,7 @@ end
     scfres_pbe = self_consistent_field(basis; ρ, tol=1e-3)
     
     model  = model_HF(system; pseudopotentials, magnetic_moments, temperature=0.01,
-                      exx_kernel=Coulomb(ProbeCharge()))
+                      exx_kernel=ProbeCharge(BareCoulomb()))
     basis  = PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])
 
     RunSCF.run_scf_and_compare(Float64, basis, ref_hf, ref_etot;

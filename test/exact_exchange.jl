@@ -5,7 +5,7 @@
 
     function test_acexx_consistency(; kgrid=[1, 2, 3], kshift=[0, 1, 0]/2, Ecut=10,
                                       n_empty=3, atol=1e-8, spin_polarization=:none,
-                                      kernel=Coulomb(ProbeCharge()))
+                                      kernel=ProbeCharge(BareCoulomb()))
         Si = ElementPsp(14, load_psp(silicon.psp_upf))
         model = Model(silicon.lattice, [Si, Si], silicon.positions;
                       spin_polarization, symmetries=true, terms=[ExactExchange(; kernel)])
@@ -28,7 +28,7 @@
         @test abs(energies.total - energies_ace.total) < atol
     end
 
-    for kernel in (Coulomb(ProbeCharge()), ShortRangeCoulomb(), SphericallyTruncatedCoulomb())
+    for kernel in (ProbeCharge(BareCoulomb()), ShortRangeCoulomb(), SphericallyTruncatedCoulomb())
         test_acexx_consistency(; kgrid=(1, 1, 1), kshift=(0, 0, 0))
         test_acexx_consistency(; kgrid=(1, 1, 1), kshift=(0, 0, 0), spin_polarization=:collinear)
     end
