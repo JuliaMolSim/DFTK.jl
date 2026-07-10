@@ -1,15 +1,14 @@
 module DFTKFastGaussQuadratureExt
 using FastGaussQuadrature
 using DFTK
-using DFTK: to_cpu, eval_kernel_fourier, norm2, VoxelAverage
+using DFTK: to_cpu, eval_kernel_fourier, norm2, G_vectors, VoxelAverage
 using LinearAlgebra
 
 
 @views function DFTK.eval_kernel_fourier(k::VoxelAverage,
-                                         basis::PlaneWaveBasis{T}; qpt) where {T}
+                                         basis::PlaneWaveBasis{T}; q=zero(Vec3{T})) where {T}
     model = basis.model
     kernel = k.inner_kernel
-    q = qpt.coordinate
 
     # Get kgrid_size
     if isnothing(basis.kgrid)
@@ -35,8 +34,8 @@ using LinearAlgebra
     q_locals = vec([voxel_basis * Vec3(x, y, z) for x in nodes, y in nodes, z in nodes])
     w_locals = vec([wx * wy * wz for wx in weights, wy in weights, wz in weights])
 
-    kernel_fourier = zeros(T, length(qpt.G_vectors))
-    for (iG, G) in enumerate(to_cpu(qpt.G_vectors))
+    kernel_fourier = zeros(T, basis.fft_size...)
+    for (iG, G) in enumerate(to_cpu(G_vectors(basis)))
         G_cart = model.recip_lattice * (G+q)
 
         found_singularity = (iG==1 && iszero(q))

@@ -81,7 +81,7 @@ end
                -0.4105286062295621, -0.1498412274416261, -0.14984122744054515,
                -0.1498412274386093, 0.39476442887789986, 0.3947644288779635,
                0.39476442887837615]]
-    ref_etot = -31.240766149174128
+    ref_etot = -31.241195444409954
 
     model  = model_HF(lattice, atoms, positions; exx_kernel=SphericallyTruncatedCoulomb())
     basis  = PlaneWaveBasis(model, Ecut=40; kgrid=[1, 1, 1])

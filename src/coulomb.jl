@@ -51,14 +51,18 @@ Base.Broadcast.broadcastable(k::InteractionKernel) = Ref(k)
 
 # Required method: kernel on the grid (spherical cutoff |G+q|² < 2Ecut of `qpt`). Default loops
 # the pointwise method; overridden by kernels that need the grid or a grid-derived parameter.
-function eval_kernel_fourier(kernel::InteractionKernel, basis::PlaneWaveBasis; qpt)
+function eval_kernel_fourier(kernel::InteractionKernel, basis::PlaneWaveBasis{T};
+                             q=zero(Vec3{T})) where {T}
+    # Evaluate on the full (cube) FFT grid: a pair density ψᵢ*ψⱼ has content beyond the orbital
+    # sphere, so the exchange kernel must live on the density grid, not the k-point sphere.
     # TODO: for q=0 the coefficients could be symmetrized so that the inverse FFT is exactly real.
-    map(p -> eval_kernel_fourier(kernel, p), Gplusk_vectors_cart(basis, qpt))
+    recip = basis.model.recip_lattice
+    map(G -> eval_kernel_fourier(kernel, recip * (G + q)), G_vectors(basis))
 end
 
 # Optional pointwise method k̂(p): kernels that are a closed-form function of `p` implement it;
 # kernels defined only on a grid (WignerSeitz, ProbeCharge) fall back to this error.
-function eval_kernel_fourier(kernel::InteractionKernel, p)
+function eval_kernel_fourier(kernel::InteractionKernel, p::AbstractVector)
     error("$(typeof(kernel)) has no pointwise Fourier evaluation (it is defined only relative " *
           "to a grid); use eval_kernel_fourier(kernel, basis; qpt).")
 end
@@ -76,7 +80,7 @@ must be wrapped in a singularity treatment ([`ProbeCharge`](@ref), [`ReplaceSing
 [`VoxelAverage`](@ref)) to obtain a well-defined ``G+q=0`` component.
 """
 struct BareCoulomb <: InteractionKernel end
-function eval_kernel_fourier(::BareCoulomb, p)
+function eval_kernel_fourier(::BareCoulomb, p::AbstractVector)
     p2 = norm2(p)
     4 * oftype(p2, π) / p2
 end
@@ -92,7 +96,7 @@ struct ShortRangeCoulomb{T <: Real} <: InteractionKernel
 end
 ShortRangeCoulomb(; μ=0.2/u"Å") = ShortRangeCoulomb(austrip(μ))
 ShortRangeCoulomb(μ::Quantity) = ShortRangeCoulomb(austrip(μ))
-function eval_kernel_fourier(k::ShortRangeCoulomb, p)
+function eval_kernel_fourier(k::ShortRangeCoulomb, p::AbstractVector)
     # Fourier transform of erfc(μr)/r:  (4π/|p|²)(1 - e^{-|p|²/4μ²}) = (π/μ²) φ(|p|²/4μ²),
     # where φ(t) = (1 - e^{-t})/t → 1 as t → 0 (so the p=0 value is π/μ²).
     T = eltype(p)
@@ -113,7 +117,7 @@ struct LongRangeCoulomb{T <: Real} <: InteractionKernel
 end
 LongRangeCoulomb(; μ=0.2/u"Å") = LongRangeCoulomb(austrip(μ))
 LongRangeCoulomb(μ::Quantity) = LongRangeCoulomb(austrip(μ))
-function eval_kernel_fourier(k::LongRangeCoulomb, p)
+function eval_kernel_fourier(k::LongRangeCoulomb, p::AbstractVector)
     # Fourier transform of erf(μr)/r:  (4π/|p|²) e^{-|p|²/4μ²}.
     T = eltype(p)
     p2 = norm2(p)
@@ -142,7 +146,7 @@ function sinc_sqrt(v)
     s = sqrt(v)
     sin(s) / s
 end
-function eval_kernel_fourier(k::SphericallyTruncatedCoulomb, p)
+function eval_kernel_fourier(k::SphericallyTruncatedCoulomb, p::AbstractVector)
     # Fourier transform of θ(R-r)/r:  (4π/|p|²)(1 - cos(R|p|)) = 2π R² sinc(R|p|/2)²
     # (using 1 - cos x = 2 sin²(x/2)), with p=0 value 2π R².
     T = eltype(p)
@@ -150,10 +154,12 @@ function eval_kernel_fourier(k::SphericallyTruncatedCoulomb, p)
     w = norm2(p)
     2T(π) * R^2 * sinc_sqrt(R^2 * w / 4)^2
 end
-function eval_kernel_fourier(k::SphericallyTruncatedCoulomb, basis::PlaneWaveBasis; qpt)
+function eval_kernel_fourier(k::SphericallyTruncatedCoulomb, basis::PlaneWaveBasis{T};
+                             q=zero(Vec3{T})) where {T}
     Rcut = @something k.Rcut cbrt(3 * basis.model.unit_cell_volume / (4π))
     kresolved = SphericallyTruncatedCoulomb(Rcut)
-    map(p -> eval_kernel_fourier(kresolved, p), Gplusk_vectors_cart(basis, qpt))
+    recip = basis.model.recip_lattice
+    map(G -> eval_kernel_fourier(kresolved, recip * (G + q)), G_vectors(basis))
 end
 
 
@@ -177,9 +183,8 @@ struct WignerSeitzTruncatedCoulomb <: InteractionKernel end
 # No pointwise method: WignerSeitz has no closed-form k̂(p), so it uses the generic error fallback.
 # TODO: a basis-free 'slow Fourier transform' pointwise method (issue #1322).
 @views function eval_kernel_fourier(::WignerSeitzTruncatedCoulomb,
-                                    basis::PlaneWaveBasis{T}; qpt) where {T}
+                                    basis::PlaneWaveBasis{T}; q=zero(Vec3{T})) where {T}
     model = basis.model
-    q = qpt.coordinate
 
     # === Inradius R_in of the Wigner–Seitz cell ===
     # R_in = min over nonzero lattice vectors R of |R|/2 (distance to the perpendicular bisector
@@ -223,16 +228,14 @@ struct WignerSeitzTruncatedCoulomb <: InteractionKernel end
         V_lr_real[idx]  = ω * divided_difference(erf, erfder, ω * d_min, zero(T))
         V_lr_real[idx] *= cis2pi(-dot(q, r_frac))  # Bloch phase e^{-2πi q·r}
     end
-    kernel_fourier_lr = real.(fft(basis, qpt, V_lr_real)) .* sqrt(model.unit_cell_volume)
+    kernel_fourier_lr = real.(fft(basis, V_lr_real)) .* sqrt(model.unit_cell_volume)
 
-    # === Add the analytic short-range term erfc(ωr)/r = ShortRangeCoulomb(ω) ===
+    # === Add the analytic short-range term erfc(ωr)/r = ShortRangeCoulomb(ω), on the cube grid ===
     short_range = ShortRangeCoulomb(ω)
-    kernel_fourier = zeros(T, length(qpt.G_vectors))
-    for (iG, G) in enumerate(to_cpu(qpt.G_vectors))
-        p = model.recip_lattice * (G + q)
-        kernel_fourier[iG] = eval_kernel_fourier(short_range, p) + kernel_fourier_lr[iG]
+    recip = model.recip_lattice
+    map(to_cpu(G_vectors(basis)), kernel_fourier_lr) do G, lr
+        eval_kernel_fourier(short_range, recip * (G + q)) + lr
     end
-    kernel_fourier
 end
 
 
@@ -248,7 +251,7 @@ struct ReplaceSingularity{K <: InteractionKernel, R} <: InteractionKernel
     inner_kernel::K
     replacement::R
 end
-function eval_kernel_fourier(k::ReplaceSingularity, p)
+function eval_kernel_fourier(k::ReplaceSingularity, p::AbstractVector)
     iszero(p) ? eltype(p)(k.replacement) : eval_kernel_fourier(k.inner_kernel, p)
 end
 
@@ -272,23 +275,25 @@ struct ProbeCharge{K <: InteractionKernel} <: InteractionKernel
 end
 ProbeCharge(inner_kernel::InteractionKernel=BareCoulomb(); α=nothing) =
     ProbeCharge(inner_kernel, α)
-@views function eval_kernel_fourier(k::ProbeCharge, basis::PlaneWaveBasis{T}; qpt) where {T}
+@views function eval_kernel_fourier(k::ProbeCharge, basis::PlaneWaveBasis{T};
+                                    q=zero(Vec3{T})) where {T}
     # Default well-tested in VASP; ensures e^{-α G²} is a localized charge with full support
     # on the G grid.
     α::T = @something k.α π^2 / basis.Ecut
 
-    Gpq2 = norm2.(Gplusk_vectors_cart(basis, qpt))
+    recip = basis.model.recip_lattice
+    Gpq2 = map(G -> norm2(recip * (G + q)), G_vectors(basis))
     # Raw kernel; its G+q=0 entry may be Inf/NaN and is overwritten below.
-    kernel_fourier = eval_kernel_fourier(k.inner_kernel, basis; qpt)
+    kernel_fourier = eval_kernel_fourier(k.inner_kernel, basis; q)
 
-    # Potential of the Gaussian charges, skipping the G+q=0 term.
+    # Potential of the Gaussian charges, skipping the G+q=0 term (linear index 1 is G=0).
     probe_charge_sum = sum((kernel_fourier .* exp.(-α .* Gpq2))[2:end])
     # Interaction of the Gaussian charges with the uniform background,
     # (1/Γ) ∫_BZ k̂(q) e^{-α q²} dq, with Γ the Brillouin-zone volume.
     Γ = basis.model.recip_cell_volume
     probe_charge_integral = compute_probe_charge_integral(k.inner_kernel, α) / Γ
 
-    if iszero(qpt.coordinate)
+    if iszero(q)
         GPUArraysCore.@allowscalar begin
             kernel_fourier[1] = probe_charge_integral - probe_charge_sum
         end

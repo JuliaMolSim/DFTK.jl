@@ -36,7 +36,7 @@ function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, kernel) whe
         error("MPI parallelisation not yet supported for the exact-exchange kernel.")
 
     fac::T = scaling_factor
-    kernel_fourier = eval_kernel_fourier(kernel, basis; qpt=basis.kpoints[1])
+    kernel_fourier = eval_kernel_fourier(kernel, basis)  # cube grid, q=0 (Gamma only)
     all(isfinite, kernel_fourier) || error(
         "The interaction kernel has a non-finite G+q=0 component: a divergent kernel such as " *
         "BareCoulomb or LongRangeCoulomb must be wrapped in a singularity treatment, " *
@@ -179,7 +179,7 @@ function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, interaction_kernel, ψk_
         for (m, ψmk_real) in enumerate(eachslice(ψk_real, dims=4))
             m > n && continue
             ρmn_real = conj(ψmk_real) .* ψnk_real
-            ρmn_fourier = fft(basis, kpt, ρmn_real) # actually we need a q-point here
+            ρmn_fourier = fft(basis, ρmn_real)  # pair density on the full (cube) density grid
 
             # Exact exchange is quadratic in occupations but linear in spin,
             # hence we need to undo the fact that in DFTK for non-spin-polarized calcuations
