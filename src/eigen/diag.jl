@@ -74,6 +74,8 @@ function select_eigenpairs_all_kblocks(eigres, range)
                    residual_norms=[resk[range] for resk in eigres.residual_norms]))
 end
 
-# The actual implementations using the above primitives
+# The actual implementations using the above primitives. `lobpcg_hyper` is a thin
+# wrapper around the LOBPCG solver from the standalone LOBPCG.jl package (imported at
+# the top of DFTK.jl); `diag_full` is a dense reference solver.
 include("diag_full.jl")
 include("diag_lobpcg_hyper.jl")

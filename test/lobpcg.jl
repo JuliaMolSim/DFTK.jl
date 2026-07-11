@@ -121,43 +121,7 @@ end
     end
 end
 
-@testitem "LOBPCG Internal data structures" setup=[TestCases] begin
-    using DFTK
-    using LinearAlgebra
-    import DFTK: mul_hermi
-
-    a1 = rand(10, 5)
-    a2 = rand(10, 2)
-    a3 = rand(10, 7)
-    b1 = rand(10, 6)
-    b2 = rand(10, 2)
-    A = hcat(a1,a2,a3)
-    B = hcat(b1,b2)
-    Ablock = DFTK.LazyHcat(a1, a2, a3)
-    Bblock = DFTK.LazyHcat(b1, b2)
-    @test Ablock'*Bblock ≈ A'*B
-    @test Ablock'*B ≈ A'*B
-
-    C = rand(14, 4)
-    @test Ablock*C ≈ A*C
-
-    D = rand(10, 4)
-    @test mul!(D,Ablock, C, 1, 0) ≈ A*C
-
-    @test mul_hermi(Ablock', Ablock) ≈ A' * A
-end
-
-@testitem "LOBPCG print callback" setup=[TestCases] begin
-    using DFTK
-    using LinearAlgebra
-
-    A = randn(40, 40)
-    A = A+A' + 20I
-    X = randn(40, 3)
-
-    # Run the callback to make sure it works, but don't print anything
-    res = redirect_stdout(devnull) do
-        lobpcg_hyper(A, X; prec= Diagonal(A), callback=DFTK.DefaultLobpcgCallback(), tol=1e-6)
-    end
-    @test res.converged
-end
+# The LOBPCG-internal unit tests (LazyHcat data structures, print callback, and
+# standalone diagonalization of dense matrices) now live in the LOBPCG.jl package.
+# The tests kept here exercise DFTK's k-block diagonalization machinery on actual
+# Hamiltonians.

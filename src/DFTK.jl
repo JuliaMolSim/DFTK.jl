@@ -13,8 +13,10 @@ using GPUArraysCore
 using Random
 using PrecompileTools
 using PseudoPotentialData
+using LOBPCG
+import LOBPCG: lobpcg, precondprep!, DefaultLobpcgCallback
 
-@template (FUNCTIONS, METHODS, MACROS) = 
+@template (FUNCTIONS, METHODS, MACROS) =
     """
     $(TYPEDSIGNATURES)
     $(DOCSTRING)
