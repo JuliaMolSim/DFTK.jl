@@ -54,7 +54,7 @@ Useful for energy terms that don't depend on the orbitals at all (eg nuclei-nucl
 """
 struct NoopOperator{T <: Real} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
-    kpoint::Kpoint{T}
+    kpoint::Kpoint
 end
 apply!(Hψ, op::NoopOperator, ψ) = nothing
 function Base.Matrix(op::NoopOperator)
@@ -70,7 +70,7 @@ Real space multiplication by a potential:
 """
 struct RealSpaceMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
-    kpoint::Kpoint{T}
+    kpoint::Kpoint
     potential::AT
 end
 function apply!(Hψ, op::RealSpaceMultiplication, ψ)
@@ -103,7 +103,7 @@ Fourier space multiplication, like a kinetic energy term:
 """
 struct FourierMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
-    kpoint::Kpoint{T}
+    kpoint::Kpoint
     multiplier::AT
 end
 function apply!(Hψ, op::FourierMultiplication, ψ)
@@ -118,7 +118,7 @@ Hψ = PDP' ψ.
 """
 struct NonlocalOperator{T <: Real, PT, DT} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
-    kpoint::Kpoint{T}
+    kpoint::Kpoint
     # not typed, can be anything that supports PDP'ψ
     P::PT
     D::DT
@@ -133,7 +133,7 @@ Magnetic field operator A⋅(-i∇).
 """
 struct MagneticFieldOperator{T <: Real, AT} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
-    kpoint::Kpoint{T}
+    kpoint::Kpoint
     Apot::AT  # Apot[α][i,j,k] is the A field in (Cartesian) direction α
 end
 function apply!(Hψ, op::MagneticFieldOperator, ψ)
@@ -155,7 +155,7 @@ kinetic energy operator (which is obtained for ``A=1``).
 """
 struct DivAgradOperator{T <: Real, AT} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
-    kpoint::Kpoint{T}
+    kpoint::Kpoint
     A::AT
 end
 function apply!(Hψ, op::DivAgradOperator, ψ;
@@ -183,7 +183,7 @@ end
 
 struct ExchangeOperator{T <: Real,Tocc,Tpsi,TpsiReal} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
-    kpoint::Kpoint{T}
+    kpoint::Kpoint
     interaction_kernel::Array{T}
     occk::Tocc
     ψk::Tpsi

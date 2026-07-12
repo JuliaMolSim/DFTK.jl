@@ -60,8 +60,13 @@ function _ham_allocate_scratch(basis::PlaneWaveBasis{T}) where {T}
      for _ = 1:Threads.nthreads()]
 end
 
-Base.:*(H::HamiltonianBlock, ψ) = mul!(similar(ψ), H, ψ)
-Base.eltype(block::HamiltonianBlock) = complex(eltype(block.basis))
+Base.:*(H::HamiltonianBlock, ψ) = mul!(similar(ψ, eltype(H)), H, ψ)
+# Promote the basis type with the k-point coordinate type: for a shifted-k basis the coordinate
+# may be a ForwardDiff.Dual (see `shift_kpoints`), so applying the block yields a Dual result even
+# though the basis data (fft_grid, potentials) stays in the plain type. For an ordinary basis
+# `eltype(kpoint.coordinate) == eltype(basis)`, so this is unchanged.
+Base.eltype(block::HamiltonianBlock) =
+    complex(promote_type(eltype(block.basis), eltype(block.kpoint.coordinate)))
 Base.size(block::HamiltonianBlock, i::Integer) = i < 3 ? size(block)[i] : 1
 function Base.size(block::HamiltonianBlock)
     n_G = length(G_vectors(block.basis, block.kpoint))
@@ -90,9 +95,9 @@ function LinearAlgebra.mul!(Hψ, H::Hamiltonian, ψ)
     Hψ
 end
 function Base.:*(H::Hamiltonian, ψ)
-    # This allocates new memory for the result of promoted eltype
-    result = one(eltype(H.basis)) * ψ
-    mul!(result, H, ψ)
+    # Allocate the result with the eltype produced by each block (promotes with the k-point
+    # coordinate type, which may be a ForwardDiff.Dual for a shifted-k basis; see shift_kpoints).
+    [block * ψk for (block, ψk) in zip(H.blocks, ψ)]
 end
 
 # Loop through bands, IFFT to get ψ in real space, loop through terms, FFT and accumulate into Hψ
