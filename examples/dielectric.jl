@@ -5,28 +5,26 @@
 # density-functional perturbation theory (the "d/dk" trick of the modern theory of
 # polarization).
 
-# !!! warning "Preliminary implementation — insulators only"
-#     This feature has only seen rudimentary testing as of now, and we do not yet recommend
-#     relying on it for production calculations. Current limitations:
-#     - insulators only (the metallic intraband/Drude term is not included; the routine
-#       errors on fractional occupations)
-#     - symmetries must be disabled (pass `symmetries=false` to the model)
-#     - spin-unpolarized (`:none`) only
-#     We appreciate any issues, bug reports or PRs.
-#
-# First we run an SCF calculation. Note that a dielectric response is a Brillouin-zone
-# integral that converges slowly, so a much denser `kgrid` than for a total energy is needed
-# for a well-converged number.
+# First we run an SCF calculation. Note that a much denser `kgrid`
+# than for a total energy is needed for a well-converged number. We keep the crystal
+# symmetries switched on here so that the SCF only samples the irreducible wedge of the
+# Brillouin zone, which is considerably cheaper.
 
 using AtomsBuilder
 using DFTK
 using PseudoPotentialData
 
-pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
-## Make sure to disable symmetries:
-model  = model_DFT(bulk(:Si); pseudopotentials, functionals=LDA(), symmetries=false)
+pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
+model  = model_DFT(bulk(:Si); pseudopotentials, functionals=LDA())
 basis  = PlaneWaveBasis(model; Ecut=12, kgrid=[4, 4, 4])
 scfres = self_consistent_field(basis; tol=1e-8);
+nothing  # hide
+
+# The electric-field response breaks the k-point symmetries (a symmetry-reduced basis
+# would over-symmetrize the field-induced density change to zero), so before computing it
+# we unfold the result to the full Brillouin zone:
+
+scfres = DFTK.unfold_bz(scfres);
 nothing  # hide
 
 # Then we compute the dielectric tensor and polarizability by linear response:

@@ -1,7 +1,6 @@
 # Homogeneous electric-field response of an insulator: the electronic (clamped-ion)
 # dielectric tensor ε∞ and the static polarizability, from density-functional perturbation
-# theory. See DIELECTRIC_RESPONSE_PLAN.md and Baroni et al., Rev. Mod. Phys. 73, 515 (2001),
-# §II.C (the "d/dk" trick of the modern theory of polarization).
+# theory.
 #
 # The perturbing potential of a uniform field is E·r, but the position operator r is
 # ill-defined under periodic boundary conditions. The fix is to work with the well-defined
@@ -15,41 +14,30 @@ direction ``α = 1:3``:
 ```math
 [H_k, r_α] ψ_k = i\, \frac{∂H_k}{∂k_α} ψ_k.
 ```
-The derivative w.r.t. the Cartesian crystal momentum is taken by ForwardDiff: [`shift_kpoints`](@ref)
-rebuilds the basis at a `Dual`-shifted k-point coordinate, the (shifted) Hamiltonian is applied to
-the fixed orbitals `ψ`, and the `t`-partial of the result is extracted. The kinetic multiplier and
-the nonlocal projectors carry the k-dependence (the latter is the "nonlocal commutator"); the
-local/Hartree/xc terms are k-independent and drop out. `δHψ[α][ik]` is ``[H_k, r_α] ψ_{ik}`` on the
-G-sphere of `basis.kpoints[ik]`.
 """
 function compute_δHψ_dk(basis::PlaneWaveBasis{T}, ψ, ρ) where {T}
     # A unit Cartesian displacement of k is the reduced shift recip_lattice⁻¹ eα, since
     # k_red = recip_lattice⁻¹ k_cart; differentiating H along it gives ∂H/∂k_cart,α.
     Binv = inv(basis.model.recip_lattice)
-    tag = ForwardDiff.Tag(compute_δHψ_dk, T)
     map(1:3) do α
-        # Shift all k-points by t·(reduced eα) with t a Dual seed, and apply the shifted Hamiltonian
-        # to the fixed orbitals. The Dual enters only through the kinetic/nonlocal operators.
-        t = ForwardDiff.Dual{typeof(tag)}(zero(T), one(T))
-        ham_t = Hamiltonian(shift_kpoints(basis, t .* Vec3(Binv[:, α])); ρ)
-        map(1:length(basis.kpoints)) do ik
-            Hψk = ham_t[ik] * ψ[ik]              # value = H_k ψ, partial = (∂H_k/∂k_α) ψ
-            im .* ForwardDiff.partials.(Hψk, 1)  # [H_k, r_α] ψ = i (∂H_k/∂k_α) ψ
+        # Shift all k-points by t·(reduced eα) and apply the shifted Hamiltonian to the fixed
+        # orbitals; t enters only through the kinetic/nonlocal operators. Differentiating at
+        # t=0 gives (∂H_k/∂k_α) ψ per k-point, and [H_k, r_α] ψ = i (∂H_k/∂k_α) ψ.
+        dHψ = ForwardDiff.derivative(zero(T)) do t
+            ham_t = Hamiltonian(shift_kpoints(basis, t .* Vec3(Binv[:, α])); ρ)
+            [ham_t[ik] * ψ[ik] for ik = 1:length(basis.kpoints)]
         end
+        im .* dHψ
     end
 end
 
-# The d/dk formula captures only the interband (bound) response, so it is valid for insulators.
-# Reject fractional occupations (a metal, or T>0 smearing); empty conduction bands are fine.
 function _assert_insulator(basis::PlaneWaveBasis, occupation, occupation_threshold)
     filled = filled_occupation(basis.model)
     for occ_k in occupation, occ in occ_k
         empty = occ < occupation_threshold
         full  = occ > filled - occupation_threshold
         empty || full || error(
-            "Electric-field response is implemented for insulators; the occupation $occ_k " *
-            "has a fractional entry, so the metallic intraband term (not included) would " *
-            "dominate. See DIELECTRIC_RESPONSE_PLAN.md §6.")
+            "Electric-field response is implemented for insulators only.")
     end
 end
 
@@ -74,20 +62,10 @@ Compute the electronic (clamped-ion) **dielectric tensor** ``ε∞`` and the sta
 `polarizability` `= Ω·χ` is the per-cell polarizability (``P = χ·E``), `δψ[α]` is the
 self-consistent orbital response to a unit field along Cartesian direction `α`, and `ψ̄[α]` are
 the projected-position orbitals ``P_c r_α ψ``.
-
-!!! warning "Preliminary implementation — insulators only"
-    Only the interband (bound) response is included, so this is valid for **insulators**; a
-    metal's intraband/Drude term is missing (it errors on fractional occupations).
-    Spin-unpolarized only for now. The k-point symmetry reduction cannot be
-    reused directly (it would over-symmetrize the field response to zero), so the basis must
-    carry no symmetries: build it from `Model(system; symmetries=false)`. A stabilizer-subgroup
-    reduction is planned; see `DIELECTRIC_RESPONSE_PLAN.md`.
 """
 @timing function compute_dielectric(scfres::NamedTuple; kwargs...)
     basis = scfres.basis
     T = eltype(basis)
-
-    # The projected-position / d/dk formula gives only the interband response: insulators only.
     _assert_insulator(basis, scfres.occupation, scfres.occupation_threshold)
     # v1 is spin-unpolarized only (the contraction sums spin channels, but this is untested).
     basis.model.n_spin_components == 1 || error(
@@ -99,10 +77,8 @@ the projected-position orbitals ``P_c r_α ψ``.
     # is not yet wired into `apply_kblock`; refuse rather than silently drop it.
     !any(needs_τ, basis.terms) || error(
         "compute_dielectric does not yet support meta-GGA (τ-dependent) functionals.")
-    # The field response breaks the k-point symmetries; a symmetry-reduced basis would
-    # over-symmetrize δρ^α to zero (see DIELECTRIC_RESPONSE_PLAN.md §7).
     length(basis.symmetries) == 1 || error(
-        "compute_dielectric requires a symmetry-free basis; build the model with " *
+        "compute_dielectric requires a symmetry-free basis (for now); build the model with " *
         "`Model(system; symmetries=false)`.")
 
     Ω = basis.model.unit_cell_volume
