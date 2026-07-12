@@ -247,7 +247,6 @@ include("postprocess/elastic.jl")
 export phonon_modes
 include("postprocess/phonon.jl")
 export compute_dielectric
-export compute_polarizability
 include("postprocess/dielectric.jl")
 export refine_scfres
 export refine_energies

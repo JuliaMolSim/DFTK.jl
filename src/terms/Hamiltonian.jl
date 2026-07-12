@@ -94,11 +94,7 @@ function LinearAlgebra.mul!(Hψ, H::Hamiltonian, ψ)
     end
     Hψ
 end
-function Base.:*(H::Hamiltonian, ψ)
-    # Allocate the result with the eltype produced by each block (promotes with the k-point
-    # coordinate type, which may be a ForwardDiff.Dual for a shifted-k basis; see shift_kpoints).
-    [block * ψk for (block, ψk) in zip(H.blocks, ψ)]
-end
+Base.:*(H::Hamiltonian, ψ) = map(*, H.blocks, ψ)
 
 # Loop through bands, IFFT to get ψ in real space, loop through terms, FFT and accumulate into Hψ
 # For the common DftHamiltonianBlock there is an optimized version below

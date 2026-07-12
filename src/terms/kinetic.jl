@@ -56,6 +56,7 @@ end
     (; E, ops)
 end
 
+
 """
 Default blow-up corresponding to the standard kinetic energies.
 """

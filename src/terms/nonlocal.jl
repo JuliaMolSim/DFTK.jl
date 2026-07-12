@@ -170,8 +170,6 @@ function build_projection_vectors(basis::PlaneWaveBasis{T}, kpt::Kpoint,
     n_proj = count_n_proj(psps, psp_positions)
     n_G    = length(G_vectors(basis, kpt))
     G_plus_k = Gplusk_vectors(basis, kpt)
-    # Promote with the k-coordinate type so that a Dual-valued kpt.coordinate (used to
-    # differentiate w.r.t. k, e.g. in the velocity operator ∂H/∂k) flows through.
     Tproj = promote_type(eltype(psp_positions[1][1]), eltype(eltype(G_plus_k)))
     proj_vectors = zeros_like(G_plus_k, Complex{Tproj}, n_G, n_proj)
 
