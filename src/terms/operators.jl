@@ -52,9 +52,9 @@ Base.:*(op::RealFourierOperator, ψ) = mul!(similar(ψ), op, ψ)
 Noop operation: don't do anything.
 Useful for energy terms that don't depend on the orbitals at all (eg nuclei-nuclei interaction).
 """
-struct NoopOperator{T <: Real} <: RealFourierOperator
+struct NoopOperator{T <: Real, Tkpt <: Real} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
-    kpoint::Kpoint{T}
+    kpoint::Kpoint{Tkpt}
 end
 apply!(Hψ, op::NoopOperator, ψ) = nothing
 function Base.Matrix(op::NoopOperator)
@@ -68,9 +68,9 @@ Real space multiplication by a potential:
 (Hψ)(r) = V(r) ψ(r).
 ```
 """
-struct RealSpaceMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOperator
+struct RealSpaceMultiplication{T <: Real, Tkpt <: Real, AT <: AbstractArray} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
-    kpoint::Kpoint{T}
+    kpoint::Kpoint{Tkpt}
     potential::AT
 end
 function apply!(Hψ, op::RealSpaceMultiplication, ψ)
@@ -101,9 +101,9 @@ Fourier space multiplication, like a kinetic energy term:
 (Hψ)(G) = {\rm multiplier}(G) ψ(G).
 ```
 """
-struct FourierMultiplication{T <: Real, AT <: AbstractArray} <: RealFourierOperator
+struct FourierMultiplication{T <: Real, Tkpt <: Real, AT <: AbstractArray} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
-    kpoint::Kpoint{T}
+    kpoint::Kpoint{Tkpt}
     multiplier::AT
 end
 function apply!(Hψ, op::FourierMultiplication, ψ)
@@ -116,9 +116,9 @@ Nonlocal operator in Fourier space in Kleinman-Bylander format,
 defined by its projectors P matrix and coupling terms D:
 Hψ = PDP' ψ.
 """
-struct NonlocalOperator{T <: Real, PT, DT} <: RealFourierOperator
+struct NonlocalOperator{T <: Real, Tkpt <: Real, PT, DT} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
-    kpoint::Kpoint{T}
+    kpoint::Kpoint{Tkpt}
     # not typed, can be anything that supports PDP'ψ
     P::PT
     D::DT
@@ -131,9 +131,9 @@ Base.Matrix(op::NonlocalOperator) = op.P * (op.D * op.P')
 """
 Magnetic field operator A⋅(-i∇).
 """
-struct MagneticFieldOperator{T <: Real, AT} <: RealFourierOperator
+struct MagneticFieldOperator{T <: Real, Tkpt <: Real, AT} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
-    kpoint::Kpoint{T}
+    kpoint::Kpoint{Tkpt}
     Apot::AT  # Apot[α][i,j,k] is the A field in (Cartesian) direction α
 end
 function apply!(Hψ, op::MagneticFieldOperator, ψ)
@@ -153,13 +153,13 @@ Nonlocal "divAgrad" operator ``-½ ∇ ⋅ (A ∇)`` where ``A`` is a scalar fie
 real-space grid. The ``-½`` is included, such that this operator is a generalisation of the
 kinetic energy operator (which is obtained for ``A=1``).
 """
-struct DivAgradOperator{T <: Real, AT} <: RealFourierOperator
+struct DivAgradOperator{T <: Real, Tkpt <: Real, AT} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
-    kpoint::Kpoint{T}
+    kpoint::Kpoint{Tkpt}
     A::AT
 end
 function apply!(Hψ, op::DivAgradOperator, ψ;
-                ψ_real=zeros_like(ψ.fourier, complex(eltype(op.basis)), op.basis.fft_size...),
+                ψ_real=zeros_like(ψ.fourier, eltype_ψ(op.basis), op.basis.fft_size...),
                 G_plus_k=nothing)
     # ψ_real is a pre-allocated buffer to hold temporary real-space representations of ψ,
     # this function overwrites it.
@@ -170,7 +170,8 @@ function apply!(Hψ, op::DivAgradOperator, ψ;
 
     # use unnormalized FFT plans for speed
     norm = op.basis.fft_grid.fft_normalization * op.basis.fft_grid.ifft_normalization
-    ψ_recip = similar(ψ.fourier)   # pre-allocate large array
+    # eltype_ψ, not eltype(ψ.fourier): G_plus_k carries the k-point type, which promotes the result
+    ψ_recip = similar(ψ.fourier, eltype_ψ(op.basis))   # pre-allocate large array
     for α = 1:3
         ψ_recip .= im .* G_plus_k[α] .* ψ.fourier .* norm   # ∂αψ
         ifft!(ψ_real, op.basis, op.kpoint, ψ_recip; normalize=false)
@@ -181,9 +182,9 @@ function apply!(Hψ, op::DivAgradOperator, ψ;
 end
 # TODO Implement  Base.Matrix(op::DivAgradOperator)
 
-struct ExchangeOperator{T <: Real,Tocc,Tpsi,TpsiReal} <: RealFourierOperator
+struct ExchangeOperator{T <: Real, Tkpt <: Real, Tocc, Tpsi, TpsiReal} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
-    kpoint::Kpoint{T}
+    kpoint::Kpoint{Tkpt}
     interaction_kernel::Array{T}
     occk::Tocc
     ψk::Tpsi

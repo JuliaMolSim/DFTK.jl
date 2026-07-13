@@ -246,6 +246,8 @@ export elastic_tensor
 include("postprocess/elastic.jl")
 export phonon_modes
 include("postprocess/phonon.jl")
+export compute_dielectric
+include("postprocess/dielectric.jl")
 export refine_scfres
 export refine_energies
 export refine_forces

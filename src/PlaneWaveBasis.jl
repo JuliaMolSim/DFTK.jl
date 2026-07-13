@@ -27,6 +27,7 @@ struct PlaneWaveBasis{T,
                       Arch <: AbstractArchitecture,
                       FFTtype <: FFTGrid{T, VT},
                       T_kpt_G_vecs <: AbstractVector{Vec3{Int}},
+                      Tkcoord <: Real,
                      } <: AbstractBasis{T}
 
     # T is the default type to express data, VT the corresponding bare value type (i.e. not dual)
@@ -50,7 +51,7 @@ struct PlaneWaveBasis{T,
     ## MPI-local information of the kpoints this processor treats
     # In principle, irreducible kpoints (although some kpoints might be duplicated in parallel runs).
     # In the case of collinear spin, this lists all the spin up, then all the spin down
-    kpoints::Vector{Kpoint{T, T_kpt_G_vecs}}
+    kpoints::Vector{Kpoint{Tkcoord, T_kpt_G_vecs}}  # Tkcoord to allow for differentiation wrt coordinates
     # BZ integration weights, summing up to model.n_spin_components
     kweights::Vector{T}
 
@@ -61,7 +62,7 @@ struct PlaneWaveBasis{T,
     # Full list of (non spin doubled) k-point coordinates in the irreducible BZ (duplicates possible)
     # Best to use the irreducible_kcoords_global() and irreducible_kweights_global() functions 
     # to insure none of the k-points are duplicated
-    kcoords_global::Vector{Vec3{T}}
+    kcoords_global::Vector{Vec3{Tkcoord}}
     kweights_global::Vector{T}
 
     # Number of irreducible k-points in the basis. If there are more MPI ranks than irreducible
@@ -242,7 +243,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
 
     basis = PlaneWaveBasis{T, value_type(T), Arch, typeof(fft_grid),
-                           typeof(kpoints[1].G_vectors)}(
+                           typeof(kpoints[1].G_vectors), eltype(kpoints[1].coordinate)}(
         model, fft_size, dvol,
         Ecut, variational,
         fft_grid,
@@ -396,6 +397,39 @@ Creates a new basis identical to `basis`, but with a different [`Model`](@ref)
                    basis.kgrid, basis.symmetries_respect_rgrid,
                    basis.use_symmetries_for_kpoint_reduction,
                    basis.comm_kpts, basis.architecture)
+end
+
+@doc raw"""
+    shift_kpoints(basis::PlaneWaveBasis, δk)
+
+Return a copy of `basis` with every k-point coordinate shifted by the reduced-coordinate vector
+`δk`, keeping each k-point's plane-wave sphere (its integer `G_vectors` and FFT `mapping`) fixed.
+The real-space FFT grid and the symmetries are shared with `basis`; only the k-points and the
+term operators (through the term builders) are rebuilt.
+"""
+function shift_kpoints(basis::PlaneWaveBasis{T, VT, Arch}, δk) where {T, VT, Arch}
+    δk = Vec3(δk)
+    kpoints = [Kpoint(kpt.spin, kpt.coordinate + δk, kpt.G_vectors,
+                      kpt.mapping, kpt.mapping_inv, kpt.mapping_device)
+               for kpt in basis.kpoints]
+    kcoords_global = [kcoord + δk for kcoord in basis.kcoords_global]
+
+    # Reuse every discretization field verbatim (in particular the FFT grid) and only swap in the
+    # shifted k-points; the terms are then re-instantiated below so their k-dependent operators
+    # (kinetic multiplier, nonlocal projectors, etc) match the shifted k-points.
+    terms = Vector{Any}(undef, length(basis.model.term_types))
+    new_basis = PlaneWaveBasis{T, VT, Arch, typeof(basis.fft_grid),
+                               typeof(kpoints[1].G_vectors), eltype(kpoints[1].coordinate)}(
+        basis.model, basis.fft_size, basis.dvol, basis.Ecut, basis.variational,
+        basis.fft_grid, kpoints, basis.kweights, basis.kgrid,
+        kcoords_global, basis.kweights_global, basis.n_irreducible_kpoints,
+        basis.comm_kpts, basis.krange_thisproc, basis.krange_allprocs,
+        basis.krange_thisproc_allspin, basis.architecture, basis.symmetries,
+        basis.symmetries_respect_rgrid, basis.use_symmetries_for_kpoint_reduction, terms)
+    for (it, t) in enumerate(basis.model.term_types)
+        new_basis.terms[it] = t(new_basis)
+    end
+    new_basis
 end
 
 
