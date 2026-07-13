@@ -159,7 +159,7 @@ function atomic_density_superposition(basis::PlaneWaveBasis{T},
                                       method::AtomicDensity;
                                       coefficients=ones(T, length(basis.model.atoms))
                                       ) where {T}
-    form_factors, iG2ifnorm = atomic_density_form_factors(basis, method)
+    form_factors = atomic_density_form_factors(basis, method)
 
     # Pre-allocation of large arrays for GPU efficiency
     Gs = G_vectors(basis)
@@ -171,7 +171,7 @@ function atomic_density_superposition(basis::PlaneWaveBasis{T},
         for iatom in group
             r = basis.model.positions[iatom]
             ff_group = @view form_factors[:, igroup]
-            map!(iG -> cis2pi(-dot(Gs[iG], r)) * ff_group[iG2ifnorm[iG]], ρ_tmp, indices)
+            map!(iG -> cis2pi(-dot(Gs[iG], r)) * ff_group[iG], ρ_tmp, indices)
             ρ .+= ρ_tmp .* (coefficients[iatom] / sqrt(basis.model.unit_cell_volume))
         end
     end
@@ -181,31 +181,18 @@ function atomic_density_superposition(basis::PlaneWaveBasis{T},
 end
 
 """
-Returns the form factors at unique values of |G + q| (in Cartesian coordinates).
-Additionally, returns a mapping from any G index to the corresponding entry in the form_factors array.
+Returns the form factors at every |G| (in Cartesian coordinates), one column per atom group.
 """
 function atomic_density_form_factors(basis::PlaneWaveBasis{T}, method::AtomicDensity) where {T<:Real}
-    G_cart = to_cpu(G_vectors_cart(basis))
+    ps_cpu = norm.(to_cpu(G_vectors_cart(basis)))
+    ps = to_device(basis.architecture, vec(ps_cpu))
 
-    iG2ifnorm_cpu = zeros(Int, length(G_cart))
-    norm_indices = IdDict{T, Int}()
-    for (iG, G) in enumerate(G_cart)
-        p = norm(G)
-        iG2ifnorm_cpu[iG] = get!(norm_indices, p, length(norm_indices) + 1)
-    end
-    iG2ifnorm = to_device(basis.architecture, iG2ifnorm_cpu)
-
-    ni_pairs = collect(pairs(norm_indices))
-    ps = to_device(basis.architecture, first.(ni_pairs))
-    indices = to_device(basis.architecture, last.(ni_pairs))
-
-    form_factors = similar(ps, length(norm_indices), length(basis.model.atom_groups))
+    form_factors = similar(ps, length(ps), length(basis.model.atom_groups))
     for (igroup, group) in enumerate(basis.model.atom_groups)
         element = basis.model.atoms[first(group)]
-        @inbounds form_factors[indices, igroup] .= atomic_density(element, ps, method)
+        @inbounds form_factors[:, igroup] .= atomic_density(element, ps, method)
     end
-
-    (; form_factors, iG2ifnorm)
+    form_factors
 end
 
 #

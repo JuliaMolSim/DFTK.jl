@@ -291,3 +291,105 @@ end
         end
     end
 end
+
+@testitem "Fourier tables agree with an accurate quadrature" tags=[:psp] setup=[mPspUpf] begin
+    using DFTK
+    using DFTK: eval_psp_local_fourier, eval_psp_projector_fourier, eval_psp_pswfc_fourier
+    using DFTK: eval_psp_valence_density_fourier, eval_psp_core_density_fourier
+    using QuadGK
+    using ForwardDiff
+    using SpecialFunctions: erf
+    upf_pseudos = mPspUpf.upf_pseudos
+    psp8_pseudos = mPspUpf.psp8_pseudos
+
+    # The tables replace a Simpson quadrature over the radial mesh, and are *more* accurate
+    # than it (the mesh is coarse where the pseudo has a cutoff kink), so Simpson is not a
+    # usable reference here. Integrate the very same radial function adaptively instead.
+    function reference(rgrid, r2_f, l, p)
+        f(r) = DFTK.interpolate_radial(rgrid, r2_f, r)
+        4π / p^l * quadgk(r -> r^2 * f(r) * DFTK.sphericalbesselj_fast(l, p * r),
+                          rgrid[1], rgrid[end]; rtol=1e-10)[1]
+    end
+    # Exact derivative rule H̃'_l(p) = -4π/p^l ∫ f(r) r³ j_{l+1}(p r) dr
+    function dreference(rgrid, r2_f, l, p)
+        f(r) = DFTK.interpolate_radial(rgrid, r2_f, r)
+        -4π / p^l * quadgk(r -> r^3 * f(r) * DFTK.sphericalbesselj_fast(l + 1, p * r),
+                           rgrid[1], rgrid[end]; rtol=1e-10)[1]
+    end
+
+    ps = [0.3, 1.1, 2.7, 6.5, 15.0, 40.0]
+    # :Si is on a logarithmic mesh, the others are linear; :Co and :Cu additionally carry an
+    # rcut, so the pswfcs are transformed on a different grid than the rest.
+    for psp in [upf_pseudos[:Si], upf_pseudos[:Li], upf_pseudos[:Co], upf_pseudos[:Cu],
+                psp8_pseudos[:Li_pbe]]
+        rcut = 1:psp.ircut
+        # (name, rgrid, r2_f, l, evaluator)
+        quantities = Any[("ρion", view(psp.rgrid, rcut), view(psp.r2_ρion, rcut), 0,
+                          p -> eval_psp_valence_density_fourier(psp, p))]
+        if DFTK.has_core_density(psp)
+            push!(quantities, ("ρcore", view(psp.rgrid, rcut), view(psp.r2_ρcore, rcut), 0,
+                               p -> eval_psp_core_density_fourier(psp, p)))
+        end
+        for l = 0:psp.lmax, i = 1:length(psp.r2_projs[l+1])
+            icut = min(psp.ircut, length(psp.r2_projs[l+1][i]))
+            push!(quantities, ("projector l=$l i=$i", view(psp.rgrid, 1:icut),
+                               view(psp.r2_projs[l+1][i], 1:icut), l,
+                               p -> eval_psp_projector_fourier(psp, i, l, p)))
+        end
+        for l = 0:psp.lmax, i = 1:DFTK.count_n_pswfc_radial(psp, l)
+            push!(quantities, ("pswfc l=$l i=$i", psp.rgrid, psp.r2_pswfcs[l+1][i], l,
+                               p -> eval_psp_pswfc_fourier(psp, i, l, p)))
+        end
+
+        for (name, rgrid, r2_f, l, evaluator) in quantities
+            refs = [reference(rgrid, r2_f, l, p) for p in ps]
+            scale = maximum(abs, refs)
+            scale < 1e-10 && continue  # Quantity absent from this pseudo
+            for (p, ref) in zip(ps, refs)
+                @test abs(evaluator(p) - ref) < 1e-5 * scale
+            end
+            # ForwardDiff differentiates the interpolant: check it against the exact rule.
+            for p in (1.1, 6.5)
+                dad = ForwardDiff.derivative(evaluator, p)
+                @test abs(dad - dreference(rgrid, r2_f, l, p)) < 1e-4 * scale
+            end
+        end
+
+        # The local potential is tabulated with its Coulomb tail taken out; the tail is
+        # added back analytically and p = 0 stays zero (compensating charge background).
+        @test iszero(eval_psp_local_fourier(psp, 0.0))
+        r2_vloc_corrected = psp.rgrid[rcut] .^ 2 .* psp.vloc[rcut] .+
+                            psp.Zion .* psp.rgrid[rcut] .* erf.(psp.rgrid[rcut])
+        for p in ps
+            ref = reference(view(psp.rgrid, rcut), r2_vloc_corrected, 0, p) +
+                  4π * -psp.Zion / p^2 * exp(-p^2 / 4)
+            # vloc(p) spans four orders of magnitude over this p range and crosses zero, so
+            # judge it against the scale of its Coulomb tail rather than its own value.
+            @test abs(eval_psp_local_fourier(psp, p) - ref) < 1e-7 * 4π * psp.Zion / p^2
+        end
+    end
+end
+
+@testitem "Fourier tables fall back to quadrature past their range" tags=[:psp] setup=[mPspUpf] begin
+    using DFTK
+    using DFTK: eval_psp_local_fourier, eval_psp_projector_fourier
+    using DFTK: eval_psp_valence_density_fourier
+
+    psp = mPspUpf.upf_pseudos[:Li]
+    pmax = psp.r2_ρion_table.pmax
+    # Past the tabulated range the evaluators must return the (correct, slow) quadrature,
+    # never silently zero or an out-of-bounds extrapolation.
+    for p in (pmax + 1, 2pmax)
+        rcut = 1:psp.ircut
+        @test eval_psp_valence_density_fourier(psp, p) ==
+              DFTK.hankel(view(psp.rgrid, rcut), view(psp.r2_ρion, rcut), 0, p)
+        @test eval_psp_projector_fourier(psp, 1, 0, p) ==
+              DFTK._eval_psp_projector_fourier_quadrature(psp, 1, 0, p)
+        @test eval_psp_local_fourier(psp, p) != 0
+    end
+    # Vectorized paths agree with the scalar ones, on both sides of pmax.
+    ps = [0.7, 3.0, pmax - 1, pmax + 1]
+    @test eval_psp_projector_fourier(psp, 1, 0, ps) ≈
+          [eval_psp_projector_fourier(psp, 1, 0, p) for p in ps]
+    @test eval_psp_local_fourier(psp, ps) ≈ [eval_psp_local_fourier(psp, p) for p in ps]
+end

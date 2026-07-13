@@ -51,6 +51,7 @@ export PspHgh
 export PspUpf
 include("pseudo/NormConservingPsp.jl")
 include("pseudo/PspHgh.jl")
+include("pseudo/psp_fourier_table.jl")
 include("pseudo/PspUpf.jl")
 include("pseudo/PspLinComb.jl")
 

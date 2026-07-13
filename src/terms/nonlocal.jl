@@ -204,38 +204,24 @@ This is a highly optimized, GPU compatible function.
 """
 function build_projector_form_factors(psp::NormConservingPsp,
                                       G_plus_k::AbstractVector{Vec3{T}}) where {T}
-    Gpk = to_cpu(G_plus_k)
     arch = architecture(G_plus_k)
-
-    iG2ifnorm_cpu = zeros(Int, length(Gpk))
-    norm_indices = IdDict{T, Int}()
-    for (iG, G) in enumerate(Gpk)
-        p = norm(G)
-        iG2ifnorm_cpu[iG] = get!(norm_indices, p, length(norm_indices) + 1)
-    end
-    iG2ifnorm = to_device(arch, iG2ifnorm_cpu)
-
-    ni_pairs = collect(pairs(norm_indices))
-    ps = to_device(arch, first.(ni_pairs))
-    p_indices = to_device(arch, last.(ni_pairs))
+    ps = norm.(G_plus_k)
 
     n_proj = count_n_proj(psp)
     form_factors = similar(G_plus_k, Complex{T}, length(G_plus_k), n_proj)
     G_indices = to_device(arch, collect(1:length(G_plus_k)))
-    proj_li = similar(G_indices, Complex{T}, length(G_indices))
-    for l = 0:psp.lmax, 
+    for l = 0:psp.lmax
         n_proj_l = count_n_proj_radial(psp, l)
-        offset = sum(x -> count_n_proj(psp, x), 0:l-1; init=0) .+ 
-                 n_proj_l .* (collect(1:2l+1) .- 1) # offset about m for a given l 
+        offset = sum(x -> count_n_proj(psp, x), 0:l-1; init=0) .+
+                 n_proj_l .* (collect(1:2l+1) .- 1) # offset about m for a given l
         for i = 1:n_proj_l
             # Performs same computation as build_form_factors(eval_psp_projector_fourier, l, [G_plus_k]),
-            # but in a highly optimized, vectorized, and GPU compatible way. Also saves on allocations,
-            # and many recomputations of unique |G+k|.
-            proj_li[p_indices] .= eval_psp_projector_fourier(psp, i, l, ps)
+            # but in a highly optimized, vectorized, and GPU compatible way.
+            proj_li = eval_psp_projector_fourier(psp, i, l, ps)
             for m = -l:l
                 map!(@view(form_factors[:, offset[m + l + 1] + i]), G_indices) do iG
                     angular = (-im)^l * solid_harmonic_real(l, m, G_plus_k[iG])
-                    proj_li[iG2ifnorm[iG]] * angular
+                    proj_li[iG] * angular
                 end
             end
         end
@@ -253,25 +239,11 @@ function build_form_factors(fun::Function, l::Int,
     # TODO this function can be generally useful, should refactor to a separate file eventually
     T = real(TT)
 
-    # Pre-compute the radial parts of the non-local atomic functions at unique |p| to speed up
-    # the form factor calculation (by a lot). Using a hash map gives O(1) lookup.
-
-    radials = IdDict{T,T}()  # IdDict for Dual compatibility
-    for G_plus_k in G_plus_ks
-        for p in G_plus_k
-            p_norm = norm(p)
-            if !haskey(radials, p_norm)
-                radials_p = fun(p_norm)
-                radials[p_norm] = radials_p
-            end
-        end
-    end
-
     form_factors = Vector{Matrix{Complex{T}}}(undef, length(G_plus_ks))
     for (ik, G_plus_k) in enumerate(G_plus_ks)
         form_factors_ik = Matrix{Complex{T}}(undef, length(G_plus_k), 2l + 1)
         for (ip, p) in enumerate(G_plus_k)
-            radials_p = radials[norm(p)]
+            radials_p = fun(norm(p))
             for m = -l:l
                 # see "Fourier transforms of centered functions" in the docs for the formula
                 angular = (-im)^l * solid_harmonic_real(l, m, p)

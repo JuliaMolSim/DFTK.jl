@@ -215,30 +215,30 @@ end
     end
 
     forces_ρ = let
-        form_factors, iG2ifnorm = atomic_density_form_factors(basis, CoreDensity())
+        form_factors = atomic_density_form_factors(basis, CoreDensity())
         nlcc_groups = findall(group -> has_core_density(model.atoms[first(group)]),
                             model.atom_groups)
 
-        _forces_xc(basis, Vρ_fourier, form_factors[:, nlcc_groups], iG2ifnorm,
+        _forces_xc(basis, Vρ_fourier, form_factors[:, nlcc_groups],
                 model.atom_groups[nlcc_groups])
     end
     if isnothing(Vτ_fourier)
         return forces_ρ
     end
     forces_τ = let
-        form_factors, iG2ifnorm = atomic_density_form_factors(basis, CoreKineticEnergyDensity())
+        form_factors = atomic_density_form_factors(basis, CoreKineticEnergyDensity())
         nlcc_groups = findall(group -> has_core_kinetic_energy_density(model.atoms[first(group)]),
                             model.atom_groups)
 
-        _forces_xc(basis, Vτ_fourier, form_factors[:, nlcc_groups], iG2ifnorm,
+        _forces_xc(basis, Vτ_fourier, form_factors[:, nlcc_groups],
                 model.atom_groups[nlcc_groups])
     end
     forces_ρ + forces_τ
 end
 
 # Function barrier to work around various type instabilities.
-function _forces_xc(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U}, 
-                    form_factors, iG2ifnorm, groups) where {T, U}
+function _forces_xc(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U},
+                    form_factors, groups) where {T, U}
     # Pre-allocation of large arrays for GPU Efficiency
     TT = promote_type(T, real(U))
     Gs = G_vectors(basis)
@@ -251,7 +251,7 @@ function _forces_xc(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U},
             r = basis.model.positions[iatom]
             ff_group = @view form_factors[:, igroup]
             map!(work, indices) do iG
-                cis2pi(-dot(Gs[iG], r)) * conj(Vxc_fourier[iG]) * ff_group[iG2ifnorm[iG]]
+                cis2pi(-dot(Gs[iG], r)) * conj(Vxc_fourier[iG]) * ff_group[iG]
             end
 
             forces[iatom] += map(1:3) do α

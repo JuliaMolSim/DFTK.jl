@@ -69,31 +69,20 @@ function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
 end
 
 """
-Returns the form factors at unique values of |G + q| (in Cartesian coordinates).
-Additionally, returns a mapping from any G index to the corresponding entry in the form_factors array.
+Returns the form factors at every |G + q| (in Cartesian coordinates), one column per atom
+group.
 """
 function atomic_local_form_factors(basis::PlaneWaveBasis{T}; q=zero(Vec3{T})) where{T}
-    Gqs_cart = [basis.model.recip_lattice * (G + q) for G in to_cpu(G_vectors(basis))]
+    model = basis.model
+    ps_cpu = [norm(model.recip_lattice * (G + q)) for G in to_cpu(G_vectors(basis))]
+    ps = to_device(basis.architecture, vec(ps_cpu))
 
-    iG2ifnorm_cpu = zeros(Int, length(Gqs_cart))
-    norm_indices = IdDict{T, Int}()
-    for (iG, G) in enumerate(Gqs_cart)
-        p = norm(G)
-        iG2ifnorm_cpu[iG] = get!(norm_indices, p, length(norm_indices) + 1)
+    form_factors = similar(ps, length(ps), length(model.atom_groups))
+    for (igroup, group) in enumerate(model.atom_groups)
+        element = model.atoms[first(group)]
+        @inbounds form_factors[:, igroup] .= local_potential_fourier(element, ps)
     end
-    iG2ifnorm = to_device(basis.architecture, iG2ifnorm_cpu)
-
-    ni_pairs = collect(pairs(norm_indices))
-    ps = to_device(basis.architecture, first.(ni_pairs))
-    indices = to_device(basis.architecture, last.(ni_pairs))
-
-    form_factors = similar(ps, length(norm_indices), length(basis.model.atom_groups))
-    for (igroup, group) in enumerate(basis.model.atom_groups)
-        element = basis.model.atoms[first(group)]
-        @inbounds form_factors[indices, igroup] .= local_potential_fourier(element, ps)
-    end
-
-    (; form_factors, iG2ifnorm)
+    form_factors
 end
 
 ## Atomic local potential
@@ -111,7 +100,7 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
     # Since V is a sum of radial functions located at atomic
     # positions, this involves a form factor (`local_potential_fourier`)
     # and a structure factor e^{-i G·r}
-    form_factors, iG2ifnorm = atomic_local_form_factors(basis; q)
+    form_factors = atomic_local_form_factors(basis; q)
     Gqs = map(G -> G+q, G_vectors(basis))
 
     # Pre-allocation of large arrays for GPU efficiency
@@ -123,7 +112,7 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
     for (igroup, group) in enumerate(basis.model.atom_groups)
         for r in positions[group]
             ff_group = @view form_factors[:, igroup]
-            map!(iG -> cis2pi(-dot(Gqs[iG], r)) * ff_group[iG2ifnorm[iG]], pot_tmp, indices)
+            map!(iG -> cis2pi(-dot(Gqs[iG], r)) * ff_group[iG], pot_tmp, indices)
             pot .+= pot_tmp ./ sqrt(basis.model.unit_cell_volume)
         end
     end
@@ -148,7 +137,7 @@ end
     model = basis.model
     real_ifSreal = S <: Real ? real : identity
 
-    form_factors, iG2ifnorm = atomic_local_form_factors(basis; q)
+    form_factors = atomic_local_form_factors(basis; q)
 
     Gqs = map(G -> G+q, G_vectors(basis))
     ρ_fourier = reshape(fft(basis, total_density(ρ)), length(Gqs))
@@ -166,7 +155,7 @@ end
 
             ff_group = @view form_factors[:, igroup]
             map!(ρ_pot, indices) do iG
-                cis2pi(-dot(Gqs[iG], r)) * conj(ρ_fourier[iG]) * ff_group[iG2ifnorm[iG]]
+                cis2pi(-dot(Gqs[iG], r)) * conj(ρ_fourier[iG]) * ff_group[iG]
             end
 
             forces[idx] += map(1:3) do α

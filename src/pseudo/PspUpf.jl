@@ -54,6 +54,15 @@ struct PspUpf{T,I} <: NormConservingPsp
     # (USED IN TESTS) Core kinetic energy density interpolator, stored for performance.
     r2_τcore_interp::I
 
+    ## Tabulated modified Hankel transforms, see psp_fourier_table.jl. These make
+    ## `eval_psp_*_fourier` an O(1) interpolation rather than a quadrature per p value.
+    vloc_table::HankelTable{T,Vector{T}}          # Of the erf tail-corrected part, l = 0
+    r2_projs_tables::Vector{Vector{HankelTable{T,Vector{T}}}}
+    r2_pswfcs_tables::Vector{Vector{HankelTable{T,Vector{T}}}}
+    r2_ρion_table::HankelTable{T,Vector{T}}
+    r2_ρcore_table::HankelTable{T,Vector{T}}
+    r2_τcore_table::HankelTable{T,Vector{T}}
+
     ## Extras
     rcut::T              # Radial cutoff for all quantities except pswfc.
                          # Used to avoid some numerical issues encountered when
@@ -165,11 +174,45 @@ function PspUpf(pseudo::UpfFile; identifier, rcut=nothing)
     r2_ρcore_interp = linear_interpolation((rgrid,), r2_ρcore)
     r2_τcore_interp = linear_interpolation((rgrid,), r2_τcore)
 
+    # Tabulate the Fourier transforms. Everything but the pseudo-atomic wavefunctions is
+    # cut off at `rcut`, so those two families need one transform plan each (they coincide
+    # in the common case rcut == last(rgrid)). Projectors ending before their family's rcut
+    # are zero-padded, which is exact: they are strictly zero past their cutoff radius.
+    quadrature = default_psp_quadrature(rgrid)
+    plan_cut = hankel_table_plan(rgrid[ircut], lmax)
+    plan_full = ircut == length(rgrid) ? plan_cut : hankel_table_plan(last(rgrid), lmax)
+
+    # The local potential is transformed with its Coulomb tail taken out (see
+    # `eval_psp_local_fourier`), which is also what makes it decay by the end of the mesh.
+    rgrid_cut = view(rgrid, 1:ircut)
+    r2_vloc_corrected = rgrid .^ 2 .* vloc .+ Zion .* rgrid .* erf.(rgrid)
+    vloc_table = build_hankel_table(plan_cut, rgrid_cut,
+                                    view(r2_vloc_corrected, 1:ircut), 0, quadrature)
+    r2_projs_tables = map(0:lmax) do l
+        map(r2_projs[l+1]) do proj
+            ircut_proj = min(ircut, length(proj))
+            build_hankel_table(plan_cut, view(rgrid, 1:ircut_proj),
+                               view(proj, 1:ircut_proj), l, quadrature)
+        end
+    end
+    r2_pswfcs_tables = map(0:lmax) do l
+        map(pswfc -> build_hankel_table(plan_full, rgrid, pswfc, l, quadrature),
+            r2_pswfcs[l+1])
+    end
+    r2_ρion_table  = build_hankel_table(plan_cut, rgrid_cut, view(r2_ρion, 1:ircut),
+                                        0, quadrature)
+    r2_ρcore_table = build_hankel_table(plan_cut, rgrid_cut, view(r2_ρcore, 1:ircut),
+                                        0, quadrature)
+    r2_τcore_table = build_hankel_table(plan_cut, rgrid_cut, view(r2_τcore, 1:ircut),
+                                        0, quadrature)
+
     PspUpf{eltype(rgrid),typeof(vloc_interp)}(
         Zion, lmax, rgrid, drgrid,
         vloc, r2_projs, h, r2_pswfcs, pswfc_occs, pswfc_energies, pswfc_labels,
         r2_ρion, r2_ρcore, r2_τcore,
         vloc_interp, r2_projs_interp, r2_ρion_interp, r2_ρcore_interp, r2_τcore_interp,
+        vloc_table, r2_projs_tables, r2_pswfcs_tables,
+        r2_ρion_table, r2_ρcore_table, r2_τcore_table,
         rcut, ircut, identifier, description
     )
 end
@@ -184,27 +227,15 @@ function eval_psp_projector_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
 end
 
 function eval_psp_projector_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
-    # The projectors may have been cut off before the end of the radial mesh
-    # by PseudoPotentialIO because UPFs list a radial cutoff index for these
-    # functions after which they are strictly zero in the file.
-    ircut_proj = min(psp.ircut, length(psp.r2_projs[l+1][i]))
-    rgrid = @view psp.rgrid[1:ircut_proj]
-    r2_proj = @view psp.r2_projs[l+1][i][1:ircut_proj]
-    hankel(rgrid, r2_proj, l, p)
+    psp.r2_projs_tables[l+1][i](p)
 end
 
 # Vectorized version of the above, GPU compatible
 function eval_psp_projector_fourier(psp::PspUpf, i, l, ps::AbstractVector{T}) where {T<:Real}
-    quadrature = default_psp_quadrature(psp.rgrid)
-    arch = architecture(ps)
-    ircut_proj = min(psp.ircut, length(psp.r2_projs[l+1][i]))
-    rgrid = to_device(arch, @view psp.rgrid[1:ircut_proj])
-    r2_proj = to_device(arch, @view psp.r2_projs[l+1][i][1:ircut_proj])
-    map(ps) do p
-        # GPU kernels with dynamic function calls do not compile,
-        # hence the pre-determined explicit integration function
-        hankel(quadrature, rgrid, r2_proj, l, p)
-    end
+    (; coefficients, logpmin, Δlogp, n_nodes, pcut, moment0, moment2) =
+        to_device(architecture(ps), psp.r2_projs_tables[l+1][i])
+    map(p -> eval_hankel_table(coefficients, logpmin, Δlogp, n_nodes,
+                               pcut, moment0, moment2, p), ps)
 end
 
 count_n_pswfc_radial(psp::PspUpf, l) = length(psp.r2_pswfcs[l+1])
@@ -220,7 +251,7 @@ function eval_psp_pswfc_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
     # quantities. They are the reason that PseudoDojo UPF files have a much
     # larger radial grid than their psp8 counterparts.
     # If issues arise, try cutting them off too.
-    return hankel(psp.rgrid, psp.r2_pswfcs[l+1][i], l, p)
+    psp.r2_pswfcs_tables[l+1][i](p)
 end
 
 eval_psp_local_real(psp::PspUpf, r::T) where {T<:Real} = psp.vloc_interp(r)
@@ -241,24 +272,30 @@ function _eval_psp_local_fourier(quadrature, rgrid, vloc, Zion, p::T)::T where {
     4T(π) * (I + -Zion / p^2 * exp(-p^2 / T(4)))
 end
 
-function eval_psp_local_fourier(psp::PspUpf, p::T) where {T<:Real}
-    quadrature = default_psp_quadrature(psp.rgrid)
-    rgrid = @view psp.rgrid[1:psp.ircut]
-    vloc  = @view psp.vloc[1:psp.ircut]
-    _eval_psp_local_fourier(quadrature, rgrid, vloc, psp.Zion, p)
+# Add back the Hankel transform of the Coulomb tail C(r) = -Z erf(r)/r that was taken out
+# of the tabulated (or quadratured) part, see `_eval_psp_local_fourier`.
+function _add_local_coulomb_tail(Zion, p::T)::T where {T<:Real}
+    p == 0 && return zero(T)  # Compensating charge background
+    4T(π) * -Zion / p^2 * exp(-p^2 / T(4))
+end
+
+function eval_psp_local_fourier(psp::PspUpf, p::T)::T where {T<:Real}
+    # The p → 0 limit of the tail-corrected part is finite and nonzero; the zero at p = 0
+    # (compensating charge background) is an API contract applied on top of it.
+    p == 0 && return zero(T)
+    psp.vloc_table(p) + _add_local_coulomb_tail(psp.Zion, p)
 end
 
 # Vectorized version of the above, GPU optimized
 function eval_psp_local_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Real}
-    quadrature = default_psp_quadrature(psp.rgrid)
-    arch = architecture(ps)
-    rgrid = to_device(arch, @view psp.rgrid[1:psp.ircut])
-    vloc  = to_device(arch, @view psp.vloc[1:psp.ircut])
+    (; coefficients, logpmin, Δlogp, n_nodes, pcut, moment0, moment2) =
+        to_device(architecture(ps), psp.vloc_table)
     Zion = psp.Zion
     map(ps) do p
-        # GPU kernels with dynamic function calls do not compile,
-        # hence the pre-determined explicit integration function
-        _eval_psp_local_fourier(quadrature, rgrid, vloc, Zion, p)
+        p == 0 && return zero(T)  # Compensating charge background
+        (  eval_hankel_table(coefficients, logpmin, Δlogp, n_nodes,
+                             pcut, moment0, moment2, p)
+         + _add_local_coulomb_tail(Zion, p))
     end
 end
 
@@ -267,9 +304,7 @@ function eval_psp_valence_density_real(psp::PspUpf, r::T) where {T<:Real}
 end
 
 function eval_psp_valence_density_fourier(psp::PspUpf, p::T) where {T<:Real}
-    rgrid = @view psp.rgrid[1:psp.ircut]
-    r2_ρion = @view psp.r2_ρion[1:psp.ircut]
-    return hankel(rgrid, r2_ρion, 0, p)
+    psp.r2_ρion_table(p)
 end
 
 function eval_psp_core_density_real(psp::PspUpf, r::T) where {T<:Real}
@@ -277,22 +312,15 @@ function eval_psp_core_density_real(psp::PspUpf, r::T) where {T<:Real}
 end
 
 function eval_psp_core_density_fourier(psp::PspUpf, p::T) where {T<:Real}
-    rgrid = @view psp.rgrid[1:psp.ircut]
-    r2_ρcore = @view psp.r2_ρcore[1:psp.ircut]
-    return hankel(rgrid, r2_ρcore, 0, p)
+    psp.r2_ρcore_table(p)
 end
 
 # Vectorized version of the above, GPU optimized
 function eval_psp_core_density_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Real}
-    quadrature = default_psp_quadrature(psp.rgrid)
-    arch = architecture(ps)
-    rgrid = to_device(arch, @view psp.rgrid[1:psp.ircut])
-    r2_ρcore = to_device(arch, @view psp.r2_ρcore[1:psp.ircut])
-    map(ps) do p
-        # GPU kernels with dynamic function calls do not compile,
-        # hence the pre-determined explicit integration function
-        hankel(quadrature, rgrid, r2_ρcore, 0, p)
-    end
+    (; coefficients, logpmin, Δlogp, n_nodes, pcut, moment0, moment2) =
+        to_device(architecture(ps), psp.r2_ρcore_table)
+    map(p -> eval_hankel_table(coefficients, logpmin, Δlogp, n_nodes,
+                               pcut, moment0, moment2, p), ps)
 end
 
 function eval_psp_core_kinetic_energy_density_real(psp::PspUpf, r::T) where {T<:Real}
@@ -300,9 +328,7 @@ function eval_psp_core_kinetic_energy_density_real(psp::PspUpf, r::T) where {T<:
 end
 
 function eval_psp_core_kinetic_energy_density_fourier(psp::PspUpf, p::T) where {T<:Real}
-    rgrid = @view psp.rgrid[1:psp.ircut]
-    r2_τcore = @view psp.r2_τcore[1:psp.ircut]
-    return hankel(rgrid, r2_τcore, 0, p)
+    psp.r2_τcore_table(p)
 end
 
 function eval_psp_energy_correction(T, psp::PspUpf)
