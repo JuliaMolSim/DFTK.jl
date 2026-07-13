@@ -67,15 +67,29 @@ struct None <: SmearingFunction end
 occupation(S::None, x) = x > 0 ? zero(x) : one(x)
 entropy(S::None, x) = zero(x)
 
-"""Fermi dirac smearing"""
+"""Fermi-Dirac smearing"""
 struct FermiDirac <: SmearingFunction end
-occupation(S::FermiDirac, x) = 1 / (1 + exp(x))
+function occupation(S::FermiDirac, x::T) where T
+    # Avoids overflow of exp for large positive x by using the identity
+    # 1 / (1 + exp(x)) = exp(-x) / (1 + exp(-x))
+    if x > 0
+        y = exp(-x)
+        return y / (1 + y)
+    end
+    1 / (1 + exp(x))
+end
 function xlogx(x)
     iszero(x) ? zero(x) : x * log(x)
 end
 function entropy(S::FermiDirac, x)
     f = occupation(S, x)
-    - (xlogx(f) + xlogx(1 - f))
+    # protect against the occupation being exactly zero or one, which causes trouble with the derivative
+    # this check is a bit stupid, but if we just check for f == 0, the branch won't get picked up by forwarddiff
+    if abs(f) < eps(typeof(x))|| abs(1-f) < eps(typeof(x))
+        zero(x)
+    else
+        - (xlogx(f) + xlogx(1 - f))
+    end
 end
 function occupation_divided_difference(S::FermiDirac, x, y, εF, temp)
     temp == 0 && return occupation_divided_difference(None(), x, y, εF, temp)

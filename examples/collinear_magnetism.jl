@@ -6,25 +6,25 @@
 # and compare the resulting SCF energies. In particular
 # the ground state can only be found if collinear spins are allowed.
 #
-# First we setup BCC iron without spin polarization
-# using a single iron atom inside the unit cell.
+# The `bulk(:Fe)` function from `AtomsBuilder` returns a BCC iron setup
+# with a single iron atom inside the unit cell.
+
+using AtomsBuilder
+using PseudoPotentialData
 using DFTK
 
-a = 5.42352  # Bohr
-lattice = a / 2 * [[-1  1  1];
-                   [ 1 -1  1];
-                   [ 1  1 -1]]
-atoms     = [ElementPsp(:Fe; psp=load_psp("hgh/lda/Fe-q8.hgh"))]
-positions = [zeros(3)];
+bulk(:Fe)
 
-# To get the ground-state energy we use an LDA model and rather moderate
-# discretisation parameters.
+# First we consider a setup without spin polarization.
+# To get the ground-state energy of this system we use an LDA model
+# and rather moderate discretisation parameters.
 
+Ecut  = 15         # kinetic energy cutoff in Hartree
 kgrid = [3, 3, 3]  # k-point grid (Regular Monkhorst-Pack grid)
-Ecut = 15          # kinetic energy cutoff in Hartree
-model_nospin = model_LDA(lattice, atoms, positions, temperature=0.01)
-basis_nospin = PlaneWaveBasis(model_nospin; kgrid, Ecut)
+pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
 
+model_nospin  = model_DFT(bulk(:Fe); pseudopotentials, functionals=LDA(), temperature=0.01)
+basis_nospin  = PlaneWaveBasis(model_nospin; kgrid, Ecut)
 scfres_nospin = self_consistent_field(basis_nospin; tol=1e-4, mixing=KerkerDosMixing());
 #-
 scfres_nospin.energies
@@ -39,7 +39,7 @@ scfres_nospin.energies
 # electrons at each centre to the `Model` and the guess density functions.
 # In this case we seek the state with as many spin-parallel
 # ``d``-electrons as possible. In our pseudopotential model the 8 valence
-# electrons are 2 pair of ``s``-electrons, 1 pair of ``d``-electrons
+# electrons are 1 pair of ``s``-electrons, 1 pair of ``d``-electrons
 # and 4 unpaired ``d``-electrons giving a desired magnetic moment of `4` at the iron centre.
 # The structure (i.e. pair mapping and order) of the `magnetic_moments` array needs to agree
 # with the `atoms` array and `0` magnetic moments need to be specified as well.
@@ -56,7 +56,8 @@ magnetic_moments = [4];
 # We repeat the calculation using the same model as before. DFTK now detects
 # the non-zero moment and switches to a collinear calculation.
 
-model = model_LDA(lattice, atoms, positions; magnetic_moments, temperature=0.01)
+model = model_DFT(bulk(:Fe); pseudopotentials, functionals=LDA(),
+                  temperature=0.01, magnetic_moments)
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 ρ0 = guess_density(basis, magnetic_moments)
 scfres = self_consistent_field(basis, tol=1e-6; ρ=ρ0, mixing=KerkerDosMixing());
@@ -106,6 +107,9 @@ bands_666 = compute_bands(scfres, MonkhorstPack(6, 6, 6))  # Increase kgrid to g
 plot_dos(bands_666)
 # Note that if same k-grid as SCF should be employed, a simple `plot_dos(scfres)`
 # is sufficient.
+# We can clearly see that the origin of this spin-polarization traces back to the 
+# 3D orbital contribution if we look at the corresponding projected density of states (PDOS).
+plot_pdos(bands_666; iatom=1, label="3D")
 
 # Similarly the band structure shows clear differences between both spin components.
 using Unitful

@@ -23,9 +23,14 @@ function Base.show(io::IO, ::MIME"text/plain", model::Model)
     if !isempty(model.atoms)
         println(io)
         showfieldln(io, "atoms", chemical_formula(model))
-        for (i, el) in enumerate(model.atoms)
-            header = i==1 ? "atom potentials" : ""
-            showfieldln(io, header, el)
+        family = pseudofamily(model)
+        if isnothing(family)
+            for (i, el) in enumerate(model.atoms)
+                header = i==1 ? "atom potentials" : ""
+                showfieldln(io, header, el)
+            end
+        else
+            showfieldln(io, "pseudopot. family", family)
         end
     end
 
@@ -78,11 +83,19 @@ function todict!(dict, model::Model)
     dict["temperature"]       = model.temperature
     dict["smearing"]          = string(model.smearing)
     dict["n_atoms"]           = length(model.atoms)
-    dict["atomic_symbols"]    = map(e -> string(atomic_symbol(e)), model.atoms)
+    dict["element_symbols"]   = map(e -> string(element_symbol(e)), model.atoms)
+    dict["species"]           = map(e -> string(species(e)), model.atoms)
     dict["atomic_positions"]  = model.positions
     dict["atomic_positions_cart"] = vector_red_to_cart.(model, model.positions)
     !isnothing(model.εF)          && (dict["εF"]          = model.εF)
     !isnothing(model.n_electrons) && (dict["n_electrons"] = model.n_electrons)
+
+    family = pseudofamily(model)
+    if isnothing(family)
+        dict["pseudofamily"] = "unknown"
+    else
+        dict["pseudofamily"] = family.identifier
+    end
 
     dict["symmetries_rotations"]    = [symop.W for symop in model.symmetries]
     dict["symmetries_translations"] = [symop.w for symop in model.symmetries]
@@ -109,6 +122,7 @@ function Base.show(io::IO, ::MIME"text/plain", basis::PlaneWaveBasis)
     showfieldln(io, "architecture", basis.architecture)
     showfieldln(io, "num. mpi processes", mpi_nprocs(basis.comm_kpts))
     showfieldln(io, "num. julia threads", Threads.nthreads())
+    showfieldln(io, "num. DFTK  threads", get_DFTK_threads())
     showfieldln(io, "num. blas  threads", BLAS.get_num_threads())
     showfieldln(io, "num. fft   threads", FFTW.get_num_threads())
     println(io)
@@ -120,12 +134,33 @@ function Base.show(io::IO, ::MIME"text/plain", basis::PlaneWaveBasis)
     end
     showfieldln(io, "kgrid",    basis.kgrid)
     showfieldln(io, "num.   red. kpoints", length(basis.kgrid))
-    showfieldln(io, "num. irred. kpoints", length(basis.kcoords_global))
-
+    showfieldln(io, "num. irred. kpoints", basis.n_irreducible_kpoints)
     println(io)
-    modelstr = sprint(show, "text/plain", basis.model)
+
     indent = " " ^ SHOWINDENTION
+    if isnothing(basis.model.εF) # Band count is unknown for a fixed Fermi level
+        memstats = estimate_memory_usage(basis)
+        memstatsstr = sprint(show, "text/plain", memstats)
+        print(io, indent, replace(memstatsstr, "\n" => "\n" * indent))
+        println(io)
+    end
+
+    modelstr = sprint(show, "text/plain", basis.model)
     print(io, indent, "Discretized " * replace(modelstr, "\n" => "\n" * indent))
+end
+
+function Base.show(io::IO, ::MIME"text/plain", memstats::MemoryStatistics)
+    function prettify(bytes)
+        @sprintf "  % 6s" TimerOutputs.prettymemory(bytes)
+    end
+
+    println(io, "Estimated memory usage (per MPI process):")
+    if memstats.nonlocal_P_bytes > 0
+        showfieldln(io, "nonlocal projectors", prettify(memstats.nonlocal_P_bytes))
+    end
+    showfieldln(io, "single ψ", prettify(memstats.ψ_bytes))
+    showfieldln(io, "single ρ", prettify(memstats.ρ_bytes))
+    showfieldln(io, "peak memory (SCF)", prettify(memstats.scf_peak_bytes))
 end
 
 
@@ -148,10 +183,10 @@ function todict!(dict, basis::PlaneWaveBasis)
     todict!(dict, basis.model)
 
     dict["kgrid"]        = sprint(show, "text/plain", basis.kgrid)
-    dict["kcoords"]      = basis.kcoords_global
-    dict["kcoords_cart"] = vector_red_to_cart.(basis.model, basis.kcoords_global)
-    dict["kweights"]     = basis.kweights_global
-    dict["n_kpoints"]    = length(basis.kcoords_global)
+    dict["kcoords"]      = irreducible_kcoords_global(basis)
+    dict["kcoords_cart"] = vector_red_to_cart.(basis.model, irreducible_kcoords_global(basis))
+    dict["kweights"]     = irreducible_kweights_global(basis)
+    dict["n_kpoints"]    = basis.n_irreducible_kpoints
     dict["fft_size"]     = basis.fft_size
     dict["dvol"]         = basis.dvol
     dict["Ecut"]         = basis.Ecut
@@ -223,11 +258,22 @@ function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false, save_ρ=
     end
 
     function gather_and_store!(dict, key, basis, data)
+        # Gather from all k-points, even possibly duplicated ones
         gathered = gather_kpts_block(basis, data)
         if !isnothing(gathered)
-            n_kpoints = length(basis.kcoords_global)
+            n_kpoints = basis.n_irreducible_kpoints
             n_spin    = basis.model.n_spin_components
-            dict[key] = reshape(gathered, (size(data[1])..., n_kpoints, n_spin))
+            n_kpt_tot = length(basis.kcoords_global)
+
+            reshaped_data = reshape(gathered, (size(data[1])..., n_kpt_tot, n_spin))
+
+            # Only store irreducible k-points (assumed to be first in an array)
+            if n_kpt_tot > n_kpoints
+                index = ntuple(_ -> Colon(), ndims(dict[key]))
+                index = Base.setindex(index, 1:n_kpoints, ndims(dict[key]) - 1)
+                reshaped_data = reshaped_data[index...]
+            end
+            dict[key] = reshaped_data
         end
     end
 
@@ -305,16 +351,30 @@ function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true, save_ρ=true)
     band_data_to_dict!(dict, scfres; save_ψ)
 
     # These are either already done above or will be ignored or dealt with below.
-    special = (:ham, :basis, :energies, :stage,
-               :ρ, :ψ, :eigenvalues, :occupation, :εF, :diagonalization)
+    special = (:ham, :basis, :energies, :stage, :mixing,
+               :τ, :ρ, :ψ, :hubbard_n, :eigenvalues, :occupation, :εF, :diagonalization,
+               :optim_res, # from direct_minimization, ignore it as it can be huge
+               :is_converged, :nbandsalg, :fermialg, :diagtolalg, :solver, :eigensolver,
+               :ρin, :τin, # from SCF iterations; large, but not useful to store
+               )
     propmap = Dict(:α => :damping_value, )  # compatibility mapping
-    if mpi_master()
+    if mpi_master(scfres.basis.comm_kpts)
         if save_ρ
             dict["ρ"] = scfres.ρ
+            dict["τ"] = get(scfres, :τ, nothing)
+            dict["hubbard_n"] = get(scfres, :hubbard_n, nothing)
         end
         energies = make_subdict!(dict, "energies")
         for (key, value) in todict(scfres.energies)
             energies[key] = value
+        end
+        if hasproperty(scfres, :mixing)
+            dict["mixing"] = string(scfres.mixing)
+        end
+        for sym in (:is_converged, :nbandsalg, :fermialg, :diagtolalg, :solver, :eigensolver)
+            if hasproperty(scfres, sym)
+                dict[string(sym)] = string(getproperty(scfres, sym))
+            end
         end
 
         scfres_extra_keys = String[]
@@ -328,4 +388,21 @@ function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true, save_ρ=true)
     end
 
     dict
+end
+
+function Base.show(io::IO, psp::NormConservingPsp)
+    print(io, "$(nameof(typeof(psp)))(")
+    if !isempty(psp.identifier)
+        print(io, "identifier=\"$(psp.identifier)\", ")
+    end
+    print(io, "Zion=$(charge_ionic(psp)), projectors=")
+
+    lmap = Dict(0 => "S", 1 => "P", 2 => "D", 3 => "F", 4 => "G", 5 => "H")
+    for l in 1:psp.lmax
+        print(io, " ", count_n_proj(psp, l), lmap[l])
+    end
+    if !isempty(psp.description)
+        print(io, ", ", psp.description)
+    end
+    print(io, ")")
 end

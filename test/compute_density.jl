@@ -10,7 +10,7 @@
     using DFTK: total_local_potential, is_approx_integer
     (; silicon, magnesium, aluminium) = TestCases.all_testcases
 
-    function get_bands(testcase, kgrid, kshift; symmetries, Ecut=5, tol=1e-8, n_rounds=1)
+    function get_bands(testcase, kgrid; symmetries, Ecut, tol, n_rounds=1)
         kwargs = ()
         n_bands = div(testcase.n_electrons, 2, RoundUp)
         if testcase.temperature !== nothing
@@ -18,9 +18,9 @@
             n_bands = div(testcase.n_electrons, 2, RoundUp) + 4
         end
 
-        model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions,
-                          :lda_xc_teter93; symmetries, kwargs...)
-        basis = PlaneWaveBasis(model; Ecut, kgrid, kshift, symmetries_respect_rgrid=false)
+        model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                          functionals=[:lda_xc_teter93], symmetries, kwargs...)
+        basis = PlaneWaveBasis(model; Ecut, kgrid, symmetries_respect_rgrid=false)
         ham = Hamiltonian(basis; ρ=guess_density(basis))
 
         res = diagonalize_all_kblocks(lobpcg_hyper, ham, n_bands; tol)
@@ -61,12 +61,13 @@
                                       n_ignore=0, kshift=[0, 0, 0], eigenvectors=true)
         @testset "$label" begin
 
-        res = get_bands(testcase, kgrid_size, kshift; symmetries=false, Ecut, tol)
+        kgrid = MonkhorstPack(kgrid_size; kshift)
+        res = get_bands(testcase, kgrid; symmetries=false, Ecut, tol)
         ham_full, ψ_full, eigenvalues_full, ρ_full, occ_full = res
         kfull = [kpt.coordinate for kpt in ham_full.basis.kpoints]
         test_orthonormality(ham_full.basis, ψ_full; tol)
 
-        res = get_bands(testcase, kgrid_size, kshift; symmetries=true, Ecut, tol)
+        res = get_bands(testcase, kgrid; symmetries=true, Ecut, tol)
         ham_ir, ψ_ir, eigenvalues_ir, ρ_ir, occ_ir = res
         test_orthonormality(ham_ir.basis, ψ_ir; tol)
         @test ham_full.basis.fft_size == ham_ir.basis.fft_size
@@ -82,7 +83,8 @@
         for (ik, kpt) in enumerate(ham_ir.basis.kpoints)
             for symop in ham_ir.basis.symmetries
                 ikfull = findfirst(1:length(kfull)) do idx
-                    all(is_approx_integer, kfull[idx] - symop.S * kpt.coordinate)
+                    is_approx_int(x) = is_approx_integer(x; atol=1e-10)
+                    all(is_approx_int, kfull[idx] - symop.S * kpt.coordinate)
                 end
                 @test ikfull !== nothing
 
@@ -106,7 +108,8 @@
                     Skpoint, ψSk = DFTK.apply_symop(symop, ham_ir.basis, Hk_ir.kpoint, ψ_ir[ik])
 
                     ikfull = findfirst(1:length(kfull)) do idx
-                        all(is_approx_integer, round.(kfull[idx] - Skpoint.coordinate, digits=10))
+                        is_approx_int(x) = is_approx_integer(x; atol=1e-10)
+                        all(is_approx_int, round.(kfull[idx] - Skpoint.coordinate, digits=10))
                     end
                     @test !isnothing(ikfull)
                     Hk_full = ham_full.blocks[ikfull]

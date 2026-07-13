@@ -18,7 +18,7 @@ struct GenericHamiltonianBlock <: HamiltonianBlock
     scratch  # dummy field
 end
 
-# More optimized HamiltonianBlock for the important case of a DFT Hamiltonian
+"""A more optimized HamiltonianBlock for the important case of a DFT Hamiltonian."""
 struct DftHamiltonianBlock <: HamiltonianBlock
     basis::PlaneWaveBasis
     kpoint::Kpoint
@@ -33,7 +33,7 @@ struct DftHamiltonianBlock <: HamiltonianBlock
     scratch  # Pre-allocated scratch arrays for fast application
 end
 
-function HamiltonianBlock(basis, kpoint, operators; scratch=_ham_allocate_scratch(basis))
+function HamiltonianBlock(basis, kpoint, operators; scratch=nothing)
     optimized_operators = optimize_operators(operators)
     fourier_ops  = filter(o -> o isa FourierMultiplication,   optimized_operators)
     real_ops     = filter(o -> o isa RealSpaceMultiplication, optimized_operators)
@@ -45,6 +45,7 @@ function HamiltonianBlock(basis, kpoint, operators; scratch=_ham_allocate_scratc
                   && length(nonlocal_ops) < 2 && length(divAgrad_ops) < 2
                   && n_ops_grouped == length(optimized_operators))
     if is_dft_ham
+        scratch = @something scratch _ham_allocate_scratch(basis)
         nonlocal_op = isempty(nonlocal_ops) ? nothing : only(nonlocal_ops)
         divAgrad_op = isempty(divAgrad_ops) ? nothing : only(divAgrad_ops)
         DftHamiltonianBlock(basis, kpoint, operators,
@@ -55,7 +56,7 @@ function HamiltonianBlock(basis, kpoint, operators; scratch=_ham_allocate_scratc
     end
 end
 function _ham_allocate_scratch(basis::PlaneWaveBasis{T}) where {T}
-    [(; ψ_reals=zeros_like(basis.G_vectors, complex(T), basis.fft_size...))
+    [(; ψ_reals=zeros_like(G_vectors(basis), complex(T), basis.fft_size...))
      for _ = 1:Threads.nthreads()]
 end
 
@@ -70,11 +71,11 @@ function random_orbitals(hamk::HamiltonianBlock, howmany::Integer)
     random_orbitals(hamk.basis, hamk.kpoint, howmany)
 end
 
-import Base: Matrix, Array
-Array(block::HamiltonianBlock)  = Matrix(block)
-Matrix(block::HamiltonianBlock) = sum(Matrix, block.operators)
-Matrix(block::GenericHamiltonianBlock) = sum(Matrix, block.optimized_operators)
+Base.Array(block::HamiltonianBlock)  = Matrix(block)
+Base.Matrix(block::HamiltonianBlock) = sum(Matrix, block.operators)
+Base.Matrix(block::GenericHamiltonianBlock) = sum(Matrix, block.optimized_operators)
 
+"""Represents a matrix-free Hamiltonian discretized in a given plane-wave basis."""
 struct Hamiltonian
     basis::PlaneWaveBasis
     blocks::Vector{HamiltonianBlock}
@@ -88,8 +89,11 @@ function LinearAlgebra.mul!(Hψ, H::Hamiltonian, ψ)
     end
     Hψ
 end
-# need `deepcopy` here to copy the elements of the array of arrays ψ (not just pointers)
-Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
+function Base.:*(H::Hamiltonian, ψ)
+    # This allocates new memory for the result of promoted eltype
+    result = one(eltype(H.basis)) * ψ
+    mul!(result, H, ψ)
+end
 
 # Loop through bands, IFFT to get ψ in real space, loop through terms, FFT and accumulate into Hψ
 # For the common DftHamiltonianBlock there is an optimized version below
@@ -102,7 +106,7 @@ Base.:*(H::Hamiltonian, ψ) = mul!(deepcopy(ψ), H, ψ)
            ψ_real  = similar(ψ, complex(T), H.basis.fft_size...),
            Hψ_real = similar(Hψ, complex(T), H.basis.fft_size...))
     end
-    parallel_loop_over_range(allocate_local_storage, 1:size(ψ, 2)) do storage, iband
+    parallel_loop_over_range(1:size(ψ, 2); allocate_local_storage) do iband, storage
         to = TimerOutput()  # Thread-local timer output
 
         # Take ψi, IFFT it to ψ_real, apply each term to Hψ_fourier and Hψ_real, and add it
@@ -136,19 +140,26 @@ end
     n_bands = size(ψ, 2)
     iszero(n_bands) && return Hψ  # Nothing to do if ψ empty
     have_divAgrad = !isnothing(H.divAgrad_op)
+    if have_divAgrad
+        # TODO: It is very beneficial to precompute G_plus_k here, rather than for each band.
+        #       Extra performance could probably be gained by storing this in the HamiltonianBlock
+        #       as a scratch array. Is it worth the complication and extra memory use?
+        # Precompute G_plus_k for DivAgradOperator
+        G_plus_k = [map(p -> p[α], Gplusk_vectors_cart(H.basis, H.kpoint)) for α = 1:3]
+    end
 
     # Notice that we use unnormalized plans for extra speed
-    potential = H.local_op.potential / prod(H.basis.fft_size)
+    potential = H.local_op.potential .* H.basis.fft_grid.fft_normalization .*
+                H.basis.fft_grid.ifft_normalization
 
-    parallel_loop_over_range(H.scratch, 1:n_bands) do storage, iband
+    parallel_loop_over_range(1:n_bands, H.scratch) do iband, storage
         to = TimerOutput()  # Thread-local timer output
         ψ_real = storage.ψ_reals
 
-        @timeit to "local+kinetic" begin
+        @timeit to "local" begin
             ifft!(ψ_real, H.basis, H.kpoint, ψ[:, iband]; normalize=false)
             ψ_real .*= potential
             fft!(Hψ[:, iband], H.basis, H.kpoint, ψ_real; normalize=false)  # overwrites ψ_real
-            Hψ[:, iband] .+= H.fourier_op.multiplier .* ψ[:, iband]
         end
 
         if have_divAgrad
@@ -156,16 +167,17 @@ end
                 apply!((; fourier=Hψ[:, iband], real=nothing),
                        H.divAgrad_op,
                        (; fourier=ψ[:, iband], real=nothing);
-                       ψ_scratch=ψ_real)
+                       ψ_real, G_plus_k) # overwrites ψ_real
             end
         end
 
         if Threads.threadid() == 1
             merge!(DFTK.timer, to; tree_point=[t.name for t in DFTK.timer.timer_stack])
         end
-
-        synchronize_device(H.basis.architecture)
     end
+
+    # Kinetic term
+    Hψ .+= H.fourier_op.multiplier .* ψ
 
     # Apply the nonlocal operator.
     if !isnothing(H.nonlocal_op)
@@ -180,9 +192,11 @@ end
 end
 
 
-# Get energies and Hamiltonian
-# kwargs is additional info that might be useful for the energy terms to precompute
-# (eg the density ρ)
+"""
+Get energies and Hamiltonian
+kwargs is additional info that might be useful for the energy terms to precompute
+(eg the density ρ)
+"""
 @timing function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
     # it: index into terms, ik: index into kpoints
     @timing "ene_ops" ene_ops_arr = [ene_ops(term, basis, ψ, occupation; kwargs...)
@@ -203,14 +217,24 @@ end
         end
         ret
     end
+    scratch = _ham_allocate_scratch(basis)
     hks_per_k = [flatten([blocks[ik] for blocks in operators])
                  for ik = 1:length(basis.kpoints)]      # hks_per_k[ik][it]
-
-    ham = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks)
+    ham = Hamiltonian(basis, [HamiltonianBlock(basis, kpt, hks; scratch)
                               for (hks, kpt) in zip(hks_per_k, basis.kpoints)])
     energies = Energies(term_names, energy_values)
     (; energies, ham)
 end
+
+"""
+Faster version than energy_hamiltonian for cases where only the energy is needed.
+"""
+@timing function energy(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
+    energy_values = [energy(term, basis, ψ, occupation; kwargs...) for term in basis.terms]
+    term_names = [string(nameof(typeof(term))) for term in basis.model.term_types]
+    (; energies=Energies(term_names, energy_values))
+end
+
 function Hamiltonian(basis::PlaneWaveBasis; ψ=nothing, occupation=nothing, kwargs...)
     energy_hamiltonian(basis, ψ, occupation; kwargs...).ham
 end

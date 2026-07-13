@@ -2,9 +2,9 @@
 
 # Density-functional toolkit
 
-| **Documentation**                                                                 | **Build Status**                                |  **License**                     |
-|:--------------------------------------------------------------------------------- |:----------------------------------------------- |:-------------------------------- |
-| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][slack-img]][slack-url] | [![][ci-img]][ci-url] [![][cigpu-img]][cigpu-url] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
+| **Documentation**                                                                                             | **Build Status**                                |  **License**                     |
+|:------------------------------------------------------------------------------------------------------------- |:----------------------------------------------- |:-------------------------------- |
+| [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] [![][chat-img]][chat-url] [![][matrix-img]][matrix-url] | [![][ci-img]][ci-url] [![][ccov-img]][ccov-url] | [![][license-img]][license-url]  |
 
 [ddocs-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [ddocs-url]: https://docs.dftk.org/dev
@@ -12,14 +12,14 @@
 [docs-img]: https://img.shields.io/badge/docs-stable-blue.svg
 [docs-url]: https://docs.dftk.org/stable
 
-[slack-img]: https://img.shields.io/badge/chat-on_julia_slack-808493.svg?logo=slack
-[slack-url]: https://julialang.slack.com/archives/C05KJB8MPQR
+[chat-img]: https://img.shields.io/badge/chat-on_zulip-808493.svg?logo=zulip
+[chat-url]: https://juliamolsim.zulipchat.com/#narrow/stream/332493-dftk
+
+[matrix-img]: https://img.shields.io/badge/chat-on_matrix-000000.svg?logo=matrix
+[matrix-url]: https://matrix.epfl.ch/#/#/room/#dftk:epfl.ch
 
 [ci-img]: https://github.com/JuliaMolSim/DFTK.jl/workflows/CI/badge.svg?branch=master&event=push
 [ci-url]: https://github.com/JuliaMolSim/DFTK.jl/actions
-
-[cigpu-img]: https://git.uni-paderborn.de/herbstm/DFTK.jl/badges/master/pipeline.svg?key_text=GPU%20CI
-[cigpu-url]: https://git.uni-paderborn.de/herbstm/DFTK.jl/-/pipelines
 
 [ccov-img]: https://codecov.io/gh/JuliaMolSim/DFTK.jl/branch/master/graph/badge.svg?token=A23M0VZ8PQ
 [ccov-url]: https://codecov.io/gh/JuliaMolSim/DFTK.jl
@@ -28,25 +28,54 @@
 [license-url]: https://github.com/JuliaMolSim/DFTK.jl/blob/master/LICENSE
 
 
+
 The density-functional toolkit, **DFTK** for short, is a collection of
-Julia routines for experimentation with plane-wave density-functional theory (DFT).
+Julia routines for plane-wave density-functional theory (DFT).
 The unique feature of this code is its emphasis on simplicity and flexibility
 with the goal of facilitating algorithmic and numerical developments as well as
 interdisciplinary collaboration in solid-state research.
 
-Having started in 2019 we already support a
-[sizeable set of features](https://docs.dftk.org/stable/features/).
-Within the system size currently accessible to our code (ca. 1000 electrons)
-our performance is of the same order of magnitude as more established packages
-such as [Abinit](https://www.abinit.org/) or
-[Quantum Espresso](http://quantum-espresso.org/).
+In only around 10k lines of code DFTK already has
+a [sizeable set of features](https://docs.dftk.org/stable/features/)
+including GPU support or parallelisation using MPI.
+Our performance is of the same order of magnitude
+as other plane-wave DFT packages and  systems of 1000 electrons
+can be routinely treated.
+
+Basic usage is demonstrated below:
+```julia
+using DFTK
+using PseudoPotentialData
+
+# Define the geometry
+a = 10.26 # Everything in DFTK is in atomic units, here Bohrs
+lattice = a / 2 * [[0 1 1.];
+                   [1 0 1.];
+                   [1 1 0.]]
+
+# Define the pseudopotential and atomic positions
+Si = ElementPsp(:Si, PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf"))
+atoms     = [Si, Si]
+positions = [ones(3)/8, -ones(3)/8] # relative coordinates
+
+# First define the model (problem to be solved, without numerical parameters);
+# here, a standard DFT with LDA exchange-correlation
+model = model_DFT(lattice, atoms, positions; functionals=LDA())
+
+# `basis` holds the discretization parameters (energy cutoff, kpoint sampling, etc)
+# and everything needed to specify the solution numerically
+basis = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
+
+scfres = self_consistent_field(basis, tol=1e-8)
+# scfres contains the result of the calculation (energy, density, orbitals, etc)
+```
 
 For getting started with DFTK, see [our documentation](https://docs.dftk.org):
 - [Installation instructions](https://docs.dftk.org/stable/guide/installation/)
 - [Tutorial](https://docs.dftk.org/stable/guide/tutorial/)
 - [Basic DFT examples](https://docs.dftk.org/stable/examples/metallic_systems/)
 
-Note that at least **Julia 1.9** is required.
+Note that at least **Julia 1.10** is required.
 
 ## Support and citation
 DFTK is mostly developed as part of academic research.
@@ -64,8 +93,8 @@ This project has received funding from the
 [Inria Research Centre Paris](https://www.inria.fr/fr/centre-inria-de-paris),
 [RWTH Aachen University](https://rwth-aachen.de/),
 [Swiss National Science Foundation](https://snf.ch/),
-and from the European Research Council (ERC) under the European Union's Horizon 2020 research and
-innovation program ([grant agreement No 810367](https://cordis.europa.eu/project/id/810367)).
+from the European Research Council (ERC) under the European Union's Horizon 2020 research and
+innovation program ([grant agreement No 810367](https://cordis.europa.eu/project/id/810367)) and from the Simons Foundation.
 
 ## Contributing
 If you stumble across issues in using DFTK
@@ -73,14 +102,6 @@ or have suggestions for future developments
 we are more than happy to hear about it.
 In this case please [open an issue](https://github.com/JuliaMolSim/DFTK.jl/issues)
 or contact us ([@mfherbst](https://github.com/mfherbst)
-and [@antoine-levitt](https://github.com/antoine-levitt)) directly.
+and [@antoine-levitt](https://github.com/antoine-levitt)) directly. 
 
-Contributions to the code in any form is very welcome,
-just [submit a pull request](https://github.com/JuliaMolSim/DFTK.jl/pulls)
-on github. If you want to contribute but are unsure where to start, take a look
-at the list of issues tagged [good first issue](https://github.com/JuliaMolSim/DFTK.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
-(relatively easy tasks suitable for newcomers) or [help wanted](https://github.com/JuliaMolSim/DFTK.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
-(more sizeable but well-defined and isolated).
-Don't hesitate to ask for help, through github,
-email or the [Julia slack][slack-url]
-channel `#juliamolsim`.
+If you want to start contributing to the code, please read the [CONTRIBUTING.md](CONTRIBUTING.md) file first.

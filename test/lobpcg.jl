@@ -36,7 +36,8 @@
 
     @testset "with Preconditioner" begin
         res = diagonalize_all_kblocks(lobpcg_hyper, ham, nev_per_k; tol,
-                                      prec_type=PreconditionerTPA, interpolate_kpoints=false)
+                                      prec_type=PreconditionerTPA,
+                                      interpolate_kpoints=false)
 
         @test res.converged
         for ik = 1:length(basis.kpoints)
@@ -49,9 +50,10 @@ end
 
 @testitem "Diagonalization of kinetic + local PSP" tags=[:slow] setup=[TestCases] begin
     using DFTK
+    using PseudoPotentialData
     silicon = TestCases.silicon
 
-    Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/lda/si-q4"))
+    Si = ElementPsp(silicon.atnum, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
     model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                   terms=[Kinetic(),AtomicLocal()])
     basis = PlaneWaveBasis(model; Ecut=25, silicon.kgrid, fft_size=[33, 33, 33])
@@ -75,9 +77,10 @@ end
 
 @testitem "Diagonalization of a core Hamiltonian" setup=[TestCases] begin
     using DFTK
+    using PseudoPotentialData
     silicon = TestCases.silicon
 
-    Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/lda/si-q4"))
+    Si = ElementPsp(silicon.atnum, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
     model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                   terms=[Kinetic(), AtomicLocal(), AtomicNonlocal()])
 
@@ -102,10 +105,12 @@ end
 
 @testitem "Full diagonalization of a LDA Hamiltonian" setup=[TestCases] begin
     using DFTK
+    using PseudoPotentialData
     silicon = TestCases.silicon
 
-    Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/lda/si-q4"))
-    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions, :lda_xc_teter93)
+    Si = ElementPsp(silicon.atnum, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                      functionals=[:lda_xc_teter93])
     basis = PlaneWaveBasis(model; Ecut=2, silicon.kgrid)
     ham = Hamiltonian(basis; ρ=guess_density(basis))
 
@@ -119,6 +124,7 @@ end
 @testitem "LOBPCG Internal data structures" setup=[TestCases] begin
     using DFTK
     using LinearAlgebra
+    import DFTK: mul_hermi
 
     a1 = rand(10, 5)
     a2 = rand(10, 2)
@@ -137,4 +143,21 @@ end
 
     D = rand(10, 4)
     @test mul!(D,Ablock, C, 1, 0) ≈ A*C
+
+    @test mul_hermi(Ablock', Ablock) ≈ A' * A
+end
+
+@testitem "LOBPCG print callback" setup=[TestCases] begin
+    using DFTK
+    using LinearAlgebra
+
+    A = randn(40, 40)
+    A = A+A' + 20I
+    X = randn(40, 3)
+
+    # Run the callback to make sure it works, but don't print anything
+    res = redirect_stdout(devnull) do
+        lobpcg_hyper(A, X; prec= Diagonal(A), callback=DFTK.DefaultLobpcgCallback(), tol=1e-6)
+    end
+    @test res.converged
 end

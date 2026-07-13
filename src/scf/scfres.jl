@@ -14,9 +14,9 @@ in which case it tries to recover from the file as much data as it can, but then
 resulting `scfres` might not be fully consistent.
 
 !!! warning "No compatibility guarantees"
-    No guarantees are made with respect to this function at this point.
-    It may change incompatibly between DFTK versions (including patch versions)
-    or stop working / be removed in the future.
+    No guarantees are made with respect to the format of the keys at this point.
+    We may change the internal format of the keys incompatibly between DFTK versions
+    (including patch versions).
 """
 @timing function load_scfres(filename::AbstractString, basis=nothing;
                              skip_hamiltonian=false, strict=true)
@@ -27,7 +27,7 @@ resulting `scfres` might not be fully consistent.
     end
     load_scfres(Val(ext), filename, basis; skip_hamiltonian, strict)
 end
-function load_scfres(::Any, filename::AbstractString; kwargs...)
+function load_scfres(::Val, filename::AbstractString, ::Any; kwargs...)
     error("The extension $(last(splitext(filename))) is currently not available. " *
           "A required package (e.g. JLD2 or HDF5) is not yet loaded.")
 end
@@ -54,8 +54,8 @@ Keyword arguments:
 - `save_ψ`: Save the orbitals as well (may lead to larger files). This is the default
   for `jld2`, but `false` for all other formats, where this is considerably more
   expensive.
-- `save_ρ`: Save the density as well (may lead to larger files). This is the default
-  for all but `json`.
+- `save_ρ`: Save the density as well as the kinetic energy density as well
+  (may lead to larger files). This is the default for all but `json`.
 - `extra_data`: Additional data to place into the file. The data is just copied
   like `fp["key"] = value`, where `fp` is a `JLD2.JLDFile`, `WriteVTK.vtk_grid`
   and so on.
@@ -63,14 +63,13 @@ Keyword arguments:
   to be available.
 
 !!! warning "Changes to data format reserved"
-    No guarantees are made with respect to the format of the keys at this point.
-    We may change this incompatibly between DFTK versions (including patch versions).
-    In particular changes with respect to the ψ structure are planned.
+    No guarantees are made with respect to this function at this point.
+    It may change incompatibly between DFTK versions (including patch versions).
 """
 @timing function save_scfres(filename::AbstractString, scfres::NamedTuple;
                              save_ψ=nothing, extra_data=Dict{String,Any}(),
-                             compress=false, save_ρ=true)
-    filename = MPI.bcast(filename, 0, MPI.COMM_WORLD)
+                             compress=false, save_ρ=nothing)
+    filename = mpi_bcast(filename, 0, scfres.basis.comm_kpts)
 
     _, ext = splitext(filename)
     ext = Symbol(ext[2:end])
@@ -78,9 +77,10 @@ Keyword arguments:
         error("Extension '$ext' not supported by DFTK.")
     end
     save_ψ = something(save_ψ, (ext == :jld2))
+    save_ρ = something(save_ρ, (ext != :json))
     save_scfres(Val(ext), filename, scfres; save_ψ, save_ρ, extra_data, compress)
 end
-function save_scfres(::Any, filename::AbstractString, ::NamedTuple; kwargs...)
+function save_scfres(::Val, filename::AbstractString, ::NamedTuple; kwargs...)
     error("The extension $(last(splitext(filename))) is currently not available. " *
           "A required package (e.g. JLD2 or JSON3) is not yet loaded.")
 end

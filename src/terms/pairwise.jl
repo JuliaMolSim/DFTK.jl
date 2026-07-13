@@ -1,3 +1,4 @@
+"""Pairwise potential energy terms between nuclei. Precomputed at discretization time."""
 struct PairwisePotential
     V
     params
@@ -19,13 +20,13 @@ function PairwisePotential(V, params; max_radius=100)
 end
 @timing "precomp: Pairwise" function (P::PairwisePotential)(basis::PlaneWaveBasis{T}) where {T}
     model = basis.model
-    symbols = Symbol.(atomic_symbol.(model.atoms))
+    symbols = element_symbol.(model.atoms)
     (; energy, forces) = energy_forces_pairwise(model.lattice, symbols, model.positions,
                                                 P.V, P.params; P.max_radius)
     TermPairwisePotential(P.V, P.params, T(P.max_radius), energy, forces)
 end
 
-struct TermPairwisePotential{TV, Tparams, T} <:Term
+struct TermPairwisePotential{TV, Tparams, T} <: TermLinear
     V::TV
     params::Tparams
     max_radius::T
@@ -136,7 +137,7 @@ function compute_dynmat(term::TermPairwisePotential, basis::PlaneWaveBasis{T}, Ï
     positions = model.positions
     n_atoms = length(positions)
     n_dim = model.n_dim
-    symbols = Symbol.(atomic_symbol.(model.atoms))
+    symbols = element_symbol.(model.atoms)
 
     dynmat = zeros(complex(T), 3, n_atoms, 3, n_atoms)
     for s = 1:n_atoms, Î± = 1:n_dim

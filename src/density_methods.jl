@@ -3,11 +3,12 @@
 abstract type DensityConstructionMethod                  end
 abstract type AtomicDensity <: DensityConstructionMethod end
 
-struct RandomDensity           <: DensityConstructionMethod end
-struct CoreDensity             <: AtomicDensity end
-struct ValenceDensityGaussian  <: AtomicDensity end
-struct ValenceDensityPseudo    <: AtomicDensity end
-struct ValenceDensityAuto      <: AtomicDensity end
+struct RandomDensity            <: DensityConstructionMethod end
+struct CoreDensity              <: AtomicDensity end
+struct CoreKineticEnergyDensity <: AtomicDensity end
+struct ValenceDensityGaussian   <: AtomicDensity end
+struct ValenceDensityPseudo     <: AtomicDensity end
+struct ValenceDensityAuto       <: AtomicDensity end
 
 # Random density method
 function guess_density(basis::PlaneWaveBasis, ::RandomDensity;
@@ -26,7 +27,8 @@ function random_density(basis::PlaneWaveBasis{T}, n_electrons::Integer) where {T
         ρspin = rand((-1, 1), basis.fft_size) .* rand(T, basis.fft_size) .* ρtot
         @assert all(abs.(ρspin) .≤ ρtot)
     end
-    ρ_from_total_and_spin(ρtot, ρspin)
+    ρ = ρ_from_total_and_spin(ρtot, ρspin)
+    mpi_bcast!(ρ, basis.comm_kpts)  # Enforce numerically identical density across MPI ranks
 end
 
 # Atomic density methods
@@ -37,7 +39,9 @@ end
 
 function guess_density(basis::PlaneWaveBasis, system::AbstractSystem,
                        n_electrons=basis.model.n_electrons)
-    parsed_system = parse_system(system)
+    # Using no pseudopotentials is ok, only magnetic moments are read from the system here.
+    pseudopotentials = fill(nothing, length(system))
+    parsed_system = parse_system(system, pseudopotentials)
     length(parsed_system.positions) == length(basis.model.positions) || error(
         "System and model contain different numbers of positions"
     )
@@ -80,6 +84,20 @@ function guess_density(basis::PlaneWaveBasis, method::AtomicDensity, magnetic_mo
     atomic_density(basis, method, magnetic_moments, n_electrons)
 end
 
+"""
+Guess a reasonable kinetic energy density starting from a density `ρ` or
+`nothing` if no kinetic energy density is required by the model. For now uses
+the von Weizsäcker kinetic energy density; this may change in the future.
+"""
+function guess_kinetic_energy_density(basis::PlaneWaveBasis, ρ::AbstractArray)
+    if any(needs_τ, basis.terms)
+        von_weizsaecker_kinetic_energy_density(basis, ρ)
+    else
+        nothing
+    end
+end
+
+
 # Build a charge density from total and spin densities constructed as superpositions of
 # atomic densities.
 function atomic_density(basis::PlaneWaveBasis, method::AtomicDensity, magnetic_moments,
@@ -89,7 +107,6 @@ function atomic_density(basis::PlaneWaveBasis, method::AtomicDensity, magnetic_m
     ρ = ρ_from_total_and_spin(ρtot, ρspin)
 
     N = sum(ρ) * basis.model.unit_cell_volume / prod(basis.fft_size)
-
     if !isnothing(n_electrons) && (N > 0)
         ρ .*= n_electrons / N  # Renormalize to the correct number of electrons
     end
@@ -100,8 +117,7 @@ end
 # densities.
 function atomic_total_density(basis::PlaneWaveBasis{T}, method::AtomicDensity;
                               coefficients=ones(T, length(basis.model.atoms))) where {T}
-    form_factors = atomic_density_form_factors(basis, method)
-    atomic_density_superposition(basis, form_factors; coefficients)
+    atomic_density_superposition(basis, method; coefficients)
 end
 
 # Build a spin density from a superposition of atomic densities and provided magnetic
@@ -127,77 +143,143 @@ function atomic_spin_density(basis::PlaneWaveBasis{T}, method::AtomicDensity,
     coefficients = map(basis.model.atoms, magmoms) do atom, magmom
         iszero(magmom[1:2]) || error("Non-collinear magnetization not yet implemented")
         magmom[3] ≤ n_elec_valence(atom) || error(
-            "Magnetic moment $(magmom[3]) too large for element $(atomic_symbol(atom)) " *
+            "Magnetic moment $(magmom[3]) too large for element $(species(atom)) " *
             "with only $(n_elec_valence(atom)) valence electrons."
         )
         magmom[3] / n_elec_valence(atom)
     end::AbstractVector{T}  # Needed to ensure type stability in final guess density
 
-    form_factors = atomic_density_form_factors(basis, method)
-    atomic_density_superposition(basis, form_factors; coefficients)
+    atomic_density_superposition(basis, method; coefficients)
 end
 
 # Perform an atomic density superposition. The density is constructed in reciprocal space
 # using the provided atomic form-factors and coefficients and applying an inverse Fourier
 # transform to yield the real-space density.
 function atomic_density_superposition(basis::PlaneWaveBasis{T},
-                                      form_factors::IdDict{Tuple{Int,T},T};
+                                      method::AtomicDensity;
                                       coefficients=ones(T, length(basis.model.atoms))
                                       ) where {T}
-    model = basis.model
-    G_cart = to_cpu(G_vectors_cart(basis))
-    ρ_cpu = map(enumerate(to_cpu(G_vectors(basis)))) do (iG, G)
-        Gnorm = norm(G_cart[iG])
-        ρ_iG = sum(enumerate(model.atom_groups); init=zero(complex(T))) do (igroup, group)
-            sum(group) do iatom
-                structure_factor = cis2pi(-dot(G, model.positions[iatom]))
-                coefficients[iatom] * form_factors[(igroup, Gnorm)] * structure_factor
-            end
+    form_factors, iG2ifnorm = atomic_density_form_factors(basis, method)
+
+    # Pre-allocation of large arrays for GPU efficiency
+    Gs = G_vectors(basis)
+    indices = to_device(basis.architecture, collect(1:length(Gs)))
+    ρ = zeros_like(indices, Complex{T})
+    ρ_tmp = similar(ρ)
+
+    for (igroup, group) in enumerate(basis.model.atom_groups)
+        for iatom in group
+            r = basis.model.positions[iatom]
+            ff_group = @view form_factors[:, igroup]
+            map!(iG -> cis2pi(-dot(Gs[iG], r)) * ff_group[iG2ifnorm[iG]], ρ_tmp, indices)
+            ρ .+= ρ_tmp .* (coefficients[iatom] / sqrt(basis.model.unit_cell_volume))
         end
-        ρ_iG / sqrt(model.unit_cell_volume)
     end
-    ρ = to_device(basis.architecture, ρ_cpu)
+
     enforce_real!(ρ, basis)  # Symmetrize Fourier coeffs to have real iFFT
-    irfft(basis, ρ)
+    irfft(basis, reshape(ρ, basis.fft_size))
 end
 
-function atomic_density_form_factors(basis::PlaneWaveBasis{T},
-                                     method::AtomicDensity
-                                     )::IdDict{Tuple{Int,T},T} where {T<:Real}
-    model = basis.model
-    form_factors = IdDict{Tuple{Int,T},T}()  # IdDict for Dual compatability
-    for G in to_cpu(G_vectors_cart(basis))
-        Gnorm = norm(G)
-        for (igroup, group) in enumerate(model.atom_groups)
-            if !haskey(form_factors, (igroup, Gnorm))
-                element = model.atoms[first(group)]
-                form_factor = atomic_density(element, Gnorm, method)
-                form_factors[(igroup, Gnorm)] = form_factor
-            end
-        end
+"""
+Returns the form factors at unique values of |G + q| (in Cartesian coordinates).
+Additionally, returns a mapping from any G index to the corresponding entry in the form_factors array.
+"""
+function atomic_density_form_factors(basis::PlaneWaveBasis{T}, method::AtomicDensity) where {T<:Real}
+    G_cart = to_cpu(G_vectors_cart(basis))
+
+    iG2ifnorm_cpu = zeros(Int, length(G_cart))
+    norm_indices = IdDict{T, Int}()
+    for (iG, G) in enumerate(G_cart)
+        p = norm(G)
+        iG2ifnorm_cpu[iG] = get!(norm_indices, p, length(norm_indices) + 1)
     end
-    form_factors
+    iG2ifnorm = to_device(basis.architecture, iG2ifnorm_cpu)
+
+    ni_pairs = collect(pairs(norm_indices))
+    ps = to_device(basis.architecture, first.(ni_pairs))
+    indices = to_device(basis.architecture, last.(ni_pairs))
+
+    form_factors = similar(ps, length(norm_indices), length(basis.model.atom_groups))
+    for (igroup, group) in enumerate(basis.model.atom_groups)
+        element = basis.model.atoms[first(group)]
+        @inbounds form_factors[indices, igroup] .= atomic_density(element, ps, method)
+    end
+
+    (; form_factors, iG2ifnorm)
 end
 
-function atomic_density(element::Element, Gnorm::T,
-                        ::ValenceDensityGaussian)::T where {T <: Real}
-    gaussian_valence_charge_density_fourier(element, Gnorm)
+#
+# Check for presence of certain densities in elements
+#
+
+"""Check presence of model valence density (as an initial guess)."""
+has_valence_density(::Element) = false
+
+"""Check presence of model core charge density (non-linear core correction)."""
+has_core_density(::Element) = false
+
+"""Check presence of model core kinetic energy density (non-linear core correction for τ)."""
+has_core_kinetic_energy_density(::Element) = false
+
+has_core_density(el::ElementPsp)  = has_core_density(el.psp)
+has_core_kinetic_energy_density(el::ElementPsp) = has_core_kinetic_energy_density(el.psp)
+has_valence_density(el::ElementPsp) = has_valence_density(el.psp)
+
+#
+# Atomic density dispatches
+#
+
+function atomic_density(element::Union{Element,<:ElementPsp}, Gnorm::Real, dens::AtomicDensity)
+    first(atomic_density(element, [Gnorm], dens))  # Dispatch to vector version
 end
 
-function atomic_density(element::Element, Gnorm::T,
-                        ::ValenceDensityPseudo)::T where {T <: Real}
-    eval_psp_density_valence_fourier(element.psp, Gnorm)
+"""Gaussian valence charge density using Abinit's coefficient table, in Fourier space."""
+function atomic_density(element::Element, Gnorms::AbstractVector, ::ValenceDensityGaussian)
+    charge = charge_ionic(element)
+    decay_length = atom_decay_length(element)
+    map(Gnorms) do Gnorm
+        # Note: cannot pass element to GPU kernel, because not isbit
+        charge * exp(-(Gnorm * decay_length)^2)
+    end
+end
+function atomic_density(element::Element, Gnorms::AbstractVector, ::ValenceDensityAuto)
+    if has_valence_density(element)
+        atomic_density(element, Gnorms, ValenceDensityPseudo())
+    else
+        atomic_density(element, Gnorms, ValenceDensityGaussian())
+    end
 end
 
-function atomic_density(element::Element, Gnorm::T,
-                        ::ValenceDensityAuto)::T where {T <: Real}
-    valence_charge_density_fourier(element, Gnorm)
+function atomic_density(element::Element, Gnorms::AbstractVector, ::CoreDensity)
+    @assert !has_core_density(element)
+    zeros_like(Gnorms)
+end
+function atomic_density(element::Element, Gnorms::AbstractVector, ::CoreKineticEnergyDensity)
+    @assert !has_core_kinetic_energy_density(element)
+    zeros_like(Gnorms)
 end
 
-function atomic_density(element::Element, Gnorm::T,
-                        ::CoreDensity)::T where {T <: Real}
-    has_core_density(element) ? core_charge_density_fourier(element, Gnorm) : zero(T)
+function atomic_density(element::ElementPsp, Gnorms::AbstractVector, ::ValenceDensityPseudo)
+    eval_psp_valence_density_fourier(element.psp, Gnorms)
 end
+function atomic_density(element::ElementPsp, Gnorms::AbstractVector, ::CoreDensity)
+    if has_core_density(element)
+        eval_psp_core_density_fourier(element.psp, Gnorms)
+    else
+        zeros_like(Gnorms)
+    end
+end
+function atomic_density(element::ElementPsp, Gnorms::AbstractVector, ::CoreKineticEnergyDensity)
+    if has_core_kinetic_energy_density(element)
+        eval_psp_core_kinetic_energy_density_fourier(element.psp, Gnorms)
+    else
+        zeros_like(Gnorms)
+    end
+end
+
+#
+# Some data we need for the Gaussian densities
+#
 
 # Get the lengthscale of the valence density for an atom with `n_elec_core` core
 # and `n_elec_valence` valence electrons.

@@ -1,6 +1,5 @@
 @testitem "CG" begin
     using DFTK
-    using IterativeSolvers
     using LinearAlgebra
 
     function test_cg(T)
@@ -19,13 +18,12 @@
 
             # test type stability
             f(b) = DFTK.cg(A, b; tol, maxiter=2n).x
-            g(b) = DFTK.cg(A, b; tol, maxiter=2n).residual_norm
+            g(b) = DFTK.cg(A, b; tol, maxiter=2n).residual_norms[1]
             @test res.x ≈ @inferred f(b)
             @test tol ≥ @inferred g(b)
         end
     end
 
-    for T in (Float32, Float64)
-        test_cg(T)
-    end
+    test_cg(Float32)
+    test_cg(Float64)
 end

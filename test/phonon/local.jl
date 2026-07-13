@@ -1,4 +1,4 @@
-@testsetup module PhononLocal
+@testmodule PhononLocal begin
 using DFTK
 
 # No exchange-correlation and only a local potential.

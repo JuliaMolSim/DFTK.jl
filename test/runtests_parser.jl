@@ -7,10 +7,9 @@ function parse_test_args()
 
     # Figure out the base tag
     incl_excl = Dict(
-        :gpu => (; included=Symbol[], excluded=[:mpi]),
-        # TODO :dont_test_mpi added for backwards compatibility ... drop later
+        :gpu => (; included=Symbol[], excluded=[]),
         :mpi => (; included=Symbol[], excluded=[:gpu, :dont_test_mpi]),
-        :all => (; included=Symbol[], excluded=[:gpu, :mpi]),
+        :all => (; included=Symbol[], excluded=[:gpu]),
     )
     base_tag = filter(in(keys(incl_excl)), args)
     if isempty(base_tag)
@@ -32,6 +31,11 @@ function parse_test_args()
         else
             push!(included, arg)
         end
+    end
+
+    # If there is any specifc tag to be included, this implies that not all tests are run
+    if length(included) > 0
+        push!(excluded, :all)
     end
 
     (; base_tag, excluded, included)

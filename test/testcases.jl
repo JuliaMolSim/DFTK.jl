@@ -1,12 +1,13 @@
-@testsetup module TestCases
+@testmodule TestCases begin
 using DFTK
 using Unitful
 using UnitfulAtomic
 using LinearAlgebra: Diagonal, diagm
-using LazyArtifacts
+using PseudoPotentialData
 
-hgh_lda_family = artifact"hgh_lda_hgh"
-pd_lda_family  = artifact"pd_nc_sr_lda_standard_0.4.1_upf"
+gth_lda_large = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
+gth_lda_semi  = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
+pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
 
 silicon = (;
     lattice = [0.0  5.131570667152971 5.131570667152971;
@@ -16,8 +17,9 @@ silicon = (;
     mass = 28.085u"u",
     n_electrons = 8,
     temperature = 0.0,
-    psp_hgh = joinpath(hgh_lda_family, "si-q4.hgh"),
-    psp_upf = joinpath(pd_lda_family, "Si.upf"),
+    is_metal = false,
+    psp_gth = gth_lda_semi[:Si],
+    psp_upf = pd_lda_family[:Si],
     positions = [ones(3)/8, -ones(3)/8],      # in fractional coordinates
     kgrid = ExplicitKpoints([[   0,   0, 0],  # kcoords in fractional coordinates
                              [ 1/3,   0, 0],
@@ -26,7 +28,23 @@ silicon = (;
                             [1/27, 8/27, 6/27, 12/27]),
 )
 silicon = merge(silicon,
-                (; atoms=fill(ElementPsp(silicon.atnum; psp=load_psp(silicon.psp_hgh)), 2)))
+                (; atoms=fill(ElementPsp(silicon.atnum, load_psp(silicon.psp_gth)), 2)))
+
+diamond = (;
+    lattice = [0.0  3.3703265432700613 3.3703265432700613;
+               3.3703265432700613 0.0 3.3703265432700613;
+               3.3703265432700613 3.3703265432700613  0.0],
+    atnum = 6,
+    mass = 12.011u"u",
+    n_electrons = 8,
+    temperature = 0.0,
+    is_metal = false,
+    psp_gth = gth_lda_semi[:C],
+    psp_upf = pd_lda_family[:C],
+    positions = [ones(3)/8, -ones(3)/8],
+)
+diamond = merge(diamond,
+                (; atoms=fill(ElementPsp(diamond.atnum, load_psp(diamond.psp_gth)), 2)))
 
 magnesium = (;
     lattice = [-3.0179389205999998 -3.0179389205999998 0.0000000000000000;
@@ -35,8 +53,8 @@ magnesium = (;
     atnum = 12,
     mass = 24.305u"u",
     n_electrons = 4,
-    psp_hgh = joinpath(hgh_lda_family, "mg-q2.hgh"),
-    psp_upf = joinpath(pd_lda_family, "Mg.upf"),
+    psp_gth = gth_lda_large[:Mg],
+    psp_upf = pd_lda_family[:Mg],
     positions = [[2/3, 1/3, 1/4], [1/3, 2/3, 3/4]],
     kgrid = ExplicitKpoints([[0,   0,   0],
                              [1/3, 0,   0],
@@ -46,9 +64,10 @@ magnesium = (;
                              [1/3, 1/3, 1/3]],
                             [1/27, 6/27, 2/27, 2/27, 12/27, 4/27]),
     temperature = 0.01,
+    is_metal = true,
 )
 magnesium = merge(magnesium,
-                  (; atoms=fill(ElementPsp(magnesium.atnum; psp=load_psp(magnesium.psp_hgh)), 2)))
+                  (; atoms=fill(ElementPsp(magnesium.atnum, load_psp(magnesium.psp_gth)), 2)))
 
 
 aluminium = (;
@@ -57,13 +76,14 @@ aluminium = (;
     atnum = 13,
     mass = 39.9481u"u",
     n_electrons = 12,
-    psp_hgh = joinpath(hgh_lda_family, "al-q3.hgh"),
-    psp_upf = joinpath(pd_lda_family, "Al.upf"),
+    psp_gth = gth_lda_semi[:Al],
+    psp_upf = pd_lda_family[:Al],
     positions = [[0, 0, 0], [0, 1/2, 1/2], [1/8, 0, 1/2], [1/8, 1/2, 0]],
     temperature = 0.0009500431544769484,
+    is_metal = true,
 )
 aluminium = merge(aluminium,
-                  (; atoms=fill(ElementPsp(aluminium.atnum; psp=load_psp(aluminium.psp_hgh)), 4)))
+                  (; atoms=fill(ElementPsp(aluminium.atnum, load_psp(aluminium.psp_gth)), 4)))
 
 
 aluminium_primitive = (;
@@ -73,14 +93,15 @@ aluminium_primitive = (;
     atnum = 13,
     mass = 39.9481u"u",
     n_electrons = 3,
-    psp_hgh = joinpath(hgh_lda_family, "al-q3.hgh"),
-    psp_upf = joinpath(pd_lda_family, "Al.upf"),
+    psp_gth = gth_lda_semi[:Al],
+    psp_upf = pd_lda_family[:Al],
     positions = [zeros(3)],
     temperature = 0.0009500431544769484,
+    is_metal = true,
 )
 aluminium_primitive = merge(aluminium_primitive,
                             (; atoms=fill(ElementPsp(aluminium_primitive.atnum,
-                                                     psp=load_psp(aluminium_primitive.psp_hgh)), 1)))
+                                                     load_psp(aluminium_primitive.psp_gth)), 1)))
 
 
 platinum_hcp = (;
@@ -90,39 +111,79 @@ platinum_hcp = (;
     atnum = 78,
     mass = 195.0849u"u",
     n_electrons = 36,
-    psp_hgh = joinpath(hgh_lda_family, "pt-q18.hgh"),
-    psp_upf = joinpath(pd_lda_family, "Pt.upf"),
+    psp_gth = gth_lda_semi[:Pt],
+    psp_upf = pd_lda_family[:Pt],
     positions = [zeros(3), ones(3) / 3],
     temperature = 0.0009500431544769484,
+    is_metal = true,
 )
 platinum_hcp = merge(platinum_hcp,
-                     (; atoms=fill(ElementPsp(platinum_hcp.atnum; psp=load_psp(platinum_hcp.psp_hgh)), 2)))
+                     (; atoms=fill(ElementPsp(platinum_hcp.atnum,
+                                              load_psp(platinum_hcp.psp_gth)), 2)))
 
 iron_bcc = (;
     lattice = 2.71176 .* [[-1 1 1]; [1 -1  1]; [1 1 -1]],
     atnum = 26,
     mass = 55.8452u"u",
     n_electrons = 8,
-    psp_hgh = joinpath(hgh_lda_family, "fe-q8.hgh"),
-    psp_upf = joinpath(pd_lda_family, "Fe.upf"),
+    psp_gth = gth_lda_large[:Fe],
+    psp_upf = pd_lda_family[:Fe],
     positions = [zeros(3)],
     temperature = 0.01,
+    is_metal = true,
 )
-iron_bcc = merge(iron_bcc, (; atoms=[ElementPsp(iron_bcc.atnum; psp=load_psp(iron_bcc.psp_hgh))]))
+iron_bcc = merge(iron_bcc, (; atoms=[ElementPsp(iron_bcc.atnum, load_psp(iron_bcc.psp_gth))]))
 
 o2molecule = (;
     lattice = diagm([6.5, 6.5, 9.0]),
     atnum = 8,
     mass = 15.999u"u",
     n_electrons = 12,
-    psp_hgh = joinpath(hgh_lda_family, "O-q6.hgh"),
-    psp_upf = joinpath(pd_lda_family, "O.upf"),
+    psp_gth = gth_lda_semi[:O],
+    psp_upf = pd_lda_family[:O],
     positions = 0.1155 * [[0, 0, 1], [0, 0, -1]],
     temperature = 0.02,
+    is_metal = true,
 )
 o2molecule = merge(o2molecule,
-                   (; atoms=fill(ElementPsp(o2molecule.atnum; psp=load_psp(o2molecule.psp_hgh)), 2)))
+                   (; atoms=fill(ElementPsp(o2molecule.atnum,
+                                            load_psp(o2molecule.psp_gth)), 2)))
+
+#
+# Useful structures (less symmetry)
+#
+
+antimony_rhombohedral = (;
+    lattice = [7.468468115347973  7.468468115347973 5.211271670389704;
+               -4.105825091165918 4.105825091165918 0.0;
+               0.0                0.0               6.743772182288679],
+    positions = [[-0.233, -0.233, -0.233],
+                 [0.233, 0.233, 0.233]],
+    atoms = fill(ElementPsp(:Sb, gth_lda_semi), 2),
+)
+
+tin_tetragonal = (;
+    lattice = [-5.499103022660991  5.499103022660991 5.499103022660991;
+                5.499103022660991 -5.499103022660991 5.499103022660991;
+                3.002510250372901  3.002510250372901 -3.002510250372901],
+    positions = [[0.0, 0.0, 0.0], [0.25, 0.75, 0.5]],
+    atoms = fill(ElementPsp(:Sn, gth_lda_semi), 2),
+)
+
+gallium_orthorhombic = (;
+    lattice = diagm([5.20353, 16.8141, 5.8631]),
+    positions = [[0.5, 0.631715, 0.25],
+                 [0.0, 0.868285, 0.75],
+                 [0.0, 0.131715, 0.25],
+                 [0.5, 0.368285, 0.75]],
+    atoms = fill(ElementPsp(:Ga, gth_lda_semi), 4),
+)
+
+#
+# Collection of all structures
+#
 
 all_testcases = (; silicon, magnesium, aluminium, aluminium_primitive, platinum_hcp,
-                 iron_bcc, o2molecule)
+                 iron_bcc, o2molecule, antimony_rhombohedral, tin_tetragonal,
+                 gallium_orthorhombic)
 end

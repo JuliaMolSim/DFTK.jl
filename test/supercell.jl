@@ -6,9 +6,9 @@
     Ecut    = 4
     kgrid   = [2, 3, 1]
 
-    model = model_LDA(magnesium.lattice, magnesium.atoms, magnesium.positions;
-                      magnesium.temperature, εF=0.5, spin_polarization=:spinless,
-                      disable_electrostatics_check=true)
+    model = model_DFT(magnesium.lattice, magnesium.atoms, magnesium.positions;
+                      functionals=LDA(), magnesium.temperature, εF=0.5,
+                      spin_polarization=:spinless, disable_electrostatics_check=true)
     basis = PlaneWaveBasis(model; Ecut, kgrid)
     scfres = self_consistent_field(basis; nbandsalg=FixedBands(; n_bands_converge=20))
     scfres_supercell = cell_to_supercell(scfres)
@@ -24,11 +24,10 @@ end
 
     Ecut    = 4
     kgrid   = [3, 3, 3]
-    kshift  = zeros(3)
     tol     = 1e-10
 
-    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
-    basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions; functionals=LDA())
+    basis = PlaneWaveBasis(model; Ecut, kgrid)
     basis_supercell = cell_to_supercell(basis)
 
     scfres = self_consistent_field(basis; tol)
@@ -49,6 +48,7 @@ end
 @testitem "Supercell response" tags=[:dont_test_mpi] setup=[TestCases] begin
     using DFTK
     using LinearAlgebra
+    using AtomsBase
     (; silicon, magnesium) = TestCases.all_testcases
 
     Ecut    = 5.0
@@ -56,7 +56,8 @@ end
     tol     = 1e-6
 
     for system in (silicon, magnesium), extra_terms in ([], [Hartree()])
-        @testset "$(DFTK.periodic_table[system.atnum].symbol) with $extra_terms" begin
+        atsym = element_symbol(ChemicalSpecies(system.atnum))
+        @testset "$atsym with $extra_terms" begin
             model = model_atomic(system.lattice, system.atoms, system.positions;
                                  system.temperature, extra_terms)
             basis = PlaneWaveBasis(model; Ecut, kgrid)
@@ -67,18 +68,18 @@ end
             δV_supercell = vcat(δV, δV)
 
             # Unit cell computations.
-            δρ = apply_χ0(scfres, δV)
+            δρ = apply_χ0(scfres, δV).δρ
 
             # Supercell with manually unpacking scfres.
             scfres_supercell_1 = cell_to_supercell(scfres)
-            δρ_supercell_1 = apply_χ0(scfres_supercell_1, δV_supercell)
+            δρ_supercell_1 = apply_χ0(scfres_supercell_1, δV_supercell).δρ
 
             @test norm(δρ - δρ_supercell_1[1:size(δρ, 1), :, :]) < 10*tol
 
             # Supercell with manually unpacking only basis.
             basis_supercell = cell_to_supercell(basis)
             scfres_supercell_2 = self_consistent_field(basis_supercell; tol)
-            δρ_supercell_2 = apply_χ0(scfres_supercell_2, δV_supercell)
+            δρ_supercell_2 = apply_χ0(scfres_supercell_2, δV_supercell).δρ
 
             @test norm(δρ - δρ_supercell_2[1:size(δρ, 1), :, :]) < 10*tol
         end

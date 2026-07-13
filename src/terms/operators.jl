@@ -10,6 +10,22 @@ They also implement `mul!` and `Matrix(op)` for exploratory use.
 abstract type RealFourierOperator end
 # RealFourierOperator contain fields `basis` and `kpoint`
 
+Base.Array(op::RealFourierOperator) = Matrix(op)
+
+# Slow fallback for getting operator as a dense matrix
+function Base.Matrix(op::RealFourierOperator)
+    T = complex(eltype(op.basis))
+    n_G = length(G_vectors(op.basis, op.kpoint))
+    H = zeros(T, n_G, n_G)
+    ψ = zeros(T, n_G)
+    @views for i in 1:n_G
+        ψ[i] = one(T)
+        mul!(H[:, i], op, ψ)
+        ψ[i] = zero(T)
+    end
+    H
+end
+
 # Unoptimized fallback, intended for exploratory use only.
 # For performance, call through Hamiltonian which saves FFTs.
 function LinearAlgebra.mul!(Hψ::AbstractVector, op::RealFourierOperator, ψ::AbstractVector)
@@ -41,9 +57,9 @@ struct NoopOperator{T <: Real} <: RealFourierOperator
     kpoint::Kpoint{T}
 end
 apply!(Hψ, op::NoopOperator, ψ) = nothing
-function Matrix(op::NoopOperator)
+function Base.Matrix(op::NoopOperator)
     n_Gk = length(G_vectors(op.basis, op.kpoint))
-    zeros_like(op.basis.G_vectors, eltype(op.basis), n_Gk, n_Gk)
+    zeros_like(G_vectors(op.basis), eltype(op.basis), n_Gk, n_Gk)
 end
 
 """
@@ -60,7 +76,7 @@ end
 function apply!(Hψ, op::RealSpaceMultiplication, ψ)
     Hψ.real .+= op.potential .* ψ.real
 end
-function Matrix(op::RealSpaceMultiplication)
+function Base.Matrix(op::RealSpaceMultiplication)
     # V(G, G') = <eG|V|eG'> = 1/sqrt(Ω) <e_{G-G'}|V>
     pot_fourier = fft(op.basis, op.potential)
     n_G = length(G_vectors(op.basis, op.kpoint))
@@ -93,7 +109,7 @@ end
 function apply!(Hψ, op::FourierMultiplication, ψ)
     Hψ.fourier .+= op.multiplier .* ψ.fourier
 end
-Matrix(op::FourierMultiplication) = Array(Diagonal(op.multiplier))
+Base.Matrix(op::FourierMultiplication) = Array(Diagonal(op.multiplier))
 
 """
 Nonlocal operator in Fourier space in Kleinman-Bylander format,
@@ -108,9 +124,9 @@ struct NonlocalOperator{T <: Real, PT, DT} <: RealFourierOperator
     D::DT
 end
 function apply!(Hψ, op::NonlocalOperator, ψ)
-    Hψ.fourier .+= op.P * (op.D * (op.P' * ψ.fourier))
+    mul!(Hψ.fourier, op.P, (op.D * (op.P' * ψ.fourier)), 1, 1)
 end
-Matrix(op::NonlocalOperator) = op.P * op.D * op.P'
+Base.Matrix(op::NonlocalOperator) = op.P * (op.D * op.P')
 
 """
 Magnetic field operator A⋅(-i∇).
@@ -130,7 +146,7 @@ function apply!(Hψ, op::MagneticFieldOperator, ψ)
         Hψ.real .+= op.Apot[α] .* ∂αψ_real
     end
 end
-# TODO Implement  Matrix(op::MagneticFieldOperator)
+# TODO Implement  Base.Matrix(op::MagneticFieldOperator)
 
 @doc raw"""
 Nonlocal "divAgrad" operator ``-½ ∇ ⋅ (A ∇)`` where ``A`` is a scalar field on the
@@ -143,18 +159,55 @@ struct DivAgradOperator{T <: Real, AT} <: RealFourierOperator
     A::AT
 end
 function apply!(Hψ, op::DivAgradOperator, ψ;
-                ψ_scratch=zeros(complex(eltype(op.basis)), op.basis.fft_size...))
-    # TODO: Performance improvements: Unscaled plans, avoid remaining allocations
-    #       (which are only on the small k-point-specific Fourier grid
-    G_plus_k = [[p[α] for p in Gplusk_vectors_cart(op.basis, op.kpoint)] for α = 1:3]
+                ψ_real=zeros_like(ψ.fourier, complex(eltype(op.basis)), op.basis.fft_size...),
+                G_plus_k=nothing)
+    # ψ_real is a pre-allocated buffer to hold temporary real-space representations of ψ,
+    # this function overwrites it.
+    if isnothing(G_plus_k)
+        # Note: it is wasteful to recompute G_plus_k on every call, ideally passed from outside
+        G_plus_k = [map(p -> p[α], Gplusk_vectors_cart(op.basis, op.kpoint)) for α = 1:3]
+    end
+
+    # use unnormalized FFT plans for speed
+    norm = op.basis.fft_grid.fft_normalization * op.basis.fft_grid.ifft_normalization
+    ψ_recip = similar(ψ.fourier)   # pre-allocate large array
     for α = 1:3
-        ∂αψ_real = ifft!(ψ_scratch, op.basis, op.kpoint, im .* G_plus_k[α] .* ψ.fourier)
-        A∇ψ      = fft(op.basis, op.kpoint, ∂αψ_real .* op.A)
-        Hψ.fourier .-= im .* G_plus_k[α] .* A∇ψ ./ 2
+        ψ_recip .= im .* G_plus_k[α] .* ψ.fourier .* norm   # ∂αψ
+        ifft!(ψ_real, op.basis, op.kpoint, ψ_recip; normalize=false)
+        ψ_real .*= op.A   # A∇ψ
+        fft!(ψ_recip, op.basis, op.kpoint, ψ_real; normalize=false)
+        Hψ.fourier .-= im .* G_plus_k[α] .* ψ_recip ./ 2
     end
 end
-# TODO Implement  Matrix(op::DivAgrad)
+# TODO Implement  Base.Matrix(op::DivAgradOperator)
 
+struct ExchangeOperator{T <: Real,Tocc,Tpsi,TpsiReal} <: RealFourierOperator
+    basis::PlaneWaveBasis{T}
+    kpoint::Kpoint{T}
+    interaction_kernel::Array{T}
+    occk::Tocc
+    ψk::Tpsi
+    ψk_real::TpsiReal
+end
+function apply!(Hψ, op::ExchangeOperator, ψ)
+    # Hψ = - ∑_n f_n ψ_n(r) ∫ (ψ_n)†(r') * ψ(r') / |r-r'| dr'
+    for (n, ψnk_real) in enumerate(eachslice(op.ψk_real, dims=4))
+        x_real   = conj(ψnk_real) .* ψ.real
+        # TODO Some symmetrisation of x_real might be needed here ...
+
+        # Compute integral by Poisson solve
+        x_four  = fft(op.basis, op.kpoint, x_real) # actually we need q-point here
+        Vx_four = x_four .* op.interaction_kernel
+        Vx_real = ifft(op.basis, op.kpoint, Vx_four) # actually we need q-point here
+
+        # Exact exchange is quadratic in occupations but linear in spin,
+        # hence we need to undo the fact that in DFTK for non-spin-polarized calcuations
+        # orbitals are considered as spin orbitals and thus occupations run from 0 to 2
+        # We do this by dividing by the filled_occupation.
+        fac_nk = op.occk[n] / filled_occupation(op.basis.model)
+        Hψ.real .-= fac_nk .* ψnk_real .* Vx_real  # Real-space multiply and accumulate
+    end
+end
 
 # Optimize RFOs by combining terms that can be combined
 function optimize_operators(ops)

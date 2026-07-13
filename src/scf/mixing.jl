@@ -1,5 +1,4 @@
-using LinearMaps
-using IterativeSolvers
+using KrylovKit
 using Statistics
 import Base: @kwdef
 
@@ -23,6 +22,16 @@ function mix_potential(args...; kwargs...)
     mix_density(args...; kwargs...)
 end
 
+
+# Mixing in the generalised density (essentially an adapted tuple of ρ and τ;
+# see pack_gdensity in densities.jl): For now just fall back to ρ-only mixing
+function mix_gdensity(mixing, basis, ΔD; kwargs...)
+    Δρ, Δτ  = split_gdensity_flat_(basis, ΔD)
+    Pinv_Δρ = mix_density(mixing, basis, Δρ; kwargs...)
+    pack_gdensity_flat_(basis, Pinv_Δρ, Δτ)
+end
+
+
 @doc raw"""
 Simple mixing: ``J^{-1} ≈ 1``
 """
@@ -33,9 +42,11 @@ mix_density(::SimpleMixing, ::PlaneWaveBasis, δF; kwargs...) = δF
 @doc raw"""
 Kerker mixing: ``J^{-1} ≈ \frac{|G|^2}{k_{TF}^2 + |G|^2}``
 where ``k_{TF}`` is the Thomas-Fermi wave vector. For spin-polarized calculations
-by default the spin density is not preconditioned. Unless a non-default value
-for ``ΔDOS_Ω`` is specified. This value should roughly be the expected difference in density
-of states (per unit volume) between spin-up and spin-down.
+by default the spin density is not preconditioned unless a non-default value
+for `ΔDOS_Ω` is specified. This value should roughly be the expected difference in density
+of states (per unit volume) between spin-up and spin-down. Notably setting
+`ΔDOS_Ω = kTF^2 / 4π` disables acting on the ``β`` spin channel completely (as if the
+DOS on ``β`` spin was zero).
 
 Notes:
 - Abinit calls ``1/k_{TF}`` the dielectric screening length (parameter *dielng*)
@@ -43,8 +54,8 @@ Notes:
 @kwdef struct KerkerMixing <: Mixing
     # Default kTF parameter suggested by Kresse, Furthmüller 1996 (kTF=1.5Å⁻¹)
     # DOI 10.1103/PhysRevB.54.11169
-    kTF::Real    = 0.8  # == sqrt(4π (DOS_α + DOS_β)) / Ω
-    ΔDOS_Ω::Real = 0.0  # == (DOS_α - DOS_β) / Ω
+    kTF::Real    = 0.8  # == sqrt(4π (DOS_α + DOS_β) / Ω)
+    ΔDOS_Ω::Real = 0.0  # == (DOS_α - DOS_β) / Ω; set == kTF^2/4π to disable acting on β density
 end
 
 @timing "KerkerMixing" function mix_density(mixing::KerkerMixing, basis::PlaneWaveBasis,
@@ -69,9 +80,8 @@ end
     #     δρtot  = G² δFtot / (G² + kTF²)
     #     δρspin = δFspin - 4π * ΔDOS / (G² + kTF²) δFtot
 
-    δF_fourier     = fft(basis, δF)
-    δFtot_fourier  = total_density(δF_fourier)
-    δFspin_fourier = spin_density(δF_fourier)
+    δF_fourier    = fft(basis, δF)
+    δFtot_fourier = total_density(δF_fourier)
     δρtot_fourier = δFtot_fourier .* G² ./ (kTF.^2 .+ G²)
     enforce_real!(δρtot_fourier, basis)
     δρtot = irfft(basis, δρtot_fourier)
@@ -81,7 +91,10 @@ end
 
     if basis.model.n_spin_components == 1
         ρ_from_total_and_spin(δρtot, nothing)
+    elseif abs(ΔDOS_Ω) < eps(real(T))
+        ρ_from_total_and_spin(δρtot, spin_density(δF))
     else
+        δFspin_fourier = spin_density(δF_fourier)
         δρspin_fourier = @. δFspin_fourier - δFtot_fourier * (4π * ΔDOS_Ω) / (kTF^2 + G²)
         enforce_real!(δρspin_fourier, basis)
         δρspin = irfft(basis, δρspin_fourier)
@@ -92,22 +105,33 @@ end
 
 @doc raw"""
 The same as [`KerkerMixing`](@ref), but the Thomas-Fermi wavevector is computed
-from the current density of states at the Fermi level.
+from the current density of states at the Fermi level. To determine the DOS
+by default a temperature of `min(50basis.model.temperature, 0.1)` and `Smearing.Gaussian`
+smearing is employed (irrespective of the SCF smearing), but this may be changed using the
+`smearing` and `temperature` arguments. Note, that using a non-monotonous smearing at
+temperatures much above the SCF temperature can lead to artefacts (e.g. negative LDOS)
+and is thus not recommended.
 """
 @kwdef struct KerkerDosMixing <: Mixing
-    adjust_temperature = IncreaseMixingTemperature()
+    smearing::Union{Nothing,Smearing.SmearingFunction} = nothing
+    temperature::Union{Nothing,Float64} = nothing
 end
+Base.show(io::IO, ::KerkerDosMixing) = print(io, "KerkerDosMixing()")
 @timing "KerkerDosMixing" function mix_density(mixing::KerkerDosMixing, basis::PlaneWaveBasis,
                                                δF; εF, eigenvalues, kwargs...)
-    if iszero(basis.model.temperature)
+    defaults = default_smearing_temperature(basis.model)
+    temperature = @something(mixing.temperature, defaults.temperature)
+    smearing    = @something(mixing.smearing,    defaults.smearing)
+    @debug "Mixing smearing and temperature: $smearing $temperature"
+
+    if iszero(temperature)
         return mix_density(SimpleMixing(), basis, δF)
     else
         n_spin = basis.model.n_spin_components
         Ω = basis.model.unit_cell_volume
-        temperature = mixing.adjust_temperature(basis.model.temperature; kwargs...)
-        dos_per_vol  = compute_dos(εF, basis, eigenvalues; temperature) ./ Ω
+        dos_per_vol  = compute_dos(εF, basis, eigenvalues; temperature, smearing) ./ Ω
         kTF  = sqrt(4π * sum(dos_per_vol))
-        ΔDOS_Ω = n_spin == 2 ? dos_per_vol[1] - dos_per_vol[2] : 0.0
+        ΔDOS_Ω = n_spin == 2 ? dos_per_vol[1] - dos_per_vol[2] : zero(kTF)
         mix_density(KerkerMixing(; kTF, ΔDOS_Ω), basis, δF)
     end
 end
@@ -157,6 +181,12 @@ the same convention for parameters are used as in [`DielectricMixing`](@ref).
 Additionally there is the real-space localization function `L(r)`.
 For details see  [Herbst, Levitt 2020](https://arxiv.org/abs/2009.01665).
 
+By default the LdosModel is constructed using a temperature of
+`min(50basis.model.temperature, 0.1)` and `Smearing.Gaussian` smearing (irrespective of the
+`model.smearing`), but this may be changed using the `smearing` and `temperature` arguments.
+Note, that using a non-monotonous smearing at temperatures much above the SCF temperature
+can lead to artefacts (e.g. negative LDOS) and is thus not recommended.
+
 Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `RPA`: Is the random-phase approximation used for the kernel (i.e. only Hartree kernel is
   used and not XC kernel)
@@ -164,9 +194,10 @@ Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `reltol`: Relative tolerance for GMRES
 """
 function HybridMixing(; εr=10.0, kTF=0.8, localization=identity,
-                      adjust_temperature=IncreaseMixingTemperature(), kwargs...)
+                        smearing=nothing, temperature=nothing, kwargs...)
+    # TODO: switch to non-adaptive version above
     χ0terms = [DielectricModel(; εr, kTF, localization),
-               LdosModel(;adjust_temperature)]
+               LdosModel(; smearing, temperature)]
     χ0Mixing(; χ0terms, kwargs...)
 end
 
@@ -182,14 +213,21 @@ where ``D_\text{loc}`` is the local density of states,
 ``D`` is the density of states.
 For details see [Herbst, Levitt 2020](https://arxiv.org/abs/2009.01665).
 
+By default the LdosModel is constructed using a temperature of
+`min(50basis.model.temperature, 0.1)` and `Smearing.Gaussian` smearing (irrespective of the
+`model.smearing`), but this may be changed using the `smearing` and `temperature` arguments.
+Note, that using a non-monotonous smearing at temperatures much above the SCF temperature
+can lead to artefacts (e.g. negative LDOS) and is thus not recommended.
+
 Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `RPA`: Is the random-phase approximation used for the kernel (i.e. only Hartree kernel is
   used and not XC kernel)
 - `verbose`: Run the GMRES in verbose mode.
 - `reltol`: Relative tolerance for GMRES
 """
-function LdosMixing(; adjust_temperature=IncreaseMixingTemperature(), kwargs...)
-    χ0Mixing(; χ0terms=[LdosModel(;adjust_temperature)], kwargs...)
+function LdosMixing(; smearing=nothing, temperature=nothing, kwargs...)
+    # TODO: switch to non-adaptive version above
+    χ0Mixing(; χ0terms=[LdosModel(; smearing, temperature)], kwargs...)
 end
 
 
@@ -201,24 +239,34 @@ real space using a GMRES. Either the full kernel (`RPA=false`) or only the Hartr
 (useful for debugging).
 """
 @kwdef struct χ0Mixing <: Mixing
-    RPA::Bool = true       # Use RPA, i.e. only apply the Hartree and not the XC Kernel
     χ0terms   = χ0Model[Applyχ0Model()]  # The terms to use as the model for χ0
+    RPA::Bool = true        # Use RPA, i.e. only apply the Hartree and not the XC Kernel
     verbose::Bool = false   # Run the GMRES verbosely
     reltol::Float64 = 0.01  # Relative tolerance for GMRES
+end
+function Base.show(io::IO, mixing::χ0Mixing)
+    χ0terms = mixing.χ0terms
+    if length(χ0terms) == 1 && χ0terms[1] isa Applyχ0Model
+        print(io, "χ0Mixing([Applyχ0Model()], ")
+    elseif length(χ0terms) == 1 && χ0terms[1] isa LdosModel
+        print(io, "LdosMixing(")
+    elseif length(χ0terms) == 2 && χ0terms[2] isa LdosModel && χ0terms[1] isa DielectricModel
+        print(io, "HybridMixing(")
+    else
+        print(io, "χ0Mixing([$(length(mixing.χ0terms)) terms], ")
+    end
+    print(io, "RPA=$(mixing.RPA), reltol=$(mixing.reltol))")
 end
 
 @views @timing "χ0Mixing" function mix_density(mixing::χ0Mixing, basis, δF::AbstractArray{T};
                                                ρin, kwargs...) where {T}
     # Initialise χ0terms and remove nothings (terms that don't yield a contribution)
     χ0applies = filter(!isnothing, [χ₀(basis; ρin, kwargs...) for χ₀ in mixing.χ0terms])
-
     # If no applies left, do not bother running GMRES and directly do simple mixing
     isempty(χ0applies) && return mix_density(SimpleMixing(), basis, δF)
 
     # Solve (ε^†) δρ = δF with ε^† = (1 - χ₀ vc) and χ₀ given as the sum of the χ0terms
-    devec(x) = reshape(x, size(δF))
     function dielectric_adjoint(δF)
-        δF = devec(δF)
         # Apply Kernel (just vc for RPA and (vc + K_{xc}) if not RPA)
         δV = apply_kernel(basis, δF; ρ=ρin, mixing.RPA)
         δV .-= mean(δV)
@@ -227,46 +275,27 @@ end
             apply_term!(εδF, δV, -1)  # εδF .-= χ₀ * δV
         end
         εδF .-= mean(εδF)
-        vec(εδF)
+        εδF
     end
 
     DC_δF = mean(δF)
     δF .-= DC_δF
-    ε  = LinearMap{T}(dielectric_adjoint, length(δF))
-    δρ = devec(gmres(ε, vec(δF); mixing.verbose, reltol=T(mixing.reltol)))
+    δρ, info = linsolve(dielectric_adjoint, δF;
+                        verbosity=(mixing.verbose ? 3 : 0),
+                        rtol=T(mixing.reltol),
+                        ishermitian=false)
+    info.converged == 0 && @warn "LDOS mixing GMRES not converged"
     δρ .+= DC_δF  # Set DC from δF
-    δρ
+    mpi_bcast!(δρ, basis.comm_kpts)  # Enforce numerically identical density across MPI ranks
 end
 
 @timing "χ0Mixing" function mix_potential(mixing::Mixing, basis::χ0Mixing, δF::AbstractArray; kwargs...)
     error("Not yet implemented.")
 end
 
-
-"""
-Increase the temperature used for computing the SCF preconditioners. Initially the temperature
-is increased by a `factor`, which is then smoothly lowered towards the temperature used
-within the model as the SCF converges. Once the density change is below `above_ρdiff` the
-mixing temperature is equal to the model temperature.
-"""
-function IncreaseMixingTemperature(; factor=25, above_ρdiff=1e-2, temperature_max=0.5)
-    function callback(temperature; n_iter, ρin=nothing, ρout=nothing, info...)
-        if iszero(temperature) || temperature > temperature_max
-            return temperature
-        elseif isnothing(ρin) || isnothing(ρout)
-            return temperature
-        elseif n_iter ≤ 1
-            return factor * temperature
-        end
-
-        # Continuous piecewise linear function on a logarithmic scale
-        # In [log(above_ρdiff), log(above_ρdiff) + 1] it switches from 1 to factor
-        ρdiff = norm(ρout .- ρin)
-        enhancement = clamp(1 + (factor - 1) * log10(ρdiff / above_ρdiff), 1, factor)
-
-        # Between SCF iterations temperature may never grow
-        temperature = clamp(enhancement * temperature, temperature, temperature_max)
-        temperature_max = temperature
-        return temperature
-    end
+function default_smearing_temperature(model::Model)
+    # Set temperature to be 100 times the model temperature, but make sure
+    # to never overshoot 0.1 and never under-shoot the model.temperature
+    temperature = max(model.temperature, min(0.1, 100model.temperature))
+    (; smearing=Smearing.Gaussian(), temperature)
 end

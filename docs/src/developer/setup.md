@@ -59,36 +59,39 @@ At the time of writing dropping a file `LocalPreferences.toml` in DFTK's root fo
 precompile_workload = false
 ```
 
-## Running the tests
+## Building documentation
 
-We use [TestItemRunner](https://github.com/julia-vscode/TestItemRunner.jl) to manage the
-tests. It reduces the risk to have undefined behavior by preventing tests from being run in
-global scope.
-
-Moreover, it allows for greater flexibility by providing ways to launch a specific subset of
-the tests.
-For instance, to launch core functionality tests, one can use
-```julia
-using TestEnv       # Optional: automatically installs required packages
-TestEnv.activate()  # for tests in a temporary environment.
-using TestItemRunner
-cd("test")          # By default, the following macro runs everything from the parent folder.
-@run_package_tests filter = ti -> :core ∈ ti.tags
-```
-Or to only run the tests of a particular file `serialisation.jl` use
-```julia
-@run_package_tests filter = ti -> occursin("serialisation.jl", ti.filename)
+To build the documentation locally run:
+```bash
+julia --project=docs docs/make.jl
 ```
 
-If you need to write tests, note that you can create modules with `@testsetup`. To use
-a function `my_function` of a module `MySetup` in a `@testitem`, you can import it with
+The documentation build uses [Literate.jl](https://github.com/fredrikekre/Literate.jl)
+to process `.jl` files containing examples. By default all examples are executed,
+which can take a long time. For faster iteration during development,
+several mechanisms are available.
+
+**Automatic caching:**
+Files that have not changed since the last build (based on modification time)
+are automatically skipped. This means re-running `make.jl` after making changes
+to a single file will only re-execute that file.
+
+**Selective file execution:**
+To only execute specific files, edit the `JL_FILES_TO_EXECUTE` variable
+at the top of `docs/make.jl`:
 ```julia
-using .MySetup: my_function
+JL_FILES_TO_EXECUTE = [
+    "guide/tutorial.jl",
+    "examples/arbitrary_floattype.jl",
+]
 ```
-It is also possible to use functions from another module within a module. But for this the
-order of the modules in the `setup` keyword of `@testitem` is important: you have to add the
-module that will be used before the module using it. From the latter, you can then use it
-with
-```julia
-using ..MySetup: my_function
-```
+Set it back to `:ALL` to execute all files.
+
+**Draft mode:**
+For the fastest builds (e.g., when only editing text or structure),
+uncomment the `draft=true` line in the `makedocs` call in `docs/make.jl`.
+This tells Documenter to skip executing code blocks in `.md` files.
+
+**Debug mode:**
+For verbose output during the build, set `DEBUG = true` at the top of `docs/make.jl`.
+This enables `@debug` log messages showing which files are processed or skipped.

@@ -1,5 +1,6 @@
-@testsetup module SiliconRedHF
+@testmodule SiliconRedHF begin
 using DFTK
+using PseudoPotentialData
 using ..RunSCF: run_scf_and_compare
 using ..TestCases: silicon
 
@@ -26,7 +27,7 @@ function run_silicon_redHF(T; Ecut=5, grid_size=15, spin_polarization=:none, kwa
 
     fft_size = fill(grid_size, 3)
     fft_size = DFTK.next_working_fft_size(T, fft_size) # ad-hoc fix for buggy generic FFTs
-    Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/lda/si-q4"))
+    Si = ElementPsp(silicon.atnum, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
     atoms = [Si, Si]
 
     if spin_polarization == :collinear
@@ -34,8 +35,8 @@ function run_silicon_redHF(T; Ecut=5, grid_size=15, spin_polarization=:none, kwa
     else
         magnetic_moments = []
     end
-    model = model_DFT(silicon.lattice, atoms, silicon.positions, []; temperature=0.05,
-                      spin_polarization, magnetic_moments)
+    model = model_DFT(silicon.lattice, atoms, silicon.positions;
+                      functionals=[], temperature=0.05, spin_polarization, magnetic_moments)
     model = convert(Model{T}, model)  # Ensure the selected floating-point type is used
     basis = PlaneWaveBasis(model; Ecut, kgrid=(3, 3, 3), fft_size)
 
@@ -45,21 +46,20 @@ end
 end
 
 
-@testitem "Silicon without XC (small)" #=
-    =#    tags=[:core] setup=[RunSCF, TestCases, SiliconRedHF] begin
+@testitem "Silicon without XC (small)" setup=[RunSCF, TestCases, SiliconRedHF] begin
     SiliconRedHF.run_silicon_redHF(Float64; Ecut=5, test_tol=0.05, n_ignored=0,
                                    grid_size=15, test_etot=false)
 end
 
 @testitem "Silicon without XC (large)" #=
-    =#    tags=[:slow, :core] setup=[RunSCF, TestCases, SiliconRedHF] begin
+    =#    tags=[:slow] setup=[RunSCF, TestCases, SiliconRedHF] begin
     SiliconRedHF.run_silicon_redHF(Float64; Ecut=25, test_tol=1e-5, n_ignored=2,
                                    grid_size=35, scf_ene_tol=1e-7, test_etot=false)
 end
 
 # There is a weird race condition with MPI + DoubleFloats. TODO debug
 @testitem "Silicon without XC (small, Double32)" #=
-    =#    tags=[:core, :dont_test_mpi] setup=[RunSCF, TestCases, SiliconRedHF] begin
+    =#    tags=[:dont_test_mpi] setup=[RunSCF, TestCases, SiliconRedHF] begin
     using DoubleFloats
     using GenericLinearAlgebra
 
@@ -68,8 +68,7 @@ end
 end
 
 
-@testitem "Silicon without XC (small, collinear spin)" #=
-    =#    tags=[:core] setup=[RunSCF, TestCases, SiliconRedHF] begin
+@testitem "Silicon without XC (small, collinear spin)" setup=[RunSCF, TestCases, SiliconRedHF] begin
     SiliconRedHF.run_silicon_redHF(Float64; Ecut=5, test_tol=0.05, n_ignored=0,
                                    grid_size=15, test_etot=false,
                                    spin_polarization=:collinear)

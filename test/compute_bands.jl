@@ -78,7 +78,7 @@
         :K => [0.375, 0.375, 0.75]
     )
 
-    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
+    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions; functionals=LDA())
     kpath = irrfbz_path(model)
 
     @test length(kpath.points) == length(ref_klabels)
@@ -115,7 +115,7 @@ end
     @test kinter[8] == [0.5]
 end
 
-@testitem "Compute bands for silicon" tags=[:dont_test_mpi] setup=[TestCases] begin
+@testitem "Compute bands for silicon" tags=[:dont_test_mpi, :minimal] setup=[TestCases] begin
     using DFTK
     using Brillouin: interpolate
     testcase = TestCases.silicon
@@ -123,7 +123,7 @@ end
     Ecut = 7
     n_bands = 8
 
-    model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
+    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions; functionals=LDA())
     kgrid = ExplicitKpoints(interpolate(irrfbz_path(model), density=3))
     basis = PlaneWaveBasis(model; Ecut, kgrid)
 
@@ -145,7 +145,7 @@ end
     using LinearAlgebra
     testcase = TestCases.silicon
 
-    model    = model_LDA(testcase.lattice, testcase.atoms, testcase.positions)
+    model    = model_DFT(testcase.lattice, testcase.atoms, testcase.positions; functionals=LDA())
     kpath    = irrfbz_path(model)
     kinter   = interpolate(irrfbz_path(model), density=3)
     basis    = PlaneWaveBasis(model; Ecut=5, kgrid=ExplicitKpoints(kinter))
@@ -189,20 +189,19 @@ end
     @test  DFTK.is_metal(λ, 3.2)
 end
 
-@testitem "High-symmetry kpath for nonstandard lattice" #=
-    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+@testitem "High-symmetry kpath for nonstandard lattice" tags=[:dont_test_mpi] setup=[TestCases] begin
     using DFTK
     using Brillouin: interpolate
     testcase = TestCases.silicon
 
     lattice_std = [0 1 1; 1 0 1; 1 1 0] .* 5.13
-    model_std   = model_LDA(lattice_std, testcase.atoms, testcase.positions)
+    model_std = model_DFT(lattice_std, testcase.atoms, testcase.positions; functionals=LDA())
 
     # Non-standard lattice parameters that describe the same system as model_standard.
     lattice_nst = copy(lattice_std)
     lattice_nst[:, 3] .+= lattice_nst[:, 1] .* 3
     position_nst = [[-2, 1, 1]/8, -[-2, 1, 1]/8]
-    model_nst = model_LDA(lattice_nst, testcase.atoms, position_nst)
+    model_nst = model_DFT(lattice_nst, testcase.atoms, position_nst; functionals=LDA())
 
     kpath_std = irrfbz_path(model_std)
     kpath_nst = irrfbz_path(model_nst)
@@ -216,4 +215,22 @@ end
         @test(  model_std.recip_lattice * k_std
               ≈ model_nst.recip_lattice * k_nst)
     end
+end
+
+@testitem "compute_bands for meta-GGA" tags=[:dont_test_mpi, :minimal] setup=[TestCases] begin
+    # This triggers a bug reported previously, see
+    # https://github.com/JuliaMolSim/DFTK.jl/issues/1065
+    using DFTK
+    testcase = TestCases.silicon
+
+    model   = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                        functionals=r2SCAN())
+    basis   = PlaneWaveBasis(model; Ecut=10, kgrid=(1, 1, 1))
+    scfres  = self_consistent_field(basis; tol=1e-6)
+    ref_gap = scfres.eigenvalues[1][5] - scfres.eigenvalues[1][4]
+
+    bands = compute_bands(scfres, MonkhorstPack(2, 2, 2); tol=1e-6)
+    gap   = bands.eigenvalues[1][5] - bands.eigenvalues[1][4]
+
+    @test abs(ref_gap - gap) < 1e-6
 end

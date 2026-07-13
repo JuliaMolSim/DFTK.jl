@@ -4,9 +4,10 @@
     silicon = TestCases.silicon
 
     function run_silicon(spin_polarization)
-        model = model_PBE(silicon.lattice, silicon.atoms, silicon.positions;
-                          spin_polarization, temperature=0.01)
-        basis = PlaneWaveBasis(model; Ecut=7, kgrid=[2, 2, 2], kshift=[1, 1, 1] / 2)
+        model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                          functionals=PBE(), spin_polarization, temperature=0.01)
+        kgrid = MonkhorstPack([2, 2, 2], kshift=[1, 1, 1] / 2)
+        basis = PlaneWaveBasis(model; Ecut=7, kgrid)
 
         ρtot = total_density(guess_density(basis))
         if spin_polarization == :collinear
@@ -16,6 +17,7 @@
             ρspin = nothing
         end
         ρ = ρ_from_total_and_spin(ρtot, ρspin)
+        DFTK.mpi_bcast!(ρ, basis.comm_kpts)  # Enforce numerically identical density across MPI ranks
         self_consistent_field(basis; is_converged=DFTK.ScfConvergenceEnergy(5e-6),
                               ρ, nbandsalg=FixedBands(; n_bands_converge=10));
     end

@@ -1,6 +1,3 @@
-using LinearMaps
-using IterativeSolvers
-
 # Newton's algorithm to solve SCF equations
 #
 # Newton algorithm consists of iterating over density matrices like
@@ -49,7 +46,7 @@ using IterativeSolvers
 #  Compute the gradient of the energy, projected on the space tangent to ψ, that
 #  is to say H(ψ)*ψ - ψ*λ where λ is the set of Rayleigh coefficients associated
 #  to the ψ.
-function compute_projected_gradient(basis::PlaneWaveBasis, ψ, occupation)
+@timing function compute_projected_gradient(basis::PlaneWaveBasis, ψ, occupation)
     ρ = compute_density(basis, ψ, occupation)
     H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
 
@@ -82,8 +79,13 @@ from the solution.
 function newton(basis::PlaneWaveBasis{T}, ψ0;
                 tol=1e-6, tol_cg=tol / 100, maxiter=20,
                 callback=ScfDefaultCallback(),
-                is_converged=ScfConvergenceDensity(tol)) where {T}
+                is_converged=ScfConvergenceDensity(tol),
+                seed=nothing) where {T}
+    if any(needs_τ, basis.terms)
+        error("meta-GGA functionals not yet supported in newton.")
+    end
 
+    seed = seed_task_local_rng!(seed, basis.comm_kpts)
     # setting parameters
     model = basis.model
     @assert iszero(model.temperature)  # temperature is not yet supported
@@ -107,9 +109,9 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
     history_Δρ   = T[]
 
     # orbitals, densities and energies to be updated along the iterations
-    ψ = deepcopy(ψ0)
-    ρ = compute_density(basis, ψ, occupation)
-    energies, H = energy_hamiltonian(basis, ψ, occupation; ρ)
+    ψ   = deepcopy(ψ0)
+    ρin = compute_density(basis, ψ, occupation)
+    energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρin)
 
     # perform iterations
     while !converged && n_iter < maxiter
@@ -118,21 +120,21 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
         # compute Newton step and next iteration
         res = compute_projected_gradient(basis, ψ, occupation)
         # solve (Ω+K) δψ = -res so that the Newton step is ψ <- ψ + δψ
-        δψ = solve_ΩplusK(basis, ψ, -res, occupation; tol=tol_cg).δψ
+        δψ = solve_ΩplusK(basis, ψ, res, occupation; tol=tol_cg, callback=identity).δψ
         ψ  = [ortho_qr(ψ[ik] + δψ[ik]) for ik = 1:Nk]
 
-        ρout        = compute_density(basis, ψ, occupation)
-        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ=ρout)
-        push!(history_Δρ,   norm(ρout - ρ) * sqrt(basis.dvol))
+        ρ           = compute_density(basis, ψ, occupation)
+        energies, H = energy_hamiltonian(basis, ψ, occupation; ρ)
+        push!(history_Δρ,   norm(ρ - ρin) * sqrt(basis.dvol))
         push!(history_Etot, energies.total)
-        info = (; ham=H, basis, converged, stage=:iterate, ρin=ρ, ρout=ρout, n_iter,
+        info = (; ham=H, basis, converged, stage=:iterate, ρin, ρ, n_iter,
                 energies, algorithm="Newton", runtime_ns=time_ns() - start_ns,
                 history_Δρ, history_Etot)
         callback(info)
 
         # update and test convergence
         converged = is_converged(info)
-        ρ = ρout
+        ρin = ρ
     end
 
     # Rayleigh-Ritz
@@ -149,8 +151,8 @@ function newton(basis::PlaneWaveBasis{T}, ψ0;
 
     # return results and call callback one last time with final state for clean
     # up
-    info = (; ham=H, basis, energies, converged, ρ, eigenvalues, occupation, εF, n_iter, ψ,
-            stage=:finalize, algorithm="Newton", runtime_ns=time_ns() - start_ns)
+    info = (; ham=H, basis, energies, converged, ρ=ρin, eigenvalues, occupation, εF, n_iter, ψ,
+            stage=:finalize, algorithm="Newton", seed, runtime_ns=time_ns() - start_ns)
     callback(info)
     info
 end

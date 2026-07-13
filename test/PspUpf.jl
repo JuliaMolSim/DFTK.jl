@@ -1,25 +1,30 @@
-@testsetup module mPspUpf  # PspUpf already exported by DFTK
-using DFTK
-using LazyArtifacts
+@testmodule mPspUpf begin  # PspUpf already exported by DFTK
+    using DFTK
+    using PseudoPotentialData
 
-upf_pseudos = Dict(
-    # Converged from HGH
-    :Si => load_psp(artifact"hgh_pbe_upf", "Si.pbe-hgh.UPF"),
-    :Tl => load_psp(artifact"hgh_pbe_upf", "Tl.pbe-d-hgh.UPF"),
-    # No NLCC
-    :Li => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Li.upf"),
-    :Mg => load_psp(artifact"pd_nc_sr_lda_standard_0.4.1_upf", "Mg.upf"),
-    # With NLCC
-    :Co => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Co.upf"; rcut=10.0),
-    :Ge => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Ge.upf"),
-    # With cutoff
-    :Cu => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Cu.upf"; rcut=9.0),
-    :Cr => load_psp(artifact"pd_nc_sr_pbe_standard_0.4.1_upf", "Cu.upf"; rcut=12.0)
-)
-hgh_pseudos = [
-    (; hgh=load_psp("hgh/pbe/si-q4.hgh"), upf=upf_pseudos[:Si]),
-    (; hgh=load_psp("hgh/pbe/tl-q13.hgh"), upf=upf_pseudos[:Tl])
-]
+    pd_lda_family = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
+    pd_pbe_family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
+    upf_pseudos = Dict(
+        # Converted from cp2k repo (in GTH format) to UPF
+        :Si => load_psp(joinpath(@__DIR__, "pseudos", "gth", "Si.pbe-hgh.upf")),
+        :Tl => load_psp(joinpath(@__DIR__, "pseudos", "gth", "Tl.pbe-d-hgh.upf")),
+        # No NLCC
+        :Li => load_psp(pd_lda_family[:Li]),
+        :Mg => load_psp(pd_lda_family[:Mg]),
+        # With NLCC
+        :Co => load_psp(pd_pbe_family[:Co]; rcut=10.0),
+        :Ge => load_psp(pd_pbe_family[:Ge]),
+        # With cutoff
+        :Cu => load_psp(pd_pbe_family[:Cu]; rcut=9.0),
+        :Cr => load_psp(pd_pbe_family[:Cr]; rcut=12.0)
+    )
+    gth_pseudos = [
+        (; gth=load_psp(joinpath(@__DIR__, "pseudos", "gth", "Si-q4.gth")),  upf=upf_pseudos[:Si]),
+        (; gth=load_psp(joinpath(@__DIR__, "pseudos", "gth", "Tl-q13.gth")), upf=upf_pseudos[:Tl]),
+    ]
+    psp8_pseudos = Dict(
+        :Li_pbe => load_psp(joinpath(@__DIR__, "pseudos", "Li.psp8")),
+    )
 end
 
 
@@ -39,16 +44,32 @@ end
     @test psp.r2_projs[1][1][1] ≈ psp.rgrid[1] * -7.5698070034E-10 / 2
 end
 
+@testitem "Check reading PseudoDojo Li PSP8" tags=[:psp] setup=[mPspUpf] begin
+    psp = mPspUpf.psp8_pseudos[:Li_pbe]
+
+    @test psp.lmax == 1
+    @test psp.Zion == 3
+    @test length(psp.rgrid) == 400
+    @test length(psp.vloc) == 400
+    for m in psp.h
+        @test size(m) == (2, 2)
+    end
+
+    @test psp.vloc[1] ≈ -6.2945684552403
+    @test psp.h[1][1,1] ≈ -4.9515440588302 * 4
+    @test psp.r2_projs[1][1][1] ≈ psp.rgrid[1] * -6.2444638349035e-10
+end
+
 @testitem "Real potentials are consistent with HGH" tags=[:psp] setup=[mPspUpf] begin
     using DFTK: eval_psp_local_real
 
-    for psp_pair in mPspUpf.hgh_pseudos
+    for psp_pair in mPspUpf.gth_pseudos
         upf = psp_pair.upf
-        hgh = psp_pair.hgh
+        gth = psp_pair.gth
         rand_r = rand(5) .* abs(upf.rgrid[end] - upf.rgrid[1]) .+ upf.rgrid[1]
         for r in [upf.rgrid[1], rand_r..., upf.rgrid[end]]
-            reference_hgh = eval_psp_local_real(hgh, r)
-            @test reference_hgh ≈ eval_psp_local_real(upf, r) rtol=1e-2 atol=1e-2
+            reference_gth = eval_psp_local_real(gth, r)
+            @test reference_gth ≈ eval_psp_local_real(upf, r) rtol=1e-2 atol=1e-2
         end
     end
 end
@@ -56,12 +77,12 @@ end
 @testitem "Fourier potentials are consistent with HGH" tags=[:psp] setup=[mPspUpf] begin
     using DFTK: eval_psp_local_fourier
 
-    for psp_pair in mPspUpf.hgh_pseudos
+    for psp_pair in mPspUpf.gth_pseudos
         upf = psp_pair.upf
-        hgh = psp_pair.hgh
+        gth = psp_pair.gth
         for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
-            reference_hgh = eval_psp_local_fourier(hgh, p)
-            @test reference_hgh ≈ eval_psp_local_fourier(upf, p) rtol=1e-3 atol=1e-3
+            reference_gth = eval_psp_local_fourier(gth, p)
+            @test reference_gth ≈ eval_psp_local_fourier(upf, p) rtol=1e-3 atol=1e-3
         end
     end
 end
@@ -71,26 +92,26 @@ end
     using DFTK: eval_psp_projector_fourier, eval_psp_projector_real, eval_psp_local_fourier
     using DFTK: count_n_proj_radial
 
-    for psp_pair in mPspUpf.hgh_pseudos
+    for psp_pair in mPspUpf.gth_pseudos
         upf = psp_pair.upf
-        hgh = psp_pair.hgh
+        gth = psp_pair.gth
 
-        @test upf.lmax == hgh.lmax
+        @test upf.lmax == gth.lmax
         for l = 0:upf.lmax
-            @test count_n_proj_radial(upf, l) == count_n_proj_radial(hgh, l)
+            @test count_n_proj_radial(upf, l) == count_n_proj_radial(gth, l)
         end
 
         for l = 0:upf.lmax, i in count_n_proj_radial(upf, l)
             ircut = length(upf.r2_projs[l+1][i])
             for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
-                reference_hgh = eval_psp_projector_fourier(hgh, i, l, p)
+                reference_gth = eval_psp_projector_fourier(gth, i, l, p)
                 proj_upf = eval_psp_projector_fourier(upf, i, l, p)
-                @test reference_hgh ≈ proj_upf atol=1e-5 rtol=1e-5
+                @test reference_gth ≈ proj_upf atol=1e-5 rtol=1e-5
             end
             for r in [upf.rgrid[1], upf.rgrid[ircut]]
-                reference_hgh = eval_psp_projector_real(hgh, i, l, r)
+                reference_gth = eval_psp_projector_real(gth, i, l, r)
                 proj_upf = eval_psp_projector_real(upf, i, l, r)
-                @test reference_hgh ≈ proj_upf atol=1e-5 rtol=1e-5
+                @test reference_gth ≈ proj_upf atol=1e-5 rtol=1e-5
             end
         end
     end
@@ -99,12 +120,11 @@ end
 @testitem "Energy correction is consistent with HGH" tags=[:psp] setup=[mPspUpf] begin
     using DFTK: eval_psp_energy_correction
 
-    for psp_pair in mPspUpf.hgh_pseudos
+    for psp_pair in mPspUpf.gth_pseudos
         upf = psp_pair.upf
-        hgh = psp_pair.hgh
-        n_electrons = 3
-        reference_hgh = eval_psp_energy_correction(hgh, n_electrons)
-        @test reference_hgh ≈ eval_psp_energy_correction(upf, n_electrons) atol=1e-3 rtol=1e-3
+        gth = psp_pair.gth
+        reference_gth = eval_psp_energy_correction(gth)
+        @test reference_gth ≈ eval_psp_energy_correction(upf) atol=1e-3 rtol=1e-3
     end
 end
 
@@ -132,7 +152,7 @@ end
     using SpecialFunctions: sphericalbesselj
     using QuadGK
 
-    # The integrand for performing the spherical Hankel transfrom,
+    # The integrand for performing the spherical Hankel transform,
     # i.e. compute the radial part of the projector in Fourier space
     function integrand(psp, i, l, p, r)
         4π * r^2 * eval_psp_projector_real(psp, i, l, r) * sphericalbesselj(l, p * r)
@@ -143,8 +163,9 @@ end
         for l = 0:psp.lmax, i in count_n_proj_radial(psp, l)
             ir_cut = min(psp.ircut, length(psp.r2_projs[l+1][i]))
             for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
-                reference = quadgk(r -> integrand(psp, i, l, p, r),
-                                   psp.rgrid[ir_start], psp.rgrid[ir_cut])[1]
+                # DFTK uses a modified Hankel, hence divide by 1/p^l
+                reference = 1/p^l * quadgk(r -> integrand(psp, i, l, p, r),
+                                           psp.rgrid[ir_start], psp.rgrid[ir_cut])[1]
                 @test reference ≈ eval_psp_projector_fourier(psp, i, l, p) atol=1e-2 rtol=1e-2
             end
         end
@@ -153,38 +174,59 @@ end
 
 @testitem "Valence charge densities are consistent in real and Fourier space" #=
     =#    tags=[:psp] setup=[mPspUpf] begin
-    using DFTK: eval_psp_density_valence_real, eval_psp_density_valence_fourier
+    using DFTK: eval_psp_valence_density_real, eval_psp_valence_density_fourier
     using SpecialFunctions: sphericalbesselj
     using QuadGK
 
     function integrand(psp, p, r)
-        4π * r^2 * eval_psp_density_valence_real(psp, r) * sphericalbesselj(0, p * r)
+        4π * r^2 * eval_psp_valence_density_real(psp, r) * sphericalbesselj(0, p * r)
     end
     for psp in values(mPspUpf.upf_pseudos)
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1
         for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
             reference = quadgk(r -> integrand(psp, p, r), psp.rgrid[ir_start],
                                psp.rgrid[psp.ircut])[1]
-            @test reference  ≈ eval_psp_density_valence_fourier(psp, p) atol=1e-2 rtol=1e-2
+            @test reference  ≈ eval_psp_valence_density_fourier(psp, p) atol=1e-2 rtol=1e-2
         end
     end
 end
 
 @testitem "Core charge densities are consistent in real and Fourier space" #=
     =#    tags=[:psp] setup=[mPspUpf] begin
-    using DFTK: eval_psp_density_core_real, eval_psp_density_core_fourier
+    using DFTK: eval_psp_core_density_real, eval_psp_core_density_fourier
     using SpecialFunctions: sphericalbesselj
     using QuadGK
 
     function integrand(psp, p, r)
-        4π * r^2 * eval_psp_density_core_real(psp, r) * sphericalbesselj(0, p * r)
+        4π * r^2 * eval_psp_core_density_real(psp, r) * sphericalbesselj(0, p * r)
     end
     for psp in values(mPspUpf.upf_pseudos)
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1
         for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
             reference = quadgk(r -> integrand(psp, p, r), psp.rgrid[ir_start],
                                psp.rgrid[psp.ircut])[1]
-            @test reference  ≈ eval_psp_density_core_fourier(psp, p) atol=1e-2 rtol=1e-2
+            @test reference  ≈ eval_psp_core_density_fourier(psp, p) atol=1e-2 rtol=1e-2
+        end
+    end
+end
+
+@testitem "Core kinetic energy densities are consistent in real and Fourier space" #=
+    =#    tags=[:psp] begin
+    using DFTK: eval_psp_core_kinetic_energy_density_real,
+                eval_psp_core_kinetic_energy_density_fourier,
+                load_psp
+    using SpecialFunctions: sphericalbesselj
+    using QuadGK
+
+    function integrand(psp, p, r)
+        4π * r^2 * eval_psp_core_kinetic_energy_density_real(psp, r) * sphericalbesselj(0, p * r)
+    end
+    for psp in [load_psp(joinpath(@__DIR__, "pseudos", "C_m.upf"))]
+        ir_start = iszero(psp.rgrid[1]) ? 2 : 1
+        for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
+            reference = quadgk(r -> integrand(psp, p, r), psp.rgrid[ir_start],
+                               psp.rgrid[psp.ircut])[1]
+            @test reference ≈ eval_psp_core_kinetic_energy_density_fourier(psp, p) atol=1e-2 rtol=1e-2
         end
     end
 end
@@ -197,7 +239,7 @@ end
     for psp in values(mPspUpf.upf_pseudos)
         coulomb = -4π * (psp.Zion) / p_small^2
         reference = eval_psp_local_fourier(psp, p_small) - coulomb
-        @test reference ≈ eval_psp_energy_correction(psp, 1) atol=1e-2
+        @test reference ≈ eval_psp_energy_correction(psp) atol=1e-2
     end
 end
 
@@ -208,8 +250,8 @@ end
     lattice = 5 * I(3)
     positions = [zeros(3)]
     for (element, psp) in mPspUpf.upf_pseudos
-        atoms = [ElementPsp(element; psp)]
-        model = model_LDA(lattice, atoms, positions)
+        atoms = [ElementPsp(element, psp)]
+        model = model_DFT(lattice, atoms, positions; functionals=LDA())
         basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
         ρ_val = guess_density(basis, ValenceDensityPseudo())
         ρ_val_neg = abs(sum(ρ_val[ρ_val .< 0]))
@@ -225,12 +267,27 @@ end
     positions = [zeros(3)]
     for (element, psp) in mPspUpf.upf_pseudos
         if sum(psp.r2_ρion) > 0  # Otherwise, it's all 0 in the UPF as a placeholder
-            atoms = [ElementPsp(element; psp)]
-            model = model_LDA(lattice, atoms, positions)
+            atoms = [ElementPsp(element, psp)]
+            model = model_DFT(lattice, atoms, positions; functionals=LDA())
             basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
             ρ_val = guess_density(basis, ValenceDensityPseudo())
             Z_valence = sum(ρ_val) * model.unit_cell_volume / prod(basis.fft_size)
             @test Z_valence ≈ charge_ionic(psp) rtol=1e-5 atol=1e-5
+        end
+    end
+end
+
+@testitem "All pseudopotentials from common UPF families can be loaded" begin
+    using PseudoPotentialData
+    using DFTK
+
+    for key in ("dojo.nc.sr.lda.v0_4_1.standard.upf",
+                "dojo.nc.sr.pbe.v0_5.standard.upf",
+                "dojo.nc.sr.pbesol.v0_4_1.standard.upf")
+        pseudopotentials = PseudoFamily(key)
+        for element in keys(pseudopotentials)
+            psp = load_psp(pseudopotentials, element)
+            @test psp isa PspUpf
         end
     end
 end

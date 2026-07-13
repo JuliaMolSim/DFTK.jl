@@ -5,7 +5,7 @@
 *.jl.cov
 *.jl.*.cov
 *.jl.mem
-deps/deps.jl
+benchmark/*.json
 Manifest.toml
 /LocalPreferences.toml
 .vscode

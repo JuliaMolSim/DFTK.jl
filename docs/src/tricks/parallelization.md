@@ -2,18 +2,22 @@
 
 This section summarizes the options DFTK offers
 to monitor and influence performance of the code.
+For details on running DFTK on HPC systems,
+see also [Using DFTK on compute clusters](@ref) and [Using DFTK on GPUs](@ref).
 
 ```@setup parallelization
 using DFTK
+using PseudoPotentialData
 a = 10.26  # Silicon lattice constant in Bohr
 lattice = a / 2 * [[0 1 1.];
                    [1 0 1.];
                    [1 1 0.]]
-Si = ElementPsp(:Si; psp=load_psp("hgh/lda/Si-q4"))
+pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth")
+Si = ElementPsp(:Si, pseudopotentials)
 atoms = [Si, Si]
 positions = [ones(3)/8, -ones(3)/8]
 
-model = model_LDA(lattice, atoms, positions)
+model = model_DFT(lattice, atoms, positions; functionals=LDA())
 basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2])
 
 DFTK.reset_timer!(DFTK.timer)
@@ -78,7 +82,7 @@ and secondly multiprocessing using MPI
 (via the [MPI.jl](https://github.com/JuliaParallel/MPI.jl) Julia interface).
 MPI-based parallelism is currently only over ``k``-points,
 such that it cannot be used for calculations with only a single ``k``-point.
-Otherwise combining both forms of parallelism is possible as well.
+There is also support for [Using DFTK on GPUs](@ref).
 
 The scaling of both forms of parallelism for a number of test cases
 is demonstrated in the following figure.
@@ -124,10 +128,10 @@ DFTK.mpi_master() || (redirect_stdout(); redirect_stderr())
 ```
 at the top of your script to disable printing on all processes but one.
 
-!!! info "MPI-based parallelism not fully supported"
-    While standard procedures (such as the SCF or band structure calculations)
-    fully support MPI, not all routines of DFTK are compatible with MPI yet
-    and will throw an error when being called in an MPI-parallel run.
+!!! info "MPI-based parallelism not supported everywhere"
+    While most standard procedures are now supported in combination with MPI,
+    some functionality is still missing and may error out when being called
+    in an MPI-parallel run.
     In most cases there is no intrinsic limitation it just has not yet been
     implemented. If you require MPI in one of our routines, where this is not
     yet supported, feel free to open an issue on github or otherwise get in touch.
@@ -165,8 +169,8 @@ More than two FFT threads is rarely useful.
 
 ## Advanced threading tweaks
 The default threading setup done by `setup_threading` is to select
-one FFT thread and the same number of BLAS and Julia threads.
-This section provides some info in case you want to change these defaults.
+one FFT thread, and use `Threads.nthreads()` to determine the number of DFTK
+and BLAS threads. This section provides some info in case you want to change these defaults.
 
 ### BLAS threads
 All BLAS calls in Julia go through a parallelized OpenBlas
@@ -190,13 +194,17 @@ BLAS.set_num_threads(N)
 where `N` is the number of threads you desire.
 To **check the number of BLAS threads** currently used, you can use `BLAS.get_num_threads()`.
 
-### Julia threads
-On top of BLAS threading DFTK uses Julia threads (`Thread.@threads`)
-in a couple of places to parallelize over ``k``-points (density computation)
-or bands (Hamiltonian application).
-The number of threads used for these aspects is controlled by the
-flag `-t` passed to Julia or the *environment variable* `JULIA_NUM_THREADS`.
-To **check the number of Julia threads** use `Threads.nthreads()`.
+### DFTK threads
+On top of BLAS threading DFTK uses Julia threads in a couple of places
+to parallelize over ``k``-points (density computation) or bands
+(Hamiltonian application). The number of threads used for these
+aspects is controlled by default by `Threads.nthreads()`, which can be
+set using the flag `-t` passed to Julia or the *environment variable*
+`JULIA_NUM_THREADS`. Optionally, you can use `setup_threading(; n_DFTK)`
+to set an upper bound to the number of threads used by DFTK,
+regardless of `Threads.nthreads()` (for instance, if you want to
+thread several DFTK runs and don't want DFTK's threading to
+interfere with that).
 
 ### FFT threads
 Since FFT threading is only used in DFTK inside the regions already parallelized

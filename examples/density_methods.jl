@@ -4,33 +4,24 @@
 # density-based SCF.
 
 # First we set up our problem
+
+using AtomsBuilder
 using DFTK
 using LinearAlgebra
-using LazyArtifacts
 using Printf
-import Main: @artifact_str # hide
+using PseudoPotentialData
 
 # We use a numeric norm-conserving PSP in UPF format from the
 # [PseudoDojo](http://www.pseudo-dojo.org/) v0.4 scalar-relativistic LDA standard stringency
 # family because it contains valence charge density which can be used for a more tailored
 # density guess.
-UPF_PSEUDO = artifact"pd_nc_sr_lda_standard_0.4.1_upf/Si.upf"
-HGH_PSEUDO = "hgh/lda/si-q4"
+pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
 
 function silicon_scf(guess_method)
-    a = 10.26  # Silicon lattice constant in Bohr
-    lattice = a / 2 * [[0 1 1.];
-                       [1 0 1.];
-                       [1 1 0.]]
-    Si = ElementPsp(:Si; psp=load_psp(UPF_PSEUDO))
-    atoms     = [Si, Si]
-    positions = [ones(3)/8, -ones(3)/8]
-
-    model = model_LDA(lattice, atoms, positions)
-    basis = PlaneWaveBasis(model; Ecut=12, kgrid=[4, 4, 4])
-
+    model = model_DFT(bulk(:Si); functionals=LDA(), pseudopotentials)
+    basis = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
     self_consistent_field(basis; ρ=guess_density(basis, guess_method),
-                          is_converged=ScfConvergenceEnergy(1e-10))
+                          is_converged=ScfConvergenceDensity(1e-6))
 end;
 
 results = Dict();

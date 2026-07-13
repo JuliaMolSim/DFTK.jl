@@ -23,18 +23,18 @@
 #
 # For our investigation we consider a crude aluminium setup:
 
-using ASEconvert
+using AtomsBuilder
 using DFTK
-using LazyArtifacts
-import Main: @artifact_str # hide
 
-ase_Al    = ase.build.bulk("Al"; cubic=true) * pytuple((4, 1, 1))
-system_Al = attach_psp(pyconvert(AbstractSystem, ase_Al);
-                       Al=artifact"pd_nc_sr_pbe_standard_0.4.1_upf/Al.upf")
+system_Al = bulk(:Al; cubic=true) * (4, 1, 1)
 
 # and we discretise:
 
-model_Al = model_LDA(system_Al; temperature=1e-3, symmetries=false)
+using PseudoPotentialData
+
+pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
+model_Al = model_DFT(system_Al; functionals=LDA(), temperature=1e-3,
+                     symmetries=false, pseudopotentials)
 basis_Al = PlaneWaveBasis(model_Al; Ecut=7, kgrid=[1, 1, 1]);
 
 # On aluminium (a metal) already for moderate system sizes (like the 8 layers
@@ -57,7 +57,7 @@ Pinv_Kerker(δρ) = DFTK.mix_density(KerkerMixing(), basis_Al, δρ)
 ## Function which applies ε† = 1 - χ0 K
 function epsilon(δρ)
     δV   = apply_kernel(basis_Al, δρ; ρ=scfres_Al.ρ)
-    χ0δV = apply_χ0(scfres_Al, δV)
+    χ0δV = apply_χ0(scfres_Al, δV).δρ
     δρ - χ0δV
 end
 
@@ -113,7 +113,7 @@ heatmap(mode_xy', c=:RdBu_11, aspect_ratio=1, grid=false,
 maximum(real.(λ_Kerker))
 
 # Since the smallest eigenvalue in this case remains of similar size (it is now
-# around 0.8), this implies that the conditioning improves noticably when
+# around 0.8), this implies that the conditioning improves noticeably when
 # `KerkerMixing` is used.
 #
 # **Note:** Since LdosMixing requires solving a linear system at each

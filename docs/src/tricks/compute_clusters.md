@@ -27,7 +27,7 @@ the `JULIA_DEPOT_PATH` to be a subdirectory of `/scratch`.
 **EPFL scitas.**
 On scitas the right thing to do is to insert
 ```
-export JULIA_DEPOT_PATH="$JULIA_DEPOT_PATH:/scratch/$USER/.julia"
+export JULIA_DEPOT_PATH="/scratch/$USER/.julia"
 ```
 into your `~/.bashrc`.
 
@@ -168,6 +168,35 @@ Note, however that this is just a *hint*,
 i.e. no hard limits are enforced.
 Furthermore using too small a heap size hint can have a negative impact on performance.
 
+## Estimating and monitoring memory usage
+DFTK provides some routines for estimating the memory consumption for storing
+density, Bloch waves as well as the peak memory consumption during an SCF run.
+Based on a `model` this information can be obtained before constructing a basis as
+```julia
+estimate = estimate_memory_usage(model::Model; Ecut=15, kgrid=(1, 1, 1), other_basis_kwargs...)
+```
+which takes exactly the same kind of arguments and keyword arguments as a
+[`PlaneWaveBasis`](@ref) constructor. The `estimate` object provides the estimated memory consumption,
+which in a script can be pretty-printed to `stdout` as follows
+```julia
+show(stdout, "text/plain", estimate)
+```
+```
+Estimated memory usage (per MPI process):
+    nonlocal projectors  :   6.7 GiB
+    single ψ             : 915.2 MiB
+    single ρ             :  25.0 MiB
+    peak during SCF      :  14.1 GiB
+```
+Notice, that in particular the peak memory during SCF provides an orientation for requesting
+resources from queuing systems (but at this stage this estimate is still very rough).
+The same information is also available in the basis printout
+(i.e. `show(stdout, "text/plain", basis)`).
+
+During an SCF run the current memory consumption (within the main RAM as well as a potential
+GPU device) can be monitored by passing the callback `ScfDefaultCallback(show_memory=true)`,
+see [Monitoring self-consistent field calculations](@ref).
+
 ## Running slurm jobs
 This example shows how to run a DFTK calculation on a slurm-based system
 such as scitas. We use the MKL for FFTW and BLAS and the system-provided MPI.
@@ -198,6 +227,7 @@ DFTK = "acf6eb54-70d9-11e9-0013-234b7a5f5337"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 MKL = "33e6dc65-8f57-5167-99aa-e5a354878fb2"
 MPIPreferences = "3da0fdf6-3ccc-4f1b-acd9-58baa6c99267"
+PseudoPotentialData = "5751a51d-ac76-4487-a056-413ecf6fbe19"
 ```
 We additionally create a small file `dftk.jl` to run an MPI-parallelised
 calculation from a passed structure
@@ -205,19 +235,22 @@ calculation from a passed structure
 using MKL
 using DFTK
 using AtomsIO
+using PseudoPotentialData
 
 disable_threading()  # Threading and MPI not compatible
 
-function main(structure, pseudos; Ecut, kspacing)
+function main(structure; pseudofamily, Ecut, kspacing)
     if mpi_master()
         println("DEPOT_PATH=$DEPOT_PATH")
         println(DFTK.versioninfo())
         println()
     end
 
-    system = attach_psp(load_system(structure); pseudos...)
-    model  = model_PBE(system; temperature=1e-3, smearing=Smearing.MarzariVanderbilt())
-
+    model  = model_DFT(load_system(structure);
+                       pseudopotentials=PseudoFamily(pseudofamily),
+                       functionals=PBE(),
+                       temperature=1e-3,
+                       smearing=Smearing.MarzariVanderbilt())
     kgrid = kgrid_from_minimal_spacing(model, kspacing)
     basis = PlaneWaveBasis(model; Ecut, kgrid)
 
@@ -273,12 +306,10 @@ module load julia
 # file as an include to make everything self-contained.
 srun julia -t 1 --project -e '
     include("dftk.jl")
-    pseudos = (; Si="hgh/pbe/si-q4.hgh" )
-    main("silicon.extxyz",
-         pseudos;
+    main("silicon.extxyz";
+         pseudofamily="pd_nc_sr_pbe_standard_0.4.1_upf",
          Ecut=10,
-         kspacing=0.3,
- )
+         kspacing=0.3)
 '
 ```
 

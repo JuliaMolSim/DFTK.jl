@@ -1,5 +1,7 @@
 include("lobpcg_hyper_impl.jl")
 
+# Note that this function will return λ on the CPU,
+# but X and the history on the device (for GPU runs)
 function lobpcg_hyper(A, X0; maxiter=100, prec=nothing,
                       tol=20size(A, 2)*eps(real(eltype(A))),
                       largest=false, n_conv_check=nothing, kwargs...)

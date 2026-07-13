@@ -16,7 +16,7 @@ function Base.show(io::IO, kin::Kinetic)
     print(io, "Kinetic($bup$fac)")
 end
 
-struct TermKinetic <: Term
+struct TermKinetic <: TermLinear
     scaling_factor::Real  # scaling factor, absorbed into kinetic_energies
     # kinetic energies 1/2(k+G)^2 *blowup(|k+G|, Ecut) for each k-point.
     kinetic_energies::Vector{<:AbstractVector}
@@ -44,15 +44,12 @@ end
     if isnothing(ψ) || isnothing(occupation)
         return (; E=T(Inf), ops)
     end
-    occupation = [to_cpu(occk) for occk in occupation]
 
     E = zero(T)
     for (ik, ψk) in enumerate(ψ)
-        for iband = 1:size(ψk, 2)
-            ψnk = @views ψk[:, iband]
-            E += (basis.kweights[ik] * occupation[ik][iband]
-                  * real(dot(ψnk, Diagonal(term.kinetic_energies[ik]), ψnk)))
-        end
+        E += basis.kweights[ik] * 
+             sum(occupation[ik] .* 
+                 real(vec(columnwise_dots(ψk, Diagonal(term.kinetic_energies[ik]), ψk))))
     end
     E = mpi_sum(E, basis.comm_kpts)
 

@@ -44,7 +44,8 @@ end
 
     function test_pw_cutoffs(testcase, Ecut, fft_size)
         model = Model(testcase.lattice)
-        basis = PlaneWaveBasis(model; Ecut, fft_size, kgrid=(2, 5, 5), kshift=[1, 0, 0]/2)
+        kgrid = MonkhorstPack((2, 5, 5); kshift=[1, 0, 0]/2)
+        basis = PlaneWaveBasis(model; Ecut, fft_size, kgrid)
 
         for kpt in basis.kpoints
             for G in G_vectors(basis, kpt)
@@ -103,8 +104,8 @@ end
     silicon = TestCases.silicon
 
     model = Model(silicon.lattice, silicon.atoms, silicon.positions)
-    basis = PlaneWaveBasis(model; Ecut=3, kgrid=(2, 2, 2), fft_size=[7, 9, 11],
-                           kshift=ones(3)/2)
+    kgrid = MonkhorstPack((2, 2, 2); kshift=ones(3)/2)
+    basis = PlaneWaveBasis(model; Ecut=3, kgrid, fft_size=[7, 9, 11])
 
     for kpt in basis.kpoints
         Gs_basis = collect(G_vectors(basis))
@@ -146,5 +147,28 @@ end
                                                     G_vectors(basis, kpt))      atol=atol
         @test Gplusk_vectors_cart(basis, kpt) ≈ map(q -> model.recip_lattice * q,
                                                     Gplusk_vectors(basis, kpt)) atol=atol
+    end
+end
+
+@testitem "Automatic Euct suggestion from pseudpotentials" setup=[TestCases] begin
+    using DFTK
+    using PseudoPotentialData
+    silicon = TestCases.silicon
+
+    Si_hgh = ElementPsp(:Si, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
+    Si_lda = ElementPsp(:Si, TestCases.pd_lda_family)
+    let model = model_DFT(silicon.lattice, [Si_lda, Si_lda], silicon.positions;
+                          functionals=LDA())
+        basis = PlaneWaveBasis(model)
+        @test basis.Ecut == 16.0
+    end
+    let model = model_DFT(silicon.lattice, [Si_lda, Si_hgh], silicon.positions;
+                          functionals=LDA())
+        @test_throws "no recommended kinetic energy cutoff can be determined" begin
+            PlaneWaveBasis(model)
+        end
+
+        basis = PlaneWaveBasis(model; Ecut=10)  # This should work fine
+        @test basis.Ecut == 10.0
     end
 end

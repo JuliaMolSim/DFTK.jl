@@ -1,8 +1,9 @@
 module DFTKPlotsExt
+using AtomsBase
 using Brillouin: KPath
 using DFTK
 using DFTK: is_metal, data_for_plotting, spin_components, default_band_εrange
-import DFTK: plot_dos, plot_bandstructure
+import DFTK: plot_dos, plot_bandstructure, plot_ldos, plot_pdos
 using Plots
 using Unitful
 using UnitfulAtomic
@@ -20,7 +21,8 @@ function plot_bandstructure(band_data::NamedTuple;
                             unit=u"hartree", kwargs_plot=(; ), kwargs...)
     # TODO Replace by a plot recipe once BandData is its own type.
 
-    mpi_nprocs() > 1 && error("Band structure plotting with MPI not supported yet")
+    mpi_nprocs(band_data.basis.comm_kpts) > 1 &&
+        error("Band structure plotting with MPI not supported yet")
 
     if !haskey(band_data, :kinter)
         @warn("Calling plot_bandstructure without first computing the band data " *
@@ -75,6 +77,7 @@ end
 function plot_dos(basis, eigenvalues; εF=nothing, unit=u"hartree",
                   temperature=basis.model.temperature,
                   smearing=basis.model.smearing,
+                  colors=[:blue, :red], p=nothing,
                   εrange=default_band_εrange(eigenvalues; εF), n_points=1000, kwargs...)
     # TODO Should also split this up into one stage doing the DOS computation
     #      and one stage doing the DOS plotting (like now for the bands.)
@@ -86,9 +89,9 @@ function plot_dos(basis, eigenvalues; εF=nothing, unit=u"hartree",
     # Constant to convert from AU to the desired unit
     to_unit = ustrip(auconvert(unit, 1.0))
 
-    p = Plots.plot(; kwargs...)
+    isnothing(p) && (p = Plots.plot())
+    p = Plots.plot(p; kwargs...)
     spinlabels = spin_components(basis.model)
-    colors = [:blue, :red]
     Dεs = compute_dos.(εs, Ref(basis), Ref(eigenvalues); smearing, temperature)
     for σ = 1:n_spin
         D = [Dσ[σ] for Dσ in Dεs]
@@ -107,5 +110,78 @@ function plot_dos(basis, eigenvalues; εF=nothing, unit=u"hartree",
     p
 end
 plot_dos(scfres; kwargs...) = plot_dos(scfres.basis, scfres.eigenvalues; scfres.εF, kwargs...)
+
+function plot_ldos(basis, eigenvalues, ψ; εF=nothing, unit=u"hartree",
+                   temperature=basis.model.temperature,
+                   smearing=basis.model.smearing,
+                   εrange=default_band_εrange(eigenvalues; εF),
+                   n_points=1000, ldos_xyz=[:, 1, 1], kwargs...)
+    eshift = something(εF, 0.0)
+    εs = range(austrip.(εrange)..., length=n_points)
+
+    # Constant to convert from AU to the desired unit
+    to_unit = ustrip(auconvert(unit, 1.0))
+
+    # LDε has three dimensions (x, y, z)
+    # map on a single axis to plot the variation with εs
+    LDεs = dropdims.(compute_ldos.(εs, Ref(basis), Ref(eigenvalues), Ref(ψ); smearing, temperature); dims=4)
+    LDεs_slice = similar(LDεs[1], n_points, length(LDεs[1][ldos_xyz...]))
+    for (i, LDε) in enumerate(LDεs)
+        LDεs_slice[i, :] = LDε[ldos_xyz...]
+    end
+    p = heatmap(1:size(LDεs_slice, 2), (εs .- eshift) .* to_unit, LDεs_slice; kwargs...)
+    if !isnothing(εF)
+        Plots.hline!(p, [0.0], label="εF", color=:green, lw=1.5)
+    end
+
+    if isnothing(εF)
+        Plots.ylabel!(p, "eigenvalues  ($(string(unit)))")
+    else
+        Plots.ylabel!(p, "eigenvalues -ε_F  ($(string(unit)))")
+    end
+    p
+end
+plot_ldos(scfres; kwargs...) = plot_ldos(scfres.basis, scfres.eigenvalues, scfres.ψ; scfres.εF, kwargs...)
+
+function plot_pdos(basis::PlaneWaveBasis{T}, eigenvalues, ψ; iatom=nothing, label=nothing,
+                   positions=basis.model.positions,
+                   εF=nothing, unit=u"hartree",
+                   temperature=basis.model.temperature,
+                   smearing=basis.model.smearing,
+                   colors = [:blue, :red],
+                   εrange=default_band_εrange(eigenvalues; εF),
+                   n_points=1000, p=nothing, kwargs...) where {T}
+    eshift = something(εF, 0.0)
+    εs = range(austrip.(εrange)..., length=n_points)
+    n_spin = basis.model.n_spin_components
+    to_unit = ustrip(auconvert(unit, 1.0))
+
+    species = isnothing(iatom) ? "all atoms" : "atom $(iatom) ($(basis.model.atoms[iatom].species))"
+    orb_name = isnothing(label) ? "all orbitals" : label
+
+    # Plot pdos
+    isnothing(p) && (p = Plots.plot())
+    p = Plots.plot(p; kwargs...)
+    spinlabels = spin_components(basis.model)
+    pdos = DFTK.sum_pdos(compute_pdos(εs, basis, ψ, eigenvalues;
+                                      positions, temperature, smearing),
+                         [l -> ((isnothing(iatom) || l.iatom == iatom)
+                             && (isnothing(label) || l.label == label))])
+    for σ = 1:n_spin
+        plot_label = n_spin > 1 ? "$(species) $(orb_name) $(spinlabels[σ]) spin" : "$(species) $(orb_name)"
+        Plots.plot!(p, (εs .- eshift) .* to_unit, pdos[:, σ]; label=plot_label, color=colors[σ])
+    end
+    if !isnothing(εF)
+        Plots.vline!(p, [0.0], label="εF", color=:green, lw=1.5)
+    end
+
+    if isnothing(εF)
+        Plots.xlabel!(p, "eigenvalues  ($(string(unit)))")
+    else
+        Plots.xlabel!(p, "eigenvalues - ε_F  ($(string(unit)))")
+    end
+    p
+end
+plot_pdos(scfres; kwargs...) = plot_pdos(scfres.basis, scfres.eigenvalues, scfres.ψ; scfres.εF, kwargs...)
 
 end

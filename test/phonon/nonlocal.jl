@@ -1,4 +1,4 @@
-@testsetup module PhononNonlocal
+@testmodule PhononNonlocal begin
 using DFTK
 
 # No exchange-correlation.
@@ -56,6 +56,7 @@ end
 @testitem "Phonon: LDA: comparison to ref testcase" #=
     =#    tags=[:phonon, :dont_test_mpi] setup=[Phonon, PhononNonlocal, TestCases] begin
     using .Phonon: test_frequencies
+    using DFTK
 
     # Values computed offline with automatic differentiation.
     ω_ref = [ -0.002394568935772381
@@ -77,15 +78,16 @@ end
                0.0015604654945598588
                0.0015609820766927637 ]
 
+    model_LDA(args...; kwargs...) = model_DFT(args...; functionals=LDA(), kwargs...)
     test_frequencies(model_LDA, TestCases.aluminium_primitive; ω_ref)
 end
 
 @testitem "Phonon: LDA: NLCC not implemented" #=
     =#    tags=[:phonon, :dont_test_mpi] setup=[Phonon, PhononNonlocal, TestCases] begin
     using .Phonon: test_frequencies
-    aluminium_primitive = TestCases.aluminium_primitive
-    aluminium_primitive = merge(aluminium_primitive,
-                                (; atoms=fill(ElementPsp(aluminium_primitive.atnum,
-                                                         psp=load_psp(aluminium_primitive.psp_upf)), 1)))
+    using DFTK
+    Al = ElementPsp(:Al, load_psp(TestCases.aluminium_primitive.psp_upf))
+    aluminium_primitive = merge(TestCases.aluminium_primitive, (; atoms=[Al]))
+    model_LDA(args...; kwargs...) = model_DFT(args...; functionals=LDA(), kwargs...)
     @test_throws ErrorException test_frequencies(model_LDA, aluminium_primitive)
 end

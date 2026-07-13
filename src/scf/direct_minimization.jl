@@ -34,19 +34,21 @@ struct DMPreconditioner
     Nk::Int
     Pks::Vector # Pks[ik] is the preconditioner for k-point ik
     unpack::Function
+    kweights::Vector
 end
 function LinearAlgebra.ldiv!(p, P::DMPreconditioner, d)
     p_unpack = P.unpack(p)
     d_unpack = P.unpack(d)
     for ik = 1:P.Nk
         ldiv!(p_unpack[ik], P.Pks[ik], d_unpack[ik])
+        ldiv!(P.kweights[ik], p_unpack[ik])
     end
     p
 end
 function LinearAlgebra.dot(x, P::DMPreconditioner, y)
     x_unpack = P.unpack(x)
     y_unpack = P.unpack(y)
-    sum(dot(x_unpack[ik], P.Pks[ik], y_unpack[ik])
+    sum(dot(P.kweights[ik]*x_unpack[ik], P.Pks[ik], y_unpack[ik])
         for ik = 1:P.Nk)
 end
 function precondprep!(P::DMPreconditioner, x)
@@ -71,12 +73,19 @@ function direct_minimization(basis::PlaneWaveBasis{T};
                              prec_type=PreconditionerTPA,
                              callback=ScfDefaultCallback(),
                              optim_method=Optim.LBFGS,
+                             alphaguess=LineSearches.InitialStatic(),
                              linesearch=LineSearches.BackTracking(),
+                             seed=nothing,
                              kwargs...) where {T}
-    if mpi_nprocs() > 1
+    if mpi_nprocs(basis.comm_kpts) > 1
         # need synchronization in Optim
         error("Direct minimization with MPI is not supported yet")
     end
+    if any(needs_τ, basis.terms)
+        error("meta-GGA functionals not yet supported in direct optimization.")
+    end
+
+    seed = seed_task_local_rng!(seed, basis.comm_kpts)
     model = basis.model
     @assert iszero(model.temperature)  # temperature is not yet supported
     @assert isnothing(model.εF)        # neither are computations with fixed Fermi level
@@ -123,11 +132,10 @@ function direct_minimization(basis::PlaneWaveBasis{T};
         ts.iteration < 1 && return false
         converged        && return true
         ρout = compute_ρout(ψ, optim_state)
-        Δρ = ρout - ρ
-        push!(history_Δρ,   norm(Δρ) * sqrt(basis.dvol))
+        push!(history_Δρ,   norm(ρout - ρ) * sqrt(basis.dvol))
         push!(history_Etot, energies.total)
 
-        info = (; ham, basis, energies, occupation, ρout, ρin=ρ, ψ,
+        info = (; ham, basis, energies, occupation, ρ=ρout, ρin=ρ, ψ,
                 runtime_ns=time_ns() - start_ns, history_Δρ, history_Etot,
                 stage=:iterate, algorithm="DM", n_iter=ts.iteration, optim_state)
 
@@ -148,7 +156,7 @@ function direct_minimization(basis::PlaneWaveBasis{T};
             G = unsafe_unpack(G)
             for ik = 1:Nk
                 mul!(G[ik], ham.blocks[ik], ψ[ik])
-                G[ik] .*= 2*filled_occ
+                G[ik] .*= 2 * filled_occ * basis.kweights[ik]
             end
         end
         energies.total
@@ -156,14 +164,14 @@ function direct_minimization(basis::PlaneWaveBasis{T};
 
     manifold = DMManifold(Nk, unsafe_unpack)
     Pks = [prec_type(basis, kpt) for kpt in basis.kpoints]
-    P = DMPreconditioner(Nk, Pks, unsafe_unpack)
+    P = DMPreconditioner(Nk, Pks, unsafe_unpack, basis.kweights)
 
     optim_options = Optim.Options(; allow_f_increases=true,
                                   callback=optim_callback,
                                   # Disable convergence control by Optim
                                   x_tol=-1, f_tol=-1, g_tol=-1,
                                   iterations=maxiter, kwargs...)
-    optim_solver = optim_method(; P, precondprep=precondprep!, manifold, linesearch)
+    optim_solver = optim_method(; P, precondprep=precondprep!, manifold, linesearch, alphaguess)
     ψ_packed = pack(ψ)
     objective = OnceDifferentiable(Optim.only_fg!(fg!), ψ_packed, zero(T); inplace=true)
     optim_state = Optim.initial_state(optim_solver, optim_options, objective, ψ_packed)
@@ -185,7 +193,7 @@ function direct_minimization(basis::PlaneWaveBasis{T};
     # We rely on the fact that the last point where fg! was called is the minimizer to
     # avoid recomputing at ψ
     info = (; ham, basis, energies, converged, ρ, eigenvalues, occupation, εF,
-            n_bands_converge=n_bands, n_iter=Optim.iterations(res),
+            n_bands_converge=n_bands, n_iter=Optim.iterations(res), seed,
             runtime_ns=time_ns() - start_ns, history_Δρ, history_Etot,
             ψ, stage=:finalize, algorithm="DM", optim_res=res)
     callback(info)

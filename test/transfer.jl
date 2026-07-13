@@ -7,10 +7,9 @@
     tol = 1e-7
     Ecut = 5
 
-    model  = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
-    kgrid  = [2, 2, 2]
-    kshift = [1, 1, 1] / 2
-    basis  = PlaneWaveBasis(model; Ecut, kgrid, kshift)
+    model  = model_DFT(silicon.lattice, silicon.atoms, silicon.positions; functionals=LDA())
+    kgrid  = MonkhorstPack([2, 2, 2]; kshift=[1, 1, 1] / 2)
+    basis  = PlaneWaveBasis(model; Ecut, kgrid)
 
     ψ = self_consistent_field(basis; tol, callback=identity).ψ
 
@@ -18,7 +17,7 @@
 
     # Transfer to bigger basis then same basis (both interpolations are
     # tested then)
-    bigger_basis = PlaneWaveBasis(model; Ecut=(Ecut + 5), kgrid, kshift)
+    bigger_basis = PlaneWaveBasis(model; Ecut=(Ecut + 5), kgrid)
     ψ_b  = transfer_blochwave(ψ, basis, bigger_basis)
     ψ_bb = transfer_blochwave(ψ_b, bigger_basis, basis)
     @test norm(ψ - ψ_bb) < eps(eltype(basis))
@@ -37,13 +36,13 @@
     @test all(M -> M ≈ M*M, TTᵇ)
 
     # Transfer between same basis (not very useful, but is worth testing)
-    bigger_basis = PlaneWaveBasis(model; Ecut, kgrid, kshift)
+    bigger_basis = PlaneWaveBasis(model; Ecut, kgrid)
     ψ_b = transfer_blochwave(ψ, basis, bigger_basis)
     ψ_bb = transfer_blochwave(ψ_b, bigger_basis, basis)
     @test norm(ψ-ψ_bb) < eps(eltype(basis))
 end
 
-@testitem "Transfer of density" begin
+@testitem "Transfer of density" tags=[:dont_test_mpi] begin
     using DFTK
     using DFTK: transfer_density
     using LinearAlgebra

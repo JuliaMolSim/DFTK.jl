@@ -65,36 +65,69 @@ end
 _is_well_conditioned(A; tol=1e5) = (cond(A) <= tol)
 
 """
-    Model(lattice, atoms, positions; n_electrons, magnetic_moments, terms, temperature,
-          smearing, spin_polarization, symmetries)
+    Model(lattice, atoms, positions; model_name, εF, n_electrons,
+                disable_electrostatics_check, magnetic_moments, terms,
+                temperature, smearing, spin_polarization, symmetries)
 
 Creates the physical specification of a model (without any discretization information).
+See also [`Model(system::AbstractSystem; kwargs...)`](@ref) for an AtomsBase-compatible
+constructor.
 
-`n_electrons` is taken from `atoms` if not specified.
+The `Model` represents the model system through its geometry (lattice, atomic positions),
+electronic structure (number of electrons, spin polarization), and physical terms
+(kinetic energy, external potentials, Hartree, exchange-correlation, etc.). 
+It does not include discretization parameters; those are set separately when constructing
+a [`PlaneWaveBasis`](@ref) from a `Model`.
 
-`spin_polarization` is :none by default (paired electrons)
-unless any of the elements has a non-zero initial magnetic moment.
-In this case the spin_polarization will be :collinear.
+## Arguments
+- `lattice::AbstractMatrix`: Lattice vectors given column-wise (atomic units by default).
+    Alternatively, a matrix of `Unitful.Quantity` can be provided,
+    which is then converted to atomic units automatically.
+- `atoms::Vector{<:Element}`: Atomic species (may include pseudopotential metadata).
+- `positions::Vector{Vec3}`: Atomic positions in fractional (reduced) coordinates.
 
-`magnetic_moments` is only used to determine the symmetry and the
-`spin_polarization`; it is not stored inside the datastructure.
+## Keyword arguments
+- `n_electrons::Int` (default: inferred from `atoms`): Total electron count.
+- `magnetic_moments` (default: `[]`): Per-atom initial magnetic moments used to infer
+    `spin_polarization` and to determine symmetries. These values influence model setup
+    but are otherwise not stored on the `Model`.
+- `terms::Vector` (default: `[Kinetic()]`): List of energy term types to include in the
+    Hamiltonian.
+- `temperature::Real` (default: `0`): Electronic temperature.
+    If `> 0`, fractional occupations are enabled and `smearing` defaults to
+    [`Smearing.FermiDirac`](@ref)().
+- `smearing::Smearing.SmearingFunction` (default: `FermiDirac()` when `temperature>0`,
+    else `None()`):
+    Smearing function used to compute occupations from Kohn-Sham eigenvalues.
+- `spin_polarization::Symbol` (default: `determine_spin_polarization(magnetic_moments)`):
+    Controls spin treatment; allowed values are `:none`, `:collinear`, `:spinless`.
+- `symmetries` (default: `true`):
+    - `true`: run automatic symmetry detection with [`default_symmetries`](@ref).
+    - `false`: disable all symmetries.
+    - `::Vector{SymOp}`: use the provided explicit symmetry operations. Passing incorrect
+        symmetries may produce wrong results.
 
-`smearing` is Fermi-Dirac if `temperature` is non-zero, none otherwise
+## Keyword arguments (Expert level)
+- `model_name::String` (default: "custom"): Human-readable model name (e.g. "LDA", "PBE").
+- `εF` (default: `nothing`): Fixed Fermi level option. If set, the model is defined at fixed
+    Fermi level instead of fixed electron count. Mutually exclusive with `n_electrons`.
 
-The `symmetries` kwarg allows (a) to pass `true` / `false` to enable / disable
-the automatic determination of lattice symmetries or (b) to pass an explicit list
-of symmetry operations to use for lowering the computational effort.
-The default behaviour is equal to `true`, namely that the code checks the
-specified model in form of the Hamiltonian `terms`, `lattice`, `atoms` and `magnetic_moments`
-parameters and from these automatically determines a set of symmetries it can safely use.
-If you want to pass custom symmetry operations (e.g. a reduced or extended set) use the
-`symmetry_operations` function. Notice that this may lead to wrong results if e.g. the
-external potential breaks some of the passed symmetries. Use `false` to turn off
-symmetries completely.
+## Notes
+- `magnetic_moments` are used only to determine `spin_polarization` and symmetries,
+    but are otherwise not stored on the `Model`.
+- The constructor validates consistency between `εF` and `n_electrons` and will error if
+    both are supplied.
+- Lattice conditioning is checked and a warning is issued for poorly conditioned lattices
+    (high matrix condition number).
+
+## See also
+- [`Model(system::AbstractSystem; kwargs...)`](@ref)
+- [Data structures](@ref)
+- [`PlaneWaveBasis`](@ref), [`self_consistent_field`](@ref)
 """
-function Model(lattice::AbstractMatrix{T},
+function Model(lattice::AbstractMatrix{Tstatic},
                atoms::Vector{<:Element}=Element[],
-               positions::Vector{<:AbstractVector}=Vec3{T}[];
+               positions::Vector{<:AbstractVector}=Vec3{Tstatic}[];
                model_name="custom",
                εF=nothing,
                n_electrons::Union{Int,Nothing}=isnothing(εF) ?
@@ -102,14 +135,17 @@ function Model(lattice::AbstractMatrix{T},
                # Force electrostatics with non-neutral cells; results not guaranteed.
                # Set to `true` by default for charged systems.
                disable_electrostatics_check=all(iszero, charge_ionic.(atoms)),
-               magnetic_moments=T[],
+               magnetic_moments=Tstatic[],
                terms=[Kinetic()],
-               temperature=zero(T),
+               temperature=zero(Tstatic),
                smearing=temperature > 0 ? Smearing.FermiDirac() : Smearing.None(),
                spin_polarization=determine_spin_polarization(magnetic_moments),
                symmetries=default_symmetries(lattice, atoms, positions, magnetic_moments,
                                              spin_polarization, terms),
-               ) where {T <: Real}
+               ) where {Tstatic <: Real}
+    # # a bit convoluted because kwargs can't determine type parameters
+    T = promote_type(Tstatic, typeof(temperature))
+
     # Validate εF and n_electrons
     if !isnothing(εF)  # fixed Fermi level
         if !isnothing(n_electrons)
@@ -130,7 +166,7 @@ function Model(lattice::AbstractMatrix{T},
         error("Length of atoms and positions vectors need to agree.")
     end
     isempty(terms) && error("Model without terms not supported.")
-    atom_groups = [findall(Ref(pot) .== atoms) for pot in Set(atoms)]
+    atom_groups = [findall(Ref(pot) .== atoms) for pot in unique(atoms)]
 
     # Special handling of 1D and 2D systems, and sanity checks
     lattice = Mat3{T}(lattice)
@@ -196,36 +232,69 @@ end
 
 AtomsBase-compatible Model constructor. Sets structural information (`atoms`, `positions`,
 `lattice`, `n_electrons` etc.) from the passed `system`.
+
+## Keyword arguments
+- `pseudopotentials`: Set the pseudopotential information for the atoms
+   of the passed system. Can be (a) a list of pseudopotential objects
+   (one for each atom), where a `nothing` element indicates that the
+   Coulomb potential should be used for that atom or (b)
+   a `PseudoPotentialData.PseudoFamily` to automatically determine the
+   pseudopotential from the specified pseudo family or (c)
+   a `Dict{Symbol,String}` mapping an atomic symbol
+   to the pseudopotential to be employed.
+- `kwargs...`: Additional keyword arguments passed to the main
+   [`Model(::AbstractMatrix, ::Vector, ::Vector)`](@ref) constructor.
 """
-function Model(system::AbstractSystem; kwargs...)
-    @assert !(:magnetic_moments in keys(kwargs))
-    parsed = parse_system(system)
-    Model(parsed.lattice, parsed.atoms, parsed.positions; parsed.magnetic_moments, kwargs...)
+function Model(system::AbstractSystem;
+               pseudopotentials=fill(nothing, length(system)), kwargs...)
+    parsed = parse_system(system, pseudopotentials)
+    Model(parsed.lattice, parsed.atoms, parsed.positions;
+          parsed.magnetic_moments, kwargs...)
 end
 
 """
     Model(model; [lattice, positions, atoms, kwargs...])
     Model{T}(model; [lattice, positions, atoms, kwargs...])
 
-Construct an identical model to `model` with the option to change some of the contained
-parameters. This constructor is useful for changing the data type in the model
-or for changing `lattice` or `positions` in geometry/lattice optimisations.
+Construct an identical model to `model` with the option to change some of
+the contained parameters. This constructor is useful for changing the data
+type in the model or for changing `lattice` or `positions` in
+geometry/lattice optimisations.
+
+!!! warning "Symmetries need to be updated manually."
+    Unless a `symmetries` keyword argument is given
+    this constructor copies the symmetries from `model`.
+    This means if you update the `positions`, `lattice`, `atoms`
+    or `terms` in a way that they *break* some of the original symmetries,
+    you should either also supply matching `symmetries` or specify
+    `symmetries=true`, which will re-determine the symmetries corresponding
+    to the new structure. In the case of spin do also re-supply the
+    appropriate `magnetic_moments` of the atoms.
+
+    This behaviour is slated to change in an upcoming breaking release.
 """
 function Model{T}(model::Model;
                   lattice::AbstractMatrix=model.lattice,
                   positions::Vector{<:AbstractVector}=model.positions,
                   atoms::Vector{<:Element}=model.atoms,
+                  symmetries=model.symmetries,
+                  magnetic_moments=T[],
                   kwargs...) where {T <: Real}
+    # TODO In an upcoming breaking release come up with a way to store the symmetry-equivalent
+    #      atoms in the model (including the effect magnetic moments), such that if the atoms
+    #      do not change (the usual case) the default symmetry determination routine can still
+    #      work with updated positions without the need to re-provide the magnetic_moments.
+
     Model(T.(lattice), atoms, positions;
           model.model_name,
           model.n_electrons,
-          magnetic_moments=[],  # not used because symmetries explicitly given
+          magnetic_moments=T.(magnetic_moments),
           terms=model.term_types,
-          model.temperature,
+          temperature=T(model.temperature),
           model.smearing,
           model.εF,
           model.spin_polarization,
-          model.symmetries,
+          symmetries,
           # Can be safely disabled: this has been checked for model
           disable_electrostatics_check=true,
           kwargs...
@@ -252,8 +321,9 @@ n_electrons_from_atoms(atoms) = sum(n_elec_valence, atoms; init=0)
 """
 Default logic to determine the symmetry operations to be used in the model.
 """
-function default_symmetries(lattice, atoms, positions, magnetic_moments, spin_polarization,
-                            terms; tol_symmetry=SYMMETRY_TOLERANCE)
+function default_symmetries(lattice, atoms, positions, magnetic_moments,
+                            spin_polarization, terms;
+                            tol_symmetry=SYMMETRY_TOLERANCE)
     dimension = count(!iszero, eachcol(lattice))
     if spin_polarization == :full || dimension != 3
         return [one(SymOp)]  # Symmetry not supported in spglib

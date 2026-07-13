@@ -11,7 +11,7 @@ Base.@kwdef struct Ewald
 end
 (ewald::Ewald)(basis) = TermEwald(basis; η=something(ewald.η, default_η(basis.model.lattice)))
 
-struct TermEwald{T} <: Term
+struct TermEwald{T} <: TermLinear
     energy::T                # precomputed energy
     forces::Vector{Vec3{T}}  # and forces
     η::T                     # Parameter used for the splitting
@@ -79,7 +79,6 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
     # we assume that we are not interested in the Ewald
     # energy of non-3D systems
     any(iszero.(eachcol(lattice))) && return (; energy=zero(T), forces=zero(positions))
-
 
     # Numerical cutoffs to obtain meaningful contributions. These are very conservative.
     # The largest argument to the exp(-x) function

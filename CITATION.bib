@@ -3,7 +3,7 @@
   author = {Herbst, Michael F. and Levitt, Antoine and Cancès, Eric},
   doi = {10.21105/jcon.00069},
   journal = {Proc. JuliaCon Conf.},
-  title = {DFTK: A Julian approach for simulating electrons in solids},
+  title = {{DFTK}: A {Julian} approach for simulating electrons in solids},
   volume = {3},
   pages = {69},
   year = {2021},
@@ -11,19 +11,37 @@
 
 % Paper describing the calculation of response properties in DFTK.
 % Used for forward-diff derivatives, `solve_ΩplusK_split` and `apply_χ0` functions.
-@unpublished{ResponseCalculations,
-  author = {Cancès, Eric and Herbst, Michael F. and Kemlin, Gaspard and Levitt, Antoine and Stamm, Benjamin},
-  title = {Numerical Stability and Efficiency of Response Property Calculations in Density Functional Theory},
-  year = {Submitted},
-  note = {https://arxiv.org/abs/2210.04512},
+@article{ResponseCalculations,
+  author={Canc{\`e}s, Eric and Herbst, Michael F and Kemlin, Gaspard and Levitt, Antoine and Stamm, Benjamin},
+  title={Numerical stability and efficiency of response property calculations in density functional theory},
+  journal={Letters in Mathematical Physics},
+  volume={113},
+  number={1},
+  pages={21},
+  year={2023},
+  publisher={Springer}
+}
+
+% Paper describing the inexact Krylov algorithm used in the `solve_ΩplusK_split` response calculation
+@misc{InexactKrylovResponse,
+  title={Efficient {Krylov} methods for linear response in plane-wave electronic structure calculations},
+  author={Michael F. Herbst and Bonan Sun},
+  year={2025},
+  eprint={2505.02319},
+  archivePrefix={arXiv},
+  primaryClass={math.NA},
+  url={https://arxiv.org/abs/2505.02319},
 }
 
 % Paper describing the energy cutoff smearing method `BlowupCHV`
-@unpublished{BlowupCHV,
-  author = {Cancès, Eric and Hassan, Muhammad and Vidal, Laurent Vidal},
-  title = {Modified-Operator Method for the Calculation of Band Diagrams of Crystalline Materials},
-  year = {Submitted},
-  note = {https://arxiv.org/abs/2210.00442},
+@article{BlowupCHV,
+  author={Canc{\`e}s, Eric and Hassan, Muhammad and Vidal, Laurent},
+  title={Modified-operator method for the calculation of band diagrams of crystalline materials},
+  journal={Mathematics of Computation},
+  volume={93},
+  number={347},
+  pages={1203--1245},
+  year={2024}
 }
 
 % Paper describing the adaptive damping strategy implemented by
@@ -48,4 +66,18 @@
   volume = {33},
   pages = {085503},
   year = {2021},
+}
+
+% Paper describing the ForwardDiff AD-DFPT framework available in DFTK
+@article{Schmitz2025addfpt,
+  author = {Schmitz, Niklas Frederik and Ploumhans, Bruno and Herbst, Michael F.},
+  doi = {10.1038/s41524-025-01880-3},
+  journal = {npj Computational Materials},
+  title = {Algorithmic differentiation for plane-wave DFT: materials design, error control and learning model parameters},
+  year = {2025},
+  month = {Dec},
+  day = {04},
+  volume = {12},
+  number = {1},
+  pages  = {6},
 }

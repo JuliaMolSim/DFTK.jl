@@ -1,5 +1,6 @@
-@testsetup module SiliconLDA
+@testmodule SiliconLDA begin
 using DFTK
+using PseudoPotentialData
 using ..RunSCF: run_scf_and_compare
 using ..TestCases: silicon
 
@@ -18,7 +19,7 @@ function run_silicon_lda(T; Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     ]
     ref_etot = -7.911817522631488
 
-    Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/lda/si-q4"))
+    Si = ElementPsp(silicon.atnum, PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"))
     atoms = [Si, Si]
 
     if spin_polarization == :collinear
@@ -26,8 +27,8 @@ function run_silicon_lda(T; Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     else
         magnetic_moments = []
     end
-    model = model_DFT(silicon.lattice, atoms, silicon.positions, [:lda_x, :lda_c_vwn];
-                      spin_polarization, magnetic_moments)
+    model = model_DFT(silicon.lattice, atoms, silicon.positions;
+                      functionals=[:lda_x, :lda_c_vwn], spin_polarization, magnetic_moments)
     model = convert(Model{T}, model)
     basis = PlaneWaveBasis(model; Ecut, silicon.kgrid, fft_size=fill(grid_size, 3) )
 

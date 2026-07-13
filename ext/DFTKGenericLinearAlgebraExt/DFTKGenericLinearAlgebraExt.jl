@@ -39,9 +39,8 @@ function DFTK.build_fft_plans!(tmp::AbstractArray{<:Complex})
     # opBFFT = inv(opFFT).p
     opFFT  = generic_plan_fft(tmp)               # Fallback for now
     opBFFT = generic_plan_bfft(tmp)
-    # TODO Can be cut once FourierTransforms supports AbstractFFTs properly
-    ipFFT  = DummyInplace{typeof(opFFT)}(opFFT)
-    ipBFFT = DummyInplace{typeof(opBFFT)}(opBFFT)
+    ipFFT  = DummyInplace(opFFT)
+    ipBFFT = DummyInplace(opBFFT)
 
     ipFFT, opFFT, ipBFFT, opBFFT
 end
@@ -51,7 +50,7 @@ struct GenericPlan{T}
     factor::T
 end
 
-function Base.:*(p::GenericPlan, X::AbstractArray)
+function Base.:*(p::GenericPlan, X::AbstractArray{T, 3}) where {T}
     pl1, pl2, pl3 = p.subplans
     ret = similar(X)
     for i = 1:size(X, 1), j = 1:size(X, 2)
@@ -66,7 +65,7 @@ function Base.:*(p::GenericPlan, X::AbstractArray)
     p.factor .* ret
 end
 
-LinearAlgebra.mul!(Y, p::GenericPlan, X) = Y .= p * X
+LinearAlgebra.mul!(Y,  p::GenericPlan, X) = Y .= p * X
 LinearAlgebra.ldiv!(Y, p::GenericPlan, X) = Y .= p \ X
 
 length(p::GenericPlan) = prod(length, p.subplans)

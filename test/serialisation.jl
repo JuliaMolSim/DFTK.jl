@@ -1,6 +1,7 @@
-@testsetup module ScfresAgreement
-using Test
+@testmodule ScfresAgreement begin
+using AtomsBase
 using DFTK
+using Test
 
 function test_scfres_agreement(tested, ref; test_ψ=true)
     @test tested.basis.model.lattice           == ref.basis.model.lattice
@@ -11,7 +12,7 @@ function test_scfres_agreement(tested, ref; test_ψ=true)
     @test tested.basis.model.spin_polarization == ref.basis.model.spin_polarization
 
     @test tested.basis.model.positions == ref.basis.model.positions
-    @test atomic_symbol.(tested.basis.model.atoms) == atomic_symbol.(ref.basis.model.atoms)
+    @test species.(tested.basis.model.atoms) == species.(ref.basis.model.atoms)
 
     @test tested.basis.Ecut      == ref.basis.Ecut
     @test tested.basis.kweights  == ref.basis.kweights
@@ -31,33 +32,40 @@ function test_scfres_agreement(tested, ref; test_ψ=true)
     @test tested.occupation     == ref.occupation
     @test tested.ρ              ≈  ref.ρ rtol=1e-14
 
+    if isnothing(tested.τ)
+        @test isnothing(ref.τ)
+    else
+        @test tested.τ ≈  ref.τ rtol=1e-14
+    end
     if test_ψ
         @test tested.ψ == ref.ψ
     end
+
+    @test tested.seed == ref.seed
 end
 end
 
 @testitem "SCF checkpointing" setup=[ScfresAgreement, TestCases] tags=[:serialisation] begin
     using DFTK
-    using DFTK: ScfDefaultCallback, ScfSaveCheckpoints
+    using DFTK: ScfDefaultCallback, ScfSaveCheckpoints, mpi_bcast
     using JLD2  # needed for ScfSaveCheckpoints
     using MPI
     using LinearAlgebra
     o2molecule = TestCases.o2molecule
 
     magnetic_moments = [1., 1.]
-    model = model_PBE(o2molecule.lattice, o2molecule.atoms, o2molecule.positions;
-                      temperature=0.02, smearing=Smearing.Gaussian(),
+    model = model_DFT(o2molecule.lattice, o2molecule.atoms, o2molecule.positions;
+                      functionals=PBE(), temperature=0.02, smearing=Smearing.Gaussian(),
                       magnetic_moments, symmetries=false)
 
-    kgrid = [1, mpi_nprocs(), 1]   # Ensure at least 1 kpt per process
+    kgrid = [1, mpi_nprocs(MPI.COMM_WORLD), 1]   # Ensure at least 1 kpt per process
     basis  = PlaneWaveBasis(model; Ecut=4, kgrid)
     ρ = guess_density(basis, magnetic_moments)
 
     # Run SCF and do checkpointing along the way
     mktempdir() do tmpdir
         filename = joinpath(tmpdir, "scfres.jld2")
-        filename = MPI.bcast(filename, 0, MPI.COMM_WORLD)  # master -> everyone
+        filename = mpi_bcast(filename, 0, MPI.COMM_WORLD)  # master -> everyone
         kwargs = kwargs_scf_checkpoints(basis; filename, ρ)
         nbandsalg = FixedBands(; n_bands_converge=20)
         scfres = self_consistent_field(basis; tol=1e-2, nbandsalg, kwargs...)
@@ -74,16 +82,17 @@ end
 @testitem "Serialisation" setup=[ScfresAgreement, DictAgreement, TestCases] #=
                        =# tags=[:serialisation] begin
     using DFTK
+    using DFTK: mpi_bcast
     using JLD2
     using JSON3
-    using MPI
     using Test
     using WriteVTK
     testcase = TestCases.silicon
 
     function test_serialisation(testcase, label; modelargs=(; ),
                                 basisargs=(; Ecut=5, kgrid=(2, 3, 4)))
-        model = model_LDA(testcase.lattice, testcase.atoms, testcase.positions; modelargs...)
+        model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                          functionals=LDA(), modelargs...)
 
         basis = PlaneWaveBasis(model; basisargs...)
         nbandsalg = FixedBands(; n_bands_converge=20)
@@ -94,7 +103,7 @@ end
 
         @testset "JLD2 ($label)" begin
             mktempdir() do tmpdir
-                dumpfile = MPI.bcast(joinpath(tmpdir, "scfres.jld2"), 0, MPI.COMM_WORLD)
+                dumpfile = mpi_bcast(joinpath(tmpdir, "scfres.jld2"), 0, basis.comm_kpts)
                 save_scfres(dumpfile, scfres)
                 @test isfile(dumpfile)
                 ScfresAgreement.test_scfres_agreement(scfres, load_scfres(dumpfile))
@@ -104,7 +113,7 @@ end
 
         @testset "VTK ($label)" begin
             mktempdir() do tmpdir
-                dumpfile = MPI.bcast(joinpath(tmpdir, "scfres.vts"), 0, MPI.COMM_WORLD)
+                dumpfile = mpi_bcast(joinpath(tmpdir, "scfres.vts"), 0, basis.comm_kpts)
                 save_scfres(dumpfile, scfres; save_ψ=true)
                 @test isfile(dumpfile)
             end
@@ -112,8 +121,8 @@ end
 
         @testset "JSON ($label)" begin
             mktempdir() do tmpdir
-                dumpfile = MPI.bcast(joinpath(tmpdir, "scfres.json"), 0, MPI.COMM_WORLD)
-                save_scfres(dumpfile, scfres)
+                dumpfile = mpi_bcast(joinpath(tmpdir, "scfres.json"), 0, basis.comm_kpts)
+                save_scfres(dumpfile, scfres; save_ρ=true)
                 @test isfile(dumpfile)
                 data = open(JSON3.read, dumpfile)  # Get data back as dict
                 DictAgreement.test_agreement_scfres(scfres, data;

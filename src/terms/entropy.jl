@@ -23,6 +23,9 @@ function ene_ops(term::TermEntropy, basis::PlaneWaveBasis{T}, ψ, occupation;
     !(:eigenvalues in keys(kwargs)) && return (; E=T(Inf), ops)
     εF = kwargs[:εF]
     eigenvalues = kwargs[:eigenvalues]
+    if isnothing(εF) || isnothing(eigenvalues)
+        return (; E=T(Inf), ops)
+    end
 
     E = zero(T)
     for (ik, k) in enumerate(basis.kpoints)
@@ -37,3 +40,5 @@ function ene_ops(term::TermEntropy, basis::PlaneWaveBasis{T}, ψ, occupation;
 
     (; E, ops)
 end
+compute_kernel(term::TermEntropy, basis::AbstractBasis; kwargs...) = nothing
+apply_kernel(term::TermEntropy, basis::AbstractBasis, δρ; kwargs...) = nothing

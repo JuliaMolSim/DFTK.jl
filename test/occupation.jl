@@ -1,19 +1,18 @@
-@testsetup module Occupation
-using DFTK
+@testmodule Occupation begin
+    using DFTK
 
-smearing_methods = (
-    DFTK.Smearing.None(),
-    DFTK.Smearing.FermiDirac(),
-    DFTK.Smearing.Gaussian(),
-    DFTK.Smearing.MarzariVanderbilt(),
-    DFTK.Smearing.MethfesselPaxton.(1:4)...
-)
-fermialgs = (
-    FermiBisection(),
-    FermiTwoStage(),
-)
+    smearing_methods = (
+        DFTK.Smearing.None(),
+        DFTK.Smearing.FermiDirac(),
+        DFTK.Smearing.Gaussian(),
+        DFTK.Smearing.MarzariVanderbilt(),
+        DFTK.Smearing.MethfesselPaxton.(1:4)...
+    )
+    fermialgs = (
+        FermiBisection(),
+        FermiTwoStage(),
+    )
 end
-
 
 @testitem "Smearing functions" setup=[Occupation] begin
     using DFTK
@@ -34,7 +33,7 @@ end
 end
 
 @testitem "Smearing for insulators" tags=[:dont_test_mpi] setup=[Occupation, TestCases] begin
-    using DFTK: FermiZeroTemperature
+    using DFTK
     using Logging
     silicon = TestCases.silicon
 
@@ -54,14 +53,16 @@ end
     εLUMO = minimum(eigenvalues[ik][n_occ + 1] for ik = 1:n_k)
 
     # Occupation for zero temperature
-    occupation0 = let
+    occupation0, εF0 = let
         model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                       temperature=0.0, terms=[Kinetic()])
         basis = PlaneWaveBasis(model; Ecut, silicon.kgrid, fft_size)
-        occupation, εF = DFTK.compute_occupation(basis, eigenvalues, FermiZeroTemperature())
+        (; occupation, εF) = DFTK.compute_occupation(basis, eigenvalues, DFTK.FermiZeroTemperature())
         @test εHOMO < εF < εLUMO
         @test DFTK.weighted_ksum(basis, sum.(occupation)) ≈ model.n_electrons
-        occupation
+        @test (εHOMO + εLUMO)/2 ≈ εF
+
+        occupation, εF
     end
 
     # See that the electron count still works if we add temperature
@@ -70,10 +71,11 @@ end
         model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                       temperature, smearing, terms=[Kinetic()])
         basis = PlaneWaveBasis(model; Ecut, silicon.kgrid, fft_size)
-        occs = with_logger(NullLogger()) do
-            DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-12).occupation
+        (; occupation, εF) = with_logger(NullLogger()) do
+            DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-12)
         end
-        @test sum(basis.kweights .* sum.(occs)) ≈ model.n_electrons
+        @test εHOMO < εF < εLUMO
+        @test sum(basis.kweights .* sum.(occupation)) ≈ model.n_electrons
     end
 
     # See that the occupation is largely uneffected with only a bit of temperature
@@ -82,8 +84,9 @@ end
         model = Model(silicon.lattice, silicon.atoms, silicon.positions;
                       temperature, smearing, terms=[Kinetic()])
         basis = PlaneWaveBasis(model; Ecut, silicon.kgrid, fft_size)
-        (; occupation) = DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-6)
+        (; εF, occupation) = DFTK.compute_occupation(basis, eigenvalues, alg; tol_n_elec=1e-6)
 
+        @test εF ≈ εF0
         for ik = 1:n_k
             @test all(isapprox.(occupation[ik], occupation0[ik]; atol=1e-2))
         end
@@ -91,7 +94,7 @@ end
 end
 
 @testitem "Smearing for a simple metal" #=
-    =#    tags=[:dont_test_mpi] setup=[Occupation, TestCases] begin
+    =#    tags=[:dont_test_mpi, :minimal] setup=[Occupation, TestCases] begin
     using DFTK
     using Logging
     (; silicon, magnesium) = TestCases.all_testcases
@@ -99,7 +102,7 @@ end
     # Note: Mixture of silicon and magnesium is on purpose
     model = Model(silicon.lattice, magnesium.atoms, magnesium.positions;
                   n_electrons=magnesium.n_electrons, temperature=1e-2, terms=[Kinetic()])
-    basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 3, 4], kshift=[1, 0, 1]/2)
+    basis = PlaneWaveBasis(model; Ecut=5, kgrid=MonkhorstPack([2, 3, 4], kshift=[1, 0, 1]/2))
 
     # Emulate a metal ...
     eigenvalues = [[-0.08063210585291,  0.11227915155236, 0.13057816014162, 0.57672256037074],
@@ -135,7 +138,7 @@ end
 end
 
 @testitem "Fermi level finding for smearing multiple εF" #=
-    =#    tags=[:dont_test_mpi] setup=[Occupation, TestCases] begin
+    =#    tags=[:dont_test_mpi, :minimal] setup=[Occupation, TestCases] begin
     using DFTK
     using Logging
     iron_bcc = TestCases.iron_bcc
@@ -200,8 +203,9 @@ end
     testcase = TestCases.iron_bcc
 
     magnetic_moments = [4.0]
-    model = model_PBE(testcase.lattice, testcase.atoms, testcase.positions;
-                      temperature=1e-2, smearing=Smearing.Gaussian(), magnetic_moments)
+    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                      functionals=PBE(), temperature=1e-2,
+                      smearing=Smearing.Gaussian(), magnetic_moments)
     basis = PlaneWaveBasis(model; Ecut=10, kgrid=[4, 4, 4])
     scfres = self_consistent_field(basis; ρ=guess_density(basis, magnetic_moments), tol=1e-4)
 
@@ -242,4 +246,74 @@ end
         εF > εF_ref && @test n_electrons > n_electrons_ref
         εF < εF_ref && @test n_electrons < n_electrons_ref
     end
+end
+
+@testitem "Occupied/empty orbitals definition" #=
+    =# tags=[:dont_test_mpi] setup=[Occupation, TestCases] begin
+    using DFTK
+    using Logging
+    silicon = TestCases.silicon
+
+    temperatures = [0.0, 0.0005]
+    threshold = 0.0
+
+    for smearing in Occupation.smearing_methods, temperature in temperatures
+        smearing isa DFTK.Smearing.None && continue
+
+        model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                          functionals=LDA(), temperature, smearing)
+        basis = PlaneWaveBasis(model; Ecut=5, kgrid=(2, 2, 2))
+        scfres = with_logger(NullLogger()) do
+            self_consistent_field(basis; maxiter=3, callback=identity)
+        end
+
+        # Eigenvalues are monotonically increasing (up to epsilon)
+        @test all(all(diff(εk) .≥ -eps(typeof(basis.Ecut))) for εk in scfres.eigenvalues)
+
+        (mask_occ, mask_empty) = DFTK.occupied_empty_masks(scfres.occupation, threshold)
+
+        # All orbitals are either occupied or empty
+        for ik = 1:length(basis.kpoints)
+            @test length(mask_occ[ik]) + length(mask_empty[ik]) == size(scfres.ψ[ik], 2)
+        end
+
+        # All empty orbitals have occupation below threshold
+        for ik = 1:length(basis.kpoints)
+            @test all(abs(scfres.occupation[ik][j]) ≤ threshold for j in mask_empty[ik])
+        end
+
+        # Only MethfesselPaxton smearing can have negative occupations
+        for ik = 1:length(basis.kpoints)
+            if any(scfres.occupation[ik] .< -threshold)
+                @test smearing isa DFTK.Smearing.MethfesselPaxton
+            end
+        end
+
+        # For all other smearings, all occupied orbitals have occupation above threshold
+        if !(smearing isa DFTK.Smearing.MethfesselPaxton)
+            for ik = 1:length(basis.kpoints)
+                @test all(scfres.occupation[ik][j] ≥ threshold for j in mask_occ[ik])
+            end
+        end
+    end
+
+    # Special test specifically triggering case of occupied oribitals with occupations
+    # below threshold (oscillations of MethfesselPaxton smearing). If occupations are
+    # not carefully calculated, i.e. the last element with abs(occ) > threshold marks the
+    # boundary, some occupied orbitals can be classified as empty.
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                      functionals=LDA(), temperature=0.8,
+                      smearing=DFTK.Smearing.MethfesselPaxton(3))
+    basis = PlaneWaveBasis(model; Ecut=10, kgrid=[2, 2, 2])
+    scfres = self_consistent_field(basis; tol=1e-2, callback=identity)
+    @test minimum(minimum, scfres.occupation) < -1e-2  # "real" negative occupation
+
+    custom_threshold = 0.01
+    (mask_occ, mask_empty) = DFTK.occupied_empty_masks(scfres.occupation, custom_threshold)
+
+    # All empty orbitals have occupation below threshold
+    for ik = 1:length(basis.kpoints)
+        @test all(abs(scfres.occupation[ik][j]) ≤ custom_threshold for j in mask_empty[ik])
+    end
+
 end

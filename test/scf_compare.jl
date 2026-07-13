@@ -1,11 +1,12 @@
 @testitem "Compare different SCF algorithms (no spin, no temperature)" #=
-    =#    tags=[:core] setup=[TestCases] begin
+    =#    tags=[:minimal] setup=[TestCases] begin
     using DFTK
     using DFTK: Applyχ0Model, select_occupied_orbitals
     silicon = TestCases.silicon
     tol = 1e-7
 
-    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions)
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                      functionals=LDA())
     basis = PlaneWaveBasis(model; Ecut=3, silicon.kgrid, fft_size=(9, 9, 9))
 
     # Run default solver without guess
@@ -13,7 +14,7 @@
     ρ_def = self_consistent_field(basis; ρ=ρ0, tol=tol/10).ρ
 
     # Run DM
-    if mpi_nprocs() == 1  # Distributed implementation not yet available
+    if mpi_nprocs(basis.comm_kpts) == 1  # Distributed implementation not yet available
         @testset "Direct minimization" begin
             ρ_dm = direct_minimization(basis; tol).ρ
             @test maximum(abs, ρ_dm - ρ_def) < 10tol
@@ -21,7 +22,7 @@
     end
 
     # Run Newton algorithm
-    if mpi_nprocs() == 1  # Distributed implementation not yet available
+    if mpi_nprocs(basis.comm_kpts) == 1  # Distributed implementation not yet available
         @testset "Newton" begin
             scfres_start = self_consistent_field(basis, maxiter=1)
             # remove virtual orbitals
@@ -33,7 +34,7 @@
 
     # Run other SCFs with SAD guess
     ρ0 = guess_density(basis)
-    for solver in (scf_anderson_solver(), scf_damping_solver(), scf_CROP_solver())
+    for solver in (scf_anderson_solver(), scf_damping_solver(damping=1.2))
         @testset "Testing $solver" begin
             ρ_alg = self_consistent_field(basis; ρ=ρ0, solver, tol).ρ
             @test maximum(abs, ρ_alg - ρ_def) < 50tol
@@ -62,14 +63,15 @@
 end
 
 @testitem "Compare different SCF algorithms (collinear spin, no temperature)" #=
-    =#    tags=[:core] setup=[TestCases] begin
+    =#    tags=[:minimal] setup=[TestCases] begin
     using DFTK
     using DFTK: Applyχ0Model, select_occupied_orbitals
     silicon = TestCases.silicon
     tol = 1e-7
 
     magnetic_moments = [1, 1]
-    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions; magnetic_moments)
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                      functionals=LDA(), magnetic_moments)
     basis = PlaneWaveBasis(model; Ecut=3, silicon.kgrid, fft_size=(9, 9, 9))
     ρ0    = guess_density(basis, magnetic_moments)
     ρ_def = self_consistent_field(basis; tol, ρ=ρ0).ρ
@@ -77,7 +79,7 @@ end
     (; ψ) = select_occupied_orbitals(basis, scfres_start.ψ, scfres_start.occupation)
 
     # Run DM
-    if mpi_nprocs() == 1  # Distributed implementation not yet available
+    if mpi_nprocs(basis.comm_kpts) == 1  # Distributed implementation not yet available
         @testset "Direct minimization" begin
             ρ_dm = direct_minimization(basis; ψ, tol).ρ
             @test maximum(abs.(ρ_dm - ρ_def)) < 10tol
@@ -85,7 +87,7 @@ end
     end
 
     # Run Newton algorithm
-    if mpi_nprocs() == 1  # Distributed implementation not yet available
+    if mpi_nprocs(basis.comm_kpts) == 1  # Distributed implementation not yet available
         @testset "Newton" begin
             ρ_newton = newton(basis, ψ; tol).ρ
             @test maximum(abs.(ρ_newton - ρ_def)) < 10tol
@@ -94,13 +96,13 @@ end
 end
 
 @testitem "Compare different SCF algorithms (no spin, temperature)" #=
-    =#    tags=[:core] setup=[TestCases] begin
+    =#    tags=[:minimal] setup=[TestCases] begin
     using DFTK
     silicon = TestCases.silicon
     tol = 1e-7
 
-    model = model_LDA(silicon.lattice, silicon.atoms, silicon.positions;
-                      temperature=0.01, smearing=Smearing.Gaussian())
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                      functionals=LDA(), temperature=0.01, smearing=Smearing.Gaussian())
     basis = PlaneWaveBasis(model; Ecut=3, silicon.kgrid, fft_size=(9, 9, 9))
 
     # Reference: Default algorithm
@@ -119,15 +121,16 @@ end
 
 
 @testitem "Compare different SCF algorithms (collinear spin, temperature)" #=
-    =#    tags=[:core] setup=[TestCases] begin
+    =#    tags=[:minimal] setup=[TestCases] begin
     using DFTK
     using DFTK: Applyχ0Model
     iron_bcc = TestCases.iron_bcc
     tol = 1e-7
 
     magnetic_moments = [4.0]
-    model = model_LDA(iron_bcc.lattice, iron_bcc.atoms, iron_bcc.positions;
-                      temperature=0.01, magnetic_moments, spin_polarization=:collinear)
+    model = model_DFT(iron_bcc.lattice, iron_bcc.atoms, iron_bcc.positions;
+                      functionals=LDA(), temperature=0.01, magnetic_moments,
+                      spin_polarization=:collinear)
     basis = PlaneWaveBasis(model; Ecut=11, fft_size=[13, 13, 13], kgrid=[3, 3, 3])
 
     # Reference: Default algorithm

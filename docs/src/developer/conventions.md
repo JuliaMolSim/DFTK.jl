@@ -116,5 +116,5 @@ This means for instance that wavefunctions in the real space grid are
 normalized as ``\frac{|\Omega|}{N} \sum_{r} |\psi(r)|^{2} = 1`` where
 ``N`` is the number of grid points
 and in reciprocal space its coefficients are ``\ell^{2}``-normalized,
-see the discussion in section [`PlaneWaveBasis` and plane-wave discretisations](@ref)
+see the discussion in section [Data structures](@ref)
 where this is demonstrated.

@@ -1,75 +1,5 @@
 using Statistics
 
-# Quick and dirty Anderson implementation ... lacks important things like
-# control of the condition number of the anderson matrix.
-# Not particularly optimised. Also should be moved to NLSolve ...
-#
-# Accelerates the iterative solution of f(x) = 0 according to a
-# damped preconditioned scheme
-#    xₙ₊₁ = xₙ + αₙ P⁻¹ f(xₙ)
-# Where f(x) computes the residual (e.g. SCF(x) - x)
-# Further define
-#    preconditioned residual  Pf(x) = P⁻¹ f(x)
-#    fixed-point map          g(x)  = V + α Pf(x)
-# where the α may vary between steps.
-#
-# Finds the linear combination xₙ₊₁ = g(xₙ) + ∑ᵢ βᵢ (g(xᵢ) - g(xₙ))
-# such that |Pf(xₙ) + ∑ᵢ βᵢ (Pf(xᵢ) - Pf(xₙ))|² is minimal
-struct AndersonAcceleration
-    m::Int                  # maximal history size
-    iterates::Vector{Any}   # xₙ
-    residuals::Vector{Any}  # Pf(xₙ)
-    maxcond::Real           # Maximal condition number for Anderson matrix
-end
-AndersonAcceleration(;m=10, maxcond=1e6) = AndersonAcceleration(m, [], [], maxcond)
-
-function Base.push!(anderson::AndersonAcceleration, xₙ, αₙ, Pfxₙ)
-    push!(anderson.iterates,  vec(xₙ))
-    push!(anderson.residuals, vec(Pfxₙ))
-    if length(anderson.iterates) > anderson.m
-        popfirst!(anderson.iterates)
-        popfirst!(anderson.residuals)
-    end
-    @assert length(anderson.iterates) <= anderson.m
-    @assert length(anderson.iterates) == length(anderson.residuals)
-    anderson
-end
-
-# Gets the current xₙ, Pf(xₙ) and damping αₙ
-function (anderson::AndersonAcceleration)(xₙ, αₙ, Pfxₙ)
-    xs   = anderson.iterates
-    Pfxs = anderson.residuals
-
-    # Special cases with fast exit
-    anderson.m == 0 && return xₙ .+ αₙ .* Pfxₙ
-    if isempty(xs)
-        push!(anderson, xₙ, αₙ, Pfxₙ)
-        return xₙ .+ αₙ .* Pfxₙ
-    end
-
-    M = stack(Pfxs) .- vec(Pfxₙ)  # Mᵢⱼ = (Pfxⱼ)ᵢ - (Pfxₙ)ᵢ
-    # We need to solve 0 = M' Pfxₙ + M'M βs <=> βs = - (M'M)⁻¹ M' Pfxₙ
-
-    # Ensure the condition number of M stays below maxcond, else prune the history
-    Mfac = qr(M)
-    while size(M, 2) > 1 && cond(Mfac.R) > anderson.maxcond
-        M = M[:, 2:end]  # Drop oldest entry in history
-        popfirst!(anderson.iterates)
-        popfirst!(anderson.residuals)
-        Mfac = qr(M)
-    end
-
-    xₙ₊₁ = vec(xₙ) .+ αₙ .* vec(Pfxₙ)
-    βs   = -(Mfac \ vec(Pfxₙ))
-    βs = to_cpu(βs)  # GPU computation only : get βs back on the CPU so we can iterate through it
-    for (iβ, β) in enumerate(βs)
-        xₙ₊₁ .+= β .* (xs[iβ] .- vec(xₙ) .+ αₙ .* (Pfxs[iβ] .- vec(Pfxₙ)))
-    end
-
-    push!(anderson, xₙ, αₙ, Pfxₙ)
-    reshape(xₙ₊₁, size(xₙ))
-end
-
 function ScfAcceptStepAll()
     accept_step(info, info_next) = true
 end
@@ -85,7 +15,8 @@ function ScfAcceptImprovingStep(;max_energy_change=1e-12, max_relative_residual=
 
         # Accept if energy goes down or residual decreases
         accept = energy_change < max_energy_change || relative_residual < max_relative_residual
-        mpi_master() && @debug "Step $(accept ? "accepted" : "discarded")" energy_change relative_residual
+        mpi_master(info.basis.comm_kpts)
+            @debug "Step $(accept ? "accepted" : "discarded")" energy_change relative_residual
         accept
     end
 end
@@ -100,11 +31,11 @@ function scf_damping_quadratic_model(info, info_next; modeltol=0.1)
     dvol  = info.basis.dvol
 
     Vin   = info.Vin
-    ρin   = info.ρout      # = ρ(Vin)
+    ρin   = info.ρ         # = ρ(Vin)
     Vout  = info.Vout      # = step(Vin), where step(V) = (Vext + Vhxc(ρ(V)))
     α0    = info_next.α
     Vnext = info_next.Vin  # = Vin + α0 * (Anderson(Vin, P⁻¹( Vout - Vin )) - Vin)
-    ρnext = info_next.ρout # = ρ(Vnext)
+    ρnext = info_next.ρ    # = ρ(Vnext)
     δρ    = ρnext - ρin
     # α0 * δV = α0 * (Vnext - Vin) = α0 * (Anderson(Vin, P⁻¹( Vout - Vin )) - Vin)
 
@@ -138,10 +69,10 @@ function scf_damping_quadratic_model(info, info_next; modeltol=0.1)
     # Accept model if it leads to minimum and is either tight or shows a negative slope
     α_model = -slope / curv
     if minimum_exists && (tight_model || (slope < -eps(T) && trusted_model))
-        mpi_master() && @debug "Quadratic model accepted" model_relerror slope curv α_model
+        mpi_master(info.basis.comm_kpts) && @debug "Quadratic model accepted" model_relerror slope curv α_model
         (α=α_model, relerror=model_relerror)
     else
-        mpi_master() && @debug "Quadratic model discarded" model_relerror slope curv α_model
+        mpi_master(info.basis.comm_kpts) && @debug "Quadratic model discarded" model_relerror slope curv α_model
         (α=nothing, relerror=model_relerror) # Model not trustworthy ...
     end
 end
@@ -222,6 +153,10 @@ trial_damping(damping::FixedDamping, args...) = damping.α
 
 # Notice: For adaptive damping to run smoothly, multiple defaults need to be changed.
 #         See the function scf_potential_mixing_adaptive for that use case.
+"""
+Simple SCF algorithm using potential mixing. Parameters are largely the same as
+[`self_consistent_field`](@ref).
+"""
 @timing function scf_potential_mixing(
     basis::PlaneWaveBasis;
     damping=FixedDamping(0.8),
@@ -241,16 +176,21 @@ trial_damping(damping::FixedDamping, args...) = damping.α
     acceleration=AndersonAcceleration(;m=10),
     accept_step=ScfAcceptStepAll(),
     max_backtracks=3,  # Maximal number of backtracking line searches
+    seed=nothing,
 )
     # TODO Test other mixings and lift this
     @assert (   mixing isa SimpleMixing
              || mixing isa KerkerMixing
              || mixing isa KerkerDosMixing)
     damping isa Number && (damping = FixedDamping(damping))
+    if any(needs_τ, basis.terms)
+        error("meta-GGA functionals not yet supported in scf_potential_mixing.")
+    end
 
     if !isnothing(ψ)
         @assert length(ψ) == length(basis.kpoints)
     end
+    seed = seed_task_local_rng!(seed, basis.comm_kpts)
 
     # Initial guess for V (if none given)
     ham = energy_hamiltonian(basis, nothing, nothing; ρ).ham
@@ -262,20 +202,18 @@ trial_damping(damping::FixedDamping, args...) = damping.α
         res_V = next_density(ham_V, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
                              occupation, miniter=diag_miniter, tol=diagtol)
         new_E, new_ham = energy_hamiltonian(basis, res_V.ψ, res_V.occupation;
-                                            ρ=res_V.ρout, eigenvalues=res_V.eigenvalues,
-                                            εF=res_V.εF)
+                                            res_V.ρ, res_V.eigenvalues, res_V.εF)
         (; basis, ham=new_ham, energies=new_E,
          Vin, Vout=total_local_potential(new_ham), res_V...)
     end
 
     n_iter    = 1
     converged = false
-    ΔEdown    = 0.0
     start_ns  = time_ns()
     α_trial   = trial_damping(damping)
     diagtol   = determine_diagtol(diagtolalg, (; ρin=ρ, Vin=V, n_iter))
     info      = EVρ(V; diagtol, ψ)
-    Pinv_δV   = mix_potential(mixing, basis, info.Vout - info.Vin; n_iter, info...)
+    Pinv_δV   = mix_potential(mixing, basis, info.Vout - info.Vin; ρin=ρ, n_iter, info...)
     info      = merge(info, (; α=NaN, diagonalization=[info.diagonalization], ρin=ρ,
                              n_iter, Pinv_δV))
     history_Etot = eltype(ρ)[]
@@ -283,11 +221,11 @@ trial_damping(damping::FixedDamping, args...) = damping.α
 
     while n_iter < maxiter
         push!(history_Etot, info.energies.total)
-        push!(history_Δρ,   norm(info.ρout - info.ρin) * sqrt(basis.dvol))
+        push!(history_Δρ,   norm(info.ρ - info.ρin) * sqrt(basis.dvol))
         info = merge(info, (; stage=:iterate, algorithm="SCF", converged,
                             runtime_ns=time_ns() - start_ns, history_Etot, history_Δρ))
         callback(info)
-        if MPI.bcast(is_converged(info), 0, MPI.COMM_WORLD)
+        if mpi_bcast(is_converged(info), 0, basis.comm_kpts)
             # TODO Debug why these MPI broadcasts are needed
             converged = true
             break
@@ -296,7 +234,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
         info = merge(info, (; n_iter, ))
 
         # Ensure same α on all processors
-        α_trial = MPI.bcast(α_trial, 0, MPI.COMM_WORLD)
+        α_trial = mpi_bcast(α_trial, 0, basis.comm_kpts)
         δV = (acceleration(info.Vin, α_trial, info.Pinv_δV) - info.Vin) / α_trial
 
         # Determine damping and take next step
@@ -308,18 +246,20 @@ trial_damping(damping::FixedDamping, args...) = damping.α
         info_next = info
         while n_backtrack ≤ max_backtracks
             diagtol = determine_diagtol(diagtolalg, info_next)
-            mpi_master() && @debug "Iteration $n_iter linesearch step $n_backtrack   α=$α diagtol=$diagtol"
+            if mpi_master(basis.comm_kpts)
+                @debug "Iteration $n_iter linesearch step $n_backtrack   α=$α diagtol=$diagtol"
+            end
             Vnext = info.Vin .+ α .* δV
 
             info_next    = EVρ(Vnext; ψ=guess, diagtol, info.eigenvalues, info.occupation)
             Pinv_δV_next = mix_potential(mixing, basis, info_next.Vout - info_next.Vin;
-                                         n_iter, info_next...)
+                                         ρin=info.ρ, n_iter, info_next...)
             push!(diagonalization, info_next.diagonalization)
-            info_next = merge(info_next, (; α, diagonalization, ρin=info.ρout, n_iter,
+            info_next = merge(info_next, (; α, diagonalization, ρin=info.ρ, n_iter,
                                           Pinv_δV=Pinv_δV_next, history_Δρ, history_Etot ))
 
             successful = accept_step(info, info_next)
-            successful = MPI.bcast(successful, 0, MPI.COMM_WORLD)  # Ensure same successful
+            successful = mpi_bcast(successful, 0, basis.comm_kpts)  # Ensure same successful
             if successful || n_backtrack ≥ max_backtracks
                 break
             end
@@ -327,7 +267,7 @@ trial_damping(damping::FixedDamping, args...) = damping.α
 
             # Adjust α to try again ...
             α_next = propose_backtrack_damping(damping, info, info_next)
-            α_next = MPI.bcast(α_next, 0, MPI.COMM_WORLD)  # Ensure same α on all processors
+            α_next = mpi_bcast(α_next, 0, basis.comm_kpts)  # Ensure same α on all processors
             if α_next == α  # Backtracking further not useful ...
                 break
             end
@@ -337,27 +277,27 @@ trial_damping(damping::FixedDamping, args...) = damping.α
             α = α_next
         end
 
-        # Switch off acceleration in case of very bad steps
-        ΔE = info_next.energies.total - info.energies.total
-        ΔE < 0 && (ΔEdown = -max(abs(ΔE), tol))
-
         # Update α_trial and commit the next state
         α_trial = trial_damping(damping, info, info_next, successful)
         info = info_next
     end
 
     ham  = hamiltonian_with_total_potential(ham, info.Vout)
-    info = (; ham, basis, info.energies, converged, ρ=info.ρout, info.eigenvalues,
+    info = (; ham, basis, info.energies, converged, info.ρ, info.eigenvalues,
             info.occupation, info.εF, n_iter, info.ψ, info.n_bands_converge,
             info.diagonalization, stage=:finalize, algorithm="SCF",
-            history_Δρ, history_Etot, info.occupation_threshold,
+            history_Δρ, history_Etot, info.occupation_threshold, seed,
             runtime_ns=time_ns() - start_ns)
     callback(info)
     info
 end
 
 
-# Wrapper function setting a few good defaults for adaptive damping
+"""
+Wrapper function setting a few good defaults for adaptive damping
+in [`scf_potential_mixing`](@ref).
+
+"""
 function scf_potential_mixing_adaptive(basis; tol=1e-6, damping=AdaptiveDamping(), kwargs...)
     @assert damping isa AdaptiveDamping
     diagtolalg = AdaptiveDiagtol(ratio_ρdiff=0.03, diagtol_first=5e-3, diagtol_max=1e-3)

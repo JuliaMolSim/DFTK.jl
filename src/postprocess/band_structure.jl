@@ -6,15 +6,17 @@ Compute `n_bands` eigenvalues and Bloch waves at the k-Points specified by the `
 All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
 
 - `kgrid`: A custom kgrid to perform the band computation, e.g. a new
-  [`MonkhorstPack`](@ref) grid.
+  [`MonkhorstPack`](@ref) grid or a [`KgridSpacing`](@ref).
 - `tol` The default tolerance for the eigensolver is substantially lower than
   for SCF computations. Increase if higher accuracy desired.
 - `eigensolver`: The diagonalisation method to be employed.
 """
-@timing function compute_bands(basis::PlaneWaveBasis, kgrid::AbstractKgrid;
+@timing function compute_bands(basis::PlaneWaveBasis,
+                               kgrid::Union{AbstractKgrid,AbstractKgridGenerator};
                                n_bands=default_n_bands_bandstructure(basis.model),
-                               n_extra=3, ρ=nothing, εF=nothing, eigensolver=lobpcg_hyper,
-                               tol=1e-3, kwargs...)
+                               n_extra=3, ρ=nothing, τ=nothing, hubbard_n=nothing,
+                               εF=nothing, eigensolver=lobpcg_hyper, tol=1e-3,
+                               seed=nothing, kwargs...)
     # kcoords are the kpoint coordinates in fractional coordinates
     if isnothing(ρ)
         if any(t isa TermNonlinear for t in basis.terms)
@@ -24,11 +26,20 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
         end
         ρ = guess_density(basis)
     end
+    if isnothing(τ) && any(needs_τ, basis.terms)
+        error("A term reuqires evaluation of the kinetic energy density τ. Please pass this " *
+              "quantity to compute_bands as the τ keyword argument or use the " *
+              "compute_bands(scfres) function.")
+    end
+    if any(t isa TermExactExchange for t in basis.terms)
+        error("Band structure computations with exact exchange not yet supported.")
+    end
+    seed = seed_task_local_rng!(seed, basis.comm_kpts)
 
     # Create new basis with new kpoints
     bs_basis = PlaneWaveBasis(basis, kgrid)
 
-    ham = Hamiltonian(bs_basis; ρ)
+    ham = Hamiltonian(bs_basis; ρ, τ, hubbard_n, exxalg=VanillaExx())
     eigres = diagonalize_all_kblocks(eigensolver, ham, n_bands + n_extra;
                                      n_conv_check=n_bands, tol, kwargs...)
     if !eigres.converged
@@ -48,7 +59,7 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
     #      types subtype. In a first version the ScfResult could just contain
     #      the currently used named tuple and forward all operations to it.
     (; basis=bs_basis, ψ=eigres.X, eigenvalues=eigres.λ, ρ, εF, occupation,
-     diagonalization=[eigres])
+     diagonalization=[eigres], seed)
 end
 
 """
@@ -56,9 +67,14 @@ Compute band data starting from SCF results. `εF` and `ρ` from the `scfres` ar
 to the band computation and `n_bands` is by default selected
 as `n_bands_scf + 5sqrt(n_bands_scf)`.
 """
-function compute_bands(scfres::NamedTuple, kgrid::AbstractKgrid;
+function compute_bands(scfres::NamedTuple,
+                       kgrid::Union{AbstractKgrid,AbstractKgridGenerator};
                        n_bands=default_n_bands_bandstructure(scfres), kwargs...)
-    compute_bands(scfres.basis, kgrid; scfres.ρ, scfres.εF, n_bands, kwargs...)
+    τ = haskey(scfres, :τ) ? scfres.τ : nothing
+    hubbard_n = haskey(scfres, :hubbard_n) ? scfres.hubbard_n : nothing
+    compute_bands(scfres.basis, kgrid; 
+                  scfres.ρ, τ, hubbard_n,
+                  scfres.εF, n_bands, kwargs...)
 end
 
 """
@@ -71,8 +87,7 @@ ensure these are taken into account when determining the path.
 """
 function compute_bands(basis_or_scfres, kpath::KPath; kline_density=40u"bohr", kwargs...)
     kinter = Brillouin.interpolate(kpath, density=austrip(kline_density))
-    res = compute_bands(basis_or_scfres, ExplicitKpoints(kpath_get_kcoords(kinter));
-                        kwargs...)
+    res = compute_bands(basis_or_scfres, ExplicitKpoints(kinter); kwargs...)
     merge(res, (; kinter))
 end
 function compute_bands(scfres::NamedTuple; magnetic_moments=[], kwargs...)
@@ -149,10 +164,6 @@ end
 # TODO We should generalise irrfbz_path to AbstractSystem and move that to Brillouin
 
 
-"""Return kpoint coordinates in reduced coordinates"""
-function kpath_get_kcoords(kinter::KPathInterpolant{D}) where {D}
-    map(k -> vcat(k, zeros_like(k, 3 - D)), kinter)
-end
 function kpath_get_branch(kinter::KPathInterpolant{D}, ibranch::Integer) where {D}
     map(k -> vcat(k, zeros_like(k, 3 - D)), kinter.kpaths[ibranch])
 end
@@ -290,11 +301,11 @@ of [`compute_bands`](@ref) and [`self_consistent_field`](@ref).
 
 !!! warning "Changes to data format reserved"
     No guarantees are made with respect to the format of the keys at this point.
-    We may change this incompatibly between DFTK versions (including patch versions).
-    In particular changes with respect to the ψ structure are planned.
+    We may change the internal format of the keys incompatibly between DFTK versions
+    (including patch versions).
 """
 function save_bands(filename::AbstractString, band_data::NamedTuple; save_ψ=false)
-    filename = MPI.bcast(filename, 0, MPI.COMM_WORLD)
+    filename = mpi_bcast(filename, 0, band_data.basis.comm_kpts)
     _, ext = splitext(filename)
     ext = Symbol(ext[2:end])
 

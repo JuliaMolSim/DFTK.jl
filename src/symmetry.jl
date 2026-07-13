@@ -90,7 +90,16 @@ on each of the atoms. The symmetries are determined using spglib.
         if spin_polarization == :none
             Spglib.get_symmetry(cell, tol_symmetry)
         elseif spin_polarization == :collinear
-            Spglib.get_symmetry_with_collinear_spin(cell, tol_symmetry)
+            rotations, translations, spin_flips = Spglib.get_symmetry_with_site_tensors(
+                cell, tol_symmetry)
+            # Keep only the symmetries that don't flip the spins
+            rotations[spin_flips.==1], translations[spin_flips.==1]
+            # Taking into account the symmetries that flip spins here would mean detecting 
+            # antiferromagnetic order (where the down orbitals are the up orbitals 
+            # translated by half a cell) and optimizing by computing only the up channel of 
+            # the orbitals and building the density by symmetry. So, the density has two 
+            # components, but the orbitals have only one spin channel.
+            # This would cut runtime by a factor 2.
         end
     catch e
         if e isa Spglib.SpglibError
@@ -109,7 +118,8 @@ on each of the atoms. The symmetries are determined using spglib.
     symmetries
 end
 function symmetry_operations(system::AbstractSystem; kwargs...)
-    parsed = parse_system(system)
+    pseudopotentials = fill(nothing, length(system))
+    parsed = parse_system(system, pseudopotentials)
     symmetry_operations(parsed.lattice, parsed.atoms, parsed.positions,
                         parsed.magnetic_moments; kwargs...)
 end
@@ -149,34 +159,34 @@ _is_approx_in(x::AbstractArray{T}, X) where {T} = any(y -> isapprox(x, y; atol=s
 """
 Filter out the symmetry operations that don't respect the symmetries of the discrete BZ grid
 """
-function symmetries_preserving_kgrid(symmetries, kcoords)
-    kcoords_normalized = normalize_kpoint_coordinate.(kcoords)
+function symmetries_preserving_kgrid(symmetries, kgrid::AbstractKgrid)
+    # First apply symmetries as the provided k-points can be arbitrary
+    # (e.g. only along a line or similar)
+    all_kcoords = unfold_kcoords(reducible_kcoords(kgrid).kcoords, symmetries)
+    kcoords_normalized = normalize_kpoint_coordinate.(all_kcoords)
     function preserves_grid(symop)
         all(_is_approx_in(normalize_kpoint_coordinate(symop.S * k), kcoords_normalized)
             for k in kcoords_normalized)
     end
     filter(preserves_grid, symmetries)
 end
-function symmetries_preserving_kgrid(symmetries, kgrid::ExplicitKpoints)
-    # First apply symmetries as the provides k-points can be arbitrary
-    # (e.g. only along a line or similar)
-    all_kcoords = unfold_kcoords(kgrid.kcoords, symmetries)
-    symmetries_preserving_kgrid(symmetries, all_kcoords)
-end
+# Special case for Monkhorst-Pack grids since the generic function above
+# is quadratic in the number of k-points.
 function symmetries_preserving_kgrid(symmetries, kgrid::MonkhorstPack)
-    if all(isone, kgrid.kgrid_size)
-        # TODO Keeping this special casing from version of the code before refactor
-        [one(SymOp)]
-    else
-        # if k' = Rk
-        # then
-        #    R' = diag(kgrid) R diag(kgrid)^-1
-        # should be integer where
+    # we have to check if S * k is in the grid for all k
+    # by linearity, it is enough to check the origin and
+    # (1/kgrid_size[1], 0, 0), (0, 1/kgrid_size[2], 0), (0, 0, 1/kgrid_size[3]).
+    kcoords_normalized = normalize_kpoint_coordinate.(reducible_kcoords(kgrid).kcoords)
 
-        # TODO This can certainly be improved by knowing this is an MP grid,
-        #      see symmetries_preserving_rgrid below for ideas
-        symmetries_preserving_kgrid(symmetries, reducible_kcoords(kgrid).kcoords)
+    function preserves_kgrid(symop)
+        function _check(dx, dy, dz)
+            k = (kgrid.kshift .+ Vec3(dx, dy, dz)) .// kgrid.kgrid_size
+            normalize_kpoint_coordinate(symop.S * k) ∈ kcoords_normalized
+        end
+        _check(0, 0, 0) && _check(1, 0, 0) && _check(0, 1, 0) && _check(0, 0, 1)
     end
+
+    filter(preserves_kgrid, symmetries)
 end
 
 """
@@ -267,49 +277,65 @@ function apply_symop(symop::SymOp, basis, ρin; kwargs...)
     symmetrize_ρ(basis, ρin; symmetries=[symop], kwargs...)
 end
 
-# Accumulates the symmetrized versions of the density ρin into ρout (in Fourier space).
-# No normalization is performed
+# Accumulates the symmetrized versions of the density ρin into ρaccu (in Fourier space).
+# No normalization is performed. This function is optimized for CPU and GPU.
 function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, symmetries) where {T}
-    for symop in symmetries
-        # Common special case, where ρin does not need to be processed
-        if isone(symop)
-            ρaccu .+= ρin
-            continue
-        end
+    # For each G vector and symmetry S:
+    # Transform ρin -> to the partial density at S * k.
+    #
+    # Since the eigenfunctions of the Hamiltonian at k and Sk satisfy
+    #      u_{Sk}(x) = u_{k}(S^{-1} (x - τ))
+    # with Fourier transform
+    #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
+    # equivalently
+    #     ρ ̂_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G) 
+    if all(isone, symmetries)
+        ρaccu .= ρin
+        return ρaccu
+    end
 
-        # Transform ρin -> to the partial density at S * k.
-        #
-        # Since the eigenfunctions of the Hamiltonian at k and Sk satisfy
-        #      u_{Sk}(x) = u_{k}(S^{-1} (x - τ))
-        # with Fourier transform
-        #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
-        # equivalently
-        #     ρ ̂_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G)
-        invS = Mat3{Int}(inv(symop.S))
-        for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
-            igired = index_G_vectors(basis, invS * G)
-            isnothing(igired) && continue
+    Gs = reshape(G_vectors(basis), size(ρaccu))
+    fft_size = basis.fft_size
 
-            if iszero(symop.τ)
-                @inbounds ρaccu[ig] += ρin[igired]
-            else
-                factor = cis2pi(-T(dot(G, symop.τ)))
-                @inbounds ρaccu[ig] += factor * ρin[igired]
-            end
+    # Need to transfer  symmetry data to the GPU as isbit data
+    symm_invS = to_device(basis.architecture, [Mat3{Int}(inv(symop.S)) for symop in symmetries])
+    symm_τ = to_device(basis.architecture, [symop.τ for symop in symmetries])
+    n_symm = length(symmetries)
+
+    # Looping over symmetries inside of map! on G vectors allow for a single GPU kernel launch
+    map!(ρaccu, Gs) do G
+        acc = zero(complex(T))
+        # Explicit loop over indices because AMDGPU does not support zip() in map!
+        for i_symm in 1:n_symm
+            invS = symm_invS[i_symm]
+            τ = symm_τ[i_symm]
+            idx = index_G_vectors(fft_size, invS * G)
+            acc += isnothing(idx) ? zero(complex(T)) :
+                        iszero(τ) ? ρin[idx] : cis2pi(-T(dot(G, τ))) * ρin[idx]
         end
-    end  # symop
+        acc
+    end
     ρaccu
 end
 
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
+# This function is optimized for CPU and GPU.
 function lowpass_for_symmetry!(ρ::AbstractArray, basis; symmetries=basis.symmetries)
-    for symop in symmetries
-        isone(symop) && continue
-        for (ig, G) in enumerate(G_vectors_generator(basis.fft_size))
-            if index_G_vectors(basis, symop.S * G) === nothing
-                ρ[ig] = 0
-            end
+    all(isone, symmetries) && return ρ
+
+    Gs = reshape(G_vectors(basis), size(ρ))
+    fft_size = basis.fft_size
+
+    symm_S = to_device(basis.architecture, [symop.S for symop in symmetries])
+
+    # Loop structure optimized for both CPU and GPU
+    map!(ρ, ρ, Gs) do ρ_i, G
+        acc = ρ_i
+        for S in symm_S
+            idx = index_G_vectors(fft_size, S * G)
+            acc *= isnothing(idx) ? 0 : 1
         end
+        acc
     end
     ρ
 end
@@ -319,7 +345,7 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
 """
 @views @timing function symmetrize_ρ(basis, ρ::AbstractArray{T};
                                      symmetries=basis.symmetries, do_lowpass=true) where {T}
-    ρin_fourier  = to_cpu(fft(basis, ρ))
+    ρin_fourier  = fft(basis, ρ)
     ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρ, 4)
         accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
@@ -327,7 +353,7 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
         do_lowpass && lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
     end
     inv_fft = T <: Real ? irfft : ifft
-    inv_fft(basis, to_device(basis.architecture, ρout_fourier) ./ length(symmetries))
+    inv_fft(basis, ρout_fourier ./ length(symmetries))
 end
 
 """
@@ -343,33 +369,86 @@ function symmetrize_stresses(model::Model, stresses; symmetries)
     stresses_symmetrized /= length(symmetries)
     stresses_symmetrized
 end
-function symmetrize_stresses(basis::PlaneWaveBasis, stresses)
-    symmetrize_stresses(basis.model, stresses; basis.symmetries)
+function symmetrize_stresses(basis::PlaneWaveBasis, stresses; symmetries=basis.symmetries)
+    symmetrize_stresses(basis.model, stresses; symmetries)
 end
 
 """
-Symmetrize the forces in *reduced coordinates*, forces given as an
-array `forces[iel][α,i]`.
+Find the symmetry preimage of `position`, returning the corresponding index in `positions_group`.
 """
-function symmetrize_forces(model::Model, forces; symmetries)
+function find_symmetry_preimage(positions_group, position, symop;
+                                tol_symmetry=SYMMETRY_TOLERANCE)
+    # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
+    # (but careful that our symmetries are r -> Wr+w, not R(r+f))
+    other_at = symop.W \ (position - symop.w)
+
+    # Find the index of the atom to which idx is mapped to by the symmetry operation.
+    # To avoid issues due to numerical noise we compute the deviations from being
+    # an integer shift (thus equivalent by translational symmetry) for all atoms in
+    # the group and pick the smallest one.
+    smallest_deviation, i_other_at = findmin(positions_group) do at
+        δat = at - other_at
+        maximum(abs, δat - round.(δat))
+    end
+    # Note, that without a fudging factor this occasionally fails:
+    @assert smallest_deviation < 10tol_symmetry
+
+    i_other_at
+end
+
+function symmetrize_forces(positions::AbstractVector, atom_groups::AbstractVector, forces;
+                           symmetries, tol_symmetry=SYMMETRY_TOLERANCE)
     symmetrized_forces = zero(forces)
-    for group in model.atom_groups, symop in symmetries
-        positions_group = model.positions[group]
-        W, w = symop.W, symop.w
+    for group in atom_groups, symop in symmetries
+        positions_group = positions[group]
         for (idx, position) in enumerate(positions_group)
-            # see (A.27) of https://arxiv.org/pdf/0906.2569.pdf
-            # (but careful that our symmetries are r -> Wr+w, not R(r+f))
-            other_at = W \ (position - w)
-            i_other_at = findfirst(a -> is_approx_integer(a - other_at), positions_group)
+            i_other_at = find_symmetry_preimage(positions_group, position, symop; tol_symmetry)
+
             # (A.27) is in Cartesian coordinates, and since Wcart is orthogonal,
             # Fsymcart = Wcart * Fcart <=> Fsymred = inv(Wred') Fred
-            symmetrized_forces[idx] += inv(W') * forces[group[i_other_at]]
+            symmetrized_forces[group[idx]] += inv(symop.W') * forces[group[i_other_at]]
         end
     end
     symmetrized_forces / length(symmetries)
 end
+function symmetrize_forces(model::Model, forces; kwargs...)
+    symmetrize_forces(model.positions, model.atom_groups, forces; kwargs...)
+end
+
+"""
+Symmetrize the forces in *reduced coordinates*, forces given as an array `forces[iel][α,i]`.
+"""
 function symmetrize_forces(basis::PlaneWaveBasis, forces)
     symmetrize_forces(basis.model, forces; basis.symmetries)
+end
+
+"""
+Symmetrize the Hubbard occupation matrix according to the l quantum number of the manifold.
+"""
+function symmetrize_hubbard_n(model, manifold::ResolvedOrbitalManifold,
+                              hubbard_n::Array{Matrix{Complex{T}}};
+                              symmetries, tol_symmetry=SYMMETRY_TOLERANCE) where {T}
+    # For now we apply symmetries only on nII terms, not on cross-atom terms (nIJ)
+    # WARNING: To implement +V this will need to be changed!
+
+    positions = model.positions[manifold.iatoms]
+    nspins = size(hubbard_n, 1)
+    natoms = size(hubbard_n, 2)
+    ldim = 2*manifold.l+1
+
+    # Initialize the hubbard_n matrix
+    ns = [zeros(Complex{T}, ldim, ldim) for _ in 1:nspins, _ in 1:natoms, _ in 1:natoms]
+    for symmetry in symmetries
+        Wcart = model.lattice * symmetry.W * model.inv_lattice
+        WigD = wigner_d_matrix(manifold.l, Wcart)
+        for σ in 1:nspins, iatom in 1:natoms
+            sym_atom = find_symmetry_preimage(positions, positions[iatom], symmetry;
+                                              tol_symmetry)
+            ns[σ, iatom, iatom] .+= WigD' * hubbard_n[σ, sym_atom, sym_atom] * WigD
+        end
+    end
+    ns ./= length(symmetries)
+    ns
 end
 
 """"
@@ -381,7 +460,7 @@ function unfold_bz(basis::PlaneWaveBasis)
     if length(basis.symmetries) == 1
         return basis
     else
-        # TODO This can be optimised much better by avoiding the recomputation
+        # TODO This can be optimized much better by avoiding the recomputation
         #      of the terms wherever possible.
         use_symmetry_for_kpoint_reduction = false
         return PlaneWaveBasis(basis.model, basis.Ecut, basis.fft_size,
@@ -414,6 +493,11 @@ function unfold_array(basis_irred, basis_unfolded, data, is_ψ)
     if !(basis_irred.comm_kpts == basis_irred.comm_kpts == MPI.COMM_WORLD)
         error("Brillouin zone symmetry unfolding not supported with MPI yet")
     end
+    if basis_irred.n_irreducible_kpoints < mpi_nprocs(basis_irred.comm_kpts)
+        # Note: if this routine is ever generalized for MPI,
+        # need special care for potentially duplicated KP
+        error("Brillouin zone symmetry unfolding not supported with duplicated k-points")
+    end
     data_unfolded = similar(data, length(basis_unfolded.kpoints))
     for ik_unfolded = 1:length(basis_unfolded.kpoints)
         kpt_unfolded = basis_unfolded.kpoints[ik_unfolded]
@@ -439,7 +523,7 @@ function unfold_bz(scfres)
     eigenvalues = unfold_array(scfres.basis, basis_unfolded, scfres.eigenvalues, false)
     occupation = unfold_array(scfres.basis, basis_unfolded, scfres.occupation, false)
     energies, ham = energy_hamiltonian(basis_unfolded, ψ, occupation;
-                                       scfres.ρ, eigenvalues, scfres.εF)
+                                       scfres.ρ, scfres.hubbard_n, eigenvalues, scfres.εF)
     @assert energies.total ≈ scfres.energies.total
     new_scfres = (; basis=basis_unfolded, ψ, ham, eigenvalues, occupation)
     merge(scfres, new_scfres)

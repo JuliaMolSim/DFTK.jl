@@ -1,5 +1,6 @@
-@testsetup module SiliconPBE
+@testmodule SiliconPBE begin
 using DFTK
+using PseudoPotentialData
 using ..RunSCF: run_scf_and_compare
 using ..TestCases: silicon
 
@@ -22,7 +23,7 @@ function run_silicon_pbe(T; Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     ]
     ref_etot = -7.854477356672080
 
-    Si = ElementPsp(silicon.atnum; psp=load_psp("hgh/pbe/si-q4"))
+    Si = ElementPsp(silicon.atnum, PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth"))
     atoms = [Si, Si]
 
     if spin_polarization == :collinear
@@ -30,8 +31,8 @@ function run_silicon_pbe(T; Ecut=5, grid_size=15, spin_polarization=:none, kwarg
     else
         magnetic_moments = []
     end
-    model = model_PBE(silicon.lattice, atoms, silicon.positions; spin_polarization,
-                      magnetic_moments)
+    model = model_DFT(silicon.lattice, atoms, silicon.positions; functionals=PBE(),
+                      spin_polarization, magnetic_moments)
     model = convert(Model{T}, model)
     basis = PlaneWaveBasis(model; Ecut, kgrid=(3, 3, 3), fft_size=fill(grid_size, 3))
 
@@ -42,30 +43,30 @@ end
 
 
 @testitem "Silicon PBE (small, Float64)" #=
-    =#    tags=[:core] setup=[RunSCF, TestCases, SiliconPBE] begin
+    =#    tags=[:minimal] setup=[RunSCF, TestCases, SiliconPBE] begin
     SiliconPBE.run_silicon_pbe(Float64; Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17)
 end
 
 @testitem "Silicon PBE (small, Float32)" #=
-    =#    tags=[:core] setup=[RunSCF, TestCases, SiliconPBE] begin
+    =#    tags=[:minimal] setup=[RunSCF, TestCases, SiliconPBE] begin
     SiliconPBE.run_silicon_pbe(Float32; Ecut=7, test_tol=0.03, n_ignored=1, grid_size=17,
                                scf_ene_tol=1e-4)
 end
 
 @testitem "Silicon PBE (large, Float64)" #=
-    =#    tags=[:slow, :core] setup=[RunSCF, TestCases, SiliconPBE] begin
+    =#    tags=[:slow] setup=[RunSCF, TestCases, SiliconPBE] begin
     SiliconPBE.run_silicon_pbe(Float64; Ecut=25, test_tol=1e-5, n_ignored=0, grid_size=33,
                                scf_ene_tol=1e-8)
 end
 
 @testitem "Silicon PBE (small, collinear spin)" #=
-    =#    tags=[:core] setup=[RunSCF, SiliconPBE, TestCases] begin
+    =#    tags=[:minimal] setup=[RunSCF, SiliconPBE, TestCases] begin
     SiliconPBE.run_silicon_pbe(Float64; Ecut=7, test_tol=0.03, n_ignored=0, grid_size=17,
                                spin_polarization=:collinear)
 end
 
 @testitem "Silicon PBE (large, collinear spin)" #=
-    =#    tags=[:slow, :core] setup=[RunSCF, SiliconPBE, TestCases] begin
+    =#    tags=[:slow] setup=[RunSCF, SiliconPBE, TestCases] begin
     SiliconPBE.run_silicon_pbe(Float64; Ecut=25, test_tol=1e-5, n_ignored=0, grid_size=33,
                                scf_ene_tol=1e-8, spin_polarization=:collinear)
 end

@@ -25,10 +25,10 @@ let
         println("----------------------------------------------------")
         a = 5.0
         lattice   = a * Matrix(I, 3, 3)
-        atoms     = [ElementPsp(:Si; psp)]
+        atoms     = [ElementPsp(:Si, psp)]
         positions = [zeros(3)]
 
-        model = model_LDA(lattice, atoms, positions; temperature=1e-2)
+        model = model_DFT(lattice, atoms, positions; functionals=LDA(), temperature=1e-2)
         basis = PlaneWaveBasis(model; Ecut, kgrid=[8, 8, 8])
         self_consistent_field(basis; tol=1e-8)
     end
@@ -55,10 +55,10 @@ let
     tol_mev_at = 1.0u"meV" / n_atoms
     tol        = austrip(tol_mev_at)
 
-    conv_upf = converge_Ecut(Ecuts, psp_upf, tol)
+    conv_upf = converge_Ecut(Ecuts, family_upf, tol)
     println("UPF: $(conv_upf.Ecut_conv)")
 
-    conv_hgh = converge_Ecut(Ecuts, psp_hgh, tol)
+    conv_hgh = converge_Ecut(Ecuts, family_hgh, tol)
     println("HGH: $(conv_hgh.Ecut_conv)")
 
     plt = plot(; yaxis=:log10, xlabel="Ecut [Eh]", ylabel="Error [Eh]")
