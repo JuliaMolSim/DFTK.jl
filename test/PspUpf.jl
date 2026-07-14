@@ -320,43 +320,31 @@ end
                            rgrid[1], rgrid[end]; rtol=1e-8)[1]
     end
 
-    # Each p is checked twice: once *on* a node of the table's log-p grid, where the log-p
-    # spline interpolates exactly and so only the radial side (resampling + quadrature) is
-    # under test, and once *between* two nodes, which adds the log-p interpolation error. At
-    # order 6 the two are indistinguishable -- the p-side contributes nothing to the values.
-    function grid_ps(table, p_target)
-        n = round(Int, (log(p_target) - table.logpmin) / table.Δlogp)
-        [exp(table.logpmin + n * table.Δlogp), exp(table.logpmin + (n + 0.5) * table.Δlogp)]
-    end
-    p_targets = [0.3, 2.7, 15.0]
-
+    ps = [0.3, 2.7, 15.0]
     # :Si is on a logarithmic mesh, the others are linear; :Co carries an rcut, so its
     # pswfcs are transformed on a different grid than the rest of its quantities.
     for psp in [upf_pseudos[:Si], upf_pseudos[:Li], upf_pseudos[:Co],
                 psp8_pseudos[:Li_pbe]]
         rcut = 1:psp.ircut
-        # (name, rgrid, r2_f, l, evaluator, table)
+        # (name, rgrid, r2_f, l, evaluator)
         quantities = Any[("ρion", view(psp.rgrid, rcut), view(psp.r2_ρion, rcut), 0,
-                          p -> eval_psp_valence_density_fourier(psp, p), psp.r2_ρion_table)]
+                          p -> eval_psp_valence_density_fourier(psp, p))]
         if DFTK.has_core_density(psp)
             push!(quantities, ("ρcore", view(psp.rgrid, rcut), view(psp.r2_ρcore, rcut), 0,
-                               p -> eval_psp_core_density_fourier(psp, p), psp.r2_ρcore_table))
+                               p -> eval_psp_core_density_fourier(psp, p)))
         end
         for l = 0:psp.lmax, i = 1:length(psp.r2_projs[l+1])
             icut = min(psp.ircut, length(psp.r2_projs[l+1][i]))
             push!(quantities, ("projector l=$l i=$i", view(psp.rgrid, 1:icut),
                                view(psp.r2_projs[l+1][i], 1:icut), l,
-                               p -> eval_psp_projector_fourier(psp, i, l, p),
-                               psp.r2_projs_tables[l+1][i]))
+                               p -> eval_psp_projector_fourier(psp, i, l, p)))
         end
         for l = 0:psp.lmax, i = 1:DFTK.count_n_pswfc_radial(psp, l)
             push!(quantities, ("pswfc l=$l i=$i", psp.rgrid, psp.r2_pswfcs[l+1][i], l,
-                               p -> eval_psp_pswfc_fourier(psp, i, l, p),
-                               psp.r2_pswfcs_tables[l+1][i]))
+                               p -> eval_psp_pswfc_fourier(psp, i, l, p)))
         end
 
-        for (name, rgrid, r2_f, l, evaluator, table) in quantities
-            ps = reduce(vcat, grid_ps(table, pt) for pt in p_targets)
+        for (name, rgrid, r2_f, l, evaluator) in quantities
             refs = [reference(rgrid, r2_f, l, p) for p in ps]
             scale = maximum(abs, refs)
             scale < 1e-10 && continue  # Quantity absent from this pseudo
@@ -364,10 +352,8 @@ end
                 @test abs(evaluator(p) - ref) < 1e-5 * scale
             end
             # ForwardDiff differentiates the interpolant: check it against the exact rule.
-            for p in grid_ps(table, 2.7)
-                dad = ForwardDiff.derivative(evaluator, p)
-                @test abs(dad - dreference(rgrid, r2_f, l, p)) < 1e-4 * scale
-            end
+            dad = ForwardDiff.derivative(evaluator, 2.7)
+            @test abs(dad - dreference(rgrid, r2_f, l, 2.7)) < 1e-4 * scale
         end
 
         # The local potential is tabulated with its Coulomb tail taken out; the tail is
@@ -375,12 +361,120 @@ end
         @test iszero(eval_psp_local_fourier(psp, 0.0))
         r2_vloc_corrected = psp.rgrid[rcut] .^ 2 .* psp.vloc[rcut] .+
                             psp.Zion .* psp.rgrid[rcut] .* erf.(psp.rgrid[rcut])
-        for pt in p_targets, p in grid_ps(psp.vloc_table, pt)
+        for p in ps
             ref = reference(view(psp.rgrid, rcut), r2_vloc_corrected, 0, p) +
                   4π * -psp.Zion / p^2 * exp(-p^2 / 4)
             # vloc(p) spans four orders of magnitude over this p range and crosses zero, so
             # judge it against the scale of its Coulomb tail rather than its own value.
             @test abs(eval_psp_local_fourier(psp, p) - ref) < 1e-7 * 4π * psp.Zion / p^2
+        end
+    end
+end
+
+@testitem "Fourier tables: the log-p interpolation, at off-grid p" #=
+    =#    tags=[:psp] setup=[mPspUpf] begin
+    using DFTK: HANKEL_TABLE_RMIN, HANKEL_TABLE_NPOINTS, resample_radial, gregory_weights,
+                sphericalbesselj_fast
+
+    # The table is a spline through values of the discrete sum that `sbt` evaluates on its
+    # logarithmic p grid. That sum -- same log-r grid, same Gregory weights, same summand -- is
+    # written out by hand here, so that it can be evaluated at *any* p and not only at a node.
+    # It is therefore the exact quantity the spline is trying to reproduce: comparing the two
+    # isolates the log-p interpolation error, with the radial resampling and the quadrature
+    # common to both and cancelling. Note `rmax` is the end of the *plan's* grid, shared by all
+    # of a pseudopotential's cut quantities, not the end of this quantity's own data (projectors
+    # stop earlier and are zero-padded onto it).
+    function direct(rgrid, r2_f, l, p, rmax)
+        rlog = exp.(range(log(HANKEL_TABLE_RMIN), log(rmax), length=HANKEL_TABLE_NPOINTS))
+        Δρ   = (log(rmax) - log(HANKEL_TABLE_RMIN)) / (HANKEL_TABLE_NPOINTS - 1)
+        f    = resample_radial(rgrid, r2_f, rlog) ./ rlog.^2 .*
+               gregory_weights(Float64, length(rlog))
+        4π / p^l * Δρ * sum(f .* rlog.^3 .* sphericalbesselj_fast.(l, p .* rlog))
+    end
+
+    for psp in (mPspUpf.upf_pseudos[:Li], mPspUpf.upf_pseudos[:Ge])  # log and linear mesh
+        cut = 1:psp.ircut
+        rmax_cut, rmax_full = psp.rgrid[psp.ircut], last(psp.rgrid)
+        iproj = min(psp.ircut, length(psp.r2_projs[2][1]))
+        quantities = [
+            (psp.rgrid[cut], psp.r2_ρion[cut], 0, psp.r2_ρion_table, rmax_cut),
+            (psp.rgrid[1:iproj], psp.r2_projs[2][1][1:iproj], 1,
+             psp.r2_projs_tables[2][1], rmax_cut),
+            (psp.rgrid, psp.r2_pswfcs[1][1], 0, psp.r2_pswfcs_tables[1][1], rmax_full),
+        ]
+        for (rgrid, r2_f, l, table, rmax) in quantities
+            scale = maximum(abs(table(p)) for p in range(0.5, 20, length=200))
+            for p_target in (0.3, 2.7, 15.0)
+                n = round(Int, (log(p_target) - table.logpmin) / table.Δlogp)
+                p_on  = exp(table.logpmin + n * table.Δlogp)
+                p_off = exp(table.logpmin + (n + 1//2) * table.Δlogp)
+                # On a node the spline interpolates, so it reproduces the sum to roundoff.
+                @test abs(table(p_on) - direct(rgrid, r2_f, l, p_on, rmax)) < 1e-14 * scale
+                # Halfway between two nodes, where the interpolation error is largest. At order 6
+                # it is *still* roundoff: the log-p side does not limit the values at all. (It
+                # limits the second derivative, which is what fixes the order at 6 -- see
+                # "Fourier tables against analytic transforms".)
+                @test abs(table(p_off) - direct(rgrid, r2_f, l, p_off, rmax)) < 1e-12 * scale
+            end
+        end
+    end
+end
+
+@testitem "Fourier tables: the radial side, under mesh refinement" #=
+    =#    tags=[:psp] setup=[mPspUpf] begin
+    using DFTK: hankel_table_plan, build_hankel_table, simpson, sphericalbesselj_fast
+    using SpecialFunctions: erf
+
+    # A pseudopotential's radial data has no defined value between its mesh points, so on the
+    # *real* quantities there is no ground truth to compare against -- only refinement. Feed the
+    # transform a deliberately downsampled mesh and compare against the transform of the full
+    # mesh: what is left is the error of the radial side (resampling + quadrature), the log-p
+    # interpolation being taken out by evaluating at a node (see the test above).
+    #
+    # The old evaluator (a Simpson rule over the psp mesh, per p value) is run on the same coarse
+    # mesh for scale. It is *not* uniformly worse, and the test does not pretend otherwise: on a
+    # quantity that is smooth and vanishes to all orders at both ends of the mesh, the Simpson
+    # error -- a pure boundary term, by Euler-Maclaurin -- collapses and it beats us by one to
+    # two orders. Where it loses, and loses badly, is on the projectors, whose cutoff kink is
+    # exactly what a fixed-order quadrature on the psp's own mesh cannot handle. Both are ≤1e-9
+    # relative at native resolution, i.e. the choice changes nothing physical; the case for the
+    # tables is speed.
+    simpson_hankel(rgrid, r2_f, l, p) =
+        4π / p^l * simpson((i, r) -> r2_f[i] * sphericalbesselj_fast(l, p * r), rgrid)
+    table_of(rgrid, r2_f, l) =
+        build_hankel_table(hankel_table_plan(last(rgrid), l), rgrid, r2_f, l)
+    downsample(v, n) = [v[i] for i in unique([1:n:length(v); length(v)])]
+
+    for psp in (mPspUpf.upf_pseudos[:Li], mPspUpf.upf_pseudos[:Ge])  # log and linear mesh
+        cut = 1:psp.ircut
+        r2_vloc = psp.rgrid[cut].^2 .* psp.vloc[cut] .+
+                  psp.Zion .* psp.rgrid[cut] .* erf.(psp.rgrid[cut])
+        iproj = min(psp.ircut, length(psp.r2_projs[1][1]))
+        # (rgrid, r2_f, l, gain required over Simpson at the same radial resolution)
+        quantities = [(psp.rgrid[cut], r2_vloc, 0, 0),
+                      (psp.rgrid[cut], psp.r2_ρion[cut], 0, 0),
+                      (psp.rgrid[cut], psp.r2_ρcore[cut], 0, 0),
+                      (psp.rgrid, psp.r2_pswfcs[1][1], 0, 0),
+                      # the kink: this is the quantity the tables are actually better at
+                      (psp.rgrid[1:iproj], psp.r2_projs[1][1][1:iproj], 0, 5)]
+        for (rgrid, r2_f, l, gain) in quantities
+            all(iszero, r2_f) && continue
+            reference = table_of(rgrid, r2_f, l)
+            scale = maximum(abs(reference(p)) for p in range(0.5, 20, length=200))
+
+            rgrid_coarse, r2_f_coarse = downsample(rgrid, 2), downsample(r2_f, 2)
+            coarse = table_of(rgrid_coarse, r2_f_coarse, l)
+            for p_target in (2.7, 15.0)
+                n = round(Int, (log(p_target) - coarse.logpmin) / coarse.Δlogp)
+                p = exp(coarse.logpmin + n * coarse.Δlogp)   # on-grid: no log-p error here
+
+                err_table   = abs(coarse(p) - reference(p))
+                err_simpson = abs(simpson_hankel(rgrid_coarse, r2_f_coarse, l, p) - reference(p))
+                # Halving the radial resolution still leaves the table converged: the psp's own
+                # mesh is nowhere near starving it.
+                @test err_table < 1e-7 * scale
+                @test err_table * gain < err_simpson
+            end
         end
     end
 end
