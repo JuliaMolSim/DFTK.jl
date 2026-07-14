@@ -462,6 +462,32 @@ end
     end
 end
 
+@testitem "Fourier tables of a quantity cut while still nonzero" tags=[:psp] setup=[mPspUpf] begin
+    using DFTK: eval_psp_pswfc_fourier, radial_spline, sphericalbesselj_fast
+    using QuadGK
+
+    # The pseudo-atomic wavefunctions are the one family still at ~1e-2 of their peak where the
+    # radial mesh is cut. By Euler-Maclaurin the error of the (uniform-grid) quadrature inside
+    # the transform *is* that boundary term, so these are the quantities -- and the only ones --
+    # that the order of `gregory_weights` binds: a 4th-order rule floors them near 1e-9, well
+    # above the ~1e-13 the order-6 splines around it are worth. Guard the 6th-order rule.
+    psp = mPspUpf.upf_pseudos[:Ge]
+    l, i = 1, 1                                  # its l=1 pswfc ends at 9.8e-3 of its peak
+    r2_f = psp.r2_pswfcs[l+1][i]
+    @test abs(r2_f[end]) / maximum(abs, r2_f) > 1e-3   # ... i.e. this test is testing something
+
+    # Reference: adaptive quadrature of the very same radial spline, which isolates the error of
+    # the transform (quadrature + interpolation in p) from that of the radial interpolation.
+    spline = radial_spline(psp.rgrid, r2_f)
+    reference(p) = 4π / p^l * quadgk(r -> spline(r) * sphericalbesselj_fast(l, p * r),
+                                     psp.rgrid[1], psp.rgrid[end]; rtol=1e-12)[1]
+    scale = abs(4π / 3 * quadgk(r -> spline(r) * r^l, psp.rgrid[1], psp.rgrid[end];
+                                rtol=1e-12)[1])   # 3 = (2l+1)!! for l = 1
+    for p in (2.7, 5.0)
+        @test abs(eval_psp_pswfc_fourier(psp, i, l, p) - reference(p)) < 1e-10 * scale
+    end
+end
+
 @testitem "Fourier tables decay at large p" tags=[:psp] setup=[mPspUpf] begin
     using DFTK: eval_psp_core_density_fourier
 

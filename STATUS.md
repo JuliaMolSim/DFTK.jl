@@ -80,14 +80,14 @@ boundary rows). Antoine chose to eat the load time in exchange for owning less n
 1. **`sbt` alone is not accurate enough.** It evaluates `∑ᵢ f(rᵢ) rᵢ³ jₗ(p rᵢ) Δρ` — a bare
    *rectangle* rule in log r, i.e. only **O(Δρ)**. Any per-node weight can be folded into `f`
    for free (the kernel depends on `i+j` only, so scaling `fᵢ` leaves it a convolution), so we
-   fold in 4th-order **Gregory** weights. Measured (error/H̃(0) at p ≈ 5, N = 4096):
+   fold in **Gregory** weights. Measured (error/H̃(0) at p ≈ 5, N = 4096):
 
    | weights | error | order |
    |---|---|---|
    | none (raw `sbt`) | 4.8e-7 | 1 |
    | trapezoid | 5.5e-8 | 2 |
-   | **Gregory (shipped)** | **5.6e-12** | **4** |
-   | Simpson | 1.5e-12 | 4 |
+   | Gregory-4 | 5.6e-12 | 4 |
+   | **Gregory-6 (shipped)** | **1.3e-14** | **6** |
 
    **Why Gregory, and not just "it's 4th order":** by Euler–Maclaurin the trapezoid rule's error
    on a smooth integrand is made up *entirely of boundary terms*, the interior cancelling to all
@@ -97,11 +97,23 @@ boundary rows). Antoine chose to eat the load time in exchange for owning less n
    cancellation of those boundary terms (finite-difference approximations to the Euler–Maclaurin
    derivatives), so it fixes the error where the error is, and extends to higher order by
    correcting more end nodes.
+   **The order of this rule is load-bearing, and 4 was not enough.** Because its error
+   coefficient *is* the boundary term, the rule contributes exactly nothing for a quantity that
+   dies inside the mesh (ρcore, the projectors, the erf-corrected vloc: 6.0e-14 whether the rule
+   is 4th or 6th order). But the **pseudo-atomic wavefunctions are cut while still at ~1e-2 of
+   their peak** — and there a 4th-order rule *floors the whole table at 7.7e-11*, while the
+   order-6 splines around it are worth 6e-14. It was silently throwing away the splines' work on
+   exactly those quantities. Sixth-order Gregory (five corrected nodes per end instead of three)
+   restores them to 1.5e-13, and is **free** — the weights fold into `f`, so nothing is paid at
+   evaluation time. On real pseudos: Ge's l=1 pswfc ends at 9.8e-3 of its peak and goes 5e-10 →
+   2.1e-12; Co's second l=0 pswfc (9.5e-3) → 1.6e-11. Covered by "Fourier tables of a quantity
+   cut while still nonzero".
    ⚠ An earlier note here justified Gregory by "interior weights are 1, which is what allows
    them to be folded in". **That is wrong** — *any* per-node weight folds in. And Simpson is not
-   worse (it is marginally better). Gregory is preferred only because it needs no parity
-   constraint on `n` (composite Simpson wants an odd point count; our grid is 4096) and because
-   it generalises to higher order, where Newton–Cotes goes unstable.
+   worse at 4th order (it is marginally better). Gregory is preferred because it needs no parity
+   constraint on `n` (composite Simpson wants an odd point count; our grid is 4096) and — the
+   reason that turned out to matter — because it generalises upwards by simply correcting more
+   end nodes, where Newton–Cotes goes unstable.
 
 2. **A one-ulp bug that cost 5 orders of magnitude.** `exp(log(rmax))` can land an ulp
    *above* `rmax`, so the last log-grid node fell outside the radial data and the resampler

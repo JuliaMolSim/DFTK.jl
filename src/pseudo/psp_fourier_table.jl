@@ -203,33 +203,39 @@ function build_hankel_table(plan::SBTPlan{T}, rgrid, r2_f, l::Integer) where {T}
 end
 
 """
-Weights of the 4th-order Gregory quadrature rule ∫f ≈ h ∑ᵢ wᵢ f(xᵢ) on a uniform grid: the
-trapezoidal rule, with the three outermost nodes at each end reweighted.
+Weights of the **6th-order** Gregory quadrature rule ∫f ≈ h ∑ᵢ wᵢ f(xᵢ) on a uniform grid: the
+trapezoidal rule, with the five outermost nodes at each end reweighted.
 
 Why this rule. By Euler–Maclaurin, the trapezoidal rule's error on a smooth integrand is made
 up *entirely of boundary terms* — h²/12·[g′] − h⁴/720·[g‴] + … evaluated at the two ends — and
 the interior cancels to all orders. So the accuracy of a uniform-grid sum is decided at its two
 endpoints and nowhere else. Here the integrand r³ f(r) jₗ(pr) dies like r^{l+3} at rmin, with
-all its derivatives, so that end is already free; but at rmax the densities and (especially) the
-pseudo-atomic wavefunctions are still at ~1e-2 of their peak, so the boundary terms there are
-what limits everything. Gregory's rule is precisely "cancel those boundary terms", by
-approximating the Euler–Maclaurin derivatives with finite differences of the end nodes — it
-fixes the error where the error actually is, and extends to higher order by simply correcting
-more nodes.
+all its derivatives, so that end is already free. Gregory's rule is precisely "cancel the
+boundary terms at the other end", by approximating the Euler–Maclaurin derivatives with finite
+differences of the end nodes — it fixes the error where the error actually is, and buys another
+two orders for each extra pair of corrected nodes.
 
-Measured on the log grid (error/H̃(0) at p ≈ 5, N = 4096): the bare sum `sbt` performs is a
-*rectangle* rule and only O(h) — 4.8e-7. Trapezoid alone is O(h²) — 5.5e-8. Gregory is O(h⁴) —
-5.6e-12. (Composite Simpson would score the same, 1.5e-12, and would fold in just as freely:
-*any* per-node weight does. Gregory is preferred only because it needs no parity constraint on
-`n` — composite Simpson wants an odd number of points, and our grid is 4096 — and because it
-generalises to higher order, where Newton–Cotes goes unstable.)
+Why 6th and not 4th order: the coefficient of the error *is* the boundary term, so this rule
+contributes nothing at all for a quantity that dies inside the mesh (ρcore, the projectors, the
+erf-corrected vloc). But the **pseudo-atomic wavefunctions are cut while still at ~1e-2 of their
+peak**, and there a 4th-order rule becomes the binding constraint — it would floor the table at
+7.7e-11 while the order-6 splines around it are good to 6e-14. Sixth order restores them to
+1.5e-13. It is free: the weights are folded into `f` (see `build_hankel_table`), so nothing is
+paid at evaluation time.
+
+Measured (error/H̃(0) at p ≈ 5, N = 4096): the bare sum `sbt` performs is a *rectangle* rule,
+O(h) — 4.8e-7. Trapezoid alone is O(h²) — 5.5e-8. Gregory-4 is O(h⁴) — 5.6e-12. (Composite
+Simpson would also be 4th order and folds in just as freely — *any* per-node weight does, since
+scaling `fᵢ` leaves a kernel that depends on `i+j` a convolution. Gregory is preferred because
+it needs no parity constraint on `n`, and because it generalises upwards like this, where
+Newton–Cotes goes unstable.)
 """
 function gregory_weights(::Type{T}, n::Integer) where {T}
     weights = ones(T, n)
-    n < 6 && return weights  # Too few points for the corrections to make sense
-    endpoint = T[3/8, 7/6, 23/24]
-    weights[1:3] .= endpoint
-    weights[n-2:n] .= reverse(endpoint)
+    n < 10 && return weights  # Too few points for the corrections to make sense
+    endpoint = T[95/288, 317/240, 23/30, 793/720, 157/160]
+    weights[1:5] .= endpoint
+    weights[n-4:n] .= reverse(endpoint)
     weights
 end
 

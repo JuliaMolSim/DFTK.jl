@@ -67,8 +67,11 @@ Two consequences, both of which caused real bugs:
 
 1. **Every l = 0 quantity has nonzero curvature at the origin.** A *natural* spline (y′′ = 0)
    is therefore O(1) wrong in the first mesh cell. For l ≥ 1 it happens to be right.
-2. **The pseudo-wavefunctions are genuinely cut while still at 1e-2 of their peak**, which is
-   why the transform needs Gregory endpoint corrections.
+2. **The pseudo-wavefunctions are genuinely cut while still at 1e-2 of their peak.** By
+   Euler–Maclaurin the quadrature error inside the transform *is* that boundary term, so these
+   are the only quantities whose accuracy the quadrature order binds — and it bound them hard:
+   a 4th-order Gregory rule floored them at 7.7e-11 while the order-6 splines were worth 6e-14.
+   The rule is 6th order for that reason alone, and it is free (the weights fold into `f`).
 
 ---
 
