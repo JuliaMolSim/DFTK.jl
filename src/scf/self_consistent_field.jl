@@ -176,7 +176,7 @@ Overview of parameters:
     maxtime=Year(1),
     mixing=LdosMixing(),
     damping=0.8,
-    solver=ScfAndersonSolver(),
+    solver=ScfAndersonDensitySolver(),
     eigensolver=lobpcg_hyper,
     diagtolalg=default_diagtolalg(basis; tol),
     nbandsalg::NbandsAlgorithm=AdaptiveBands(basis.model),

@@ -44,10 +44,26 @@ Create an anderson-accelerated SCF solver for the [`self_consistent_field`](@ref
 
 This solver only performs damping and anderson acceleration in the density, but
 not in the kinetic energy density. For functionals not involving the kinetic energy
-density `τ` this algorithm is equivalent to our current default [`ScfAndersonSolver`](@ref)
-for meta-GGA functionals this algorithms is sometimes faster than [`ScfAndersonSolver`](@ref),
-but generally [`ScfAndersonSolver`](@ref) is more reliable. See the documentation of
-[`ScfAndersonSolver`](@ref) for documentation on keyword arguments and their default values.
+density `τ` this algorithm is equivalent to [`ScfAndersonSolver`](@ref).
+For meta-GGA functionals this algorithms can be faster than [`ScfAndersonSolver`](@ref),
+but generally [`ScfAndersonDensitySolver`](@ref) is more reliable. 
+
+## Keyword arguments
+- `m::Integer`       (default: `10`) Maximal Anderson history size
+- `m_start::Integer` (default: `1`)  Start collecting history in the `m_start`th SCF iteration
+- `maxcond::Real` (default: `1e6`)
+  Maximal condition number in Anderson matrix; a larger value triggers truncation of the
+  older entries in the Anderson history.
+- `errorfactor::Real` (default: `1e5`): We follow [^CDLS21] (adaptive Anderson acceleration)
+  and drop iterates, which do not satisfy
+  ```math
+      \|r(ρᵢ)\| < \text{errorfactor} minᵢ \|r(ρᵢ)\|
+  ```
+  where $r(ρ)$ denotes the preconditioned SCF residual corresponding to density $ρ$.
+  This means the best way to save memory is to reduce `errorfactor` to `1e3` or `100`,
+  which reduces the effective history size.
+
+[^CDLS21]: Chupin, Dupuy, Legendre, Séré. Math. Model. Num. Anal. **55**, 2785 (2021) dDOI [10.1051/m2an/2021069](https://doi.org/10.1051/m2an/2021069)
 """
 struct ScfAndersonDensitySolver{Targs} <: ScfSolver
     m_start::Int
@@ -94,26 +110,12 @@ Weizsäcker kinetic energy density.
 
 An alternative is [`ScfAndersonDensitySolver`](@ref), which only performs damping and
 anderson acceleration in the density, but not in the kinetic energy density. For functionals
-not involving the kinetic energy  density `τ` both algorithms are equivalent; for meta-GGA
+not involving the kinetic energy density `τ` both algorithms are equivalent; for meta-GGA
 functionals this solver tends to be more reliable, but [`ScfAndersonDensitySolver`](@ref)
 is sometimes faster if both work.
 
-## Keyword arguments
-- `m::Integer`       (default: `10`) Maximal Anderson history size
-- `m_start::Integer` (default: `1`)  Start collecting history in the `m_start`th SCF iteration
-- `maxcond::Real` (default: `1e6`)
-  Maximal condition number in Anderson matrix; a larger value triggers truncation of the
-  older entries in the Anderson history.
-- `errorfactor::Real` (default: `1e5`): We follow [^CDLS21] (adaptive Anderson acceleration)
-  and drop iterates, which do not satisfy
-  ```math
-      \|r(ρᵢ)\| < \text{errorfactor} minᵢ \|r(ρᵢ)\|
-  ```
-  where $r(ρ)$ denotes the preconditioned SCF residual corresponding to density $ρ$.
-  This means the best way to save memory is to reduce `errorfactor` to `1e3` or `100`,
-  which reduces the effective history size.
-
-[^CDLS21]: Chupin, Dupuy, Legendre, Séré. Math. Model. Num. Anal. **55**, 2785 (2021) dDOI [10.1051/m2an/2021069](https://doi.org/10.1051/m2an/2021069)
+See the documentation of [`ScfAndersonDensitySolver`](@ref) for documentation on
+keyword arguments and their default values.
 """
 struct ScfAndersonSolver{Repr, Targs} <: ScfSolver
     representation::Repr
