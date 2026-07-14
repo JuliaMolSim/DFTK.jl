@@ -45,10 +45,10 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     if xc.use_nlcc && any(needs_τ, xc.functionals)
         if any(has_core_kinetic_energy_density, basis.model.atoms)
             τcore = ρ_from_total(basis, atomic_total_density(basis, CoreKineticEnergyDensity()))
-        elseif !isnothing(ρcore)
+        elseif !isnothing(ρcore) && xc.nlcc_from_vw
             τcore = von_weizsaecker_kinetic_energy_density(basis, ρcore)
         end
-        if mpi_master(basis.comm_kpts) && minimum(τcore) < -sqrt(eps(T))
+        if !isnothing(τcore) && mpi_master(basis.comm_kpts) && minimum(τcore) < -sqrt(eps(T))
             @debug "xc: Negative τcore: $(minimum(τcore))"
         end
     end
