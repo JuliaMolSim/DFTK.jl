@@ -77,13 +77,31 @@ boundary rows). Antoine chose to eat the load time in exchange for owning less n
 
 ## Findings that shaped it (the important part)
 
-1. **`sbt` alone is not accurate enough.** It evaluates `∑ᵢ f(rᵢ) rᵢ³ jₗ(p rᵢ) Δρ` — a
-   *rectangle* rule in log r, spectrally accurate only if the integrand vanishes at **both**
-   ends. It does at rmin (killed by r³), but at the mesh end only the projectors and the
-   erf-corrected vloc vanish — the **atomic densities and pseudo-wavefunctions do not**.
-   **Fix:** the transform kernel depends on `i+j` only, so any per-node quadrature weight can
-   be folded into `f` for free. We fold in 4th-order **Gregory** endpoint corrections,
-   restoring O(Δρ⁴). Without this the densities regress ~1000×.
+1. **`sbt` alone is not accurate enough.** It evaluates `∑ᵢ f(rᵢ) rᵢ³ jₗ(p rᵢ) Δρ` — a bare
+   *rectangle* rule in log r, i.e. only **O(Δρ)**. Any per-node weight can be folded into `f`
+   for free (the kernel depends on `i+j` only, so scaling `fᵢ` leaves it a convolution), so we
+   fold in 4th-order **Gregory** weights. Measured (error/H̃(0) at p ≈ 5, N = 4096):
+
+   | weights | error | order |
+   |---|---|---|
+   | none (raw `sbt`) | 4.8e-7 | 1 |
+   | trapezoid | 5.5e-8 | 2 |
+   | **Gregory (shipped)** | **5.6e-12** | **4** |
+   | Simpson | 1.5e-12 | 4 |
+
+   **Why Gregory, and not just "it's 4th order":** by Euler–Maclaurin the trapezoid rule's error
+   on a smooth integrand is made up *entirely of boundary terms*, the interior cancelling to all
+   orders. So a uniform-grid sum's accuracy is decided at its two endpoints and nowhere else.
+   Here the integrand dies like r^{l+3} at rmin (that end is free), but at rmax the densities —
+   and especially the pswfcs, still at ~1e-2 of their peak — do not. Gregory's rule *is* the
+   cancellation of those boundary terms (finite-difference approximations to the Euler–Maclaurin
+   derivatives), so it fixes the error where the error is, and extends to higher order by
+   correcting more end nodes.
+   ⚠ An earlier note here justified Gregory by "interior weights are 1, which is what allows
+   them to be folded in". **That is wrong** — *any* per-node weight folds in. And Simpson is not
+   worse (it is marginally better). Gregory is preferred only because it needs no parity
+   constraint on `n` (composite Simpson wants an odd point count; our grid is 4096) and because
+   it generalises to higher order, where Newton–Cotes goes unstable.
 
 2. **A one-ulp bug that cost 5 orders of magnitude.** `exp(log(rmax))` can land an ulp
    *above* `rmax`, so the last log-grid node fell outside the radial data and the resampler
