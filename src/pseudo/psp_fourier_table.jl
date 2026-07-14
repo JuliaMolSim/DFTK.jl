@@ -16,8 +16,9 @@ using SphericalBesselTransforms: SBTPlan, sbt
 # logarithmic or of the form e^x - 1, so the data is resampled first (`resample_radial`).
 #
 # The tabulated H̃ is smooth and *even* in p (that is the point of the 1/p^l factor), so it
-# is well represented by a cubic spline in log p, and near p = 0 by its two-term Taylor
-# series (`moment0`, `moment2`) -- which is also what makes p = 0 exactly representable.
+# is well represented by a cubic spline in log p, and near p = 0 by the first three terms of
+# its Taylor series -- which is also what makes p = 0 exactly representable (the log grid
+# cannot reach it).
 
 const HANKEL_TABLE_NPOINTS = 4096  # Points of the log-r (and thus log-p) grid
 const HANKEL_TABLE_RMIN    = 1e-5  # Bottom of the log-r grid
@@ -28,7 +29,8 @@ const HANKEL_TABLE_PCUT    = 1e-2  # Below this, use the small-p series instead 
 Tabulated modified Hankel transform H̃ of one radial quantity, see `build_hankel_table`.
 `coefficients` are cubic B-spline coefficients on the logarithmic grid
 `p_i = exp(logpmin + (i-1) Δlogp)`, `i = 1:n_nodes`; they are ghost-padded, so node `i`
-lives at index `i+1`. Below `pcut` the series `moment0 + moment2 p²` is used instead.
+lives at index `i+1`. Below `pcut` the series `moment0 + moment2 p² + moment4 p⁴` is used
+instead.
 """
 struct HankelTable{T,AT<:AbstractVector{T}}
     coefficients::AT
@@ -96,11 +98,10 @@ end
 
 """
 Tabulate the modified Hankel transform of the radial quantity `r2_f` (that is r² f(r))
-given on the radial mesh `rgrid`, for angular momentum `l`. `quadrature` is used for the
-small-p moments only; the transform itself is done by `plan`, whose r grid must end at
-`last(rgrid)`.
+given on the radial mesh `rgrid`, for angular momentum `l`. The transform is done by `plan`,
+whose r grid must end at `last(rgrid)`.
 """
-function build_hankel_table(plan::SBTPlan{T}, rgrid, r2_f, l::Integer, quadrature) where {T}
+function build_hankel_table(plan::SBTPlan{T}, rgrid, r2_f, l::Integer) where {T}
     @assert length(rgrid) == length(r2_f)
     # Quantities ending before the plan's grid (projectors, which are strictly zero past
     # their cutoff radius) are zero-padded by `resample_radial`; ending after it would
@@ -127,10 +128,14 @@ function build_hankel_table(plan::SBTPlan{T}, rgrid, r2_f, l::Integer, quadratur
     @assert plan.kmin < HANKEL_TABLE_PCUT
 
     # jₗ(x)/x^l = 1/(2l+1)!! (1 - x²/(2(2l+3)) + x⁴/(8(2l+3)(2l+5)) - …) integrated against
-    # r2_f gives the small-p series of H̃, i.e. moments of the radial quantity.
+    # r2_f gives the small-p series of H̃, i.e. moments of the radial quantity. Integrate them
+    # on the *same* log grid, with the same weights, as the transform above: they are the p→0
+    # limit of the very same discrete sum, so the two branches meet at pcut to roundoff. (A
+    # Simpson rule over the psp's own mesh is a percent-level-cheaper but ~1e-6-accurate
+    # answer, which shows up as a visible step at the crossover.) ∫g dr = Δρ ∑ᵢ wᵢ g(rᵢ) rᵢ on
+    # a log grid, and `f` already carries the weights wᵢ and a factor 1/rᵢ².
     dfact = prod(1:2:(2l+1); init=1)
-    moment(n, weight) = 4T(π) / (dfact * weight) * quadrature((i, r) -> r2_f[i] * r^(l+n),
-                                                              rgrid)
+    moment(n, weight) = 4T(π) / (dfact * weight) * plan.Δρ * sum(f .* plan.r .^ (l+n+3))
     moment0 =  moment(0, 1)
     moment2 = -moment(2, 2 * (2l + 3))
     moment4 =  moment(4, 8 * (2l + 3) * (2l + 5))
@@ -155,9 +160,18 @@ function gregory_weights(::Type{T}, n::Integer) where {T}
 end
 
 """
-Natural cubic spline through the points `(r[i], y[i])`, with `r` not necessarily uniform.
-Used to move radial quantities from the pseudopotential's own mesh (linear, logarithmic or
-e^x - 1) to the logarithmic mesh the spherical Bessel transform needs.
+Cubic spline through the points `(r[i], y[i])`, with `r` not necessarily uniform, and
+not-a-knot end conditions. Used to move radial quantities from the pseudopotential's own mesh
+(linear, logarithmic or e^x - 1) to the logarithmic mesh the spherical Bessel transform needs.
+
+The end condition matters a great deal here, and a *natural* spline (y′′ = 0 at the ends) is
+badly wrong: the quantities splined are r² f(r), whose curvature at r = 0 is 2f(0) ≠ 0, so
+imposing y′′ = 0 there misrepresents the first cell by O(1). That error is localized within a
+mesh spacing h of the origin, i.e. it is nearly a delta function, and its Hankel transform is
+therefore *flat* out to p ~ 1/h instead of decaying -- it does not perturb the norm (a p = 0
+quantity) at all, but it contaminates every large |G| and shows up as a visibly more negative
+core density in real space. Not-a-knot (continuity of y′′′ across the second and second-to-last
+knots) instead lets the end cells take the curvature the data implies.
 """
 struct RadialSpline{T}
     r::Vector{T}
@@ -169,13 +183,28 @@ function RadialSpline(r::AbstractVector, y::AbstractVector)
     T = promote_type(eltype(r), eltype(y))
     n = length(r)
     h = diff(r)
-    # Second derivatives from continuity of the first derivative, with y′′ = 0 at both ends.
+    # Second derivatives from continuity of the first derivative across the interior knots.
     y′′ = zeros(T, n)
-    if n > 2
-        d  = [2 * (h[i-1] + h[i])                                for i = 2:n-1]
-        dl = [h[i]                                               for i = 2:n-2]
+    if n ≥ 4
+        d   = [2 * (h[i-1] + h[i])                                     for i = 2:n-1]
+        du  = [h[i]                                                    for i = 2:n-2]
+        dl  = [h[i]                                                    for i = 2:n-2]
         rhs = [6 * ((y[i+1] - y[i]) / h[i] - (y[i] - y[i-1]) / h[i-1]) for i = 2:n-1]
-        y′′[2:n-1] = Tridiagonal(dl, d, copy(dl)) \ rhs
+
+        # Not-a-knot: y′′′ is continuous across knots 2 and n-1, which expresses the two end
+        # curvatures in terms of their neighbours,
+        #     y′′[1] = ((h₁+h₂) y′′[2] - h₁ y′′[3]) / h₂     (and symmetrically at the end).
+        # Substituting them into the first and last interior equations keeps the system
+        # tridiagonal in the interior unknowns y′′[2:n-1].
+        m = n - 2
+        d[1]    += h[1] * (h[1] + h[2]) / h[2]
+        du[1]   -= h[1]^2 / h[2]
+        d[m]    += h[n-1] * (h[n-2] + h[n-1]) / h[n-2]
+        dl[m-1] -= h[n-1]^2 / h[n-2]
+
+        y′′[2:n-1] = Tridiagonal(dl, d, du) \ rhs
+        y′′[1] = ((h[1] + h[2]) * y′′[2] - h[1] * y′′[3]) / h[2]
+        y′′[n] = ((h[n-2] + h[n-1]) * y′′[n-1] - h[n-1] * y′′[n-2]) / h[n-2]
     end
     RadialSpline{T}(collect(r), collect(y), y′′)
 end

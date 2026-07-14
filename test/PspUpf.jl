@@ -403,3 +403,45 @@ end
           [eval_psp_projector_fourier(psp, 1, 0, p) for p in ps]
     @test eval_psp_local_fourier(psp, ps) ≈ [eval_psp_local_fourier(psp, p) for p in ps]
 end
+
+@testitem "Fourier tables decay at large p" tags=[:psp] setup=[mPspUpf] begin
+    using DFTK: eval_psp_core_density_fourier
+
+    # The radial quantities are r² f(r), whose curvature at the origin is 2f(0) ≠ 0. A
+    # *natural* interpolating spline would force it to zero, misrepresenting the first mesh
+    # cell by O(1); being localized within one spacing h of the origin, that error is nearly a
+    # delta function and its Hankel transform is flat out to p ~ 1/h rather than decaying. It
+    # leaves the norm (a p = 0 quantity) untouched, so it hides from every other test here,
+    # and surfaces only as a spuriously negative core density in real space. Check the decay.
+    psp = mPspUpf.upf_pseudos[:Ge]  # NLCC, sharply peaked core density, linear mesh
+    ρcore_max = eval_psp_core_density_fourier(psp, 0.0)
+    for p in (20.0, 30.0, 40.0)
+        @test abs(eval_psp_core_density_fourier(psp, p)) < 1e-8 * ρcore_max
+    end
+end
+
+@testitem "Basis construction rejects a psp tabulated too coarsely" tags=[:psp] setup=[mPspUpf] begin
+    using DFTK
+    using LinearAlgebra
+
+    # A basis needs the Fourier transforms at every |G| of its density cube. The table cannot
+    # raise on an out-of-range p (it is evaluated in a GPU kernel), so the basis checks the
+    # largest |G| against the table's range up front. With the real HANKEL_TABLE_PMAX this is
+    # unreachable at any sane Ecut, so shrink a copy of the table to provoke it.
+    psp = mPspUpf.upf_pseudos[:Si]
+    table = psp.vloc_table
+    small = DFTK.HankelTable{Float64,Vector{Float64}}(
+        table.coefficients, table.logpmin, table.Δlogp, table.n_nodes, 1.0, table.pcut,
+        table.moment0, table.moment2, table.moment4)
+    fields = [f === :vloc_table ? small : getfield(psp, f) for f in fieldnames(DFTK.PspUpf)]
+    psp_small = typeof(psp)(fields...)
+    @test DFTK.max_momentum_fourier(psp_small) == 1.0
+
+    model = model_DFT(diagm([10.0, 10.0, 10.0]), [ElementPsp(:Si, psp_small)], [zeros(3)];
+                      functionals=LDA())
+    @test_throws ErrorException PlaneWaveBasis(model; Ecut=20, kgrid=[1, 1, 1])
+    # The same basis is fine with the pseudopotential's real table.
+    model_ok = model_DFT(diagm([10.0, 10.0, 10.0]), [ElementPsp(:Si, psp)], [zeros(3)];
+                         functionals=LDA())
+    @test PlaneWaveBasis(model_ok; Ecut=20, kgrid=[1, 1, 1]) isa PlaneWaveBasis
+end

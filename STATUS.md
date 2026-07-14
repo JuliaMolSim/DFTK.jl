@@ -41,10 +41,10 @@ splines well in log p and has a Taylor series at p = 0. Nothing downstream needs
   into coefficients.
 - `hankel_table_plan(rmax, lmax)` — one `SBTPlan` per (rmax, lmax), shared by all quantities
   of a psp. Quantities cut off before `rmax` (projectors) are zero-padded, which is exact.
-- `RadialSpline` / `resample_radial` — natural cubic spline, **hand-rolled because
-  Interpolations does not support cubic on irregular grids** (`Gridded(Cubic)` errors, and
-  radial meshes are linear / log / `e^x − 1`). Used to move the psp data onto the plan's
-  log grid.
+- `RadialSpline` / `resample_radial` — cubic spline with **not-a-knot** end conditions,
+  hand-rolled because **Interpolations does not support cubic on irregular grids**
+  (`Gridded(Cubic)` errors, and radial meshes are linear / log / `e^x − 1`). Used to move the
+  psp data onto the plan's log grid. The end condition is not a detail — see finding 8.
 - `gregory_weights` — see finding 1.
 
 ## Findings that shaped it (the important part)
@@ -81,12 +81,30 @@ splines well in log p and has a Taylor series at p = 0. Nothing downstream needs
    linear / log / `e^x−1` meshes through one path. `Si.pbe-hgh.upf` is already a log mesh and
    comes out at 1e-10 → **the plan's `Si.pz-vbc.UPF` licensing question is moot.**
 
-6. **The p⁴ term of the series is needed.** With only `moment0 + moment2 p²`, the series and
-   the spline disagree by **5.7e-7** at `pcut = 1e-2` (a visible discontinuity). Adding
-   `moment4` brings the two branches together. In practice only p = 0 lands in the series
-   branch (the smallest |G| of a real cell is ≫ pcut), but the jump was real.
+6. **The two branches must be integrated the *same* way** (this supersedes the old finding 6,
+   which blamed the 5.7e-7 jump at `pcut` on truncating the series after p² — wrong: adding
+   `moment4` did not close it). The moments were computed by **Simpson over the psp's own
+   radial mesh** while the spline branch came from the SBT, so the series inherited Simpson's
+   ~1e-6 error: at p = 0 the ρion table returned 2.9999990 where the true integral is
+   3.0000007. Fixed by integrating the moments **on the plan's log grid, with the same Gregory
+   weights** — they are then literally the p → 0 limit of the same discrete sum, and the two
+   branches meet to **2e-12**. Both now agree with an adaptive quadrature to ~6e-12.
+   `moment4` is still worth keeping: dropping it reopens a (genuine, p⁴-truncation) 1.8e-8 gap.
 
-7. **`build_projector_form_factors` had a stray trailing comma** — `for l = 0:psp.lmax,`
+7. **The spline's end condition at r = 0 was silently wrecking every large |G|.** `RadialSpline`
+   was a *natural* spline (y′′ = 0 at both ends), but the splined quantity is r² f(r), whose
+   curvature at the origin is 2f(0) ≠ 0 — so the first mesh cell was misrepresented by O(1).
+   That error is confined to within one mesh spacing h of the origin, i.e. it is nearly a
+   **delta function**, and the Hankel transform of a delta is **flat**: ρcore(p) plateaued at
+   6.2e-6 out to p ~ 1/h instead of decaying. It perturbs no p = 0 quantity (so norms, charges
+   and the whole accuracy table below stayed green) and showed up only as a **1000× more
+   negative core density in real space** (Ge: -2.2e-5 vs master's -3.8e-8). Switched to
+   **not-a-knot**; the transform now decays (1e-8 at p = 40) and the real-space core density
+   matches master to 3 digits. Covered by "Fourier tables decay at large p".
+   ⚠ The lesson generalizes: *every* test here was a p = 0 or a smooth-quantity test, and none
+   of them could see this. Judge a transform by its tail, not only by its norm.
+
+8. **`build_projector_form_factors` had a stray trailing comma** — `for l = 0:psp.lmax,`
    followed by a newline, which folds the next line into the loop header. Rewritten as a
    plain `for l = 0:psp.lmax`. **Flag this in review** — it is a behavioural line.
 
@@ -113,40 +131,35 @@ Accuracy vs an adaptive quadrature of the same radial spline, at p ∈ {0.3, 1.1
   7.0 ms was pure `IdDict` bookkeeping → once evaluation is O(1) the dedup is pure overhead
   (a net loss for `PspHgh` too), hence it was deleted outright.
 
-## Since the reconstruction (all uncommitted, **not yet all verified**)
+## State
 
-- `src/pseudo/psp_fourier_table.jl` — new (rewritten).
-- `moment4` added: `HankelTable` field, `eval_hankel_table` argument, and the three
-  vectorized `eval_psp_*_fourier` call sites in `PspUpf.jl` destructure/pass it.
-- **Out-of-range p is now an error, as asked.** `eval_hankel_table` clamps (a GPU kernel
-  cannot raise, and a `maximum(ps)` check in the vectorized path would reintroduce a GPU
-  sync), so the check lives where it is cheap and exact: `max_momentum_fourier(psp)`
-  (`NormConservingPsp.jl`: `Inf`; `PspUpf.jl`: `psp.vloc_table.pmax`) is compared against the
-  largest |G + q| of the FFT cube once, in the `PlaneWaveBasis` inner constructor.
-  With pmax = 1000 this is unreachable in practice (Ecut ≈ 5·10⁵ Ha). **Untested.**
-- `test/PspUpf.jl`: the two new items were repaired — the old one called the (now gone)
-  `interpolate_radial`, and the "falls back to quadrature past their range" item is obsolete
-  (there is no fallback any more) and was replaced by one covering the small-p series, the C²
-  crossover and the vectorized paths.
-- `Project.toml` / `Manifest.toml`: `SphericalBesselTransforms` v0.1.0 (+ `Bessels`) resolved.
+All of the previous TODO list is done; `test/PspUpf.jl` is **859/859 green**, and the
+stress/forces items pass too. (Running them via `TestItemRunner.run_tests` directly makes the
+unrelated `Forces term-wise Fe (GTH)` item error with `UndefVarError: LDA` — that item never
+imports DFTK and relies on the `using` that `Pkg.test` injects. It is identical to master and
+green in CI; not our problem, but it will bite whoever runs the suite this way.)
+
+Verified end to end against a `master` worktree, same script, rattled bulk Si (LDA, UPF, Ecut
+20, 4×4×4), plus the guess-density charges:
+
+| | branch vs master |
+|---|---|
+| total energy | 5e-8 Ha (6e-9 relative) |
+| forces, stress | 3e-10 |
+| valence charge (Si, Ge) | identical to 12 digits |
+| min ρcore in real space | Si -2.165e-10 vs -2.171e-10, Ge -3.787e-8 vs -3.784e-8 |
+
+The residual energy difference is the tables vs master's Simpson, and the tables are the more
+accurate side. The "Negative ρcore" warnings are **unchanged vs master** (they are a property
+of the pseudos, and they got *smaller* once finding 7 was fixed).
 
 ## TODO
 
-- [ ] **Run the PspUpf test items to green.** Last complete run (before `moment4`) was
-      688 pass / 1 fail / 1 error: the fail was finding 6 (fixed by `moment4`, needs a rerun);
-      the error was an interrupted psp parse, an artifact of the run, not a code bug.
-      `TestItemRunner.run_tests("test/"; filter=ti -> occursin("PspUpf.jl", string(ti.filename)))`
-      Note the accuracy item is the expensive one — keep its p list and pseudo list short, and
-      build the reference `RadialSpline` **once per quantity**, never inside the integrand.
-- [ ] Sanity-check the physics end to end (Si LDA, forces, stresses); the pre-tables numbers
-      to compare against are energy `-34.068186777787`, forces ~1e-16, stress 3.49781e-5, with
-      per-call results shifting ~1e-6 relative (not bit-identical). Also confirm the
-      pre-existing "Negative ρcore" warnings are unchanged vs master.
-- [ ] Exercise the new `PlaneWaveBasis` momentum check at least once (e.g. temporarily lower
-      `HANKEL_TABLE_PMAX`) — it has never been triggered.
 - [ ] Julia 1.10 compat: `SphericalBesselTransforms` declares `julia = "1.11"` (it uses
       `logrange`) while DFTK supports 1.10 → DFTK is unresolvable on 1.10 as it stands.
       **Antoine said he'd handle this; do not spend time on it.**
+- [ ] Before the PR: `Pkg.test("DFTK"; test_args=["minimal"])`, and flag finding 8 (the stray
+      comma) to a reviewer as a behavioural line.
 
 ## Tuning knobs (all in `psp_fourier_table.jl`)
 

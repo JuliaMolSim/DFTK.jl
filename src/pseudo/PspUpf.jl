@@ -178,7 +178,6 @@ function PspUpf(pseudo::UpfFile; identifier, rcut=nothing)
     # cut off at `rcut`, so those two families need one transform plan each (they coincide
     # in the common case rcut == last(rgrid)). Projectors ending before their family's rcut
     # are zero-padded, which is exact: they are strictly zero past their cutoff radius.
-    quadrature = default_psp_quadrature(rgrid)
     plan_cut = hankel_table_plan(rgrid[ircut], lmax)
     plan_full = ircut == length(rgrid) ? plan_cut : hankel_table_plan(last(rgrid), lmax)
 
@@ -187,24 +186,20 @@ function PspUpf(pseudo::UpfFile; identifier, rcut=nothing)
     rgrid_cut = view(rgrid, 1:ircut)
     r2_vloc_corrected = rgrid .^ 2 .* vloc .+ Zion .* rgrid .* erf.(rgrid)
     vloc_table = build_hankel_table(plan_cut, rgrid_cut,
-                                    view(r2_vloc_corrected, 1:ircut), 0, quadrature)
+                                    view(r2_vloc_corrected, 1:ircut), 0)
     r2_projs_tables = map(0:lmax) do l
         map(r2_projs[l+1]) do proj
             ircut_proj = min(ircut, length(proj))
             build_hankel_table(plan_cut, view(rgrid, 1:ircut_proj),
-                               view(proj, 1:ircut_proj), l, quadrature)
+                               view(proj, 1:ircut_proj), l)
         end
     end
     r2_pswfcs_tables = map(0:lmax) do l
-        map(pswfc -> build_hankel_table(plan_full, rgrid, pswfc, l, quadrature),
-            r2_pswfcs[l+1])
+        map(pswfc -> build_hankel_table(plan_full, rgrid, pswfc, l), r2_pswfcs[l+1])
     end
-    r2_ρion_table  = build_hankel_table(plan_cut, rgrid_cut, view(r2_ρion, 1:ircut),
-                                        0, quadrature)
-    r2_ρcore_table = build_hankel_table(plan_cut, rgrid_cut, view(r2_ρcore, 1:ircut),
-                                        0, quadrature)
-    r2_τcore_table = build_hankel_table(plan_cut, rgrid_cut, view(r2_τcore, 1:ircut),
-                                        0, quadrature)
+    r2_ρion_table  = build_hankel_table(plan_cut, rgrid_cut, view(r2_ρion, 1:ircut), 0)
+    r2_ρcore_table = build_hankel_table(plan_cut, rgrid_cut, view(r2_ρcore, 1:ircut), 0)
+    r2_τcore_table = build_hankel_table(plan_cut, rgrid_cut, view(r2_τcore, 1:ircut), 0)
 
     PspUpf{eltype(rgrid),typeof(vloc_interp)}(
         Zion, lmax, rgrid, drgrid,
@@ -257,24 +252,13 @@ end
 
 eval_psp_local_real(psp::PspUpf, r::T) where {T<:Real} = psp.vloc_interp(r)
 
-# Low-level function for the local part of the pseudopotential in reciprocal space
-function _eval_psp_local_fourier(quadrature, rgrid, vloc, Zion, p::T)::T where {T<:Real}
-    # QE style C(r) = -Zerf(r)/r Coulomb tail correction used to ensure
-    # exponential decay of `f` so that the Hankel transform is accurate.
-    # H[Vloc(r)] = H[Vloc(r) - C(r)] + H[C(r)],
-    # where H[-Zerf(r)/r] = -Z/p^2 exp(-p^2 /4)
-    # ABINIT uses a more 'pure' Coulomb term with the same asymptotic behavior
-    # C(r) = -Z/r; H[-Z/r] = -Z/p^2
-    p == 0 && return zero(T)  # Compensating charge background
-    # Equal to \int r (r * vloc[i] - (-Zion) erf(r)) * sin(p*r)/(p*r)
-    I = 1/p * quadrature(rgrid) do i, r
-         (r * vloc[i] - (-Zion) * erf(r)) * sin(p * r)
-    end
-    4T(π) * (I + -Zion / p^2 * exp(-p^2 / T(4)))
-end
-
-# Add back the Hankel transform of the Coulomb tail C(r) = -Z erf(r)/r that was taken out
-# of the tabulated (or quadratured) part, see `_eval_psp_local_fourier`.
+# Add back the Hankel transform of the Coulomb tail that was taken out of the tabulated part
+# before transforming it (see the table construction in `PspUpf`). The local potential decays
+# like -Z/r, too slowly for its Hankel transform to be computed accurately, so we subtract a
+# QE-style C(r) = -Z erf(r)/r -- which has the same tail, leaving a short-ranged remainder --
+# transform that, and add H[C] back analytically here:
+#     H[vloc] = H[vloc - C] + H[C],   H[-Z erf(r)/r] = -4π Z/p² exp(-p²/4).
+# (ABINIT instead uses the pure Coulomb C(r) = -Z/r, with H[-Z/r] = -4π Z/p².)
 function _add_local_coulomb_tail(Zion, p::T)::T where {T<:Real}
     p == 0 && return zero(T)  # Compensating charge background
     4T(π) * -Zion / p^2 * exp(-p^2 / T(4))
