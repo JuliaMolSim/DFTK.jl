@@ -292,7 +292,8 @@ end
     end
 end
 
-@testitem "Fourier tables agree with an accurate quadrature" tags=[:psp] setup=[mPspUpf] begin
+@testitem "Fourier tables agree with an accurate quadrature" #=
+    =#    tags=[:psp] setup=[mPspUpf] begin
     using DFTK
     using DFTK: eval_psp_local_fourier, eval_psp_projector_fourier, eval_psp_pswfc_fourier
     using DFTK: eval_psp_valence_density_fourier, eval_psp_core_density_fourier
@@ -371,7 +372,8 @@ end
     end
 end
 
-@testitem "Fourier tables: small-p series, smoothness, vectorized paths" tags=[:psp] setup=[mPspUpf] begin
+@testitem "Fourier tables: small-p series, smoothness, vectorized paths" #=
+    =#    tags=[:psp] setup=[mPspUpf] begin
     using DFTK
     using DFTK: eval_psp_local_fourier, eval_psp_projector_fourier
     using DFTK: eval_psp_valence_density_fourier
@@ -383,7 +385,7 @@ end
     # density integrates to the number of valence electrons.
     @test eval_psp_valence_density_fourier(psp, 0.0) ≈ psp.Zion rtol=1e-6
     # ... and matches the spline it hands over to, on the other side of the crossover.
-    pcut = psp.r2_ρion_table.pcut
+    pcut = DFTK.HANKEL_TABLE_PCUT
     series = eval_psp_valence_density_fourier(psp, prevfloat(pcut))
     spline = eval_psp_valence_density_fourier(psp, nextfloat(pcut))
     @test series ≈ spline rtol=1e-8
@@ -472,7 +474,8 @@ end
     end
 end
 
-@testitem "Basis construction rejects a psp tabulated too coarsely" tags=[:psp] setup=[mPspUpf] begin
+@testitem "Basis construction rejects a psp tabulated too coarsely" #=
+    =#    tags=[:psp] setup=[mPspUpf] begin
     using DFTK
     using LinearAlgebra
 
@@ -483,7 +486,7 @@ end
     psp = mPspUpf.upf_pseudos[:Si]
     table = psp.vloc_table
     small = DFTK.HankelTable{DFTK.HANKEL_TABLE_ORDER,Float64,Vector{Float64}}(
-        table.coefficients, table.logpmin, table.Δlogp, table.n_nodes, 1.0, table.pcut,
+        table.coefficients, table.logpmin, table.Δlogp, 1.0,
         table.moment0, table.moment2, table.moment4)
     fields = [f === :vloc_table ? small : getfield(psp, f) for f in fieldnames(DFTK.PspUpf)]
     psp_small = typeof(psp)(fields...)

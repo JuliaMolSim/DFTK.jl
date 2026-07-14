@@ -281,13 +281,13 @@ Looked at and judged not worth the churn — but they are the things a reviewer 
   would delete the constant, the assert and the coupling, and free `HANKEL_TABLE_RMIN` to rise.
   Not done: it makes the very first spline nodes load-bearing, and that needs its own accuracy
   study. The current arrangement is merely inelegant, not wrong.
-- **`eval_hankel_table` takes 10 positional arguments** rather than the `HankelTable`, because
-  the struct is not `isbits` and cannot be captured in a GPU kernel. `Adapt.@adapt_structure
-  HankelTable` would let the struct itself be broadcast and collapse the three destructuring
-  call sites in `PspUpf.jl`. Not done: it cannot be tested without a GPU here. The same
-  constraint is why `uniform_bsplines` exists rather than calling BSplineKit at evaluation
-  time — **not** distrust of BSplineKit (ForwardDiff through it is exact to 1e-14, and our
-  evaluator is checked against it to 1e-15).
+- **`eval_hankel_table` takes 8 positional arguments** rather than the `HankelTable`, because
+  the struct is not `isbits` and cannot be captured in a GPU kernel. (The destructuring now
+  happens once, in the vectorized `eval_hankel_table(table, ps)`, rather than at three call
+  sites.) `Adapt.@adapt_structure HankelTable` would remove even that. Not done: it cannot be
+  tested without a GPU here. The same constraint is why `uniform_bsplines` exists rather than
+  calling BSplineKit at evaluation time — **not** distrust of BSplineKit (ForwardDiff through
+  it is exact to 1e-14, and our evaluator is checked against it to 1e-15).
 - **`HANKEL_TABLE_ORDER` must be even** (order 6 = quintic). The cardinal-B-spline indexing in
   `eval_hankel_table` assumes B-spline `i` is centred on node `i`, which only holds for even
   order. Odd orders would need collocation at midpoints.

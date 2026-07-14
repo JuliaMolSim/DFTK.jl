@@ -229,11 +229,7 @@ end
 
 # Vectorized version of the above, GPU compatible
 function eval_psp_projector_fourier(psp::PspUpf, i, l, ps::AbstractVector{T}) where {T<:Real}
-    table = to_device(architecture(ps), psp.r2_projs_tables[l+1][i])
-    (; coefficients, logpmin, Δlogp, n_nodes, pcut, moment0, moment2, moment4) = table
-    order = Val(hankel_order(table))
-    map(p -> eval_hankel_table(coefficients, order, logpmin, Δlogp, n_nodes,
-                               pcut, moment0, moment2, moment4, p), ps)
+    eval_hankel_table(psp.r2_projs_tables[l+1][i], ps)
 end
 
 count_n_pswfc_radial(psp::PspUpf, l) = length(psp.r2_pswfcs[l+1])
@@ -275,15 +271,11 @@ end
 
 # Vectorized version of the above, GPU optimized
 function eval_psp_local_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Real}
-    table = to_device(architecture(ps), psp.vloc_table)
-    (; coefficients, logpmin, Δlogp, n_nodes, pcut, moment0, moment2, moment4) = table
-    order = Val(hankel_order(table))
     Zion = psp.Zion
-    map(ps) do p
+    tabulated = eval_hankel_table(psp.vloc_table, ps)
+    map(ps, tabulated) do p, tail_corrected
         p == 0 && return zero(T)  # Compensating charge background
-        (  eval_hankel_table(coefficients, order, logpmin, Δlogp, n_nodes,
-                             pcut, moment0, moment2, moment4, p)
-         + _add_local_coulomb_tail(Zion, p))
+        tail_corrected + _add_local_coulomb_tail(Zion, p)
     end
 end
 
@@ -305,11 +297,7 @@ end
 
 # Vectorized version of the above, GPU optimized
 function eval_psp_core_density_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Real}
-    table = to_device(architecture(ps), psp.r2_ρcore_table)
-    (; coefficients, logpmin, Δlogp, n_nodes, pcut, moment0, moment2, moment4) = table
-    order = Val(hankel_order(table))
-    map(p -> eval_hankel_table(coefficients, order, logpmin, Δlogp, n_nodes,
-                               pcut, moment0, moment2, moment4, p), ps)
+    eval_hankel_table(psp.r2_ρcore_table, ps)
 end
 
 function eval_psp_core_kinetic_energy_density_real(psp::PspUpf, r::T) where {T<:Real}

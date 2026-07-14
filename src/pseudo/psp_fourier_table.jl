@@ -17,20 +17,20 @@ import BSplineKit
 # but requires the input on a logarithmic r grid -- radial meshes of UPF files are linear,
 # logarithmic or of the form e^x - 1, so the data is resampled first (`resample_radial`).
 #
-# The tabulated H̃ is smooth and *even* in p (that is the point of the 1/p^l factor), so it is
-# well represented by a spline in log p, and near p = 0 by the first three terms of its Taylor
-# series -- which is also what makes p = 0 exactly representable (the log grid cannot reach it).
+# The tabulated H̃ is smooth and *even* in p (that is the point of the 1/p^l factor), so it
+# splines well in log p, and near p = 0 is carried by the first three terms of its Taylor
+# series -- which is also what makes p = 0 representable at all (the log grid cannot reach it).
 #
-# Two splines appear here. They are of the same (high) order but play very different roles:
+# There are two splines here, of the same order but doing different jobs, and it is worth
+# knowing which one bites when:
 #
-#   * in r, the spline carries the sampled psp data onto the transform's log grid. Its error
-#     sets the accuracy of the tabulated *values*.
-#   * in log p, the spline is the representation we keep and evaluate. Its order sets how well
-#     *derivatives* come out -- it is differentiated by ForwardDiff for stresses and response.
-#     An order-k spline is only C^{k-2}, so a cubic one (k = 4) has a merely piecewise-linear
-#     second derivative: at k = 4 the error on H̃″ is 4e-8, at k = 6 it is 1e-10. And since
-#     H̃(p) is analytic (Paley-Wiener: the data has compact support), high order in p converges
-#     very fast and costs almost nothing.
+#   * in r, the spline carries the sampled psp data onto the transform's log grid. It limits
+#     the accuracy of the tabulated *values* (order 4: 1e-10; order 6: 6e-14).
+#   * in log p, the spline is the representation we keep, evaluate at every |G| and hand to
+#     ForwardDiff. It limits the *derivatives*: an order-k spline is only C^{k-2}, so a cubic
+#     one has a merely piecewise-linear second derivative and gets H̃″ wrong by 4e-8, against
+#     1e-10 at order 6. High order is cheap here because H̃(p) is analytic (Paley-Wiener: the
+#     radial data has compact support).
 
 const HANKEL_TABLE_NPOINTS = 4096  # Points of the log-r (and thus log-p) grid
 const HANKEL_TABLE_RMIN    = 1e-5  # Bottom of the log-r grid
@@ -41,16 +41,14 @@ const HANKEL_TABLE_ORDER   = 6     # B-spline order, in r and in log p alike. Mu
 """
 Tabulated modified Hankel transform H̃ of one radial quantity, see `build_hankel_table`.
 `coefficients` are the B-spline coefficients of order `K` on the logarithmic grid
-`p_i = exp(logpmin + (i-1) Δlogp)`, `i = 1:n_nodes`. Below `pcut` the series
+`p_i = exp(logpmin + (i-1) Δlogp)`, one per node. Below `HANKEL_TABLE_PCUT` the series
 `moment0 + moment2 p² + moment4 p⁴` is used instead.
 """
 struct HankelTable{K,T,AT<:AbstractVector{T}}
     coefficients::AT
     logpmin::T
     Δlogp::T
-    n_nodes::Int
-    pmax::T
-    pcut::T
+    pmax::T      # Largest |p| the table covers, see `max_momentum_fourier`
     moment0::T   # Coefficients of the Taylor series of H̃ at p = 0. It is even in p, so these
     moment2::T   # are H̃(0), H̃⁽²⁾(0)/2! and H̃⁽⁴⁾(0)/4!. Stopping at p² would leave a 1.8e-8
     moment4::T   # step at pcut; with p⁴ the two branches meet to ~2e-12.
@@ -61,8 +59,8 @@ to_device(::CPU, table::HankelTable) = table
 function to_device(architecture::GPU, table::HankelTable{K}) where {K}
     coefficients = to_device(architecture, table.coefficients)
     HankelTable{K,eltype(coefficients),typeof(coefficients)}(
-        coefficients, table.logpmin, table.Δlogp, table.n_nodes, table.pmax,
-        table.pcut, table.moment0, table.moment2, table.moment4)
+        coefficients, table.logpmin, table.Δlogp, table.pmax,
+        table.moment0, table.moment2, table.moment4)
 end
 
 """
@@ -91,17 +89,17 @@ Evaluate a `HankelTable` at `p`. Written in terms of plain scalars and one array
 the `HankelTable` itself, so that it can be called from a GPU kernel (a `HankelTable` is not
 `isbits`); the vectorized `eval_psp_*_fourier` destructure the table and call this.
 """
-function eval_hankel_table(coefficients::AbstractVector, ::Val{K}, logpmin, Δlogp, n_nodes,
-                           pcut, moment0, moment2, moment4, p) where {K}
+function eval_hankel_table(coefficients::AbstractVector, ::Val{K}, logpmin, Δlogp,
+                           moment0, moment2, moment4, p) where {K}
     # The transform is even in p, so a few terms of its Taylor series carry it to pcut. This
     # is also the p = 0 branch (the table lives on a logarithmic grid, log(0) = -Inf).
-    p < pcut && return moment0 + moment2 * p^2 + moment4 * p^4
+    p < HANKEL_TABLE_PCUT && return moment0 + moment2 * p^2 + moment4 * p^4
 
     # Position of p on the log grid, in (fractional) node units, and the cell holding it.
     # Clamping keeps the K coefficients below in bounds; it also means p > pmax silently
     # extrapolates rather than erroring, which `max_momentum_fourier` rules out up front.
     u = (log(p) - logpmin) / Δlogp
-    icell = clamp(floor(Int, u), K ÷ 2, n_nodes - K ÷ 2)
+    icell = clamp(floor(Int, u), K ÷ 2, length(coefficients) - K ÷ 2)
 
     # B-spline i is centred on node i, so the K nonzero ones on this cell are
     # i = icell+1-K/2 … icell+K/2. The interpolant is cardinal only away from the ends of the
@@ -116,8 +114,21 @@ function eval_hankel_table(coefficients::AbstractVector, ::Val{K}, logpmin, Δlo
 end
 
 function (table::HankelTable{K})(p) where {K}
-    eval_hankel_table(table.coefficients, Val(K), table.logpmin, table.Δlogp, table.n_nodes,
-                      table.pcut, table.moment0, table.moment2, table.moment4, p)
+    eval_hankel_table(table.coefficients, Val(K), table.logpmin, table.Δlogp,
+                      table.moment0, table.moment2, table.moment4, p)
+end
+
+"""
+Evaluate a `HankelTable` on a whole vector of momenta, which is how the form factors are
+built and the only path that runs on the GPU. The table is destructured into its `isbits`
+pieces first: the kernel can capture those and the coefficient array, but not the struct.
+"""
+function eval_hankel_table(table::HankelTable, ps::AbstractVector)
+    (; coefficients, logpmin, Δlogp, moment0, moment2, moment4) =
+        to_device(architecture(ps), table)
+    order = Val(hankel_order(table))
+    map(p -> eval_hankel_table(coefficients, order, logpmin, Δlogp,
+                               moment0, moment2, moment4, p), ps)
 end
 
 """
@@ -174,9 +185,8 @@ function build_hankel_table(plan::SBTPlan{T}, rgrid, r2_f, l::Integer) where {T}
     moment2 = -moment(2, 2 * (2l + 3))
     moment4 =  moment(4, 8 * (2l + 3) * (2l + 5))
 
-    HankelTable{K,T,Vector{T}}(coefficients, log(plan.kmin), plan.Δρ, plan.nr,
-                               T(HANKEL_TABLE_PMAX), T(HANKEL_TABLE_PCUT),
-                               moment0, moment2, moment4)
+    HankelTable{K,T,Vector{T}}(coefficients, log(plan.kmin), plan.Δρ,
+                               T(HANKEL_TABLE_PMAX), moment0, moment2, moment4)
 end
 
 """
@@ -198,15 +208,13 @@ Interpolating spline through the radial quantity `y` sampled on the mesh `r` (no
 UPF meshes are linear, logarithmic or of the form e^x - 1), as a callable that is zero past
 the end of the data.
 
-The end condition at r = 0 is not a detail. The quantities splined are r² f(r), whose curvature
-there is 2f(0) ≠ 0 whenever l = 0 -- every density, the local potential, the l = 0 projectors.
-A *natural* spline, which pins y′′ = 0, therefore misrepresents the first cell by O(1). That
-error lives within one mesh spacing of the origin, i.e. it is nearly a delta function, and the
-Hankel transform of a delta is *flat*: it leaves p = 0 (hence every norm and charge) untouched
-while putting a ~6e-7 floor under the whole tail of H̃, which surfaces as a spuriously negative
-core density in real space. BSplineKit's default end condition does the right thing; do **not**
-pass `Natural()`. (For l ≥ 1, r² f ~ r^{l+2} does have zero curvature at the origin, and there
-the end condition is immaterial.)
+**Never pass `Natural()`.** The quantities splined are r² f(r), whose curvature at the origin
+is 2f(0) ≠ 0 whenever l = 0 (every density, the local potential, the l = 0 projectors), so
+pinning y′′ = 0 there misrepresents the first cell by O(1). Confined to within one mesh spacing
+of r = 0, that error is nearly a delta function -- and the transform of a delta is *flat*, so it
+leaves p = 0 (hence every norm and charge, and thus most tests) untouched while putting a ~6e-7
+floor under the entire tail of H̃. It surfaces only as a spuriously negative core density in
+real space. BSplineKit's default end condition is the right one.
 """
 function radial_spline(r::AbstractVector, y::AbstractVector)
     @assert length(r) == length(y)
