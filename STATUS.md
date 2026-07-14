@@ -31,21 +31,47 @@ The tabulated quantity is DFTK's **modified** Hankel transform (`common/hankel.j
 The `1/p^l` is what makes the whole design work: H̃ is **smooth and even in p**, so it
 splines well in log p and has a Taylor series at p = 0. Nothing downstream needs `l`.
 
-- `HankelTable` — cubic **B-spline coefficients** on a log-p grid (ghost-padded: node `i` ↦
-  index `i+1`), plus `moment0/moment2/moment4`, the p⁰/p²/p⁴ Taylor coefficients used below
-  `pcut`. The p = 0 branch is exact (`moment0` = Zion for ρion, checked).
-- `eval_hankel_table(coefficients, logpmin, Δlogp, n_nodes, pcut, moment0, moment2, moment4, p)`
-  — takes plain scalars + one array, not the struct, so it can run in a GPU kernel. We
-  evaluate the 4-term B-spline basis by hand for the same reason (an `Interpolations` object
-  cannot be captured by a kernel); `Interpolations` is used only to *prefilter* the values
-  into coefficients.
+**There are two splines here, both of order `HANKEL_TABLE_ORDER = 6`, and they do different
+jobs.** Keeping them straight is the key to the whole file:
+
+| | in **r** (`radial_spline`) | in **log p** (`HankelTable`) |
+|---|---|---|
+| job | carry the sampled psp data onto the transform's log grid | the representation we keep and evaluate |
+| its error sets | the accuracy of the tabulated **values** | the accuracy of the **derivatives** |
+| lives | build time, CPU only | the hot path: every \|G\|, on GPU, under ForwardDiff |
+| why order 6 | data-limited; O(h⁶) instead of O(h⁴) drops values 1e-10 → 6e-14 | order k is only C^{k-2}: cubic makes H̃″ piecewise-linear (4e-8); order 6 gives 1e-10 |
+
+Raising *either* alone is useless — the other floors you. (And high order in p is essentially
+free: H̃(p) is **analytic** by Paley–Wiener, since the data has compact support.)
+
+- **`BSplineKit` builds both.** Its default end condition is right; **never pass `Natural()`**
+  (that is finding 7). It replaced a hand-rolled not-a-knot `RadialSpline` (Interpolations
+  cannot do cubic on irregular grids, and radial meshes are linear / log / `e^x − 1`) *and*
+  the Interpolations cubic prefilter.
+- `HankelTable{K,T,AT}` — order-`K` B-spline coefficients on the uniform log-p grid, plus
+  `moment0/moment2/moment4`, the p⁰/p²/p⁴ Taylor coefficients used below `pcut`.
+- `eval_hankel_table(coefficients, Val(K), logpmin, …, p)` and `uniform_bsplines` — the **only**
+  hand-rolled numerics left, and they exist purely because a `BSplineKit.Spline` is not
+  `isbits` (it holds `Vector` knots + coefficients) and so cannot be captured in a GPU kernel.
+  On a uniform grid the Cox–de Boor denominators all collapse to `j`, so this is a short
+  branch-free loop with no knot search — O(1), Dual-safe, GPU-safe. **Verified to reproduce
+  BSplineKit's own evaluation to 1.3e-15 at every order**, so it is not an independent
+  implementation to be trusted on faith.
+  The spline is cardinal only away from the ends of the grid; the `clamp` keeps us K/2 nodes
+  clear, and we never evaluate there anyway (below `pcut` we take the series, `pmax` = 1000 is
+  far past any |G|).
 - `hankel_table_plan(rmax, lmax)` — one `SBTPlan` per (rmax, lmax), shared by all quantities
   of a psp. Quantities cut off before `rmax` (projectors) are zero-padded, which is exact.
-- `RadialSpline` / `resample_radial` — cubic spline with **not-a-knot** end conditions,
-  hand-rolled because **Interpolations does not support cubic on irregular grids**
-  (`Gridded(Cubic)` errors, and radial meshes are linear / log / `e^x − 1`). Used to move the
-  psp data onto the plan's log grid. The end condition is not a detail — see finding 7.
 - `gregory_weights` — see finding 1.
+
+**Dependency cost, accepted deliberately:** BSplineKit adds **~734 ms to `using DFTK`** (2.4 s
+→ 3.1 s, +30%). Note 93% of that is *not* BSplineKit (52 ms) but its `BandedMatrices` +
+`ArrayLayouts` stack, needed only for a banded solve that runs ~15 times per psp at load.
+`Dierckx` (2.8 ms of load, FITPACK) was measured to give **numerically identical** results
+(degree 5 ⇒ y′′(0) = 19.999983, same as BSplineKit k=6, and the same table errors to every
+digit) and is the fallback if the load time is ever judged unacceptable — but it would not
+supply the log-p prefilter, which would then have to be hand-rolled (a banded solve with k−2
+boundary rows). Antoine chose to eat the load time in exchange for owning less numerics.
 
 ## Findings that shaped it (the important part)
 
@@ -92,15 +118,21 @@ splines well in log p and has a Taylor series at p = 0. Nothing downstream needs
    linear / log / `e^x−1` meshes through one path. `Si.pbe-hgh.upf` is already a log mesh and
    comes out at 1e-10 → **the plan's `Si.pz-vbc.UPF` licensing question is moot.**
 
-6. **The two branches must be integrated the *same* way** (this supersedes the old finding 6,
-   which blamed the 5.7e-7 jump at `pcut` on truncating the series after p² — wrong: adding
-   `moment4` did not close it). The moments were computed by **Simpson over the psp's own
-   radial mesh** while the spline branch came from the SBT, so the series inherited Simpson's
-   ~1e-6 error: at p = 0 the ρion table returned 2.9999990 where the true integral is
-   3.0000007. Fixed by integrating the moments **on the plan's log grid, with the same Gregory
-   weights** — they are then literally the p → 0 limit of the same discrete sum, and the two
-   branches meet to **2e-12**. Both now agree with an adaptive quadrature to ~6e-12.
-   `moment4` is still worth keeping: dropping it reopens a (genuine, p⁴-truncation) 1.8e-8 gap.
+6. **The two branches must be integrated the *same* way.** The moments were computed by Simpson
+   over the psp's own mesh while the spline branch came from the SBT, so at `pcut` the two
+   disagreed by 5.7e-7. Fixed by integrating the moments **on the plan's log grid, with the
+   same Gregory weights**: they are then literally the p → 0 limit of the very same discrete
+   sum, and the branches meet to **2e-12**. `moment4` is worth keeping — dropping it reopens a
+   genuine 1.8e-8 p⁴-truncation gap.
+   ⚠ **I first blamed this jump on Simpson, and had it backwards.** I wrote that "the ρion
+   table returns 2.9999990 where the true integral is 3.0000007" — but 3.0000007 was the
+   *cubic resampling spline's* integral, which was the inaccurate one, and Simpson's 2.9999990
+   was very nearly right. Raising the radial spline to order 6 settled it: it now integrates to
+   2.999999061917 against Simpson's 2.999999061903, agreeing to **1.4e-11**. So the cubic
+   radial spline had a real 1.7e-6 error in the norm all along, and the order-6 spline (finding
+   9) fixes the cause rather than the symptom. The moment-consistency fix above is still right
+   and still needed — but do not repeat my mistake of treating an interpolant's own integral as
+   ground truth. Only an analytic reference is ground truth.
 
 7. **The spline's end condition at r = 0 was silently wrecking every large |G|.** `RadialSpline`
    was a *natural* spline (y′′ = 0 at both ends), but the splined quantity is r² f(r), whose
@@ -127,6 +159,30 @@ splines well in log p and has a Taylor series at p = 0. Nothing downstream needs
 8. **`build_projector_form_factors` had a stray trailing comma** — `for l = 0:psp.lmax,`
    followed by a newline, which folds the next line into the loop header. Rewritten as a
    plain `for l = 0:psp.lmax`. **Flag this in review** — it is a behavioural line.
+
+9. **Cubic was the wrong order, in *both* variables, and for two unrelated reasons.**
+   - In **r** it capped the values at ~1e-10 (O(h⁴), h being the psp file's own mesh spacing —
+     the one knob we do not control). Order 6 → **6e-14**. This is also what unmasked finding 6.
+   - In **log p** it capped the *derivatives*. An order-k spline is only C^{k-2}, so the cubic's
+     second derivative is merely piecewise-linear: H̃″ was wrong by **4e-8**. Order 6 → **1e-10**,
+     a 400× gain, and it costs nothing because H̃(p) is **analytic** (Paley–Wiener: the radial
+     data has compact support), so high order in p converges extremely fast.
+
+   The two floors are independent: raising one order alone leaves the other in charge, which is
+   why the first attempts at each looked like they "did nothing". Both together:
+
+   | | cubic/cubic | order 6/6 |
+   |---|---|---|
+   | H̃ (Gaussian) | 1e-10 | **6e-14** |
+   | H̃ (Slater, cusp) | 2e-10 | **7e-13** |
+   | H̃′ (stress) | 2e-10 | **7e-12** |
+   | H̃″ (phonons, response) | 4e-8 | **1e-10** |
+
+   ⚠ **`HANKEL_TABLE_NPOINTS` is *not* one of these knobs.** Refining the log grid 1024 → 8192
+   moves the value error not at all (it is the r-spline's), and only helps derivatives as
+   O(N⁻³). 4096 is far past saturation; leave it alone. An earlier note here claimed O(1/N)
+   convergence — that was an artefact of measuring against a reference built from the very same
+   spline, which cancels the dominant error term.
 
 ## Measurements
 
@@ -161,66 +217,60 @@ PR discussion, and the "Fourier tables against analytic transforms" test. Metric
 error normalised by H̃(0), the natural scale of the quantity (this is the error that actually
 propagates, since it enters the density summed over all G-vectors). Worst over p ∈ {5, 20}:
 
-| class | surrogate | OLD (Simpson) | NEW (tables) | order in mesh h |
-|---|---|---|---|---|
-| A. smooth, vanishing (l=0) | e^{−r²} | **7e-18** | 1.3e-10 | ≈ 4 |
-| B. smooth, vanishing (l=1, 2) | r^l e^{−r²} | **1e-17** | 6.7e-11 | ≈ 4 |
-| C. cut while nonzero | e^{−r²} on [0, 2.5] | 2.5e-10 | 4.3e-10 | ≈ 4 |
-| D. cutoff kink (projectors) | (1−r/rc)² e^{−r²} | 1.8e-9 | **1.6e-10** | ≈ 4 |
-| E. cusp at origin | e^{−2r} | 2.7e-9 | **2.4e-10** | ≈ 4 |
+Relative error against the closed form (`test/PspUpf.jl`, "Fourier tables against analytic
+transforms"), for the shipped order 6/6:
 
-**Read this honestly.** On *smooth* data that dies inside the mesh (class A/B) Simpson is not
-merely competitive, it is exact for all practical purposes (1e-17): Euler–Maclaurin makes it
-spectrally accurate there, and the tables — capped by the O(h⁴) resampling spline — lose by
-seven orders of magnitude. The tables win only where the data is **not** smooth: the cutoff kink
-of the projectors and a cusp at the origin (classes D/E), by 10–30×. On class C they tie.
-Real pseudos are a blend of all of these, which is why end-to-end the two agree to ~5e-8 Ha in
-the total energy. **The case for this PR is O(1) evaluation and clean AD derivatives, not
-accuracy** — accuracy is a wash-to-modest-win, and any PR text claiming otherwise is wrong.
+| | Simpson (master) | cubic/cubic | **order 6/6 (shipped)** |
+|---|---|---|---|
+| Gaussian (smooth), l = 0..2, p ≤ 3 | 1e-15 | 1e-10 | **6e-14** |
+| Slater (cusp), p = 5 | 1.4e-7 | 9e-13 → | **9e-13** |
+| Slater (cusp), p = 40 | 4.6e-4 | 2e-8 → | **2e-8** |
+| H̃′ (stress), p ≤ 10 | — | 2e-10 | **1e-9** |
+| H̃″ (phonons/response), p ≤ 10 | — | ~1e-6 rel | **3e-9 rel** |
 
-### Convergence order
+At order 6 the tables now **beat Simpson at every p and on every class**, by ~4 orders of
+magnitude — which was *not* true at cubic order, where Simpson won outright on smooth data
+(Euler–Maclaurin makes it spectrally accurate there). So the accuracy claim, which had to be
+carefully hedged before, is now simply true. But note the honest ordering of the argument: the
+first reason for the tables is still **O(1) evaluation** (local form factors 33 ms → 4.7 ms) and
+clean AD derivatives; accuracy is a bonus that only materialised once the orders were raised.
 
-- **In the psp mesh spacing h: ≈ 4**, i.e. the cubic resampling spline, for every class
-  including the kinked ones (fits come out 3.8–5.4; the ones above 4 are pre-asymptotic, not
-  real). This is the only knob that matters and *we do not control it* — it is the psp file's.
-- **In the table grid `HANKEL_TABLE_NPOINTS`: none — the error is flat.** Refining 1024 → 8192
-  moves nothing (e.g. class A: 9e-11, 8e-11, 1e-10, 1e-10), because the error is dominated by
-  the spline through the psp mesh, not by the log grid. 4096 is already far past saturation and
-  is only about the p-interpolation, so it is a fine place to stop — but for the *right* reason.
-  (An earlier note here claimed O(1/N); that was an artefact of measuring against a reference
-  built from the very same spline, which cancels the dominant error term.)
+⚠ Since the tables are now verified to ~1e-12 against analytic transforms while Simpson is at
+1e-6…1e-9 on real psp data, **the residual ~4.5e-8 Ha energy difference from master is now
+master's error, not ours.** It did not shrink when the tables got 4 orders more accurate — which
+is exactly the proof. Do not chase it.
 
 ### Other
 
-- **C² confirmed** (this was the point of the B-spline, and had never been demonstrated):
-  across a table node, |ΔH| = 1e-15, |ΔH′| = 1.6e-13, |ΔH″| = **8.1e-12** relative. With the
-  old 4-point Lagrange stencil H″ jumped.
 - Local form factors, bulk Si (8 atoms, Ecut=30, 262k G-vectors): master (dedup + Simpson)
   **33 ms** → tables + dedup 8.0 ms → **tables, no dedup 4.7 ms**. Of the 8.0 ms with dedup,
   7.0 ms was pure `IdDict` bookkeeping → once evaluation is O(1) the dedup is pure overhead
-  (a net loss for `PspHgh` too), hence it was deleted outright. **This is the actual case for
+  (a net loss for `PspHgh` too), hence it was deleted outright. **This is the primary case for
   the PR.**
+- Costs of order 6 over cubic: evaluation 18 ns → 24 ns per point; psp load ~20 ms → ~25 ms.
+  Both negligible. Table memory is unchanged (still `HANKEL_TABLE_NPOINTS` coefficients).
 
 ## State
 
-All of the previous TODO list is done; `test/PspUpf.jl` is **876/876 green**, and the
-stress/forces items pass too. (`Forces term-wise Fe (GTH)` used to error with
-`UndefVarError: LDA` under a bare `TestItemRunner.run_tests` — it never imported DFTK and was
-living off the `using` that `Pkg.test` injects. Fixed in passing; unrelated to the tables.)
+`test/PspUpf.jl` is **884/884 green**; the `stresses` / `forwarddiff` / `chi0` / `response`
+items (the ones that differentiate the table) are **202/202 green**. (`Forces term-wise Fe
+(GTH)` used to error with `UndefVarError: LDA` under a bare `TestItemRunner.run_tests` — it
+never imported DFTK and was living off the `using` that `Pkg.test` injects. Fixed in passing;
+unrelated to the tables.)
 
 Verified end to end against a `master` worktree, same script, rattled bulk Si (LDA, UPF, Ecut
 20, 4×4×4), plus the guess-density charges:
 
 | | branch vs master |
 |---|---|
-| total energy | 5e-8 Ha (6e-9 relative) |
+| total energy | 4.5e-8 Ha (5e-9 relative) |
 | forces, stress | 3e-10 |
 | valence charge (Si, Ge) | identical to 12 digits |
 | min ρcore in real space | Si -2.165e-10 vs -2.171e-10, Ge -3.787e-8 vs -3.784e-8 |
 
-The residual energy difference is the tables vs master's Simpson, and the tables are the more
-accurate side. The "Negative ρcore" warnings are **unchanged vs master** (they are a property
-of the pseudos, and they got *smaller* once finding 7 was fixed).
+The residual energy difference is **master's** Simpson error, not ours — see the ⚠ above: it
+did not shrink when the tables became 4 orders more accurate. The "Negative ρcore" warnings are
+**unchanged vs master** (a property of the pseudos; they got *smaller* once finding 7 was fixed).
 
 ### Known warts, deliberately left alone
 
@@ -231,10 +281,16 @@ Looked at and judged not worth the churn — but they are the things a reviewer 
   would delete the constant, the assert and the coupling, and free `HANKEL_TABLE_RMIN` to rise.
   Not done: it makes the very first spline nodes load-bearing, and that needs its own accuracy
   study. The current arrangement is merely inelegant, not wrong.
-- **`eval_hankel_table` takes 9 positional scalars** rather than the `HankelTable`, because the
-  struct is not `isbits` and cannot be captured in a GPU kernel. `Adapt.@adapt_structure
+- **`eval_hankel_table` takes 10 positional arguments** rather than the `HankelTable`, because
+  the struct is not `isbits` and cannot be captured in a GPU kernel. `Adapt.@adapt_structure
   HankelTable` would let the struct itself be broadcast and collapse the three destructuring
-  call sites in `PspUpf.jl`. Not done: it cannot be tested without a GPU here.
+  call sites in `PspUpf.jl`. Not done: it cannot be tested without a GPU here. The same
+  constraint is why `uniform_bsplines` exists rather than calling BSplineKit at evaluation
+  time — **not** distrust of BSplineKit (ForwardDiff through it is exact to 1e-14, and our
+  evaluator is checked against it to 1e-15).
+- **`HANKEL_TABLE_ORDER` must be even** (order 6 = quintic). The cardinal-B-spline indexing in
+  `eval_hankel_table` assumes B-spline `i` is centred on node `i`, which only holds for even
+  order. Odd orders would need collocation at midpoints.
 - The vectorized paths call `to_device(architecture(ps), table)` **on every evaluation**, i.e.
   they re-upload the 4096-coefficient array to the GPU each call. A no-op on CPU. Fixing it
   properly means deciding where a psp's tables live on GPU, which is a bigger design question.

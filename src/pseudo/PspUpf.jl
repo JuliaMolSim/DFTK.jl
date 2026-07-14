@@ -56,12 +56,13 @@ struct PspUpf{T,I} <: NormConservingPsp
 
     ## Tabulated modified Hankel transforms, see psp_fourier_table.jl. These make
     ## `eval_psp_*_fourier` an O(1) interpolation rather than a quadrature per p value.
-    vloc_table::HankelTable{T,Vector{T}}          # Of the erf tail-corrected part, l = 0
-    r2_projs_tables::Vector{Vector{HankelTable{T,Vector{T}}}}
-    r2_pswfcs_tables::Vector{Vector{HankelTable{T,Vector{T}}}}
-    r2_ρion_table::HankelTable{T,Vector{T}}
-    r2_ρcore_table::HankelTable{T,Vector{T}}
-    r2_τcore_table::HankelTable{T,Vector{T}}
+    # `vloc_table` is that of the erf tail-corrected part of vloc (l = 0), see PspUpf below.
+    vloc_table::HankelTable{HANKEL_TABLE_ORDER,T,Vector{T}}
+    r2_projs_tables::Vector{Vector{HankelTable{HANKEL_TABLE_ORDER,T,Vector{T}}}}
+    r2_pswfcs_tables::Vector{Vector{HankelTable{HANKEL_TABLE_ORDER,T,Vector{T}}}}
+    r2_ρion_table::HankelTable{HANKEL_TABLE_ORDER,T,Vector{T}}
+    r2_ρcore_table::HankelTable{HANKEL_TABLE_ORDER,T,Vector{T}}
+    r2_τcore_table::HankelTable{HANKEL_TABLE_ORDER,T,Vector{T}}
 
     ## Extras
     rcut::T              # Radial cutoff for all quantities except pswfc.
@@ -228,9 +229,10 @@ end
 
 # Vectorized version of the above, GPU compatible
 function eval_psp_projector_fourier(psp::PspUpf, i, l, ps::AbstractVector{T}) where {T<:Real}
-    (; coefficients, logpmin, Δlogp, n_nodes, pcut, moment0, moment2, moment4) =
-        to_device(architecture(ps), psp.r2_projs_tables[l+1][i])
-    map(p -> eval_hankel_table(coefficients, logpmin, Δlogp, n_nodes,
+    table = to_device(architecture(ps), psp.r2_projs_tables[l+1][i])
+    (; coefficients, logpmin, Δlogp, n_nodes, pcut, moment0, moment2, moment4) = table
+    order = Val(hankel_order(table))
+    map(p -> eval_hankel_table(coefficients, order, logpmin, Δlogp, n_nodes,
                                pcut, moment0, moment2, moment4, p), ps)
 end
 
@@ -273,12 +275,13 @@ end
 
 # Vectorized version of the above, GPU optimized
 function eval_psp_local_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Real}
-    (; coefficients, logpmin, Δlogp, n_nodes, pcut, moment0, moment2, moment4) =
-        to_device(architecture(ps), psp.vloc_table)
+    table = to_device(architecture(ps), psp.vloc_table)
+    (; coefficients, logpmin, Δlogp, n_nodes, pcut, moment0, moment2, moment4) = table
+    order = Val(hankel_order(table))
     Zion = psp.Zion
     map(ps) do p
         p == 0 && return zero(T)  # Compensating charge background
-        (  eval_hankel_table(coefficients, logpmin, Δlogp, n_nodes,
+        (  eval_hankel_table(coefficients, order, logpmin, Δlogp, n_nodes,
                              pcut, moment0, moment2, moment4, p)
          + _add_local_coulomb_tail(Zion, p))
     end
@@ -302,9 +305,10 @@ end
 
 # Vectorized version of the above, GPU optimized
 function eval_psp_core_density_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Real}
-    (; coefficients, logpmin, Δlogp, n_nodes, pcut, moment0, moment2, moment4) =
-        to_device(architecture(ps), psp.r2_ρcore_table)
-    map(p -> eval_hankel_table(coefficients, logpmin, Δlogp, n_nodes,
+    table = to_device(architecture(ps), psp.r2_ρcore_table)
+    (; coefficients, logpmin, Δlogp, n_nodes, pcut, moment0, moment2, moment4) = table
+    order = Val(hankel_order(table))
+    map(p -> eval_hankel_table(coefficients, order, logpmin, Δlogp, n_nodes,
                                pcut, moment0, moment2, moment4, p), ps)
 end
 
