@@ -57,12 +57,12 @@ struct PspUpf{T,I} <: NormConservingPsp
     ## Tabulated modified Hankel transforms, see psp_fourier_table.jl. These make
     ## `eval_psp_*_fourier` an O(1) interpolation rather than a quadrature per p value.
     # `vloc_table` is that of the erf tail-corrected part of vloc (l = 0), see PspUpf below.
-    vloc_table::HankelTable{HANKEL_TABLE_ORDER,T,Vector{T}}
-    r2_projs_tables::Vector{Vector{HankelTable{HANKEL_TABLE_ORDER,T,Vector{T}}}}
-    r2_pswfcs_tables::Vector{Vector{HankelTable{HANKEL_TABLE_ORDER,T,Vector{T}}}}
-    r2_ρion_table::HankelTable{HANKEL_TABLE_ORDER,T,Vector{T}}
-    r2_ρcore_table::HankelTable{HANKEL_TABLE_ORDER,T,Vector{T}}
-    r2_τcore_table::HankelTable{HANKEL_TABLE_ORDER,T,Vector{T}}
+    vloc_table::HankelTable{HANKEL_TABLE_ORDER_P,T,Vector{T}}
+    r2_projs_tables::Vector{Vector{HankelTable{HANKEL_TABLE_ORDER_P,T,Vector{T}}}}
+    r2_pswfcs_tables::Vector{Vector{HankelTable{HANKEL_TABLE_ORDER_P,T,Vector{T}}}}
+    r2_ρion_table::HankelTable{HANKEL_TABLE_ORDER_P,T,Vector{T}}
+    r2_ρcore_table::HankelTable{HANKEL_TABLE_ORDER_P,T,Vector{T}}
+    r2_τcore_table::HankelTable{HANKEL_TABLE_ORDER_P,T,Vector{T}}
 
     ## Extras
     rcut::T              # Radial cutoff for all quantities except pswfc.

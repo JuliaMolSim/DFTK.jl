@@ -31,15 +31,17 @@ The tabulated quantity is DFTK's **modified** Hankel transform (`common/hankel.j
 The `1/p^l` is what makes the whole design work: H̃ is **smooth and even in p**, so it
 splines well in log p and has a Taylor series at p = 0. Nothing downstream needs `l`.
 
-**There are two splines here, both of order `HANKEL_TABLE_ORDER = 6`, and they do different
-jobs.** Keeping them straight is the key to the whole file:
+**There are two splines here, and they do different jobs.** Keeping them straight is the key to
+the whole file. They are separate constants (`HANKEL_TABLE_ORDER_R` / `_P`) — that both come out
+at 6 is a coincidence of two unrelated limits, so do not merge them:
 
 | | in **r** (`radial_spline`) | in **log p** (`HankelTable`) |
 |---|---|---|
 | job | carry the sampled psp data onto the transform's log grid | the representation we keep and evaluate |
 | its error sets | the accuracy of the tabulated **values** | the accuracy of the **derivatives** |
 | lives | build time, CPU only | the hot path: every \|G\|, on GPU, under ForwardDiff |
-| why order 6 | data-limited; O(h⁶) instead of O(h⁴) drops values 1e-10 → 6e-14 | order k is only C^{k-2}: cubic makes H̃″ piecewise-linear (4e-8); order 6 gives 1e-10 |
+| why 6 | data-limited: O(h⁶) drops values 1e-10 → 6e-14, and order **8 is worse** (5e-13) — saturated against the cutoff kink | order k is only C^{k-2}: cubic makes H̃″ piecewise-linear (4e-8), order 6 gives 1e-10. Could go higher if 3rd derivatives were ever wanted |
+| constraint | none | **must be even** (cardinal indexing) |
 
 Raising *either* alone is useless — the other floors you. (And high order in p is essentially
 free: H̃(p) is **analytic** by Paley–Wiener, since the data has compact support.)
@@ -291,9 +293,12 @@ Looked at and judged not worth the churn — but they are the things a reviewer 
   tested without a GPU here. The same constraint is why `uniform_bsplines` exists rather than
   calling BSplineKit at evaluation time — **not** distrust of BSplineKit (ForwardDiff through
   it is exact to 1e-14, and our evaluator is checked against it to 1e-15).
-- **`HANKEL_TABLE_ORDER` must be even** (order 6 = quintic). The cardinal-B-spline indexing in
-  `eval_hankel_table` assumes B-spline `i` is centred on node `i`, which only holds for even
-  order. Odd orders would need collocation at midpoints.
+- **`HANKEL_TABLE_ORDER_P` must be even** (6 = quintic): `eval_hankel_table` indexes a cardinal
+  basis, i.e. assumes B-spline `i` is centred on node `i`, which only holds for even order. Odd
+  orders would need collocation at midpoints. `HANKEL_TABLE_ORDER_R` carries no such constraint
+  — the two orders are separate constants precisely because they are limited by different things
+  (data smoothness vs. the smoothness class we differentiate), and their both being 6 is a
+  coincidence.
 - The vectorized paths call `to_device(architecture(ps), table)` **on every evaluation**, i.e.
   they re-upload the 4096-coefficient array to the GPU each call. A no-op on CPU. Fixing it
   properly means deciding where a psp's tables live on GPU, which is a bigger design question.

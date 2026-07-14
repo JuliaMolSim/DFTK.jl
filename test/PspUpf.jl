@@ -485,7 +485,7 @@ end
     # unreachable at any sane Ecut, so shrink a copy of the table to provoke it.
     psp = mPspUpf.upf_pseudos[:Si]
     table = psp.vloc_table
-    small = DFTK.HankelTable{DFTK.HANKEL_TABLE_ORDER,Float64,Vector{Float64}}(
+    small = DFTK.HankelTable{DFTK.HANKEL_TABLE_ORDER_P,Float64,Vector{Float64}}(
         table.coefficients, table.logpmin, table.Δlogp, 1.0,
         table.moment0, table.moment2, table.moment4)
     fields = [f === :vloc_table ? small : getfield(psp, f) for f in fieldnames(DFTK.PspUpf)]

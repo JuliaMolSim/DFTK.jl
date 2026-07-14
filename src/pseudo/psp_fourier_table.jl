@@ -21,8 +21,8 @@ import BSplineKit
 # splines well in log p, and near p = 0 is carried by the first three terms of its Taylor
 # series -- which is also what makes p = 0 representable at all (the log grid cannot reach it).
 #
-# There are two splines here, of the same order but doing different jobs, and it is worth
-# knowing which one bites when:
+# There are two splines here, doing different jobs and flooring different errors -- which is
+# why raising one of the orders alone appears to achieve nothing:
 #
 #   * in r, the spline carries the sampled psp data onto the transform's log grid. It limits
 #     the accuracy of the tabulated *values* (order 4: 1e-10; order 6: 6e-14).
@@ -31,12 +31,27 @@ import BSplineKit
 #     one has a merely piecewise-linear second derivative and gets H̃″ wrong by 4e-8, against
 #     1e-10 at order 6. High order is cheap here because H̃(p) is analytic (Paley-Wiener: the
 #     radial data has compact support).
+#
+# They are tuned separately (`HANKEL_TABLE_ORDER_R` / `_P`); that both land on 6 is a
+# coincidence of two independent limits.
 
 const HANKEL_TABLE_NPOINTS = 4096  # Points of the log-r (and thus log-p) grid
 const HANKEL_TABLE_RMIN    = 1e-5  # Bottom of the log-r grid
 const HANKEL_TABLE_PMAX    = 1e3   # Top of the log-p grid (Ecut = pmax²/2 ≈ 5·10⁵ Ha)
 const HANKEL_TABLE_PCUT    = 1e-2  # Below this, use the small-p series instead of the spline
-const HANKEL_TABLE_ORDER   = 6     # B-spline order, in r and in log p alike. Must be even.
+
+# The two spline orders. They come out equal, but for unrelated reasons -- do not merge them.
+#
+# In r the order is limited by the *data*: the psp's own mesh is all we have, and the quantities
+# have a cutoff kink. 6 measures 6e-14 on the tabulated values against 1e-10 at order 4, while
+# order 8 is *worse* (5e-13) -- it has saturated, so there is nothing above 6 to buy.
+const HANKEL_TABLE_ORDER_R = 6
+# In log p the order is the smoothness class we need: an order-k spline is only C^{k-2}, so a
+# cubic gets H̃″ wrong by 4e-8 where 6 gives 1e-10. Raising it further would keep paying (H̃(p)
+# is analytic) if higher derivatives were ever wanted, at ~12 ns/evaluation per two orders.
+# **Must be even**: `eval_hankel_table` indexes a cardinal basis, i.e. it assumes B-spline `i`
+# is centred on node `i`, which only holds for even order.
+const HANKEL_TABLE_ORDER_P = 6
 
 """
 Tabulated modified Hankel transform H̃ of one radial quantity, see `build_hankel_table`.
@@ -164,7 +179,7 @@ function build_hankel_table(plan::SBTPlan{T}, rgrid, r2_f, l::Integer) where {T}
 
     # Interpolate in log p. The grid is uniform, so away from its ends these B-spline
     # coefficients are the cardinal ones `eval_hankel_table` expects.
-    K = HANKEL_TABLE_ORDER
+    K = HANKEL_TABLE_ORDER_P
     itp = BSplineKit.interpolate(collect(log.(plan.k)), values, BSplineOrder(K))
     coefficients = collect(BSplineKit.coefficients(BSplineKit.spline(itp)))
 
@@ -218,8 +233,9 @@ real space. BSplineKit's default end condition is the right one.
 """
 function radial_spline(r::AbstractVector, y::AbstractVector)
     @assert length(r) == length(y)
-    # The order is capped by how much data there is (a projector can be very short).
-    order = clamp(2 * (length(r) ÷ 2), 2, HANKEL_TABLE_ORDER)
+    # BSplineKit needs at least `order` points. Every real radial mesh has thousands, but a
+    # projector cut off very early could in principle be shorter than the order.
+    order = min(HANKEL_TABLE_ORDER_R, length(r))
     itp = BSplineKit.interpolate(collect(float.(r)), collect(float.(y)), BSplineOrder(order))
     spline = BSplineKit.spline(itp)
     rlast = float(last(r))

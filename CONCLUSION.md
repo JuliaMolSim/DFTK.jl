@@ -117,14 +117,16 @@ All in `psp_fourier_table.jl`.
 
 | knob | now | what it controls | worth turning? |
 |---|---|---|---|
-| `HANKEL_TABLE_ORDER` | 6 | B-spline order in **r** *and* in **log p** | **This is the knob.** See below. |
+| `HANKEL_TABLE_ORDER_R` | 6 | B-spline order of the radial resampling | caps the **values**; saturated (8 is worse) |
+| `HANKEL_TABLE_ORDER_P` | 6 | B-spline order in **log p** | caps the **derivatives**; must be even |
 | `HANKEL_TABLE_NPOINTS` | 4096 | log-grid resolution | **No.** Error is flat in it. |
 | `HANKEL_TABLE_PMAX` | 1e3 | top of the table | free to raise; unreachable in practice |
 | `HANKEL_TABLE_RMIN` | 1e-5 | bottom of the r grid | coupled to `pcut`, see below |
 | `HANKEL_TABLE_PCUT` | 1e-2 | series ↔ spline crossover | must stay > `pmin = pmax·rmin/rmax` |
 
-**`HANKEL_TABLE_ORDER` is really two knobs that happen to share a value**, and they floor
-different things — which is why raising either alone looks like it does nothing:
+**The two orders are independent, and floor different things** — which is why raising either
+alone looks like it does nothing. That they both land on 6 is a coincidence of two unrelated
+limits, so they are separate constants:
 
 - the spline **in r** carries the psp data onto the transform's log grid, and caps the
   **values** (order 4: 1e-10; order 6: 6e-14). Its convergence is O(h⁴)/O(h⁶) in *the psp
@@ -143,8 +145,11 @@ Measured, at p = 5, absolute error vs the closed form:
 | **6** | 4 | **1e-12** | 2e-10 | **4e-08** |
 | **6** | **6** | **6e-14** | **7e-12** | **1e-10** |
 
-Order 8 buys nothing at N = 4096. Orders must be **even** (the cardinal-B-spline indexing in
-`eval_hankel_table` assumes B-spline i is centred on node i).
+`ORDER_R` is pinned at 6 by the data: order 8 is measurably *worse* (5e-13 vs 6e-14), having
+saturated against the cutoff kink. `ORDER_P` is a free choice of smoothness class — it would
+keep paying if higher derivatives were ever wanted (H̃(p) is analytic), at ~12 ns/evaluation per
+two orders — and it **must be even**, because `eval_hankel_table` indexes a cardinal basis,
+which assumes B-spline i is centred on node i. Only the p-side carries that constraint.
 
 **`HANKEL_TABLE_NPOINTS` is a trap.** Refining 1024 → 8192 moves the value error not at all
 (it belongs to the r-spline) and helps derivatives only as O(N⁻³). 4096 is far past saturation.
