@@ -44,6 +44,7 @@ include("common/quadrature.jl")
 include("common/hankel.jl")
 include("common/hydrogenic.jl")
 include("common/derivatives.jl")
+include("common/divided_difference.jl")
 include("common/linalg.jl")
 include("common/random.jl")
 
@@ -101,11 +102,11 @@ include("supercell.jl")
 export Energies
 include("Energies.jl")
 
-export Coulomb
+export BareCoulomb
 export SphericallyTruncatedCoulomb
 export WignerSeitzTruncatedCoulomb
 export ShortRangeCoulomb, LongRangeCoulomb
-export ProbeCharge, ReplaceSingularity, VoxelAveraged
+export ProbeCharge, ReplaceSingularity, VoxelAverage
 include("coulomb.jl")
 
 export Hamiltonian

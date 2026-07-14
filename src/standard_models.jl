@@ -193,7 +193,8 @@ Build an Hartree-Fock model from the specified atoms.
          necks in the code.
 """
 function model_HF(system::AbstractSystem; pseudopotentials,
-                  exx_kernel::InteractionKernel=Coulomb(), extra_terms=[], kwargs...)
+                  exx_kernel::InteractionKernel=ProbeCharge(BareCoulomb()),
+                  extra_terms=[], kwargs...)
     # Note: We are deliberately enforcing the user to specify pseudopotentials here.
     # See the implementation of model_atomic for a rationale why
     #
@@ -202,7 +203,8 @@ function model_HF(system::AbstractSystem; pseudopotentials,
 end
 function model_HF(lattice::AbstractMatrix, atoms::Vector{<:Element},
                   positions::Vector{<:AbstractVector};
-                  exx_kernel::InteractionKernel=Coulomb(), extra_terms=[], kwargs...)
+                  exx_kernel::InteractionKernel=ProbeCharge(BareCoulomb()),
+                  extra_terms=[], kwargs...)
     extra_terms=[Hartree(), ExactExchange(; kernel=exx_kernel), extra_terms...]
     model_atomic(lattice, atoms, positions; model_name="HF", extra_terms, kwargs...)
 end
@@ -273,7 +275,7 @@ term as well as the following:
 - `exx_fraction`: Custom exact exchange / screened Coulomb fraction. If not specified,
   the Libxc default will be used.
 - `exx_kernel`: The type of [`InteractionKernel`](@ref) to employ. If not specified,
-  the function will query Libxc and employ a [`Coulomb`](@ref) or [`ShortRangeCoulomb`](@ref)
+  the function will query Libxc and employ a [`BareCoulomb`](@ref) or [`ShortRangeCoulomb`](@ref)
   kernel with the range-separation parameter `μ`.
 - `μ`: Range-separation parameter. If not specified, Libxc default is used.
   Ignored for global hybrids or if `exx_kernel` is provided.
@@ -294,7 +296,7 @@ function parse_hybrid_parameters_(; exx_sr=nothing, exx_lr=nothing,
                                     range_separation_parameter=nothing)
     if isnothing(range_separation_kernel)
         @assert exx_lr == exx_sr
-        return (; scaling_factor=exx_sr, kernel=Coulomb())
+        return (; scaling_factor=exx_sr, kernel=ProbeCharge(BareCoulomb()))
     elseif range_separation_kernel == :erf
         if exx_lr > 0
             error("Range separation with non-zero long-range exact exchange not yet available.")

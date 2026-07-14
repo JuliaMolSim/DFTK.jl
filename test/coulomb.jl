@@ -1,6 +1,6 @@
 @testitem "Reference energy tests of Coulomb kernels" tags=[:exx,:dont_test_mpi] setup=[TestCases] begin
     using DFTK
-    using DFTK: exx_energy_only, compute_kernel_fourier
+    using DFTK: exx_energy_only, eval_kernel_fourier
     using FastGaussQuadrature
     using LinearAlgebra
     using .TestCases: silicon
@@ -11,6 +11,7 @@
     model  = model_DFT(silicon.lattice, [Si, Si], silicon.positions; functionals=PBE())
     basis  = PlaneWaveBasis(model; Ecut=10, kgrid=(1, 1, 1))
     scfres = self_consistent_field(basis; tol=1e-10, callback=identity)
+    kf(kernel) = eval_kernel_fourier(kernel, basis)
 
     n_occ = 4
     kpt  = basis.kpoints[1]
@@ -21,38 +22,38 @@
         ifft!(ψk_real[:, :, :, n], basis, kpt, ψk[:, n])
     end
 
-    k_probe = compute_kernel_fourier(Coulomb(ProbeCharge()), basis)
+    k_probe = kf(ProbeCharge(BareCoulomb()))
     @testset "Coulomb with ProbeCharge" begin
         E_probe = exx_energy_only(basis, kpt, k_probe, ψk_real, occk)
-        E_ref = -2.3383063575660987
+        E_ref = -2.3383182267715146
         @test abs(E_ref - E_probe) < 1e-6
     end
 
     @testset "Coulomb with ReplaceSingularity" begin
-        k_neglect = compute_kernel_fourier(Coulomb(ReplaceSingularity(0.0)), basis)
+        k_neglect = kf(ReplaceSingularity(BareCoulomb(), 0.0))
         E_neglect = exx_energy_only(basis, kpt, k_neglect, ψk_real, occk)
-        E_ref = -0.7349457693125514
+        E_ref = -0.7349576391651506
         @test abs(E_ref - E_neglect) < 1e-6
         @test norm(k_neglect[2:end] - k_probe[2:end]) < 1e-6
     end
 
     @testset "LongRangeCoulomb with ProbeCharge" begin
-        k_lr = compute_kernel_fourier(LongRangeCoulomb(0.1, ProbeCharge()), basis)
+        k_lr = kf(ProbeCharge(LongRangeCoulomb(0.1)))
         E_lr = exx_energy_only(basis, kpt, k_lr, ψk_real, occk)
-        E_ref = -0.44269774759135383
+        E_ref = -0.44269774759135283
         @test abs(E_ref - E_lr) < 1e-6
     end
 
     @testset "ShortRangeCoulomb" begin
-        k_sr = compute_kernel_fourier(ShortRangeCoulomb(0.1), basis)
+        k_sr = kf(ShortRangeCoulomb(0.1))
         E_sr = exx_energy_only(basis, kpt, k_sr, ψk_real, occk)
-        E_ref = -5.384688524633953
+        E_ref = -5.384700394476406
         @test abs(E_ref - E_sr) < 1e-6
     end
 
     @testset "ShortRangeCoulomb plus LongRangeCoulomb is coulomb" begin
-        k_lr  = compute_kernel_fourier(LongRangeCoulomb(0.1, ProbeCharge()), basis)
-        k_sr  = compute_kernel_fourier(ShortRangeCoulomb(0.1), basis)
+        k_lr  = kf(ProbeCharge(LongRangeCoulomb(0.1)))
+        k_sr  = kf(ShortRangeCoulomb(0.1))
         k_sum = k_lr + k_sr
 
         # Note: The G=0 component does not match up, because in short-range Coulomb
@@ -64,25 +65,25 @@
     end
 
     @testset "SphericallyTruncatedCoulomb" begin
-        k_strunc = compute_kernel_fourier(SphericallyTruncatedCoulomb(), basis)
+        k_strunc = kf(SphericallyTruncatedCoulomb())
         E_strunc = exx_energy_only(basis, kpt, k_strunc, ψk_real, occk)
-        E_ref = -2.360166200435632
+        E_ref = -2.360170330350145
         @test abs(E_ref - E_strunc) < 1e-6
 
         # TODO: Test this gives a spherically truncated function.
     end
 
     @testset "WignerSeitzTruncatedCoulomb" begin
-        k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis)
+        k_wstrunc = kf(WignerSeitzTruncatedCoulomb())
         E_wstrunc = exx_energy_only(basis, kpt, k_wstrunc, ψk_real, occk)
-        E_ref = -2.3456813523805415
+        E_ref = -2.3456932201052796
         @test abs(E_ref - E_wstrunc) < 1e-6
     end
 
-    @testset "VoxelAveraged" begin
-        k_voxavg = compute_kernel_fourier(Coulomb(VoxelAveraged()), basis)
+    @testset "VoxelAverage" begin
+        k_voxavg = kf(VoxelAverage(BareCoulomb()))
         E_voxavg = exx_energy_only(basis, kpt, k_voxavg, ψk_real, occk)
-        E_ref = -2.249032672407079
+        E_ref = -2.249044591526691
         @test abs(E_ref - E_voxavg) < 1e-6
     end
 end
@@ -90,7 +91,7 @@ end
 @testitem "Reference kernel tests of Coulomb kernels (non-cubic lattices)" #=
         =# tags=[:exx,:dont_test_mpi] setup=[TestCases] begin
     using DFTK
-    using DFTK: compute_kernel_fourier
+    using DFTK: eval_kernel_fourier
     using FastGaussQuadrature
     using LinearAlgebra
     using .TestCases: all_testcases
@@ -120,25 +121,26 @@ end
         # Ecut=50 is ok because the lattice is ill-conditioned
     end
 
+    kf(b) = eval_kernel_fourier(WignerSeitzTruncatedCoulomb(), b)
     @testset "WignerSeitzTruncatedCoulomb" begin
         # TODO: These tests are not super useful, they mainly enable refactoring; they
         #       should really be replaced by tests of properties of WignerSeitzTruncatedCoulomb
         #       against SphericallyTruncatedCoulomb, for example.
-        k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis_Pt)
+        k_wstrunc = kf(basis_Pt)
         @test k_wstrunc[1:5] ≈ [289.8199039694483, 39.805749013785956, 5.580324780990978,
                                 4.320510620666685, 1.71839014451522]
 
-        k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis_Ga)
-        @test k_wstrunc[1:5] ≈ [133.48675852141807, 12.54391563903425, 1.0201128711380307,
-                                1.0201128711380307, 12.54391563903425]
+        k_wstrunc = kf(basis_Ga)
+        @test k_wstrunc[1:5] ≈ [133.48675852141807, 12.543915639034248, 1.0201128711380303,
+                                1.4993914735536529, 0.2032925438414927]
 
-        k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis_Sb)
-        @test k_wstrunc[1:5] ≈ [133.5869934680494, 17.875585010939407, 3.0560733842605785,
-                                1.6670099917149919, 1.6670099917149919] atol=1e-6
+        k_wstrunc = kf(basis_Sb)
+        @test k_wstrunc[1:5] ≈ [133.586993467607, 17.87558501104982, 3.056073383974545,
+                                1.6670099918317942, 0.9065961832826208] atol=1e-6
 
-        k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis_illcond)
-        @test k_wstrunc[1:5] ≈ [0.6835202703428708, 0.10574224010892719, 0.10574224010892719,
-                                0.363208874652315, 0.10081120609383883] atol=1e-6
+        k_wstrunc = kf(basis_illcond)
+        @test k_wstrunc[1:5] ≈ [0.6835202703428708, 0.003317275153646196, 8.838678696668954e-5,
+                                0.00024225236624065088, 5.8059844858737624e-5] atol=1e-6
     end
 end
 
@@ -153,6 +155,7 @@ end
     model  = model_DFT(silicon.lattice, [Si, Si], silicon.positions; functionals=PBE())
     basis  = PlaneWaveBasis(model; Ecut=10, kgrid=(1, 1, 1))
     scfres = self_consistent_field(basis; tol=1e-10, callback=identity)
+    kf(kernel) = eval_kernel_fourier(kernel, basis)
 
     n_occ = 4
     kpt  = basis.kpoints[1]
@@ -166,15 +169,15 @@ end
     @testset "Probe-charge integrals" begin
         α = π^2 / basis.Ecut  # width of probe charge
 
-        for kernel in (Coulomb(), LongRangeCoulomb())
+        for kernel in (BareCoulomb(), LongRangeCoulomb())
             # Compute Brillouin integral of k(q) times probe charge in Fourier (e^(-α q^2))
             # We use that the integrand is spherically symmetric and thus directly introduce
             # a 4π q^2 factor
             qmax = sqrt(316 / α)  # At that point e^(-α q^2) is numerically zero
             numerical_integral, _ = quadgk(0, qmax) do q
-                4π * q^2 * DFTK.eval_kernel_fourier(kernel, q^2) * exp(-α * q^2)
+                4π * q^2 * DFTK.eval_kernel_fourier(kernel, [q, 0, 0]) * exp(-α * q^2)
             end
-            analytical_integral = DFTK.eval_probe_charge_integral(kernel, α)
+            analytical_integral = DFTK.compute_probe_charge_integral(kernel, α)
             @test abs(numerical_integral - analytical_integral) < 1e-12
         end
     end
@@ -182,7 +185,7 @@ end
 
 @testitem "Asymptotic consistency of interaction kernels for localized density" tags=[:exx,:dont_test_mpi] begin
     using DFTK
-    using DFTK: exx_energy_only, compute_kernel_fourier
+    using DFTK: exx_energy_only, eval_kernel_fourier
     using LinearAlgebra
     using FastGaussQuadrature
 
@@ -207,7 +210,7 @@ end
         ψk_real ./= sqrt(sum(abs2, ψk_real) * basis.dvol)  # normalise ψk
         occk = [2.0]
 
-        kernel_values = compute_kernel_fourier(kernel, basis)
+        kernel_values = eval_kernel_fourier(kernel, basis)
         exx_energy_only(basis, kpt, kernel_values, ψk_real, occk)
     end
 
@@ -238,7 +241,7 @@ end
 
     @testset "WignerSeitz against ProbeCharge" begin
         a_vals = [14.0, 18.0, 22.0, 26.0]
-        kernel = Coulomb(ProbeCharge())
+        kernel = ProbeCharge(BareCoulomb())
         E_vals = evaluate_kernel_on_gaussian_charge.(Ref(kernel), a_vals)
 
         # Extrapolate E(a) = E_inf + c / a^3 (for ProbeCharge)
@@ -247,12 +250,12 @@ end
         E_inf = c[1]    # Constant coefficient
     end
 
-    @testset "WignerSeitz against VoxelAveraged" begin
+    @testset "WignerSeitz against VoxelAverage" begin
         a_vals = [50.0, 62.5, 75.0, 87.5, 100.0]
-        kernel = Coulomb(VoxelAveraged())
+        kernel = VoxelAverage(BareCoulomb())
         E_vals = evaluate_kernel_on_gaussian_charge.(Ref(kernel), a_vals)
 
-        # Extrapolate E(a) = E_inf + c_1 / a + c_3 / a^3 + c_5 / a^5 (for VoxelAveraged)
+        # Extrapolate E(a) = E_inf + c_1 / a + c_3 / a^3 + c_5 / a^5 (for VoxelAverage)
         # We use a multipole expansion (Makov-Payne style) of a localized density.
         # Note that the 1/a^5 term is important!
         V = [ones(length(a_vals))   (1 ./ a_vals)   (1 ./ a_vals).^3   (1 ./ a_vals).^5]

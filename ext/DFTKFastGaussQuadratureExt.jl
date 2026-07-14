@@ -1,15 +1,15 @@
 module DFTKFastGaussQuadratureExt
 using FastGaussQuadrature
 using DFTK
-using DFTK: to_cpu, eval_kernel_fourier, VoxelAveraged
+using DFTK: to_cpu, eval_kernel_fourier, norm2, G_vectors, VoxelAverage
 using LinearAlgebra
 
 
-@views function DFTK._compute_kernel_fourier(kernel, regularization::VoxelAveraged,
-                                             basis::PlaneWaveBasis{T}, qpt, q) where {T}
+@views function DFTK.eval_kernel_fourier(k::VoxelAverage,
+                                         basis::PlaneWaveBasis{T}; q=zero(Vec3{T})) where {T}
     model = basis.model
-    q = qpt.coordinate
-    
+    kernel = k.inner_kernel
+
     # Get kgrid_size
     if isnothing(basis.kgrid)
         kgrid_size = Vec3{Int}(1, 1, 1)
@@ -18,7 +18,7 @@ using LinearAlgebra
     elseif basis.kgrid isa MonkhorstPack
         kgrid_size = Vec3{Int}(basis.kgrid.kgrid_size)
     else
-        @error "Cannot determine kgrid_size for VoxelAveraged Coulomb model."
+        @error "Cannot determine kgrid_size for VoxelAverage Coulomb model."
     end
 
     # Define Voxels as reciprocal cell deivided by k-mesh
@@ -26,7 +26,7 @@ using LinearAlgebra
     voxel_vol = abs(det(voxel_basis))
     
     # Get Gauss-Legendre nodes and weights and scale from [-1, 1] to [-0.5, 0.5]
-    nodes_std, weights_std = gausslegendre(regularization.n_quadrature_points)
+    nodes_std, weights_std = gausslegendre(k.n_quadrature_points)
     nodes = T.(nodes_std ./ 2)
     weights = T.(weights_std ./ 2)
     
@@ -34,8 +34,8 @@ using LinearAlgebra
     q_locals = vec([voxel_basis * Vec3(x, y, z) for x in nodes, y in nodes, z in nodes])
     w_locals = vec([wx * wy * wz for wx in weights, wy in weights, wz in weights])
 
-    kernel_fourier = zeros(T, length(qpt.G_vectors))
-    for (iG, G) in enumerate(to_cpu(qpt.G_vectors))
+    kernel_fourier = zeros(T, basis.fft_size...)
+    for (iG, G) in enumerate(to_cpu(G_vectors(basis)))
         G_cart = model.recip_lattice * (G+q)
 
         found_singularity = (iG==1 && iszero(q))
@@ -87,16 +87,14 @@ using LinearAlgebra
             integral = zero(T)
             for i in 1:length(q_locals)
                 G_total = G_cart + q_locals[i]
-                Gsq = dot(G_total, G_total)
 
                 if found_singularity
                     # switch temporarily to BigFloat to avoid catastrophic cancellation
-                    Gsq_big = BigFloat(Gsq)
-                    val_big = eval_kernel_fourier(kernel, Gsq_big)
-                    val_big -= 4π/Gsq_big
+                    G_total_big = BigFloat.(G_total)
+                    val_big = eval_kernel_fourier(kernel, G_total_big) - 4π/norm2(G_total_big)
                     val = T(val_big)
                 else
-                    val = eval_kernel_fourier(kernel, Gsq)
+                    val = eval_kernel_fourier(kernel, G_total)
                 end
 
                 integral += w_locals[i] * val
@@ -106,8 +104,7 @@ using LinearAlgebra
             # For G vectors far from the origin, the interaction kernel is practically flat
             # over the voxel. Bypassing the 1728-point quadrature and using the exact
             # midpoint saves enormous CPU time.
-            Gsq = dot(G_cart, G_cart)
-            kernel_fourier[iG] += eval_kernel_fourier(kernel, Gsq)
+            kernel_fourier[iG] += eval_kernel_fourier(kernel, G_cart)
         end
     end
     
