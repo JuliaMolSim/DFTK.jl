@@ -320,31 +320,43 @@ end
                            rgrid[1], rgrid[end]; rtol=1e-8)[1]
     end
 
-    ps = [0.3, 2.7, 15.0]
+    # Each p is checked twice: once *on* a node of the table's log-p grid, where the log-p
+    # spline interpolates exactly and so only the radial side (resampling + quadrature) is
+    # under test, and once *between* two nodes, which adds the log-p interpolation error. At
+    # order 6 the two are indistinguishable -- the p-side contributes nothing to the values.
+    function grid_ps(table, p_target)
+        n = round(Int, (log(p_target) - table.logpmin) / table.Δlogp)
+        [exp(table.logpmin + n * table.Δlogp), exp(table.logpmin + (n + 0.5) * table.Δlogp)]
+    end
+    p_targets = [0.3, 2.7, 15.0]
+
     # :Si is on a logarithmic mesh, the others are linear; :Co carries an rcut, so its
     # pswfcs are transformed on a different grid than the rest of its quantities.
     for psp in [upf_pseudos[:Si], upf_pseudos[:Li], upf_pseudos[:Co],
                 psp8_pseudos[:Li_pbe]]
         rcut = 1:psp.ircut
-        # (name, rgrid, r2_f, l, evaluator)
+        # (name, rgrid, r2_f, l, evaluator, table)
         quantities = Any[("ρion", view(psp.rgrid, rcut), view(psp.r2_ρion, rcut), 0,
-                          p -> eval_psp_valence_density_fourier(psp, p))]
+                          p -> eval_psp_valence_density_fourier(psp, p), psp.r2_ρion_table)]
         if DFTK.has_core_density(psp)
             push!(quantities, ("ρcore", view(psp.rgrid, rcut), view(psp.r2_ρcore, rcut), 0,
-                               p -> eval_psp_core_density_fourier(psp, p)))
+                               p -> eval_psp_core_density_fourier(psp, p), psp.r2_ρcore_table))
         end
         for l = 0:psp.lmax, i = 1:length(psp.r2_projs[l+1])
             icut = min(psp.ircut, length(psp.r2_projs[l+1][i]))
             push!(quantities, ("projector l=$l i=$i", view(psp.rgrid, 1:icut),
                                view(psp.r2_projs[l+1][i], 1:icut), l,
-                               p -> eval_psp_projector_fourier(psp, i, l, p)))
+                               p -> eval_psp_projector_fourier(psp, i, l, p),
+                               psp.r2_projs_tables[l+1][i]))
         end
         for l = 0:psp.lmax, i = 1:DFTK.count_n_pswfc_radial(psp, l)
             push!(quantities, ("pswfc l=$l i=$i", psp.rgrid, psp.r2_pswfcs[l+1][i], l,
-                               p -> eval_psp_pswfc_fourier(psp, i, l, p)))
+                               p -> eval_psp_pswfc_fourier(psp, i, l, p),
+                               psp.r2_pswfcs_tables[l+1][i]))
         end
 
-        for (name, rgrid, r2_f, l, evaluator) in quantities
+        for (name, rgrid, r2_f, l, evaluator, table) in quantities
+            ps = reduce(vcat, grid_ps(table, pt) for pt in p_targets)
             refs = [reference(rgrid, r2_f, l, p) for p in ps]
             scale = maximum(abs, refs)
             scale < 1e-10 && continue  # Quantity absent from this pseudo
@@ -352,8 +364,10 @@ end
                 @test abs(evaluator(p) - ref) < 1e-5 * scale
             end
             # ForwardDiff differentiates the interpolant: check it against the exact rule.
-            dad = ForwardDiff.derivative(evaluator, 2.7)
-            @test abs(dad - dreference(rgrid, r2_f, l, 2.7)) < 1e-4 * scale
+            for p in grid_ps(table, 2.7)
+                dad = ForwardDiff.derivative(evaluator, p)
+                @test abs(dad - dreference(rgrid, r2_f, l, p)) < 1e-4 * scale
+            end
         end
 
         # The local potential is tabulated with its Coulomb tail taken out; the tail is
@@ -361,7 +375,7 @@ end
         @test iszero(eval_psp_local_fourier(psp, 0.0))
         r2_vloc_corrected = psp.rgrid[rcut] .^ 2 .* psp.vloc[rcut] .+
                             psp.Zion .* psp.rgrid[rcut] .* erf.(psp.rgrid[rcut])
-        for p in ps
+        for pt in p_targets, p in grid_ps(psp.vloc_table, pt)
             ref = reference(view(psp.rgrid, rcut), r2_vloc_corrected, 0, p) +
                   4π * -psp.Zion / p^2 * exp(-p^2 / 4)
             # vloc(p) spans four orders of magnitude over this p range and crosses zero, so
