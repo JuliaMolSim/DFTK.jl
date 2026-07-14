@@ -128,28 +128,78 @@ splines well in log p and has a Taylor series at p = 0. Nothing downstream needs
    followed by a newline, which folds the next line into the loop header. Rewritten as a
    plain `for l = 0:psp.lmax`. **Flag this in review** — it is a behavioural line.
 
-## Measurements (all reproduced after the reconstruction)
+## Measurements
 
-Accuracy vs an adaptive quadrature of the same radial spline, at p ∈ {0.3, 1.1, 2.7, 6.5,
-15, 40}, over Si (log mesh) / Li / Co (NLCC + rcut):
+### The quantities, their boundary conditions, and what each method achieves
 
-| | |
-|---|---|
-| densities, pswfcs, most projectors | **1e-9 – 1e-11** |
-| worst case (Li projectors, kink-limited) | **4.5e-7** |
-| the Simpson quadrature it replaces | 1e-5 – 1e-6 |
+Every radial quantity is stored as `r2_f = r² f(r)`, and they differ *only* in two things: the
+power of r at the origin (which fixes the spline's end condition, finding 7) and whether the
+data still carries weight where the mesh is cut (which is what the Gregory weights of finding 1
+are for). Both columns below are **measured** on real pseudos (Ge, Co with rcut = 10), not
+assumed:
+
+| quantity | l | r2_f at r→0 | y′′(0) | at the mesh end | class |
+|---|---|---|---|---|---|
+| `vloc` (tail-corrected) | 0 | r^2.0 | **2f(0) ≠ 0** | ~1e-5 of peak | A / C |
+| `r2_ρion` | 0 | r^2.0 | **2f(0) ≠ 0** | 1e-7 (2e-5 if rcut) | A / C |
+| `r2_ρcore`, `r2_τcore` | 0 | r^2.0 | **2f(0) ≠ 0** | exactly 0 | A |
+| projectors | 0 | r^2.0 | **2f(0) ≠ 0** | 0 … 6e-5, with a cutoff kink | D |
+| projectors | ≥1 | r^{l+2} | 0 | 0 … 4e-5, with a cutoff kink | D |
+| pswfcs | 0 | r^2.0 | **2f(0) ≠ 0** | **up to 1e-2 of peak** | C |
+| pswfcs | ≥1 | r^{l+2} | 0 | **up to 1e-2 of peak** | C |
+
+So the l = 0 quantities — every density, the local potential, and the l = 0 projectors/pswfcs —
+have nonzero curvature at the origin and need not-a-knot; for l ≥ 1 the end condition is
+immaterial. And the *pseudo-wavefunctions* are the ones truly cut while still at 1e-2 of their
+peak: they are why the Gregory correction exists.
+
+### Accuracy, against analytic transforms
+
+Real psp data has no exact transform, so accuracy is measured on analytic surrogates carrying
+each class's structure, sampled on a UPF-like mesh (h = 0.01) — see `scratchpad` script in the
+PR discussion, and the "Fourier tables against analytic transforms" test. Metric: absolute
+error normalised by H̃(0), the natural scale of the quantity (this is the error that actually
+propagates, since it enters the density summed over all G-vectors). Worst over p ∈ {5, 20}:
+
+| class | surrogate | OLD (Simpson) | NEW (tables) | order in mesh h |
+|---|---|---|---|---|
+| A. smooth, vanishing (l=0) | e^{−r²} | **7e-18** | 1.3e-10 | ≈ 4 |
+| B. smooth, vanishing (l=1, 2) | r^l e^{−r²} | **1e-17** | 6.7e-11 | ≈ 4 |
+| C. cut while nonzero | e^{−r²} on [0, 2.5] | 2.5e-10 | 4.3e-10 | ≈ 4 |
+| D. cutoff kink (projectors) | (1−r/rc)² e^{−r²} | 1.8e-9 | **1.6e-10** | ≈ 4 |
+| E. cusp at origin | e^{−2r} | 2.7e-9 | **2.4e-10** | ≈ 4 |
+
+**Read this honestly.** On *smooth* data that dies inside the mesh (class A/B) Simpson is not
+merely competitive, it is exact for all practical purposes (1e-17): Euler–Maclaurin makes it
+spectrally accurate there, and the tables — capped by the O(h⁴) resampling spline — lose by
+seven orders of magnitude. The tables win only where the data is **not** smooth: the cutoff kink
+of the projectors and a cusp at the origin (classes D/E), by 10–30×. On class C they tie.
+Real pseudos are a blend of all of these, which is why end-to-end the two agree to ~5e-8 Ha in
+the total energy. **The case for this PR is O(1) evaluation and clean AD derivatives, not
+accuracy** — accuracy is a wash-to-modest-win, and any PR text claiming otherwise is wrong.
+
+### Convergence order
+
+- **In the psp mesh spacing h: ≈ 4**, i.e. the cubic resampling spline, for every class
+  including the kinked ones (fits come out 3.8–5.4; the ones above 4 are pre-asymptotic, not
+  real). This is the only knob that matters and *we do not control it* — it is the psp file's.
+- **In the table grid `HANKEL_TABLE_NPOINTS`: none — the error is flat.** Refining 1024 → 8192
+  moves nothing (e.g. class A: 9e-11, 8e-11, 1e-10, 1e-10), because the error is dominated by
+  the spline through the psp mesh, not by the log grid. 4096 is already far past saturation and
+  is only about the p-interpolation, so it is a fine place to stop — but for the *right* reason.
+  (An earlier note here claimed O(1/N); that was an artefact of measuring against a reference
+  built from the very same spline, which cancels the dominant error term.)
+
+### Other
 
 - **C² confirmed** (this was the point of the B-spline, and had never been demonstrated):
   across a table node, |ΔH| = 1e-15, |ΔH′| = 1.6e-13, |ΔH″| = **8.1e-12** relative. With the
   old 4-point Lagrange stencil H″ jumped.
-- **Grid resolution is not the limiter.** Worst-case projector error vs `HANKEL_TABLE_NPOINTS`:
-  2048 → 8.5e-7, 4096 → 4.5e-7, 8192 → 2.6e-7, 16384 → 9.8e-8. That is **O(1/N), not O(Δρ⁴)**
-  — the error is dominated by the projector's cutoff kink, so spending points is a poor trade.
-  4096 (≈ 3 ms/psp of table build) is the right place to stop.
 - Local form factors, bulk Si (8 atoms, Ecut=30, 262k G-vectors): master (dedup + Simpson)
   **33 ms** → tables + dedup 8.0 ms → **tables, no dedup 4.7 ms**. Of the 8.0 ms with dedup,
   7.0 ms was pure `IdDict` bookkeeping → once evaluation is O(1) the dedup is pure overhead
-  (a net loss for `PspHgh` too), hence it was deleted outright.
+  (a net loss for `PspHgh` too), hence it was deleted outright. **This is the actual case for
+  the PR.**
 
 ## State
 
