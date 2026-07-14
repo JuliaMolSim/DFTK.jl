@@ -39,9 +39,9 @@ struct HankelTable{T,AT<:AbstractVector{T}}
     n_nodes::Int
     pmax::T
     pcut::T
-    moment0::T   # Coefficients of the Taylor series of H̃ at p = 0. It is even in p, so
-    moment2::T   # these are H̃(0), H̃⁽²⁾(0)/2! and H̃⁽⁴⁾(0)/4!. Two terms would leave a
-    moment4::T   # ~1e-6 jump at pcut; three bring the branches together to ~1e-10.
+    moment0::T   # Coefficients of the Taylor series of H̃ at p = 0. It is even in p, so these
+    moment2::T   # are H̃(0), H̃⁽²⁾(0)/2! and H̃⁽⁴⁾(0)/4!. Stopping at p² would leave a 1.8e-8
+    moment4::T   # step at pcut; with p⁴ the two branches meet to ~2e-12.
 end
 
 to_device(::CPU, table::HankelTable) = table
@@ -225,8 +225,7 @@ function (spline::RadialSpline{T})(x) where {T}
 end
 
 """
-Resample the radial quantity `y` given on the mesh `r` onto the mesh `rs`, with a natural
-cubic spline (`RadialSpline`).
+Resample the radial quantity `y` given on the mesh `r` onto the mesh `rs` (`RadialSpline`).
 """
 function resample_radial(r::AbstractVector, y::AbstractVector, rs::AbstractVector)
     spline = RadialSpline(r, y)

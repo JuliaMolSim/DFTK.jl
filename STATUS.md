@@ -44,7 +44,7 @@ splines well in log p and has a Taylor series at p = 0. Nothing downstream needs
 - `RadialSpline` / `resample_radial` — cubic spline with **not-a-knot** end conditions,
   hand-rolled because **Interpolations does not support cubic on irregular grids**
   (`Gridded(Cubic)` errors, and radial meshes are linear / log / `e^x − 1`). Used to move the
-  psp data onto the plan's log grid. The end condition is not a detail — see finding 8.
+  psp data onto the plan's log grid. The end condition is not a detail — see finding 7.
 - `gregory_weights` — see finding 1.
 
 ## Findings that shaped it (the important part)
@@ -65,11 +65,22 @@ splines well in log p and has a Taylor series at p = 0. Nothing downstream needs
 
 3. **Simpson is NOT uniformly worse than the SBT.** On a *smooth decaying* function (a
    Gaussian) Simpson is spectrally accurate and the table is not. The table wins on *real*
-   pseudos (20–50×) only because their radial data has a cutoff kink, which breaks Simpson's
+   pseudos only because their radial data has a cusp or a cutoff kink, which breaks Simpson's
    Euler–Maclaurin cancellation. Don't over-claim "more accurate" in the PR.
-   ⚠ Any accuracy claim needs an *adaptive* quadrature of the **same radial spline** as
-   reference (`DFTK.RadialSpline` + QuadGK). Simpson is not a valid reference, and neither is
-   QuadGK over a *different* interpolant.
+   This is now nailed down against **analytic** transforms ("Fourier tables against analytic
+   transforms"), which is a far better reference than the adaptive-quadrature-of-the-same-spline
+   we used before (that one cannot see an error made by the spline itself — which is exactly how
+   finding 7 hid). Relative error on a UPF-like mesh (linear, h = 0.01, rmax = 15):
+
+   | | table | Simpson |
+   |---|---|---|
+   | Gaussian e^{−r²}, l = 0..2, p ≤ 3 (smooth, dies at both ends) | 1e-10 | **1e-15** |
+   | Slater e^{−2r}, l = 0, p = 5 (cusp at r = 0, p⁻⁴ tail) | **1.3e-8** | 1.4e-7 |
+   | Slater e^{−2r}, l = 0, p = 40 | **2.9e-5** | 4.6e-4 |
+
+   (Slater with a = 1 instead scores identically for both: e^{−15} ≉ 0 at the mesh end, so both
+   are dominated by the *domain* truncation they share. Useful as a consistency check, useless
+   as a discriminator — don't be fooled by it.)
 
 4. **Raising `pmax` is free** (measured: error identical at pmax = 100 / 1000 / 5000). The
    log-p grid just slides. Only constraint: `pmin = pmax·rmin/rmax` must stay **below `pcut`**
@@ -100,9 +111,18 @@ splines well in log p and has a Taylor series at p = 0. Nothing downstream needs
    and the whole accuracy table below stayed green) and showed up only as a **1000× more
    negative core density in real space** (Ge: -2.2e-5 vs master's -3.8e-8). Switched to
    **not-a-knot**; the transform now decays (1e-8 at p = 40) and the real-space core density
-   matches master to 3 digits. Covered by "Fourier tables decay at large p".
+   matches master to 3 digits.
+
+   **The end condition is l-dependent, and one general BC covers it** — worth understanding
+   before touching this. `r2_f` ~ r^{l+2} at the origin, so y′′(0) = 2f(0) ≠ 0 only for
+   **l = 0** (all the densities, vloc, and the l = 0 projectors/pswfcs); for l ≥ 1 the curvature
+   really is zero and the natural BC was accidentally *right*. Measured against analytic
+   transforms, natural vs not-a-knot at p = 20–40: l = 0 → **6.0e-7 (flat!) vs 1e-10**;
+   l = 1, 2 → **4.10e-12 vs 4.08e-12, i.e. identical**. So not-a-knot fixes l = 0 and costs
+   nothing where natural was already correct — no per-quantity special-casing needed.
    ⚠ The lesson generalizes: *every* test here was a p = 0 or a smooth-quantity test, and none
-   of them could see this. Judge a transform by its tail, not only by its norm.
+   of them could see this. Judge a transform by its tail, not only by its norm. Both new tests
+   ("… against analytic transforms", "… decay at large p") fail loudly if the BC is reverted.
 
 8. **`build_projector_form_factors` had a stray trailing comma** — `for l = 0:psp.lmax,`
    followed by a newline, which folds the next line into the loop header. Rewritten as a
@@ -133,11 +153,10 @@ Accuracy vs an adaptive quadrature of the same radial spline, at p ∈ {0.3, 1.1
 
 ## State
 
-All of the previous TODO list is done; `test/PspUpf.jl` is **859/859 green**, and the
-stress/forces items pass too. (Running them via `TestItemRunner.run_tests` directly makes the
-unrelated `Forces term-wise Fe (GTH)` item error with `UndefVarError: LDA` — that item never
-imports DFTK and relies on the `using` that `Pkg.test` injects. It is identical to master and
-green in CI; not our problem, but it will bite whoever runs the suite this way.)
+All of the previous TODO list is done; `test/PspUpf.jl` is **876/876 green**, and the
+stress/forces items pass too. (`Forces term-wise Fe (GTH)` used to error with
+`UndefVarError: LDA` under a bare `TestItemRunner.run_tests` — it never imported DFTK and was
+living off the `using` that `Pkg.test` injects. Fixed in passing; unrelated to the tables.)
 
 Verified end to end against a `master` worktree, same script, rattled bulk Si (LDA, UPF, Ecut
 20, 4×4×4), plus the guess-density charges:
@@ -152,6 +171,23 @@ Verified end to end against a `master` worktree, same script, rattled bulk Si (L
 The residual energy difference is the tables vs master's Simpson, and the tables are the more
 accurate side. The "Negative ρcore" warnings are **unchanged vs master** (they are a property
 of the pseudos, and they got *smaller* once finding 7 was fixed).
+
+### Known warts, deliberately left alone
+
+Looked at and judged not worth the churn — but they are the things a reviewer will ask about:
+
+- **`pcut` is coupled to `rmin`** through the assert `pmin = pmax·rmin/rmax < pcut` (finding 4).
+  Setting `pcut = plan.kmin` (series only *below the first node*, where it is exact anyway)
+  would delete the constant, the assert and the coupling, and free `HANKEL_TABLE_RMIN` to rise.
+  Not done: it makes the very first spline nodes load-bearing, and that needs its own accuracy
+  study. The current arrangement is merely inelegant, not wrong.
+- **`eval_hankel_table` takes 9 positional scalars** rather than the `HankelTable`, because the
+  struct is not `isbits` and cannot be captured in a GPU kernel. `Adapt.@adapt_structure
+  HankelTable` would let the struct itself be broadcast and collapse the three destructuring
+  call sites in `PspUpf.jl`. Not done: it cannot be tested without a GPU here.
+- The vectorized paths call `to_device(architecture(ps), table)` **on every evaluation**, i.e.
+  they re-upload the 4096-coefficient array to the GPU each call. A no-op on CPU. Fixing it
+  properly means deciding where a psp's tables live on GPU, which is a bigger design question.
 
 ## TODO
 

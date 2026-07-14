@@ -123,6 +123,7 @@ end
 @testitem "Forces term-wise Fe (GTH)"  setup=[TestForces] tags=[:forces] begin
     # TODO: If this test is too slow for github CI, then we should add the :slow tag above
     # Test HF forces on system with spin and magnetism
+    using DFTK
     using AtomsBuilder
     using PseudoPotentialData
     using Unitful

@@ -404,16 +404,59 @@ end
     @test eval_psp_local_fourier(psp, ps) ≈ [eval_psp_local_fourier(psp, p) for p in ps]
 end
 
+@testitem "Fourier tables against analytic transforms" tags=[:psp] begin
+    using DFTK
+    using DFTK: hankel_table_plan, build_hankel_table, hankel
+
+    # Radial quantities whose modified Hankel transform H̃_l(p) = 4π/p^l ∫ r² f j_l(pr) dr is
+    # known in closed form, sampled on a typical UPF mesh (linear, h = 0.01, out to 15).
+    #
+    #   Gaussian  f = r^l e^{-r²}  →  π^{3/2} / (2^l e^{p²/4})   -- smooth, dies at both ends
+    #   Slater    f = e^{-2r}      →  8π·2 / (4 + p²)²  (l = 0)  -- cusp at r = 0, p⁻⁴ tail,
+    #                                                               i.e. real signal at high p
+    rgrid = collect(0.0:0.01:15.0)
+    gaussian_exact(l, p) = π^(3/2) / (2^l * exp(p^2 / 4))
+    slater_exact(p) = 8π * 2 / (4 + p^2)^2
+    table_of(f, l) = build_hankel_table(hankel_table_plan(rgrid[end], l), rgrid,
+                                        [r^2 * f(r) for r in rgrid], l)
+
+    # l = 0 is the delicate case: r²f then has curvature 2f(0) ≠ 0 at the origin, so a natural
+    # interpolating spline (y′′ = 0) misrepresents the first mesh cell by O(1). That error sits
+    # within one spacing h of r = 0, i.e. it is nearly a delta function -- and the transform of
+    # a delta is *flat*, so it does not decay but sets a ~6e-7 floor on H̃ out to p ~ 1/h. It
+    # perturbs no p = 0 quantity, so norms and charges stay right and it hides from every other
+    # test in this file, surfacing only as a spuriously negative core density in real space.
+    # Hence: check the tail, not just the norm. (For l ≥ 1, r²f ~ r^{l+2} does have zero
+    # curvature at the origin and the end condition is immaterial -- both give ~1e-12 here.)
+    for l = 0:2
+        table = table_of(r -> r^l * exp(-r^2), l)
+        for p in (0.5, 1.0, 3.0)
+            @test table(p) ≈ gaussian_exact(l, p) rtol=1e-8
+        end
+    end
+
+    slater = table_of(r -> exp(-2r), 0)
+    r2_slater = [r^2 * exp(-2r) for r in rgrid]
+    for p in (1.0, 5.0, 10.0, 20.0, 40.0)
+        # A natural spline lands at rtol ≈ 3e-2 for p = 40 (a 6.3e-7 floor on a 2.0e-5 value).
+        @test slater(p) ≈ slater_exact(p) rtol=1e-4
+    end
+    # The tables replace a Simpson quadrature over the radial mesh, and beat it on data with a
+    # cusp or a cutoff kink -- which is what real pseudopotentials have, and is the point of
+    # the whole exercise. (On a *smooth* Gaussian Simpson is spectrally accurate and wins
+    # outright, ~1e-15 against the tables' ~1e-10: do not over-claim this.)
+    for p in (10.0, 20.0, 40.0)
+        exact = slater_exact(p)
+        @test abs(slater(p) - exact) < abs(hankel(rgrid, r2_slater, 0, p) - exact)
+    end
+end
+
 @testitem "Fourier tables decay at large p" tags=[:psp] setup=[mPspUpf] begin
     using DFTK: eval_psp_core_density_fourier
 
-    # The radial quantities are r² f(r), whose curvature at the origin is 2f(0) ≠ 0. A
-    # *natural* interpolating spline would force it to zero, misrepresenting the first mesh
-    # cell by O(1); being localized within one spacing h of the origin, that error is nearly a
-    # delta function and its Hankel transform is flat out to p ~ 1/h rather than decaying. It
-    # leaves the norm (a p = 0 quantity) untouched, so it hides from every other test here,
-    # and surfaces only as a spuriously negative core density in real space. Check the decay.
-    psp = mPspUpf.upf_pseudos[:Ge]  # NLCC, sharply peaked core density, linear mesh
+    # As above, but on a real pseudopotential: the core density is sharply peaked and l = 0,
+    # so it is the quantity a bad end condition at the origin damages most.
+    psp = mPspUpf.upf_pseudos[:Ge]  # NLCC, linear mesh
     ρcore_max = eval_psp_core_density_fourier(psp, 0.0)
     for p in (20.0, 30.0, 40.0)
         @test abs(eval_psp_core_density_fourier(psp, p)) < 1e-8 * ρcore_max
