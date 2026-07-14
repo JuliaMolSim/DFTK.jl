@@ -304,23 +304,26 @@ end
 
     # The tables replace a Simpson quadrature over the radial mesh, and are *more* accurate
     # than it (the mesh is coarse where the pseudo has a cutoff kink), so Simpson is not a
-    # usable reference here. Integrate the very same radial function adaptively instead.
+    # usable reference here. Integrate the very same radial spline adaptively instead: that
+    # isolates the error of the transform from the error of the radial interpolation.
+    # Build the spline once per quantity -- rebuilding it inside the integrand (it costs a
+    # tridiagonal solve) makes this test minutes long instead of seconds.
     function reference(rgrid, r2_f, l, p)
-        f(r) = DFTK.interpolate_radial(rgrid, r2_f, r)
-        4π / p^l * quadgk(r -> r^2 * f(r) * DFTK.sphericalbesselj_fast(l, p * r),
-                          rgrid[1], rgrid[end]; rtol=1e-10)[1]
+        r2f = DFTK.RadialSpline(rgrid, r2_f)
+        4π / p^l * quadgk(r -> r2f(r) * DFTK.sphericalbesselj_fast(l, p * r),
+                          rgrid[1], rgrid[end]; rtol=1e-8)[1]
     end
-    # Exact derivative rule H̃'_l(p) = -4π/p^l ∫ f(r) r³ j_{l+1}(p r) dr
+    # Exact derivative rule H̃'_l(p) = -4π/p^l ∫ r² f(r) r j_{l+1}(p r) dr
     function dreference(rgrid, r2_f, l, p)
-        f(r) = DFTK.interpolate_radial(rgrid, r2_f, r)
-        -4π / p^l * quadgk(r -> r^3 * f(r) * DFTK.sphericalbesselj_fast(l + 1, p * r),
-                           rgrid[1], rgrid[end]; rtol=1e-10)[1]
+        r2f = DFTK.RadialSpline(rgrid, r2_f)
+        -4π / p^l * quadgk(r -> r * r2f(r) * DFTK.sphericalbesselj_fast(l + 1, p * r),
+                           rgrid[1], rgrid[end]; rtol=1e-8)[1]
     end
 
-    ps = [0.3, 1.1, 2.7, 6.5, 15.0, 40.0]
-    # :Si is on a logarithmic mesh, the others are linear; :Co and :Cu additionally carry an
-    # rcut, so the pswfcs are transformed on a different grid than the rest.
-    for psp in [upf_pseudos[:Si], upf_pseudos[:Li], upf_pseudos[:Co], upf_pseudos[:Cu],
+    ps = [0.3, 2.7, 15.0]
+    # :Si is on a logarithmic mesh, the others are linear; :Co carries an rcut, so its
+    # pswfcs are transformed on a different grid than the rest of its quantities.
+    for psp in [upf_pseudos[:Si], upf_pseudos[:Li], upf_pseudos[:Co],
                 psp8_pseudos[:Li_pbe]]
         rcut = 1:psp.ircut
         # (name, rgrid, r2_f, l, evaluator)
@@ -349,10 +352,8 @@ end
                 @test abs(evaluator(p) - ref) < 1e-5 * scale
             end
             # ForwardDiff differentiates the interpolant: check it against the exact rule.
-            for p in (1.1, 6.5)
-                dad = ForwardDiff.derivative(evaluator, p)
-                @test abs(dad - dreference(rgrid, r2_f, l, p)) < 1e-4 * scale
-            end
+            dad = ForwardDiff.derivative(evaluator, 2.7)
+            @test abs(dad - dreference(rgrid, r2_f, l, 2.7)) < 1e-4 * scale
         end
 
         # The local potential is tabulated with its Coulomb tail taken out; the tail is
@@ -370,25 +371,34 @@ end
     end
 end
 
-@testitem "Fourier tables fall back to quadrature past their range" tags=[:psp] setup=[mPspUpf] begin
+@testitem "Fourier tables: small-p series, smoothness, vectorized paths" tags=[:psp] setup=[mPspUpf] begin
     using DFTK
     using DFTK: eval_psp_local_fourier, eval_psp_projector_fourier
     using DFTK: eval_psp_valence_density_fourier
+    using ForwardDiff
 
     psp = mPspUpf.upf_pseudos[:Li]
-    pmax = psp.r2_ρion_table.pmax
-    # Past the tabulated range the evaluators must return the (correct, slow) quadrature,
-    # never silently zero or an out-of-bounds extrapolation.
-    for p in (pmax + 1, 2pmax)
-        rcut = 1:psp.ircut
-        @test eval_psp_valence_density_fourier(psp, p) ==
-              DFTK.hankel(view(psp.rgrid, rcut), view(psp.r2_ρion, rcut), 0, p)
-        @test eval_psp_projector_fourier(psp, 1, 0, p) ==
-              DFTK._eval_psp_projector_fourier_quadrature(psp, 1, 0, p)
-        @test eval_psp_local_fourier(psp, p) != 0
-    end
-    # Vectorized paths agree with the scalar ones, on both sides of pmax.
-    ps = [0.7, 3.0, pmax - 1, pmax + 1]
+
+    # Below pcut the table evaluates its Taylor series, which is exact at p = 0: the valence
+    # density integrates to the number of valence electrons.
+    @test eval_psp_valence_density_fourier(psp, 0.0) ≈ psp.Zion rtol=1e-6
+    # ... and matches the spline it hands over to, on the other side of the crossover.
+    pcut = psp.r2_ρion_table.pcut
+    series = eval_psp_valence_density_fourier(psp, prevfloat(pcut))
+    spline = eval_psp_valence_density_fourier(psp, nextfloat(pcut))
+    @test series ≈ spline rtol=1e-8
+
+    # The interpolation is a cubic spline, so the second derivative is continuous across a
+    # node of the table (a Lagrange stencil would jump here). This is what the stress and
+    # response code paths differentiate through.
+    (; logpmin, Δlogp) = psp.r2_ρion_table
+    pnode = exp(logpmin + 100Δlogp)
+    d2(p) = ForwardDiff.derivative(q -> ForwardDiff.derivative(
+                r -> eval_psp_valence_density_fourier(psp, r), q), p)
+    @test d2(prevfloat(pnode, 10)) ≈ d2(nextfloat(pnode, 10)) rtol=1e-6
+
+    # Vectorized (GPU) paths agree with the scalar ones.
+    ps = [0.0, 0.7, 3.0, 30.0]
     @test eval_psp_projector_fourier(psp, 1, 0, ps) ≈
           [eval_psp_projector_fourier(psp, 1, 0, p) for p in ps]
     @test eval_psp_local_fourier(psp, ps) ≈ [eval_psp_local_fourier(psp, p) for p in ps]

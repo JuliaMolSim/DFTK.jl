@@ -157,6 +157,23 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
               "FFT routines; use next_working_fft_size(T, fft_size) = $next_size")
     end
 
+    # Pseudopotentials tabulating their Fourier transforms (see psp_fourier_table.jl) are
+    # only valid up to a maximal momentum. Densities and potentials need them at every
+    # |G + q| of the FFT cube, whose largest value sits at a corner of the cube. Check it
+    # here, once: the evaluation itself is a GPU kernel and cannot raise.
+    corner = Vec3(fft_size) ./ 2 .+ 1//2   # + 1/2 for the q (or k) shift
+    pmax = maximum(Iterators.product((-1, 1), (-1, 1), (-1, 1))) do signs
+        norm(model.recip_lattice * (corner .* Vec3(signs)))
+    end
+    for element in model.atoms
+        element isa ElementPsp || continue
+        if pmax > max_momentum_fourier(element.psp)
+            error("The Fourier transforms of the $(element.species) pseudopotential are " *
+                  "tabulated up to |p| = $(max_momentum_fourier(element.psp)), but this " *
+                  "basis needs them up to |p| = $pmax. Reduce Ecut (or the fft_size).")
+        end
+    end
+
     # Filter out the symmetries that don't preserve the real-space grid
     # and that don't preserve the k-point grid
     symmetries = model.symmetries

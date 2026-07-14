@@ -218,6 +218,7 @@ function PspUpf(pseudo::UpfFile; identifier, rcut=nothing)
 end
 
 charge_ionic(psp::PspUpf) = psp.Zion
+max_momentum_fourier(psp::PspUpf) = psp.vloc_table.pmax
 has_valence_density(psp::PspUpf) = !all(iszero, psp.r2_ρion)
 has_core_density(psp::PspUpf) = !all(iszero, psp.r2_ρcore)
 has_core_kinetic_energy_density(psp::PspUpf) = !all(iszero, psp.r2_τcore)
@@ -232,10 +233,10 @@ end
 
 # Vectorized version of the above, GPU compatible
 function eval_psp_projector_fourier(psp::PspUpf, i, l, ps::AbstractVector{T}) where {T<:Real}
-    (; coefficients, logpmin, Δlogp, n_nodes, pcut, moment0, moment2) =
+    (; coefficients, logpmin, Δlogp, n_nodes, pcut, moment0, moment2, moment4) =
         to_device(architecture(ps), psp.r2_projs_tables[l+1][i])
     map(p -> eval_hankel_table(coefficients, logpmin, Δlogp, n_nodes,
-                               pcut, moment0, moment2, p), ps)
+                               pcut, moment0, moment2, moment4, p), ps)
 end
 
 count_n_pswfc_radial(psp::PspUpf, l) = length(psp.r2_pswfcs[l+1])
@@ -288,13 +289,13 @@ end
 
 # Vectorized version of the above, GPU optimized
 function eval_psp_local_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Real}
-    (; coefficients, logpmin, Δlogp, n_nodes, pcut, moment0, moment2) =
+    (; coefficients, logpmin, Δlogp, n_nodes, pcut, moment0, moment2, moment4) =
         to_device(architecture(ps), psp.vloc_table)
     Zion = psp.Zion
     map(ps) do p
         p == 0 && return zero(T)  # Compensating charge background
         (  eval_hankel_table(coefficients, logpmin, Δlogp, n_nodes,
-                             pcut, moment0, moment2, p)
+                             pcut, moment0, moment2, moment4, p)
          + _add_local_coulomb_tail(Zion, p))
     end
 end
@@ -317,10 +318,10 @@ end
 
 # Vectorized version of the above, GPU optimized
 function eval_psp_core_density_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Real}
-    (; coefficients, logpmin, Δlogp, n_nodes, pcut, moment0, moment2) =
+    (; coefficients, logpmin, Δlogp, n_nodes, pcut, moment0, moment2, moment4) =
         to_device(architecture(ps), psp.r2_ρcore_table)
     map(p -> eval_hankel_table(coefficients, logpmin, Δlogp, n_nodes,
-                               pcut, moment0, moment2, p), ps)
+                               pcut, moment0, moment2, moment4, p), ps)
 end
 
 function eval_psp_core_kinetic_energy_density_real(psp::PspUpf, r::T) where {T<:Real}
