@@ -74,8 +74,9 @@ group.
 """
 function atomic_local_form_factors(basis::PlaneWaveBasis{T}; q=zero(Vec3{T})) where{T}
     model = basis.model
-    ps_cpu = [norm(model.recip_lattice * (G + q)) for G in to_cpu(G_vectors(basis))]
-    ps = to_device(basis.architecture, vec(ps_cpu))
+    # `recip_lattice` is hoisted out of the closure so it stays isbits on the GPU.
+    recip_lattice = model.recip_lattice
+    ps = vec(map(G -> norm(recip_lattice * (G + q)), G_vectors(basis)))
 
     form_factors = similar(ps, length(ps), length(model.atom_groups))
     for (igroup, group) in enumerate(model.atom_groups)

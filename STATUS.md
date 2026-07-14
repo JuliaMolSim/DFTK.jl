@@ -157,8 +157,11 @@ boundary rows). Antoine chose to eat the load time in exchange for owning less n
    ("… against analytic transforms", "… decay at large p") fail loudly if the BC is reverted.
 
 8. **`build_projector_form_factors` had a stray trailing comma** — `for l = 0:psp.lmax,`
-   followed by a newline, which folds the next line into the loop header. Rewritten as a
-   plain `for l = 0:psp.lmax`. **Flag this in review** — it is a behavioural line.
+   followed by a newline, which folds the next line (`n_proj_l = count_n_proj_radial(psp, l)`)
+   into the loop header. Rewritten as a plain `for l = 0:psp.lmax`.
+   An earlier note here said to flag this as a *behavioural* line. **It is not** — checked:
+   Julia iterates a `Number` once, yielding the number itself, so `for n_proj_l = 5` binds
+   `n_proj_l = 5` and runs the body once, exactly as the assignment did. The fix is cosmetic.
 
 9. **Cubic was the wrong order, in *both* variables, and for two unrelated reasons.**
    - In **r** it capped the values at ~1e-10 (O(h⁴), h being the psp file's own mesh spacing —

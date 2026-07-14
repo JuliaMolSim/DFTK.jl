@@ -184,8 +184,7 @@ end
 Returns the form factors at every |G| (in Cartesian coordinates), one column per atom group.
 """
 function atomic_density_form_factors(basis::PlaneWaveBasis{T}, method::AtomicDensity) where {T<:Real}
-    ps_cpu = norm.(to_cpu(G_vectors_cart(basis)))
-    ps = to_device(basis.architecture, vec(ps_cpu))
+    ps = vec(norm.(G_vectors_cart(basis)))
 
     form_factors = similar(ps, length(ps), length(basis.model.atom_groups))
     for (igroup, group) in enumerate(basis.model.atom_groups)
