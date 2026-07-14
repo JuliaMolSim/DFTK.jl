@@ -303,12 +303,11 @@ end
     upf_pseudos = mPspUpf.upf_pseudos
     psp8_pseudos = mPspUpf.psp8_pseudos
 
-    # The tables replace a Simpson quadrature over the radial mesh, and are *more* accurate
-    # than it (the mesh is coarse where the pseudo has a cutoff kink), so Simpson is not a
-    # usable reference here. Integrate the very same radial spline adaptively instead: that
-    # isolates the error of the transform from the error of the radial interpolation.
-    # Build the spline once per quantity -- rebuilding it inside the integrand (it costs a
-    # tridiagonal solve) makes this test minutes long instead of seconds.
+    # Reference: adaptive quadrature of the very same radial spline the tables are built from,
+    # which isolates the error of the transform from that of the radial interpolation. (A
+    # Simpson rule over the radial mesh is not accurate enough to serve as a reference.) Build
+    # the spline once per quantity: rebuilding it inside the integrand makes this test minutes
+    # long instead of seconds.
     function reference(rgrid, r2_f, l, p)
         r2f = DFTK.radial_spline(rgrid, r2_f)
         4π / p^l * quadgk(r -> r2f(r) * DFTK.sphericalbesselj_fast(l, p * r),
@@ -390,9 +389,8 @@ end
     spline = eval_psp_valence_density_fourier(psp, nextfloat(pcut))
     @test series ≈ spline rtol=1e-8
 
-    # The interpolation is a cubic spline, so the second derivative is continuous across a
-    # node of the table (a Lagrange stencil would jump here). This is what the stress and
-    # response code paths differentiate through.
+    # The second derivative is continuous across a node of the table (a Lagrange stencil would
+    # jump here). This is what the stress and response code paths differentiate through.
     (; logpmin, Δlogp) = psp.r2_ρion_table
     pnode = exp(logpmin + 100Δlogp)
     d2(p) = ForwardDiff.derivative(q -> ForwardDiff.derivative(
@@ -408,7 +406,7 @@ end
 
 @testitem "Fourier tables against analytic transforms" tags=[:psp] begin
     using DFTK
-    using DFTK: hankel_table_plan, build_hankel_table, hankel
+    using DFTK: hankel_table_plan, build_hankel_table
     using ForwardDiff
 
     # Radial quantities whose modified Hankel transform H̃_l(p) = 4π/p^l ∫ r² f j_l(pr) dr is
@@ -426,13 +424,6 @@ end
     table_of(f, l) = build_hankel_table(hankel_table_plan(rgrid[end], l), rgrid,
                                         [r^2 * f(r) for r in rgrid], l)
 
-    # l = 0 is the delicate case for the *radial* spline: r²f then has curvature 2f(0) ≠ 0 at
-    # the origin, so a natural interpolating spline (y′′ = 0) misrepresents the first mesh cell
-    # by O(1). That error sits within one spacing h of r = 0, i.e. it is nearly a delta function
-    # -- and the transform of a delta is *flat*, so it does not decay but sets a ~6e-7 floor on
-    # H̃ out to p ~ 1/h. It perturbs no p = 0 quantity, so norms and charges stay right and it
-    # hides from every other test in this file, surfacing only as a spuriously negative core
-    # density in real space. Hence: check the tail, not just the norm.
     for l = 0:2
         table = table_of(r -> r^l * exp(-r^2), l)
         for p in (0.5, 1.0, 3.0)
@@ -441,19 +432,14 @@ end
     end
 
     slater = table_of(r -> exp(-2r), 0)
-    r2_slater = [r^2 * exp(-2r) for r in rgrid]
     for p in (1.0, 5.0, 10.0, 20.0, 40.0)
         @test slater(p) ≈ slater_exact(p) rtol=1e-6
-        # The tables replace a Simpson quadrature over the radial mesh; with a high-order
-        # radial spline they beat it everywhere, by ~4 orders of magnitude.
-        exact = slater_exact(p)
-        @test abs(slater(p) - exact) < abs(hankel(rgrid, r2_slater, 0, p) - exact)
     end
 
     # Derivatives, which is what the stress and response paths actually differentiate. These
     # are the reason the spline in log p is of order 6 rather than cubic: an order-k spline is
-    # only C^{k-2}, so a cubic one has a merely piecewise-linear second derivative and lands at
-    # rtol ~ 1e-6 on H̃″ below, where order 6 gives ~1e-9.
+    # only C^{k-2}, so a cubic one has a merely piecewise-linear second derivative, which lands
+    # at rtol ~ 1e-6 on H̃″ below where order 6 gives ~1e-9.
     for p in (1.0, 5.0, 10.0)
         d1 = ForwardDiff.derivative(slater, p)
         d2 = ForwardDiff.derivative(q -> ForwardDiff.derivative(slater, q), p)
@@ -468,16 +454,13 @@ end
 
     # The pseudo-atomic wavefunctions are the one family still at ~1e-2 of their peak where the
     # radial mesh is cut. By Euler-Maclaurin the error of the (uniform-grid) quadrature inside
-    # the transform *is* that boundary term, so these are the quantities -- and the only ones --
-    # that the order of `gregory_weights` binds: a 4th-order rule floors them near 1e-9, well
-    # above the ~1e-13 the order-6 splines around it are worth. Guard the 6th-order rule.
+    # the transform *is* that boundary term, so they are the only quantities whose accuracy the
+    # order of `gregory_weights` binds. This guards that order.
     psp = mPspUpf.upf_pseudos[:Ge]
     l, i = 1, 1                                  # its l=1 pswfc ends at 9.8e-3 of its peak
     r2_f = psp.r2_pswfcs[l+1][i]
     @test abs(r2_f[end]) / maximum(abs, r2_f) > 1e-3   # ... i.e. this test is testing something
 
-    # Reference: adaptive quadrature of the very same radial spline, which isolates the error of
-    # the transform (quadrature + interpolation in p) from that of the radial interpolation.
     spline = radial_spline(psp.rgrid, r2_f)
     reference(p) = 4π / p^l * quadgk(r -> spline(r) * sphericalbesselj_fast(l, p * r),
                                      psp.rgrid[1], psp.rgrid[end]; rtol=1e-12)[1]
@@ -491,38 +474,12 @@ end
 @testitem "Fourier tables decay at large p" tags=[:psp] setup=[mPspUpf] begin
     using DFTK: eval_psp_core_density_fourier
 
-    # As above, but on a real pseudopotential: the core density is sharply peaked and l = 0,
-    # so it is the quantity a bad end condition at the origin damages most.
+    # The core density is sharply peaked and l = 0, so it is the quantity a bad end condition
+    # at the origin damages most (see `radial_spline`): the error it leaves is nearly a delta
+    # function in r, whose transform is flat and thus visible only in the tail of H̃.
     psp = mPspUpf.upf_pseudos[:Ge]  # NLCC, linear mesh
     ρcore_max = eval_psp_core_density_fourier(psp, 0.0)
     for p in (20.0, 30.0, 40.0)
         @test abs(eval_psp_core_density_fourier(psp, p)) < 1e-8 * ρcore_max
     end
-end
-
-@testitem "Basis construction rejects a psp tabulated too coarsely" #=
-    =#    tags=[:psp] setup=[mPspUpf] begin
-    using DFTK
-    using LinearAlgebra
-
-    # A basis needs the Fourier transforms at every |G| of its density cube. The table cannot
-    # raise on an out-of-range p (it is evaluated in a GPU kernel), so the basis checks the
-    # largest |G| against the table's range up front. With the real HANKEL_TABLE_PMAX this is
-    # unreachable at any sane Ecut, so shrink a copy of the table to provoke it.
-    psp = mPspUpf.upf_pseudos[:Si]
-    table = psp.vloc_table
-    small = DFTK.HankelTable{DFTK.HANKEL_TABLE_ORDER_P,Float64,Vector{Float64}}(
-        table.coefficients, table.logpmin, table.Δlogp, 1.0,
-        table.moment0, table.moment2, table.moment4)
-    fields = [f === :vloc_table ? small : getfield(psp, f) for f in fieldnames(DFTK.PspUpf)]
-    psp_small = typeof(psp)(fields...)
-    @test DFTK.max_momentum_fourier(psp_small) == 1.0
-
-    model = model_DFT(diagm([10.0, 10.0, 10.0]), [ElementPsp(:Si, psp_small)], [zeros(3)];
-                      functionals=LDA())
-    @test_throws ErrorException PlaneWaveBasis(model; Ecut=20, kgrid=[1, 1, 1])
-    # The same basis is fine with the pseudopotential's real table.
-    model_ok = model_DFT(diagm([10.0, 10.0, 10.0]), [ElementPsp(:Si, psp)], [zeros(3)];
-                         functionals=LDA())
-    @test PlaneWaveBasis(model_ok; Ecut=20, kgrid=[1, 1, 1]) isa PlaneWaveBasis
 end

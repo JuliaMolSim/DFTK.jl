@@ -243,14 +243,6 @@ function count_n_pswfc(psp::NormConservingPsp)
     sum(l -> count_n_pswfc(psp, l), 0:psp.lmax; init=0)::Int
 end
 
-"""
-Largest momentum `p` at which the Fourier-space quantities of a pseudopotential may be
-evaluated. Unbounded for pseudopotentials evaluated analytically or by quadrature; finite
-for those tabulating their Fourier transforms (`PspUpf`, see `psp_fourier_table.jl`). It is
-checked once, when a `PlaneWaveBasis` is built.
-"""
-max_momentum_fourier(::NormConservingPsp) = Inf
-
 function find_pswfc(psp::NormConservingPsp, label::String)
     for l = 0:psp.lmax, i = 1:count_n_pswfc_radial(psp, l)
         if pswfc_label(psp, i, l) == label

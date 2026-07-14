@@ -3,79 +3,65 @@ using SphericalBesselTransforms: SBTPlan, sbt
 using StaticArrays: MVector
 import BSplineKit
 
-# Tabulation of the modified Hankel transform (see `hankel`)
+# Tabulation of the modified Hankel transform
 #
 #     H̃[f](p) = 4π/p^l ∫_0^∞ r² f(r) j_l(p r) dr
 #
 # of the radial quantities of a pseudopotential. Evaluating this transform by quadrature
-# over the radial mesh costs O(n_radial) per p; since it is needed at every |G| (and, in the
-# response and stress code paths, in Dual arithmetic) we instead transform once at psp load
-# time and interpolate afterwards, making `eval_psp_*_fourier` O(1).
+# over the radial mesh costs O(n_radial) per p; since it is needed at every |G| (and, in
+# the response and stress code paths, in Dual arithmetic) we instead transform once at psp
+# load time and interpolate afterwards, making `eval_psp_*_fourier` O(1).
 #
-# The transform itself is Talman's FFT-based spherical Bessel transform
-# (`SphericalBesselTransforms`), which computes H̃ on a whole logarithmic p grid in one shot,
+# The transform is Talman's FFT-based spherical Bessel transform
+# (`SphericalBesselTransforms`), which computes H̃ on a whole logarithmic p grid in one shot
 # but requires the input on a logarithmic r grid -- radial meshes of UPF files are linear,
 # logarithmic or of the form e^x - 1, so the data is resampled first (`resample_radial`).
 #
-# The tabulated H̃ is smooth and *even* in p (that is the point of the 1/p^l factor), so it
-# splines well in log p, and near p = 0 is carried by the first three terms of its Taylor
-# series -- which is also what makes p = 0 representable at all (the log grid cannot reach it).
-#
-# There are two splines here, doing different jobs and flooring different errors -- which is
-# why raising one of the orders alone appears to achieve nothing:
-#
-#   * in r, the spline carries the sampled psp data onto the transform's log grid. It limits
-#     the accuracy of the tabulated *values* (order 4: 1e-10; order 6: 6e-14).
-#   * in log p, the spline is the representation we keep, evaluate at every |G| and hand to
-#     ForwardDiff. It limits the *derivatives*: an order-k spline is only C^{k-2}, so a cubic
-#     one has a merely piecewise-linear second derivative and gets H̃″ wrong by 4e-8, against
-#     1e-10 at order 6. High order is cheap here because H̃(p) is analytic (Paley-Wiener: the
-#     radial data has compact support).
-#
-# They are tuned separately (`HANKEL_TABLE_ORDER_R` / `_P`); that both land on 6 is a
-# coincidence of two independent limits.
+# H̃ is smooth and *even* in p (that is the point of the 1/p^l factor), so it splines well in
+# log p, and near p = 0 is carried by the first terms of its Taylor series -- which is also
+# what makes p = 0 representable at all, the log grid being unable to reach it.
 
 const HANKEL_TABLE_NPOINTS = 4096  # Points of the log-r (and thus log-p) grid
 const HANKEL_TABLE_RMIN    = 1e-5  # Bottom of the log-r grid
 const HANKEL_TABLE_PMAX    = 1e3   # Top of the log-p grid (Ecut = pmax²/2 ≈ 5·10⁵ Ha)
 const HANKEL_TABLE_PCUT    = 1e-2  # Below this, use the small-p series instead of the spline
 
-# The two spline orders. They come out equal, but for unrelated reasons -- do not merge them.
+# The two spline orders floor different errors, and are tuned separately.
 #
-# In r the order is limited by the *data*: the psp's own mesh is all we have, and the quantities
-# have a cutoff kink. 6 measures 6e-14 on the tabulated values against 1e-10 at order 4, while
-# order 8 is *worse* (5e-13) -- it has saturated, so there is nothing above 6 to buy.
+# In r the spline carries the psp data onto the transform's log grid, and limits the accuracy
+# of the tabulated *values*. It is capped by the data: the psp's own mesh is all we have, and
+# the quantities have a cutoff kink, so order 6 has saturated (order 8 measures worse).
 const HANKEL_TABLE_ORDER_R = 6
-# In log p the order is the smoothness class we need: an order-k spline is only C^{k-2}, so a
-# cubic gets H̃″ wrong by 4e-8 where 6 gives 1e-10. Raising it further would keep paying (H̃(p)
-# is analytic) if higher derivatives were ever wanted, at ~12 ns/evaluation per two orders.
-# **Must be even**: `eval_hankel_table` indexes a cardinal basis, i.e. it assumes B-spline `i`
-# is centred on node `i`, which only holds for even order.
+# In log p the spline is the representation we keep, evaluate at every |G| and hand to
+# ForwardDiff, so it limits the *derivatives*: an order-k spline is only C^{k-2}, and a cubic
+# one has a merely piecewise-linear second derivative. High order is cheap here because H̃(p)
+# is analytic (Paley-Wiener: the radial data has compact support). **Must be even**:
+# `eval_hankel_table` indexes a cardinal basis, i.e. it assumes B-spline `i` is centred on
+# node `i`, which only holds for even order.
 const HANKEL_TABLE_ORDER_P = 6
 
 """
 Tabulated modified Hankel transform H̃ of one radial quantity, see `build_hankel_table`.
-`coefficients` are the B-spline coefficients of order `K` on the logarithmic grid
-`p_i = exp(logpmin + (i-1) Δlogp)`, one per node. Below `HANKEL_TABLE_PCUT` the series
-`moment0 + moment2 p² + moment4 p⁴` is used instead.
+`coefficients` are the B-spline coefficients of order `HANKEL_TABLE_ORDER_P` on the
+logarithmic grid `p_i = exp(logpmin + (i-1) Δlogp)`, one per node. Below `HANKEL_TABLE_PCUT`
+the series `moment0 + moment2 p² + moment4 p⁴` is used instead.
 """
-struct HankelTable{K,T,AT<:AbstractVector{T}}
+struct HankelTable{T,AT<:AbstractVector{T}}
     coefficients::AT
     logpmin::T
     Δlogp::T
-    pmax::T      # Largest |p| the table covers, see `max_momentum_fourier`
-    moment0::T   # Coefficients of the Taylor series of H̃ at p = 0. It is even in p, so these
-    moment2::T   # are H̃(0), H̃⁽²⁾(0)/2! and H̃⁽⁴⁾(0)/4!. Stopping at p² would leave a 1.8e-8
-    moment4::T   # step at pcut; with p⁴ the two branches meet to ~2e-12.
+    # Taylor series of H̃ at p = 0. It is even in p, so these are H̃(0), H̃⁽²⁾(0)/2! and
+    # H̃⁽⁴⁾(0)/4!. Stopping at p² would leave a 1.8e-8 step at pcut; with p⁴ the two branches
+    # meet to ~2e-12.
+    moment0::T
+    moment2::T
+    moment4::T
 end
-hankel_order(::HankelTable{K}) where {K} = K
 
 to_device(::CPU, table::HankelTable) = table
-function to_device(architecture::GPU, table::HankelTable{K}) where {K}
-    coefficients = to_device(architecture, table.coefficients)
-    HankelTable{K,eltype(coefficients),typeof(coefficients)}(
-        coefficients, table.logpmin, table.Δlogp, table.pmax,
-        table.moment0, table.moment2, table.moment4)
+function to_device(architecture::GPU, table::HankelTable)
+    HankelTable(to_device(architecture, table.coefficients), table.logpmin, table.Δlogp,
+                table.moment0, table.moment2, table.moment4)
 end
 
 """
@@ -104,22 +90,23 @@ Evaluate a `HankelTable` at `p`. Written in terms of plain scalars and one array
 the `HankelTable` itself, so that it can be called from a GPU kernel (a `HankelTable` is not
 `isbits`); the vectorized `eval_psp_*_fourier` destructure the table and call this.
 """
-function eval_hankel_table(coefficients::AbstractVector, ::Val{K}, logpmin, Δlogp,
-                           moment0, moment2, moment4, p) where {K}
+function eval_hankel_table(coefficients::AbstractVector, logpmin, Δlogp,
+                           moment0, moment2, moment4, p)
+    K = HANKEL_TABLE_ORDER_P
+
     # The transform is even in p, so a few terms of its Taylor series carry it to pcut. This
     # is also the p = 0 branch (the table lives on a logarithmic grid, log(0) = -Inf).
     p < HANKEL_TABLE_PCUT && return moment0 + moment2 * p^2 + moment4 * p^4
+    p > HANKEL_TABLE_PMAX && error("Pseudopotential Fourier transforms are only tabulated \
+                                    up to HANKEL_TABLE_PMAX; Ecut is far too large.")
 
-    # Position of p on the log grid, in (fractional) node units, and the cell holding it.
-    # Clamping keeps the K coefficients below in bounds; it also means p > pmax silently
-    # extrapolates rather than erroring, which `max_momentum_fourier` rules out up front.
+    # Position of p on the log grid, in (fractional) node units, and the cell holding it. The
+    # clamp keeps the K coefficients below in bounds within the last few cells of the grid.
     u = (log(p) - logpmin) / Δlogp
     icell = clamp(floor(Int, u), K ÷ 2, length(coefficients) - K ÷ 2)
 
     # B-spline i is centred on node i, so the K nonzero ones on this cell are
-    # i = icell+1-K/2 … icell+K/2. The interpolant is cardinal only away from the ends of the
-    # grid, which is what the clamp above keeps us clear of -- and we never evaluate there in
-    # any case: below pcut we take the series, and pmax sits far past any |G|.
+    # i = icell+1-K/2 … icell+K/2.
     N = uniform_bsplines(Val(K), u - icell)
     acc = zero(promote_type(eltype(coefficients), typeof(u)))
     for m = 1:K
@@ -128,8 +115,8 @@ function eval_hankel_table(coefficients::AbstractVector, ::Val{K}, logpmin, Δlo
     acc
 end
 
-function (table::HankelTable{K})(p) where {K}
-    eval_hankel_table(table.coefficients, Val(K), table.logpmin, table.Δlogp,
+function (table::HankelTable)(p)
+    eval_hankel_table(table.coefficients, table.logpmin, table.Δlogp,
                       table.moment0, table.moment2, table.moment4, p)
 end
 
@@ -141,8 +128,7 @@ pieces first: the kernel can capture those and the coefficient array, but not th
 function eval_hankel_table(table::HankelTable, ps::AbstractVector)
     (; coefficients, logpmin, Δlogp, moment0, moment2, moment4) =
         to_device(architecture(ps), table)
-    order = Val(hankel_order(table))
-    map(p -> eval_hankel_table(coefficients, order, logpmin, Δlogp,
+    map(p -> eval_hankel_table(coefficients, logpmin, Δlogp,
                                moment0, moment2, moment4, p), ps)
 end
 
@@ -168,10 +154,10 @@ function build_hankel_table(plan::SBTPlan{T}, rgrid, r2_f, l::Integer) where {T}
     # silently truncate.
     @assert last(rgrid) ≤ last(plan.r) * (1 + 8eps(T))
 
-    # `sbt` evaluates the bare sum ∑ᵢ f(rᵢ) rᵢ³ jₗ(p rᵢ) Δρ -- a *rectangle* rule in log r, so
-    # only O(Δρ) on its own. We can fix that for free: the transform kernel depends on i+j only,
-    # so multiplying fᵢ by any per-node quadrature weight leaves it a convolution (and hence an
-    # FFT). See `gregory_weights` for which weights, and why.
+    # `sbt` evaluates the bare sum ∑ᵢ f(rᵢ) rᵢ³ jₗ(p rᵢ) Δρ -- a *rectangle* rule in log r,
+    # so only O(Δρ) on its own. We can fix that for free: the transform kernel depends on i+j
+    # only, so multiplying fᵢ by any per-node quadrature weight leaves it a convolution (and
+    # hence an FFT). See `gregory_weights` for which weights, and why.
     f = resample_radial(rgrid, r2_f, plan.r) ./ plan.r .^ 2 .* gregory_weights(T, plan.nr)
     values = 4T(π) .* sbt(l, f, plan) ./ plan.k .^ l
 
@@ -198,37 +184,22 @@ function build_hankel_table(plan::SBTPlan{T}, rgrid, r2_f, l::Integer) where {T}
     moment2 = -moment(2, 2 * (2l + 3))
     moment4 =  moment(4, 8 * (2l + 3) * (2l + 5))
 
-    HankelTable{K,T,Vector{T}}(coefficients, log(plan.kmin), plan.Δρ,
-                               T(HANKEL_TABLE_PMAX), moment0, moment2, moment4)
+    HankelTable(coefficients, log(plan.kmin), plan.Δρ, moment0, moment2, moment4)
 end
 
 """
-Weights of the **6th-order** Gregory quadrature rule ∫f ≈ h ∑ᵢ wᵢ f(xᵢ) on a uniform grid: the
+Weights of the 6th-order Gregory quadrature rule ∫f ≈ h ∑ᵢ wᵢ f(xᵢ) on a uniform grid: the
 trapezoidal rule, with the five outermost nodes at each end reweighted.
 
-Why this rule. By Euler–Maclaurin, the trapezoidal rule's error on a smooth integrand is made
-up *entirely of boundary terms* — h²/12·[g′] − h⁴/720·[g‴] + … evaluated at the two ends — and
-the interior cancels to all orders. So the accuracy of a uniform-grid sum is decided at its two
-endpoints and nowhere else. Here the integrand r³ f(r) jₗ(pr) dies like r^{l+3} at rmin, with
-all its derivatives, so that end is already free. Gregory's rule is precisely "cancel the
-boundary terms at the other end", by approximating the Euler–Maclaurin derivatives with finite
-differences of the end nodes — it fixes the error where the error actually is, and buys another
-two orders for each extra pair of corrected nodes.
-
-Why 6th and not 4th order: the coefficient of the error *is* the boundary term, so this rule
-contributes nothing at all for a quantity that dies inside the mesh (ρcore, the projectors, the
-erf-corrected vloc). But the **pseudo-atomic wavefunctions are cut while still at ~1e-2 of their
-peak**, and there a 4th-order rule becomes the binding constraint — it would floor the table at
-7.7e-11 while the order-6 splines around it are good to 6e-14. Sixth order restores them to
-1.5e-13. It is free: the weights are folded into `f` (see `build_hankel_table`), so nothing is
-paid at evaluation time.
-
-Measured (error/H̃(0) at p ≈ 5, N = 4096): the bare sum `sbt` performs is a *rectangle* rule,
-O(h) — 4.8e-7. Trapezoid alone is O(h²) — 5.5e-8. Gregory-4 is O(h⁴) — 5.6e-12. (Composite
-Simpson would also be 4th order and folds in just as freely — *any* per-node weight does, since
-scaling `fᵢ` leaves a kernel that depends on `i+j` a convolution. Gregory is preferred because
-it needs no parity constraint on `n`, and because it generalises upwards like this, where
-Newton–Cotes goes unstable.)
+By Euler-Maclaurin, the trapezoidal rule's error on a smooth integrand is made up *entirely
+of boundary terms* -- h²/12·[g′] - h⁴/720·[g‴] + … evaluated at the two ends -- the interior
+cancelling to all orders. Gregory's rule is precisely "cancel those boundary terms", by
+approximating the Euler-Maclaurin derivatives with finite differences of the end nodes. Here
+the integrand r³ f(r) jₗ(pr) dies at rmin with all its derivatives, so only the outer end can
+contribute -- and it only does for a quantity that is cut while still nonzero, i.e. the
+pseudo-atomic wavefunctions (~1e-2 of their peak at the end of the mesh), which is what makes
+4th order insufficient here. The rule is free: the weights are folded into `f` (see
+`build_hankel_table`), so nothing is paid at evaluation time.
 """
 function gregory_weights(::Type{T}, n::Integer) where {T}
     weights = ones(T, n)
@@ -246,11 +217,11 @@ the end of the data.
 
 **Never pass `Natural()`.** The quantities splined are r² f(r), whose curvature at the origin
 is 2f(0) ≠ 0 whenever l = 0 (every density, the local potential, the l = 0 projectors), so
-pinning y′′ = 0 there misrepresents the first cell by O(1). Confined to within one mesh spacing
-of r = 0, that error is nearly a delta function -- and the transform of a delta is *flat*, so it
-leaves p = 0 (hence every norm and charge, and thus most tests) untouched while putting a ~6e-7
-floor under the entire tail of H̃. It surfaces only as a spuriously negative core density in
-real space. BSplineKit's default end condition is the right one.
+pinning y′′ = 0 there misrepresents the first cell by O(1). Confined to within one mesh
+spacing of r = 0, that error is nearly a delta function -- and the transform of a delta is
+*flat*, so it leaves p = 0 (hence every norm and charge, and thus most tests) untouched while
+putting a ~6e-7 floor under the entire tail of H̃. It surfaces only as a spuriously negative
+core density in real space. BSplineKit's default end condition is the right one.
 """
 function radial_spline(r::AbstractVector, y::AbstractVector)
     @assert length(r) == length(y)

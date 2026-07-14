@@ -215,8 +215,8 @@ function build_projector_form_factors(psp::NormConservingPsp,
         offset = sum(x -> count_n_proj(psp, x), 0:l-1; init=0) .+
                  n_proj_l .* (collect(1:2l+1) .- 1) # offset about m for a given l
         for i = 1:n_proj_l
-            # Performs same computation as build_form_factors(eval_psp_projector_fourier, l, [G_plus_k]),
-            # but in a highly optimized, vectorized, and GPU compatible way.
+            # Same computation as build_form_factors(eval_psp_projector_fourier, l, [G_plus_k]),
+            # but vectorized and GPU compatible.
             proj_li = eval_psp_projector_fourier(psp, i, l, ps)
             for m = -l:l
                 map!(@view(form_factors[:, offset[m + l + 1] + i]), G_indices) do iG
