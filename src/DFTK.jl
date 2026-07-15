@@ -165,7 +165,7 @@ export HybridFunctional, PBE0, HSE
 include("standard_models.jl")
 
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing
-export LdosMixing, HybridMixing, χ0Mixing, HybridDiagonalMixing
+export LdosMixing, LdosDielectricMixing, χ0Mixing, LdosXcDiagonalMixing
 export FixedBands, AdaptiveBands
 export scf_damping_solver
 export scf_anderson_solver

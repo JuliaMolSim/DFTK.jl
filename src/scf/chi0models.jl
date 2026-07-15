@@ -86,9 +86,12 @@ end
 Applyχ0Model(; kwargs_apply_χ0...) = Applyχ0Model(kwargs_apply_χ0)
 function (χ0::Applyχ0Model)(basis; ham, eigenvalues, ψ, occupation, εF,
                             kwargs...)
+    defaults = default_smearing_temperature(basis.model)
+    temperature = @something(χ0.temperature, defaults.temperature)
+    smearing    = @something(χ0.smearing,    defaults.smearing)
     function apply!(δρ, δV, α=1)
         χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
-                        χ0.kwargs_apply_χ0...).δρ
+                        smearing, temperature, χ0.kwargs_apply_χ0...).δρ
         δρ .+= α .* χ0δV
     end
 end

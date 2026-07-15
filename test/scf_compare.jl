@@ -43,9 +43,9 @@
 
     # Run other mixing with default solver (the others are too slow...)
     for mixing_str in ("KerkerMixing()", "SimpleMixing()", "DielectricMixing(εr=12)",
-                       "KerkerDosMixing()", "HybridMixing()",
-                       "HybridMixing(εr=10, RPA=false)",
-                       "χ0Mixing([Applyχ0Model()]; RPA=true)")
+                       "KerkerDosMixing()", "LdosDielectricMixing()",
+                       "LdosDielectricMixing(εr=10, RPA=false)",
+                       "χ0Mixing(; χ0terms_mapping = Dict(TermHartree => [Applyχ0Model()]))")
         @testset "Testing $mixing_str" begin
             mixing = eval(Meta.parse(mixing_str))
             ρ_alg = self_consistent_field(basis; ρ=ρ0, mixing, tol, damping=0.8).ρ
@@ -109,9 +109,9 @@ end
     ρ0    = guess_density(basis)
     ρ_ref = self_consistent_field(basis; ρ=ρ0, tol).ρ
 
-    for mixing_str in ("KerkerDosMixing()", "HybridMixing(; RPA=true)",
-                       "LdosMixing(; RPA=false)", "HybridMixing(; εr=10, RPA=true)",
-                       "HybridDiagonalMixing()")
+    for mixing_str in ("KerkerDosMixing()", "LdosDielectricMixing(; RPA=true)",
+                       "LdosMixing(; RPA=false)", "LdosDielectricMixing(; εr=10, RPA=true)",
+                       "LdosXcDiagonalMixing()")
         @testset "Testing $mixing_str" begin
             mixing = eval(Meta.parse(mixing_str))
             ρ_mix = self_consistent_field(basis; ρ=ρ0, mixing, tol, damping=0.8).ρ
@@ -140,8 +140,9 @@ end
     ρ_ref  = scfres.ρ
 
     for mixing_str in ("KerkerMixing()", "KerkerDosMixing()", "DielectricMixing(; εr=10)",
-                       "HybridMixing(; εr=10)", "χ0Mixing([Applyχ0Model()]; RPA=false)",
-                       "HybridDiagonalMixing()")
+                       "LdosDielectricMixing(; εr=10)", 
+                       "χ0Mixing(; χ0terms_mapping = Dict(TermHartree => [Applyχ0Model()]))",
+                       "LdosXcDiagonalMixing()")
         @testset "Testing $mixing_str" begin
             mixing = eval(Meta.parse(mixing_str))
             scfres = self_consistent_field(basis; ρ=ρ0, mixing, tol, damping=0.8)
