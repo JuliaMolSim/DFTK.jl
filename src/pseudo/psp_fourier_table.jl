@@ -96,7 +96,7 @@ function eval_hankel_table(coefficients::AbstractVector, logpmin, Δlogp,
 
     # The transform is even in p, so a few terms of its Taylor series carry it to pcut. This
     # is also the p = 0 branch (the table lives on a logarithmic grid, log(0) = -Inf).
-    p < HANKEL_TABLE_PCUT && return moment0 + moment2 * p^2 + moment4 * p^4
+    p < HANKEL_TABLE_PCUT && return oftype(p, moment0 + moment2 * p^2 + moment4 * p^4)
     p > HANKEL_TABLE_PMAX && error("Pseudopotential Fourier transforms are only tabulated \
                                     up to HANKEL_TABLE_PMAX; Ecut is far too large.")
 
@@ -112,7 +112,7 @@ function eval_hankel_table(coefficients::AbstractVector, logpmin, Δlogp,
     for m = 1:K
         @inbounds acc += N[m] * coefficients[icell + 1 - K ÷ 2 + m]
     end
-    acc
+    oftype(p, acc)
 end
 
 function (table::HankelTable)(p)
