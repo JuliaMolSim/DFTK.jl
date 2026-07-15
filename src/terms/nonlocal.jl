@@ -19,7 +19,7 @@ function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
     ops = map(basis.kpoints) do kpt
         P = build_projection_vectors(basis, kpt, psps, psp_positions)
         D = build_projection_coefficients(T, psps, psp_positions)
-        NonlocalOperator(basis, kpt, P, to_device(basis.architecture, D))
+        NonlocalOperator(basis, kpt, P, D)
     end
     TermAtomicNonlocal(ops)
 end
@@ -65,7 +65,7 @@ end
     for group in psp_groups
         element = model.atoms[first(group)]
 
-        C = to_device(basis.architecture, build_projection_coefficients(T, element.psp))
+        D = build_projection_coefficients(T, element.psp)
         for (ik, kpt) in enumerate(basis.kpoints)
             # We compute the forces from the irreductible BZ; they are symmetrized later.
             G_plus_k_cart = Gplusk_vectors_cart(basis, kpt)
@@ -88,7 +88,7 @@ end
                 forces[idx] += map(1:3) do α
                     map!(p -> -2π*im*p[α], twoπp, G_plus_k)
                     dPdR .= twoπp .* P
-                    mul!(δHψk, P, C * (dPdR' * ψ[ik]))
+                    mul!(δHψk, P, D * (dPdR' * ψ[ik]))
                     -basis.kweights[ik]*sum(occupation[ik] .* 2vec(real(columnwise_dots(ψ[ik], δHψk))))
                 end  # α
             end  # r
@@ -288,7 +288,7 @@ end
 function build_projection_coefficients(basis::PlaneWaveBasis{T}, psp_groups) where {T}
     psps          = [basis.model.atoms[first(group)].psp for group in psp_groups]
     psp_positions = [basis.model.positions[group] for group in psp_groups]
-    build_projection_coefficients(T, psps, psp_positions)
+    to_device(basis.architecture, build_projection_coefficients(T, psps, psp_positions))
 end
 function build_projection_vectors(basis::PlaneWaveBasis, kpt::Kpoint,
                                   psp_groups::AbstractVector{<: AbstractVector{<: Int}},
@@ -374,9 +374,8 @@ end
                     PDPψk(basis, positions_βsαs, psp_groups, kpt, kpt, ψ[ik])
                 end
             end
-            dynmat_δ²H[β, s, α, s] += sum(occupation[ik][n] * basis.kweights[ik] *
-                                              dot(ψ[ik][:, n], δ²Hψ[ik][:, n])
-                                          for n=1:size(ψ[ik], 2))
+            dynmat_δ²H[β, s, α, s] += basis.kweights[ik] *
+                sum(occupation[ik] .* columnwise_dots(ψ[ik], δ²Hψ[ik]))
         end
     end
 

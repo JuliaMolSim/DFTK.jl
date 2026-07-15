@@ -102,8 +102,7 @@ in reduced coordinates.
     @assert !any(breaks_time_reversal_symmetry, basis.model.term_types) (
         "Phonons are currently only implemented in the presence of time-reversal-symmetry.")
     n_atoms = length(basis.model.positions)
-    δρs = [zeros(complex(T), basis.fft_size..., basis.model.n_spin_components)
-           for _ = 1:3, _ = 1:n_atoms]
+    δρs = [zero(ρ) for _ = 1:3, _ = 1:n_atoms]
     δoccupations = [zero.(occupation) for _ = 1:3, _ = 1:n_atoms]
     δψs = [zero.(ψ) for _ = 1:3, _ = 1:n_atoms]
     for s = 1:n_atoms, α = 1:basis.model.n_dim
