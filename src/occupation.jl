@@ -212,15 +212,16 @@ end
 
 """Debug dumping for Fermi algorithms."""
 function debugdump_fermialg(basis, eigenvalues, fermialg;
-                            temperature, smearing, εF, excess, dexcess)
-    if debugdump_enabled()
+                            temperature, smearing, εF, excess, dexcess,
+                            prefix=debugdump_prefix())
+    if !isempty(prefix)  # Empty prefix means no debug dumping enabled.
         data = band_data_to_dict((; basis, eigenvalues, εF))
         data["temperature"] = temperature
         data["smearing"]    = string(smearing)
         data["fermialg"]    = string(fermialg)
         data["excess"]      = excess
         data["dexcess"]     = dexcess
-        save_debugdump(basis.comm, "fermialg", data)
+        save_debugdump(basis.comm_kpts, "fermialg", data; prefix)
     end
 end
 

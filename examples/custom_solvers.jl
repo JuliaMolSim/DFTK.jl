@@ -12,8 +12,7 @@ model = model_DFT(bulk(:Si); functionals=LDA(), pseudopotentials)
 basis = PlaneWaveBasis(model; Ecut=5, kgrid=[1, 1, 1]);
 
 # We define our custom fix-point solver: simply a damped fixed-point
-function my_fp_solver(f, x0, info0; maxiter)
-    mixing_factor = .7
+function my_fp_solver(f, x0, info0; maxiter, damping)
     x = x0
     info = info0
     for n = 1:maxiter
@@ -21,7 +20,7 @@ function my_fp_solver(f, x0, info0; maxiter)
         if info.converged || info.timedout
             break
         end
-        x = x + mixing_factor * (fx - x)
+        x = x + damping * (fx - x)
     end
     (; fixpoint=x, info)
 end;
@@ -29,6 +28,8 @@ end;
 # state bookkeeping. Early termination criteria are flagged from inside
 # the function `f` using boolean flags `info.converged` and `info.timedout`.
 # For control over these criteria, see the `is_converged` and `maxtime`
+# keyword arguments of `self_consistent_field`. The `maxiter` and `damping`
+# keywords of `my_fp_solver` will be filled by the values of the identical
 # keyword arguments of `self_consistent_field`.
 
 # Our eigenvalue solver just forms the dense matrix and diagonalizes
@@ -67,7 +68,9 @@ scfres = self_consistent_field(basis;
                                tol=1e-4,
                                solver=my_fp_solver,
                                eigensolver=my_eig_solver,
-                               mixing=MyMixing());
+                               mixing=MyMixing(),
+                               damping=0.7,   # Supply values, which will be forwarded
+                               maxiter=100);  # to the corresponding keywords of my_fp_solver
 # Note that the default convergence criterion is the difference in
 # density. When this gets below `tol`, the fixed-point solver terminates.
 # You can also customize this with the `is_converged` keyword argument to

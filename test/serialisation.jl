@@ -129,6 +129,16 @@ end
                                                     test_ψ=false, explicit_reshape=true)
             end
         end
+
+        @testset "debugdump ($label)" begin
+            mktempdir() do tmpdir
+                prefix = joinpath(tmpdir, "dftk-debugdump")
+                DFTK.debugdump_fermialg(scfres.basis, scfres.eigenvalues, scfres.fermialg;
+                                        model.temperature, model.smearing, scfres.εF,
+                                        excess=0.0, dexcess=0.0, prefix)
+                    @test isfile(prefix * "-fermialg$-$(getpid()).json")
+            end
+        end
     end
 
     test_serialisation(testcase, "nospin notemp"; modelargs=(; spin_polarization=:none))
