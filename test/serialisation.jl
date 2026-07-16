@@ -136,7 +136,9 @@ end
                 DFTK.debugdump_fermialg(scfres.basis, scfres.eigenvalues, scfres.fermialg;
                                         model.temperature, model.smearing, scfres.εF,
                                         excess=0.0, dexcess=0.0, prefix)
-                @test isfile(prefix * "-fermialg-$(getpid()).json")
+                if mpi_master(scfres.basis.comm_kpts)
+                    @test isfile(prefix * "-fermialg-$(getpid()).json")
+                end
             end
         end
     end
