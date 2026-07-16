@@ -121,7 +121,7 @@ end
     end
 end
 
-# The LOBPCG-internal unit tests (LazyHcat data structures, print callback, and
-# standalone diagonalization of dense matrices) now live in the LOBPCG.jl package.
+# The LOBPCG-internal unit tests (LazyHcat data structures, print callback, and standalone
+# diagonalization of dense matrices) now live in the LOBPCGEigensolver.jl package.
 # The tests kept here exercise DFTK's k-block diagonalization machinery on actual
 # Hamiltonians.

@@ -1,4 +1,4 @@
-# Thin DFTK-flavored wrapper around the LOBPCG solver from the LOBPCG.jl package:
+# Thin DFTK-flavored wrapper around the LOBPCG solver from the LOBPCGEigensolver.jl package:
 # picks a sensible default tolerance and reports convergence / iteration count.
 # Note that this function will return λ on the CPU,
 # but X and the history on the device (for GPU runs)

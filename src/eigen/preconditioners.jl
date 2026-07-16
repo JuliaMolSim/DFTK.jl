@@ -7,7 +7,7 @@
 # ldiv! and mul! (both 2 and 3-arg versions)
 # Additionally if the solver supports adaptive preconditioning
 # it will call `precondprep!(P,X)` right before calling `ldiv!`
-# The generic `precondprep!` API lives in LOBPCG.jl (imported in DFTK.jl); the
+# The generic `precondprep!` API lives in LOBPCGEigensolver.jl (imported in DFTK.jl); the
 # methods below extend it for DFTK's preconditioner types.
 
 import LinearAlgebra: ldiv!

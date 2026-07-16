@@ -4,7 +4,7 @@
 # explicitly looping over columns or elements. This approach is not
 # necessarily the most performant on CPU, as the allocation of large
 # temporary arrays hurts cache locality. It is also harder to read.
-# (The analogous helpers used *inside* the eigensolver live in LOBPCG.jl.)
+# (The analogous helpers used *inside* the eigensolver live in LOBPCGEigensolver.jl.)
 
 using LinearAlgebra
 using GPUArraysCore
