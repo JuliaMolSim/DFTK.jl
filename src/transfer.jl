@@ -77,7 +77,9 @@ function transfer_mapping(basis_in::PlaneWaveBasis,  kpt_in::Kpoint,
     end
 
     # the nothings have been filtered out
-    to_device(basis_in.architecture, Vector{Int}(idcs_in)), to_device(basis_out.architecture, Vector{Int}(idcs_out))
+    idcs_in_finally = to_device(basis_in.architecture, Vector{Int}(idcs_in))
+    idcs_out_finally = to_device(basis_out.architecture, Vector{Int}(idcs_out))
+    idcs_in_finally, idcs_out_finally
 end
 
 """
