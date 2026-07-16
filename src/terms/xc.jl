@@ -8,9 +8,8 @@ struct Xc
     # Threshold for potential terms: Below this value a potential term is counted as zero.
     potential_threshold::Real
 
-    # Use non-linear core correction or not
-    use_nlcc::Bool
-    nlcc_from_vw::Bool  # Use van Weizsäcker kinetic energy density as standin for τcore
+    use_nlcc::Bool      # Use non-linear core correction or not
+    nlcc_from_vw::Bool  # Use van Weizsäcker kinetic energy density for τcore
 end
 function Xc(functionals::AbstractVector{<:Functional}; scaling_factor=1,
             potential_threshold=0, use_nlcc=true, nlcc_from_vw=false)
@@ -41,17 +40,19 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
             @debug "xc: Negative ρcore: $(minimum(ρcore))"
         end
     end
+
     τcore = nothing
     if xc.use_nlcc && any(needs_τ, xc.functionals)
-        if any(has_core_kinetic_energy_density, basis.model.atoms)
-            τcore = ρ_from_total(basis, atomic_total_density(basis, CoreKineticEnergyDensity()))
-        elseif !isnothing(ρcore) && xc.nlcc_from_vw
+        if !isnothing(ρcore) && xc.nlcc_from_vw
             τcore = von_weizsaecker_kinetic_energy_density(basis, ρcore)
+        elseif any(has_core_kinetic_energy_density, basis.model.atoms)
+            τcore = ρ_from_total(basis, atomic_total_density(basis, CoreKineticEnergyDensity()))
         end
         if !isnothing(τcore) && mpi_master(basis.comm_kpts) && minimum(τcore) < -sqrt(eps(T))
             @debug "xc: Negative τcore: $(minimum(τcore))"
         end
     end
+
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
         params = parameters(fun)
@@ -441,7 +442,7 @@ function _check_negative_bonding_indicator_α(densities::LibxcDensities{T};
                   "for τ, a too small Ecut value or an unphysical initial guess for τ. " *
                   "This message is only logged once." maxlog=1
         end
-    end  # master
+    end
 end
 
 function compute_kernel(term::TermXc, basis::PlaneWaveBasis{T}; ρ, kwargs...) where {T}
