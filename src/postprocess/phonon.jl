@@ -102,8 +102,7 @@ in reduced coordinates.
     @assert !any(breaks_time_reversal_symmetry, basis.model.term_types) (
         "Phonons are currently only implemented in the presence of time-reversal-symmetry.")
     n_atoms = length(basis.model.positions)
-    responses = map(CartesianIndices((3, n_atoms))) do αs
-        (α, s) = Tuple(αs)
+    responses = map(Iterators.product(1:3, 1:n_atoms)) do (α, s)
         δHψs_αs = compute_δHψ_αs(basis, ψ, α, s, q)
         solve_ΩplusK_split(ham, ρ, ψ, occupation, εF, eigenvalues, δHψs_αs; q, kwargs...)
     end
