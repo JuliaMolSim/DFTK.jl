@@ -26,9 +26,9 @@ end
 # Mixing in the generalised density (essentially an adapted tuple of ρ and τ;
 # see pack_gdensity in densities.jl): For now just fall back to ρ-only mixing
 function mix_gdensity(mixing, basis, ΔD; kwargs...)
-    Δρ, Δτ  = split_gdensity_flat_(basis, ΔD)
+    Δρ, Δτ  = split_gdensity(basis, ΔD)
     Pinv_Δρ = mix_density(mixing, basis, Δρ; kwargs...)
-    pack_gdensity_flat_(basis, Pinv_Δρ, Δτ)
+    pack_gdensity(basis, Pinv_Δρ, Δτ)
 end
 
 

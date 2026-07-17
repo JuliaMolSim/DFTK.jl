@@ -102,7 +102,7 @@ end
                                                                         ψ::AbstractArray)
     function allocate_local_storage()
         T = eltype(H.basis)
-        (; Hψ_fourier = similar(Hψ[:, 1]),
+        (; Hψ_fourier = similar(Hψ, size(Hψ, 1)),
            ψ_real  = similar(ψ, complex(T), H.basis.fft_size...),
            Hψ_real = similar(Hψ, complex(T), H.basis.fft_size...))
     end

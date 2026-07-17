@@ -150,6 +150,8 @@ Overview of parameters:
   Typical mixings are [`LdosMixing`](@ref), [`KerkerMixing`](@ref), [`SimpleMixing`](@ref)
   or [`DielectricMixing`](@ref). Default is `LdosMixing()`
 - `damping`: Damping parameter ``α`` in the above equation. Default is `0.8`.
+- `solver`: Fixed-point solver to use, see [`ScfAndersonSolver`](@ref)
+  and [`ScfAndersonDensitySolver`](@ref), for example.
 - `nbandsalg`: By default DFTK uses `nbandsalg=AdaptiveBands(model)`, which adaptively determines
   the number of bands to compute. If you want to influence this algorithm or use a predefined
   number of bands in each SCF step, pass a [`FixedBands`](@ref) or [`AdaptiveBands`](@ref).
@@ -174,7 +176,7 @@ Overview of parameters:
     maxtime=Year(1),
     mixing=LdosMixing(),
     damping=0.8,
-    solver=scf_anderson_solver(),
+    solver=ScfAndersonDensitySolver(),
     eigensolver=lobpcg_hyper,
     diagtolalg=default_diagtolalg(basis; tol),
     nbandsalg::NbandsAlgorithm=AdaptiveBands(basis.model),
@@ -235,7 +237,7 @@ Overview of parameters:
         end
 
         ΔD = D - Din
-        Δρ, Δτ = split_gdensity_flat_(basis, ΔD)
+        Δρ, Δτ = split_gdensity(basis, ΔD)
         history_Etot = vcat(info.history_Etot, energies.total)
         history_Δρ   = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
         history_Δτ   = vcat(info.history_Δτ, isnothing(Δτ) ? zero(eltype(Δρ))
@@ -244,8 +246,7 @@ Overview of parameters:
                                         n_matvec=info.n_matvec + nextstate.n_matvec))
 
         # Mix generalised density (i.e. both ρ and τ)
-        Pinv_ΔD = mix_gdensity(mixing, basis, ΔD; info_next...)
-        Dnext = Din .+ T(damping) .* Pinv_ΔD
+        Dnext = Din + mix_gdensity(mixing, basis, ΔD; info_next...)
 
         converged = mpi_bcast(n_iter ≥ miniter && is_converged(info_next), basis.comm_kpts)
         timedout  = mpi_bcast(Dates.now() ≥ timeout_date,                  basis.comm_kpts)
@@ -259,12 +260,12 @@ Overview of parameters:
     #       across all MPI ranks. If not, unexpected behavior may occur. It is the caller's
     #       responsibility to ensure this is the case.
 
-    info_init = (; ρ, τ, hubbard_n, ψ, occupation, eigenvalues, εF=nothing,
+    info_init = (; basis, ρ, τ, hubbard_n, ψ, occupation, eigenvalues, εF=nothing,
                    n_iter=0, n_matvec=0, timedout=false, converged=false,
                    history_Etot=T[], history_Δρ=T[], history_Δτ=T[])
 
     # Convergence is flagged by is_converged inside the fixpoint_map.
-    _, info = solver(fixpoint_map, pack_gdensity(basis, ρ, τ), info_init; maxiter)
+    _, info = solver(fixpoint_map, pack_gdensity(basis, ρ, τ), info_init; maxiter, damping)
 
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρ, so we return that. We also perform a last energy computation
