@@ -262,7 +262,7 @@ be set with the `smearing` and `temperature` keyword arguments. The default is
 Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `verbose`: Run the GMRES in verbose mode.
 - `reltol`: Relative tolerance for GMRES.
-- `maxiter`: MAximum number of iterations for GMRES.
+- `maxiter`: Maximum number of iterations for GMRES.
 """
 function LdosXcDiagonalMixing(; verbose=false, maxiter=20, reltol=1e-6, 
                             smearing=nothing, temperature=nothing, kwargs...)
