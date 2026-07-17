@@ -15,7 +15,7 @@ where ``D_\text{loc}`` is the local density of states and ``D`` the density of s
 For details see [Herbst, Levitt 2020](https://arxiv.org/abs/2009.01665).
 
 By default the LdosModel is constructed using the smearing of
-`basis.model.smearing` and a temperature of `min(50basis.model.temperature, 0.1)`,
+`Smearing.Gaussian` and a temperature of `min(100basis.model.temperature, 0.1)`,
 but this may be changed using the `smearing` and `temperature` arguments.
 """
 @kwdef struct LdosModel <: χ0Model
@@ -86,12 +86,30 @@ end
 Applyχ0Model(; kwargs_apply_χ0...) = Applyχ0Model(kwargs_apply_χ0)
 function (χ0::Applyχ0Model)(basis; ham, eigenvalues, ψ, occupation, εF,
                             kwargs...)
+    function apply!(δρ, δV, α=1)
+        χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
+                        χ0.kwargs_apply_χ0...).δρ
+        δρ .+= α .* χ0δV
+    end
+end
+
+"""
+Diagonal approximation of ``χ_0``, that disables the Sternheimer solver and uses a modified 
+smearing temperature and smearing function.
+
+By default the modified temperature is `min(100basis.model.temperature, 0.1)`, and the 
+modified smearing is `Smearing.Gaussian` but this may be changed using the `smearing` and 
+`temperature` arguments.
+"""
+@kwdef struct DiagonalModel <: χ0Model
+    smearing::Union{Nothing,Smearing.SmearingFunction} = nothing
+    temperature::Union{Nothing,Float64} = nothing
+end
+function (χ0::DiagonalModel)(basis; ham, eigenvalues, ψ, occupation, εF,
+                            kwargs...)
     defaults = default_smearing_temperature(basis.model)
     temperature = @something(χ0.temperature, defaults.temperature)
     smearing    = @something(χ0.smearing,    defaults.smearing)
-    function apply!(δρ, δV, α=1)
-        χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
-                        smearing, temperature, χ0.kwargs_apply_χ0...).δρ
-        δρ .+= α .* χ0δV
-    end
+    kwargs_apply_χ0 = (; smearing, temperature, disable_sternheimer=true)
+    Applyχ0Model(kwargs_apply_χ0)(basis; ham, eigenvalues, ψ, occupation, εF, kwargs...)
 end

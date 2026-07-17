@@ -267,9 +267,8 @@ Important `kwargs` passed on to [`χ0Mixing`](@ref)
 function LdosXcDiagonalMixing(; verbose=false, maxiter=20, reltol=1e-6, 
                             smearing=nothing, temperature=nothing, kwargs...)
     χ0Mixing(; χ0terms_mapping = Dict(
-                    TermHartree => [LdosModel(smearing, temperature)],
-                    TermXc => [Applyχ0Model((; disable_sternheimer=true, 
-                                               smearing, temperature, kwargs...))]),
+                    TermHartree => [LdosModel(; smearing, temperature)],
+                    TermXc =>      [DiagonalModel(; smearing, temperature)]),
                verbose, maxiter, reltol)
 end
 
@@ -410,7 +409,7 @@ end
 end
 
 function default_smearing_temperature(model::Model)
-    # Set temperature to be 100 times the model temperature, but make sure
+    # Set temperature to be α times the model temperature, but make sure
     # to never overshoot 0.1 and never under-shoot the model.temperature
     temperature = max(model.temperature, min(0.1, 100model.temperature))
     (; smearing=Smearing.Gaussian(), temperature)
