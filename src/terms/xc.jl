@@ -8,12 +8,12 @@ struct Xc
     # Threshold for potential terms: Below this value a potential term is counted as zero.
     potential_threshold::Real
 
-    # Use non-linear core correction or not
-    use_nlcc::Bool
+    use_nlcc::Bool      # Use non-linear core correction or not
+    nlcc_from_vw::Bool  # Use van Weizsäcker kinetic energy density for τcore
 end
 function Xc(functionals::AbstractVector{<:Functional}; scaling_factor=1,
-            potential_threshold=0, use_nlcc=true)
-    Xc(functionals, scaling_factor, potential_threshold, use_nlcc)
+            potential_threshold=0, use_nlcc=true, nlcc_from_vw=false)
+    Xc(functionals, scaling_factor, potential_threshold, use_nlcc, nlcc_from_vw)
 end
 function Xc(functionals::AbstractVector; kwargs...)
     fun = map(functionals) do f
@@ -36,18 +36,23 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     ρcore = nothing
     if xc.use_nlcc && any(has_core_density, basis.model.atoms)
         ρcore = ρ_from_total(basis, atomic_total_density(basis, CoreDensity()))
-        if mpi_master(basis.comm_kpts)
-            minimum(ρcore) < -sqrt(eps(T)) && @warn("Negative ρcore detected: $(minimum(ρcore))")
+        if mpi_master(basis.comm_kpts) && minimum(ρcore) < -sqrt(eps(T))
+            @debug "xc: Negative ρcore: $(minimum(ρcore))"
         end
     end
+
     τcore = nothing
-    if (   xc.use_nlcc && any(needs_τ, xc.functionals)
-        && any(has_core_kinetic_energy_density, basis.model.atoms))
-        τcore = ρ_from_total(basis, atomic_total_density(basis, CoreKineticEnergyDensity()))
-        if mpi_master(basis.comm_kpts)
-            minimum(τcore) < -sqrt(eps(T)) && @warn("Negative τcore detected: $(minimum(τcore))")
+    if xc.use_nlcc && any(needs_τ, xc.functionals)
+        if !isnothing(ρcore) && xc.nlcc_from_vw
+            τcore = von_weizsaecker_kinetic_energy_density(basis, ρcore)
+        elseif any(has_core_kinetic_energy_density, basis.model.atoms)
+            τcore = ρ_from_total(basis, atomic_total_density(basis, CoreKineticEnergyDensity()))
+        end
+        if !isnothing(τcore) && mpi_master(basis.comm_kpts) && minimum(τcore) < -sqrt(eps(T))
+            @debug "xc: Negative τcore: $(minimum(τcore))"
         end
     end
+
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
         params = parameters(fun)
@@ -403,22 +408,38 @@ function LibxcDensities(basis::PlaneWaveBasis{T}, max_derivative::Integer, ρ, �
     LibxcDensities{T}(basis, max_derivative, ρ_real, ∇ρ_real, σ_real, Δρ_real, τ_Libxc)
 end
 
-function _check_negative_bonding_indicator_α(densities::LibxcDensities{T}) where {T}
-    if !isnothing(densities.τ_real) && !isnothing(densities.σ_real)
-        n_spin = densities.basis.model.n_spin_components
-        has_negative_α = @views any(1:n_spin) do iσ
-            # α = (τ - τ_W) / τ_unif should be positive with τ_W = |∇ρ|² / 8ρ
-            # equivalently, check 8ρτ - |∇ρ|² ≥ 0
-            α_check = (8 .* densities.ρ_real[iσ, :, :, :] .* densities.τ_real[iσ, :, :, :]
-                       .- densities.σ_real[DftFunctionals.spinindex_σ(iσ, iσ), :, :, :])
-            any(α_check .<= -sqrt(eps(T)))
+function _check_negative_bonding_indicator_α(densities::LibxcDensities{T};
+                                             density_threshold=100eps(T)) where {T}
+    # TODO: The idea here is that libxc cuts components of the XC evaluation anyway if
+    #       the density (or contracted density gradient) is below a certain threshold,
+    #       so we do the same here for the check to make sure this is not too noisy.
+    if isnothing(densities.τ_real) || isnothing(densities.σ_real)
+        return
+    end
+
+    n_spin = densities.basis.model.n_spin_components
+    failure_indicator = @views minimum(1:n_spin) do iσ
+        # α = (τ - τ_W) / τ_unif should be positive with τ_W = |∇ρ|² / 8ρ
+        # equivalently, check 8ρτ - |∇ρ|² ≥ 0
+        ρ = densities.ρ_real[iσ, :, :, :]
+        σ = densities.σ_real[DftFunctionals.spinindex_σ(iσ, iσ), :, :, :]
+        τ = densities.τ_real[iσ, :, :, :]
+        failure_indicator = @. ((ρ * τ - σ/8)
+                                * (abs(ρ) ≥ density_threshold)
+                                * (abs(σ) ≥ density_threshold)
+                                * (abs(τ) ≥ density_threshold))
+        minimum(failure_indicator)
+    end
+    if mpi_master(densities.basis.comm_kpts)
+        if failure_indicator < -eps(T)
+            @debug "xc: α failure indicator: $failure_indicator"
         end
-        if has_negative_α && mpi_master(densities.basis.comm_kpts)
+        if failure_indicator < -sqrt(eps(T))
             @warn "Exchange-correlation term: the kinetic energy density τ is smaller " *
                   "than the von Weizsäcker kinetic energy density τ_W somewhere. " *
                   "This can lead to unphysical results. " *
                   "This can be caused by pseudopotentials without a non-linear core correction " *
-                  "for τ, a too small Ecut value or by an unphysical initial guess for τ. " *
+                  "for τ, a too small Ecut value or an unphysical initial guess for τ. " *
                   "This message is only logged once." maxlog=1
         end
     end
