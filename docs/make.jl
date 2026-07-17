@@ -94,6 +94,7 @@ PAGES = [
         "developer/useful_formulas.md",
         "developer/symmetries.md",
         "developer/gpu_computations.md",
+        "developer/debug_dumps.md",
     ],
     "api.md",
     "publications.md",
