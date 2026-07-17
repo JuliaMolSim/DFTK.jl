@@ -1,6 +1,6 @@
 name = "DFTK"
 uuid = "acf6eb54-70d9-11e9-0013-234b7a5f5337"
-version = "0.7.25"
+version = "0.7.26"
 authors = ["Michael F. Herbst <info@michael-herbst.com>", "Antoine Levitt <antoine.levitt@inria.fr>"]
 
 [deps]
@@ -65,7 +65,7 @@ DFTKFastGaussQuadratureExt = "FastGaussQuadrature"
 DFTKGenericLinearAlgebraExt = "GenericLinearAlgebra"
 DFTKGeometryOptimizationExt = "GeometryOptimization"
 DFTKJLD2Ext = "JLD2"
-DFTKJSON3Ext = "JSON3"
+DFTKJSON3Ext = ["JSON3", "MPI", "Preferences"]
 DFTKPlotsExt = "Plots"
 DFTKWannier90Ext = "wannier90_jll"
 DFTKWannierExt = "Wannier"
