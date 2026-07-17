@@ -124,7 +124,7 @@
 using DFTK
 using LinearAlgebra
 
-function fixed_point_iteration(F, ρ0, info0; maxiter, tol=1e-10)
+function fixed_point_iteration(F, ρ0, info0; maxiter, damping, tol=1e-10)
     ## F:        The SCF step function
     ## ρ0:       The initial guess density
     ## info0:    The initial metadata
@@ -186,9 +186,12 @@ self_consistent_field(aluminium_setup(1); solver=fixed_point_iteration, damping=
 #
 # !!! tip "Exercise 1"
 #     Modify `fixed_point_iteration` such that it supports this *damped*
-#     fixed-point iteration. In other words implement damping *inside* your
-#     algorithm and not by changing the `damping` parameter of the
-#     [`self_consistent_field`](@ref) function driving the SCF.  
+#     fixed-point iteration. In other words use the damping value
+#     passed to `fixed_point_iteration` via the `damping` keyword argument
+#     to implement the above iterations. You can than change the employed damping
+#     by modifying the `damping` parameter of the
+#     [`self_consistent_field`](@ref) function driving the SCF,
+#     which will effectively be passed through to `fixed_point_iteration`.
 #
 #     Using your algorithm try different values for $\alpha$ between $0$ and
 #     $1$ and estimate roughly the $\alpha$ which gives fastest convergence.
@@ -222,7 +225,7 @@ self_consistent_field(aluminium_setup(1); solver=fixed_point_iteration, damping=
 # ```
 # In terms of an algorithm Anderson iteration is
 
-function anderson_iteration(F, ρ0, info0; maxiter)
+function anderson_iteration(F, ρ0, info0; maxiter, damping)
     ## F:        The SCF step function
     ## ρ0:       The initial guess density
     ## info0:    The initial metadata
@@ -237,7 +240,7 @@ function anderson_iteration(F, ρ0, info0; maxiter)
         if info.converged
             break
         end
-        Rρ = Fρ - ρ
+        Rρ = damping * (Fρ - ρ)
 
         ρnext = vec(ρ) .+ vec(Rρ)
         if !isempty(Rs)
@@ -270,7 +273,7 @@ end;
 # to choose a damping of $\alpha = 0.8$ and run for at most `maxiter` iterations.
 #
 # !!! tip "Exercise 2"
-#     Based on this Anderson implementation verify (by making a few experiments) that the algorithm converges for `repeat=1` for any $0 < \alpha \leq 2$. You may now use the `damping` parameter for changing the value $\alpha$ used by the SCF. State the number of iterations and runtimes you observe.
+#     Based on this Anderson implementation verify (by making a few experiments) that the algorithm converges for `repeat=1` for any $0 < \alpha \leq 2$. Use the `damping` parameter for changing the value $\alpha$ used by the SCF. State the number of iterations and runtimes you observe.
 #
 # !!! tip "Exercise 3"
 #     Pick $\alpha = 0.8$ and make the problem harder by increasing `repeat` (e.g. `2`, `4`, `6`, `8`). Can you make Anderson fail to converge? What do you notice in terms of the number of iterations and runtimes?
