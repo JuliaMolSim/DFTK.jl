@@ -57,12 +57,12 @@ end
 function parallel_loop_over_range(fun, range, storages)
     nthreads = get_DFTK_threads()
     !isnothing(storages) && @assert length(storages) >= nthreads
-    chunk_length = cld(length(range), nthreads)
+    n = length(range)
 
     # this tensorized if is ugly, but this is potentially
     # performance critical and factoring it is more trouble
     # than it's worth
-    if nthreads == 1
+    if nthreads == 1 || n <= 1
         for i in range
             if isnothing(storages)
                 fun(i)
@@ -70,15 +70,19 @@ function parallel_loop_over_range(fun, range, storages)
                 fun(i, storages[1])
             end
         end
-    elseif length(range) == 0
-        # do nothing
     else
-        @sync for (ichunk, chunk) in enumerate(Iterators.partition(range, chunk_length))
-            Threads.@spawn for i in chunk  # spawn a task per chunk
+        # One task per worker, and worker `w` strides through the range (indices w,
+        # w+nthreads, …) rather than taking a contiguous block: a run of a few expensive
+        # iterations then lands on different workers instead of piling into one chunk. The
+        # fixed, disjoint striding keeps `storages[w]` race-free and the result independent
+        # of scheduling.
+        @sync for w = 1:min(nthreads, n)
+            Threads.@spawn for k = w:nthreads:n
+                i = range[k]
                 if isnothing(storages)
                     fun(i)
                 else
-                    fun(i, storages[ichunk])
+                    fun(i, storages[w])
                 end
             end
         end

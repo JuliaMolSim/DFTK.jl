@@ -202,7 +202,7 @@ function construct_value(psp::PspHgh{T}) where {T <: Dual}
            psp.identifier,
            psp.description)
 end
-function construct_value(psp::PspUpf{T,I}) where {T <: AbstractFloat, I <: AbstractArray{<:AbstractFloat}}
+function construct_value(psp::PspUpf{T}) where {T <: AbstractFloat}
     # NOTE: This permits non-Dual UPF pseudos to be used in ForwardDiff computations,
     #       but does not yet permit response derivatives w.r.t. UPF parameters.
     psp
@@ -302,27 +302,6 @@ end
        scfres.mixing, scfres.is_converged, scfres.nbandsalg, scfres.fermialg,
        scfres.diagtolalg, scfres.solver, scfres.eigensolver,
        scfres.seed, scfres.algorithm, scfres.runtime_ns)
-end
-
-# For GPU kernels to compile, dynamic function calls must be avoided. Therefore, the quadrature
-# must be known and passed ahead of time, and the Dual type explicitly parametrized.
-function hankel(quadrature, r::AbstractVector, r2_f::AbstractVector, l::Integer, p::Dual{Tg,V,N}) where {Tg,V,N}
-    # This custom rule uses two properties of the hankel transform:
-    #   d H[f] / dp = 4\pi \int_0^∞ r^2 f(r) [ j_l'(p⋅r)⋅r/p^l - l * j_l(p⋅r)/p^{l+1} ] dr
-    # and that
-    #   j_l'(x) = l / x * j_l(x) - j_{l+1}(x)
-    # giving
-    #   d H[f] / dp = -4\pi \int_0^∞ r^2 f(r) j_{l+1}(p⋅r)⋅r/p^l ] dr
-    pv = ForwardDiff.value(p)
-
-    value = hankel(quadrature, r, r2_f, l, pv)
-    if iszero(pv)
-        return Dual{Tg,V,N}(value, zero(V) * ForwardDiff.partials(p))
-    end
-    derivative = -4V(π) / pv^l * quadrature(r) do i, ri
-        r2_f[i] * r[i] * sphericalbesselj_fast(l+1, pv * ri)
-    end
-    Dual{Tg,V,N}(value, derivative * ForwardDiff.partials(p))
 end
 
 # other workarounds
