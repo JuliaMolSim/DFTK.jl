@@ -37,16 +37,17 @@ struct SymOp{T <: Real}
     # (Uu)(G) = e^{-i G τ} u(S^-1 G) in reciprocal space
     S::Mat3{Int}
     τ::Vec3{T}
+    invS::Mat3{Int}  # = inv(S), integer since det S = 1
 end
 function SymOp(W, w::AbstractVector{T}) where {T}
     w = mod.(w, 1)
     S = W'
     τ = -W \ w
-    SymOp{T}(W, w, S, τ)
+    SymOp{T}(W, w, S, τ, Mat3{Int}(inv(S)))
 end
 
 function Base.convert(::Type{SymOp{T}}, S::SymOp{U}) where {U <: Real, T <: Real}
-    SymOp{T}(S.W, T.(S.w), S.S, T.(S.τ))
+    SymOp{T}(S.W, T.(S.w), S.S, T.(S.τ), S.invS)
 end
 
 Base.:(==)(op1::SymOp, op2::SymOp) = op1.W == op2.W && op1.w == op2.w
@@ -111,4 +112,50 @@ function complete_symop_group(symops; maxiter=10, kwargs...)
         append!(completed_group, to_add)
     end
     DFTK.check_group(completed_group) # returns the completed group
+end
+
+# A star is the orbit {G = S·G₀ : S in the group} of a representative G-vector G₀ on the FFT
+# grid. This is used to speed up the symmetrization
+# ρ_sym(G) = Σ_S e^{-i G·τ} ρ(S⁻¹G)
+# The symmetrized density is constant over a star up to a phase, ρ_sym(S·G₀) =
+# e^{-i (S·G₀)·τ_S} ρ_sym(G₀), so, to symmetrize a density, gather ρstar = ρ_sym(G₀) once and
+# scatter it across the orbit.
+# This is faster than the naive sum because, for a generic star, the
+# naive sum is O(members^2) while the optimized algorithm is
+# O(members)
+struct SymmetryStar{T}
+    # gather: ρstar = Σ_isym θ·ρ[iG] with (iG, θ) = sources[isym]
+    sources::Vector{Pair{Int, Complex{T}}}
+    # scatter: ρsym[iG] = θ·ρstar for (iG, θ) in members
+    members::Vector{Pair{Int, Complex{T}}}
+    # G₀ is not stored: it is the sources/members entry with trivial symmetry.
+end
+
+# Discover the stars by scanning the grid: each grid point not already in a star seeds a new one
+# as its representative G₀, and its whole orbit is marked `visited` -- so the scan produces one
+# star per orbit, not one per grid point.
+function compute_symmetry_stars(fft_size, symmetries::AbstractVector{<:SymOp{T}}) where {T}
+    Gs         = G_vectors(fft_size)
+    linear_ind = LinearIndices(fft_size)
+    visited    = falses(length(Gs))
+    stars      = SymmetryStar{T}[]
+    for lin in eachindex(Gs)
+        visited[lin] && continue
+        G = Gs[lin]
+        sources = Pair{Int, Complex{T}}[]
+        for symop in symmetries
+            idx = index_G_vectors(fft_size, symop.invS * G)
+            isnothing(idx) || push!(sources, linear_ind[idx] => cis2pi(-T(dot(G, symop.τ))))
+        end
+        members = Pair{Int, Complex{T}}[]
+        for symop in symmetries
+            SG  = symop.S * G
+            idx = index_G_vectors(fft_size, SG)
+            (isnothing(idx) || visited[linear_ind[idx]]) && continue
+            visited[linear_ind[idx]] = true
+            push!(members, linear_ind[idx] => cis2pi(-T(dot(SG, symop.τ))))
+        end
+        push!(stars, SymmetryStar(sources, members))
+    end
+    stars
 end

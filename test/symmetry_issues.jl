@@ -35,7 +35,7 @@
         # keeping calls to the index_G_vectors() function for which we test inlining
         function G_vectors_calls(basis)
             for symop in basis.symmetries
-                invS = Mat3{Int}(inv(symop.S))
+                invS = symop.invS
                 for (ig, G) in enumerate(DFTK.G_vectors_generator(basis.fft_size))
                     igired = DFTK.index_G_vectors(basis, invS * G)
                 end

@@ -83,6 +83,8 @@ struct PlaneWaveBasis{T,
     ## Symmetry operations that leave the discretized model (k and r grids) invariant.
     # Subset of model.symmetries.
     symmetries::Vector{SymOp{VT}}
+    # Symmetry-equivalent G-vector stars, used to speed up symmetrization of ρ
+    symmetry_stars::Vector{SymmetryStar{VT}}
     # Whether the symmetry operations leave the rgrid invariant
     # If this is true, the symmetries are a property of the complete discretized model.
     # Therefore, all quantities should be symmetric to machine precision
@@ -240,6 +242,10 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
 
     dvol  = model.unit_cell_volume ./ prod(fft_size)
     terms = Vector{Any}(undef, length(model.term_types))  # Dummy terms array, filled below
+    
+    # precompute stars (only used by the CPU symmetrization of grid-preserving symmetries)
+    symmetry_stars = (architecture isa CPU && symmetries_respect_rgrid) ?
+                     compute_symmetry_stars(fft_size, symmetries) : SymmetryStar{value_type(T)}[]
 
     basis = PlaneWaveBasis{T, value_type(T), Arch, typeof(fft_grid),
                            typeof(kpoints[1].G_vectors)}(
@@ -249,7 +255,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
         kpoints, kweights, kgrid,
         kcoords_global, kweights_global, n_irreducible_kpoints,
         comm_kpts, krange_thisproc, krange_allprocs, krange_thisproc_allspin,
-        architecture, symmetries, symmetries_respect_rgrid,
+        architecture, symmetries, symmetry_stars, symmetries_respect_rgrid,
         use_symmetries_for_kpoint_reduction, terms)
 
     # Instantiate the terms with the basis
