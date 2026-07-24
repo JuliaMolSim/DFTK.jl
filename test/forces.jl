@@ -35,9 +35,12 @@
                 function term_energy(ε)
                     displacement = [zeros(3) for _ in 1:length(model.atoms)]
                     displacement[test_atom] = test_dir
+                    # Keep the symmetries of the undisplaced model: `compute_forces`
+                    # differentiates the energy summed over *its* irreducible k-points, so the
+                    # finite difference has to use the same ones as the `scfres.ψ` below.
                     modbasis = with_logger(NullLogger()) do
                         modmodel = Model(model; positions=model.positions .+ ε.*displacement,
-                                         symmetries=true)
+                                         symmetries=model.symmetries)
                         PlaneWaveBasis(modmodel; kgrid, Ecut, basis_kwargs...)
                     end
                     DFTK.ene_ops(modbasis.terms[iterm], modbasis, scfres.ψ, scfres.occupation;
@@ -124,6 +127,7 @@ end
     # TODO: If this test is too slow for github CI, then we should add the :slow tag above
     # Test HF forces on system with spin and magnetism
     using AtomsBuilder
+    using DFTK
     using PseudoPotentialData
     using Unitful
     using UnitfulAtomic
