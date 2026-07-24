@@ -255,7 +255,7 @@ function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
     #      u_{Sk}(x) = u_{k}(S^{-1} (x - τ))
     # their Fourier transform is related as
     #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
-    invS = Mat3{Int}(inv(S))
+    invS = symop.invS
     Gs_full = [G + kshift for G in G_vectors(basis, Skpoint)]
     ψSk = zero(ψk)
     for iband = 1:size(ψk, 2)
@@ -269,47 +269,42 @@ function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
     Skpoint, ψSk
 end
 
-"""
-Apply a symmetry operation to a density.
-"""
-function apply_symop(symop::SymOp, basis, ρin; kwargs...)
-    isone(symop) && return ρin
-    symmetrize_ρ(basis, ρin; symmetries=[symop], kwargs...)
+# Accumulate the symmetrized density Σ_S e^{-i G·τ} ρ(S⁻¹G) into ρaccu, picking the algorithm.
+# The precomputed stars speed up the serial CPU traversal; the GPU (already parallel) and
+# non-basis symmetries use the direct `map!`. Stars are exact only when the symmetries permute
+# the grid, hence the `symmetries_respect_rgrid` guard.
+function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
+    if basis.architecture isa CPU && symmetries === basis.symmetries && basis.symmetries_respect_rgrid
+        _accumulate_over_symmetries_stars!(ρaccu, ρin, basis.symmetry_stars)
+    else
+        _accumulate_over_symmetries_direct!(ρaccu, ρin, basis, symmetries)
+    end
 end
 
-# Accumulates the symmetrized versions of the density ρin into ρaccu (in Fourier space).
-# No normalization is performed. This function is optimized for CPU and GPU.
-function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, symmetries) where {T}
-    # For each G vector and symmetry S:
-    # Transform ρin -> to the partial density at S * k.
-    #
-    # Since the eigenfunctions of the Hamiltonian at k and Sk satisfy
-    #      u_{Sk}(x) = u_{k}(S^{-1} (x - τ))
-    # with Fourier transform
-    #      ̂u_{Sk}(G) = e^{-i G \cdot τ} ̂u_k(S^{-1} G)
-    # equivalently
-    #     ρ ̂_{Sk}(G) = e^{-i G \cdot τ} ̂ρ_k(S^{-1} G) 
-    if all(isone, symmetries)
-        ρaccu .= ρin
-        return ρaccu
+function _accumulate_over_symmetries_stars!(ρaccu, ρin, stars::Vector{<:SymmetryStar})
+    for star in stars
+        ρstar = sum(phase * ρin[idx] for (idx, phase) in star.sources;
+                    init=zero(eltype(ρaccu)))
+        for (idx, phase) in star.members
+            ρaccu[idx] = ρstar * phase
+        end
     end
+    ρaccu
+end
 
+# Direct evaluation of ρ_sym(G) = Σ_S e^{-i G·τ} ρ(S⁻¹G) at every G, in a single `map!`.
+function _accumulate_over_symmetries_direct!(ρaccu, ρin, basis::PlaneWaveBasis{T}, symmetries) where {T}
+    all(isone, symmetries) && return ρaccu .= ρin
     Gs = reshape(G_vectors(basis), size(ρaccu))
     fft_size = basis.fft_size
-
-    # Need to transfer  symmetry data to the GPU as isbit data
-    symm_invS = to_device(basis.architecture, [Mat3{Int}(inv(symop.S)) for symop in symmetries])
-    symm_τ = to_device(basis.architecture, [symop.τ for symop in symmetries])
-    n_symm = length(symmetries)
-
-    # Looping over symmetries inside of map! on G vectors allow for a single GPU kernel launch
+    symm_invS = to_device(basis.architecture, [symop.invS for symop in symmetries])
+    symm_τ    = to_device(basis.architecture, [symop.τ for symop in symmetries])
+    n_symm    = length(symmetries)
     map!(ρaccu, Gs) do G
         acc = zero(complex(T))
-        # Explicit loop over indices because AMDGPU does not support zip() in map!
-        for i_symm in 1:n_symm
-            invS = symm_invS[i_symm]
-            τ = symm_τ[i_symm]
-            idx = index_G_vectors(fft_size, invS * G)
+        for i_symm in 1:n_symm  # explicit indices: AMDGPU does not support zip() in map!
+            τ   = symm_τ[i_symm]
+            idx = index_G_vectors(fft_size, symm_invS[i_symm] * G)
             acc += isnothing(idx) ? zero(complex(T)) :
                         iszero(τ) ? ρin[idx] : cis2pi(-T(dot(G, τ))) * ρin[idx]
         end
@@ -321,7 +316,9 @@ end
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
 # This function is optimized for CPU and GPU.
 function lowpass_for_symmetry!(ρ::AbstractArray, basis; symmetries=basis.symmetries)
-    all(isone, symmetries) && return ρ
+    # Symmetries that permute the grid never map a G-vector out of it, so nothing is filtered.
+    (all(isone, symmetries) ||
+     (symmetries === basis.symmetries && basis.symmetries_respect_rgrid)) && return ρ
 
     Gs = reshape(G_vectors(basis), size(ρ))
     fft_size = basis.fft_size
@@ -348,8 +345,8 @@ Symmetrize a density by applying all the basis (by default) symmetries and formi
     ρin_fourier  = fft(basis, ρ)
     ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρ, 4)
-        accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
-                                    ρin_fourier[:, :, :, σ], basis, symmetries)
+        accumulate_over_symmetries!(ρout_fourier[:, :, :, σ], ρin_fourier[:, :, :, σ],
+                                    basis, symmetries)
         do_lowpass && lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
     end
     inv_fft = T <: Real ? irfft : ifft
