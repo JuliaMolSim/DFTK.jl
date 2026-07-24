@@ -34,6 +34,7 @@ end
     if isnothing(ψ) || isnothing(occupation)
         return (; E=T(Inf), term.ops)
     end
+    @assert length(ψ) == length(basis.kpoints)
 
     E = zero(T)
     for (ik, ψk) in enumerate(ψ)
