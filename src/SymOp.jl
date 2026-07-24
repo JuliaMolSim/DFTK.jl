@@ -115,9 +115,14 @@ function complete_symop_group(symops; maxiter=10, kwargs...)
 end
 
 # A star is the orbit {G = S·G₀ : S in the group} of a representative G-vector G₀ on the FFT
-# grid. The symmetrized density is constant over a star up to a phase, ρ_sym(S·G₀) =
-# e^{-i (S·G₀)·τ_S} ρ_sym(G₀), so `accumulate_over_symmetries!` gathers ρstar = ρ_sym(G₀) once and
-# scatters it across the orbit.
+# grid. This is used to speed up the symmetrization
+# ρ_sym(G) = Σ_S e^{-i G·τ} ρ(S⁻¹G)
+# The symmetrized density is constant over a star up to a phase, ρ_sym(S·G₀) =
+# e^{-i (S·G₀)·τ_S} ρ_sym(G₀), so, to symmetrize a density, gather ρstar = ρ_sym(G₀) once and
+# scatter it across the orbit.
+# This is faster than the naive sum because, for a generic star, the
+# naive sum is O(members^2) while the optimized algorithm is
+# O(members)
 struct SymmetryStar{T}
     # gather: ρstar = Σ_isym θ·ρ[iG] with (iG, θ) = sources[isym]
     sources::Vector{Pair{Int, Complex{T}}}

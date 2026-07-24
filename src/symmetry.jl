@@ -281,17 +281,6 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
     end
 end
 
-function _accumulate_over_symmetries_stars!(ρaccu, ρin, stars::Vector{<:SymmetryStar})
-    for star in stars
-        ρstar = sum(phase * ρin[idx] for (idx, phase) in star.sources;
-                    init=zero(eltype(ρaccu)))
-        for (idx, phase) in star.members
-            ρaccu[idx] = ρstar * phase
-        end
-    end
-    ρaccu
-end
-
 # Direct evaluation of ρ_sym(G) = Σ_S e^{-i G·τ} ρ(S⁻¹G) at every G, in a single `map!`.
 function _accumulate_over_symmetries_direct!(ρaccu, ρin, basis::PlaneWaveBasis{T}, symmetries) where {T}
     all(isone, symmetries) && return ρaccu .= ρin
@@ -313,11 +302,26 @@ function _accumulate_over_symmetries_direct!(ρaccu, ρin, basis::PlaneWaveBasis
     ρaccu
 end
 
+# See SymmetryStar for a description of the algorithm
+function _accumulate_over_symmetries_stars!(ρaccu, ρin, stars::Vector{<:SymmetryStar})
+    for star in stars
+        # gather: compute ρstar = ρ(G0)
+        ρstar = sum(phase * ρin[idx] for (idx, phase) in star.sources;
+                    init=zero(eltype(ρaccu)))
+        for (idx, phase) in star.members
+            # scatter ρ(G0) to all the star
+            ρaccu[idx] = ρstar * phase
+        end
+    end
+    ρaccu
+end
+
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
 function lowpass_for_symmetry!(ρ::AbstractArray, basis; symmetries=basis.symmetries)
     # Symmetries that permute the grid never map a G-vector out of it, so nothing is filtered.
-    (all(isone, symmetries) ||
-     (symmetries === basis.symmetries && basis.symmetries_respect_rgrid)) && return ρ
+    if (symmetries === basis.symmetries && basis.symmetries_respect_rgrid) || all(isone, symmetries)
+        return ρ
+    end
 
     Gs = reshape(G_vectors(basis), size(ρ))
     fft_size = basis.fft_size
