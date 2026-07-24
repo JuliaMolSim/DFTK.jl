@@ -3,17 +3,17 @@ using LinearAlgebra
 using MPI
 
 """
-Setup the number of threads used by DFTK's own threading (`n_DFTK`), by BLAS (`n_blas`) 
+Setup the number of threads used by DFTK's own threading (`n_DFTK`), by BLAS (`n_blas`)
 and by FFTW (`n_fft`). This is independent from the number of Julia threads (`Threads.nthreads()`).
 DFTK and FFTW threading are upper bounded by `Threads.nthreads()`, but not BLAS,
 which uses its own threading system.
-By default, use 1 FFT thread, and `Threads.nthreads()` BLAS and DFTK threads.
+By default, use `Threads.nthreads()` DFTK threads and a single FFT and BLAS thread.
 """
-function setup_threading(; n_fft=1, n_blas=Threads.nthreads(), n_DFTK=Threads.nthreads())
+function setup_threading(; n_fft=1, n_blas=1, n_DFTK=Threads.nthreads(), verbose=true)
     set_DFTK_threads!(n_DFTK)
     FFTW.set_num_threads(n_fft)
     BLAS.set_num_threads(n_blas)
-    mpi_master(MPI.COMM_WORLD) && @info "Threading setup: " Threads.nthreads() n_DFTK n_fft n_blas
+    verbose && mpi_master(MPI.COMM_WORLD) && @info "Threading setup: " Threads.nthreads() n_DFTK n_fft n_blas
 end
 
 """
