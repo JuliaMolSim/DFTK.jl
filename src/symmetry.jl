@@ -269,11 +269,11 @@ function apply_symop(symop::SymOp, basis, kpoint, ψk::AbstractVecOrMat)
     Skpoint, ψSk
 end
 
-# Accumulate the symmetrized density Σ_S e^{-i G·τ} ρ(S⁻¹G) into ρaccu, picking the algorithm.
-# The precomputed stars speed up the serial CPU traversal; the GPU (already parallel) and
-# non-basis symmetries use the direct `map!`. Stars are exact only when the symmetries permute
-# the grid, hence the `symmetries_respect_rgrid` guard.
+# Accumulate the symmetrized density Σ_S e^{-i G·τ} ρ(S⁻¹G) into ρaccu
 function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
+    # The precomputed stars speed up the serial CPU traversal; the GPU (already parallel) and
+    # non-basis symmetries use the direct `map!`. Stars are exact only when the symmetries permute
+    # the grid, hence the `symmetries_respect_rgrid` guard.
     if basis.architecture isa CPU && symmetries === basis.symmetries && basis.symmetries_respect_rgrid
         _accumulate_over_symmetries_stars!(ρaccu, ρin, basis.symmetry_stars)
     else
@@ -314,7 +314,6 @@ function _accumulate_over_symmetries_direct!(ρaccu, ρin, basis::PlaneWaveBasis
 end
 
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
-# This function is optimized for CPU and GPU.
 function lowpass_for_symmetry!(ρ::AbstractArray, basis; symmetries=basis.symmetries)
     # Symmetries that permute the grid never map a G-vector out of it, so nothing is filtered.
     (all(isone, symmetries) ||

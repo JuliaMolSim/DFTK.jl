@@ -116,14 +116,14 @@ end
 
 # A star is the orbit {G = S·G₀ : S in the group} of a representative G-vector G₀ on the FFT
 # grid. The symmetrized density is constant over a star up to a phase, ρ_sym(S·G₀) =
-# e^{-i (S·G₀)·τ_S} ρ_sym(G₀), so `accumulate_over_symmetries!` gathers ρ_sym(G₀) once and
-# scatters it across the orbit. (Defined here, before PlaneWaveBasis, as it is a basis field.)
+# e^{-i (S·G₀)·τ_S} ρ_sym(G₀), so `accumulate_over_symmetries!` gathers ρstar = ρ_sym(G₀) once and
+# scatters it across the orbit.
 struct SymmetryStar{T}
     # gather: ρstar = Σ_isym θ·ρ[iG] with (iG, θ) = sources[isym]
     sources::Vector{Pair{Int, Complex{T}}}
     # scatter: ρsym[iG] = θ·ρstar for (iG, θ) in members
     members::Vector{Pair{Int, Complex{T}}}
-    # G₀ is not stored: it is the sources/members entry of the trivial symmetry.
+    # G₀ is not stored: it is the sources/members entry with trivial symmetry.
 end
 
 # Discover the stars by scanning the grid: each grid point not already in a star seeds a new one
