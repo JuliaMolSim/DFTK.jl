@@ -198,6 +198,8 @@ kwargs is additional info that might be useful for the energy terms to precomput
 (eg the density ρ)
 """
 @timing function energy_hamiltonian(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
+    @assert isnothing(ψ) || length(ψ) == length(basis.kpoints)
+
     # it: index into terms, ik: index into kpoints
     @timing "ene_ops" ene_ops_arr = [ene_ops(term, basis, ψ, occupation; kwargs...)
                                      for term in basis.terms]

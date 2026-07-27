@@ -40,7 +40,7 @@
                     # finite difference has to use the same ones as the `scfres.ψ` below.
                     modbasis = with_logger(NullLogger()) do
                         modmodel = Model(model; positions=model.positions .+ ε.*displacement,
-                                         symmetries=model.symmetries)
+                                         model.symmetries)
                         PlaneWaveBasis(modmodel; kgrid, Ecut, basis_kwargs...)
                     end
                     DFTK.ene_ops(modbasis.terms[iterm], modbasis, scfres.ψ, scfres.occupation;
