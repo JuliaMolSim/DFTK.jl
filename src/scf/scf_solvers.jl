@@ -25,7 +25,7 @@ or applying some kind of mixing, see the other keyword arguments of
 """
 struct ScfDampingSolver <: ScfSolver end
 function (scf::ScfDampingSolver)(f, x0, info0; maxiter, damping)
-    β = convert(eltype(x0), damping)
+    β = convert(eltype(x0.ρ), damping)
     x = x0
     info = info0
     for _ = 1:maxiter
@@ -33,7 +33,13 @@ function (scf::ScfDampingSolver)(f, x0, info0; maxiter, damping)
         if info.converged || info.timedout
             break
         end
-        x = @. β * fx + (1 - β) * x
+        ρ,  τ,  hubbard_n  = split_gdensity(info.basis, x)
+        fρ, fτ, fhubbard_n = split_gdensity(info.basis, fx)
+        ρ = @. β * fρ + (1 - β) * ρ
+        τ = isnothing(τ) ? nothing : @. β * fτ + (1 - β) * τ
+        hubbard_n = isnothing(hubbard_n) ? nothing : (
+                    @. β * fhubbard_n + (1 - β) * hubbard_n)
+        x = pack_gdensity(info.basis, ρ, τ, hubbard_n)
     end
     (; fixpoint=x, info)
 end
@@ -74,10 +80,10 @@ function ScfAndersonDensitySolver(; m_start::Integer=1, kwargs...)
 end
 # For the show function, see below
 function (scf::ScfAndersonDensitySolver)(f, x0, info0; maxiter, damping)
-    T = eltype(x0)
+    T = eltype(x0.ρ)
     β = convert(T, damping)
     x = x0
-    ρ, _ = split_gdensity(info0.basis, x0)
+    ρ, _, _ = split_gdensity(info0.basis, x0)
     info = info0
     acceleration = AndersonAcceleration(; scf.anderson_kwargs...)
     for i = 1:maxiter
@@ -86,17 +92,17 @@ function (scf::ScfAndersonDensitySolver)(f, x0, info0; maxiter, damping)
             break
         end
 
-        fρ, fτ = split_gdensity(info.basis, fx)
+        fρ, fτ, fhubbard_n = split_gdensity(info.basis, fx)
         if i < scf.m_start
             @debug "Skipping Anderson acceleration in iteration $i"
             ρ = @. ρ + β * (fρ - ρ)
         else
             @debug "Using Anderson acceleration in iteration $i"
-            # Damp ρ and send it to anderson; τ is just patched through without any changes
+            # Damp ρ and send it to anderson; τ and hubbard_n are patched through unchanged
             residual_ρ = fρ - ρ
             ρ = acceleration(ρ, β, residual_ρ)
         end
-        x = pack_gdensity(info.basis, ρ, fτ)
+        x = pack_gdensity(info.basis, ρ, fτ, fhubbard_n)
     end
     (; fixpoint=x, info)
 end
@@ -126,7 +132,7 @@ function ScfAndersonSolver(; representation=TauVwScaled(), m_start::Integer=1, k
     ScfAndersonSolver(representation, m_start, kwargs)
 end
 function (scf::ScfAndersonSolver)(f, x0, info0; maxiter, damping)
-    T = eltype(x0)
+    T = eltype(x0.ρ)
     β = convert(T, damping)
     x = x0
     info = info0
@@ -137,38 +143,43 @@ function (scf::ScfAndersonSolver)(f, x0, info0; maxiter, damping)
             break
         end
 
-        x  = to_representation!(scf.representation, info.basis,  x)
-        fx = to_representation!(scf.representation, info.basis, fx)
+        ρτ = to_representation(scf.representation, info.basis, x.ρ, x.τ)
+        fρτ = to_representation(scf.representation, info.basis, fx.ρ, fx.τ)
         if i < scf.m_start
             @debug "Skipping Anderson acceleration in iteration $i"
-            x = @. x + β * (fx - x)
+            @. ρτ = ρτ + β * (fρτ - ρτ)
         else
             @debug "Using Anderson acceleration in iteration $i"
-            # Damp ρ and send it to anderson; τ is just patched through without any changes
-            residual = fx - x
-            x = acceleration(x, β, residual)
+            residual = fρτ - ρτ
+            ρτ = acceleration(ρτ, β, residual)
         end
-        x = from_representation!(scf.representation, info.basis, x)
+        ρ, τ = from_representation(scf.representation, info.basis, ρτ)
+        x = pack_gdensity(info.basis, ρ, τ, fx.hubbard_n)
     end
     (; fixpoint=x, info)
 end
 
 struct TauVwScaled; end
-function to_representation!(::TauVwScaled, basis, x)
-    inv_τUEG(τ::AbstractArray) = (10/3 * (3π^2)^(-2/3) * max.(0, τ)) .^ (3/5)
-    ρ, τ = split_gdensity(basis, x)
+function to_representation(::TauVwScaled, basis, ρ, τ)
     if !isnothing(τ)
-        τ .= inv_τUEG(τ .- von_weizsaecker_kinetic_energy_density(basis, ρ))
+        inv_τUEG(τ::AbstractArray) = (10/3 * (3π^2)^(-2/3) * max.(0, τ)) .^ (3/5)
+        τ_repr = inv_τUEG(τ .- von_weizsaecker_kinetic_energy_density(basis, ρ))
+        cat(ρ, τ_repr; dims=Val(4))
+    else
+        ρ
     end
-    x
 end
-function from_representation!(::TauVwScaled, basis, x)
-    τUEG(ρ::AbstractArray) =  3/10 * (3π^2)^(2/3)  * max.(0, ρ)  .^ (5/3)
-    ρ, τ = split_gdensity(basis, x)
-    if !isnothing(τ)
-        τ .= τUEG(τ) .+ von_weizsaecker_kinetic_energy_density(basis, ρ)
+function from_representation(::TauVwScaled, basis, repr)
+    n_spin = basis.model.n_spin_components
+    if size(repr, 4) == 2n_spin
+        τUEG(ρ::AbstractArray) =  3/10 * (3π^2)^(2/3)  * max.(0, ρ)  .^ (5/3)
+        ρ = repr[:, :, :, 1:n_spin]
+        τ = repr[:, :, :, n_spin+1:end]
+        τ .= τUEG(τ) .+ von_weizsaecker_kinetic_energy_density(basis, ρ)
+        (ρ, τ)
+    else
+        (repr, nothing)
     end
-    x
 end
 
 function Base.show(io::IO, scf::Union{ScfAndersonSolver,ScfAndersonDensitySolver})

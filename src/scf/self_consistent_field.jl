@@ -123,9 +123,16 @@ function next_density(ham::Hamiltonian,
         τ = nothing
     end
 
-    (; ψ=eigres.X, eigenvalues=eigres.λ, occupation, εF, ρ, τ, diagonalization=eigres,
-     n_bands_converge, nbandsalg.occupation_threshold,
-     n_matvec=mpi_sum(eigres.n_matvec, ham.basis.comm_kpts))
+    ihubbard = findfirst(t -> t isa TermHubbard, ham.basis.terms)
+    if !isnothing(ihubbard)
+        hubbard_n = compute_hubbard_n(ham.basis.terms[ihubbard], ham.basis, eigres.X, occupation)
+    else
+        hubbard_n = nothing
+    end
+
+    (; ψ=eigres.X, eigenvalues=eigres.λ, occupation, εF, ρ, τ, hubbard_n,
+       diagonalization=eigres, n_bands_converge, nbandsalg.occupation_threshold,
+       n_matvec=mpi_sum(eigres.n_matvec, ham.basis.comm_kpts))
 end
 
 
@@ -198,34 +205,25 @@ Overview of parameters:
     # linear combinations (such as mixing or Anderson); see split_gdensity and pack_gdensity in
     # densities.jl for details.
     function fixpoint_map(Din, info)
-        (; ψ, occupation, eigenvalues, εF, n_iter, converged, timedout, hubbard_n) = info
+        (; ψ, occupation, eigenvalues, εF, n_iter, converged, timedout) = info
         n_iter += 1
-        (ρin, τin) = split_gdensity(basis, Din)
+        ρin, τin, hubbard_nin = split_gdensity(basis, Din)
 
         # Note that ρin is not the density of ψ, and the eigenvalues
         # are not the self-consistent ones, which makes this energy non-variational
         energies, ham = energy_hamiltonian(basis, ψ, occupation;
-                                           exxalg, ρ=ρin, τ=τin, hubbard_n, eigenvalues, εF, 
-                                           nbandsalg.occupation_threshold)
+                                           exxalg, ρ=ρin, τ=τin, hubbard_n=hubbard_nin,
+                                           eigenvalues, εF, nbandsalg.occupation_threshold)
 
         # Diagonalize `ham` to get the new state
         nextstate = next_density(ham, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
                                  occupation, miniter=1,
                                  tol=determine_diagtol(diagtolalg, info))
-        (; ψ, eigenvalues, occupation, εF, ρ, τ) = nextstate
-        D = pack_gdensity(basis, ρ, τ)
-
-        # TODO: Dirty hack. This should be solved more generally and hubbard should be on
-        #       the same footing as τ and ρ as part of the generalised density;
-        #       see discussion in https://github.com/JuliaMolSim/DFTK.jl/issues/1065
-        ihubbard = findfirst(t -> t isa TermHubbard, basis.terms)
-        if !isnothing(ihubbard)
-            hubbard_n = compute_hubbard_n(basis.terms[ihubbard], basis, ψ, occupation)
-        end
+        (; ψ, eigenvalues, occupation, εF, ρ, τ, hubbard_n) = nextstate
 
         # Update info with results gathered so far
-        info_next = (; ham, basis, ρin, τin, converged, stage=:iterate, algorithm="SCF",
-                       hubbard_n, α=damping, n_iter, nbandsalg.occupation_threshold,
+        info_next = (; ham, basis, ρin, τin, hubbard_nin, converged, stage=:iterate,
+                       algorithm="SCF", α=damping, n_iter, nbandsalg.occupation_threshold,
                        seed, runtime_ns=time_ns() - start_ns, nextstate...,
                        diagonalization=[nextstate.diagonalization])
 
@@ -236,8 +234,16 @@ Overview of parameters:
                                   nbandsalg.occupation_threshold)
         end
 
-        ΔD = D - Din
-        Δρ, Δτ = split_gdensity(basis, ΔD)
+        # Residual of the generalised density. Only ρ and τ are mixed/accelerated, so the
+        # residual only needs their differences; hubbard_n is patched through, so it is passed
+        # along as its new value rather than as an increment (see below).
+        Δρ = ρ - ρin
+        Δτ = isnothing(τ) ? nothing : τ - τin
+        if isnothing(hubbard_nin) && !isnothing(hubbard_n)
+            hubbard_nin = zero(hubbard_n)
+        end
+        Δhubbard_n = isnothing(hubbard_n) ? nothing : hubbard_n - hubbard_nin
+        ΔD = pack_gdensity(basis, Δρ, Δτ, Δhubbard_n)
         history_Etot = vcat(info.history_Etot, energies.total)
         history_Δρ   = vcat(info.history_Δρ, norm(Δρ) * sqrt(basis.dvol))
         history_Δτ   = vcat(info.history_Δτ, isnothing(Δτ) ? zero(eltype(Δρ))
@@ -245,8 +251,13 @@ Overview of parameters:
         info_next = merge(info_next, (; energies, history_Etot, history_Δρ, history_Δτ,
                                         n_matvec=info.n_matvec + nextstate.n_matvec))
 
-        # Mix generalised density (i.e. both ρ and τ)
-        Dnext = Din + mix_gdensity(mixing, basis, ΔD; info_next...)
+        # Mix generalised density
+        mixed = mix_gdensity(mixing, basis, ΔD; info_next...)
+        Pinv_Δρ, Pinv_Δτ, Pinv_Δhubbard_n = split_gdensity(basis, mixed)
+        ρnext = ρin + Pinv_Δρ
+        τnext = isnothing(τin) ? nothing : τin + Pinv_Δτ
+        hubbard_nnext = isnothing(hubbard_nin) ? nothing : hubbard_nin + Pinv_Δhubbard_n
+        Dnext = pack_gdensity(basis, ρnext, τnext, hubbard_nnext)
 
         converged = mpi_bcast(n_iter ≥ miniter && is_converged(info_next), basis.comm_kpts)
         timedout  = mpi_bcast(Dates.now() ≥ timeout_date,                  basis.comm_kpts)
@@ -265,7 +276,8 @@ Overview of parameters:
                    history_Etot=T[], history_Δρ=T[], history_Δτ=T[])
 
     # Convergence is flagged by is_converged inside the fixpoint_map.
-    _, info = solver(fixpoint_map, pack_gdensity(basis, ρ, τ), info_init; maxiter, damping)
+    _, info = solver(fixpoint_map, pack_gdensity(basis, ρ, τ, hubbard_n), info_init;
+                     maxiter, damping)
 
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρ, so we return that. We also perform a last energy computation
