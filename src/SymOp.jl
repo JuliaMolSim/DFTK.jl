@@ -145,15 +145,16 @@ function compute_symmetry_stars(fft_size, symmetries::AbstractVector{<:SymOp{T}}
         sources = Pair{Int, Complex{T}}[]
         for symop in symmetries
             idx = index_G_vectors(fft_size, symop.invS * G)
-            isnothing(idx) || push!(sources, linear_ind[idx] => cis2pi(-T(dot(G, symop.τ))))
+            isnothing(idx) && error("Symmetry stars should not be used when the grid doesn't preserve symmetries")
+            push!(sources, linear_ind[idx] => cis2pi(-dot(G, symop.τ)))
         end
         members = Pair{Int, Complex{T}}[]
         for symop in symmetries
             SG  = symop.S * G
             idx = index_G_vectors(fft_size, SG)
-            (isnothing(idx) || visited[linear_ind[idx]]) && continue
+            visited[linear_ind[idx]] && continue
             visited[linear_ind[idx]] = true
-            push!(members, linear_ind[idx] => cis2pi(-T(dot(SG, symop.τ))))
+            push!(members, linear_ind[idx] => cis2pi(-dot(SG, symop.τ)))
         end
         push!(stars, SymmetryStar(sources, members))
     end

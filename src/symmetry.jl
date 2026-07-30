@@ -271,10 +271,8 @@ end
 
 # Accumulate the symmetrized density Σ_S e^{-i G·τ} ρ(S⁻¹G) into ρaccu
 function accumulate_over_symmetries!(ρaccu, ρin, basis, symmetries)
-    # The precomputed stars speed up the serial CPU traversal; the GPU (already parallel) and
-    # non-basis symmetries use the direct `map!`. Stars are exact only when the symmetries permute
-    # the grid, hence the `symmetries_respect_rgrid` guard.
-    if basis.architecture isa CPU && symmetries === basis.symmetries && basis.symmetries_respect_rgrid
+    # Use the faster stars algorithm when available and precomputed (see basis constructor)
+    if symmetries === basis.symmetries && !isempty(basis.symmetry_stars)
         _accumulate_over_symmetries_stars!(ρaccu, ρin, basis.symmetry_stars)
     else
         _accumulate_over_symmetries_direct!(ρaccu, ρin, basis, symmetries)
@@ -295,7 +293,7 @@ function _accumulate_over_symmetries_direct!(ρaccu, ρin, basis::PlaneWaveBasis
             τ   = symm_τ[i_symm]
             idx = index_G_vectors(fft_size, symm_invS[i_symm] * G)
             acc += isnothing(idx) ? zero(complex(T)) :
-                        iszero(τ) ? ρin[idx] : cis2pi(-T(dot(G, τ))) * ρin[idx]
+                        iszero(τ) ? ρin[idx] : cis2pi(-dot(G, τ)) * ρin[idx]
         end
         acc
     end
