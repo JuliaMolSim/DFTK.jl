@@ -400,23 +400,29 @@ end
 
 
 @doc raw"""
+    G_vectors(fft_grid::FFTGrid)
     G_vectors(basis::PlaneWaveBasis)
     G_vectors(basis::PlaneWaveBasis, kpt::Kpoint)
 
-The list of wave vectors ``G`` in reduced (integer) coordinates of a `basis`
-or a ``k``-point `kpt`.
+The list of wave vectors ``G`` in reduced (integer) coordinates of an
+FFT grid, a `basis` or a ``k``-point `kpt`.
 """
-G_vectors(basis::PlaneWaveBasis) = basis.fft_grid.G_vectors
+G_vectors(fft_grid::FFTGrid) = fft_grid.G_vectors
+G_vectors(basis::PlaneWaveBasis) = G_vectors(basis.fft_grid)
 G_vectors(::PlaneWaveBasis, kpt::Kpoint) = kpt.G_vectors
 
 @doc raw"""
+    G_vectors_cart(fft_grid::FFTGrid, model::Model)
     G_vectors_cart(basis::PlaneWaveBasis)
     G_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
 
-The list of ``G`` vectors of a given `basis` or `kpt`, in Cartesian coordinates.
+The list of ``G`` vectors of a given FFT grid, `basis` or `kpt`, in Cartesian coordinates.
 """
+function G_vectors_cart(fft_grid::FFTGrid, model::Model)
+    map(recip_vector_red_to_cart(model), G_vectors(fft_grid))
+end
 function G_vectors_cart(basis::PlaneWaveBasis)
-    map(recip_vector_red_to_cart(basis.model), G_vectors(basis))
+    G_vectors_cart(basis.fft_grid, basis.model)
 end
 function G_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
     recip_vector_red_to_cart.(basis.model, G_vectors(basis, kpt))

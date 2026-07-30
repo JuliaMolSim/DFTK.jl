@@ -1,17 +1,15 @@
 using SparseArrays
 
 """
-Compute the index mapping between the global grids of two bases.
+Compute the index mapping between two FFT grids or two bases' global grids.
 Returns an iterator of 8 pairs `(block_in, block_out)`. Iterated over these pairs
 `x_out_fourier[block_out, :] = x_in_fourier[block_in, :]` does the transfer from
-the Fourier coefficients `x_in_fourier` (defined on `basis_in`) to
-`x_out_fourier` (defined on `basis_out`, equally provided as Fourier coefficients).
+the Fourier coefficients `x_in_fourier` (defined on `fft_size_in`) to
+`x_out_fourier` (defined on `fft_size_out`, equally provided as Fourier coefficients).
 """
-function transfer_mapping(basis_in::PlaneWaveBasis, basis_out::PlaneWaveBasis)
-    @assert basis_in.model.lattice == basis_out.model.lattice
-
+function transfer_mapping(fft_size_in::Tuple{Int,Int,Int}, fft_size_out::Tuple{Int,Int,Int})
     # TODO This logic feels rather convoluted ... think if there are ways to simplify
-    idcs = map(basis_in.fft_size, basis_out.fft_size) do fft_in, fft_out
+    idcs = map(fft_size_in, fft_size_out) do fft_in, fft_out
         if fft_in <= fft_out
             a = cld(fft_in, 2)
             b = fld(fft_in, 2)
@@ -28,6 +26,10 @@ function transfer_mapping(basis_in::PlaneWaveBasis, basis_out::PlaneWaveBasis)
     idcs_in  = CartesianIndices.(Iterators.product(idcs[1].in,  idcs[2].in,  idcs[3].in))
     idcs_out = CartesianIndices.(Iterators.product(idcs[1].out, idcs[2].out, idcs[3].out))
     zip(idcs_in, idcs_out)
+end
+function transfer_mapping(basis_in::PlaneWaveBasis, basis_out::PlaneWaveBasis)
+    @assert basis_in.model.lattice == basis_out.model.lattice
+    transfer_mapping(basis_in.fft_size, basis_out.fft_size)
 end
 
 """
@@ -150,7 +152,7 @@ function transfer_blochwave(ψ_in, basis_in::PlaneWaveBasis, basis_out::PlaneWav
 end
 
 @doc raw"""
-Transfer density (in real space) between two basis sets.
+Transfer density (in real space) between two basis sets, or directly between two FFT grids.
 
 This function is fast by transferring only the Fourier coefficients from the small basis
 to the big basis.
@@ -162,19 +164,22 @@ Fourier component and the identity ``c_G = c_{-G}^\ast`` does not fully hold).
 Note further that for the direction big -> small employing this function does not give
 the same answer as using first `transfer_blochwave` and then `compute_density`.
 """
-function transfer_density(ρ_in, basis_in::PlaneWaveBasis{T},
-                          basis_out::PlaneWaveBasis{T}) where {T}
-    @assert basis_in.model.lattice == basis_out.model.lattice
+function transfer_density(ρ_in, grid_in::FFTGrid, grid_out::FFTGrid)
     @assert length(size(ρ_in)) ∈ (3, 4)
 
-    ρ_freq_in  = fft(basis_in, ρ_in)
-    ρ_freq_out = zeros_like(ρ_freq_in, basis_out.fft_size..., size(ρ_in, 4))
+    ρ_freq_in  = fft(grid_in, ρ_in)
+    ρ_freq_out = zeros_like(ρ_freq_in, grid_out.fft_size..., size(ρ_in, 4))
 
-    for (block_in, block_out) in transfer_mapping(basis_in, basis_out)
+    for (block_in, block_out) in transfer_mapping(grid_in.fft_size, grid_out.fft_size)
         ρ_freq_out[block_out, :] .= ρ_freq_in[block_in, :]
     end
 
-    irfft(basis_out, ρ_freq_out)
+    irfft(grid_out, ρ_freq_out)
+end
+function transfer_density(ρ_in, basis_in::PlaneWaveBasis{T},
+                          basis_out::PlaneWaveBasis{T}) where {T}
+    @assert basis_in.model.lattice == basis_out.model.lattice
+    transfer_density(ρ_in, basis_in.fft_grid, basis_out.fft_grid)
 end
 
 """
