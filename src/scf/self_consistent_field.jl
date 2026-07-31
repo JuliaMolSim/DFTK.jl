@@ -16,7 +16,8 @@ function kwargs_scf_checkpoints(basis::AbstractBasis;
                                 diagtolalg::AdaptiveDiagtol=AdaptiveDiagtol(),
                                 ρ=guess_density(basis),
                                 τ=guess_kinetic_energy_density(basis, ρ),
-                                hubbard_n=nothing, ψ=nothing, occupation=nothing,
+                                hubbard_n=guess_hubbard_n(basis),
+                                ψ=nothing, occupation=nothing,
                                 save_ψ=false, kwargs...)
     if isfile(filename)
         # Disable strict checking, since we can live with only the density data
@@ -165,7 +166,7 @@ Overview of parameters:
     basis::PlaneWaveBasis{T};
     ρ=guess_density(basis),
     τ=guess_kinetic_energy_density(basis, ρ),
-    hubbard_n=nothing,
+    hubbard_n=guess_hubbard_n(basis),
     ψ=nothing,
     occupation=nothing,
     eigenvalues=nothing,
