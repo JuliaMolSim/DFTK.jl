@@ -316,10 +316,7 @@ end
 
 # Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
 function lowpass_for_symmetry!(ρ::AbstractArray, basis; symmetries=basis.symmetries)
-    # Symmetries that permute the grid never map a G-vector out of it, so nothing is filtered.
-    if (symmetries === basis.symmetries && basis.symmetries_respect_rgrid) || all(isone, symmetries)
-        return ρ
-    end
+    all(isone, symmetries) && return ρ
 
     Gs = reshape(G_vectors(basis), size(ρ))
     fft_size = basis.fft_size
