@@ -171,6 +171,7 @@ export LdosMixing, HybridMixing, χ0Mixing
 export FixedBands, AdaptiveBands
 export ScfDampingSolver, ScfAndersonDensitySolver, ScfAndersonSolver
 export self_consistent_field, kwargs_scf_checkpoints
+export self_consistent_field_agnostic
 export ScfConvergenceEnergy, ScfConvergenceDensity, ScfConvergenceForce
 export ScfSaveCheckpoints, ScfDefaultCallback, AdaptiveDiagtol
 export ResponseOptions
@@ -178,10 +179,13 @@ export direct_minimization
 export newton
 export load_scfres, save_scfres
 include("scf/chi0models.jl")
+include("scf/state.jl")
 include("scf/mixing.jl")
+include("scf/acceleration.jl")
 include("scf/scf_solvers.jl")
 include("scf/nbands_algorithm.jl")
 include("scf/self_consistent_field.jl")
+include("scf/self_consistent_field_agnostic.jl")
 include("scf/direct_minimization.jl")
 include("scf/newton.jl")
 include("scf/scfres.jl")
