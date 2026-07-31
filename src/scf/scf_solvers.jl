@@ -38,7 +38,6 @@ function (scf::ScfDampingSolver)(f, x0, info0; maxiter, damping)
     (; fixpoint=x, info)
 end
 
-
 @doc raw"""
 Create an anderson-accelerated SCF solver for the [`self_consistent_field`](@ref) solver.
 
@@ -191,22 +190,77 @@ end
 @deprecate scf_anderson_solver(; m_start=1, kwargs...) ScfAndersonDensitySolver(; m_start, kwargs...)
 
 @doc raw"""
+General solver function to use with acceleration schemes that take into account
+multiple iterations. This solver accepts any the StateType,
+but AndersonType requires DensityType and PcdiisType requires OrbitalType
+
+## Keyword arguments for any acceleration scheme, affecting history control:
+- `depth::Integer`  (default: `10`) Maximal Accelerator history size
+- `m_start::Integer`(default: `1`)  Start collecting history in the `m_start`th SCF iteration
+- `maxcond::Real`   (default: `1e6`)
+  Maximal condition number of M_ij; a larger value triggers truncation of the
+  older entries in the history.
+- `errorfactor::Real` (default: `1e5`): We follow [^CDLS21] (adaptive Anderson/CDIIS acceleration)
+  and drop iterates, which do not satisfy
+  ```math
+      \|rᵢ\| < \text{errorfactor} minᵢ \|rᵢ\|
+  ```
+  where r denotes the error vector.
+  This means the best way to save memory is to reduce `errorfactor` to `1e3` or `100`,
+  which reduces the effective history size.
+
+## Keyword arguments specific to Anderson acceleration:
+- `α::Real` (default: `1.0`) damping factor, in addition to Anderson acceleration
+
+## Keyword arguments specific to PCDIIS acceleration:
+- `ψ_ref::Vector{Matrix{ComplexF64}}` (default: `nothing`) Reference wave funcitons for PCDIIS
+
+"""
+
+#TODO: Test defaults for errorfactor & maxcond for PCDIIS
+#TODO: Implementing an approtiate nbandsalg for PCDIIS. 
+function scf_accelerated_solver(; a_type::AccelerationType=AndersonType(), m_start::Integer=1, kwargs...)
+    function accelerated_solver(f, x0::StateType, info0; maxiter)
+        x = x0
+        info = info0
+        acceleration = Acceleration(a_type; kwargs...)
+        for i = 1:maxiter
+            fx, info = f(x, info)
+            if info.converged || info.timedout
+                break
+            end
+            if i < m_start
+                @debug "Skipping acceleration in iteration $i"
+                x = fx
+            else
+                @debug "Using acceleration in iteration $i"
+                x = acceleration(x, fx, info)
+            end
+        end
+        (; fixpoint=x, info)
+    end
+end
+
+#################### BELOW OLD SOLVER FUNCTION STILL KEPT FOR TESTING ####################
+
+@doc raw"""
 Create a Pcdiis-accelerated SCF solver for the [`self_consistent_field`](@ref) solver.
 This also changes info.ψ!
 
-## Keyword arguments
-- `depth::Integer`  (default: `10`) Maximal Pcdiis history size
+## Keyword arguments for any acceleration scheme affecting history control
+- `depth::Integer`  (default: `10`) Maximal Accelerator history size
 - `m_start::Integer`(default: `1`)  Start collecting history in the `m_start`th SCF iteration
 
 [^HLY17]: Hu, Lin, Yang. Journal of chemical theory and computation **13.11**, 5458-5467 (2017) DOI [10.1021/acs.jctc.7b00892](https://doi.org/10.1021/acs.jctc.7b00892) 
 """
 
-function scf_pcdiis_solver(; m_start::Integer=1, ψ_ref=Vector{Matrix{ComplexF64}}(), nb=0, kwargs...)
+#to be replaced by the accelerated solver above
+function scf_pcdiis_solver(; m_start::Integer=1, ψ_ref=Vector{Matrix{ComplexF64}}(), ψ_res=Vector{Matrix{ComplexF64}}(), on_history = nothing, fock=nothing, nb=0, basis_in=nothing, kwargs...)
     function pcdiis(f, x0, info0; maxiter)
         x = x0
         info = info0
 
-	    acceleration = PcdiisAcceleration(; ψ_ref=ψ_ref, nb=nb, kwargs...)
+	    acceleration = PcdiisAcceleration(; ψ_ref=ψ_ref, ψ_res=ψ_res, nb=nb, kwargs...)
         for i = 1:maxiter
             fx, finfo = f(x, info)
 
@@ -224,6 +278,8 @@ function scf_pcdiis_solver(; m_start::Integer=1, ψ_ref=Vector{Matrix{ComplexF64
 		        x, info = acceleration(fx, info, finfo)
             end
         end
+	    isnothing(on_history) || on_history(acceleration.history)
+        isnothing(fock) || append!(fock, acceleration.fock)
         (; fixpoint=x, info)
     end
 end
