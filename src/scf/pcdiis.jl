@@ -30,9 +30,25 @@ For now, there is no history management implemented except for a maximal depth.
     statehistory = Vector{Vector{Matrix{ComplexF64}}}() #gauge fixed orbitals
     B            = Vector{Matrix{Float64}}()            #stores B_ij = Tr(e_ie_j*) for each kpoint
 
-    ψ_ref        = Vector{Matrix{ComplexF64}}()         #reference states. 
-    depth::Int8  = 10                                   #maximal depth of Pcdiis accelerator
-    nb::Int8     = 0 
+    depth::Int8                              = 10 #maximal depth of Pcdiis accelerator
+    ψ_ref                                    = Vector{Matrix{ComplexF64}}() #reference states. 
+    ψ_res                                    = Vector{Matrix{ComplexF64}}() #reference states. 
+    switch                                   = false
+    nb                                       = 0 
+
+    #data collection for debugging:
+    fock::Vector{Matrix{ComplexF64}}         = []
+    history::Dict{String, Vector} = Dict(
+        "err"           => Float64[],
+        "energy"        => Float64[],
+        "comu"          => Matrix{ComplexF64}[],
+        "fock"          => Matrix{ComplexF64}[],
+        "over1"         => Matrix{ComplexF64}[],
+        "over2"         => Matrix{ComplexF64}[],
+        "over3"         => Matrix{ComplexF64}[],
+        "rho"           => Matrix{ComplexF64}[],
+        "sys"           => Matrix{Float64}[],
+    )
 end
 
 function Base.deleteat!(pcdiis::PcdiisAcceleration, idx)
@@ -67,8 +83,12 @@ end
 	ψ_old = infoₙ.ψ
 	occ = finfoₙ.occupation
 	H = finfoₙ.ham
+    C=0
+    hamil=0
+    ρ=0
 
-    isempty(pcdiis.ψ_ref) && append!(pcdiis.ψ_ref, [ψk[:, begin:max(pcdiis.nb, size(ψ_old,2))] for ψk in ψ_old])
+    isempty(pcdiis.ψ_ref) && append!(pcdiis.ψ_ref, [deepcopy(ψk[:, begin:max(pcdiis.nb, size(ψ_old,2))]) for ψk in ψ_old])
+    #isempty(pcdiis.ψ_res) && append!(pcdiis.ψ_res, [deepcopy(ψk[:, begin:max(pcdiis.nb, size(ψ_old,2))]) for ψk in ψ_old])
 
 	#creating mask to obtain occupied orbitals only
 	#will fail if non-integer occupations are provided
@@ -89,14 +109,26 @@ end
 		ψ_old_ψ_ref   = ψ_old[ik][:,mask]' * pcdiis.ψ_ref[ik]
 		C = ψ_ref_H_ψ_old * ψ_old_ψ_ref - ψ_old_ψ_ref' * ψ_ref_H_ψ_old'
 
+        ρ = ψ_old_ψ_ref' * ψ_old_ψ_ref
+        hamil = pcdiis.ψ_ref[ik]' * (H.blocks[ik] * pcdiis.ψ_ref[ik])
+
 		if isempty(pcdiis.errorhistory)
-			push!(pcdiis.B, ones(Float64,1,1) .* real(tr(C' * C)))
+			push!(pcdiis.B, ones(Float64,1,1) .* norm(C)^2)
 		end
 		push!(k_errors, C)
 	end
 
+    #push!(pcdiis.fock, pcdiis.ψ_ref[1]' * (finfoₙ.ham.blocks[1] * pcdiis.ψ_ref[1]))
+
 	if isempty(pcdiis.errorhistory) 
 		push!(pcdiis, k_errors, k_states)
+        push!(pcdiis.history["err"   ], pcdiis.B[1][end, end])
+        push!(pcdiis.history["energy"], Float64(finfoₙ.energies.total))
+        push!(pcdiis.history["comu"  ], C)
+        push!(pcdiis.history["fock"  ], C)
+        push!(pcdiis.history["rho"   ], ρ)
+        push!(pcdiis.history["sys"   ], pcdiis.B[1])
+
 		return fxₙ, finfoₙ
 	else
 		push!(pcdiis, k_errors, k_states)
@@ -129,22 +161,36 @@ end
 	sys[2:end,1] .= 1.0
 	sys[1,2:end] .= 1.0
 	rhs = zeros(lb)
-	rhs[1] = 1
+	rhs[1] = 1.0
 	
 	coeffs = sys \ rhs
 	cs = coeffs[2:end]
 
-	for ik in 1:length(ψ)
-		#mixing of pw coefficients of the gauge fixed states ψ_gf
-		mixstate = zeros(ComplexF64, size(ψ[ik][:,mask])...)
-		for ii in 1:length(cs)
-			axpy!(cs[ii],pcdiis.statehistory[ii][ik],mixstate)
+		for ik in 1:length(ψ)
+			#mixing of pw coefficients of the gauge fixed states ψ_gf
+			mixstate = zeros(ComplexF64, size(ψ[ik][:,mask])...)
+			for ii in 1:length(cs)
+				axpy!(cs[ii],pcdiis.statehistory[ii][ik],mixstate)
+			end
+
+			#not sure how to deal with this step exactly yet...
+			#q = Matrix(qr(mixstate).Q)
+			#q_ψ = q' * ψ[ik][:,mask]
+			#u,s,v = svd(q_ψ)
+			#rotation = u * v'
+			#result = q * rotation
+
+			#ψ[ik][:,mask] = result
+			ψ[ik][:,mask] = mixstate
+			ψ[ik] = Matrix(qr(ψ[ik]).Q)
 		end
 
-        #orthonormalization
-		ψ[ik][:,mask] = mixstate
-		ψ[ik] = Matrix(qr(ψ[ik]).Q)
-	end
+    push!(pcdiis.history["err"   ], pcdiis.B[1][end, end])
+    push!(pcdiis.history["energy"], Float64(finfoₙ.energies.total))
+    push!(pcdiis.history["comu"  ], C)
+    push!(pcdiis.history["fock"  ], C)
+    push!(pcdiis.history["rho"   ], ρ)
+    push!(pcdiis.history["sys"   ], pcdiis.B[1])
 
 	#density needs to be updated after mixing states
 	return compute_density(H.basis, ψ, occ), finfoₙ
