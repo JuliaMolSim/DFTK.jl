@@ -68,32 +68,8 @@ but generally [`ScfAndersonDensitySolver`](@ref) is more reliable.
 struct ScfAndersonDensitySolver{Targs} <: ScfSolver
     m_start::Int
     anderson_kwargs::Targs
-=======
-
-function scf_anderson_solver(; m_start::Integer=1, kwargs...)
-    function anderson(f, x0, info0; maxiter)
-        T = eltype(x0)
-        x = x0
-        info = info0
-        acceleration = AndersonAcceleration(; kwargs...)
-        for i = 1:maxiter
-            fx, info = f(x, info)
-            if info.converged || info.timedout
-                break
-            end
-            if i < m_start
-                @debug "Skipping Anderson acceleration in iteration $i"
-                x = fx
-            else
-                @debug "Using Anderson acceleration in iteration $i"
-                residual = fx - x
-                x = acceleration(x, one(T), residual)
-            end
-        end
-        (; fixpoint=x, info)
-    end
->>>>>>> f20cf929 (Pcdiis acceleration for SCF iterations including exact exchange)
 end
+
 function ScfAndersonDensitySolver(; m_start::Integer=1, kwargs...)
     ScfAndersonDensitySolver(m_start, kwargs)
 end
