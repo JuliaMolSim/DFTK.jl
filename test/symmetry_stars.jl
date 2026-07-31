@@ -30,3 +30,24 @@
     _accumulate_over_symmetries_direct!(out_direct, ρ, basis, symmetries)
     @test out_direct ≈ ref
 end
+
+@testitem "Density symmetrization is a projector" tags=[:minimal] setup=[TestCases] begin
+    using DFTK
+    using DFTK: symmetrize_ρ
+    using LinearAlgebra
+    silicon = TestCases.silicon
+
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions; functionals=LDA())
+    # An explicit fft_size gives a grid that does not respect the symmetries, which goes
+    # through the direct symmetrization; the default one goes through the stars.
+    for fft_size in (nothing, (25, 25, 25))
+        basis = PlaneWaveBasis(model; Ecut=10, kgrid=[2, 2, 2], fft_size)
+        @test length(basis.symmetries) > 1  # otherwise the test is vacuous
+
+        ρsym = symmetrize_ρ(basis, randn(eltype(basis), basis.fft_size..., 1))
+        @test symmetrize_ρ(basis, ρsym) ≈ ρsym
+        for symop in basis.symmetries
+            @test symmetrize_ρ(basis, ρsym; symmetries=[symop]) ≈ ρsym
+        end
+    end
+end
