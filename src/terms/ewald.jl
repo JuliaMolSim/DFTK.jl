@@ -9,7 +9,7 @@ Base.@kwdef struct Ewald
     η = nothing  # Parameter used for the splitting 1/r ≡ erf(η·r)/r + erfc(η·r)/r
                  # (or nothing if autoselected)
 end
-(ewald::Ewald)(basis) = TermEwald(basis; η=something(ewald.η, default_η(basis.model.lattice)))
+(ewald::Ewald)(basis; kwargs...) = TermEwald(basis; η=something(ewald.η, default_η(basis.model.lattice)))
 
 struct TermEwald{T} <: TermLinear
     energy::T                # precomputed energy

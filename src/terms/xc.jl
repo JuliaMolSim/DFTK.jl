@@ -1,5 +1,11 @@
 """
 Exchange-correlation term, defined by a list of functionals and usually evaluated through libxc.
+
+The grid used for the evaluation of the exchange-correlation energy integral can
+be customized at `PlaneWaveBasis` construction time with the
+`supersampling_xc`, `Ecut_density_xc` or `fft_size_xc` keyword arguments.
+Using a denser grid can help reduce grid position dependence of the XC energy/potential
+(also known as "egg-box effect"). See also Durham et al. [Electron. Struct. 2025].
 """
 struct Xc
     functionals::Vector{Functional}
@@ -10,17 +16,10 @@ struct Xc
 
     use_nlcc::Bool      # Use non-linear core correction or not
     nlcc_from_vw::Bool  # Use van Weizsäcker kinetic energy density for τcore
-
-    # FFT grid on which to evaluate the XC term, or nothing to use the one of the basis.
-    # TODO: This is a discretization parameter, it should not live in Xc
-    #       but rather be passed through the PlaneWaveBasis constructor.
-    fft_size::Union{Nothing,Tuple{Int,Int,Int}}
 end
 function Xc(functionals::AbstractVector{<:Functional}; scaling_factor=1,
-            potential_threshold=0, use_nlcc=true,
-            nlcc_from_vw=false, fft_size=nothing)
-    Xc(functionals, scaling_factor, potential_threshold, use_nlcc,
-       nlcc_from_vw, fft_size)
+            potential_threshold=0, use_nlcc=true, nlcc_from_vw=false)
+    Xc(functionals, scaling_factor, potential_threshold, use_nlcc, nlcc_from_vw)
 end
 function Xc(functionals::AbstractVector; kwargs...)
     fun = map(functionals) do f
@@ -36,11 +35,11 @@ function Base.show(io::IO, xc::Xc)
     print(io, "Xc($fun$fac)")
 end
 
-function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
+function (xc::Xc)(basis::PlaneWaveBasis{T};
+                  supersampling_xc=nothing,
+                  Ecut_density_xc=nothing,
+                  fft_size_xc=nothing) where {T}
     isempty(xc.functionals) && return TermNoop()
-
-    fft_grid = xc_fft_grid(xc, basis)
-    dvol = basis.model.unit_cell_volume / prod(fft_grid.fft_size)
 
     # Charge density for non-linear core correction
     ρcore = nothing
@@ -63,6 +62,9 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
         end
     end
 
+    fft_grid = xc_fft_grid(basis, supersampling_xc, Ecut_density_xc, fft_size_xc)
+    dvol = basis.model.unit_cell_volume / prod(fft_grid.fft_size)
+
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
         params = parameters(fun)
@@ -77,21 +79,43 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
            T(xc.potential_threshold), ρcore, τcore, fft_grid, dvol)
 end
 
-function xc_fft_grid(xc::Xc, basis::PlaneWaveBasis)
-    isnothing(xc.fft_size) && return basis.fft_grid
+function xc_fft_grid(basis::PlaneWaveBasis, supersampling_xc, Ecut_density_xc, fft_size_xc)
+    if isnothing(supersampling_xc) && isnothing(Ecut_density_xc) && isnothing(fft_size_xc)
+        return basis.fft_grid
+    end
+    if !isnothing(supersampling_xc)
+        isnothing(Ecut_density_xc) || error("Cannot specify both supersampling_xc and Ecut_density_xc")
+        isnothing(fft_size_xc) || error("Cannot specify both supersampling_xc and fft_size_xc")
+        Ecut_density_xc = supersampling_xc^2 * basis.Ecut
+    end
+    if !isnothing(Ecut_density_xc)
+        isnothing(fft_size_xc) || error("Cannot specify both Ecut_density_xc and fft_size_xc")
+        # TODO: this is duplicated with PlaneWaveBasis
+        if basis.symmetries_respect_rgrid
+            # ensure that the FFT grid is compatible with the "reasonable" symmetries
+            # (those with fractional translations with denominators 2, 3, 4, 6,
+            #  this set being more or less arbitrary) by forcing the FFT size to be
+            # a multiple of the denominators.
+            # See https://github.com/JuliaMolSim/DFTK.jl/pull/642 for discussion
+            denominators = [denominator(rationalize(sym.w[i]; tol=SYMMETRY_TOLERANCE))
+                            for sym in basis.model.symmetries for i = 1:3]
+            factors = intersect((2, 3, 4, 6), denominators)
+        else
+            factors = (1, )
+        end
+        fft_size_xc = compute_fft_size(basis.model, Ecut_density_xc, nothing; supersampling=1, factors)
+    end
 
-    if !all(xc.fft_size .≥ basis.fft_size)
-        throw(ArgumentError("The Xc fft_size $(xc.fft_size) must be at least as large as " *
+    if !all(fft_size_xc .≥ basis.fft_size)
+        throw(ArgumentError("The fft_size_xc $(fft_size_xc) must be at least as large as " *
                             "the fft_size $(basis.fft_size) of the basis in each direction."))
     end
-    # TODO: this is inconvenient/nonsense; can we maybe just symmetrize the density with low-pass on?
-    symmetries = symmetries_preserving_rgrid(basis.symmetries, xc.fft_size)
+    symmetries = symmetries_preserving_rgrid(basis.symmetries, fft_size_xc)
     if length(symmetries) != length(basis.symmetries)
-        throw(ArgumentError("The Xc fft_size $(xc.fft_size) does not respect the symmetries " *
-                            "of the basis. Pass the `factors` used for the basis grid to " *
-                            "`compute_fft_size` to obtain a compatible size."))
+        throw(ArgumentError("The fft_size_xc $(fft_size_xc) does not respect " *
+                            "the symmetries of the basis."))
     end
-    FFTGrid(xc.fft_size, basis.model.unit_cell_volume, basis.architecture)
+    FFTGrid(fft_size_xc, basis.model.unit_cell_volume, basis.architecture)
 end
 
 function hybrid_parameters(xc::Xc)
@@ -119,7 +143,8 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T};
         throw(ArgumentError("TermXc needs the kinetic energy density τ. Please pass a `τ` " *
                             "keyword argument to your `Hamiltonian` or `energy_hamiltonian` call."))
     end
-    # TODO: build core densities on the XC FFT grid
+
+    # Add the model core charge density (non-linear core correction)
     if !isnothing(term.ρcore)
         ρ = ρ + term.ρcore
     end
@@ -127,7 +152,9 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T};
         τ = τ + term.τcore
     end
 
-    # TODO: if the FFT grids are equal this should be made a no-op
+    # The denser XC FFT grid is treated only as a fix for the XC energy/potential evaluation,
+    # hence the core densities are computed on the coarse grid and transferred along
+    # with the valence densities.
     ρ = transfer_density(ρ, basis.fft_grid, term.fft_grid)
     if !isnothing(τ)
         τ = transfer_density(τ, basis.fft_grid, term.fft_grid)
@@ -135,7 +162,7 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T};
 
     E, potential, Vτ = _xc_potential_real(term, basis.model, basis.comm_kpts, ρ, τ)
 
-    # the adjoint of Fourier interpolation is Fourier truncation
+    # The adjoint of Fourier zero-padding is Fourier truncation
     potential = transfer_density(potential, term.fft_grid, basis.fft_grid)
     if !isnothing(Vτ)
         Vτ = transfer_density(Vτ, term.fft_grid, basis.fft_grid)
@@ -466,8 +493,8 @@ function LibxcDensities(model::Model{T}, fft_grid::FFTtype, max_derivative::Inte
                             σ_real, Δρ_real, τ_Libxc)
 end
 
-function _check_negative_bonding_indicator_α(densities::LibxcDensities{T}, comm_kpts;
-                                             density_threshold=100eps(T)) where {T}
+function _check_negative_bonding_indicator_α(densities::LibxcDensities, comm_kpts;
+                                             density_threshold=100eps(eltype(densities.ρ_real)))
     # TODO: The idea here is that libxc cuts components of the XC evaluation anyway if
     #       the density (or contracted density gradient) is below a certain threshold,
     #       so we do the same here for the check to make sure this is not too noisy.
@@ -488,6 +515,7 @@ function _check_negative_bonding_indicator_α(densities::LibxcDensities{T}, comm
         minimum(failure_indicator)
     end
     if mpi_master(comm_kpts)
+        T = eltype(densities.ρ_real)
         if failure_indicator < -eps(T)
             @debug "xc: α failure indicator: $failure_indicator"
         end

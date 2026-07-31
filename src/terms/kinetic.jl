@@ -9,7 +9,7 @@ Base.@kwdef struct Kinetic{F}
     blowup::F = BlowupIdentity()  # Blow-up to smooth energy bands.
 end
 
-(kin::Kinetic)(basis) = TermKinetic(basis, kin.scaling_factor, kin.blowup)
+(kin::Kinetic)(basis; kwargs...) = TermKinetic(basis, kin.scaling_factor, kin.blowup)
 function Base.show(io::IO, kin::Kinetic)
     bup = kin.blowup isa BlowupIdentity ? "" : ", blowup=$(kin.blowup)"
     fac = isone(kin.scaling_factor) ? "" : ", scaling_factor=$(kin.scaling_factor)"

@@ -125,7 +125,7 @@ function Hubbard(manifold_to_U::Vararg{T}) where {T <: Pair}
     Hubbard([m[1] for m in manifold_to_U], [m[2] for m in manifold_to_U])
 end
 
-function (hubbard::Hubbard{T})(basis::AbstractBasis) where {T}
+function (hubbard::Hubbard{T})(basis::AbstractBasis; kwargs...) where {T}
     manifolds = [resolve_hubbard_manifold(manifold, basis.model) for manifold in hubbard.manifolds]
     projs, labels = atomic_orbital_projectors(basis)
     manifold_data = map(manifold -> extract_manifold(manifold, projs, labels), manifolds)

@@ -62,7 +62,7 @@ struct Anyonic
     hbar
     β
 end
-function (A::Anyonic)(basis)
+function (A::Anyonic)(basis; kwargs...)
     @assert length(basis.kpoints) == 1
     @assert basis.kpoints[1].coordinate == [0, 0, 0]
     @assert basis.model.n_dim == 2

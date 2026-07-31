@@ -92,6 +92,10 @@ struct PlaneWaveBasis{T,
     # not yet implement symmetry. See `unfold_bz` as a convenient way to use this.
     use_symmetries_for_kpoint_reduction::Bool
 
+    # Additional kwargs that were passed to the constructor and forwarded at term instantiation.
+    # These are kept here such that the basis can be reconstructed.
+    extra_kwargs::Any
+
     ## Instantiated terms (<: Term). See Hamiltonian for high-level usage
     terms::Vector{Any}
 end
@@ -130,7 +134,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
                         variational::Bool, kgrid::AbstractKgrid,
                         symmetries_respect_rgrid::Bool,
                         use_symmetries_for_kpoint_reduction::Bool,
-                        comm_kpts, architecture::Arch
+                        comm_kpts, architecture::Arch, extra_kwargs
                        ) where {T <: Real, Arch <: AbstractArchitecture}
     # TODO This needs a refactor. There is too many different things here happening
     #      at once. In particular steps, which can become rather costly for larger
@@ -250,12 +254,12 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
         kcoords_global, kweights_global, n_irreducible_kpoints,
         comm_kpts, krange_thisproc, krange_allprocs, krange_thisproc_allspin,
         architecture, symmetries, symmetries_respect_rgrid,
-        use_symmetries_for_kpoint_reduction, terms)
+        use_symmetries_for_kpoint_reduction, extra_kwargs, terms)
 
     # Instantiate the terms with the basis
     for (it, t) in enumerate(model.term_types)
         term_name = string(nameof(typeof(t)))
-        @timing "Instantiation $term_name" basis.terms[it] = t(basis)
+        @timing "Instantiation $term_name" basis.terms[it] = t(basis; extra_kwargs...)
     end
     basis
 end
@@ -328,7 +332,8 @@ basis = PlaneWaveBasis(model; Ecut=12, fft_size=(48,48,48))
                                 variational=true, fft_size=nothing,
                                 symmetries_respect_rgrid=isnothing(fft_size),
                                 use_symmetries_for_kpoint_reduction=true,
-                                comm_kpts=MPI.COMM_WORLD, architecture=CPU()) where {T <: Real}
+                                comm_kpts=MPI.COMM_WORLD, architecture=CPU(),
+                                extra_kwargs...) where {T <: Real}
     if isnothing(kshift)
         kgrid_inner = build_kgrid(model.lattice, kgrid)
     else
@@ -365,7 +370,7 @@ basis = PlaneWaveBasis(model; Ecut=12, fft_size=(48,48,48))
 
     PlaneWaveBasis(model, austrip(Ecut), fft_size, variational, kgrid_inner,
                    symmetries_respect_rgrid, use_symmetries_for_kpoint_reduction,
-                   comm_kpts, architecture)
+                   comm_kpts, architecture, extra_kwargs)
 end
 
 """
@@ -380,7 +385,8 @@ e.g. a [`MonkhorstPack`](@ref) or a [`ExplicitKpoints`](@ref) grid.
                    basis.fft_size, basis.variational,
                    kgrid_inner, basis.symmetries_respect_rgrid,
                    basis.use_symmetries_for_kpoint_reduction,
-                   basis.comm_kpts, basis.architecture)
+                   basis.comm_kpts, basis.architecture,
+                   basis.extra_kwargs)
 end
 
 """
@@ -395,19 +401,18 @@ Creates a new basis identical to `basis`, but with a different [`Model`](@ref)
                    basis.fft_size, basis.variational,
                    basis.kgrid, basis.symmetries_respect_rgrid,
                    basis.use_symmetries_for_kpoint_reduction,
-                   basis.comm_kpts, basis.architecture)
+                   basis.comm_kpts, basis.architecture,
+                   basis.extra_kwargs)
 end
 
 
 @doc raw"""
-    G_vectors(fft_grid::FFTGrid)
     G_vectors(basis::PlaneWaveBasis)
     G_vectors(basis::PlaneWaveBasis, kpt::Kpoint)
 
-The list of wave vectors ``G`` in reduced (integer) coordinates of an
-FFT grid, a `basis` or a ``k``-point `kpt`.
+The list of wave vectors ``G`` in reduced (integer) coordinates of a `basis`
+or a ``k``-point `kpt`.
 """
-G_vectors(fft_grid::FFTGrid) = fft_grid.G_vectors
 G_vectors(basis::PlaneWaveBasis) = G_vectors(basis.fft_grid)
 G_vectors(::PlaneWaveBasis, kpt::Kpoint) = kpt.G_vectors
 

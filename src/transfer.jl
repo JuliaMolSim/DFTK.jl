@@ -156,6 +156,7 @@ Transfer density (in real space) between two basis sets, or directly between two
 
 This function is fast by transferring only the Fourier coefficients from the small basis
 to the big basis.
+If the two grids are the same, the input density is returned directly **without copying**.
 
 Note that this implies that for even-sized small FFT grids doing the
 transfer small -> big -> small is not an identity (as the small basis has an unmatched
@@ -166,6 +167,7 @@ the same answer as using first `transfer_blochwave` and then `compute_density`.
 """
 function transfer_density(ρ_in, grid_in::FFTGrid, grid_out::FFTGrid)
     @assert length(size(ρ_in)) ∈ (3, 4)
+    grid_in.fft_size == grid_out.fft_size && return ρ_in
 
     ρ_freq_in  = fft(grid_in, ρ_in)
     ρ_freq_out = zeros_like(ρ_freq_in, grid_out.fft_size..., size(ρ_in, 4))
