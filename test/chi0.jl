@@ -6,9 +6,9 @@ using LinearAlgebra
 
 function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=:none,
                    eigensolver=lobpcg_hyper, Ecut=10, kgrid=[3, 1, 1],
-                   fft_size=nothing, ε=3e-4,
-                   compute_full_χ0=false, εF=nothing, functionals=LDA(), tol=1e-11,
-                   atol=1e-7)
+                   fft_size=nothing, ε=2e-4,
+                   compute_full_χ0=false, εF=nothing, functionals=LDA(), tol=1e-12,
+                   atol=2e-7)
 
     collinear   = spin_polarization == :collinear
     is_εF_fixed = !isnothing(εF)
@@ -120,10 +120,11 @@ end
         end
     end
 
-    # Additional test for compute_χ0
+    # Additional test for compute_χ0. It builds a dense n_fft × n_fft matrix, so we take
+    # the smallest Ecut that still holds the requested number of bands at every k-point.
     for spin_polarization in (:none, :collinear)
         test_chi0(silicon; symmetries=false, spin_polarization, eigensolver=diag_full,
-                  Ecut=3, fft_size=[10, 1, 10], compute_full_χ0=true)
+                  Ecut=0.8, compute_full_χ0=true)
         test_chi0(magnesium; spin_polarization, temperature=0.01, εF=0.3)
     end
 end

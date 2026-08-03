@@ -162,9 +162,10 @@ end
             Δρ = reshape(density.Δρ_real, size(density.Δρ_real, 1), :)
             τ  = reshape(density.τ_real,  size(density.τ_real, 1),  :)
 
+            ε_fd = 1e-4
             ε_ad = Dual{typeof(ForwardDiff.Tag(nothing, Float64))}(0.0, 1.0)
             do_ad(f) = map(y -> partials.(y, 1), f(ε_ad))
-            function do_fd(f; ε_fd=1e-4)
+            function do_fd(f)
                 map(f(-2ε_fd), f(-1ε_fd), f(+1ε_fd), f(+2ε_fd)) do y_m2ε, y_m1ε, y_p1ε, y_p2ε
                     (-y_p2ε + 8y_p1ε - 8y_m1ε + y_m2ε) / 12ε_fd
                 end
@@ -179,6 +180,15 @@ end
             δσ  = reshape(δσ_real, size(σ)...)
             δΔρ = reshape(δΔρ_real, size(Δρ)...)
             δτ  = mpi_bcast!(randn(size(τ)) / model.unit_cell_volume, basis.comm_kpts)
+
+            # Finite differences walk along the linearised σ + εδσ, while the true σ(ε) is
+            # quadratic where ∇ρ vanishes by symmetry: at those points the stencil leaves
+            # σ ≥ 0, gets clamped by Libxc and straddles a kink. Drop them. (Only the
+            # same-spin channels are constrained; the αβ one is ∇ρα⋅∇ρβ and may be negative.)
+            same_spin = size(σ, 1) == 1 ? [1] : [1, 3]
+            keep = vec(all(σ[same_spin, :] .> 2ε_fd .* abs.(δσ[same_spin, :]); dims=1))
+            ρ, σ, Δρ, τ = ρ[:, keep], σ[:, keep], Δρ[:, keep], τ[:, keep]
+            δρ, δσ, δΔρ, δτ = δρ[:, keep], δσ[:, keep], δΔρ[:, keep], δτ[:, keep]
 
             @testset "LDA" begin
                 func = DFTK.LibxcFunctional(:lda_xc_teter93)
