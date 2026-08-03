@@ -291,6 +291,7 @@ If parameters are not given explicitly as a kwarg, the constructor chooses sensi
 - `supersampling::Real` (default: `recommended_cutoff(model).supersampling`): Factor
     determining the density/potential cutoff relative to `Ecut`. The density cutoff is
     `supersampling^2 * Ecut` (default supersampling = 2.0, i.e. density cutoff = 4 * Ecut).
+    Values below 2 alias the density and are not recommended.
 - `fft_size::Union{Nothing,Tuple{Int,Int,Int}}` (default: `nothing`): Explicit FFT grid
     size. If `nothing` (recommended), an automatic FFT grid compatible with `Ecut` and `supersampling`
     is computed.

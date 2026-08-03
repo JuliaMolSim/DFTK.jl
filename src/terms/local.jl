@@ -35,7 +35,7 @@ struct ExternalFromValues
 end
 function (external::ExternalFromValues)(basis::PlaneWaveBasis{T}) where {T}
     # TODO Could do interpolation here
-    @assert size(external.potential_values) == basis.fft_size
+    @assert size(external.potential_values)[1:3] == basis.fft_size
     TermExternal(convert_dual.(T, external.potential_values))
 end
 
