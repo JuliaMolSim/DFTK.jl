@@ -176,7 +176,7 @@ function atomic_density_superposition(basis::PlaneWaveBasis{T},
         end
     end
 
-    enforce_real!(ρ, basis)  # Symmetrize Fourier coeffs to have real iFFT
+    drop_nyquist_frequency!(ρ, basis)
     irfft(basis, reshape(ρ, basis.fft_size))
 end
 

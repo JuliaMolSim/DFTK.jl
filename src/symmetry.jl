@@ -521,10 +521,10 @@ function unfold_kcoords(kcoords, symmetries)
 end
 
 """
-Ensure its real-space equivalent of passed Fourier-space representation is entirely real by
-removing wavevectors `G` that don't have a `-G` counterpart in the basis.
+Zero out the Nyquist frequencies of a Fourier-space representation, ie the wavevectors `G`
+that don't have a `-G` counterpart in the basis (only present for even `fft_size`).
 """
-@timing function enforce_real!(fourier_coeffs, basis::PlaneWaveBasis)
+@timing function drop_nyquist_frequency!(fourier_coeffs, basis::PlaneWaveBasis)
     Gs = reshape(G_vectors(basis), size(fourier_coeffs))
     fft_size = basis.fft_size
     map!(fourier_coeffs, fourier_coeffs, Gs) do coeff, G
