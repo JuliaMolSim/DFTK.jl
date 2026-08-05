@@ -250,5 +250,8 @@ end
 
     pseudopotentials = Dict(:C => joinpath(@__DIR__, "pseudos", "C_m.upf"))
     test_forces(system; pseudopotentials, functionals=r2SCAN(),
-                temperature=0.01, Ecut=10, kgrid=[2, 2, 2], atol=1e-7)
+                temperature=0.01, Ecut=10, kgrid=[2, 2, 2], atol=1e-7,
+                # use an even FFT size to serve as a regression test
+                # for enforce_real! call in the XC force computation
+                fft_size=[16,16,16], symmetries_respect_rgrid=true)
 end
