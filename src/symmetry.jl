@@ -519,15 +519,3 @@ function unfold_kcoords(kcoords, symmetries)
         normalize_kpoint_coordinate(round.(k; digits) .+ 0.0)
     end
 end
-
-"""
-Zero out the Nyquist components of a Fourier-space representation, ie the wavevectors `G`
-that don't have a `-G` counterpart in the basis (only present for even `fft_size`).
-"""
-@timing function drop_nyquist_components!(fourier_coeffs, basis::PlaneWaveBasis)
-    Gs = reshape(G_vectors(basis), size(fourier_coeffs))
-    fft_size = basis.fft_size
-    map!(fourier_coeffs, fourier_coeffs, Gs) do coeff, G
-        isnothing(index_G_vectors(fft_size, -G)) ? zero(coeff) : coeff
-    end
-end

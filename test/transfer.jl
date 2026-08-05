@@ -58,11 +58,8 @@ end
 
         # A random density on an even-sized grid has a Fourier component G, where its
         # counterpart -G is *not* part of the FFT grid, therefore ifft(fft(ρ)) would
-        # not be an identity. To prevent this we use drop_nyquist_components! to explicitly
-        # set the non-matched Fourier component to zero.
-        ρ = random_density(basis, 1)
-        ρ_fourier_purified = DFTK.drop_nyquist_components!(fft(basis, ρ), basis)
-        ρ = irfft(basis, ρ_fourier_purified)
+        # not be an identity. Round-tripping through irfft drops those components.
+        ρ = irfft(basis, fft(basis, random_density(basis, 1)))
 
         ρ_b  = transfer_density(ρ,   basis,     basis_big)
         ρ_bb = transfer_density(ρ_b, basis_big, basis    )
