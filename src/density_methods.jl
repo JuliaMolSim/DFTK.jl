@@ -176,7 +176,7 @@ function atomic_density_superposition(basis::PlaneWaveBasis{T},
         end
     end
 
-    drop_nyquist_frequency!(ρ, basis)
+    drop_nyquist_components!(ρ, basis)
     irfft(basis, reshape(ρ, basis.fft_size))
 end
 

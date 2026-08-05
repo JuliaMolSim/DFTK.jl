@@ -64,7 +64,7 @@ function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
     pot_fourier = map(G_vectors_cart(basis)) do G
         convert_dual(complex(T), external.potential(G) / sqrt(unit_cell_volume))
     end
-    drop_nyquist_frequency!(pot_fourier, basis)
+    drop_nyquist_components!(pot_fourier, basis)
     TermExternal(irfft(basis, pot_fourier))
 end
 
@@ -130,7 +130,7 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
 
     pot_fourier = reshape(pot, basis.fft_size)
     if iszero(q)
-        drop_nyquist_frequency!(pot, basis)
+        drop_nyquist_components!(pot, basis)
         return irfft(basis, pot_fourier)
     else
         return ifft(basis, pot_fourier)

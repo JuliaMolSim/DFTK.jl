@@ -38,7 +38,7 @@ function compute_poisson_green_coeffs(basis::PlaneWaveBasis{T}, scaling_factor;
         # Compensating charge background => Zero DC.
         GPUArraysCore.@allowscalar poisson_green_coeffs[1] = 0
         # Symmetrize Fourier coeffs to have real iFFT.
-        drop_nyquist_frequency!(poisson_green_coeffs, basis)
+        drop_nyquist_components!(poisson_green_coeffs, basis)
     end
     scaling_factor .* poisson_green_coeffs
 end
