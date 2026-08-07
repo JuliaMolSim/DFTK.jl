@@ -181,9 +181,15 @@ end
             δΔρ = reshape(δΔρ_real, size(Δρ)...)
             δτ  = mpi_bcast!(randn(size(τ)) / model.unit_cell_volume, basis.comm_kpts)
 
-            # Loose tolerance: at a few grid points the functionals are not smooth (Libxc
-            # clamps σ to 0, r2scanl has a kink of its own), and there the finite-difference
-            # error does not shrink with ε_fd.
+            # Where ∇ρ vanishes by symmetry σ is ~1e-18, far below the reach of the stencil,
+            # which would then straddle the σ ≥ 0 clamp in Libxc at any ε_fd. Lift it clear;
+            # the αβ channel is ∇ρα⋅∇ρβ and may legitimately be negative, so leave it alone.
+            same_spin = size(σ, 1) == 1 ? [1] : [1, 3]
+            σ = copy(σ)
+            σ[same_spin, :] .= max.(σ[same_spin, :], 4ε_fd .* abs.(δσ[same_spin, :]))
+
+            # Loose tolerance: at a few points of small σ the meta-GGAs are stiff enough
+            # that the ε_fd⁴ truncation error still reaches ~2e-6.
             rtol = 1e-5
 
             @testset "LDA" begin
