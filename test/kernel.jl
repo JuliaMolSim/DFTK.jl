@@ -181,10 +181,9 @@ end
             δΔρ = reshape(δΔρ_real, size(Δρ)...)
             δτ  = mpi_bcast!(randn(size(τ)) / model.unit_cell_volume, basis.comm_kpts)
 
-            # The tolerance is limited not by the finite differences themselves, but by the
-            # handful of points where ∇ρ vanishes by symmetry. A true σ = |∇ρ|² never goes
-            # negative, but the linearised σ + εδσ used here does, and Libxc clamps it back
-            # to 0: the stencil then straddles a kink that the functional does not have.
+            # Loose tolerance because of a few points of small σ, where the meta-GGAs have
+            # very large ∂Vσ/∂σ: they dominate both the finite-difference error and the
+            # norm it is measured against.
             rtol = 1e-5
 
             @testset "LDA" begin
