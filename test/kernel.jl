@@ -181,9 +181,9 @@ end
             δΔρ = reshape(δΔρ_real, size(Δρ)...)
             δτ  = mpi_bcast!(randn(size(τ)) / model.unit_cell_volume, basis.comm_kpts)
 
-            # Loose tolerance because of a few points of small σ, where the meta-GGAs have
-            # very large ∂Vσ/∂σ: they dominate both the finite-difference error and the
-            # norm it is measured against.
+            # Loose tolerance: at a few grid points the functionals are not smooth (Libxc
+            # clamps σ to 0, r2scanl has a kink of its own), and there the finite-difference
+            # error does not shrink with ε_fd.
             rtol = 1e-5
 
             @testset "LDA" begin
