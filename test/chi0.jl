@@ -32,9 +32,10 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         basis = PlaneWaveBasis(model; basis_kwargs...)
         ρ0    = guess_density(basis, magnetic_moments)
         ham0  = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0).ham
-        # Fixed rather than adaptive bands, so that the bands of low occupation are
-        # converged as well: the finite differences below are sensitive to them.
-        nbandsalg = is_εF_fixed ? FixedBands(; n_bands_converge=6) : FixedBands(model)
+        # The finite differences below are sensitive to the bands of low occupation, so
+        # converge more of them than the default would.
+        nbandsalg = is_εF_fixed ? FixedBands(; n_bands_converge=6) :
+                                  FixedBands(model; temperature_factor_converge=2)
         res = DFTK.next_density(ham0, nbandsalg; tol, eigensolver)
         scfres = (; ham=ham0, res...)
 
