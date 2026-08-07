@@ -130,22 +130,11 @@ function ifft(fft_grid::FFTGrid, Gvec_mapping::AbstractVector{Int}, f_fourier::A
     ifft!(similar(f_fourier, fft_grid.fft_size...), fft_grid, Gvec_mapping, f_fourier; kwargs...)
 end
 """
-Zero out the Nyquist components of `f_fourier`, ie the wavevectors `G` that don't have a `-G`
-counterpart in the grid (`G = -N/2` along an even direction of size `N`).
-"""
-function drop_nyquist_components!(f_fourier::AbstractArray, fft_size)
-    for (idim, N) in enumerate(fft_size)
-        iseven(N) && (selectdim(f_fourier, idim, N ÷ 2 + 1) .= 0)
-    end
-    f_fourier
-end
-
-"""
-Perform a real valued iFFT; see [`ifft`](@ref). The Nyquist components are dropped
-*from the input array*, so this method is technically mutating.
+Perform a real valued iFFT; see [`ifft`](@ref). Note that this function
+silently drops the imaginary part.
 """
 function irfft(fft_grid::FFTGrid{T}, f_fourier::AbstractArray) where {T}
-    real(ifft(fft_grid, drop_nyquist_components!(copy(f_fourier), fft_grid.fft_size)))
+    real(ifft(fft_grid, f_fourier))
 end
 
 @doc raw"""

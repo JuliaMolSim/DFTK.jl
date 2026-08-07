@@ -37,9 +37,6 @@ function compute_poisson_green_coeffs(basis::PlaneWaveBasis{T}, scaling_factor;
     if iszero(q)
         # Compensating charge background => Zero DC.
         GPUArraysCore.@allowscalar poisson_green_coeffs[1] = 0
-        # Dropped on the coefficients rather than left to `irfft`, so that the matrix form
-        # of the kernel (`compute_kernel`) describes the same operator.
-        drop_nyquist_components!(poisson_green_coeffs, basis.fft_size)
     end
     scaling_factor .* poisson_green_coeffs
 end
