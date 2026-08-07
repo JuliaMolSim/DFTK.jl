@@ -244,9 +244,6 @@ end
 # Function barrier to work around various type instabilities.
 function _forces_xc(basis::PlaneWaveBasis{T}, Vxc_fourier::AbstractArray{U}, 
                     form_factors, iG2ifnorm, groups) where {T, U}
-    # Adjoint of the enforce_real! call in the construction of the NLCC
-    enforce_real!(Vxc_fourier, basis)
-
     # Pre-allocation of large arrays for GPU Efficiency
     TT = promote_type(T, real(U))
     Gs = G_vectors(basis)
