@@ -181,9 +181,10 @@ end
             δΔρ = reshape(δΔρ_real, size(Δρ)...)
             δτ  = mpi_bcast!(randn(size(τ)) / model.unit_cell_volume, basis.comm_kpts)
 
-            # The tolerance is not limited by the finite differences themselves, but by the
-            # handful of points where ∇ρ vanishes by symmetry: there σ(ε) is quadratic, so
-            # the stencil straddles the kink Libxc has at σ = 0.
+            # The tolerance is limited not by the finite differences themselves, but by the
+            # handful of points where ∇ρ vanishes by symmetry. A true σ = |∇ρ|² never goes
+            # negative, but the linearised σ + εδσ used here does, and Libxc clamps it back
+            # to 0: the stencil then straddles a kink that the functional does not have.
             rtol = 1e-5
 
             @testset "LDA" begin
