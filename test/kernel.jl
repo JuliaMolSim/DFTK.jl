@@ -182,8 +182,7 @@ end
             δτ  = mpi_bcast!(randn(size(τ)) / model.unit_cell_volume, basis.comm_kpts)
 
             # Where ∇ρ vanishes by symmetry σ is ~1e-18, far below the reach of the stencil,
-            # which would then straddle the σ ≥ 0 clamp in Libxc at any ε_fd. Lift it clear;
-            # the αβ channel is ∇ρα⋅∇ρβ and may legitimately be negative, so leave it alone.
+            # which would then straddle the diag(σ) ≥ 0 clamp in Libxc at any ε_fd, so we raise it
             same_spin = size(σ, 1) == 1 ? [1] : [1, 3]
             σ = copy(σ)
             σ[same_spin, :] .= max.(σ[same_spin, :], 4ε_fd .* abs.(δσ[same_spin, :]))
