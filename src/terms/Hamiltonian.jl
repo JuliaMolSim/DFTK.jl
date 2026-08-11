@@ -19,18 +19,22 @@ struct GenericHamiltonianBlock <: HamiltonianBlock
 end
 
 """A more optimized HamiltonianBlock for the important case of a DFT Hamiltonian."""
-struct DftHamiltonianBlock <: HamiltonianBlock
-    basis::PlaneWaveBasis
-    kpoint::Kpoint
+struct DftHamiltonianBlock{Tbasis<:PlaneWaveBasis,
+                           Tkpoint<:Kpoint,
+                           Tlocal<:RealSpaceMultiplication,
+                           TdivAgrad<:Union{Nothing,DivAgradOperator},
+                           Tscratch} <: HamiltonianBlock
+    basis::Tbasis
+    kpoint::Tkpoint
     operators::Vector
 
     # Individual operators for easy access
     fourier_op::FourierMultiplication
-    local_op::RealSpaceMultiplication
+    local_op::Tlocal
     nonlocal_op::Union{Nothing,NonlocalOperator}
-    divAgrad_op::Union{Nothing,DivAgradOperator}
+    divAgrad_op::TdivAgrad
 
-    scratch  # Pre-allocated scratch arrays for fast application
+    scratch::Tscratch  # Pre-allocated scratch arrays for fast application
 end
 
 function HamiltonianBlock(basis, kpoint, operators; scratch=nothing)
