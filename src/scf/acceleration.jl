@@ -96,7 +96,7 @@ function Acceleration(a_type::AccelerationType; depth::Integer=10, errorfactor::
     Acceleration(a_type, memory, specifics)
 end
 
-@timing "Acceleration" function (acc::Acceleration)(xₙ::StateType, fxₙ::StateType, info)
+@timing "Acceleration" function (acc::Acceleration)(xₙ, fxₙ, info)
     accelerate(acc, xₙ, fxₙ, info)
 end
 
@@ -106,7 +106,7 @@ end
 Rudimentary PCDIIS implementation
 
 PCDIIS stands for Projected-Commutator-DIIS and is an attempt to make CDIIS feasible for large basis sets.
-Instead of computing e = [H,ρ] in the full basis, this is only done in a subspace: ē = <ψ_ref|e|ψ_ref>
+Instead of computing e = [H,gdensity] in the full basis, this is only done in a subspace: ē = <ψ_ref|e|ψ_ref>
 Instead of mixing full density or Fock matrices, 
 the occupied states are mixed after gauge fixing (gf): ψ_gf = |ψ_occ><ψ_occ|ψ_ref_occ>
 
@@ -116,7 +116,7 @@ the occupied states are mixed after gauge fixing (gf): ψ_gf = |ψ_occ><ψ_occ|�
 init_specifics(::PcdiisType; ψ_ref=nothing, kwargs...) = 
     Dict{Symbol,Any}(:ψ_ref => ψ_ref)
 
-function accelerate(acc::Acceleration{PcdiisType}, xₙ::OrbitalType, fxₙ::OrbitalType, info)
+function accelerate(acc::Acceleration{PcdiisType}, xₙ, fxₙ, info)
     if acc.memory.depth == 0 || acc.memory.errorfactor ≤ 1 || acc.memory.maxcond ≤ 1 || isnothing(xₙ.ψ) || isnothing(xₙ.occupation)
         return fxₙ
     end
@@ -188,7 +188,7 @@ function accelerate(acc::Acceleration{PcdiisType}, xₙ::OrbitalType, fxₙ::Orb
 		fxₙ.ψ[ik] = Matrix(qr(fxₙ.ψ[ik]).Q)
 	end
 
-    fxₙ.ρ = compute_density(info.basis, fxₙ.ψ, fxₙ.occupation)
+    fxₙ.gdensity = compute_density(info.basis, fxₙ.ψ, fxₙ.occupation)
     fxₙ
 end
 
@@ -233,7 +233,7 @@ namely:
 init_specifics(::AndersonType; α::Real=1.0, kwargs...) =
     Dict{Symbol,Any}(:α => α)
 
-function accelerate(acc::Acceleration{AndersonType}, xₙ::DensityType, fxₙ::DensityType, info)
+function accelerate(acc::Acceleration{AndersonType}, xₙ::AbstractArray, fxₙ::AbstractArray, info)
     α = acc.specifics[:α]
     if acc.memory.depth == 0 || acc.memory.errorfactor ≤ 1 || acc.memory.maxcond ≤ 1
         return xₙ + α * (fxₙ - xₙ) # Disables Anderson
@@ -268,6 +268,6 @@ function accelerate(acc::Acceleration{AndersonType}, xₙ::DensityType, fxₙ::D
     end
 
     push!(acc.memory, xₙ, Pfxₙ, norm(Pfxₙ))
-    fxₙ.ρ = reshape(xₙ₊₁, size(fxₙ.ρ))
+    fxₙ = reshape(xₙ₊₁, size(fxₙ))
     return fxₙ
 end
