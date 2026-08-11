@@ -203,3 +203,74 @@ function split_gdensity(basis::PlaneWaveBasis, x::AbstractArray{T, 4}) where {T}
         (x, nothing)
     end
 end
+
+# --- Extension of pack_gdensity/split_gdensity for orbital-carrying accelerators ---
+#
+# Original code (unchanged, still the density-only path used by self_consistent_field's
+# fixpoint_map directly):
+#
+#   pack_gdensity(basis::PlaneWaveBasis, ρ::AbstractArray, τ::Nothing) = ρ
+#   pack_gdensity(basis, ρ::AbstractArray, τ::AbstractArray) = cat(ρ, τ; dims=Val(4))
+#   function split_gdensity(basis::PlaneWaveBasis, x::AbstractArray{T, 4}) where {T}
+#       ... (unpacks the dims=4 cat back into ρ, τ)
+#   end
+#
+# `x` here is a literal dense real array, so ψ (complex, ragged over bands, one block
+# per k-point) cannot be cat'd into it the way ρ/τ are. This is exactly the case the
+# TODO above already anticipates ("Probably a ComponentArray or some form of custom
+# struct is reasonable here") — so we introduce a small container, `GdensityOrbitals`,
+# that wraps the existing dense gdensity array together with ψ, and give it the handful
+# of vector-space operations (+, -, scalar *) that ScfAccelerationSolver's damping step
+# and `Acceleration` need. Julia's `@.`/broadcasting treats plain structs as scalars
+# (they don't subtype AbstractArray), so `β * x + (1-β) * y` dispatches to the methods
+# below as single ops on the whole container — no custom broadcasting machinery needed.
+#
+# Whether ψ is part of the packed state at all is still decided here, via dispatch on
+# `AccelerationType` (`needs_orbitals`), not inside ScfAccelerationSolver.
+
+
+"""
+Packed SCF state for accelerators that need orbitals in addition to the density.
+`gdensity` is exactly what `pack_gdensity(basis, ρ, τ)` already returns (the dims=4
+array); `ψ` is threaded alongside it, one `Matrix{ComplexF64}` block per k-point.
+"""
+mutable struct GdensityOrbitals{Tg<:AbstractArray, Tψ, To}
+    gdensity::Tg
+    ψ::Tψ
+    occupation::To
+end
+
+Base.eltype(x::GdensityOrbitals) = eltype(x.gdensity)
+Base.:+(a::GdensityOrbitals, b::GdensityOrbitals) =
+    GdensityOrbitals(a.gdensity + b.gdensity, a.ψ .+ b.ψ, a.occupation)
+Base.:-(a::GdensityOrbitals, b::GdensityOrbitals) =
+    GdensityOrbitals(a.gdensity - b.gdensity, a.ψ .- b.ψ, a.occupation)
+Base.:*(α::Number, a::GdensityOrbitals) = GdensityOrbitals(α .* a.gdensity, α .* a.ψ, a.occupation)
+Base.:*(a::GdensityOrbitals, α::Number) = α * a
+
+# Density-vs-orbital-augmented packing, selected via `a_type`.
+pack_gdensity(basis, ρ, τ, ψ::AbstractArray, occupation::AbstractArray) =
+    GdensityOrbitals(pack_gdensity(basis, ρ, τ), ψ, occupation)
+
+split_gdensity(basis, x::GdensityOrbitals) =
+    (split_gdensity(basis, x.gdensity)..., x.ψ, x.occupation)
+
+# --- Important caveat, not yet resolved here ---
+#
+# `a.ψ .+ b.ψ` / `α .* a.ψ` above are a *literal, blockwise linear combination of
+# orbital coefficients*. That's fine for `ρ`/`τ` (density is gauge-invariant), but ψ
+# is only defined up to a unitary rotation within each k-point's occupied subspace —
+# so naively summing/scaling ψ across Anderson/PCDIIS history entries without first
+# aligning them to a common gauge (typically by projecting onto some ψ_ref) is not
+# mathematically meaningful, it'll just produce numerical garbage or at best silently
+# reduce the effective acceleration quality.
+#
+# This container deliberately only provides the vector-space *scaffolding* (+, -,
+# scalar *) needed by ScfAccelerationSolver's plain damping fallback (`i < m_start`)
+# and by whatever `Acceleration` does internally. The actual PCDIIS alignment/
+# projection step (computing overlaps with `ψ_ref`, rotating into a consistent gauge
+# before differencing/combining) has to live *inside* `Acceleration(PcdiisType(); ψ_ref, ...)`,
+# operating on `x.ψ`/`residual.ψ` there — it should not be assumed pre-aligned by this
+# packing layer. I'd treat getting that right as the next concrete step before trusting
+# PCDIIS numerics through this path; happy to help design `Acceleration`'s PCDIIS
+# branch once you're ready for it.

@@ -1,4 +1,4 @@
-# This file provides fixed-point solvers that can be passed to `self_consistent_field`
+# This file provides fixed-pointmping
 #
 # The callables subtyping `ScfSolver` must accept being called like
 # `fp_solver(f, x0, info0; maxiter, damping)`, where `f` is the fixed-point map.
@@ -13,7 +13,14 @@
 # with the default convention being that either of these flags leads to termination.
 #
 # The solver must return an object supporting res.fixpoint and res.info
-
+ 
+## `x` is always the *packed generalised density* (see `pack_gdensity`/`split_gdensity`
+## in densities.jl), i.e. a plain array combining `ρ` and (if present) `τ`. Solvers that
+## need more than the density (e.g. PCDIIS, which needs reference orbitals) read that
+## extra state off `info` (in particular `info.ψ` and `info.basis`), which is passed
+## through on every fixed-point call regardless of which solver is used. This keeps a
+## single state representation for all solvers instead of a solver-specific `StateType`.
+ 
 abstract type ScfSolver end
 
 """
@@ -75,11 +82,12 @@ end
 # For the show function, see below
 function (scf::ScfAndersonDensitySolver)(f, x0, info0; maxiter, damping)
     T = eltype(x0)
-    β = convert(T, damping)
+    α = convert(T, damping)
     x = x0
     ρ, _ = split_gdensity(info0.basis, x0)
     info = info0
-    acceleration = AndersonAcceleration(; scf.anderson_kwargs...)
+    #acceleration = AndersonAcceleration(; scf.anderson_kwargs...)
+    acceleration = Acceleration(AndersonType(); α, scf.anderson_kwargs...)
     for i = 1:maxiter
         fx, info = f(x, info)
         if info.converged || info.timedout
@@ -89,12 +97,12 @@ function (scf::ScfAndersonDensitySolver)(f, x0, info0; maxiter, damping)
         fρ, fτ = split_gdensity(info.basis, fx)
         if i < scf.m_start
             @debug "Skipping Anderson acceleration in iteration $i"
-            ρ = @. ρ + β * (fρ - ρ)
+            ρ = @. ρ + α * (fρ - ρ)
         else
             @debug "Using Anderson acceleration in iteration $i"
             # Damp ρ and send it to anderson; τ is just patched through without any changes
-            residual_ρ = fρ - ρ
-            ρ = acceleration(ρ, β, residual_ρ)
+            #residual_ρ = fρ - ρ
+            ρ = acceleration(ρ, fρ, info) #this is a bit ugly, since info is not necessary here, but is needed for Pcdiis
         end
         x = pack_gdensity(info.basis, ρ, fτ)
     end
@@ -127,10 +135,11 @@ function ScfAndersonSolver(; representation=TauVwScaled(), m_start::Integer=1, k
 end
 function (scf::ScfAndersonSolver)(f, x0, info0; maxiter, damping)
     T = eltype(x0)
-    β = convert(T, damping)
+    α = convert(T, damping)
     x = x0
     info = info0
-    acceleration = AndersonAcceleration(; scf.anderson_kwargs...)
+    #acceleration = AndersonAcceleration(; scf.anderson_kwargs...)
+    acceleration = Acceleration(AndersonType(); α, scf.anderson_kwargs...)
     for i = 1:maxiter
         fx, info = f(x, info)
         if info.converged || info.timedout
@@ -141,16 +150,49 @@ function (scf::ScfAndersonSolver)(f, x0, info0; maxiter, damping)
         fx = to_representation!(scf.representation, info.basis, fx)
         if i < scf.m_start
             @debug "Skipping Anderson acceleration in iteration $i"
-            x = @. x + β * (fx - x)
+            x = @. x + α * (fx - x)
         else
             @debug "Using Anderson acceleration in iteration $i"
             # Damp ρ and send it to anderson; τ is just patched through without any changes
-            residual = fx - x
-            x = acceleration(x, β, residual)
+            #residual = fx - x
+            x = acceleration(x, fx, info) #this is a bit ugly, since info is not necessary here, but is needed for Pcdiis
         end
         x = from_representation!(scf.representation, info.basis, x)
     end
     (; fixpoint=x, info)
+end
+
+struct ScfPcdiisSolver{Targs} <: ScfSolver
+    m_start::Int
+    pcdiis_kwargs::Targs
+end
+function ScfPcdiisSolver(; m_start::Integer=1, kwargs...)
+    ScfPcdiisSolver(m_start, kwargs)
+end
+function(scf::ScfPcdiisSolver)(f, x0, info0; maxiter, damping)
+    basis = info0.basis
+    x = pack_gdensity(basis, split_gdensity(basis, x0)..., info0.ψ, info0.occupation)
+    info = info0
+    acceleration = Acceleration(PcdiisType(); scf.pcdiis_kwargs...)
+    for i = 1:maxiter
+        (ρ, τ, _) = split_gdensity(basis, x)
+        fx, info = f(ρ, info)
+        if info.converged || info.timedout
+            break
+        end
+        fx = pack_gdensity(basis, split_gdensity(basis, fx)..., info.ψ, info.occupation)
+
+        if i < scf.m_start
+            @debug "Skipping Pcdiis acceleration in iteration $i"
+            x = fx
+        else
+            @debug "Using Pcdiis acceleration in iteration $i"
+            x = acceleration(x, fx, info)
+        end
+    end
+
+    (ρ, τ, _) = split_gdensity(basis, x)
+    (; fixpoint=pack_gdensity(basis, ρ, τ), info)
 end
 
 struct TauVwScaled; end
@@ -185,101 +227,8 @@ function Base.show(io::IO, scf::Union{ScfAndersonSolver,ScfAndersonDensitySolver
     print(io, ")")
 end
 
+#TODO Base.show(ScfPcdiisSolver)
+
 
 @deprecate scf_damping_solver(; damping=1.0)           ScfDampingSolver()
 @deprecate scf_anderson_solver(; m_start=1, kwargs...) ScfAndersonDensitySolver(; m_start, kwargs...)
-
-@doc raw"""
-General solver function to use with acceleration schemes that take into account
-multiple iterations. This solver accepts any the StateType,
-but AndersonType requires DensityType and PcdiisType requires OrbitalType
-
-## Keyword arguments for any acceleration scheme, affecting history control:
-- `depth::Integer`  (default: `10`) Maximal Accelerator history size
-- `m_start::Integer`(default: `1`)  Start collecting history in the `m_start`th SCF iteration
-- `maxcond::Real`   (default: `1e6`)
-  Maximal condition number of M_ij; a larger value triggers truncation of the
-  older entries in the history.
-- `errorfactor::Real` (default: `1e5`): We follow [^CDLS21] (adaptive Anderson/CDIIS acceleration)
-  and drop iterates, which do not satisfy
-  ```math
-      \|rᵢ\| < \text{errorfactor} minᵢ \|rᵢ\|
-  ```
-  where r denotes the error vector.
-  This means the best way to save memory is to reduce `errorfactor` to `1e3` or `100`,
-  which reduces the effective history size.
-
-## Keyword arguments specific to Anderson acceleration:
-- `α::Real` (default: `1.0`) damping factor, in addition to Anderson acceleration
-
-## Keyword arguments specific to PCDIIS acceleration:
-- `ψ_ref::Vector{Matrix{ComplexF64}}` (default: `nothing`) Reference wave funcitons for PCDIIS
-
-"""
-
-#TODO: Test defaults for errorfactor & maxcond for PCDIIS
-#TODO: Implementing an approtiate nbandsalg for PCDIIS. 
-function scf_accelerated_solver(; a_type::AccelerationType=AndersonType(), m_start::Integer=1, kwargs...)
-    function accelerated_solver(f, x0::StateType, info0; maxiter)
-        x = x0
-        info = info0
-        acceleration = Acceleration(a_type; kwargs...)
-        for i = 1:maxiter
-            fx, info = f(x, info)
-            if info.converged || info.timedout
-                break
-            end
-            if i < m_start
-                @debug "Skipping acceleration in iteration $i"
-                x = fx
-            else
-                @debug "Using acceleration in iteration $i"
-                x = acceleration(x, fx, info)
-            end
-        end
-        (; fixpoint=x, info)
-    end
-end
-
-#################### BELOW OLD SOLVER FUNCTION STILL KEPT FOR TESTING ####################
-
-@doc raw"""
-Create a Pcdiis-accelerated SCF solver for the [`self_consistent_field`](@ref) solver.
-This also changes info.ψ!
-
-## Keyword arguments for any acceleration scheme affecting history control
-- `depth::Integer`  (default: `10`) Maximal Accelerator history size
-- `m_start::Integer`(default: `1`)  Start collecting history in the `m_start`th SCF iteration
-
-[^HLY17]: Hu, Lin, Yang. Journal of chemical theory and computation **13.11**, 5458-5467 (2017) DOI [10.1021/acs.jctc.7b00892](https://doi.org/10.1021/acs.jctc.7b00892) 
-"""
-
-#to be replaced by the accelerated solver above
-function scf_pcdiis_solver(; m_start::Integer=1, ψ_ref=Vector{Matrix{ComplexF64}}(), ψ_res=Vector{Matrix{ComplexF64}}(), on_history = nothing, fock=nothing, nb=0, basis_in=nothing, kwargs...)
-    function pcdiis(f, x0, info0; maxiter)
-        x = x0
-        info = info0
-
-	    acceleration = PcdiisAcceleration(; ψ_ref=ψ_ref, ψ_res=ψ_res, nb=nb, kwargs...)
-        for i = 1:maxiter
-            fx, finfo = f(x, info)
-
-            if finfo.converged || finfo.timedout
-		        info = finfo
-                break
-            end
-
-            if i < m_start
-                @debug "Skipping Pcdiis acceleration in iteration $i"
-                x = fx
-		        info = finfo
-            else 
-                @debug "Using Pcdiis acceleration in iteration $i"
-		        x, info = acceleration(fx, info, finfo)
-            end
-        end
-	    isnothing(on_history) || on_history(acceleration.history)
-        isnothing(fock) || append!(fock, acceleration.fock)
-        (; fixpoint=x, info)
-    end
-end
