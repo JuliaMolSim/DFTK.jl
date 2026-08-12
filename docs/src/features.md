@@ -5,7 +5,7 @@ Our code has a performance comparable to standard DFT codes
 and runs out of the box on Linux, Windows and macOS, see [Installation](@ref).
 DFTK agrees very well with standard codes,
 see [the recent verification dataset by Bosoni and others](https://acwf-verification.materialscloud.org/)
-on unary compounds and oxides cross the periodic table.
+on unary compounds and oxides across the periodic table.
 
 ## Standard methods and models
 - **LDA**, **GGA**, **meta-GGA** DFT functionals; any functional from the 
