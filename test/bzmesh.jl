@@ -83,6 +83,7 @@ end
 
 @testitem "standardize_atoms" setup=[TestCases] begin
     using AtomsBase
+    using DFTK: standardize_atoms
     silicon = TestCases.silicon
 
     # Test unperturbed structure

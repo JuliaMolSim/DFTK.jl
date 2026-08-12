@@ -1,3 +1,27 @@
+# Calculation of phonons from DFPT.
+#
+# This implementation relies on time-reversal symmetry in the following way.
+# A real perturbation at wavevector q has two complex Fourier components,
+# δV(r) = δVq e^{iq·r} + δVq* e^{-iq·r}. Each Bloch state ψk acquires a response
+# δψk = δψk+ + δψk- with two pieces: δψk+ at momentum k+q, and δψk- at momentum k-q.
+# Differentiating ρ = ∑_k fk |ψk|² gives
+#   δρ = ∑_k fk (ψk* δψk + δψk* ψk).
+# Because of the δψk*, everything is coupled: one cannot just
+# separate the + and - parts, and would need two Sternheimer solves.
+# More abstractly, the map δV -> δρ that one gets naively by
+# δρ = ∑_k fk (ψk* δψk + δψk* ψk) is R-linear but not C-linear
+# so it's not valid to close our eyes and take δVq e^{iq·r} as a perturbation
+# (similar structure to Casida equations in TDDFT).
+
+# Under time-reversal symmetry (TRS) however, the contribution to δρ of +k and -k are linked:
+# δψk+ = (δψ(-k)-)*.
+# so
+# δρ = 2 ∑_k fk (ψk* δψk) (this is the central equation)
+# In this form, the map δV -> δρ becomes complex-linear and only one Sternheimer per kpoint is needed
+# Without TRS this fails and one needs two Sternheimer (see
+# JuliaMolSim/DFTK.jl#1310 and eg Dal Corso,
+# https://arxiv.org/abs/1906.11673).
+
 # Convert to Cartesian a dynamical matrix in reduced coordinates.
 function dynmat_red_to_cart(model::Model, dynmat)
     inv_lattice = model.inv_lattice
@@ -71,22 +95,20 @@ in reduced coordinates.
 @timing function compute_dynmat(basis::PlaneWaveBasis{T}, ψ, occupation; q=zero(Vec3{T}),
                                 ρ=nothing, ham=nothing, εF=nothing, eigenvalues=nothing,
                                 kwargs...) where {T}
+    # The phonon response solver assumes time-reversal symmetry: the trick used
+    # to compute δρ from a single Sternheimer equation at +q (instead of one at
+    # +q and one at -q) is only valid under TRS. See the discussion in
+    # JuliaMolSim/DFTK.jl#1310 and Dal Corso, https://arxiv.org/abs/1906.11673.
+    @assert !any(breaks_time_reversal_symmetry, basis.model.term_types) (
+        "Phonons are currently only implemented in the presence of time-reversal-symmetry.")
     n_atoms = length(basis.model.positions)
-    δρs = [zeros(complex(T), basis.fft_size..., basis.model.n_spin_components)
-           for _ = 1:3, _ = 1:n_atoms]
-    δoccupations = [zero.(occupation) for _ = 1:3, _ = 1:n_atoms]
-    δψs = [zero.(ψ) for _ = 1:3, _ = 1:n_atoms]
-    for s = 1:n_atoms, α = 1:basis.model.n_dim
-        # Get δH ψ
+    responses = map(Iterators.product(1:3, 1:n_atoms)) do (α, s)
         δHψs_αs = compute_δHψ_αs(basis, ψ, α, s, q)
-        isnothing(δHψs_αs) && continue
-        # Response solver to get δψ
-        (; δψ, δρ, δoccupation) = solve_ΩplusK_split(ham, ρ, ψ, occupation, εF, eigenvalues,
-                                                     δHψs_αs; q, kwargs...)
-        δoccupations[α, s] = δoccupation
-        δρs[α, s] = δρ
-        δψs[α, s] = δψ
+        solve_ΩplusK_split(ham, ρ, ψ, occupation, εF, eigenvalues, δHψs_αs; q, kwargs...)
     end
+    δψs          = map(res -> res.δψ,          responses)
+    δρs          = map(res -> res.δρ,          responses)
+    δoccupations = map(res -> res.δoccupation, responses)
     # Query each energy term for their contribution to the dynamical matrix.
     dynmats_per_term = [compute_dynmat(term, basis, ψ, occupation; ρ, δψs, δρs,
                                        δoccupations, q)
@@ -100,8 +122,9 @@ displacement ``e^{iq·r}`` of the ``α`` coordinate of atom ``s``.
 `δHψ[ik]` is ``δH·ψ_{k-q}``, expressed in `basis.kpoints[ik]`.
 """
 @timing function compute_δHψ_αs(basis::PlaneWaveBasis, ψ, α, s, q)
+    α > basis.model.n_dim && return zero.(ψ)
     δHψ_per_term = [compute_δHψ_αs(term, basis, ψ, α, s, q) for term in basis.terms]
     filter!(!isnothing, δHψ_per_term)
-    isempty(δHψ_per_term) && return nothing
+    isempty(δHψ_per_term) && return zero.(ψ)
     sum(δHψ_per_term)
 end

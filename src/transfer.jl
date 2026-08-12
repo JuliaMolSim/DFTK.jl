@@ -52,9 +52,10 @@ function transfer_mapping(basis_in::PlaneWaveBasis,  kpt_in::Kpoint,
 
     idcs_in  = 1:length(G_vectors(basis_in, kpt_in))  # All entries from idcs_in
     kpt_in == kpt_out && return idcs_in, idcs_in
+    Gvec_in = to_cpu(G_vectors(basis_in, kpt_in))  # not GPU-friendly, so move to CPU, work there and convert back at the end
 
     # Get indices of the G vectors of the old basis inside the new basis.
-    idcs_out = index_G_vectors.(Ref(basis_out), G_vectors(basis_in, kpt_in) .- Ref(ΔG))
+    idcs_out = index_G_vectors.(Ref(basis_out), Gvec_in .- Ref(ΔG))
 
     # In the case where G_vectors(basis_in.kpoints[ik]) are bigger than vectors
     # in the fft_size box of basis_out, we need to filter out the "nothings" to
@@ -75,7 +76,10 @@ function transfer_mapping(basis_in::PlaneWaveBasis,  kpt_in::Kpoint,
         idcs_out = idcs_out[idcs_out .!= nothing]
     end
 
-    idcs_in, idcs_out
+    # the nothings have been filtered out
+    idcs_in_finally = to_device(basis_in.architecture, Vector{Int}(idcs_in))
+    idcs_out_finally = to_device(basis_out.architecture, Vector{Int}(idcs_out))
+    idcs_in_finally, idcs_out_finally
 end
 
 """
@@ -211,15 +215,17 @@ element of `basis.kpoints` equivalent to ``k-q``.
 """
 @views function multiply_ψ_by_blochwave(basis::PlaneWaveBasis{T}, ψ, f_real, q=zero(Vec3{T})) where {T}
     fψ = zero.(ψ)
+    real_buffer = similar(f_real, Complex{T}, basis.fft_size...)
+    norm = basis.fft_grid.fft_normalization * basis.fft_grid.ifft_normalization
     # First, express ψ_{[k-q]} in the basis of k-q points…
     ψ_minus_q = transfer_blochwave_equivalent_to_actual(basis, ψ, -q)
     for (ik, kpt) in enumerate(basis.kpoints)
         # … then perform the multiplication with f in real space and get the Fourier
         # coefficients.
         for n = 1:size(ψ[ik], 2)
-            fψ[ik][:, n] = fft(basis, kpt,
-                               ifft(basis, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk[:, n])
-                                 .* f_real[:, :, :, kpt.spin])
+            ifft!(real_buffer, basis, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk[:, n]; normalize=false)
+            real_buffer .*= f_real[:, :, :, kpt.spin] .* norm
+            fft!(fψ[ik][:, n], basis, kpt, real_buffer; normalize=false)
         end
     end
     fψ

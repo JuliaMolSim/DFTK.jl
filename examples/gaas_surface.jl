@@ -33,12 +33,13 @@ d_vacuum = maximum(maximum, surface.cell) / n_GaAs * n_vacuum
 surface = ase.build.surface(gaas, miller, n_GaAs, d_vacuum, periodic=true);
 
 # Write an image of the surface and embed it as a nice illustration:
-ase.io.write("surface.png", surface * pytuple((3, 3, 1)), rotation="-90x, 30y, -75z")
+# ```python
+# ase.io.write("gaas_surface.png", surface * pytuple((3, 3, 1)), rotation="-90x, 30y, -75z")
+# ```
 
-#md # ```@raw html
-#md # <img src="../surface.png" width=500 height=500 />
-#md # ```
-#nb # <img src="https://docs.dftk.org/stable/surface.png" width=500 height=500 />
+# ```@raw html
+# <img src="../../assets/gaas_surface.png" width=500 height=500 />
+# ```
 
 # Use the `pyconvert` function from `PythonCall` to convert the ASE atoms
 # to an AtomsBase-compatible system.

@@ -83,7 +83,7 @@
 #
 # It turns out that for the largest chunk of cases the eigenvalues of
 # $\varepsilon^\dagger$ are positive. Moreover near a local minimiser
-# $\varepsilon^\dagger$ always has non-degative spectrum.
+# $\varepsilon^\dagger$ always has non-negative spectrum.
 #
 # To make the SCF converge one can therefore:
 # - Choose $\alpha$ small enough. Even for $P = I$ this always works, but convergence can be painfully slow. (see e.g. the proof in [^HL2022])
@@ -124,7 +124,7 @@
 using DFTK
 using LinearAlgebra
 
-function fixed_point_iteration(F, ρ0, info0; maxiter, tol=1e-10)
+function fixed_point_iteration(F, ρ0, info0; maxiter, damping, tol=1e-10)
     ## F:        The SCF step function
     ## ρ0:       The initial guess density
     ## info0:    The initial metadata
@@ -186,9 +186,12 @@ self_consistent_field(aluminium_setup(1); solver=fixed_point_iteration, damping=
 #
 # !!! tip "Exercise 1"
 #     Modify `fixed_point_iteration` such that it supports this *damped*
-#     fixed-point iteration. In other words implement damping *inside* your
-#     algorithm and not by changing the `damping` parameter of the
-#     [`self_consistent_field`](@ref) function driving the SCF.  
+#     fixed-point iteration. In other words use the damping value
+#     passed to `fixed_point_iteration` via the `damping` keyword argument
+#     to implement the above iterations. You can than change the employed damping
+#     by modifying the `damping` parameter of the
+#     [`self_consistent_field`](@ref) function driving the SCF,
+#     which will effectively be passed through to `fixed_point_iteration`.
 #
 #     Using your algorithm try different values for $\alpha$ between $0$ and
 #     $1$ and estimate roughly the $\alpha$ which gives fastest convergence.
@@ -222,7 +225,7 @@ self_consistent_field(aluminium_setup(1); solver=fixed_point_iteration, damping=
 # ```
 # In terms of an algorithm Anderson iteration is
 
-function anderson_iteration(F, ρ0, info0; maxiter)
+function anderson_iteration(F, ρ0, info0; maxiter, damping)
     ## F:        The SCF step function
     ## ρ0:       The initial guess density
     ## info0:    The initial metadata
@@ -237,7 +240,7 @@ function anderson_iteration(F, ρ0, info0; maxiter)
         if info.converged
             break
         end
-        Rρ = Fρ - ρ
+        Rρ = damping * (Fρ - ρ)
 
         ρnext = vec(ρ) .+ vec(Rρ)
         if !isempty(Rs)
@@ -270,7 +273,7 @@ end;
 # to choose a damping of $\alpha = 0.8$ and run for at most `maxiter` iterations.
 #
 # !!! tip "Exercise 2"
-#     Based on this Anderson implementation verify (by making a few experiments) that the algorithm converges for `repeat=1` for any $0 < \alpha \leq 2$. You may now use the `damping` parameter for changing the value $\alpha$ used by the SCF. State the number of iterations and runtimes you observe.
+#     Based on this Anderson implementation verify (by making a few experiments) that the algorithm converges for `repeat=1` for any $0 < \alpha \leq 2$. Use the `damping` parameter for changing the value $\alpha$ used by the SCF. State the number of iterations and runtimes you observe.
 #
 # !!! tip "Exercise 3"
 #     Pick $\alpha = 0.8$ and make the problem harder by increasing `repeat` (e.g. `2`, `4`, `6`, `8`). Can you make Anderson fail to converge? What do you notice in terms of the number of iterations and runtimes?
@@ -309,7 +312,7 @@ end;
 # ```math
 # \lim_{q\to0} \chi_0(q) \simeq -D.
 # ```
-# Therefore as one treats larger and larger metallic systems, smaller wavelengths $q$ become accessible in the discretised problem, which causes $\lambda_\text{max}$ to increase --- in theory quadratically with system size. This phaenomenon, known as **charge sloshing** makes it difficult to treat large metallic systems without proper preconditioning.
+# Therefore as one treats larger and larger metallic systems, smaller wavelengths $q$ become accessible in the discretised problem, which causes $\lambda_\text{max}$ to increase --- in theory quadratically with system size. This phenomenon, known as **charge sloshing** makes it difficult to treat large metallic systems without proper preconditioning.
 # 
 # In contrast for **insulators** and **semiconductors** a good approximation of $\chi_0(q)$ for small $q$ is $-q^T \sigma_0 q$, where $\sigma_0$ is a material-dependent symmetric positive matrix. Therefore the $1/q^2$ instability is compensated and treating larger cells is less difficult.
 
@@ -374,8 +377,7 @@ plot!(p, x -> ε(χ0_SiO2, x),  label="silica (SiO₂)", ls=:dashdot)
 #
 # Note that $\chi_0(r, r')$ has unit-cell internal fluctuations, but is overall diagonal dominant
 #
-#md # <img src="chi0.png" width=400 />
-#nb # <img src="https://docs.dftk.org/stable/guide/chi0.png" width=400 />
+# <img src="chi0.png" width=400 />
 #
 # Starting from the Adler-Wiser formula
 # ```math

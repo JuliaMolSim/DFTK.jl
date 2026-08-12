@@ -21,7 +21,8 @@ function plot_bandstructure(band_data::NamedTuple;
                             unit=u"hartree", kwargs_plot=(; ), kwargs...)
     # TODO Replace by a plot recipe once BandData is its own type.
 
-    mpi_nprocs() > 1 && error("Band structure plotting with MPI not supported yet")
+    mpi_nprocs(band_data.basis.comm_kpts) > 1 &&
+        error("Band structure plotting with MPI not supported yet")
 
     if !haskey(band_data, :kinter)
         @warn("Calling plot_bandstructure without first computing the band data " *

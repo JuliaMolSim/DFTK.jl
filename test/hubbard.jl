@@ -88,8 +88,8 @@ end
                   [ 0.5  1.0  0.5];
                   [ 0.5  0.5  1.0]]
    pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
-   Ni = ElementPsp(:Ni, pseudopotentials)
-   O = ElementPsp(:O, pseudopotentials)
+   Ni = ElementPsp(:Ni, pseudopotentials; rcut=10.0)  # QuantumEspresso rcut value
+   O = ElementPsp(:O, pseudopotentials; rcut=10.0)    # QuantumEspresso rcut value
    atoms = [Ni, O, Ni, O]
    positions = [[0.0, 0.0, 0.0],
                 [0.25, 0.25, 0.25],
@@ -98,28 +98,29 @@ end
    magnetic_moments = [2, 0, -1, 0]
 
    # Hubbard parameters
-   U        = 10u"eV"
-   manifold = OrbitalManifold(Ni, "3D")
+   hubbard = Hubbard(OrbitalManifold(Ni, "3D") => 10u"eV")
    
    model = model_DFT(lattice, atoms, positions; 
-                     extra_terms=[Hubbard(manifold => U)],
+                     extra_terms=[hubbard],
                      temperature=0.01, functionals=PBE(),
-                     smearing=DFTK.Smearing.Gaussian(), magnetic_moments=magnetic_moments)
+                     smearing=DFTK.Smearing.Gaussian(), magnetic_moments)
    basis = PlaneWaveBasis(model; Ecut = 15, kgrid = [2, 2, 2])
    ρ0 = guess_density(basis, magnetic_moments)
    scfres = self_consistent_field(basis; tol=1e-10, ρ=ρ0)
    
    @testset "Test Energy results" begin
         # The reference values are obtained with first released version
-        # of the Hubbard code and are in good agreement with Quantum Espresso
-        ref = -354.907446880021
+        # of the Hubbard code in DFTK and are in good reasonable agreement with Quantum Espresso
+        # but at this supersampling the nlcc core density is badly aliased (~10mHa on the total energy),
+        # and the comparison should not be trusted too much
+        ref = -354.91625589331755
         e_total = scfres.energies.total
         @test e_total ≈ ref
-        ref_hub = 0.17629078433258719
+        ref_hub = 0.17631957087331435
         @test scfres.energies.Hubbard ≈ ref_hub
    end
    # The unfolding of the kpoints is not supported with MPI
-   if mpi_nprocs() == 1
+   if mpi_nprocs(basis.comm_kpts) == 1
         @testset "Test symmetry consistency" begin
              n_hub = scfres.hubbard_n
              scfres_nosym = DFTK.unfold_bz(scfres)

@@ -1,5 +1,7 @@
 # # Geometry optimization
 #
+# ## Fixed cell
+#
 # We use DFTK and the [GeometryOptimization](https://github.com/JuliaMolSim/GeometryOptimization.jl/)
 # package to find the minimal-energy bond length of the ``H_2`` molecule.
 # First we set up an appropriate `DFTKCalculator` (see [AtomsCalculators integration](@ref)),
@@ -51,12 +53,57 @@ results.system
 rmin = norm(position(results.system[1]) - position(results.system[2]))
 println("Optimal bond length: ", rmin)
 
-# Our results (1.486 Bohr) agrees with the
+# Our result (1.486 Bohr) agrees with the
 # [equivalent tutorial from ABINIT](https://docs.abinit.org/tutorial/base1/).
+
+# ## Variable cell
+# Recent versions of [GeometryOptimization](https://github.com/JuliaMolSim/GeometryOptimization.jl/)
+# support cell optimization as well by passing `variablecell=true` to `minimize_energy!`.
 #
-# !!! tip "Cell optimisations"
-#     Recent versions of [GeometryOptimization](https://github.com/JuliaMolSim/GeometryOptimization.jl/)
-#     support cell shape optimisations as well by passing `variablecell=true` to `minimize_energy!`.
-#     See the
-#     [GeometryOptimization documentation](https://juliamolsim.github.io/GeometryOptimization.jl/stable/examples/variablecell/)
-#     for an example.
+# For a plane-wave code like DFTK, variable cells pose an additional challenge:
+# changes to the cell's size affect the used plane waves,
+# leading to discontinuities in the energy and stresses.
+# This can cause the geometry optimization to struggle and/or fail to converge.
+#
+# A practical strategy to overcome this problem is [Energy cutoff smearing](@ref).
+# As a demonstration let us find the optimal lattice constant of silicon.
+#
+# Like before we define a calculator, this time with a `kinetic_blowup` set
+# to use energy cutoff smearing:
+
+calc = DFTKCalculator(;
+    model_kwargs = (; functionals=LDA(), pseudopotentials,
+                      kinetic_blowup=BlowupCHV()),
+    basis_kwargs = (; kgrid=[2, 2, 2], Ecut=10)
+)
+
+# And here is our starting silicon structure:
+
+a = 10.0u"bohr"   # Approximate Silicon lattice constant
+cell_vectors = a/2 * [[0, 1, 1], [1, 0, 1], [1, 1, 0]]
+initial_silicon = periodic_system([:Si =>  ones(3)/8,
+                                   :Si => -ones(3)/8],
+                                  cell_vectors;
+                                  fractional=true)
+
+# We now minimize, passing `variablecell=true`:
+
+using GeometryOptimization
+results = minimize_energy!(initial_silicon, calc; variablecell=true,
+                           tol_virial=2e-6, verbosity=2)
+nothing  # hide
+
+# Structure after optimization
+
+results.system
+
+# Since here the cell was rescaled but its shape did not change,
+# we directly extract the optimal lattice constant from one of the cell vectors:
+
+using AtomsBase
+amin = AtomsBase.cell_vectors(results.system)[1][2]*2
+println("Optimal lattice constant: ", amin)
+
+# Note that while for silicon the positions of the atoms are fixed by symmetry,
+# in general a variable cell optimization will try to optimize both
+# the cell and the positions of the individual atoms.

@@ -11,9 +11,10 @@ permissions:
 
 jobs:
   CompatHelper:
+    if: github.repository_owner == 'JuliaMolSim'
     runs-on: ubuntu-latest
     steps:
-      - uses: julia-actions/setup-julia@v2
+      - uses: julia-actions/setup-julia@v3
         with:
           version: '1'
       - name: Pkg.add("CompatHelper")

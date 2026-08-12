@@ -1,5 +1,6 @@
 import FFTW
 using LinearAlgebra
+using MPI
 
 """
 Setup the number of threads used by DFTK's own threading (`n_DFTK`), by BLAS (`n_blas`) 
@@ -12,7 +13,7 @@ function setup_threading(; n_fft=1, n_blas=Threads.nthreads(), n_DFTK=Threads.nt
     set_DFTK_threads!(n_DFTK)
     FFTW.set_num_threads(n_fft)
     BLAS.set_num_threads(n_blas)
-    mpi_master() && @info "Threading setup: " Threads.nthreads() n_DFTK n_fft n_blas
+    mpi_master(MPI.COMM_WORLD) && @info "Threading setup: " Threads.nthreads() n_DFTK n_fft n_blas
 end
 
 """

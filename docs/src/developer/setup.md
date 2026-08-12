@@ -58,3 +58,40 @@ At the time of writing dropping a file `LocalPreferences.toml` in DFTK's root fo
 [DFTK]
 precompile_workload = false
 ```
+
+## Building documentation
+
+To build the documentation locally run:
+```bash
+julia --project=docs docs/make.jl
+```
+
+The documentation build uses [Literate.jl](https://github.com/fredrikekre/Literate.jl)
+to process `.jl` files containing examples. By default all examples are executed,
+which can take a long time. For faster iteration during development,
+several mechanisms are available.
+
+**Automatic caching:**
+Files that have not changed since the last build (based on modification time)
+are automatically skipped. This means re-running `make.jl` after making changes
+to a single file will only re-execute that file.
+
+**Selective file execution:**
+To only execute specific files, edit the `JL_FILES_TO_EXECUTE` variable
+at the top of `docs/make.jl`:
+```julia
+JL_FILES_TO_EXECUTE = [
+    "guide/tutorial.jl",
+    "examples/arbitrary_floattype.jl",
+]
+```
+Set it back to `:ALL` to execute all files.
+
+**Draft mode:**
+For the fastest builds (e.g., when only editing text or structure),
+uncomment the `draft=true` line in the `makedocs` call in `docs/make.jl`.
+This tells Documenter to skip executing code blocks in `.md` files.
+
+**Debug mode:**
+For verbose output during the build, set `DEBUG = true` at the top of `docs/make.jl`.
+This enables `@debug` log messages showing which files are processed or skipped.

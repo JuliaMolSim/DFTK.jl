@@ -1,7 +1,6 @@
 # [DFTK features](@id package-features)
 
-The following lists the functionality of DFTK
-achieved in **less than 10 000 lines** of code.
+The following lists the functionality of DFTK achieved in about **10k lines** of code.
 Our code has a performance comparable to standard DFT codes
 and runs out of the box on Linux, Windows and macOS, see [Installation](@ref).
 DFTK agrees very well with standard codes,
@@ -9,11 +8,12 @@ see [the recent verification dataset by Bosoni and others](https://acwf-verifica
 on unary compounds and oxides cross the periodic table.
 
 ## Standard methods and models
-- Any DFT exchange-correlation functional from the [libxc](https://libxc.gitlab.io/) library
-  at the LDA, GGA, meta-GGA level.
+- **LDA**, **GGA**, **meta-GGA** DFT functionals; any functional from the 
+  [libxc](https://libxc.gitlab.io/) library is supported.
 - [Hubbard correction (DFT+U)](@ref).
+- [Exact exchange and Hybrid DFT](@ref) *(preliminary implementation)*
 - **Norm-conserving pseudopotentials**: Goedecker-type (GTH)
-  or numerical (in UPF pseudopotential format),
+  or numerical (in UPF or PSP8 pseudopotential format),
   see [Pseudopotentials](@ref).
 - Collinear spin, see [Collinear spin and magnetic systems](@ref).
 - **Black-box self-consistent field approaches**, such as
@@ -32,13 +32,14 @@ on unary compounds and oxides cross the periodic table.
 ## Ground-state properties and post-processing
 - Total energy, forces, stresses
 - Density of states (DOS), local density of states (LDOS), projected density of states (PDOS)
-- Band structures
+- Band structures, see [Tutorial](@ref)
 - [Geometry optimization](@ref)
 - Easy access to all intermediate quantities (e.g. density, Bloch waves)
 
 ## Response and response properties
-- Density-functional perturbation theory (DFPT)
-- Integration of DFPT with **algorithmic differentiation**,
+- **Density-functional perturbation theory** (DFPT)
+- Integration of DFPT with **algorithmic differentiation**
+  **([AD-DFPT](https://doi.org/10.1038/s41524-025-01880-3))**,
   e.g. [Elastic constants](@ref),
   [Polarizability using automatic differentiation](@ref)
 - [Phonon computations](@ref) *(preliminary implementation)*
@@ -48,7 +49,7 @@ on unary compounds and oxides cross the periodic table.
   including `Float32` (single precision)
   or `Double64` (from [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)).
 - Forward-mode algorithmic differentiation
-  (see [Polarizability using automatic differentiation](@ref))
+  (see [Elastic constants](@ref))
 - Flexibility to **build your own Kohn-Sham model**:
   Anything from [analytic potentials](@ref custom-potential),
   linear [Cohen-Bergstresser model](@ref),

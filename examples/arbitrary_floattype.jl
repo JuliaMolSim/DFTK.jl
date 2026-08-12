@@ -4,12 +4,9 @@
 # in its routines, there is no reason to perform the computation
 # using double-precision arithmetic (i.e.`Float64`).
 # Other floating-point types such as `Float32` (single precision)
-# are readily supported as well.
-# On top of that we already reported[^HLC2020] calculations
-# in DFTK using elevated precision
-# from [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)
-# or interval arithmetic
-# using [IntervalArithmetic.jl](https://github.com/JuliaIntervals/IntervalArithmetic.jl).
+# or elevated precision using
+# [DoubleFloats.jl](https://github.com/JuliaMath/DoubleFloats.jl)
+# are supported as well.
 # In this example, however, we will concentrate on single-precision
 # computations with `Float32`.
 #
@@ -19,10 +16,6 @@
 # Apart from setting up the model with an explicit cast of the lattice
 # vectors to `Float32`, there is thus no change in user code required:
 #
-# [^HLC2020]:
-#     M. F. Herbst, A. Levitt, E. Cancès.
-#     *A posteriori error estimation for the non-self-consistent Kohn-Sham equations*
-#     [ArXiv 2004.13549](https://arxiv.org/abs/2004.13549)
 
 using DFTK
 using PseudoPotentialData

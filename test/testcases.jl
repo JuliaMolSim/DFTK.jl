@@ -30,6 +30,22 @@ silicon = (;
 silicon = merge(silicon,
                 (; atoms=fill(ElementPsp(silicon.atnum, load_psp(silicon.psp_gth)), 2)))
 
+diamond = (;
+    lattice = [0.0  3.3703265432700613 3.3703265432700613;
+               3.3703265432700613 0.0 3.3703265432700613;
+               3.3703265432700613 3.3703265432700613  0.0],
+    atnum = 6,
+    mass = 12.011u"u",
+    n_electrons = 8,
+    temperature = 0.0,
+    is_metal = false,
+    psp_gth = gth_lda_semi[:C],
+    psp_upf = pd_lda_family[:C],
+    positions = [ones(3)/8, -ones(3)/8],
+)
+diamond = merge(diamond,
+                (; atoms=fill(ElementPsp(diamond.atnum, load_psp(diamond.psp_gth)), 2)))
+
 magnesium = (;
     lattice = [-3.0179389205999998 -3.0179389205999998 0.0000000000000000;
                -5.2272235447000002 5.2272235447000002 0.0000000000000000;
@@ -133,6 +149,41 @@ o2molecule = merge(o2molecule,
                    (; atoms=fill(ElementPsp(o2molecule.atnum,
                                             load_psp(o2molecule.psp_gth)), 2)))
 
+#
+# Useful structures (less symmetry)
+#
+
+antimony_rhombohedral = (;
+    lattice = [7.468468115347973  7.468468115347973 5.211271670389704;
+               -4.105825091165918 4.105825091165918 0.0;
+               0.0                0.0               6.743772182288679],
+    positions = [[-0.233, -0.233, -0.233],
+                 [0.233, 0.233, 0.233]],
+    atoms = fill(ElementPsp(:Sb, gth_lda_semi), 2),
+)
+
+tin_tetragonal = (;
+    lattice = [-5.499103022660991  5.499103022660991 5.499103022660991;
+                5.499103022660991 -5.499103022660991 5.499103022660991;
+                3.002510250372901  3.002510250372901 -3.002510250372901],
+    positions = [[0.0, 0.0, 0.0], [0.25, 0.75, 0.5]],
+    atoms = fill(ElementPsp(:Sn, gth_lda_semi), 2),
+)
+
+gallium_orthorhombic = (;
+    lattice = diagm([5.20353, 16.8141, 5.8631]),
+    positions = [[0.5, 0.631715, 0.25],
+                 [0.0, 0.868285, 0.75],
+                 [0.0, 0.131715, 0.25],
+                 [0.5, 0.368285, 0.75]],
+    atoms = fill(ElementPsp(:Ga, gth_lda_semi), 4),
+)
+
+#
+# Collection of all structures
+#
+
 all_testcases = (; silicon, magnesium, aluminium, aluminium_primitive, platinum_hcp,
-                 iron_bcc, o2molecule)
+                 iron_bcc, o2molecule, antimony_rhombohedral, tin_tetragonal,
+                 gallium_orthorhombic)
 end

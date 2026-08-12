@@ -2,6 +2,7 @@ module DFTKCUDAExt
 using CUDA
 using PrecompileTools
 import DFTK: CPU, GPU, DispatchFunctional, precompilation_workflow
+import DFTK: LibxcDispatchFloat, LibxcDispatchFloatEnergy, energy_density
 using DftFunctionals
 using DFTK
 using Libxc
@@ -13,12 +14,14 @@ function DFTK.memory_usage(::GPU{<:CUDA.CuArray})
     merge(DFTK.memory_usage(CPU()), (; gpu=CUDA.memory_stats().live))
 end
 
-for fun in (:potential_terms, :kernel_terms)
-    @eval function DftFunctionals.$fun(fun::DispatchFunctional,
-                                       ρ::CUDA.CuMatrix{Float64}, args...)
-        @assert Libxc.has_cuda()
-        $fun(fun.inner, ρ, args...)
-    end
+function DftFunctionals.potential_terms(fun::DispatchFunctional,
+                                        ρ::CUDA.CuMatrix{<:LibxcDispatchFloat}, args...)
+    @assert Libxc.has_cuda()
+    potential_terms(fun.inner, ρ, args...)
+end
+function DftFunctionals.energy_density(fun::DispatchFunctional, ρ::CUDA.CuMatrix{<:LibxcDispatchFloatEnergy}, args...)
+    @assert Libxc.has_cuda()
+    energy_density(fun.inner, ρ, args...)
 end
 
 # Ensure DFTK's custom ForwardDiff rule for FFTs is used.
@@ -29,7 +32,9 @@ function Base.:*(p::CUFFT.CuFFTPlan{T,S,K,false},
 end
 
 # Insure pre-compilation can proceed without error (old Julia/packages versions)
-if Libxc.has_cuda() && !isnothing(Base.get_extension(Libxc, :LibxcCudaExt))
+# CUDA pre-compilation is currently broken on Julia 1.10,
+# see https://github.com/JuliaMolSim/DFTK.jl/issues/1278
+if Libxc.has_cuda() && !isnothing(Base.get_extension(Libxc, :LibxcCudaExt)) && VERSION ≥ v"1.11"
 
     # Precompilation block with a basic workflow
     @setup_workload begin
@@ -38,7 +43,7 @@ if Libxc.has_cuda() && !isnothing(Base.get_extension(Libxc, :LibxcCudaExt))
         lattice = a / 2 * [[0 1 1.];
                            [1 0 1.];
                            [1 1 0.]]
-        pseudofile = joinpath(@__DIR__, "..", "test", "gth_pseudos", "Si.pbe-hgh.upf")
+        pseudofile = joinpath(@__DIR__, "..", "test", "pseudos", "gth", "Si.pbe-hgh.upf")
         Si = ElementPsp(:Si, Dict(:Si => pseudofile))
         atoms     = [Si, Si]
         positions = [ones(3)/8, -ones(3)/8]

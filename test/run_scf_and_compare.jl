@@ -4,13 +4,18 @@ using DFTK
 using DFTK: mpi_sum
 
 function run_scf_and_compare(T, basis, ref_evals, ref_etot; n_ignored=0, test_tol=1e-6,
-                             scf_ene_tol=1e-6, test_etot=true, kwargs...)
+                             scf_ene_tol=1e-6, scf_dens_tol=nothing, test_etot=true, kwargs...)
     n_kpt    = length(ref_evals)
     n_bands  = length(ref_evals[1])
     kpt_done = zeros(Bool, n_kpt)
 
     nbandsalg    = AdaptiveBands(basis.model, n_bands_converge=n_bands)
-    is_converged = DFTK.ScfConvergenceEnergy(scf_ene_tol)
+    if !isnothing(scf_dens_tol)
+        is_converged = DFTK.ScfConvergenceDensity(scf_dens_tol)
+    else
+        @assert !isnothing(scf_ene_tol)
+        is_converged = DFTK.ScfConvergenceEnergy(scf_ene_tol)
+    end
     scfres = self_consistent_field(basis; is_converged, nbandsalg, kwargs...)
     for (ik, ik_global) in enumerate(basis.krange_thisproc_allspin)
         @test eltype(scfres.eigenvalues[ik]) == T

@@ -18,7 +18,7 @@
 
             # test type stability
             f(b) = DFTK.cg(A, b; tol, maxiter=2n).x
-            g(b) = DFTK.cg(A, b; tol, maxiter=2n).residual_norm
+            g(b) = DFTK.cg(A, b; tol, maxiter=2n).residual_norms[1]
             @test res.x ≈ @inferred f(b)
             @test tol ≥ @inferred g(b)
         end

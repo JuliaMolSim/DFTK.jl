@@ -277,7 +277,7 @@ function apply_symop(symop::SymOp, basis, ρin; kwargs...)
     symmetrize_ρ(basis, ρin; symmetries=[symop], kwargs...)
 end
 
-# Accumulates the symmetrized versions of the density ρin into ρout (in Fourier space).
+# Accumulates the symmetrized versions of the density ρin into ρaccu (in Fourier space).
 # No normalization is performed. This function is optimized for CPU and GPU.
 function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, symmetries) where {T}
     # For each G vector and symmetry S:
@@ -318,39 +318,16 @@ function accumulate_over_symmetries!(ρaccu, ρin, basis::PlaneWaveBasis{T}, sym
     ρaccu
 end
 
-# Low-pass filters ρ (in Fourier) so that symmetry operations acting on it stay in the grid
-# This function is optimized for CPU and GPU.
-function lowpass_for_symmetry!(ρ::AbstractArray, basis; symmetries=basis.symmetries)
-    all(isone, symmetries) && return ρ
-
-    Gs = reshape(G_vectors(basis), size(ρ))
-    fft_size = basis.fft_size
-
-    symm_S = to_device(basis.architecture, [symop.S for symop in symmetries])
-
-    # Loop structure optimized for both CPU and GPU
-    map!(ρ, ρ, Gs) do ρ_i, G
-        acc = ρ_i
-        for S in symm_S
-            idx = index_G_vectors(fft_size, S * G)
-            acc *= isnothing(idx) ? 0 : 1
-        end
-        acc
-    end
-    ρ
-end
-
 """
 Symmetrize a density by applying all the basis (by default) symmetries and forming the average.
 """
 @views @timing function symmetrize_ρ(basis, ρ::AbstractArray{T};
-                                     symmetries=basis.symmetries, do_lowpass=true) where {T}
+                                     symmetries=basis.symmetries) where {T}
     ρin_fourier  = fft(basis, ρ)
     ρout_fourier = zero(ρin_fourier)
     for σ = 1:size(ρ, 4)
         accumulate_over_symmetries!(ρout_fourier[:, :, :, σ],
                                     ρin_fourier[:, :, :, σ], basis, symmetries)
-        do_lowpass && lowpass_for_symmetry!(ρout_fourier[:, :, :, σ], basis; symmetries)
     end
     inv_fft = T <: Real ? irfft : ifft
     inv_fft(basis, ρout_fourier ./ length(symmetries))
@@ -369,8 +346,8 @@ function symmetrize_stresses(model::Model, stresses; symmetries)
     stresses_symmetrized /= length(symmetries)
     stresses_symmetrized
 end
-function symmetrize_stresses(basis::PlaneWaveBasis, stresses)
-    symmetrize_stresses(basis.model, stresses; basis.symmetries)
+function symmetrize_stresses(basis::PlaneWaveBasis, stresses; symmetries=basis.symmetries)
+    symmetrize_stresses(basis.model, stresses; symmetries)
 end
 
 """
@@ -460,7 +437,7 @@ function unfold_bz(basis::PlaneWaveBasis)
     if length(basis.symmetries) == 1
         return basis
     else
-        # TODO This can be optimised much better by avoiding the recomputation
+        # TODO This can be optimized much better by avoiding the recomputation
         #      of the terms wherever possible.
         use_symmetry_for_kpoint_reduction = false
         return PlaneWaveBasis(basis.model, basis.Ecut, basis.fft_size,
@@ -494,7 +471,7 @@ function unfold_array(basis_irred, basis_unfolded, data, is_ψ)
         error("Brillouin zone symmetry unfolding not supported with MPI yet")
     end
     if basis_irred.n_irreducible_kpoints < mpi_nprocs(basis_irred.comm_kpts)
-        # Note: if this routine is ever generalised for MPI,
+        # Note: if this routine is ever generalized for MPI,
         # need special care for potentially duplicated KP
         error("Brillouin zone symmetry unfolding not supported with duplicated k-points")
     end
@@ -541,12 +518,4 @@ function unfold_kcoords(kcoords, symmetries)
         # -0.0 and 0.0 equal to 0.0
         normalize_kpoint_coordinate(round.(k; digits) .+ 0.0)
     end
-end
-
-"""
-Ensure its real-space equivalent of passed Fourier-space representation is entirely real by
-removing wavevectors `G` that don't have a `-G` counterpart in the basis.
-"""
-@timing function enforce_real!(fourier_coeffs, basis::PlaneWaveBasis)
-    lowpass_for_symmetry!(fourier_coeffs, basis; symmetries=[SymOp(-Mat3(I), Vec3(0, 0, 0))])
 end

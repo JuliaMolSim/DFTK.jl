@@ -34,6 +34,7 @@ include("common/spherical_harmonics.jl")
 include("common/split_evenly.jl")
 include("common/mpi.jl")
 include("common/threading.jl")
+include("common/debugdump.jl")
 include("common/printing.jl")
 include("common/cis2pi.jl")
 include("common/versioninfo.jl")
@@ -101,10 +102,19 @@ include("supercell.jl")
 export Energies
 include("Energies.jl")
 
+export Coulomb
+export SphericallyTruncatedCoulomb
+export WignerSeitzTruncatedCoulomb
+export ShortRangeCoulomb, LongRangeCoulomb
+export ProbeCharge, ReplaceSingularity, VoxelAveraged
+include("coulomb.jl")
+
 export Hamiltonian
 export HamiltonianBlock
-export energy_hamiltonian
+export energy_hamiltonian  # Also energy ... but too generic, thus not exported
 export Kinetic
+export ExactExchange
+export VanillaExx, AceExx
 export ExternalFromFourier
 export ExternalFromReal
 export AtomicLocal
@@ -150,15 +160,15 @@ export diagonalize_all_kblocks
 include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
 
-export model_atomic, model_DFT
+export model_atomic, model_DFT, model_HF
 export LDA, PBE, PBEsol, SCAN, r2SCAN
+export HybridFunctional, PBE0, HSE
 include("standard_models.jl")
 
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing
 export LdosMixing, HybridMixing, χ0Mixing
 export FixedBands, AdaptiveBands
-export scf_damping_solver
-export scf_anderson_solver
+export ScfDampingSolver, ScfAndersonDensitySolver, ScfAndersonSolver
 export self_consistent_field, kwargs_scf_checkpoints
 export ScfConvergenceEnergy, ScfConvergenceDensity, ScfConvergenceForce
 export ScfSaveCheckpoints, ScfDefaultCallback, AdaptiveDiagtol
@@ -232,6 +242,8 @@ include("response/chi0.jl")
 include("response/hessian.jl")
 export compute_current
 include("postprocess/current.jl")
+export elastic_tensor
+include("postprocess/elastic.jl")
 export phonon_modes
 include("postprocess/phonon.jl")
 export refine_scfres
@@ -273,7 +285,7 @@ end
     lattice = a / 2 * [[0 1 1.];
                        [1 0 1.];
                        [1 1 0.]]
-    pseudofile = joinpath(@__DIR__, "..", "test", "gth_pseudos", "Si.pbe-hgh.upf")
+    pseudofile = joinpath(@__DIR__, "..", "test", "pseudos", "gth", "Si.pbe-hgh.upf")
     Si = ElementPsp(:Si, Dict(:Si => pseudofile))
     atoms     = [Si, Si]
     positions = [ones(3)/8, -ones(3)/8]

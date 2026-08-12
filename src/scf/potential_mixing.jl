@@ -15,7 +15,8 @@ function ScfAcceptImprovingStep(;max_energy_change=1e-12, max_relative_residual=
 
         # Accept if energy goes down or residual decreases
         accept = energy_change < max_energy_change || relative_residual < max_relative_residual
-        mpi_master() && @debug "Step $(accept ? "accepted" : "discarded")" energy_change relative_residual
+        mpi_master(info.basis.comm_kpts)
+            @debug "Step $(accept ? "accepted" : "discarded")" energy_change relative_residual
         accept
     end
 end
@@ -30,11 +31,11 @@ function scf_damping_quadratic_model(info, info_next; modeltol=0.1)
     dvol  = info.basis.dvol
 
     Vin   = info.Vin
-    ρin   = info.ρout      # = ρ(Vin)
+    ρin   = info.ρ         # = ρ(Vin)
     Vout  = info.Vout      # = step(Vin), where step(V) = (Vext + Vhxc(ρ(V)))
     α0    = info_next.α
     Vnext = info_next.Vin  # = Vin + α0 * (Anderson(Vin, P⁻¹( Vout - Vin )) - Vin)
-    ρnext = info_next.ρout # = ρ(Vnext)
+    ρnext = info_next.ρ    # = ρ(Vnext)
     δρ    = ρnext - ρin
     # α0 * δV = α0 * (Vnext - Vin) = α0 * (Anderson(Vin, P⁻¹( Vout - Vin )) - Vin)
 
@@ -68,10 +69,10 @@ function scf_damping_quadratic_model(info, info_next; modeltol=0.1)
     # Accept model if it leads to minimum and is either tight or shows a negative slope
     α_model = -slope / curv
     if minimum_exists && (tight_model || (slope < -eps(T) && trusted_model))
-        mpi_master() && @debug "Quadratic model accepted" model_relerror slope curv α_model
+        mpi_master(info.basis.comm_kpts) && @debug "Quadratic model accepted" model_relerror slope curv α_model
         (α=α_model, relerror=model_relerror)
     else
-        mpi_master() && @debug "Quadratic model discarded" model_relerror slope curv α_model
+        mpi_master(info.basis.comm_kpts) && @debug "Quadratic model discarded" model_relerror slope curv α_model
         (α=nothing, relerror=model_relerror) # Model not trustworthy ...
     end
 end
@@ -182,11 +183,14 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
              || mixing isa KerkerMixing
              || mixing isa KerkerDosMixing)
     damping isa Number && (damping = FixedDamping(damping))
+    if any(needs_τ, basis.terms)
+        error("meta-GGA functionals not yet supported in scf_potential_mixing.")
+    end
 
     if !isnothing(ψ)
         @assert length(ψ) == length(basis.kpoints)
     end
-    seed = seed_task_local_rng!(seed, MPI.COMM_WORLD)
+    seed = seed_task_local_rng!(seed, basis.comm_kpts)
 
     # Initial guess for V (if none given)
     ham = energy_hamiltonian(basis, nothing, nothing; ρ).ham
@@ -198,20 +202,18 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
         res_V = next_density(ham_V, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
                              occupation, miniter=diag_miniter, tol=diagtol)
         new_E, new_ham = energy_hamiltonian(basis, res_V.ψ, res_V.occupation;
-                                            ρ=res_V.ρout, eigenvalues=res_V.eigenvalues,
-                                            εF=res_V.εF)
+                                            res_V.ρ, res_V.eigenvalues, res_V.εF)
         (; basis, ham=new_ham, energies=new_E,
          Vin, Vout=total_local_potential(new_ham), res_V...)
     end
 
     n_iter    = 1
     converged = false
-    ΔEdown    = 0.0
     start_ns  = time_ns()
     α_trial   = trial_damping(damping)
     diagtol   = determine_diagtol(diagtolalg, (; ρin=ρ, Vin=V, n_iter))
     info      = EVρ(V; diagtol, ψ)
-    Pinv_δV   = mix_potential(mixing, basis, info.Vout - info.Vin; n_iter, info...)
+    Pinv_δV   = mix_potential(mixing, basis, info.Vout - info.Vin; ρin=ρ, n_iter, info...)
     info      = merge(info, (; α=NaN, diagonalization=[info.diagonalization], ρin=ρ,
                              n_iter, Pinv_δV))
     history_Etot = eltype(ρ)[]
@@ -219,11 +221,11 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
 
     while n_iter < maxiter
         push!(history_Etot, info.energies.total)
-        push!(history_Δρ,   norm(info.ρout - info.ρin) * sqrt(basis.dvol))
+        push!(history_Δρ,   norm(info.ρ - info.ρin) * sqrt(basis.dvol))
         info = merge(info, (; stage=:iterate, algorithm="SCF", converged,
                             runtime_ns=time_ns() - start_ns, history_Etot, history_Δρ))
         callback(info)
-        if MPI.bcast(is_converged(info), 0, MPI.COMM_WORLD)
+        if mpi_bcast(is_converged(info), 0, basis.comm_kpts)
             # TODO Debug why these MPI broadcasts are needed
             converged = true
             break
@@ -232,7 +234,7 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
         info = merge(info, (; n_iter, ))
 
         # Ensure same α on all processors
-        α_trial = MPI.bcast(α_trial, 0, MPI.COMM_WORLD)
+        α_trial = mpi_bcast(α_trial, 0, basis.comm_kpts)
         δV = (acceleration(info.Vin, α_trial, info.Pinv_δV) - info.Vin) / α_trial
 
         # Determine damping and take next step
@@ -244,18 +246,20 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
         info_next = info
         while n_backtrack ≤ max_backtracks
             diagtol = determine_diagtol(diagtolalg, info_next)
-            mpi_master() && @debug "Iteration $n_iter linesearch step $n_backtrack   α=$α diagtol=$diagtol"
+            if mpi_master(basis.comm_kpts)
+                @debug "Iteration $n_iter linesearch step $n_backtrack   α=$α diagtol=$diagtol"
+            end
             Vnext = info.Vin .+ α .* δV
 
             info_next    = EVρ(Vnext; ψ=guess, diagtol, info.eigenvalues, info.occupation)
             Pinv_δV_next = mix_potential(mixing, basis, info_next.Vout - info_next.Vin;
-                                         n_iter, info_next...)
+                                         ρin=info.ρ, n_iter, info_next...)
             push!(diagonalization, info_next.diagonalization)
-            info_next = merge(info_next, (; α, diagonalization, ρin=info.ρout, n_iter,
+            info_next = merge(info_next, (; α, diagonalization, ρin=info.ρ, n_iter,
                                           Pinv_δV=Pinv_δV_next, history_Δρ, history_Etot ))
 
             successful = accept_step(info, info_next)
-            successful = MPI.bcast(successful, 0, MPI.COMM_WORLD)  # Ensure same successful
+            successful = mpi_bcast(successful, 0, basis.comm_kpts)  # Ensure same successful
             if successful || n_backtrack ≥ max_backtracks
                 break
             end
@@ -263,7 +267,7 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
 
             # Adjust α to try again ...
             α_next = propose_backtrack_damping(damping, info, info_next)
-            α_next = MPI.bcast(α_next, 0, MPI.COMM_WORLD)  # Ensure same α on all processors
+            α_next = mpi_bcast(α_next, 0, basis.comm_kpts)  # Ensure same α on all processors
             if α_next == α  # Backtracking further not useful ...
                 break
             end
@@ -273,17 +277,13 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
             α = α_next
         end
 
-        # Switch off acceleration in case of very bad steps
-        ΔE = info_next.energies.total - info.energies.total
-        ΔE < 0 && (ΔEdown = -max(abs(ΔE), tol))
-
         # Update α_trial and commit the next state
         α_trial = trial_damping(damping, info, info_next, successful)
         info = info_next
     end
 
     ham  = hamiltonian_with_total_potential(ham, info.Vout)
-    info = (; ham, basis, info.energies, converged, ρ=info.ρout, info.eigenvalues,
+    info = (; ham, basis, info.energies, converged, info.ρ, info.eigenvalues,
             info.occupation, info.εF, n_iter, info.ψ, info.n_bands_converge,
             info.diagonalization, stage=:finalize, algorithm="SCF",
             history_Δρ, history_Etot, info.occupation_threshold, seed,

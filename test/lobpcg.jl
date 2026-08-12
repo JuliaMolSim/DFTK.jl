@@ -146,3 +146,18 @@ end
 
     @test mul_hermi(Ablock', Ablock) ≈ A' * A
 end
+
+@testitem "LOBPCG print callback" setup=[TestCases] begin
+    using DFTK
+    using LinearAlgebra
+
+    A = randn(40, 40)
+    A = A+A' + 20I
+    X = randn(40, 3)
+
+    # Run the callback to make sure it works, but don't print anything
+    res = redirect_stdout(devnull) do
+        lobpcg_hyper(A, X; prec= Diagonal(A), callback=DFTK.DefaultLobpcgCallback(), tol=1e-6)
+    end
+    @test res.converged
+end

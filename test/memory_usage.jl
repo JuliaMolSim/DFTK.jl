@@ -9,7 +9,7 @@
         memstats = DFTK.estimate_memory_usage(model; kgrid=[2, 2, 2], Ecut=10)
         N_IRREDUCIBLE_KPOINTS = 3 # for silicon with 2x2x2 grid
 
-        @test memstats.n_kpoints == cld(N_IRREDUCIBLE_KPOINTS, mpi_nprocs())
+        @test memstats.n_kpoints == cld(N_IRREDUCIBLE_KPOINTS, mpi_nprocs(basis.comm_kpts))
         ρ = guess_density(basis)
         @test memstats.ρ_bytes == sizeof(ρ)
     end
@@ -21,7 +21,7 @@
         memstats = DFTK.estimate_memory_usage(model; kgrid=[2, 2, 2], Ecut=10)
         N_IRREDUCIBLE_KPOINTS = 3 # for silicon with 2x2x2 grid
 
-        @test memstats.n_kpoints == 2 * cld(N_IRREDUCIBLE_KPOINTS, mpi_nprocs())
+        @test memstats.n_kpoints == 2 * cld(N_IRREDUCIBLE_KPOINTS, mpi_nprocs(basis.comm_kpts))
         ρ = guess_density(basis, [2, 2])
         @test memstats.ρ_bytes == sizeof(ρ)
     end

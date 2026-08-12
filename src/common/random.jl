@@ -14,7 +14,7 @@ function seed_task_local_rng!(seed::Union{Nothing,Integer}, comm)
         # Using negative seeds requires Julia 1.11 and DFTK still supports 1.10
         seed = rand(UInt64)
     end
-    seed = MPI.bcast(seed, comm)
+    seed = mpi_bcast(seed, comm)
     if mpi_master(comm)
         Random.seed!(seed)
         # Generate a different seed for each process

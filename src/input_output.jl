@@ -296,7 +296,7 @@ function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false, save_ρ=
         gather_and_store!(diagonalization, "n_iter",         basis, diag_n_iter)
     end
 
-    if save_ψ
+    if save_ψ && haskey(band_data, :ψ)
         # Store the employed G vectors using the largest rectangular grid
         # on which all bands can live
         n_G_vectors = [length(kpt.mapping) for kpt in basis.kpoints]
@@ -352,14 +352,17 @@ function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true, save_ρ=true)
 
     # These are either already done above or will be ignored or dealt with below.
     special = (:ham, :basis, :energies, :stage, :mixing,
-               :τ, :ρ, :ψ, :eigenvalues, :occupation, :εF, :diagonalization,
+               :τ, :ρ, :ψ, :hubbard_n, :eigenvalues, :occupation, :εF, :diagonalization,
                :optim_res, # from direct_minimization, ignore it as it can be huge
+               :is_converged, :nbandsalg, :fermialg, :diagtolalg, :solver, :eigensolver,
+               :ρin, :τin, # from SCF iterations; large, but not useful to store
                )
     propmap = Dict(:α => :damping_value, )  # compatibility mapping
-    if mpi_master()
+    if mpi_master(scfres.basis.comm_kpts)
         if save_ρ
             dict["ρ"] = scfres.ρ
             dict["τ"] = get(scfres, :τ, nothing)
+            dict["hubbard_n"] = get(scfres, :hubbard_n, nothing)
         end
         energies = make_subdict!(dict, "energies")
         for (key, value) in todict(scfres.energies)
@@ -367,6 +370,11 @@ function scfres_to_dict!(dict, scfres::NamedTuple; save_ψ=true, save_ρ=true)
         end
         if hasproperty(scfres, :mixing)
             dict["mixing"] = string(scfres.mixing)
+        end
+        for sym in (:is_converged, :nbandsalg, :fermialg, :diagtolalg, :solver, :eigensolver)
+            if hasproperty(scfres, sym)
+                dict[string(sym)] = string(getproperty(scfres, sym))
+            end
         end
 
         scfres_extra_keys = String[]

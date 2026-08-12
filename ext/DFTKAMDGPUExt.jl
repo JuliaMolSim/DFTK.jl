@@ -37,7 +37,9 @@ function LinearAlgebra.mul!(C::AMDGPU.ROCArray{T}, A::AMDGPU.ROCArray{T}, B::AMD
 end
 
 # Ensure precompilation is only performed if an AMD GPU is available
-if AMDGPU.functional()
+# AMDGPU pre-compiliation is currently broken on Julia > 1.10,
+# see https://github.com/JuliaMolSim/DFTK.jl/issues/1278
+if AMDGPU.functional() && VERSION < v"1.11"
     # Precompilation block with a basic workflow
     @setup_workload begin
         # very artificial silicon ground state example
@@ -45,7 +47,7 @@ if AMDGPU.functional()
         lattice = a / 2 * [[0 1 1.];
                         [1 0 1.];
                         [1 1 0.]]
-        pseudofile = joinpath(@__DIR__, "..", "test", "gth_pseudos", "Si.pbe-hgh.upf")
+        pseudofile = joinpath(@__DIR__, "..", "test", "pseudos", "gth", "Si.pbe-hgh.upf")
         Si = ElementPsp(:Si, Dict(:Si => pseudofile))
         atoms     = [Si, Si]
         positions = [ones(3)/8, -ones(3)/8]
