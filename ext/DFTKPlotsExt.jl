@@ -9,14 +9,6 @@ using Unitful
 using UnitfulAtomic
 
 
-function plot_bandstructure(basis::PlaneWaveBasis,
-                            kpath::KPath=irrfbz_path(basis.model);
-                            unit=u"hartree", kwargs_plot=(; ), kwargs...)
-    @warn("Calling plot_bandstructure without first computing the band data " *
-          "is deprecated and will be removed in the next minor version bump.")
-    band_data = compute_bands(basis; kwargs...)
-    plot_bandstructure(band_data; unit, kwargs_plot...)
-end
 function plot_bandstructure(band_data::NamedTuple;
                             unit=u"hartree", kwargs_plot=(; ), kwargs...)
     # TODO Replace by a plot recipe once BandData is its own type.
