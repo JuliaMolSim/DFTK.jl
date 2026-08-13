@@ -11,6 +11,10 @@ function DFTK.memory_usage(::GPU{<:AMDGPU.ROCArray})
     merge(DFTK.memory_usage(CPU()), (; gpu=AMDGPU.memory_stats().live))
 end
 
+# Additional performance-related workarounds and fixes can be found in the file
+# ext/LOBPCGEigensolverAMDGPUExt.jl in https://github.com/JuliaMolSim/LOBPCGEigensolver.jl
+# As of August 2026 this is mostly for the 5-argument mul! function.
+
 # Ensure precompilation is only performed if an AMD GPU is available
 # AMDGPU pre-compiliation is currently broken on Julia > 1.10,
 # see https://github.com/JuliaMolSim/DFTK.jl/issues/1278
