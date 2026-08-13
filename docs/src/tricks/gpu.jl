@@ -9,10 +9,10 @@
 # albeit with lower performance.
 #
 # !!! info "GPU parallelism not supported everywhere"
-#     Not all features of DFTK are ported to the GPU. SCF and forces
-#     with standard Libxc functionals are fully supported. Stresses
-#     and response calculations are work in progress as of December 2025.
-#     In most cases there is no intrinsic limitation and typically it only takes
+#     Not all features of DFTK are ported to the GPU. As of August 2026, 
+#     SCF, forces, stresses, and response calculations are supported with 
+#     all standard Libxc functionals (at LDA, GGA and mGGA level).
+#     In most cases there is no intrinsic limitation, and it typically only takes
 #     minor code modifications to make it work on GPUs (and some extra work for 
 #     optimization). If you require GPU support in one of our routines, where this is not
 #     yet supported, feel free to open an issue on github or otherwise get in touch.
@@ -72,7 +72,7 @@ scfres = self_consistent_field(basis; tol=1e-6)
 compute_forces(scfres)
 
 # !!! warning "GPU performance"
-#     Our current (December 2025) benchmarks show DFTK to have reasonable performance
+#     Our current (August 2025) benchmarks show DFTK to have reasonable performance
 #     on Nvidia / CUDA GPUs with up to a 100-fold speed-up over single-threaded
 #     CPU execution (SCF + forces). A lot of work has been done to stabilize
 #     the AMDGPU implementation as well, but performance is typically lower 
