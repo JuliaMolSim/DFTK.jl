@@ -5,9 +5,10 @@ using DFTK: mpi_mean!
 using LinearAlgebra
 
 function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=:none,
-                   eigensolver=lobpcg_hyper, Ecut=10, kgrid=[3, 1, 1], fft_size=[15, 1, 15],
-                   compute_full_χ0=false, εF=nothing, functionals=LDA(), tol=1e-11,
-                   ε=1e-6, atol=2e-6)
+                   eigensolver=lobpcg_hyper, Ecut=10, kgrid=[3, 1, 1],
+                   fft_size=nothing, ε=2e-4,
+                   compute_full_χ0=false, εF=nothing, functionals=LDA(), tol=1e-12,
+                   atol=2e-7)
 
     collinear   = spin_polarization == :collinear
     is_εF_fixed = !isnothing(εF)
@@ -31,27 +32,30 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         basis = PlaneWaveBasis(model; basis_kwargs...)
         ρ0    = guess_density(basis, magnetic_moments)
         ham0  = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0).ham
-        nbandsalg = is_εF_fixed ? FixedBands(; n_bands_converge=6) : AdaptiveBands(model)
+        # The finite differences below are sensitive to the bands of low occupation, so
+        # converge more of them than the default would.
+        nbandsalg = is_εF_fixed ? FixedBands(; n_bands_converge=6) :
+                                  FixedBands(model; temperature_factor_converge=2)
         res = DFTK.next_density(ham0, nbandsalg; tol, eigensolver)
         scfres = (; ham=ham0, res...)
 
-        # create external small perturbation εδV
+        # create external small perturbation εδV. apply_χ0 (being grounded on a symmetric basis)
+        # only resolves perturbations respecting the symmetries, so we make δV symmetric.
         n_spin = model.n_spin_components
         δV = randn(eltype(basis), basis.fft_size..., n_spin)
         mpi_mean!(δV, basis.comm_kpts)
-        δV_sym = DFTK.symmetrize_ρ(basis, δV; model.symmetries)
-        if symmetries
-            δV = δV_sym
-        else
-            @test δV_sym ≈ δV
-        end
+        δV_sym = DFTK.symmetrize_ρ(basis, δV)
+        symmetries || @test δV_sym ≈ δV
+        δV = δV_sym
 
+        fd_basis_kwargs = merge(basis_kwargs, (; basis.fft_size))
         function compute_ρ_FD(ε)
-            term_builder = basis -> DFTK.TermExternal(ε * δV)
             model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
-                              functionals, model_kwargs..., extra_terms=[term_builder])
-            basis = PlaneWaveBasis(model; basis_kwargs...)
-            ham = energy_hamiltonian(basis, nothing, nothing; ρ=ρ0).ham
+                              functionals, model_kwargs...,
+                              extra_terms=[DFTK.ExternalFromValues(ε * δV)])
+            basis_fd = PlaneWaveBasis(model; fd_basis_kwargs...)
+            @test length(basis_fd.symmetries) == 1  # δV breaks all symmetries
+            ham = energy_hamiltonian(basis_fd, nothing, nothing; ρ=ρ0).ham
             res = DFTK.next_density(ham, nbandsalg; tol, eigensolver)
             res.ρ
         end
@@ -116,10 +120,11 @@ end
         end
     end
 
-    # Additional test for compute_χ0
+    # Additional test for compute_χ0. It builds a dense n_fft × n_fft matrix, so we take
+    # the smallest Ecut that still holds the requested number of bands at every k-point.
     for spin_polarization in (:none, :collinear)
         test_chi0(silicon; symmetries=false, spin_polarization, eigensolver=diag_full,
-                  Ecut=3, fft_size=[10, 1, 10], compute_full_χ0=true)
+                  Ecut=0.8, compute_full_χ0=true)
         test_chi0(magnesium; spin_polarization, temperature=0.01, εF=0.3)
     end
 end
@@ -138,5 +143,5 @@ end
     sodium_chloride = (; lattice, positions, atoms, is_metal=false)
     test_chi0(sodium_chloride;
               symmetries=true, temperature=1e-4, Ecut=20,
-              kgrid=[2, 2, 2], fft_size=[36, 36, 36], atol=5e-6)
+              kgrid=[2, 2, 2], fft_size=[36, 36, 36])
 end

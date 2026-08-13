@@ -16,9 +16,9 @@ end
 # As of August 2026 this is mostly for the 5-argument mul! function.
 
 # Ensure precompilation is only performed if an AMD GPU is available
-# AMDGPU pre-compiliation is currently broken on Julia > 1.10,
+# AMDGPU pre-compiliation is currently broken on Julia 1.11,
 # see https://github.com/JuliaMolSim/DFTK.jl/issues/1278
-if AMDGPU.functional() && VERSION < v"1.11"
+if AMDGPU.functional() && !(v"1.11" <= VERSION < v"1.12")
     # Precompilation block with a basic workflow
     @setup_workload begin
         # very artificial silicon ground state example
