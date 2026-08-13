@@ -26,10 +26,10 @@ function run_test(; architecture)
                           functionals=LDA(), temperature=1e-2, smearing=Smearing.Gaussian())
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], architecture)
 
-        is_converged = DFTK.ScfConvergenceDensity(1e-10)
-        scfres = self_consistent_field(basis; is_converged, mixing=KerkerMixing(),
+        scfres = self_consistent_field(basis; tol=1e-12, mixing=KerkerMixing(),
                                        nbandsalg=FixedBands(; n_bands_converge=10),
-                                       damping=0.6, response=ResponseOptions(; verbose=true))
+                                       damping=0.6,
+                                       response=ResponseOptions(; tol=1e-12, verbose=true))
 
         ComponentArray(
            eigenvalues=stack([ev[1:10] for ev in DFTK.to_cpu(scfres.eigenvalues)]),
