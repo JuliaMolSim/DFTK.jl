@@ -22,7 +22,7 @@ will list all oxygen semicore pseudopotentials known to DFTK.
 """
 function list_psp(element=nothing; family=nothing, functional=nothing, core=nothing)
     @warn("The function list_psp and the internal pseudopotential repository of DFTK are " *
-          "deprecated and will be removed in a future version of DFTK. Use the " *
+          "deprecated and will be removed in the next DFTK release. Use the " *
           "PseudoPotentialData julia package instead.")
 
     # Normalize input keys
