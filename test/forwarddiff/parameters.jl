@@ -21,7 +21,7 @@ function run_test(; architecture)
         pspmod = PspHgh(psp.Zion, rloc,
                         psp.cloc, psp.rp .+ [0, ε], psp.h;
                         psp.identifier, psp.description)
-        atoms = fill(ElementPsp(aluminium.atnum; psp=pspmod), length(aluminium.positions))
+        atoms = fill(ElementPsp(aluminium.atnum, pspmod), length(aluminium.positions))
         model = model_DFT(Matrix{T}(aluminium.lattice), atoms, aluminium.positions;
                           functionals=LDA(), temperature=1e-2, smearing=Smearing.Gaussian())
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], architecture)
