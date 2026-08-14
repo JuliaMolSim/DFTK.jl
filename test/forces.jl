@@ -162,7 +162,7 @@ end
 
     pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
     (; forces_cart) = test_forces(system; functionals=LDA(), atol=1e-8, pseudopotentials,
-                                  Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0], forward_ρ=false,
+                                  Ecut=7, kgrid=[2, 2, 2], forward_ρ=false,
                                   symmetries_respect_rgrid=true,
                                   fft_size=(18, 18, 18))  # FFT chosen to match QE
 
@@ -187,7 +187,7 @@ end
     for smearing in [Smearing.FermiDirac(), Smearing.Gaussian()]
         test_forces(system; pseudopotentials, functionals=Xc([:lda_xc_teter93]),
                     temperature=0.03, smearing, atol=5e-6, magnetic_moments=[2.0, 1.0],
-                    Ecut=7, kgrid=[4, 1, 2], kshift=[1/2, 0, 0], forward_ρ=false)
+                    Ecut=7, kgrid=MonkhorstPack([4, 1, 2]; kshift=[1/2, 0, 0]), forward_ρ=false)
     end
 end
 
