@@ -71,7 +71,12 @@ The following formats are supported:
 Most users will want to use other methods of the `load_psp` function.
 """
 function load_psp(fullpath::AbstractString; kwargs...)
-    !isfile(fullpath) && error("Could not find pseudopotential file '$fullpath'")
+    if !isfile(fullpath) 
+        error("Could not find pseudopotential file '$fullpath'. Note: The DFTK-bundled" *
+              "pseudopotentials (keys 'hgh/pbe/c-q4' and similar) have been removed in" *
+              "DFTK 0.8.1. Please use PseudoPotentialData to select pseudopotentials." *
+              "See the DFTK tutorial and documentation for details.")
+    end
 
     # TODO: We keep this identifier in the form it was introduced during a time
     #       DFTK had still a built-in pseudopotential library.
