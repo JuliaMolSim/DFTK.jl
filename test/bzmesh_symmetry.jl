@@ -12,7 +12,7 @@
     for kgrid in cases
         model_nosym = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
                                 functionals=LDA(), symmetries=false)
-        basis = PlaneWaveBasis(model_nosym; Ecut=5, case...)
+        basis = PlaneWaveBasis(model_nosym; Ecut=5, kgrid)
         DFTK.check_group(basis.symmetries)
 
         scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-10))
