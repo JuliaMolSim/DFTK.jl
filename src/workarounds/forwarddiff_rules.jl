@@ -230,7 +230,8 @@ function construct_value(basis::PlaneWaveBasis{T}) where {T <: Dual}
                    basis.symmetries_respect_rgrid,
                    basis.use_symmetries_for_kpoint_reduction,
                    basis.comm_kpts,
-                   basis.architecture)
+                   basis.architecture,
+                   basis.extra_kwargs)
 end
 
 

@@ -1,5 +1,11 @@
 """
 Exchange-correlation term, defined by a list of functionals and usually evaluated through libxc.
+
+The grid used for the evaluation of the exchange-correlation energy integral can
+be customized at `PlaneWaveBasis` construction time with the
+`supersampling_xc`, `Ecut_density_xc` or `fft_size_xc` keyword arguments.
+Using a denser grid can help reduce grid position dependence of the XC energy/potential
+(also known as "egg-box effect"). See also Durham et al. [Electron. Struct. 2025].
 """
 struct Xc
     functionals::Vector{Functional}
@@ -28,7 +34,10 @@ function Base.show(io::IO, xc::Xc)
     print(io, "Xc($fun$fac)")
 end
 
-function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
+function (xc::Xc)(basis::PlaneWaveBasis{T};
+                  supersampling_xc=nothing,
+                  Ecut_density_xc=nothing,
+                  fft_size_xc=nothing) where {T}
     isempty(xc.functionals) && return TermNoop()
 
     # Charge density for non-linear core correction
@@ -52,6 +61,9 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
         end
     end
 
+    fft_grid = xc_fft_grid(basis, supersampling_xc, Ecut_density_xc, fft_size_xc)
+    dvol = basis.model.unit_cell_volume / prod(fft_grid.fft_size)
+
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
         params = parameters(fun)
@@ -63,7 +75,46 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     end
     TermXc(convert(Vector{Functional}, functionals),
            convert_dual(T, xc.scaling_factor),
-           T(xc.potential_threshold), ρcore, τcore)
+           T(xc.potential_threshold), ρcore, τcore, fft_grid, dvol)
+end
+
+function xc_fft_grid(basis::PlaneWaveBasis, supersampling_xc, Ecut_density_xc, fft_size_xc)
+    if isnothing(supersampling_xc) && isnothing(Ecut_density_xc) && isnothing(fft_size_xc)
+        return basis.fft_grid
+    end
+    if !isnothing(supersampling_xc)
+        isnothing(Ecut_density_xc) || error("Cannot specify both supersampling_xc and Ecut_density_xc")
+        isnothing(fft_size_xc) || error("Cannot specify both supersampling_xc and fft_size_xc")
+        Ecut_density_xc = supersampling_xc^2 * basis.Ecut
+    end
+    if !isnothing(Ecut_density_xc)
+        isnothing(fft_size_xc) || error("Cannot specify both Ecut_density_xc and fft_size_xc")
+        # TODO: this is duplicated with PlaneWaveBasis
+        if basis.symmetries_respect_rgrid
+            # ensure that the FFT grid is compatible with the "reasonable" symmetries
+            # (those with fractional translations with denominators 2, 3, 4, 6,
+            #  this set being more or less arbitrary) by forcing the FFT size to be
+            # a multiple of the denominators.
+            # See https://github.com/JuliaMolSim/DFTK.jl/pull/642 for discussion
+            denominators = [denominator(rationalize(sym.w[i]; tol=SYMMETRY_TOLERANCE))
+                            for sym in basis.model.symmetries for i = 1:3]
+            factors = intersect((2, 3, 4, 6), denominators)
+        else
+            factors = (1, )
+        end
+        fft_size_xc = compute_fft_size(basis.model, Ecut_density_xc, nothing; supersampling=1, factors)
+    end
+
+    if !all(fft_size_xc .≥ basis.fft_size)
+        throw(ArgumentError("The fft_size_xc $(fft_size_xc) must be at least as large as " *
+                            "the fft_size $(basis.fft_size) of the basis in each direction."))
+    end
+    symmetries = symmetries_preserving_rgrid(basis.symmetries, fft_size_xc)
+    if length(symmetries) != length(basis.symmetries)
+        throw(ArgumentError("The fft_size_xc $(fft_size_xc) does not respect " *
+                            "the symmetries of the basis."))
+    end
+    FFTGrid(fft_size_xc, basis.model.unit_cell_volume, basis.architecture)
 end
 
 function hybrid_parameters(xc::Xc)
@@ -71,16 +122,18 @@ function hybrid_parameters(xc::Xc)
     isempty(res) ? nothing : only(res)
 end
 
-struct TermXc{T,CT,TCT} <: TermNonlinear where {T,CT,TCT}
+struct TermXc{T,CT,TCT,FT} <: TermNonlinear where {T,CT,TCT,FT}
     functionals::Vector{Functional}
     scaling_factor::T
     potential_threshold::T
     ρcore::CT
     τcore::TCT
+    fft_grid::FT
+    dvol::T
 end
 DftFunctionals.needs_τ(term::TermXc) = any(needs_τ, term.functionals)
 
-function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupation;
+function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T};
                            ρ, τ=nothing) where {T}
     @assert !isempty(term.functionals)
     @assert all(family(xc) in (:lda, :gga, :mgga, :mggal) for xc in term.functionals)
@@ -98,18 +151,42 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
         τ = τ + term.τcore
     end
 
-    max_ρ_derivs = maximum(max_required_derivative, term.functionals)
-    density = LibxcDensities(basis, max_ρ_derivs, ρ, τ)
-    _check_negative_bonding_indicator_α(density)
+    # The denser XC FFT grid is treated only as a fix for the XC energy/potential evaluation,
+    # hence the core densities are computed on the coarse grid and transferred along
+    # with the valence densities.
+    ρ = transfer_density(ρ, basis.fft_grid, term.fft_grid)
+    if !isnothing(τ)
+        τ = transfer_density(τ, basis.fft_grid, term.fft_grid)
+    end
 
-    n_spin = basis.model.n_spin_components
+    E, potential, Vτ = _xc_potential_real(term, basis.model, basis.comm_kpts, ρ, τ)
+
+    # The adjoint of Fourier zero-padding is Fourier truncation
+    potential = transfer_density(potential, term.fft_grid, basis.fft_grid)
+    if !isnothing(Vτ)
+        Vτ = transfer_density(Vτ, term.fft_grid, basis.fft_grid)
+    end
+
+    (; E, potential, Vτ)
+end
+
+# Internal evaluation on TermXc's own FFT grid.
+function _xc_potential_real(term::TermXc, model::Model{T}, comm_kpts, ρ, τ) where {T}
+    max_ρ_derivs = maximum(max_required_derivative, term.functionals)
+    density = LibxcDensities(model, term.fft_grid, max_ρ_derivs, ρ, τ)
+    _check_negative_bonding_indicator_α(density, comm_kpts)
+
+    n_spin = model.n_spin_components
     potential_threshold = term.potential_threshold
+    fft_grid     = term.fft_grid
+    fft_size     = fft_grid.fft_size
+    architecture = fft_grid.architecture
 
     # Evaluate terms and energy contribution
     # If the XC functional is not supported for an architecture, terms is on the CPU
     terms = potential_terms(term.functionals, density)
     @assert haskey(terms, :Vρ) && haskey(terms, :e)
-    E = term.scaling_factor * sum(terms.e) * basis.dvol
+    E = term.scaling_factor * sum(terms.e) * term.dvol
 
     # Map from the tuple of spin indices for the contracted density gradient
     # (s, t) to the index convention used in DftFunctionals (i.e. packed symmetry-adapted
@@ -119,14 +196,14 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     # Potential contributions Vρ -2 ∇⋅(Vσ ∇ρ) + ΔVl
     potential = zero(ρ)
     @views for s = 1:n_spin
-        Vρ = to_device(basis.architecture, reshape(terms.Vρ, n_spin, basis.fft_size...))
+        Vρ = to_device(architecture, reshape(terms.Vρ, n_spin, fft_size...))
 
         potential[:, :, :, s] .+= Vρ[s, :, :, :]
         if haskey(terms, :Vσ) && any(x -> abs(x) > potential_threshold, terms.Vσ)
             # Need gradient correction
             # TODO Drop do-block syntax here?
-            potential[:, :, :, s] .+= -2divergence_real(basis) do α
-                Vσ = to_device(basis.architecture, reshape(terms.Vσ, :, basis.fft_size...))
+            potential[:, :, :, s] .+= -2divergence_real(fft_grid, model) do α
+                Vσ = to_device(architecture, reshape(terms.Vσ, :, fft_size...))
 
                 # Extra factor (1/2) for s != t is needed because libxc only keeps σ_{αβ}
                 # in the energy expression. See comment block below on spin-polarised XC.
@@ -137,10 +214,10 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
         end
         if haskey(terms, :Vl) && any(x -> abs(x) > potential_threshold, terms.Vl)
             @warn "Meta-GGAs with a Δρ term have not yet been thoroughly tested." maxlog=1
-            mG² = .-norm2.(G_vectors_cart(basis))
-            Vl  = to_device(basis.architecture, reshape(terms.Vl, n_spin, basis.fft_size...))
-            Vl_fourier = fft(basis, Vl[s, :, :, :])
-            potential[:, :, :, s] .+= irfft(basis, mG² .* Vl_fourier)  # ΔVl
+            mG² = .-norm2.(G_vectors_cart(fft_grid, model))
+            Vl  = to_device(architecture, reshape(terms.Vl, n_spin, fft_size...))
+            Vl_fourier = fft(fft_grid, Vl[s, :, :, :])
+            potential[:, :, :, s] .+= irfft(fft_grid, mG² .* Vl_fourier)  # ΔVl
         end
     end
 
@@ -148,7 +225,7 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     Vτ = nothing
     if haskey(terms, :Vτ) && any(x -> abs(x) > potential_threshold, terms.Vτ)
         # Need meta-GGA non-local operator (Note: -½ part of the definition of DivAgrid)
-        Vτ = to_device(basis.architecture, reshape(terms.Vτ, n_spin, basis.fft_size...))
+        Vτ = to_device(architecture, reshape(terms.Vτ, n_spin, fft_size...))
         Vτ = term.scaling_factor * permutedims(Vτ, (2, 3, 4, 1))
     end
 
@@ -160,7 +237,7 @@ end
 
 @views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis,
                                               ψ, occupation; ρ, τ=nothing, kwargs...)
-    E, Vxc, Vτ = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
+    E, Vxc, Vτ = xc_potential_real(term, basis; ρ, τ)
 
     ops = map(basis.kpoints) do kpt
         if !isnothing(Vτ)
@@ -188,12 +265,17 @@ end
         τ = τ + term.τcore
     end
 
+    ρ = transfer_density(ρ, basis.fft_grid, term.fft_grid)
+    if !isnothing(τ)
+        τ = transfer_density(τ, basis.fft_grid, term.fft_grid)
+    end
+
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
-    densities = LibxcDensities(basis, max_ρ_derivs, ρ, τ)
-    _check_negative_bonding_indicator_α(densities)
+    densities = LibxcDensities(basis.model, term.fft_grid, max_ρ_derivs, ρ, τ)
+    _check_negative_bonding_indicator_α(densities, basis.comm_kpts)
 
     edensity = energy_density(term.functionals, densities)
-    term.scaling_factor * sum(edensity) * basis.dvol
+    term.scaling_factor * sum(edensity) * term.dvol
 end
 
 @timing "forces: xc" function compute_forces(term::TermXc, basis::PlaneWaveBasis{T},
@@ -204,7 +286,7 @@ end
     isnothing(term.ρcore) && isnothing(term.τcore) && return nothing
 
     model = basis.model
-    _, Vρ_real, Vτ_real = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
+    _, Vρ_real, Vτ_real = xc_potential_real(term, basis; ρ, τ)
     Vτ_fourier = nothing
     if model.spin_polarization in (:none, :spinless)
         Vρ_fourier = fft(basis, Vρ_real[:,:,:,1])
@@ -339,8 +421,9 @@ end
 
 
 # stores the input to libxc in a format it likes
-struct LibxcDensities{T}
-    basis::PlaneWaveBasis{T}
+struct LibxcDensities{FFTtype}
+    fft_grid::FFTtype
+    n_spin::Int
     max_derivative::Int
     ρ_real    # density ρ[iσ, ix, iy, iz]
     ∇ρ_real   # for GGA, density gradient ∇ρ[iσ, ix, iy, iz, iα]
@@ -352,9 +435,10 @@ end
 """
 Compute density in real space and its derivatives starting from ρ
 """
-function LibxcDensities(basis::PlaneWaveBasis{T}, max_derivative::Integer, ρ, τ) where {T}
-    model = basis.model
+function LibxcDensities(model::Model{T}, fft_grid::FFTtype, max_derivative::Integer,
+                        ρ, τ) where {T, FFTtype<:FFTGrid}
     @assert max_derivative in (0, 1, 2)
+    fft_size = fft_grid.fft_size
 
     n_spin    = model.n_spin_components
     σ_real    = nothing
@@ -364,20 +448,20 @@ function LibxcDensities(basis::PlaneWaveBasis{T}, max_derivative::Integer, ρ, �
     # compute ρ_real and possibly ρ_fourier
     ρ_real = permutedims(ρ, (4, 1, 2, 3))  # ρ[x, y, z, σ] -> ρ_real[σ, x, y, z]
     if max_derivative > 0
-        ρf = fft(basis, ρ)
+        ρf = fft(fft_grid, ρ)
         ρ_fourier = permutedims(ρf, (4, 1, 2, 3))  # ρ_fourier[σ, x, y, z]
     end
 
     # compute ∇ρ and σ
     if max_derivative > 0
         n_spin_σ = div((n_spin + 1) * n_spin, 2)
-        ∇ρ_real = similar(ρ_real,   n_spin, basis.fft_size..., 3)
-        σ_real  = similar(ρ_real, n_spin_σ, basis.fft_size...)
+        ∇ρ_real = similar(ρ_real,   n_spin, fft_size..., 3)
+        σ_real  = similar(ρ_real, n_spin_σ, fft_size...)
 
         for α = 1:3
-            iGα = map(G -> im * G[α], G_vectors_cart(basis))
+            iGα = map(G -> im * G[α], G_vectors_cart(fft_grid, model))
             for σ = 1:n_spin
-                ∇ρ_real[σ, :, :, :, α] .= irfft(basis, iGα .* @view ρ_fourier[σ, :, :, :])
+                ∇ρ_real[σ, :, :, :, α] .= irfft(fft_grid, iGα .* @view ρ_fourier[σ, :, :, :])
             end
         end
 
@@ -395,20 +479,21 @@ function LibxcDensities(basis::PlaneWaveBasis{T}, max_derivative::Integer, ρ, �
 
     # Compute Δρ
     if max_derivative > 1
-        Δρ_real = similar(ρ_real, n_spin, basis.fft_size...)
-        mG² = .-norm2.(G_vectors_cart(basis))
+        Δρ_real = similar(ρ_real, n_spin, fft_size...)
+        mG² = .-norm2.(G_vectors_cart(fft_grid, model))
         for σ = 1:n_spin
-            Δρ_real[σ, :, :, :] .= irfft(basis, mG² .* @view ρ_fourier[σ, :, :, :])
+            Δρ_real[σ, :, :, :] .= irfft(fft_grid, mG² .* @view ρ_fourier[σ, :, :, :])
         end
     end
 
     # τ[x, y, z, σ] -> τ_Libxc[σ, x, y, z]
     τ_Libxc = isnothing(τ) ? nothing : permutedims(τ, (4, 1, 2, 3))
-    LibxcDensities{T}(basis, max_derivative, ρ_real, ∇ρ_real, σ_real, Δρ_real, τ_Libxc)
+    LibxcDensities{FFTtype}(fft_grid, n_spin, max_derivative, ρ_real, ∇ρ_real,
+                            σ_real, Δρ_real, τ_Libxc)
 end
 
-function _check_negative_bonding_indicator_α(densities::LibxcDensities{T};
-                                             density_threshold=100eps(T)) where {T}
+function _check_negative_bonding_indicator_α(densities::LibxcDensities, comm_kpts;
+                                             density_threshold=100eps(eltype(densities.ρ_real)))
     # TODO: The idea here is that libxc cuts components of the XC evaluation anyway if
     #       the density (or contracted density gradient) is below a certain threshold,
     #       so we do the same here for the check to make sure this is not too noisy.
@@ -416,8 +501,7 @@ function _check_negative_bonding_indicator_α(densities::LibxcDensities{T};
         return
     end
 
-    n_spin = densities.basis.model.n_spin_components
-    failure_indicator = @views minimum(1:n_spin) do iσ
+    failure_indicator = @views minimum(1:densities.n_spin) do iσ
         # α = (τ - τ_W) / τ_unif should be positive with τ_W = |∇ρ|² / 8ρ
         # equivalently, check 8ρτ - |∇ρ|² ≥ 0
         ρ = densities.ρ_real[iσ, :, :, :]
@@ -429,7 +513,8 @@ function _check_negative_bonding_indicator_α(densities::LibxcDensities{T};
                                 * (abs(τ) ≥ density_threshold))
         minimum(failure_indicator)
     end
-    if mpi_master(densities.basis.comm_kpts)
+    if mpi_master(comm_kpts)
+        T = eltype(densities.ρ_real)
         if failure_indicator < -eps(T)
             @debug "xc: α failure indicator: $failure_indicator"
         end
@@ -450,11 +535,15 @@ function compute_kernel(term::TermXc, basis::PlaneWaveBasis{T}; ρ, kwargs...) w
     if !all(family(xc) == :lda for xc in term.functionals)
         error("compute_kernel only implemented for LDA")
     end
+    if term.fft_grid.fft_size != basis.fft_size
+        # On a denser XC grid the Fourier interpolation makes the kernel non-diagonal
+        error("compute_kernel not implemented for an Xc term with its own fft_size")
+    end
 
     # For LDA the Kernel is known to be diagonal, so we can get away
     # with a single push-forward (two for spin-polarized case)
     if n_spin == 1
-        f_spinless(ε) = xc_potential_real(term, basis, nothing, nothing; ρ=ρ.+ε).potential
+        f_spinless(ε) = xc_potential_real(term, basis; ρ=ρ.+ε).potential
         δpotential = ForwardDiff.derivative(f_spinless, zero(T))
         Diagonal(vec(δpotential))
     else
@@ -462,8 +551,8 @@ function compute_kernel(term::TermXc, basis::PlaneWaveBasis{T}; ρ, kwargs...) w
         function f_collinear(ε)
             dρ1 = reshape([ε, 0], 1, 1, 1, 2)
             dρ2 = reshape([0, ε], 1, 1, 1, 2)
-            stack([xc_potential_real(term, basis, nothing, nothing; ρ=ρ.+dρ1).potential,
-                   xc_potential_real(term, basis, nothing, nothing; ρ=ρ.+dρ2).potential])
+            stack([xc_potential_real(term, basis; ρ=ρ.+dρ1).potential,
+                   xc_potential_real(term, basis; ρ=ρ.+dρ2).potential])
         end
         δpotential = ForwardDiff.derivative(f_collinear, zero(T))
 
@@ -490,7 +579,7 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArra
 
     # Key insight: kernel application is just a Hessian-vector product,
     # which is computed with a push-forward of the gradient.
-    f(ρ_eval) = xc_potential_real(term, basis, nothing, nothing; ρ=ρ_eval).potential
+    f(ρ_eval) = xc_potential_real(term, basis; ρ=ρ_eval).potential
     Tag = typeof(ForwardDiff.Tag(f, T))
     if Tδρ <: T
         # Usually δρ has the same type, so we do a standard push-forward
@@ -572,12 +661,12 @@ Compute divergence of an operand function, which returns the Cartesian x,y,z
 components in real space when called with the arguments 1 to 3.
 The divergence is also returned as a real-space array.
 """
-function divergence_real(operand, basis)
+function divergence_real(operand, fft_grid::FFTGrid, model::Model)
     gradsum = sum(1:3) do α
-        operand_α = fft(basis, operand(α))
-        map(G_vectors_cart(basis), operand_α) do G, operand_αG
+        operand_α = fft(fft_grid, operand(α))
+        map(G_vectors_cart(fft_grid, model), operand_α) do G, operand_αG
             im * G[α] * operand_αG  # ∇_α * operand_α
         end
     end
-    irfft(basis, gradsum)
+    irfft(fft_grid, gradsum)
 end

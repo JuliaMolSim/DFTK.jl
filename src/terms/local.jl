@@ -33,7 +33,7 @@ External potential given as values.
 struct ExternalFromValues
     potential_values::AbstractArray
 end
-function (external::ExternalFromValues)(basis::PlaneWaveBasis{T}) where {T}
+function (external::ExternalFromValues)(basis::PlaneWaveBasis{T}; kwargs...) where {T}
     # TODO Could do interpolation here
     @assert size(external.potential_values)[1:3] == basis.fft_size
     TermExternal(convert_dual.(T, external.potential_values))
@@ -47,7 +47,7 @@ struct ExternalFromReal
     potential::Function
 end
 
-function (external::ExternalFromReal)(basis::PlaneWaveBasis{T}) where {T}
+function (external::ExternalFromReal)(basis::PlaneWaveBasis{T}; kwargs...) where {T}
     pot_real = external.potential.(r_vectors_cart(basis))
     TermExternal(convert_dual.(T, pot_real))
 end
@@ -59,7 +59,7 @@ G is passed in Cartesian coordinates
 struct ExternalFromFourier
     potential::Function
 end
-function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
+function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}; kwargs...) where {T}
     unit_cell_volume = basis.model.unit_cell_volume
     pot_fourier = map(G_vectors_cart(basis)) do G
         convert_dual(complex(T), external.potential(G) / sqrt(unit_cell_volume))
@@ -134,7 +134,7 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
         return ifft(basis, pot_fourier)
     end
 end
-(::AtomicLocal)(basis::PlaneWaveBasis{T}) where {T} =
+(::AtomicLocal)(basis::PlaneWaveBasis{T}; kwargs...) where {T} =
     TermAtomicLocal(compute_local_potential(basis))
 
 function compute_forces(::TermAtomicLocal, basis::PlaneWaveBasis{T}, ψ, occupation;

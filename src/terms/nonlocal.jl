@@ -6,7 +6,7 @@ Nonlocal term coming from norm-conserving pseudopotentials in Kleinmann-Bylander
 ```
 """
 struct AtomicNonlocal end
-function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}) where {T}
+function (::AtomicNonlocal)(basis::PlaneWaveBasis{T}; kwargs...) where {T}
     model = basis.model
 
     # keep only pseudopotential atoms and positions

@@ -36,6 +36,7 @@ function DFTK.save_bands(::Val{:jld2}, file::AbstractString, band_data::NamedTup
     save_jld2(DFTK.band_data_to_dict!, file, band_data; kwargs...)
 end
 
+# TODO: how to save and load the extra_kwargs?
 function load_basis(jld; comm=MPI.COMM_WORLD)
     if mpi_master(comm)
         basis_args = (jld["model"],

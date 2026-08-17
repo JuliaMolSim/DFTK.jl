@@ -12,7 +12,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6,
                                test_for_constant=false, test_energy_ad=true,
                                n_empty=3, kgrid=[1, 2, 3], kshift=[0, 1, 0]/2, Ecut=10,
                                lattice=silicon.lattice, atom=nothing, spin_polarization=:none,
-                               exxalg=AceExx())
+                               exxalg=AceExx(), basis_kwargs=(;))
     sspol = spin_polarization != :none ? " ($spin_polarization)" : ""
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
     @testset "$(typeof(term))$xc $sspol" begin
@@ -23,7 +23,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6,
         atoms = [atom, atom]
         model = Model(lattice, atoms, silicon.positions; terms=[term], spin_polarization,
                       symmetries=true)
-        basis = PlaneWaveBasis(model; Ecut, kgrid=MonkhorstPack(kgrid; kshift))
+        basis = PlaneWaveBasis(model; Ecut, kgrid=MonkhorstPack(kgrid; kshift), basis_kwargs...)
         @assert length(basis.terms) == 1
 
         n_electrons = silicon.n_electrons
@@ -61,7 +61,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6,
         δψ = [randn(ComplexF64, size(ψ[ik])) for ik = 1:length(basis.kpoints)]
         function compute_E(ε::T) where {T}
             modelE = Model(model; lattice=Matrix{T}(model.lattice))
-            basisE = PlaneWaveBasis(modelE; Ecut, kgrid=MonkhorstPack(kgrid; kshift))
+            basisE = PlaneWaveBasis(modelE; Ecut, kgrid=MonkhorstPack(kgrid; kshift), basis_kwargs...)
 
             ψ_trial = ψ .+ ε .* δψ
             ρ_trial = with_logger(NullLogger()) do
@@ -148,22 +148,32 @@ end
         Si = ElementPsp(14, load_psp(psp))
         test_consistency_term(AtomicLocal(); atom=Si)
         test_consistency_term(AtomicNonlocal(); atom=Si)
-        test_consistency_term(Xc([:lda_xc_teter93]); atom=Si)
-        test_consistency_term(Xc([:lda_xc_teter93]); atom=Si, spin_polarization=:collinear)
-        test_consistency_term(Xc([:gga_x_pbe]); atom=Si, spin_polarization=:collinear)
 
-        # TODO: for use_nlcc=true need to fix consistency for meta-GGA with NLCC
-        #       (see JuliaMolSim/DFTK.jl#1180)
-        test_consistency_term(Xc([:mgga_x_tpss]; use_nlcc=false); atom=Si, tauad...)
-        test_consistency_term(Xc([:mgga_x_scan]; use_nlcc=false); atom=Si, tauad...)
-        test_consistency_term(Xc([:mgga_c_scan]; use_nlcc=false); atom=Si, tauad...,
-                              spin_polarization=:collinear)
-        test_consistency_term(Xc([:mgga_x_b00]; use_nlcc=false); atom=Si, tauad...)
-        test_consistency_term(Xc([:mgga_c_b94]; use_nlcc=false); atom=Si, tauad...,
-                              spin_polarization=:collinear)
-        test_consistency_term(Xc([:mgga_x_scanl]); atom=Si)
-        test_consistency_term(Xc([:mgga_x_r2scanl, :mgga_c_scan]); atom=Si, tauad...,
-                              spin_polarization=:collinear)
+        for supersample_xc in [false, true]
+            basis_kwargs = supersample_xc ? (; supersampling_xc=4) : (;)
+
+            test_consistency_term(Xc([:lda_xc_teter93]); atom=Si, basis_kwargs)
+            test_consistency_term(Xc([:lda_xc_teter93]); atom=Si,
+                                  spin_polarization=:collinear, basis_kwargs)
+            test_consistency_term(Xc([:gga_x_pbe]); atom=Si,
+                                  spin_polarization=:collinear, basis_kwargs)
+
+            # TODO: for use_nlcc=true need to fix consistency for meta-GGA with NLCC
+            #       (see JuliaMolSim/DFTK.jl#1180)
+            test_consistency_term(Xc([:mgga_x_tpss]; use_nlcc=false); atom=Si,
+                                  tauad..., basis_kwargs)
+            test_consistency_term(Xc([:mgga_x_scan]; use_nlcc=false); atom=Si,
+                                  tauad..., basis_kwargs)
+            test_consistency_term(Xc([:mgga_c_scan]; use_nlcc=false); atom=Si,
+                                  tauad..., spin_polarization=:collinear, basis_kwargs)
+            test_consistency_term(Xc([:mgga_x_b00]; use_nlcc=false); atom=Si,
+                                  tauad..., basis_kwargs)
+            test_consistency_term(Xc([:mgga_c_b94]; use_nlcc=false); atom=Si,
+                                  tauad..., spin_polarization=:collinear, basis_kwargs)
+            test_consistency_term(Xc([:mgga_x_scanl]); atom=Si, basis_kwargs)
+            test_consistency_term(Xc([:mgga_x_r2scanl, :mgga_c_scan]); atom=Si,
+                                  tauad..., spin_polarization=:collinear, basis_kwargs)
+        end
     end
 
     @testset "Exact exchange" begin

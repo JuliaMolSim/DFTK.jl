@@ -7,7 +7,7 @@ end
 struct TermLocalNonlinearity{TF} <: TermNonlinear
     f::TF
 end
-(L::LocalNonlinearity)(::AbstractBasis) = TermLocalNonlinearity(L.f)
+(L::LocalNonlinearity)(::AbstractBasis; kwargs...) = TermLocalNonlinearity(L.f)
 
 function ene_ops(term::TermLocalNonlinearity, basis::PlaneWaveBasis{T}, ψ, occupation;
                  ρ, kwargs...) where {T}

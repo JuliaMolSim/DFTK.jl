@@ -5,7 +5,7 @@ This is in particular useful because the free energy,
 not the energy, is minimized at self-consistency.
 """
 struct Entropy end
-(::Entropy)(basis) = TermEntropy()
+(::Entropy)(basis; kwargs...) = TermEntropy()
 struct TermEntropy <: Term end
 
 function ene_ops(term::TermEntropy, basis::PlaneWaveBasis{T}, ψ, occupation;

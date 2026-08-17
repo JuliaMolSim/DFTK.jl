@@ -15,7 +15,7 @@ struct Hartree
     scaling_factor::Real  # to scale by an arbitrary factor (useful for exploration)
 end
 Hartree(; scaling_factor=1) = Hartree(scaling_factor)
-(hartree::Hartree)(basis)   = TermHartree(basis, hartree.scaling_factor)
+(hartree::Hartree)(basis; kwargs...)   = TermHartree(basis, hartree.scaling_factor)
 function Base.show(io::IO, hartree::Hartree)
     fac = isone(hartree.scaling_factor) ? "" : ", scaling_factor=$(hartree.scaling_factor)"
     print(io, "Hartree($fac)")

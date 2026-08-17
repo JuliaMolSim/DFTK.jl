@@ -2,7 +2,7 @@
 Pseudopotential correction energy. TODO discuss the need for this.
 """
 struct PspCorrection end
-(::PspCorrection)(basis) = TermPspCorrection(basis)
+(::PspCorrection)(basis; kwargs...) = TermPspCorrection(basis)
 
 struct TermPspCorrection{T} <: TermLinear
     energy::T  # precomputed energy
