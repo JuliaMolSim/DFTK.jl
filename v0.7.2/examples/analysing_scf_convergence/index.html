@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Analysing SCF convergence · DFTK.jl</title><meta name="title" content="Analysing SCF convergence · DFTK.jl"/><meta property="og:title" content="Analysing SCF convergence · DFTK.jl"/><meta property="twitter:title" content="Analysing SCF convergence · DFTK.jl"/><meta name="description" content="Documentation for DFTK.jl."/><meta property="og:description" content="Documentation for DFTK.jl."/><meta property="twitter:description" content="Documentation for DFTK.jl."/><meta property="og:url" content="https://docs.dftk.org/stable/examples/analysing_scf_convergence/"/><meta property="twitter:url" content="https://docs.dftk.org/stable/examples/analysing_scf_convergence/"/><link rel="canonical" href="https://docs.dftk.org/stable/examples/analysing_scf_convergence/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="DFTK.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">DFTK.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../features/">DFTK features</a></li><li><span class="tocitem">Getting started</span><ul><li><a class="tocitem" href="../../guide/installation/">Installation</a></li><li><a class="tocitem" href="../../guide/tutorial/">Tutorial</a></li></ul></li><li><span class="tocitem">Background</span><ul><li><a class="tocitem" href="../../guide/introductory_resources/">Introductory resources</a></li><li><a class="tocitem" href="../../guide/periodic_problems/">Periodic problems and plane-wave discretisations</a></li><li><a class="tocitem" href="../../guide/discretisation/">Comparing discretization techniques</a></li><li><a class="tocitem" href="../../guide/atomic_chains/">Modelling atomic chains</a></li><li><a class="tocitem" href="../../guide/density_functional_theory/">Introduction to density-functional theory</a></li><li><a class="tocitem" href="../../guide/self_consistent_field/">Self-consistent field methods</a></li><li><a class="tocitem" href="../../school2022/">DFTK School 2022</a></li></ul></li><li><span class="tocitem">Basic DFT calculations</span><ul><li><a class="tocitem" href="../metallic_systems/">Temperature and metallic systems</a></li><li><a class="tocitem" href="../collinear_magnetism/">Collinear spin and magnetic systems</a></li><li><a class="tocitem" href="../convergence_study/">Performing a convergence study</a></li><li><a class="tocitem" href="../pseudopotentials/">Pseudopotentials</a></li><li><a class="tocitem" href="../supercells/">Creating and modelling metallic supercells</a></li><li><a class="tocitem" href="../gaas_surface/">Modelling a gallium arsenide surface</a></li><li><a class="tocitem" href="../graphene/">Graphene band structure</a></li><li><a class="tocitem" href="../geometry_optimization/">Geometry optimization</a></li><li><a class="tocitem" href="../energy_cutoff_smearing/">Energy cutoff smearing</a></li></ul></li><li><span class="tocitem">Response and properties</span><ul><li><a class="tocitem" href="../polarizability/">Polarizability by linear response</a></li><li><a class="tocitem" href="../forwarddiff/">Polarizability using automatic differentiation</a></li></ul></li><li><span class="tocitem">Ecosystem integration</span><ul><li><a class="tocitem" href="../../ecosystem/atomsbase/">AtomsBase integration</a></li><li><a class="tocitem" href="../../ecosystem/atomscalculators/">AtomsCalculators integration</a></li><li><a class="tocitem" href="../../ecosystem/input_output/">Input and output formats</a></li><li><a class="tocitem" href="../../ecosystem/atomistic_simulation_environment/">Atomistic simulation environment</a></li><li><a class="tocitem" href="../../ecosystem/wannier/">Wannierization using Wannier.jl or Wannier90</a></li></ul></li><li><span class="tocitem">Tips and tricks</span><ul><li><a class="tocitem" href="../../tricks/parallelization/">Timings and parallelization</a></li><li><a class="tocitem" href="../../tricks/scf_checkpoints/">Saving SCF results on disk and SCF checkpoints</a></li><li><a class="tocitem" href="../../tricks/compute_clusters/">Using DFTK on compute clusters</a></li></ul></li><li><span class="tocitem">Solvers</span><ul><li><a class="tocitem" href="../custom_solvers/">Custom solvers</a></li><li><a class="tocitem" href="../scf_callbacks/">Monitoring self-consistent field calculations</a></li><li><a class="tocitem" href="../compare_solvers/">Comparison of DFT solvers</a></li><li class="is-active"><a class="tocitem" href>Analysing SCF convergence</a></li></ul></li><li><span class="tocitem">Nonstandard models</span><ul><li><a class="tocitem" href="../gross_pitaevskii/">Gross-Pitaevskii equation in one dimension</a></li><li><a class="tocitem" href="../gross_pitaevskii_2D/">Gross-Pitaevskii equation with external magnetic field</a></li><li><a class="tocitem" href="../custom_potential/">Custom potential</a></li><li><a class="tocitem" href="../cohen_bergstresser/">Cohen-Bergstresser model</a></li><li><a class="tocitem" href="../anyons/">Anyonic models</a></li></ul></li><li><span class="tocitem">Error control</span><ul><li><a class="tocitem" href="../arbitrary_floattype/">Arbitrary floating-point types</a></li><li><a class="tocitem" href="../error_estimates_forces/">Practical error bounds for the forces</a></li></ul></li><li><span class="tocitem">Developer resources</span><ul><li><a class="tocitem" href="../../developer/setup/">Developer setup</a></li><li><a class="tocitem" href="../../developer/testsystem/">Unit test system</a></li><li><a class="tocitem" href="../../developer/conventions/">Notation and conventions</a></li><li><a class="tocitem" href="../../developer/style_guide/">Developer&#39;s style guide</a></li><li><a class="tocitem" href="../../developer/data_structures/">Data structures</a></li><li><a class="tocitem" href="../../developer/useful_formulas/">Useful formulas</a></li><li><a class="tocitem" href="../../developer/symmetries/">Crystal symmetries</a></li><li><a class="tocitem" href="../../developer/gpu_computations/">GPU computations</a></li></ul></li><li><a class="tocitem" href="../../api/">API reference</a></li><li><a class="tocitem" href="../../publications/">Publications</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Solvers</a></li><li class="is-active"><a href>Analysing SCF convergence</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Analysing SCF convergence</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaMolSim/DFTK.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaMolSim/DFTK.jl/blob/master/examples/analysing_scf_convergence.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Analysing-SCF-convergence"><a class="docs-heading-anchor" href="#Analysing-SCF-convergence">Analysing SCF convergence</a><a id="Analysing-SCF-convergence-1"></a><a class="docs-heading-anchor-permalink" href="#Analysing-SCF-convergence" title="Permalink"></a></h1><p><a href="https://mybinder.org/v2/gh/JuliaMolSim/DFTK.jl/gh-pages?filepath=v0.7.2/examples/analysing_scf_convergence.ipynb"><img src="https://mybinder.org/badge_logo.svg" alt/></a> <a href="https://nbviewer.jupyter.org/github/JuliaMolSim/DFTK.jl/blob/gh-pages/v0.7.2/examples/analysing_scf_convergence.ipynb"><img src="https://img.shields.io/badge/show-nbviewer-579ACA.svg" alt/></a></p><p>The goal of this example is to explain the differing convergence behaviour of SCF algorithms depending on the choice of the mixing. For this we look at the eigenpairs of the Jacobian governing the SCF convergence, that is</p><p class="math-container">\[1 - α P^{-1} \varepsilon^\dagger \qquad \text{with} \qquad \varepsilon^\dagger = (1-\chi_0 K).\]</p><p>where <span>$α$</span> is the damping <span>$P^{-1}$</span> is the mixing preconditioner (e.g. <a href="../../api/#DFTK.KerkerMixing"><code>KerkerMixing</code></a>, <a href="../../api/#DFTK.LdosMixing-Tuple{}"><code>LdosMixing</code></a>) and <span>$\varepsilon^\dagger$</span> is the dielectric operator.</p><p>We thus investigate the largest and smallest eigenvalues of <span>$(P^{-1} \varepsilon^\dagger)$</span> and <span>$\varepsilon^\dagger$</span>. The ratio of largest to smallest eigenvalue of this operator is the condition number</p><p class="math-container">\[\kappa = \frac{\lambda_\text{max}}{\lambda_\text{min}},\]</p><p>which can be related to the rate of convergence of the SCF. The smaller the condition number, the faster the convergence. For more details on SCF methods, see <a href="../../guide/self_consistent_field/#Self-consistent-field-methods">Self-consistent field methods</a>.</p><p>For our investigation we consider a crude aluminium setup:</p><pre><code class="language-julia hljs">using AtomsBuilder
+using DFTK
+
+system_Al = bulk(:Al; cubic=true) * (4, 1, 1)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">FlexibleSystem(Al₁₆, periodic = TTT):
+    bounding_box      : [    16.2        0        0;
+                                0     4.05        0;
+                                0        0     4.05]u&quot;Å&quot;
+
+      .---------------------------------------.  
+     /|                                       |  
+    * |                                       |  
+    |Al        Al        Al        Al         |  
+    | |                                       |  
+    | .--Al--------Al--------Al--------Al-----.  
+    |/    Al        Al        Al        Al   /   
+    Al--------Al--------Al--------Al--------*    
+</code></pre><p>and we discretise:</p><pre><code class="language-julia hljs">using PseudoPotentialData
+
+pseudopotentials = PseudoFamily(&quot;dojo.nc.sr.lda.v0_4_1.oncvpsp3.standard.upf&quot;)
+model_Al = model_DFT(system_Al; functionals=LDA(), temperature=1e-3,
+                     symmetries=false, pseudopotentials)
+basis_Al = PlaneWaveBasis(model_Al; Ecut=7, kgrid=[1, 1, 1]);</code></pre><p>On aluminium (a metal) already for moderate system sizes (like the 8 layers we consider here) the convergence without mixing / preconditioner is slow:</p><pre><code class="language-julia hljs"># Note: DFTK uses the self-adapting LdosMixing() by default, so to truly disable
+#       any preconditioning, we need to supply `mixing=SimpleMixing()` explicitly.
+scfres_Al = self_consistent_field(basis_Al; tol=1e-12, mixing=SimpleMixing());</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime
+---   ---------------   ---------   ---------   ----   ------
+  1   -36.73250224416                   -0.88   12.0    386ms
+  2   -36.63542504616   +   -1.01       -1.45    1.0   90.8ms
+  3   +33.52833292128   +    1.85       -0.14   23.0    345ms
+  4   -36.42262794475        1.84       -1.08    9.0    274ms
+  5   -36.68970619923       -0.57       -1.48    3.0    147ms
+  6   -36.70856692791       -1.72       -1.74    2.0    109ms
+  7   -36.18758164971   +   -0.28       -1.20    4.0    146ms
+  8   -36.73783741350       -0.26       -2.06    4.0    271ms
+  9   -36.73943750122       -2.80       -2.05    2.0    704ms
+ 10   -36.74026754625       -3.08       -2.09    2.0    128ms
+ 11   -36.74193771329       -2.78       -2.46    2.0    115ms
+ 12   -36.74133440770   +   -3.22       -2.50    2.0    107ms
+ 13   -36.74205725918       -3.14       -3.03    1.0    112ms
+ 14   -36.74199154583   +   -4.18       -2.86    3.0    146ms
+ 15   -36.74146041450   +   -3.27       -2.65    3.0    144ms
+ 16   -36.74180751658       -3.46       -2.79    4.0    153ms
+ 17   -36.74206869381       -3.58       -3.33    3.0    133ms
+ 18   -36.74208082418       -4.92       -3.68    2.0    137ms
+ 19   -36.74189843177   +   -3.74       -2.92    4.0    164ms
+ 20   -36.74205967533       -3.79       -3.33    4.0    159ms
+ 21   -36.74208256240       -4.64       -3.92    3.0    149ms
+ 22   -36.74208354547       -6.01       -4.10    3.0    125ms
+ 23   -36.74208370356       -6.80       -4.37    2.0    155ms
+ 24   -36.74208371394       -7.98       -4.47    2.0    117ms
+ 25   -36.74208376377       -7.30       -5.17    1.0    100ms
+ 26   -36.74208376422       -9.34       -5.11    3.0    147ms
+ 27   -36.74208376416   +  -10.17       -5.30    2.0    104ms
+ 28   -36.74208374737   +   -7.78       -4.94    3.0    146ms
+ 29   -36.74208376333       -7.80       -5.38    3.0    146ms
+ 30   -36.74208376477       -8.84       -5.96    2.0    118ms
+ 31   -36.74208376214   +   -8.58       -5.32    4.0    209ms
+ 32   -36.74208376189   +   -9.61       -5.33    4.0    174ms
+ 33   -36.74208376472       -8.55       -6.05    4.0    152ms
+ 34   -36.74208376478      -10.17       -6.39    2.0    118ms
+ 35   -36.74208376479      -11.68       -6.46    2.0    137ms
+ 36   -36.74208376479   +  -12.26       -6.46    2.0    132ms
+ 37   -36.74208376479      -11.66       -6.61    2.0    117ms
+ 38   -36.74208376479      -11.68       -7.23    1.0   98.9ms
+ 39   -36.74208376479   +  -13.85       -7.13    2.0    136ms
+ 40   -36.74208376479   +  -11.80       -6.92    4.0    136ms
+ 41   -36.74208376479      -11.82       -7.47    3.0    148ms
+ 42   -36.74208376479      -12.94       -7.76    2.0    109ms
+ 43   -36.74208376479   +  -13.45       -7.62    3.0    144ms
+ 44   -36.74208376479   +  -12.75       -7.39    3.0    146ms
+ 45   -36.74208376479      -12.67       -8.23    4.0    153ms
+ 46   -36.74208376479      -13.85       -8.69    2.0    132ms
+ 47   -36.74208376479   +  -14.15       -8.81    2.0    137ms
+ 48   -36.74208376479   +  -14.15       -9.25    2.0    118ms
+ 49   -36.74208376479   +    -Inf       -9.61    2.0    137ms
+ 50   -36.74208376479   +    -Inf       -9.65    2.0    119ms
+ 51   -36.74208376479   +    -Inf       -9.77    1.0   97.0ms
+ 52   -36.74208376479   +    -Inf       -9.93    5.0    137ms
+ 53   -36.74208376479   +    -Inf      -10.38    2.0    137ms
+ 54   -36.74208376479      -13.85      -10.57    3.0    143ms
+ 55   -36.74208376479   +    -Inf      -10.52    2.0    118ms
+ 56   -36.74208376479   +    -Inf       -9.96    4.0    154ms
+ 57   -36.74208376479   +    -Inf      -11.07    4.0    164ms
+ 58   -36.74208376479   +  -13.85      -11.15    2.0    137ms
+ 59   -36.74208376479   +    -Inf      -11.58    1.0   97.0ms
+ 60   -36.74208376479      -14.15      -11.68    3.0    124ms
+ 61   -36.74208376479      -14.15      -12.01    2.0    117ms</code></pre><p>while when using the Kerker preconditioner it is much faster:</p><pre><code class="language-julia hljs">scfres_Al = self_consistent_field(basis_Al; tol=1e-12, mixing=KerkerMixing());</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime
+---   ---------------   ---------   ---------   ----   ------
+  1   -36.73423360855                   -0.88   11.0    372ms
+  2   -36.74025079378       -2.22       -1.37    1.0   92.9ms
+  3   -36.74163324946       -2.86       -2.32    2.0    121ms
+  4   -36.74175485238       -3.92       -2.17   11.0    200ms
+  5   -36.74202221871       -3.57       -2.51    1.0   97.6ms
+  6   -36.74204911718       -4.57       -2.91    2.0    106ms
+  7   -36.74207873656       -4.53       -3.00    5.0    135ms
+  8   -36.74208141646       -5.57       -3.51    1.0   95.6ms
+  9   -36.74208280464       -5.86       -3.59    2.0    117ms
+ 10   -36.74208342366       -6.21       -3.99    1.0    101ms
+ 11   -36.74208341192   +   -7.93       -4.22    2.0    137ms
+ 12   -36.74208372101       -6.51       -4.66    3.0    127ms
+ 13   -36.74208375443       -7.48       -4.88    2.0    138ms
+ 14   -36.74208376403       -8.02       -5.44    2.0    109ms
+ 15   -36.74208376477       -9.13       -6.03    4.0    165ms
+ 16   -36.74208376478      -12.08       -6.15    4.0    155ms
+ 17   -36.74208376479      -10.88       -6.75    1.0   98.1ms
+ 18   -36.74208376479   +  -12.31       -6.78    6.0    165ms
+ 19   -36.74208376479      -11.96       -7.30    2.0    111ms
+ 20   -36.74208376479      -13.85       -7.72    6.0    154ms
+ 21   -36.74208376479      -14.15       -7.66    3.0    131ms
+ 22   -36.74208376479   +  -14.15       -8.18    2.0    112ms
+ 23   -36.74208376479   +    -Inf       -8.47    4.0    163ms
+ 24   -36.74208376479      -13.67       -8.87    2.0    111ms
+ 25   -36.74208376479   +  -13.67       -9.28    4.0    152ms
+ 26   -36.74208376479   +    -Inf       -9.80    7.0    143ms
+ 27   -36.74208376479      -14.15      -10.05    3.0    142ms
+ 28   -36.74208376479      -14.15      -10.53    2.0    111ms
+ 29   -36.74208376479   +    -Inf      -10.78    6.0    167ms
+ 30   -36.74208376479   +  -13.85      -11.05    5.0    139ms
+ 31   -36.74208376479   +    -Inf      -11.23    3.0    147ms
+ 32   -36.74208376479   +    -Inf      -11.80    2.0    110ms
+ 33   -36.74208376479   +    -Inf      -12.00    4.0    155ms</code></pre><p>Given this <code>scfres_Al</code> we construct functions representing <span>$\varepsilon^\dagger$</span> and <span>$P^{-1}$</span>:</p><pre><code class="language-julia hljs"># Function, which applies P^{-1} for the case of KerkerMixing
+Pinv_Kerker(δρ) = DFTK.mix_density(KerkerMixing(), basis_Al, δρ)
+
+# Function which applies ε† = 1 - χ0 K
+function epsilon(δρ)
+    δV   = apply_kernel(basis_Al, δρ; ρ=scfres_Al.ρ)
+    χ0δV = apply_χ0(scfres_Al, δV)
+    δρ - χ0δV
+end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">epsilon (generic function with 1 method)</code></pre><p>With these functions available we can now compute the desired eigenvalues. For simplicity we only consider the first few largest ones.</p><pre><code class="language-julia hljs">using KrylovKit
+λ_Simple, X_Simple = eigsolve(epsilon, randn(size(scfres_Al.ρ)), 3, :LM;
+                              tol=1e-3, eager=true, verbosity=2)
+λ_Simple_max = maximum(real.(λ_Simple))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">44.02448854586662</code></pre><p>The smallest eigenvalue is a bit more tricky to obtain, so we will just assume</p><pre><code class="language-julia hljs">λ_Simple_min = 0.952</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.952</code></pre><p>This makes the condition number around 30:</p><pre><code class="language-julia hljs">cond_Simple = λ_Simple_max / λ_Simple_min</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">46.24421065742292</code></pre><p>This does not sound large compared to the condition numbers you might know from linear systems.</p><p>However, this is sufficient to cause a notable slowdown, which would be even more pronounced if we did not use Anderson, since we also would need to drastically reduce the damping (try it!).</p><p>Having computed the eigenvalues of the dielectric matrix we can now also look at the eigenmodes, which are responsible for the bad convergence behaviour. The largest eigenmode for example:</p><pre><code class="language-julia hljs">using Statistics
+using Plots
+mode_xy = mean(real.(X_Simple[1]), dims=3)[:, :, 1, 1]  # Average along z axis
+heatmap(mode_xy&#39;, c=:RdBu_11, aspect_ratio=1, grid=false,
+        legend=false, clim=(-0.006, 0.006))</code></pre><img src="7e3e5ce9.svg" alt="Example block output"/><p>This mode can be physically interpreted as the reason why this SCF converges slowly. For example in this case it displays a displacement of electron density from the centre to the extremal parts of the unit cell. This phenomenon is called charge-sloshing.</p><p>We repeat the exercise for the Kerker-preconditioned dielectric operator:</p><pre><code class="language-julia hljs">λ_Kerker, X_Kerker = eigsolve(Pinv_Kerker ∘ epsilon,
+                              randn(size(scfres_Al.ρ)), 3, :LM;
+                              tol=1e-3, eager=true, verbosity=2)
+
+mode_xy = mean(real.(X_Kerker[1]), dims=3)[:, :, 1, 1]  # Average along z axis
+heatmap(mode_xy&#39;, c=:RdBu_11, aspect_ratio=1, grid=false,
+        legend=false, clim=(-0.006, 0.006))</code></pre><img src="f0df69f2.svg" alt="Example block output"/><p>Clearly the charge-sloshing mode is no longer dominating.</p><p>The largest eigenvalue is now</p><pre><code class="language-julia hljs">maximum(real.(λ_Kerker))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">4.7236301090558195</code></pre><p>Since the smallest eigenvalue in this case remains of similar size (it is now around 0.8), this implies that the conditioning improves noticeably when <code>KerkerMixing</code> is used.</p><p><strong>Note:</strong> Since LdosMixing requires solving a linear system at each application of <span>$P^{-1}$</span>, determining the eigenvalues of <span>$P^{-1} \varepsilon^\dagger$</span> is slightly more expensive and thus not shown. The results are similar to <code>KerkerMixing</code>, however.</p><p>We could repeat the exercise for an insulating system (e.g. a Helium chain). In this case you would notice that the condition number without mixing is actually smaller than the condition number with Kerker mixing. In other words employing Kerker mixing makes the convergence <em>worse</em>. A closer investigation of the eigenvalues shows that Kerker mixing reduces the smallest eigenvalue of the dielectric operator this time, while keeping the largest value unchanged. Overall the conditioning thus workens.</p><p><strong>Takeaways:</strong></p><ul><li>For metals the conditioning of the dielectric matrix increases steeply with system size.</li><li>The Kerker preconditioner tames this and makes SCFs on large metallic systems feasible by keeping the condition number of order 1.</li><li>For insulating systems the best approach is to not use any mixing.</li><li><strong>The ideal mixing</strong> strongly depends on the dielectric properties of system which is studied (metal versus insulator versus semiconductor).</li></ul></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../compare_solvers/">« Comparison of DFT solvers</a><a class="docs-footer-nextpage" href="../gross_pitaevskii/">Gross-Pitaevskii equation in one dimension »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.5.0 on <span class="colophon-date" title="Thursday 5 December 2024 21:02">Thursday 5 December 2024</span>. Using Julia version 1.11.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

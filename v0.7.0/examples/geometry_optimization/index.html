@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Geometry optimization · DFTK.jl</title><meta name="title" content="Geometry optimization · DFTK.jl"/><meta property="og:title" content="Geometry optimization · DFTK.jl"/><meta property="twitter:title" content="Geometry optimization · DFTK.jl"/><meta name="description" content="Documentation for DFTK.jl."/><meta property="og:description" content="Documentation for DFTK.jl."/><meta property="twitter:description" content="Documentation for DFTK.jl."/><meta property="og:url" content="https://docs.dftk.org/stable/examples/geometry_optimization/"/><meta property="twitter:url" content="https://docs.dftk.org/stable/examples/geometry_optimization/"/><link rel="canonical" href="https://docs.dftk.org/stable/examples/geometry_optimization/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="DFTK.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">DFTK.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../features/">DFTK features</a></li><li><span class="tocitem">Getting started</span><ul><li><a class="tocitem" href="../../guide/installation/">Installation</a></li><li><a class="tocitem" href="../../guide/tutorial/">Tutorial</a></li></ul></li><li><span class="tocitem">Background</span><ul><li><a class="tocitem" href="../../guide/introductory_resources/">Introductory resources</a></li><li><a class="tocitem" href="../../guide/periodic_problems/">Periodic problems and plane-wave discretisations</a></li><li><a class="tocitem" href="../../guide/discretisation/">Comparing discretization techniques</a></li><li><a class="tocitem" href="../../guide/atomic_chains/">Modelling atomic chains</a></li><li><a class="tocitem" href="../../guide/density_functional_theory/">Introduction to density-functional theory</a></li><li><a class="tocitem" href="../../guide/self_consistent_field/">Self-consistent field methods</a></li><li><a class="tocitem" href="../../school2022/">DFTK School 2022</a></li></ul></li><li><span class="tocitem">Basic DFT calculations</span><ul><li><a class="tocitem" href="../metallic_systems/">Temperature and metallic systems</a></li><li><a class="tocitem" href="../collinear_magnetism/">Collinear spin and magnetic systems</a></li><li><a class="tocitem" href="../convergence_study/">Performing a convergence study</a></li><li><a class="tocitem" href="../pseudopotentials/">Pseudopotentials</a></li><li><a class="tocitem" href="../supercells/">Creating and modelling metallic supercells</a></li><li><a class="tocitem" href="../gaas_surface/">Modelling a gallium arsenide surface</a></li><li><a class="tocitem" href="../graphene/">Graphene band structure</a></li><li class="is-active"><a class="tocitem" href>Geometry optimization</a></li><li><a class="tocitem" href="../energy_cutoff_smearing/">Energy cutoff smearing</a></li></ul></li><li><span class="tocitem">Response and properties</span><ul><li><a class="tocitem" href="../polarizability/">Polarizability by linear response</a></li><li><a class="tocitem" href="../forwarddiff/">Polarizability using automatic differentiation</a></li></ul></li><li><span class="tocitem">Ecosystem integration</span><ul><li><a class="tocitem" href="../../ecosystem/atomsbase/">AtomsBase integration</a></li><li><a class="tocitem" href="../../ecosystem/atomscalculators/">AtomsCalculators integration</a></li><li><a class="tocitem" href="../../ecosystem/input_output/">Input and output formats</a></li><li><a class="tocitem" href="../../ecosystem/atomistic_simulation_environment/">Atomistic simulation environment</a></li><li><a class="tocitem" href="../../ecosystem/wannier/">Wannierization using Wannier.jl or Wannier90</a></li></ul></li><li><span class="tocitem">Tips and tricks</span><ul><li><a class="tocitem" href="../../tricks/parallelization/">Timings and parallelization</a></li><li><a class="tocitem" href="../../tricks/scf_checkpoints/">Saving SCF results on disk and SCF checkpoints</a></li><li><a class="tocitem" href="../../tricks/compute_clusters/">Using DFTK on compute clusters</a></li></ul></li><li><span class="tocitem">Solvers</span><ul><li><a class="tocitem" href="../custom_solvers/">Custom solvers</a></li><li><a class="tocitem" href="../scf_callbacks/">Monitoring self-consistent field calculations</a></li><li><a class="tocitem" href="../compare_solvers/">Comparison of DFT solvers</a></li><li><a class="tocitem" href="../analysing_scf_convergence/">Analysing SCF convergence</a></li></ul></li><li><span class="tocitem">Nonstandard models</span><ul><li><a class="tocitem" href="../gross_pitaevskii/">Gross-Pitaevskii equation in one dimension</a></li><li><a class="tocitem" href="../gross_pitaevskii_2D/">Gross-Pitaevskii equation with external magnetic field</a></li><li><a class="tocitem" href="../custom_potential/">Custom potential</a></li><li><a class="tocitem" href="../cohen_bergstresser/">Cohen-Bergstresser model</a></li><li><a class="tocitem" href="../anyons/">Anyonic models</a></li></ul></li><li><span class="tocitem">Error control</span><ul><li><a class="tocitem" href="../arbitrary_floattype/">Arbitrary floating-point types</a></li><li><a class="tocitem" href="../error_estimates_forces/">Practical error bounds for the forces</a></li></ul></li><li><span class="tocitem">Developer resources</span><ul><li><a class="tocitem" href="../../developer/setup/">Developer setup</a></li><li><a class="tocitem" href="../../developer/testsystem/">Unit test system</a></li><li><a class="tocitem" href="../../developer/conventions/">Notation and conventions</a></li><li><a class="tocitem" href="../../developer/style_guide/">Developer&#39;s style guide</a></li><li><a class="tocitem" href="../../developer/data_structures/">Data structures</a></li><li><a class="tocitem" href="../../developer/useful_formulas/">Useful formulas</a></li><li><a class="tocitem" href="../../developer/symmetries/">Crystal symmetries</a></li><li><a class="tocitem" href="../../developer/gpu_computations/">GPU computations</a></li></ul></li><li><a class="tocitem" href="../../api/">API reference</a></li><li><a class="tocitem" href="../../publications/">Publications</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Basic DFT calculations</a></li><li class="is-active"><a href>Geometry optimization</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Geometry optimization</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaMolSim/DFTK.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaMolSim/DFTK.jl/blob/master/examples/geometry_optimization.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Geometry-optimization"><a class="docs-heading-anchor" href="#Geometry-optimization">Geometry optimization</a><a id="Geometry-optimization-1"></a><a class="docs-heading-anchor-permalink" href="#Geometry-optimization" title="Permalink"></a></h1><p><a href="https://mybinder.org/v2/gh/JuliaMolSim/DFTK.jl/gh-pages?filepath=v0.7.0/examples/geometry_optimization.ipynb"><img src="https://mybinder.org/badge_logo.svg" alt/></a> <a href="https://nbviewer.jupyter.org/github/JuliaMolSim/DFTK.jl/blob/gh-pages/v0.7.0/examples/geometry_optimization.ipynb"><img src="https://img.shields.io/badge/show-nbviewer-579ACA.svg" alt/></a></p><p>We use DFTK and the <a href="https://github.com/JuliaMolSim/GeometryOptimization.jl/">GeometryOptimization</a> package to find the minimal-energy bond length of the <span>$H_2$</span> molecule. First we set up an appropriate <code>DFTKCalculator</code> (see <a href="../../ecosystem/atomscalculators/#AtomsCalculators-integration">AtomsCalculators integration</a>), for which we use the LDA model just like in the <a href="../../guide/tutorial/#Tutorial">Tutorial</a> for silicon.</p><pre><code class="language-julia hljs">using DFTK
+
+calc = DFTKCalculator(;
+    model_kwargs = (; functionals=LDA()),        # model_DFT keyword arguments
+    basis_kwargs = (; kgrid=[1, 1, 1], Ecut=10)  # PlaneWaveBasis keyword arguments
+)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DFTKCalculator(functionals=Xc(lda_x, lda_c_pw), Ecut=10, kgrid=[1, 1, 1])</code></pre><p>Next we set up an initial hydrogen molecule within a box of vacuum. We use the parameters of the <a href="https://docs.abinit.org/tutorial/base1/">equivalent tutorial from ABINIT</a>, that is a simulation box of 10 bohr times 10 bohr times 10 bohr and a pseudodojo pseudopotential.</p><pre><code class="language-julia hljs">using LinearAlgebra
+using PseudoPotentialData
+
+r0 = 1.4   # Initial bond length in Bohr
+a  = 10.0  # Box size in Bohr
+
+lattice = a * I(3)
+H = ElementPsp(:H, PseudoFamily(&quot;dojo.nc.sr.pbe.v0_4_1.oncvpsp3.standard.upf&quot;))
+atoms = [H, H]
+positions = [zeros(3), lattice \ [r0, 0., 0.]]
+
+h2_crude = periodic_system(lattice, atoms, positions)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">FlexibleSystem(H₂, periodic = TTT):
+    bounding_box      : [      10        0        0;
+                                0       10        0;
+                                0        0       10]u&quot;a₀&quot;
+
+    Atom(H,  [       0,        0,        0]u&quot;a₀&quot;)
+    Atom(H,  [     1.4,        0,        0]u&quot;a₀&quot;)
+
+       .------------.  
+      /|            |  
+     / |            |  
+    *  |            |  
+    |  |            |  
+    |  |            |  
+    |  .------------.  
+    | /            /   
+    |/            /    
+    H-H----------*     
+</code></pre><p>Finally we call <code>minimize_energy!</code> to start the geometry optimisation. We use <code>verbosity=2</code> to get some insight into the minimisation. With <code>verbosity=1</code> only a summarising table would be printed and with <code>verbosity=0</code> (default) the minimisation would be quiet.</p><pre><code class="language-julia hljs">using GeometryOptimization
+results = minimize_energy!(h2_crude, calc; tol_forces=2e-6, verbosity=2)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">n     Energy            log10(ΔE)   log10(Δρ)   α      Diag   Δtime
+---   ---------------   ---------   ---------   ----   ----   ------
+  1   -1.098543539351                   -0.88   0.80    7.0   24.5ms
+  2   -1.100792066578       -2.65       -1.84   0.80    1.0   17.2ms
+  3   -1.100803155791       -4.96       -2.65   0.80    1.0   38.0ms
+  4   -1.100803433497       -6.56       -3.52   0.80    1.0   17.1ms
+  5   -1.100803451296       -7.75       -4.74   0.80    1.0   17.4ms
+  6   -1.100803451608       -9.51       -4.86   0.80    2.0   20.2ms
+  7   -1.100803451662      -10.27       -5.53   0.80    1.0   31.2ms
+  8   -1.100803451664      -11.60       -6.32   0.80    1.0   19.0ms
+  9   -1.100803451664      -13.00       -6.95   0.80    1.0   19.0ms
+ 10   -1.100803451664      -14.12       -7.81   0.80    1.0   18.9ms
+ 11   -1.100803451664      -15.05       -8.07   0.80    2.0   21.5ms
+ 12   -1.100803451664   +  -14.65       -8.90   0.80    1.0   23.0ms
+n     Energy            log10(ΔE)   log10(Δρ)   α      Diag   Δtime
+---   ---------------   ---------   ---------   ----   ----   ------
+  1   -1.100803451664                   -9.46   0.80    1.0   10.9ms
+  2   -1.100803451664      -14.45      -10.46   0.80    1.0   16.9ms
+
+<span class="sgr1">Geometry optimisation convergence (in atomic units)</span>
+┌─────┬─────────────────┬───────────┬────────────┬────────┐
+│<span class="sgr1">   n </span>│<span class="sgr1">          Energy </span>│<span class="sgr1"> log10(ΔE) </span>│<span class="sgr1"> max(Force) </span>│<span class="sgr1">  Δtime </span>│
+├─────┼─────────────────┼───────────┼────────────┼────────┤
+│   0 │ -1.100803451664 │           │  0.0398785 │  844ms │
+└─────┴─────────────────┴───────────┴────────────┴────────┘
+
+n     Energy            log10(ΔE)   log10(Δρ)   α      Diag   Δtime
+---   ---------------   ---------   ---------   ----   ----   ------
+  1   -1.101386188260                   -2.30   0.80    1.0   10.9ms
+  2   -1.101391725523       -5.26       -3.32   0.80    1.0   17.1ms
+  3   -1.101391786169       -7.22       -4.07   0.80    1.0   17.0ms
+  4   -1.101391787205       -8.98       -4.97   0.80    1.0   25.5ms
+  5   -1.101391787239      -10.46       -5.74   0.80    1.0   17.4ms
+  6   -1.101391787241      -11.79       -6.23   0.80    1.0   17.6ms
+  7   -1.101391787241      -12.96       -7.25   0.80    1.0   22.4ms
+  8   -1.101391787241      -14.65       -8.01   0.80    1.0   18.9ms
+  9   -1.101391787241   +  -15.05       -8.77   0.80    1.0   18.9ms
+n     Energy            log10(ΔE)   log10(Δρ)   α      Diag   Δtime
+---   ---------------   ---------   ---------   ----   ----   ------
+  1   -1.102942669484                   -1.56   0.80    1.0   18.8ms
+  2   -1.103115930522       -3.76       -2.55   0.80    1.0   16.6ms
+  3   -1.103117857243       -5.72       -3.31   0.80    1.0   16.9ms
+  4   -1.103117892049       -7.46       -4.21   0.80    1.0   17.1ms
+  5   -1.103117893210       -8.94       -4.97   0.80    1.0   21.9ms
+  6   -1.103117893262      -10.29       -5.47   0.80    1.0   18.0ms
+  7   -1.103117893266      -11.43       -6.53   0.80    1.0   18.4ms
+  8   -1.103117893266      -13.28       -7.43   0.80    1.0   22.8ms
+  9   -1.103117893266      -14.45       -7.78   0.80    2.0   21.1ms
+ 10   -1.103117893266   +  -14.88       -8.60   0.80    1.0   19.0ms
+n     Energy            log10(ΔE)   log10(Δρ)   α      Diag   Δtime
+---   ---------------   ---------   ---------   ----   ----   ------
+  1   -1.103117893266                   -9.02   0.80    1.0   10.9ms
+  2   -1.103117893266      -15.35      -10.25   0.80    1.0   16.7ms
+
+┌─────┬─────────────────┬───────────┬────────────┬────────┐
+│<span class="sgr1">   n </span>│<span class="sgr1">          Energy </span>│<span class="sgr1"> log10(ΔE) </span>│<span class="sgr1"> max(Force) </span>│<span class="sgr1">  Δtime </span>│
+├─────┼─────────────────┼───────────┼────────────┼────────┤
+│   1 │ -1.103117893266 │     -2.64 │ 0.00571936 │  714ms │
+└─────┴─────────────────┴───────────┴────────────┴────────┘
+
+n     Energy            log10(ΔE)   log10(Δρ)   α      Diag   Δtime
+---   ---------------   ---------   ---------   ----   ----   ------
+  1   -1.103141517542                   -2.86   0.80    1.0   24.4ms
+  2   -1.103141961891       -6.35       -3.86   0.80    1.0   16.9ms
+  3   -1.103141966695       -8.32       -4.62   0.80    1.0   16.8ms
+  4   -1.103141966779      -10.08       -5.52   0.80    1.0   17.5ms
+  5   -1.103141966782      -11.59       -6.29   0.80    1.0   21.8ms
+  6   -1.103141966782      -12.95       -6.78   0.80    1.0   18.1ms
+  7   -1.103141966782      -14.07       -7.93   0.80    1.0   18.3ms
+  8   -1.103141966782      -15.35       -8.69   0.80    1.0   22.3ms
+n     Energy            log10(ΔE)   log10(Δρ)   α      Diag   Δtime
+---   ---------------   ---------   ---------   ----   ----   ------
+  1   -1.103174548500                   -2.31   0.80    1.0   11.0ms
+  2   -1.103180009638       -5.26       -3.32   0.80    1.0   16.9ms
+  3   -1.103180068856       -7.23       -4.07   0.80    1.0   25.4ms
+  4   -1.103180069901       -8.98       -4.98   0.80    1.0   17.7ms
+  5   -1.103180069933      -10.49       -5.74   0.80    1.0   17.6ms
+  6   -1.103180069934      -11.85       -6.23   0.80    1.0   17.9ms
+  7   -1.103180069935      -12.97       -7.39   0.80    1.0   22.8ms
+  8   -1.103180069935      -14.18       -8.13   0.80    1.0   18.5ms
+  9   -1.103180069935   +  -14.35       -8.41   0.80    2.0   21.3ms
+ 10   -1.103180069935      -14.81       -9.35   0.80    1.0   23.3ms
+n     Energy            log10(ΔE)   log10(Δρ)   α      Diag   Δtime
+---   ---------------   ---------   ---------   ----   ----   ------
+  1   -1.103180069935                   -9.81   0.80    1.0   10.9ms
+  2   -1.103180069935   +  -14.95      -11.00   0.80    1.0   17.0ms
+
+┌─────┬─────────────────┬───────────┬────────────┬────────┐
+│<span class="sgr1">   n </span>│<span class="sgr1">          Energy </span>│<span class="sgr1"> log10(ΔE) </span>│<span class="sgr1"> max(Force) </span>│<span class="sgr1">  Δtime </span>│
+├─────┼─────────────────┼───────────┼────────────┼────────┤
+│   2 │ -1.103180069935 │     -4.21 │ 0.0001620… │  732ms │
+└─────┴─────────────────┴───────────┴────────────┴────────┘
+
+n     Energy            log10(ΔE)   log10(Δρ)   α      Diag   Δtime
+---   ---------------   ---------   ---------   ----   ----   ------
+  1   -1.103180090944                   -4.36   0.80    1.0   11.0ms
+  2   -1.103180091381       -9.36       -5.37   0.80    1.0   16.7ms
+  3   -1.103180091386      -11.33       -6.12   0.80    1.0   17.1ms
+  4   -1.103180091386      -13.09       -7.03   0.80    1.0   26.4ms
+  5   -1.103180091386      -14.51       -7.80   0.80    1.0   17.9ms
+  6   -1.103180091386   +  -15.35       -8.28   0.80    1.0   18.0ms
+  7   -1.103180091386      -15.35       -9.46   0.80    1.0   18.4ms
+n     Energy            log10(ΔE)   log10(Δρ)   α      Diag   Δtime
+---   ---------------   ---------   ---------   ----   ----   ------
+  1   -1.103180117369                   -3.84   0.80    1.0   10.8ms
+  2   -1.103180122136       -8.32       -4.85   0.80    1.0   16.7ms
+  3   -1.103180122187      -10.29       -5.60   0.80    1.0   16.9ms
+  4   -1.103180122188      -12.04       -6.51   0.80    1.0   25.7ms
+  5   -1.103180122188      -13.62       -7.28   0.80    1.0   17.5ms
+  6   -1.103180122188      -14.27       -7.76   0.80    1.0   17.9ms
+  7   -1.103180122188   +  -14.45       -8.94   0.80    1.0   22.4ms
+n     Energy            log10(ΔE)   log10(Δρ)   α      Diag   Δtime
+---   ---------------   ---------   ---------   ----   ----   ------
+  1   -1.103180122188                   -9.69   0.80    1.0   10.9ms
+  2   -1.103180122188      -14.42      -10.43   0.80    1.0   16.6ms
+
+┌─────┬─────────────────┬───────────┬────────────┬────────┐
+│<span class="sgr1">   n </span>│<span class="sgr1">          Energy </span>│<span class="sgr1"> log10(ΔE) </span>│<span class="sgr1"> max(Force) </span>│<span class="sgr1">  Δtime </span>│
+├─────┼─────────────────┼───────────┼────────────┼────────┤
+│   3 │ -1.103180122188 │     -7.28 │ 1.38706e-7 │  603ms │
+└─────┴─────────────────┴───────────┴────────────┴────────┘</code></pre><p>Structure after optimisation (note that the atom has wrapped around)</p><pre><code class="language-julia hljs">results.system</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">FlexibleSystem(H₂, periodic = TTT):
+    bounding_box      : [      10        0        0;
+                                0       10        0;
+                                0        0       10]u&quot;a₀&quot;
+
+    Atom(H,  [-0.0640967, -2.57328e-12, -4.37889e-11]u&quot;a₀&quot;)
+    Atom(H,  [  1.4641, 1.14299e-12, -4.49957e-11]u&quot;a₀&quot;)
+
+       .------------H  
+      /|            |  
+     / |            |  
+    * H|            |  
+    |  |            |  
+    |  |            |  
+    |  .------------.  
+    | /            /   
+    |/            /    
+    *------------*     
+</code></pre><p>Compute final bond length:</p><pre><code class="language-julia hljs">rmin = norm(position(results.system[1]) - position(results.system[2]))
+println(&quot;Optimal bond length: &quot;, rmin)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Optimal bond length: 1.5281933006065236 a₀</code></pre><p>Our results (1.486 Bohr) agrees with the <a href="https://docs.abinit.org/tutorial/base1/">equivalent tutorial from ABINIT</a>.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../graphene/">« Graphene band structure</a><a class="docs-footer-nextpage" href="../energy_cutoff_smearing/">Energy cutoff smearing »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.5.0 on <span class="colophon-date" title="Saturday 30 November 2024 23:38">Saturday 30 November 2024</span>. Using Julia version 1.11.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
