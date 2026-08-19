@@ -374,8 +374,9 @@ function LibxcDensities(basis::PlaneWaveBasis{T}, max_derivative::Integer, ρ, �
         ∇ρ_real = similar(ρ_real,   n_spin, basis.fft_size..., 3)
         σ_real  = similar(ρ_real, n_spin_σ, basis.fft_size...)
 
+        Gs_cart = G_vectors_cart(basis)
         for α = 1:3
-            iGα = map(G -> im * G[α], G_vectors_cart(basis))
+            iGα = map(G -> im * G[α], Gs_cart)
             for σ = 1:n_spin
                 ∇ρ_real[σ, :, :, :, α] .= irfft(basis, iGα .* @view ρ_fourier[σ, :, :, :])
             end
@@ -573,9 +574,10 @@ components in real space when called with the arguments 1 to 3.
 The divergence is also returned as a real-space array.
 """
 function divergence_real(operand, basis)
+    Gs_cart = G_vectors_cart(basis)
     gradsum = sum(1:3) do α
         operand_α = fft(basis, operand(α))
-        map(G_vectors_cart(basis), operand_α) do G, operand_αG
+        map(Gs_cart, operand_α) do G, operand_αG
             im * G[α] * operand_αG  # ∇_α * operand_α
         end
     end
