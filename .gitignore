@@ -11,3 +11,4 @@ Manifest.toml
 .vscode
 .CondaPkg
 /src/scf/claude
+/minimaltest
