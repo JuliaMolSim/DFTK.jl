@@ -1,7 +1,5 @@
 @doc raw"""
-Agnostic Accelerator framework to work with Anderson & PCDIIS
-
-To be used together with scf_accelerated_solver() in scf_solvers.jl
+General Accelerator framework to work with Anderson & PCDIIS
 
 The history management is shared, while the function accelerate() dispatches
 to the different kinds of acceleration.
@@ -10,6 +8,7 @@ to the different kinds of acceleration.
 #struct to hold the memory of the Accelerator 
 #It also includes the variables needed to determine which iterates to keep 
 #and which to drop
+
 @kwdef struct AccelerationMemory
     iterates::Vector        = []
     residuals::Vector       = []
@@ -66,8 +65,8 @@ function solve_for_βs(M, rhs, mem::AccelerationMemory; droplines=true)
         deleteat!(mem, idrop)
         kept_cols = collect(1:size(M, 2))
         deleteat!(kept_cols, idrop)
-        #This is ugly, implements different pruning for Anderson and PCDIIS.
-        #Default is PCDIIS
+        #This is ugly, implements different pruning for Anderson and Pcdiis.
+        #Default is Pcdiis behaviour
         if droplines
             M = @view M[kept_cols, kept_cols]
             rhs = @view rhs[kept_cols]
@@ -106,27 +105,22 @@ end
 Rudimentary PCDIIS implementation
 
 PCDIIS stands for Projected-Commutator-DIIS and is an attempt to make CDIIS feasible for large basis sets.
-Instead of computing e = [H,gdensity] in the full basis, this is only done in a subspace: ē = <ψ_ref|e|ψ_ref>
+Instead of computing e = [H,ρ] in the full basis, this is only done in a subspace: ē = <ψ_ref|e|ψ_ref>
 Instead of mixing full density or Fock matrices, 
 the occupied states are mixed after gauge fixing (gf): ψ_gf = |ψ_occ><ψ_occ|ψ_ref_occ>
 
 [^HLY17]: Hu, Lin, Yang. Journal of chemical theory and computation **13.11**, 5458-5467 (2017) DOI [10.1021/acs.jctc.7b00892](https://doi.org/10.1021/acs.jctc.7b00892) 
 """
  
-init_specifics(::PcdiisType; ψ_ref=nothing, kwargs...) = 
-    Dict{Symbol,Any}(:ψ_ref => ψ_ref)
+init_specifics(::PcdiisType; reference=nothing, kwargs...) = 
+    Dict{Symbol,Any}(:reference => reference)
 
 function accelerate(acc::Acceleration{PcdiisType}, xₙ, fxₙ, info)
     if acc.memory.depth == 0 || acc.memory.errorfactor ≤ 1 || acc.memory.maxcond ≤ 1 || isnothing(xₙ.ψ) || isnothing(xₙ.occupation)
         return fxₙ
     end
 
-    if isnothing(acc.specifics[:ψ_ref]) 
-        acc.specifics[:ψ_ref] = [deepcopy(ψk[:, 1:size(ψk,2)-3]) for ψk in xₙ.ψ]
-        return fxₙ
-    end
-
-    ψ_ref = acc.specifics[:ψ_ref]
+    ψ_ref = acc.specifics[:reference]
 
     mask = xₙ.occupation[1] .> 0
 	old_length = length(mask)
@@ -159,6 +153,10 @@ function accelerate(acc::Acceleration{PcdiisType}, xₙ, fxₙ, info)
 
     #build matrix Mij & vector bj
     Rs = acc.memory.residuals
+    if length(Rs) < 2
+        return fxₙ
+    end
+
     M = Vector{Any}()
     b = Vector{Any}()
     Y = [Rs[i-1] .- Rs[i] for i in 2:length(Rs)] 
