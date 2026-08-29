@@ -311,10 +311,10 @@ The derivatives of the occupations are in-place stored in δocc.
 The tuple (; δocc, δεF) is returned. It is assumed the passed `δocc`
 are initialised to zero.
 """
-function compute_δocc!(δocc, basis::PlaneWaveBasis{T}, ψ, εF, ε, δHψ, δtemperature) where {T}
+function compute_δocc!(δocc, basis::PlaneWaveBasis{T}, ψ, εF, ε, δHψ, δtemperature;
+                       temperature = basis.model.temperature, 
+                       smearing = basis.model.smearing) where {T}
     model = basis.model
-    temperature = model.temperature
-    smearing = model.smearing
     filled_occ = filled_occupation(model)
 
     # compute the derivative of
@@ -360,7 +360,9 @@ in `basis.kpoints[ik]` from which `δψ` is computed (but expressed in `basis.kp
 """
 function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε_minus_q=ε;
                      ψ_extra=[zeros_like(ψk, size(ψk,1), 0) for ψk in ψ],
-                     q=zero(Vec3{T}), bandtol_minus_q, δψ0=nothing, kwargs_sternheimer...) where {T}
+                     q=zero(Vec3{T}), bandtol_minus_q, δψ0=nothing, 
+                     temperature = basis.model.temperature, smearing = basis.model.smearing,
+                     kwargs_sternheimer...) where {T}
     # We solve the Sternheimer equation for all columns n at once
     #   (H_k - ε_{n,k-q}) δψ_{n,k} = - (1 - P_{k}) δHψ_{n, k-q},
     # where P_{k} is the projector on ψ_{k} and with the conventions:
@@ -368,8 +370,6 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
     #     δψ_{k-q} ∈ ℬ_{k-q} and δHψ_{k-q} ∈ ℬ_{k};
     # * δHψ[ik] = δH ψ_{k-q};
     # * ε_minus_q[ik] = ε_{·, k-q}.
-    temperature = basis.model.temperature
-    smearing = basis.model.smearing
     filled_occ = filled_occupation(basis.model)
     @assert !haskey(kwargs_sternheimer, :tol)
 
@@ -440,7 +440,10 @@ to the Hamiltonian change `δH` represented by the matrix-vector products `δHψ
 @views @timing function apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                                     δtemperature=zero(eltype(ham.basis)),
                                     occupation_threshold, q=zero(Vec3{eltype(ham.basis)}),
-                                    bandtolalg, tol=1e-9, δψ0=nothing, kwargs_sternheimer...)
+                                    bandtolalg, tol=1e-9, δψ0=nothing, 
+                                    temperature = ham.basis.model.temperature, 
+                                    smearing = ham.basis.model.smearing,
+                                    disable_sternheimer=false, kwargs_sternheimer...)
     basis = ham.basis
     k_to_k_minus_q = k_to_kpq_permutation(basis, -q)
 
@@ -478,7 +481,8 @@ to the Hamiltonian change `δH` represented by the matrix-vector products `δHψ
     δoccupation = zero.(occupation)
     if iszero(q)
         δocc_occ = [δoccupation[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-        (; δεF) = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, δtemperature)
+        (; δεF) = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, δtemperature;
+                                temperature, smearing)
     else
         # When δH is not periodic, δH ψnk is a Bloch wave at k+q and ψnk at k,
         # so that δεnk = <ψnk|δH|ψnk> = 0 and there is no occupation shift
@@ -496,9 +500,12 @@ to the Hamiltonian change `δH` represented by the matrix-vector products `δHψ
     else
         δψ0_occ = [δψ0[ik][:, mask_occ[k_to_k_minus_q[ik]]] for ik = 1:length(basis.kpoints)]
     end
-    res = compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, ε_minus_q_occ;
-                      ψ_extra, q, bandtol_minus_q=bandtol_minus_q_occ, δψ0=δψ0_occ,
-                      kwargs_sternheimer...)
+    res = (; n_iter=nothing, residual_norms=nothing, converged=nothing)
+    if !disable_sternheimer
+        res = compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, ε_minus_q_occ; 
+                        ψ_extra, q, bandtol_minus_q=bandtol_minus_q_occ, δψ0=δψ0_occ, 
+                        temperature, smearing, kwargs_sternheimer...)
+    end
     (; δψ, δoccupation, δεF, res.n_iter, res.residual_norms, res.converged)
 end
 
@@ -519,7 +526,9 @@ function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{
                   occupation_threshold=default_occupation_threshold(TδV),
                   q=zero(Vec3{eltype(ham.basis)}),
                   bandtolalg=BandtolBalanced(ham.basis, ψ, occupation; occupation_threshold),
-                  kwargs_sternheimer...) where {T, TδV}
+                  temperature = ham.basis.model.temperature, 
+                  smearing = ham.basis.model.smearing,
+                  disable_sternheimer=false, kwargs_sternheimer...) where {T, TδV}
     basis = ham.basis
 
     # Make δV respect the basis symmetry group, since we won't be able
@@ -544,7 +553,7 @@ function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{
     δHψ = multiply_ψ_by_blochwave(basis, ψ, δV, q)
     res = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                       δtemperature, occupation_threshold, q, bandtolalg,
-                      kwargs_sternheimer...)
+                      temperature, smearing, disable_sternheimer, kwargs_sternheimer...)
 
     δρ = compute_δρ(basis, ψ, res.δψ, occupation, res.δoccupation; occupation_threshold, q)
     δρ = δρ * normδH
