@@ -7,8 +7,8 @@ Term for (possibly screened) Hartree-Fock exact exchange energy of the form
 -1/2 ∑_{nm} f_n f_m ∫∫ ψ_n^*(r)ψ_m^*(r') kernel(r, r')  ψ_n(r')ψ_m(r) dr dr'
 ```
 where the `kernel` keyword argument is an [`InteractionKernel`](@ref) , typically
-- the untruncated, unscreened [`Coulomb`](@ref) kernel `G(r, r') = 1/|r - r'|` for
-  Hartree-Fock exact exchange, by default some form of regularisation is applied,
+- the untruncated, unscreened [`BareCoulomb`](@ref) kernel `G(r, r') = 1/|r - r'|` for
+  Hartree-Fock exact exchange, wrapped in some form of singularity treatment,
   see e.g. [`ProbeCharge`](@ref).
 - [`SphericallyTruncatedCoulomb`](@ref) and 
 - [`WignerSeitzTruncatedCoulomb`](@ref) for a Coulomb kernels with truncated range, 
@@ -18,7 +18,7 @@ where the `kernel` keyword argument is an [`InteractionKernel`](@ref) , typicall
 """
 @kwdef struct ExactExchange
     scaling_factor::Real = 1.0
-    kernel = Coulomb()
+    kernel = ProbeCharge(BareCoulomb())
 end
 (ex::ExactExchange)(basis) = TermExactExchange(basis, ex.scaling_factor, ex.kernel)
 
@@ -27,9 +27,21 @@ struct TermExactExchange <: Term
     interaction_kernel::AbstractArray  # kernel values in Fourier space
 end
 function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, kernel) where {T}
-    # TODO: we need this for every q-point
+    # TODO: we need the interaction kernel for every q-point; currently only Gamma is supported.
+    is_gamma_only = all(iszero(kpt.coordinate) for kpt in basis.kpoints)
+    is_gamma_only || throw(ArgumentError(
+        "Exact exchange (and Hartree-Fock / hybrid functionals) currently only supports " *
+        "Gamma-point calculations."))
+    mpi_nprocs(basis.comm_kpts) == 1 ||
+        error("MPI parallelisation not yet supported for the exact-exchange kernel.")
+
     fac::T = scaling_factor
-    interaction_kernel = fac .* compute_kernel_fourier(kernel, basis)
+    kernel_fourier = eval_kernel_fourier(kernel, basis)  # cube grid, q=0 (Gamma only)
+    all(isfinite, kernel_fourier) || error(
+        "The interaction kernel has a non-finite G+q=0 component: a divergent kernel such as " *
+        "BareCoulomb or LongRangeCoulomb must be wrapped in a singularity treatment, " *
+        "e.g. ProbeCharge(BareCoulomb()).")
+    interaction_kernel = to_device(basis.architecture, fac .* kernel_fourier)
     TermExactExchange(fac, interaction_kernel)
 end
 
@@ -167,7 +179,7 @@ function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, interaction_kernel, ψk_
         for (m, ψmk_real) in enumerate(eachslice(ψk_real, dims=4))
             m > n && continue
             ρmn_real = conj(ψmk_real) .* ψnk_real
-            ρmn_fourier = fft(basis, kpt, ρmn_real) # actually we need a q-point here
+            ρmn_fourier = fft(basis, ρmn_real)  # pair density on the full (cube) density grid
 
             # Exact exchange is quadratic in occupations but linear in spin,
             # hence we need to undo the fact that in DFTK for non-spin-polarized calcuations

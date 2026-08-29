@@ -37,7 +37,7 @@
 
     model = model_DFT(lattice, atoms, positions;
                       temperature=0.001, smearing=DFTK.Smearing.Gaussian(),
-                      functionals=PBE0(; exx_kernel=Coulomb(ReplaceSingularity(0.0))))
+                      functionals=PBE0(; exx_kernel=ReplaceSingularity(BareCoulomb(), 0.0)))
     basis = PlaneWaveBasis(model; Ecut=20, kgrid=[1, 1, 1])
 
     # Note: With ACE enabled, the unoccupied orbitals are represented rather poorly.

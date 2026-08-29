@@ -11,6 +11,7 @@
 module Smearing
 import ForwardDiff
 using SpecialFunctions: erf, erfc, factorial
+import ..divided_difference  # shared helper (src/common/divided_difference.jl)
 
 abstract type SmearingFunction end
 
@@ -28,9 +29,6 @@ Derivative of the occupation function, approximation to minus the delta function
 """
 occupation_derivative(S::SmearingFunction, x) = ForwardDiff.derivative(x -> occupation(S, x), x)
 
-"""
-`(f(x) - f(y))/(x - y)`, computed stably in the case where `x` and `y` are close
-"""
 function occupation_divided_difference(S::SmearingFunction, x, y, εF, temp)
     if temp == 0
         if x == y
@@ -45,14 +43,6 @@ function occupation_divided_difference(S::SmearingFunction, x, y, εF, temp)
         fder(z) = occupation_derivative(S, (z-εF)/temp) / temp
         divided_difference(f, fder, x, y)
     end
-end
-function divided_difference(f, fder, x::T, y) where {T}
-    # (f(x) - f(y))/(x - y) is accurate to ε/|x-y|
-    # so for x ~= y we use the approximation (f'(x)+f'(y))/2,
-    # which is accurate to |x-y|^2, and therefore better when |x-y| ≤ cbrt(ε)
-    # The resulting method is accurate to ε^2/3
-    abs(x-y) < cbrt(eps(T)) && return (fder(x) + fder(y))/2
-    (f(x)-f(y)) / (x-y)
 end
 
 """

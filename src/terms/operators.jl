@@ -195,10 +195,11 @@ function apply!(Hψ, op::ExchangeOperator, ψ)
         x_real   = conj(ψnk_real) .* ψ.real
         # TODO Some symmetrisation of x_real might be needed here ...
 
-        # Compute integral by Poisson solve
-        x_four  = fft(op.basis, op.kpoint, x_real) # actually we need q-point here
+        # Compute integral by Poisson solve on the full (cube) density grid, where the pair
+        # density conj(ψn)·ψ lives (it has content beyond the orbital sphere).
+        x_four  = fft(op.basis, x_real)
         Vx_four = x_four .* op.interaction_kernel
-        Vx_real = ifft(op.basis, op.kpoint, Vx_four) # actually we need q-point here
+        Vx_real = ifft(op.basis, Vx_four)
 
         # Exact exchange is quadratic in occupations but linear in spin,
         # hence we need to undo the fact that in DFTK for non-spin-polarized calcuations
