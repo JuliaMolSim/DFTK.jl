@@ -76,16 +76,16 @@
     end
 
     @testset "WignerSeitzTruncatedCoulomb" begin
-        k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis)
-        E_wstrunc = exx_energy_only(basis, kpt, k_wstrunc, ψk_real, occk)
-        E_ref = -2.3456813523805415
+        k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis, qpt)
+        E_wstrunc = exx_energy_only(basis, kpt, [k_wstrunc], [qpt], ones(Int, 1, 1), [ψk_real], [occk])
+        E_ref = -2.345693220097827
         @test abs(E_ref - E_wstrunc) < 1e-6
     end
 
     @testset "VoxelAveraged" begin
-        k_voxavg = compute_kernel_fourier(Coulomb(VoxelAveraged()), basis)
-        E_voxavg = exx_energy_only(basis, kpt, k_voxavg, ψk_real, occk)
-        E_ref = -2.249032672407079
+        k_voxavg = compute_kernel_fourier(Coulomb(VoxelAveraged()), basis, qpt)
+        E_voxavg = exx_energy_only(basis, kpt, [k_voxavg], [qpt], ones(Int, 1, 1), [ψk_real], [occk])
+        E_ref = -2.2490445915201622
         @test abs(E_ref - E_voxavg) < 1e-6
     end
 end
@@ -127,21 +127,26 @@ end
         # TODO: These tests are not super useful, they mainly enable refactoring; they
         #       should really be replaced by tests of properties of WignerSeitzTruncatedCoulomb
         #       against SphericallyTruncatedCoulomb, for example.
-        k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis_Pt)
+        # The kernel lives on the full FFT cube, so k_wstrunc[1:5] are the values at
+        # G = (0,0,0), (1,0,0), (2,0,0), (3,0,0), (4,0,0)
+        kernel_Γ(basis) = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis,
+                                                 basis.kpoints[1])
+
+        k_wstrunc = kernel_Γ(basis_Pt)
         @test k_wstrunc[1:5] ≈ [289.8199039694483, 39.805749013785956, 5.580324780990978,
                                 4.320510620666685, 1.71839014451522]
 
-        k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis_Ga)
+        k_wstrunc = kernel_Γ(basis_Ga)
         @test k_wstrunc[1:5] ≈ [133.48675852141807, 12.54391563903425, 1.0201128711380307,
-                                1.0201128711380307, 12.54391563903425]
+                                1.4993914735536524, 0.2032925438414921]
 
-        k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis_Sb)
-        @test k_wstrunc[1:5] ≈ [133.5869934680494, 17.875585010939407, 3.0560733842605785,
-                                1.6670099917149919, 1.6670099917149919] atol=1e-6
+        k_wstrunc = kernel_Γ(basis_Sb)
+        @test k_wstrunc[1:5] ≈ [133.586993467607, 17.87558501104982, 3.056073383974546,
+                                1.6670099918317944, 0.9065961832826207] atol=1e-6
 
-        k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis_illcond)
-        @test k_wstrunc[1:5] ≈ [0.6835202703428708, 0.10574224010892719, 0.10574224010892719,
-                                0.363208874652315, 0.10081120609383883] atol=1e-6
+        k_wstrunc = kernel_Γ(basis_illcond)
+        @test k_wstrunc[1:5] ≈ [0.6835202703428708, 0.0033172751536461953, 8.838678696669106e-5,
+                                0.00024225236624064842, 5.805984485873678e-5] atol=1e-6
     end
 end
 
@@ -210,8 +215,8 @@ end
         ψk_real ./= sqrt(sum(abs2, ψk_real) * basis.dvol)  # normalise ψk
         occk = [2.0]
 
-        kernel_values = compute_kernel_fourier(kernel, basis)
-        exx_energy_only(basis, kpt, kernel_values, ψk_real, occk)
+        kernel_values = compute_kernel_fourier(kernel, basis, kpt)  # Γ-only: q = k = 0
+        exx_energy_only(basis, kpt, [kernel_values], [kpt], ones(Int, 1, 1), [ψk_real], [occk])
     end
 
     # Extrapolate E(a) = E_inf + c * exp(-alpha a) for equally spaced a_vals

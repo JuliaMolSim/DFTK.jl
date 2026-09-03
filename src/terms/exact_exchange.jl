@@ -25,7 +25,7 @@ breaks_symmetries(::ExactExchange) = true  # TODO: make ExactExchange fit for sy
 
 struct TermExactExchange{T, Tkernel, Tq, Tmap} <: Term
     scaling_factor::T             # scaling factor, absorbed into interaction_kernels
-    interaction_kernels::Tkernel  # Vector{Vector{T}}: kernel values in Fourier space
+    interaction_kernels::Tkernel  # Vector{Array{T,3}}: kernel on the FFT cube, one per q
     q_points::Tq                  # Vector{Kpoint{T}}
     kprime_mapping::Tmap          # Matrix{Int}: find index for k'=k-q
 end
