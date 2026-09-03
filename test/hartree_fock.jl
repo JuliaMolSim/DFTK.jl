@@ -72,14 +72,118 @@ end
     basis = PlaneWaveBasis(model; Ecut, kgrid)
 
     # 1. Unit cell calculation
-    scfres = self_consistent_field(basis; is_converged=ScfConvergenceEnergy(1e-9), 
+    scfres = self_consistent_field(basis; is_converged=ScfConvergenceEnergy(1e-10), 
                                    exxalg=AceExx(), solver=DFTK.scf_damping_solver(), damping=0.4)
 
     # 2. Supercell calculation
     basis_supercell = cell_to_supercell(basis)
-    scfres_supercell = self_consistent_field(basis_supercell; is_converged=ScfConvergenceEnergy(1e-9),
+    scfres_supercell = self_consistent_field(basis_supercell; is_converged=ScfConvergenceEnergy(1e-10),
                                              exxalg=AceExx(), solver=DFTK.scf_damping_solver(), 
                                              damping=0.4)
+
+    # Energy per unit cell should be the same
+    @test scfres.energies.total * prod(kgrid) ≈ scfres_supercell.energies.total atol=1e-7
+end
+
+@testitem "Hartree-Fock collinear spin without magnetisation (k-points)" #=
+        =# tags=[:exx, :dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using LinearAlgebra
+    using .TestCases: silicon
+
+    # A collinear calculation with identical spin-up and spin-down orbitals and halved
+    # occupations has to reproduce the spin-unpolarised exchange energy and Hamiltonian.
+    # This checks the spin bookkeeping of the exchange term in combination with k-points
+    # (occupation convention, k-point weights, spin-aware q-point mapping).
+    Ecut    = 5
+    kgrid   = MonkhorstPack([2, 1, 2]; kshift=[1/2, 0, 1/2])
+    n_bands = 6
+    Si      = ElementPsp(silicon.atnum, load_psp(silicon.psp_upf))
+
+    function make_basis(spin_polarization)
+        model = Model(silicon.lattice, [Si, Si], silicon.positions; spin_polarization,
+                      terms=[ExactExchange(; kernel=Coulomb(ProbeCharge()))])
+        PlaneWaveBasis(model; Ecut, kgrid)
+    end
+    basis     = make_basis(:none)
+    basis_col = make_basis(:collinear)
+    n_k = length(basis.kpoints)
+    @test length(basis_col.kpoints) == 2n_k
+
+    ψ = [Matrix(qr(randn(ComplexF64, length(G_vectors(basis, kpt)), n_bands)).Q)
+         for kpt in basis.kpoints]
+    occupation = [[2.0, 2.0, 2.0, 1.2, 0.8, 0.0] for _ = 1:n_k]  # filled_occupation = 2
+
+    # Same orbitals in both spin channels, occupations halved (filled_occupation = 1)
+    ψ_col   = vcat(ψ, ψ)
+    occ_col = [occk ./ 2 for occk in vcat(occupation, occupation)]
+    for ik = 1:n_k, σ = 1:2
+        ik_col = DFTK.krange_spin(basis_col, σ)[ik]
+        @test basis_col.kpoints[ik_col].coordinate == basis.kpoints[ik].coordinate
+    end
+
+    res     = energy_hamiltonian(basis,     ψ,     occupation; exxalg=VanillaExx())
+    res_col = energy_hamiltonian(basis_col, ψ_col, occ_col;    exxalg=VanillaExx())
+    @test res.energies.total ≈ res_col.energies.total rtol=1e-10
+
+    for ik = 1:n_k
+        Hψk = res.ham.blocks[ik] * ψ[ik]
+        for σ = 1:2
+            ik_col = DFTK.krange_spin(basis_col, σ)[ik]
+            @test Hψk ≈ res_col.ham.blocks[ik_col] * ψ_col[ik_col] rtol=1e-10
+        end
+    end
+end
+
+@testitem "AFM H chain Hartree-Fock k-point consistency" #=
+        =# tags=[:exx, :dont_test_mpi] begin
+    using DFTK
+    using LinearAlgebra
+    using PseudoPotentialData
+
+    # Comparison of an antiferromagnetic H chain with a 2x1x1 k-grid against the
+    # 2x1x1 supercell at Gamma. This checks the spin-matched k' = k - q lookup
+    # of the exchange term in a case where the spin channels genuinely differ.
+    pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_5.stringent.upf")
+    H = ElementPsp(:H, pseudopotentials)
+    lattice   = diagm([10.0, 8.0, 8.0])
+    positions = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0]]
+    magnetic_moments = [+1.0, -1.0]
+    system = DFTK.periodic_system(lattice, [H, H], positions)
+    Ecut  = 10
+    kgrid = [2, 1, 1]
+
+    model_pbe = model_DFT(system; pseudopotentials, magnetic_moments, temperature=0.01,
+                          functionals=PBE())
+    model_hf  = model_HF(system; pseudopotentials, magnetic_moments, temperature=0.01,
+                         exx_kernel=Coulomb(ProbeCharge()))
+    basis_pbe = PlaneWaveBasis(model_pbe; Ecut, kgrid)
+    basis_hf  = PlaneWaveBasis(model_hf;  Ecut, kgrid)
+
+    # Start Hartree-Fock from a converged PBE state, such that the unit cell and the
+    # supercell calculation converge to the same antiferromagnetic solution.
+    function run_hf(basis_pbe, basis_hf, magnetic_moments)
+        ρ = guess_density(basis_pbe, magnetic_moments)
+        scfres_pbe = self_consistent_field(basis_pbe; ρ, tol=1e-6)
+
+        # Sketch ACE with the occupied orbitals only: with one occupied band per spin and
+        # two k-points the exchange operator has rank four, so a sketch including the
+        # extra bands gives a singular matrix, which the Cholesky in the compression
+        # cannot handle.
+        self_consistent_field(basis_hf; scfres_pbe.ρ, scfres_pbe.ψ, scfres_pbe.eigenvalues,
+                              scfres_pbe.occupation, is_converged=ScfConvergenceEnergy(1e-10),
+                              exxalg=AceExx(sketch_with_extra_orbitals=false),
+                              solver=DFTK.scf_damping_solver(), damping=0.4)
+    end
+
+    # 1. Unit cell calculation
+    scfres = run_hf(basis_pbe, basis_hf, magnetic_moments)
+    @test maximum(abs, spin_density(scfres.ρ)) > 1e-2  # state is actually magnetic
+
+    # 2. Supercell calculation (create_supercell lists all images of an atom consecutively)
+    magnetic_moments_supercell = repeat(magnetic_moments; inner=prod(kgrid))
+    scfres_supercell = run_hf(cell_to_supercell(basis_pbe), cell_to_supercell(basis_hf),
+                              magnetic_moments_supercell)
 
     # Energy per unit cell should be the same
     @test scfres.energies.total * prod(kgrid) ≈ scfres_supercell.energies.total atol=1e-7
