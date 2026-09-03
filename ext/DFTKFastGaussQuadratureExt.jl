@@ -6,10 +6,10 @@ using LinearAlgebra
 
 
 @views function DFTK._compute_kernel_fourier(kernel, regularization::VoxelAveraged,
-                                             basis::PlaneWaveBasis{T}, qpt, q) where {T}
+                                             basis::PlaneWaveBasis{T}, qpt) where {T}
     model = basis.model
     q = qpt.coordinate
-    
+
     # Get kgrid_size
     if isnothing(basis.kgrid)
         kgrid_size = Vec3{Int}(1, 1, 1)
@@ -34,8 +34,9 @@ using LinearAlgebra
     q_locals = vec([voxel_basis * Vec3(x, y, z) for x in nodes, y in nodes, z in nodes])
     w_locals = vec([wx * wy * wz for wx in weights, wy in weights, wz in weights])
 
-    kernel_fourier = zeros(T, length(qpt.G_vectors))
-    for (iG, G) in enumerate(to_cpu(qpt.G_vectors))
+    # Kernel on the full FFT cube (see compute_kernel_fourier); linear index 1 is G=0
+    kernel_fourier = zeros(T, basis.fft_size)
+    for (iG, G) in enumerate(to_cpu(G_vectors(basis)))
         G_cart = model.recip_lattice * (G+q)
 
         found_singularity = (iG==1 && iszero(q))

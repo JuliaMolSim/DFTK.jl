@@ -184,7 +184,7 @@ end
 struct ExchangeOperator{T <: Real,Tkernel,Tq,Tmap,Tocc,Tpsi} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
     kpoint::Kpoint{T}
-    interaction_kernels::Tkernel  # Vector{Vector{T}}: kernel values in Fourier space
+    interaction_kernels::Tkernel  # Vector{Array{T,3}}: kernel on the FFT cube, one per q
     q_points::Tq                  # Vector{Kpoint{T}}
     kprime_mapping::Tmap          # Matrix{Int}: find index for k'=k-q
     ψ_occ_real::Tpsi              # Store precomputed real-space orbitals
