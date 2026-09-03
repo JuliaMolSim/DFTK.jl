@@ -13,8 +13,10 @@ using GPUArraysCore
 using Random
 using PrecompileTools
 using PseudoPotentialData
+using LOBPCGEigensolver
+import LOBPCGEigensolver: lobpcg, precondprep!, DefaultLobpcgCallback
 
-@template (FUNCTIONS, METHODS, MACROS) = 
+@template (FUNCTIONS, METHODS, MACROS) =
     """
     $(TYPEDSIGNATURES)
     $(DOCSTRING)
@@ -34,6 +36,7 @@ include("common/spherical_harmonics.jl")
 include("common/split_evenly.jl")
 include("common/mpi.jl")
 include("common/threading.jl")
+include("common/debugdump.jl")
 include("common/printing.jl")
 include("common/cis2pi.jl")
 include("common/versioninfo.jl")
@@ -81,7 +84,6 @@ export irfft
 export ifft!
 export fft
 export fft!
-export kgrid_from_maximal_spacing, kgrid_from_minimal_n_kpoints
 export KgridTotalNumber, KgridSpacing
 include("Smearing.jl")
 include("Model.jl")
@@ -167,8 +169,7 @@ include("standard_models.jl")
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing
 export LdosMixing, HybridMixing, χ0Mixing
 export FixedBands, AdaptiveBands
-export scf_damping_solver
-export scf_anderson_solver
+export ScfDampingSolver, ScfAndersonDensitySolver, ScfAndersonSolver
 export self_consistent_field, kwargs_scf_checkpoints
 export ScfConvergenceEnergy, ScfConvergenceDensity, ScfConvergenceForce
 export ScfSaveCheckpoints, ScfDefaultCallback, AdaptiveDiagtol
@@ -203,9 +204,7 @@ export random_density
 include("density_methods.jl")
 
 export load_psp
-export list_psp
 include("pseudo/load_psp.jl")
-include("pseudo/list_psp.jl")
 include("pseudo/pseudopotential_data.jl")
 
 export atomic_system, periodic_system  # Reexport from AtomsBase

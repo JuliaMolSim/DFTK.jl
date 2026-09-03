@@ -296,7 +296,7 @@ function band_data_to_dict!(dict, band_data::NamedTuple; save_ψ=false, save_ρ=
         gather_and_store!(diagonalization, "n_iter",         basis, diag_n_iter)
     end
 
-    if save_ψ
+    if save_ψ && haskey(band_data, :ψ)
         # Store the employed G vectors using the largest rectangular grid
         # on which all bands can live
         n_G_vectors = [length(kpt.mapping) for kpt in basis.kpoints]

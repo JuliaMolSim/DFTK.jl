@@ -36,7 +36,7 @@
         function G_vectors_calls(basis)
             for symop in basis.symmetries
                 invS = Mat3{Int}(inv(symop.S))
-                for (ig, G) in enumerate(DFTK.G_vectors_generator(basis.fft_size))
+                for (ig, G) in enumerate(DFTK.G_vectors(basis.fft_size))
                     igired = DFTK.index_G_vectors(basis, invS * G)
                 end
             end

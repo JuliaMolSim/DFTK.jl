@@ -26,9 +26,9 @@ end
 # Mixing in the generalised density (essentially an adapted tuple of ρ and τ;
 # see pack_gdensity in densities.jl): For now just fall back to ρ-only mixing
 function mix_gdensity(mixing, basis, ΔD; kwargs...)
-    Δρ, Δτ  = split_gdensity_flat_(basis, ΔD)
+    Δρ, Δτ  = split_gdensity(basis, ΔD)
     Pinv_Δρ = mix_density(mixing, basis, Δρ; kwargs...)
-    pack_gdensity_flat_(basis, Pinv_Δρ, Δτ)
+    pack_gdensity(basis, Pinv_Δρ, Δτ)
 end
 
 
@@ -83,7 +83,6 @@ end
     δF_fourier    = fft(basis, δF)
     δFtot_fourier = total_density(δF_fourier)
     δρtot_fourier = δFtot_fourier .* G² ./ (kTF.^2 .+ G²)
-    enforce_real!(δρtot_fourier, basis)
     δρtot = irfft(basis, δρtot_fourier)
 
     # Copy DC component, otherwise it never gets updated
@@ -96,7 +95,6 @@ end
     else
         δFspin_fourier = spin_density(δF_fourier)
         δρspin_fourier = @. δFspin_fourier - δFtot_fourier * (4π * ΔDOS_Ω) / (kTF^2 + G²)
-        enforce_real!(δρspin_fourier, basis)
         δρspin = irfft(basis, δρspin_fourier)
         ρ_from_total_and_spin(δρtot, δρspin)
     end

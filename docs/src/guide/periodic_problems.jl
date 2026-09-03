@@ -37,7 +37,7 @@
 # ```
 # with lattice constant ``a``. Each cell of the lattice is an identical periodic image of
 # any of its neighbors. For finding ``f`` it is thus sufficient to consider only the
-# problem inside a **unit cell** ``[-a/2, a/2)`` (this is the convention used by DFTK, but this is arbitrary, and for instance ``[0,a)`` would have worked just as well).
+# problem inside a **unit cell** ``[-a/2, a/2)`` (this is arbitrary, and for instance ``[0,a)`` would have worked just as well, which is the convention used by DFTK).
 #
 # ## Periodic operators and the Bloch transform
 # Not only functions, but also operators can feature periodicity.
@@ -233,7 +233,8 @@ using Unitful
 using UnitfulAtomic
 using Plots
 
-plot_bandstructure(basis; n_bands=6, kline_density=100)
+bands = compute_bands(basis; n_bands=6, kline_density=100)
+plot_bandstructure(bands)
 
 # !!! note "Selection of k-point grids in [`PlaneWaveBasis`](@ref) construction"
 #     You might wonder why we only selected a single ``k``-point (clearly a very crude
@@ -281,11 +282,11 @@ plot(r -> DFTK.local_potential_real(nucleus, norm(r)), xlims=(-50, 50))
 
 # With this element at hand we can easily construct a setting
 # where two potentials of this form are located at positions
-# ``20`` and ``80`` inside the lattice ``[0, 100]``:
+# ``20`` and ``80`` inside the lattice ``[0, 100)``:
 
 using LinearAlgebra
 
-## Define the 1D lattice [0, 100]
+## Define the 1D lattice [0, 100)
 lattice = diagm([100., 0, 0])
 
 ## Place them at 20 and 80 in *fractional coordinates*,
@@ -316,7 +317,8 @@ plot(x, potential, label="", xlabel="x", ylabel="V(x)")
 using Unitful
 using UnitfulAtomic
 
-plot_bandstructure(basis; n_bands=6, kline_density=500)
+bands = compute_bands(basis; n_bands=6, kline_density=500)
+plot_bandstructure(bands)
 
 # The bands are noticeably different.
 #  - The bands no longer overlap, meaning that the spectrum of $H$ is no longer continuous

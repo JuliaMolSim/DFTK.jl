@@ -35,9 +35,12 @@
                 function term_energy(ε)
                     displacement = [zeros(3) for _ in 1:length(model.atoms)]
                     displacement[test_atom] = test_dir
+                    # Keep the symmetries of the undisplaced model: `compute_forces`
+                    # differentiates the energy summed over *its* irreducible k-points, so the
+                    # finite difference has to use the same ones as the `scfres.ψ` below.
                     modbasis = with_logger(NullLogger()) do
                         modmodel = Model(model; positions=model.positions .+ ε.*displacement,
-                                         symmetries=true)
+                                         model.symmetries)
                         PlaneWaveBasis(modmodel; kgrid, Ecut, basis_kwargs...)
                     end
                     DFTK.ene_ops(modbasis.terms[iterm], modbasis, scfres.ψ, scfres.occupation;
@@ -124,6 +127,7 @@ end
     # TODO: If this test is too slow for github CI, then we should add the :slow tag above
     # Test HF forces on system with spin and magnetism
     using AtomsBuilder
+    using DFTK
     using PseudoPotentialData
     using Unitful
     using UnitfulAtomic
@@ -158,7 +162,7 @@ end
 
     pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
     (; forces_cart) = test_forces(system; functionals=LDA(), atol=1e-8, pseudopotentials,
-                                  Ecut=7, kgrid=[2, 2, 2], kshift=[0, 0, 0], forward_ρ=false,
+                                  Ecut=7, kgrid=[2, 2, 2], forward_ρ=false,
                                   symmetries_respect_rgrid=true,
                                   fft_size=(18, 18, 18))  # FFT chosen to match QE
 
@@ -181,9 +185,9 @@ end
 
     pseudopotentials = PseudoFamily("dojo.nc.sr.lda.v0_4_1.standard.upf")
     for smearing in [Smearing.FermiDirac(), Smearing.Gaussian()]
-        test_forces(system; pseudopotentials, functionals=Xc(:lda_xc_teter93),
+        test_forces(system; pseudopotentials, functionals=Xc([:lda_xc_teter93]),
                     temperature=0.03, smearing, atol=5e-6, magnetic_moments=[2.0, 1.0],
-                    Ecut=7, kgrid=[4, 1, 2], kshift=[1/2, 0, 0], forward_ρ=false)
+                    Ecut=7, kgrid=MonkhorstPack([4, 1, 2]; kshift=[1/2, 0, 0]), forward_ρ=false)
     end
 end
 
@@ -246,5 +250,8 @@ end
 
     pseudopotentials = Dict(:C => joinpath(@__DIR__, "pseudos", "C_m.upf"))
     test_forces(system; pseudopotentials, functionals=r2SCAN(),
-                temperature=0.01, Ecut=10, kgrid=[2, 2, 2], atol=1e-7)
+                temperature=0.01, Ecut=10, kgrid=[2, 2, 2], atol=1e-7,
+                # Even FFT size, so that the NLCC form factors have a Nyquist component:
+                # the XC force is only right if it is treated consistently there (#1370).
+                fft_size=[16, 16, 16], symmetries_respect_rgrid=true)
 end

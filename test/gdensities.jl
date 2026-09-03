@@ -3,6 +3,7 @@
     using PseudoPotentialData
     using Logging
     using DFTK
+    using DFTK: TauVwScaled, to_representation!, from_representation!
     system = load_system("structures/AlVac_4.extxyz")
     pseudopotentials = Dict(:Al => "pseudos/Al_m.upf")
     τW = DFTK.von_weizsaecker_kinetic_energy_density
@@ -28,9 +29,19 @@
         @test τs ≈ τ atol=1e-12
     end
 
+    let
+        repr = TauVwScaled()
+        Dnew = to_representation!(repr, basis, copy(D))
+        Dnew = from_representation!(repr, basis,  Dnew)
+        ρs, τs = DFTK.split_gdensity(basis, Dnew)
+        @test ρs ≈ ρ atol=1e-12
+        @test τs ≈ τ atol=1e-12
+    end
+
     # One SCF step to get another set of (ρ/τ)
     scfres = with_logger(NullLogger()) do
-        self_consistent_field(basis; ρ, τ, tol=1e-1, maxiter=1, callback=identity)
+        self_consistent_field(basis; ρ, τ, tol=1e-1, maxiter=1, callback=identity,
+                              solver=ScfAndersonSolver())
     end
 
     # Test basic density properties on SCF result
@@ -42,11 +53,6 @@
     Dout = DFTK.pack_gdensity(basis, scfres.ρ, scfres.τ)
     let 
         ρs, τs = DFTK.split_gdensity(basis, Dout)
-        @test ρs ≈ scfres.ρ atol=1e-12
-        @test τs ≈ scfres.τ atol=1e-12
-    end
-    let D = DFTK.pack_gdensity_flat_(basis, scfres.ρ, scfres.τ)
-        ρs, τs = DFTK.split_gdensity_flat_(basis, D)
         @test ρs ≈ scfres.ρ atol=1e-12
         @test τs ≈ scfres.τ atol=1e-12
     end
@@ -62,7 +68,8 @@
     end
 
     # A few more SCF steps to see SCF is stable to (ρ/τ) properties
-    let scfres = self_consistent_field(basis; ρ, τ, tol=1e-1)
+    let scfres = self_consistent_field(basis; ρ, τ, tol=1e-1,
+                                       solver=ScfAndersonSolver())
         @test all(0 .≤ scfres.τ)
         @test all(0 .≤ scfres.ρ)
         @test all(τW(basis, scfres.ρ) .≤ scfres.τ)  # Hoffman-Ostenhof

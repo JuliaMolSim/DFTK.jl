@@ -156,7 +156,6 @@ end
 function ElementPsp(key::Union{Integer,Symbol}, psp; kwargs...)
     ElementPsp(ChemicalSpecies(key), psp; kwargs...)
 end
-@deprecate ElementPsp(key; psp, kwargs...) ElementPsp(key, psp; kwargs...)
 
 AtomsBase.mass(el::ElementPsp)    = el.mass
 AtomsBase.species(el::ElementPsp) = el.species

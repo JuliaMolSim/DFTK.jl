@@ -307,22 +307,3 @@ function parse_hybrid_parameters_(; exx_sr=nothing, exx_lr=nothing,
               "not yet implemented.")
     end
 end
-
-@deprecate(model_LDA(lattice::AbstractMatrix, atoms::Vector{<:Element},
-                     positions::Vector{<:AbstractVector}; kwargs...),
-           model_DFT(lattice, atoms, positions; functionals=LDA(), kwargs...))
-@deprecate(model_PBE(lattice::AbstractMatrix, atoms::Vector{<:Element},
-                     positions::Vector{<:AbstractVector}; kwargs...),
-           model_DFT(lattice, atoms, positions; functionals=PBE(), kwargs...))
-@deprecate(model_SCAN(lattice::AbstractMatrix, atoms::Vector{<:Element},
-                      positions::Vector{<:AbstractVector}; kwargs...),
-           model_DFT(lattice, atoms, positions; functionals=SCAN(), kwargs...))
-@deprecate(model_DFT(lattice::AbstractMatrix, atoms::Vector{<:Element},
-                   positions::Vector{<:AbstractVector}, functionals; kwargs...),
-           model_DFT(lattice, atoms, positions; functionals, kwargs...))
-
-@deprecate model_LDA(system::AbstractSystem; kwargs...)  model_DFT(system; functionals=LDA(),  kwargs...)
-@deprecate model_PBE(system::AbstractSystem; kwargs...)  model_DFT(system; functionals=PBE(),  kwargs...)
-@deprecate model_SCAN(system::AbstractSystem; kwargs...) model_DFT(system; functionals=SCAN(), kwargs...)
-@deprecate(model_DFT(system::AbstractSystem, functionals; kwargs...),
-           model_DFT(system; functionals, kwargs...))
