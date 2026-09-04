@@ -78,6 +78,7 @@ end
 @testitem "Exact exchange energy of a k-point grid against its supercell" #=
         =# tags=[:exx, :dont_test_mpi] setup=[TestCases] begin
     using DFTK
+    using FastGaussQuadrature
     using LinearAlgebra
     using .TestCases: silicon
 
@@ -87,8 +88,8 @@ end
     Si = ElementPsp(silicon.atnum, load_psp(silicon.psp_upf))
     kgrid   = [2, 1, 2]
     n_bands = 4
-    for kernel in (Coulomb(ProbeCharge()), SphericallyTruncatedCoulomb(),
-                   WignerSeitzTruncatedCoulomb())
+    for kernel in (Coulomb(ProbeCharge()), Coulomb(VoxelAveraged()),
+                   SphericallyTruncatedCoulomb(), WignerSeitzTruncatedCoulomb())
         model = Model(silicon.lattice, [Si, Si], silicon.positions;
                       terms=[ExactExchange(; kernel)])
         basis = PlaneWaveBasis(model; Ecut=5, kgrid)
