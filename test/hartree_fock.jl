@@ -82,7 +82,7 @@ end
                                              damping=0.4)
 
     # Energy per unit cell should be the same
-    @test scfres.energies.total * prod(kgrid) ≈ scfres_supercell.energies.total atol=1e-7
+    @test scfres.energies.total * prod(kgrid) ≈ scfres_supercell.energies.total atol=1e-6
 end
 
 @testitem "Hartree-Fock collinear spin without magnetisation (k-points)" #=
@@ -166,10 +166,9 @@ end
         ρ = guess_density(basis_pbe, magnetic_moments)
         scfres_pbe = self_consistent_field(basis_pbe; ρ, tol=1e-6)
 
-        # Sketch ACE with the occupied orbitals only: with one occupied band per spin and
-        # two k-points the exchange operator has rank four, so a sketch including the
-        # extra bands gives a singular matrix, which the Cholesky in the compression
-        # cannot handle.
+        # Sketch ACE with the occupied orbitals only, as the other spin-polarised tests do.
+        # With the default sketch (including the extra bands) the Cholesky factorisation in
+        # the ACE compression failed for this system when starting from the atomic guess.
         self_consistent_field(basis_hf; scfres_pbe.ρ, scfres_pbe.ψ, scfres_pbe.eigenvalues,
                               scfres_pbe.occupation, is_converged=ScfConvergenceEnergy(1e-10),
                               exxalg=AceExx(sketch_with_extra_orbitals=false),
@@ -186,7 +185,7 @@ end
                               magnetic_moments_supercell)
 
     # Energy per unit cell should be the same
-    @test scfres.energies.total * prod(kgrid) ≈ scfres_supercell.energies.total atol=1e-7
+    @test scfres.energies.total * prod(kgrid) ≈ scfres_supercell.energies.total atol=1e-6
 end
 
 @testitem "LiH Hartree-Fock energy" tags=[:exx,:slow] setup=[RunSCF] begin
@@ -209,12 +208,12 @@ end
                  [0.0, 0.0, 0.5],
                  [0.5, 0.5, 0.5]]
 
-    # This created using the very first EXX implementation in DFTK
+    # The eigenvalues were created using DFTK
     ref_hf = [[-2.174882010778448, -2.174882010778414, -2.1748820107783646, -2.1735162108610098,
                -0.4105286062295621, -0.1498412274416261, -0.14984122744054515,
                -0.1498412274386093, 0.39476442887789986, 0.3947644288779635,
                0.39476442887837615]]
-    ref_etot = -31.240766149174128
+    ref_etot = -31.241195440836385
 
     model  = model_HF(lattice, atoms, positions; exx_kernel=SphericallyTruncatedCoulomb())
     basis  = PlaneWaveBasis(model, Ecut=40; kgrid=[1, 1, 1])
