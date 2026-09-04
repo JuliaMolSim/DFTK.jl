@@ -74,3 +74,35 @@ end
     @test_throws ErrorException PlaneWaveBasis(model; Ecut=5,
                                                kgrid=ExplicitKpoints([[0, 0, 0], [1/4, 0, 0]]))
 end
+
+@testitem "Exact exchange energy of a k-point grid against its supercell" #=
+        =# tags=[:exx, :dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using LinearAlgebra
+    using .TestCases: silicon
+
+    # For fixed orbitals the exchange energy per unit cell of a k-point grid has to agree
+    # with the energy of the same orbitals in the supercell at Γ. This holds for all
+    # kernels defined through the supercell corresponding to the k-point grid.
+    Si = ElementPsp(silicon.atnum, load_psp(silicon.psp_upf))
+    kgrid   = [2, 1, 2]
+    n_bands = 4
+    for kernel in (Coulomb(ProbeCharge()), SphericallyTruncatedCoulomb(),
+                   WignerSeitzTruncatedCoulomb())
+        model = Model(silicon.lattice, [Si, Si], silicon.positions;
+                      terms=[ExactExchange(; kernel)])
+        basis = PlaneWaveBasis(model; Ecut=5, kgrid)
+        basis_supercell = cell_to_supercell(basis)
+
+        ψ = [Matrix(qr(randn(ComplexF64, length(G_vectors(basis, kpt)), n_bands)).Q)
+             for kpt in basis.kpoints]
+        occupation = [[2.0, 2.0, 1.5, 0.5] for _ in basis.kpoints]
+        ψ_supercell   = [cell_to_supercell(ψ, basis, basis_supercell)]
+        occ_supercell = [reduce(vcat, occupation)]
+
+        E = DFTK.energy(basis, ψ, occupation; exxalg=VanillaExx()).energies.total
+        E_supercell = DFTK.energy(basis_supercell, ψ_supercell, occ_supercell;
+                                  exxalg=VanillaExx()).energies.total
+        @test prod(kgrid) * E ≈ E_supercell rtol=1e-9
+    end
+end
