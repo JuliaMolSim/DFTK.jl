@@ -668,10 +668,10 @@ function build_qpoints(basis::PlaneWaveBasis{T}; tol=1e-12) where {T}
         normalize_kpoint_coordinate(k1.coordinate .- k2.coordinate)
         for k1 in spatial_k, k2 in spatial_k
     ]
-    # Filter unique q-coordinates using tolerance
+    # Filter unique q-coordinates (modulo reciprocal lattice vectors) using tolerance
     q_coords = Vec3{T}[]
     for q in vec(q_coords_all)
-        if !any(qp -> isapprox(q, qp; atol=tol), q_coords)
+        if !any(qp -> is_approx_integer(q - qp; atol=tol), q_coords)
             push!(q_coords, q)
         end
     end
@@ -691,11 +691,13 @@ function build_qpoints(basis::PlaneWaveBasis{T}; tol=1e-12) where {T}
         q_coord = q_points[iq].coordinate
         for ik in 1:N_k
             kpt = basis.kpoints[ik]
-            k_prime_target = normalize_kpoint_coordinate(kpt.coordinate .- q_coord)
+            k_prime = kpt.coordinate .- q_coord
 
-            # For the mapping both have to match: coordinate and the spin
+            # For the mapping both have to match: the coordinate modulo reciprocal lattice
+            # vectors (k-point coordinates are not necessarily normalised to [-1/2, 1/2),
+            # e.g. for ExplicitKpoints) and the spin
             ikp = findfirst(basis.kpoints) do kpt_prime
-                isapprox(kpt_prime.coordinate, k_prime_target; atol=tol) &&
+                is_approx_integer(kpt_prime.coordinate - k_prime; atol=tol) &&
                     kpt_prime.spin == kpt.spin
             end
 

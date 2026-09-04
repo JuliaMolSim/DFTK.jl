@@ -35,3 +35,42 @@
         test_acexx_consistency(; kgrid=(2, 1, 2), kshift=(1/2, 1/2, 1/2), kernel)
     end
 end
+
+@testitem "Exact exchange with explicit k-point grids" tags=[:exx, :dont_test_mpi, :minimal] setup=[TestCases] begin
+    using DFTK
+    using LinearAlgebra
+    using .TestCases: silicon
+
+    # The same half-shifted 2x2x2 grid once as MonkhorstPack and once as ExplicitKpoints
+    # with coordinates outside [-1/2, 1/2). The exchange energy of the same orbitals has
+    # to agree, which requires k' = k - q to be found modulo reciprocal lattice vectors.
+    N  = [2, 2, 2]
+    Si = ElementPsp(silicon.atnum, load_psp(silicon.psp_upf))
+    kcoords_explicit = vec([([1, 1, 1]/2 .+ [i, j, k]) ./ N
+                            for i = 0:N[1]-1, j = 0:N[2]-1, k = 0:N[3]-1])
+    @test any(k -> maximum(k) ≥ 0.5, kcoords_explicit)
+
+    # Orbitals defined through their Cartesian G+k vectors (Gaussians around some centers),
+    # such that they do not depend on the representative chosen for equivalent k-points.
+    centers = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.0, 0.5, 0.0], [0.0, 0.0, 0.5]]
+    function exchange_energy(kgrid)
+        model = Model(silicon.lattice, [Si, Si], silicon.positions;
+                      terms=[ExactExchange(; kernel=Coulomb(ProbeCharge()))])
+        basis = PlaneWaveBasis(model; Ecut=5, kgrid)
+        ψ = map(basis.kpoints) do kpt
+            Gpk = Gplusk_vectors_cart(basis, kpt)
+            coefficients = stack(exp.(-norm.(Gpk .- Ref(c)) .^ 2) for c in centers)
+            Matrix(qr(complex(coefficients)).Q)
+        end
+        occupation = [[2.0, 2.0, 1.5, 0.5] for _ in basis.kpoints]
+        DFTK.energy(basis, ψ, occupation; exxalg=VanillaExx()).energies.total
+    end
+    E_mp       = exchange_energy(MonkhorstPack(N; kshift=[1, 1, 1]/2))
+    E_explicit = exchange_energy(ExplicitKpoints(kcoords_explicit))
+    @test E_mp ≈ E_explicit rtol=1e-10
+
+    # A k-point set which is not closed under k - k' cannot be used for exact exchange
+    model = Model(silicon.lattice, [Si, Si], silicon.positions; terms=[ExactExchange()])
+    @test_throws ErrorException PlaneWaveBasis(model; Ecut=5,
+                                               kgrid=ExplicitKpoints([[0, 0, 0], [1/4, 0, 0]]))
+end
