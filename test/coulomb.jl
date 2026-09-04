@@ -274,3 +274,60 @@ end
 
 # TODO: Tests ot include in the future are
 #       - Test for type stability (i.e. when Float32 is used)
+
+@testitem "WignerSeitzTruncatedCoulomb with k-points" tags=[:exx, :dont_test_mpi] setup=[TestCases] begin
+    using DFTK
+    using DFTK: compute_kernel_fourier, build_qpoints, is_approx_integer
+    using LinearAlgebra
+    using .TestCases: silicon
+
+    Si = ElementPsp(silicon.atnum, load_psp(silicon.psp_upf))
+    kgrid_size = [2, 1, 2]
+    kernel = WignerSeitzTruncatedCoulomb()
+    function make_basis(kgrid)
+        # Only the k-point set matters here; symmetries are disabled to get the full grid
+        model = Model(silicon.lattice, [Si, Si], silicon.positions;
+                      symmetries=false, terms=[Kinetic()])
+        PlaneWaveBasis(model; Ecut=5, kgrid)
+    end
+    basis = make_basis(MonkhorstPack(kgrid_size))
+    q_points, _ = build_qpoints(basis)
+    kernels = compute_kernel_fourier(kernel, basis, q_points)
+
+    @testset "k-point grid against supercell" begin
+        # The kernel at G+q of the k-point grid is the kernel of the supercell at Γ, evaluated
+        # at the supercell reciprocal lattice vector kgrid_size .* (G+q)
+        basis_supercell = cell_to_supercell(basis)
+        K_supercell = compute_kernel_fourier(kernel, basis_supercell, basis_supercell.kpoints[1])
+        for (qpt, K_q) in zip(q_points, kernels)
+            error = zero(eltype(K_q))
+            for (iG, G) in enumerate(G_vectors(basis))
+                G_supercell = round.(Int, kgrid_size .* (G + qpt.coordinate))
+                idx = DFTK.index_G_vectors(basis_supercell, G_supercell)
+                isnothing(idx) && continue  # beyond the supercell FFT grid
+                error = max(error, abs(K_q[iG] - K_supercell[idx]))
+            end
+            @test error < 1e-8 * maximum(abs, K_supercell)
+        end
+    end
+
+    @testset "shifted and explicit k-point grids" begin
+        # The kernel only depends on the grid of momentum transfers q = k - k', which is
+        # the same Γ-centred grid whatever the shift of the k-point grid.
+        shift = [0.14, -0.44, -0.39]
+        kcoords = vec([(shift .+ [i, j, k]) ./ kgrid_size
+                       for i = 0:kgrid_size[1]-1, j = 0:kgrid_size[2]-1, k = 0:kgrid_size[3]-1])
+        for kgrid in (MonkhorstPack(kgrid_size; kshift=[1/2, 0, 1/2]), ExplicitKpoints(kcoords))
+            basis_shifted = make_basis(kgrid)
+            q_points_shifted, _ = build_qpoints(basis_shifted)
+            kernels_shifted = compute_kernel_fourier(kernel, basis_shifted, q_points_shifted)
+            @test length(q_points_shifted) == length(q_points)
+            for (qpt, K_q) in zip(q_points_shifted, kernels_shifted)
+                iq = findfirst(q -> is_approx_integer(q.coordinate - qpt.coordinate; atol=1e-8),
+                               q_points)
+                @test !isnothing(iq)
+                @test K_q ≈ kernels[iq]
+            end
+        end
+    end
+end
