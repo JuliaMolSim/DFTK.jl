@@ -36,6 +36,12 @@ function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, kernel) whe
     fac::T = scaling_factor 
 
     q_points, kprime_mapping = build_qpoints(basis)
+    if any(iszero, kprime_mapping)
+        error("ExactExchange requires a k-point set which is closed under differences, " *
+              "i.e. for each k-point k and momentum transfer q = k - k' the point k - q " *
+              "has to be a k-point of the basis as well. This is the case for a full " *
+              "(non-symmetry-reduced) k-point grid.")
+    end
     interaction_kernels = [fac .* compute_kernel_fourier(kernel, basis, qpt) for qpt in q_points]
 
     TermExactExchange(fac, interaction_kernels, q_points, kprime_mapping)
