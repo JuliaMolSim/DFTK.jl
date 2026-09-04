@@ -42,7 +42,7 @@ function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, kernel) whe
               "has to be a k-point of the basis as well. This is the case for a full " *
               "(non-symmetry-reduced) k-point grid.")
     end
-    interaction_kernels = [fac .* compute_kernel_fourier(kernel, basis, qpt) for qpt in q_points]
+    interaction_kernels = fac .* compute_kernel_fourier(kernel, basis, q_points)
 
     TermExactExchange(fac, interaction_kernels, q_points, kprime_mapping)
 end

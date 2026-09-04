@@ -24,10 +24,14 @@ eval_probe_charge_integral(::InteractionKernel, α)
     Should return ∫_{BZ}  kernel(q) * e^(-α * q^2) dq
     This is needed for the ProbeCharge regularisation. Note, that no factor 1/Γ
     where Γ is BZ volume) is used.
-_compute_kernel_fourier(::InteractionKernel, basis, qpt)
+_compute_kernel_fourier(::InteractionKernel, basis, qpt::Kpoint)
     The single q-point version of compute_kernel_fourier. Returns the kernel at G+q
     for all G of the full FFT cube `G_vectors(basis)` as an array of shape
     `basis.fft_size` (linear index 1 is G=0). Only `qpt.coordinate` is used.
+_compute_kernel_fourier(::InteractionKernel, basis, q_points::AbstractVector{<:Kpoint})
+    Optional: The kernels for several momentum transfers at once (as a vector). Defaults
+    to calling the single q-point version for each q-point. Kernels which are cheaper
+    to compute for all q-points together (e.g. `WignerSeitzTruncatedCoulomb`) specialise it.
 
 ### Available models:
 - [`Coulomb`](@ref): 1/r
@@ -59,6 +63,22 @@ function _eval_kernel_on_cube(kernel, basis::PlaneWaveBasis, qpt::Kpoint)
     eval_kernel_fourier.(kernel, _norm2_Gplusq_on_cube(basis, qpt))
 end
 
+# Size of the k-point grid, i.e. of the supercell corresponding to the k-point sampling,
+# inferred from the grid of momentum transfers q = k - k'. In contrast to the k-points
+# themselves the momentum transfers always form a Γ-centred grid, such that this also
+# works for shifted and for explicitly given k-point grids.
+function _kgrid_size(basis::PlaneWaveBasis; tol=1e-8)
+    q_points, _ = build_qpoints(basis)
+    kgrid_size = map(1:3) do i
+        q_i = sort([qpt.coordinate[i] for qpt in q_points])
+        1 + count(>(tol), diff(q_i))
+    end
+    if prod(kgrid_size) != length(q_points)
+        error("The k-point grid is not a regular (Monkhorst-Pack-like) grid.")
+    end
+    Vec3{Int}(kgrid_size)
+end
+
 # TODO: should we have a eval_kernel_real?
 # TODO: rename "k" in _compute_kernel_fourier(k...
 # TODO: change notation: p instead of G, G+q, ...
@@ -74,7 +94,7 @@ Coulomb interaction: 1/r
 end
 eval_kernel_fourier(::Coulomb, Gsq::T) where {T} = 4T(π) / Gsq
 eval_probe_charge_integral(::Coulomb, α) = 8π^2 * sqrt(π / α)
-_compute_kernel_fourier(k::Coulomb, basis, qpt) = _compute_kernel_fourier(k, k.regularization, basis, qpt)
+_compute_kernel_fourier(k::Coulomb, basis, qpt::Kpoint) = _compute_kernel_fourier(k, k.regularization, basis, qpt)
 
 
 """
@@ -88,7 +108,7 @@ ShortRangeCoulomb(μ::Quantity) = ShortRangeCoulomb(austrip(μ))
 function eval_kernel_fourier(k::ShortRangeCoulomb, Gsq::T) where {T}
     -(4T(π) / Gsq) * expm1(-Gsq / (4 * T(k.μ)^2))
 end
-function _compute_kernel_fourier(k::ShortRangeCoulomb, basis, qpt)
+function _compute_kernel_fourier(k::ShortRangeCoulomb, basis, qpt::Kpoint)
     # Use ReplaceSingularity regularisation to explicitly set as the G==0
     # component the exact limit of the kernel for G->0, namely π/μ^2
     _compute_kernel_fourier(k, ReplaceSingularity(π/k.μ^2), basis, qpt)
@@ -111,7 +131,7 @@ end
 function eval_probe_charge_integral(k::LongRangeCoulomb, α::T) where {T}
     8T(π)^2 * sqrt(T(π) / (α + 1/(4 * T(k.μ)^2)))
 end
-function _compute_kernel_fourier(k::LongRangeCoulomb, basis, qpt)
+function _compute_kernel_fourier(k::LongRangeCoulomb, basis, qpt::Kpoint)
     _compute_kernel_fourier(k, k.regularization, basis, qpt)
 end
 
@@ -147,6 +167,23 @@ function compute_kernel_fourier(kernel::InteractionKernel, basis::PlaneWaveBasis
     to_device(basis.architecture, kernel_fourier)
 end
 
+"""
+The kernels for several momentum transfers `q_points` at once, returned as a vector
+with one entry per q-point. See [`compute_kernel_fourier`](@ref).
+"""
+function compute_kernel_fourier(kernel::InteractionKernel, basis::PlaneWaveBasis,
+                                q_points::AbstractVector{<:Kpoint})
+    if mpi_nprocs(basis.comm_kpts) > 1
+        error("MPI parallelisation not yet supported for coulomb kernel")
+    end
+    kernels_fourier = _compute_kernel_fourier(kernel, basis, q_points)
+    [to_device(basis.architecture, kernel_fourier) for kernel_fourier in kernels_fourier]
+end
+function _compute_kernel_fourier(kernel::InteractionKernel, basis::PlaneWaveBasis,
+                                 q_points::AbstractVector{<:Kpoint})
+    [_compute_kernel_fourier(kernel, basis, qpt) for qpt in q_points]
+end
+
 
 """
 Spherically truncated Coulomb interaction: θ(Rcut-r)/r
@@ -163,7 +200,7 @@ end
 function eval_kernel_fourier(k::SphericallyTruncatedCoulomb, Gsq::T) where {T}
     4T(π) / Gsq * (1 - cos(T(k.Rcut) * sqrt(Gsq)))
 end
-function _compute_kernel_fourier(k::SphericallyTruncatedCoulomb, basis, qpt)
+function _compute_kernel_fourier(k::SphericallyTruncatedCoulomb, basis, qpt::Kpoint)
     # TODO: This is a bit hackish as the parameter needs
     #       to be re-computed every kernel evaluation.
     Ω_supercell = basis.model.unit_cell_volume * length(basis.kgrid)  # Nk = length(kgrid)
@@ -177,7 +214,8 @@ end
 
 
 """
-Truncate Coulomb interaction at the Wigner-Seitz cell boundary.
+Coulomb interaction truncated at the boundary of the Wigner-Seitz cell of the supercell
+corresponding to the k-point grid (for Γ-only calculations this is the unit cell).
 
 Computational approach: We expand 1/r = erfc(ωr)/r + erf(ωr)/r and chose ω such that the
 short-range part erfc(ωr)/r is virtually unaffected by the truncation.
@@ -192,11 +230,12 @@ Hence we simply define ε through the given grid via ε = exp(-G_Nyquist*R_in/2)
 
 The short-range contribution is then given by the analytical expression
 4π/G^2*(1-exp(-G^2/(4ω^2)))
-while the long-range contributiom is obtained through an FFT of the real-space function
-erf(ωr)/r 
-to reciprocal space.
+while the long-range contribution is obtained through an FFT of the real-space function
+erf(ωr)/r, truncated to the Wigner-Seitz cell, on the real-space grid of the supercell.
+Since this function is periodic on the supercell, one FFT (including the Bloch phase
+``e^{-iqr}`` of the momentum transfer ``q``) yields its Fourier coefficients at all ``G+q``.
 
-# TODO: Evaluating erf(ωr)/r on a discrete real-space grid and performing 
+# TODO: Evaluating erf(ωr)/r on a discrete real-space grid and performing
 # an FFT introduces aliasing errors, as the function is not strictly band-limited.
 # For details on this discretization error, see Appendix A.1 of the Reference below.
 
@@ -204,100 +243,87 @@ to reciprocal space.
 - [R. Sundararaman, T. A. Arias. Phys. Rev. B **87**, 165122 (2013)](https://doi.org/10.1103/PhysRevB.87.165122)
 """
 struct WignerSeitzTruncatedCoulomb <: InteractionKernel end
-@views function _compute_kernel_fourier(k::WignerSeitzTruncatedCoulomb,
-                                        basis::PlaneWaveBasis{T}, qpt) where {T}
+function _compute_kernel_fourier(k::WignerSeitzTruncatedCoulomb, basis, qpt::Kpoint)
+    only(_compute_kernel_fourier(k, basis, [qpt]))
+end
+function _compute_kernel_fourier(::WignerSeitzTruncatedCoulomb, basis::PlaneWaveBasis{T},
+                                 q_points::AbstractVector{<:Kpoint}) where {T}
     model = basis.model
-    q = qpt.coordinate
-    kernel_fourier = zeros(T, basis.fft_size)
 
-    # TODO: With k-points the truncation region has to be the Wigner-Seitz cell of the
-    #       supercell corresponding to the k-point grid (not of the unit cell) and the
-    #       long-range part below needs to be transformed on the supercell grid
-    #       fft_size .* kgrid_size, which yields all G+q at once.
-    #       Until this is implemented only Γ-only is supported.
-    if length(basis.kgrid) > 1
-        error("WignerSeitzTruncatedCoulomb currently only supports Γ-only calculations " *
-              "(kgrid=(1, 1, 1)). Use SphericallyTruncatedCoulomb or a ProbeCharge / " *
-              "VoxelAveraged regularization with k-points.")
-    end
+    # The truncated kernel is periodic on the supercell corresponding to the k-point grid
+    kgrid_size = _kgrid_size(basis)
+    lattice_supercell  = model.lattice .* kgrid_size'  # scale the i-th lattice vector by kgrid_size[i]
+    fft_size_supercell = Tuple(basis.fft_size .* kgrid_size)
+    Ω_supercell = model.unit_cell_volume * prod(kgrid_size)
 
-    # === Calculate inradius R_in of Wigner-Seitz cell ===
-    
-    # R_in is largest possible R_in = (sum_i n_i * a*i) / 2 with integers n_i 
-    # and |R_in| <= a_min where a_min is the length of the smallest lattice vector. 
-    # The inequality allows to restrict n_i by exploiting Cauchy-Schwarz, leading 
+    # === Calculate inradius R_in of the Wigner-Seitz cell of the supercell ===
+
+    # R_in is largest possible R_in = (sum_i n_i * a*i) / 2 with integers n_i
+    # and |R_in| <= a_min where a_min is the length of the smallest lattice vector.
+    # The inequality allows to restrict n_i by exploiting Cauchy-Schwarz, leading
     # to |n_i| <= a_min * |b_i| / 2π where b_i are reciprocal lattice vectors.
-
-    L_min = minimum(norm, eachcol(model.lattice))
-    nx, ny, nz = estimate_integer_lattice_bounds(model.lattice, L_min)
-
-    # finally compute R_in
+    L_min = minimum(norm, eachcol(lattice_supercell))
+    nx, ny, nz = estimate_integer_lattice_bounds(lattice_supercell, L_min)
     R_in = T(Inf)
-    for ix in -nx:nx, iy in -ny:ny, iz in -nz:nz 
+    for ix in -nx:nx, iy in -ny:ny, iz in -nz:nz
         ix == 0 && iy == 0 && iz == 0 && continue
-        R = model.lattice * [ix, iy, iz]
-        d = norm(R) / 2 # distance from origin to perpendicular bisector plane = |R|/2
-        R_in = min(R_in, d)
+        # distance from origin to perpendicular bisector plane = |R|/2
+        R_in = min(R_in, norm(lattice_supercell * Vec3(ix, iy, iz)) / 2)
     end
-    
-    # Nyquist frequency of FFT grid
-    G_Nyquist = minimum(basis.fft_size[d] / 2 * norm(model.recip_lattice[:, d]) for d in 1:3) 
 
+    # === Range separation parameter ω ===
+
+    # Nyquist frequency of the FFT grid (the same for the unit cell and the supercell grid)
+    G_Nyquist = minimum(basis.fft_size[d] / 2 * norm(model.recip_lattice[:, d]) for d in 1:3)
     ε = exp(-0.5*G_Nyquist*R_in)  # required: G_Nyquist >= -2*log(ε)/R_in (Appendix A.1 in paper)
-    ω = sqrt(-log(ε)) / R_in  # range separation parameter
+    ω = sqrt(-log(ε)) / R_in
     ε_actual = erfc(ω*R_in)
     if ε_actual > 1e-8
         @warn "Coarse grid for Wigner-Seitz truncation. Effective error: $ε_actual"
     end
 
-    # == FFT of long-range term erf(ωr)/r restricted to Wigner-Seitz cell ===
+    # === Long-range term erf(ωr)/r truncated to the Wigner-Seitz cell on the supercell grid ===
 
-    r_vectors = DFTK.r_vectors(basis)
-    V_lr_real = zeros(Complex{T}, basis.fft_size...)
-    for idx in CartesianIndices(V_lr_real)
-        r_frac = r_vectors[idx]
-
-        # Map point to the [-0.5, 0.5)³ fractional cell (Minimum Image Convention)
-        r_centered = r_frac .- round.(r_frac) 
-        r_cart = model.lattice * r_centered
-        d_min = norm(r_cart)
-
-        # For non-orthorhombic cells, the fractional Minimum Image Convention
-        # does NOT guarantee the shortest Cartesian distance. A point in a
-        # neighboring fractional cell could be physically closer. We exhaustively
-        # check all nearby cells (bounds nx,ny,nz) to find the absolute minimum.
-        for dx in -nx:nx, dy in -ny:ny, dz in -nz:nz 
-            dx == 0 && dy == 0 && dz == 0 && continue 
-            r_shifted = r_centered - T[dx, dy, dz]
-            d = norm(model.lattice * r_shifted)
-            d_min = min(d_min, d)
+    fft_grid_supercell = FFTGrid(fft_size_supercell, Ω_supercell, CPU())
+    V_lr_real = map(r_vectors(fft_grid_supercell)) do r_frac  # supercell fractional coordinates
+        # Distance to the closest lattice point of the supercell, i.e. |r| inside the
+        # Wigner-Seitz cell. Mapping to [-0.5, 0.5)³ (minimum image convention) does not
+        # guarantee the closest image for non-orthorhombic cells, so the neighbouring
+        # cells (within the bounds nx, ny, nz) are checked as well.
+        r_centered = r_frac - round.(r_frac)
+        d_min = norm(lattice_supercell * r_centered)
+        for dx in -nx:nx, dy in -ny:ny, dz in -nz:nz
+            d_min = min(d_min, norm(lattice_supercell * (r_centered - Vec3(dx, dy, dz))))
         end
-
-        # Evaluate erf(ωr)/r 
-        if d_min > sqrt(eps(T))
-            V_lr_real[idx] = erf(ω * d_min) / d_min
-        else
-            V_lr_real[idx] = 2*ω / sqrt(T(π))
-        end
-
-        # Add the Bloch phase factor for q-point evaluation
-        V_lr_real[idx] *= exp(-im * 2*T(π) * dot(q, r_frac)) # add phase e^{-2πiqr}
+        d_min > sqrt(eps(T)) ? erf(ω * d_min) / d_min : 2ω / sqrt(T(π))
     end
-    # Scale such that kernel_fourier_lr[G] ≈ ∫_Ω erf(ω|r|)/|r| e^{-i(G+q)r} dr
-    kernel_fourier_lr = real.(fft(basis, V_lr_real))
-    kernel_fourier_lr .*= sqrt(model.unit_cell_volume)
 
-    # === Analytic short-range term + long-range term ===
+    # === Analytic short-range term + long-range term for each q ===
 
-    for (iG, G) in enumerate(to_cpu(G_vectors(basis)))
-        Gnorm2 = norm2(model.recip_lattice * (G + q))
-        if iG == 1 && iszero(q)  # G+q = 0: use the analytic limit of the short-range term
-            kernel_fourier[iG] = T(π)/ω^2 + kernel_fourier_lr[iG]
-        else
-            kernel_fourier[iG] = 4T(π) / Gnorm2 * (1 - exp(-Gnorm2/(4ω^2))) + kernel_fourier_lr[iG]
+    map(q_points) do qpt
+        q = qpt.coordinate
+
+        # Fourier coefficients ∫ V_lr(r) e^{-i(G+q)r} dr over the supercell for all G of the
+        # unit cell grid: Bloch phase e^{-iqr} (r in unit cell fractional coordinates is
+        # kgrid_size .* r_frac) and one FFT on the supercell grid, on which the unit cell
+        # vector G is the supercell reciprocal lattice vector kgrid_size .* G.
+        phase = map(r_frac -> cis2pi(-dot(q, kgrid_size .* r_frac)), r_vectors(fft_grid_supercell))
+        V_lr_fourier = real.(fft(fft_grid_supercell, V_lr_real .* phase))
+        V_lr_fourier .*= sqrt(Ω_supercell)
+
+        kernel_fourier = zeros(T, basis.fft_size)
+        for (iG, G) in enumerate(to_cpu(G_vectors(basis)))
+            Gnorm2 = norm2(model.recip_lattice * (G + q))
+            idx_supercell = CartesianIndex(Tuple(mod.(kgrid_size .* G, fft_size_supercell) .+ 1))
+            if iG == 1 && iszero(q)  # G+q = 0: use the analytic limit of the short-range term
+                kernel_fourier[iG] = T(π)/ω^2 + V_lr_fourier[idx_supercell]
+            else
+                kernel_fourier[iG] = (4T(π) / Gnorm2 * (1 - exp(-Gnorm2/(4ω^2)))
+                                      + V_lr_fourier[idx_supercell])
+            end
         end
+        kernel_fourier
     end
-    kernel_fourier
 end
 
 
