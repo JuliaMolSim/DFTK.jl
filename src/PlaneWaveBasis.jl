@@ -654,6 +654,63 @@ function scatter_kpts_block(basis::PlaneWaveBasis, data::Union{Nothing,AbstractA
 end
 
 """
+Computes the unique momentum transfers q = k - k' for a given basis.
+Returns the Kpoint objects for the q-grid and the integer mapping table
+`kprime_mapping[ik, iq]` such that k' = k - q.
+"""
+function build_qpoints(basis::PlaneWaveBasis{T}; tol=1e-12) where {T}
+    # Since spin-polarization is encoded as additional k-points, we filter only unique
+    # k-coordinates here to avoid confusion with spin and k-points.
+    spatial_k = unique(k -> normalize_kpoint_coordinate(k.coordinate), basis.kpoints)
+
+    # Find unique q-coordinates
+    q_coords_all = [
+        normalize_kpoint_coordinate(k1.coordinate .- k2.coordinate)
+        for k1 in spatial_k, k2 in spatial_k
+    ]
+    # Filter unique q-coordinates (modulo reciprocal lattice vectors) using tolerance
+    q_coords = Vec3{T}[]
+    for q in vec(q_coords_all)
+        if !any(qp -> is_approx_integer(q - qp; atol=tol), q_coords)
+            push!(q_coords, q)
+        end
+    end
+
+    # Build Kpoint objects
+    # DFTK's build_kpoints duplicates points for spin-polarized models.
+    # We must filter out these duplicates because q-transfers are spin-independent.
+    q_points_all = build_kpoints(basis.model, basis.fft_size, q_coords, basis.Ecut; basis.architecture)
+    q_points = unique(q -> q.coordinate, q_points_all)
+
+    # Build mapping table
+    N_k = length(basis.kpoints)
+    N_q = length(q_coords)
+    kprime_mapping = zeros(Int, N_k, N_q)
+
+    for iq in 1:N_q
+        q_coord = q_points[iq].coordinate
+        for ik in 1:N_k
+            kpt = basis.kpoints[ik]
+            k_prime = kpt.coordinate .- q_coord
+
+            # For the mapping both have to match: the coordinate modulo reciprocal lattice
+            # vectors (k-point coordinates are not necessarily normalised to [-1/2, 1/2),
+            # e.g. for ExplicitKpoints) and the spin
+            ikp = findfirst(basis.kpoints) do kpt_prime
+                is_approx_integer(kpt_prime.coordinate - k_prime; atol=tol) &&
+                    kpt_prime.spin == kpt.spin
+            end
+
+            if !isnothing(ikp)
+                kprime_mapping[ik, iq] = ikp
+            end
+        end
+    end
+
+    return q_points, kprime_mapping
+end
+
+"""
 Forward FFT calls to the PlaneWaveBasis fft_grid field
 """
 ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis, f_fourier::AbstractArray3) = 
