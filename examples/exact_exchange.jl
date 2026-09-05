@@ -9,8 +9,8 @@ using PseudoPotentialData
 pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_5.stringent.upf") 
 system = bulk(:Si)
 
-# First perform a PBE calculation to get a good starting point
-model  = model_DFT(system; pseudopotentials, functionals=PBE())
+# First perform a PBE calculation to get a good starting point.
+model  = model_DFT(system; pseudopotentials, functionals=PBE(), symmetries=false)
 basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[2, 2, 2])
 scfres = self_consistent_field(basis; tol=1e-6);
 nothing  # hide
