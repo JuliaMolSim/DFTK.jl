@@ -1,0 +1,29 @@
+include:
+  - remote: 'https://gitlab.com/cscs-ci/recipes/-/raw/master/templates/v2/.ci-ext.yml'
+
+stages:
+  - build
+  - test
+
+variables:
+  PERSIST_IMAGE_NAME: $CSCS_REGISTRY_PATH/aarch64/dftk-gpu:$CI_COMMIT_SHORT_SHA
+
+build:
+  stage: build
+  extends: .container-builder-cscs-gh200
+  variables:
+    DOCKERFILE: .cscs-ci/docker/Dockerfile.build-gh200
+
+test:
+  stage: test
+  extends: .container-runner-daint-gh200
+  needs: [build]
+  image: $PERSIST_IMAGE_NAME
+  variables:
+    SLURM_JOB_NUM_NODES: 1
+    SLURM_NTASKS: 1
+    SLURM_TIMELIMIT: "00:45:00"
+    SLURM_MPI_TYPE: none
+    CUDA_CACHE_PATH: "/cuda_cache"
+  script:
+    - /usr/local/julia/bin/julia --project="/TestEnv" -e 'using Pkg; Pkg.test("DFTK"; test_args = ["gpu"])'

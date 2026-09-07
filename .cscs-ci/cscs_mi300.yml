@@ -1,0 +1,30 @@
+include:
+  - remote: 'https://gitlab.com/cscs-ci/recipes/-/raw/master/templates/v2/.ci-ext.yml'
+
+stages:
+  - test
+
+test:
+  stage: test
+  extends: .baremetal-runner-beverin-mi300
+  variables:
+    GIT_STRATEGY: fetch
+    SLURM_JOB_NUM_NODES: 1
+    SLURM_NTASKS: 1
+    SLURM_TIMELIMIT: "00:45:00"
+    SLURM_MPI_TYPE: none
+  script:
+
+    # Download Julia fresh for this run
+    - cd $CI_PROJECT_DIR
+    - wget --tries=3 --timeout=60 https://julialang-s3.julialang.org/bin/linux/x64/1.12/julia-1.12.7-linux-x86_64.tar.gz
+    - tar -xzf julia-1.12.7-linux-x86_64.tar.gz
+    - export PATH="$CI_PROJECT_DIR/julia-1.12.7/bin:$PATH"
+    - export JULIA_DEPOT_PATH="$CI_PROJECT_DIR/.julia"
+
+    # Run DFTK GPU tests
+    - julia --project="TestEnv" -e 'using Pkg; Pkg.develop(path=".")'
+    - julia --project="TestEnv" -e 'using Pkg; Pkg.test("DFTK"; test_args = ["gpu"])'
+
+  after_script:
+    - rm -rf $CI_PROJECT_DIR/julia-1.12.7 && rm -rf $CI_PROJECT_DIR/.julia
