@@ -14,7 +14,9 @@ Our performance is of the same order of magnitude as much larger production
 codes such as [Abinit](https://www.abinit.org/),
 [Quantum Espresso](http://quantum-espresso.org/) and
 [VASP](https://www.vasp.at/).
-DFTK's source code is [publicly available on github](https://dftk.org).
+We obtain results comparable to these codes on
+[the recent verification dataset by Bosoni and others](https://acwf-verification.materialscloud.org/).
+DFTK's source code is [publicly available on GitHub](https://dftk.org).
 
 Found a bug, missing a feature? Look for an open issue or
 [create a new one](https://github.com/JuliaMolSim/DFTK.jl/issues).

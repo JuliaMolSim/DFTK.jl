@@ -44,7 +44,7 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     ρ = sum(storage -> storage.ρ, storages)
 
     mpi_sum!(ρ, basis.comm_kpts)
-    ρ = symmetrize_ρ(basis, ρ; do_lowpass=false)
+    ρ = symmetrize_ρ(basis, ρ)
 
     # There can always be small negative densities, e.g. due to numerical fluctuations
     # in a vacuum region, so put some tolerance even if occupation_threshold == 0
@@ -104,7 +104,7 @@ end
     δρ = sum(getfield.(storages, :δρ))
 
     mpi_sum!(δρ, basis.comm_kpts)
-    symmetrize_ρ(basis, δρ; do_lowpass=false)
+    symmetrize_ρ(basis, δρ)
 end
 
 @views @timing function compute_kinetic_energy_density(basis::PlaneWaveBasis, ψ, occupation)
@@ -121,7 +121,7 @@ end
         end
     end
     mpi_sum!(τ, basis.comm_kpts)
-    symmetrize_ρ(basis, τ; do_lowpass=false)
+    symmetrize_ρ(basis, τ)
 end
 
 """

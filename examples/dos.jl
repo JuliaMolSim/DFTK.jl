@@ -17,7 +17,7 @@ atoms = [Si, Si]
 positions = [ones(3) / 8, -ones(3) / 8]
 
 # Run SCF
-model = model_LDA(lattice, atoms, positions; temperature=5e-3)
+model = model_DFT(lattice, atoms, positions; functionals=LDA(), temperature=5e-3)
 basis = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4], symmetries_respect_rgrid=true)
 scfres = self_consistent_field(basis, tol=1e-8)
 

@@ -233,7 +233,8 @@ using Unitful
 using UnitfulAtomic
 using Plots
 
-plot_bandstructure(basis; n_bands=6, kline_density=100)
+bands = compute_bands(basis; n_bands=6, kline_density=100)
+plot_bandstructure(bands)
 
 # !!! note "Selection of k-point grids in [`PlaneWaveBasis`](@ref) construction"
 #     You might wonder why we only selected a single ``k``-point (clearly a very crude
@@ -316,7 +317,8 @@ plot(x, potential, label="", xlabel="x", ylabel="V(x)")
 using Unitful
 using UnitfulAtomic
 
-plot_bandstructure(basis; n_bands=6, kline_density=500)
+bands = compute_bands(basis; n_bands=6, kline_density=500)
+plot_bandstructure(bands)
 
 # The bands are noticeably different.
 #  - The bands no longer overlap, meaning that the spectrum of $H$ is no longer continuous

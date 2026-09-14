@@ -66,19 +66,19 @@ function compute_χ0(ham;
         V = Vs[ik]
         Vr = cat(ifft.(Ref(basis), Ref(kpt), eachcol(V))..., dims=4)
         Vr = reshape(Vr, n_fft, N)
-        for m = 1:N, n = 1:N
+        # The (n,m) and (m,n) terms are complex conjugates of each other, so we only run
+        # over the lower triangle and take the real part.
+        for m = 1:N, n = 1:m
             enred = (E[n] - εF) / temperature
             @assert occupation[ik][n] ≈ filled_occ * Smearing.occupation(smearing, enred)
             ddiff = Smearing.occupation_divided_difference
             ratio = filled_occ * ddiff(smearing, E[m], E[n], εF, temperature)
             # dvol because inner products have a dvol in them
             # so that the dual gets one : |f> -> <dvol f|
-            # can take the real part here because the nm term is complex conjugate of mn
-            # TODO optimize this a bit... use symmetry nm, reduce allocs, etc.
-            factor = basis.kweights[ik] * ratio * basis.dvol
+            factor = basis.kweights[ik] * ratio * basis.dvol * (m == n ? 1 : 2)
 
-            @views χ0σσ .+= factor .* real(conj((Vr[:, m] .* Vr[:, m]'))
-                                           .*   (Vr[:, n] .* Vr[:, n]'))
+            ρmn = @views conj(Vr[:, m]) .* Vr[:, n]
+            χ0σσ .+= factor .* real.(ρmn .* ρmn')
         end
     end
     mpi_sum!(χ0, basis.comm_kpts)

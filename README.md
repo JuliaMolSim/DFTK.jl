@@ -38,6 +38,8 @@ interdisciplinary collaboration in solid-state research.
 In only around 10k lines of code DFTK already has
 a [sizeable set of features](https://docs.dftk.org/stable/features/)
 including GPU support or parallelisation using MPI.
+We agree well with more established packages,
+as shown on the [recent verification dataset by Bosoni et. al](https://acwf-verification.materialscloud.org/).
 Our performance is of the same order of magnitude
 as other plane-wave DFT packages and  systems of 1000 electrons
 can be routinely treated.

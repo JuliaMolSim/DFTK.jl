@@ -291,6 +291,7 @@ If parameters are not given explicitly as a kwarg, the constructor chooses sensi
 - `supersampling::Real` (default: `recommended_cutoff(model).supersampling`): Factor
     determining the density/potential cutoff relative to `Ecut`. The density cutoff is
     `supersampling^2 * Ecut` (default supersampling = 2.0, i.e. density cutoff = 4 * Ecut).
+    Values below 2 alias the density and are not recommended.
 - `fft_size::Union{Nothing,Tuple{Int,Int,Int}}` (default: `nothing`): Explicit FFT grid
     size. If `nothing` (recommended), an automatic FFT grid compatible with `Ecut` and `supersampling`
     is computed.
@@ -324,18 +325,10 @@ basis = PlaneWaveBasis(model; Ecut=12, fft_size=(48,48,48))
                                 Ecut::Union{Number,Missing}=recommended_cutoff(model).Ecut,
                                 supersampling=recommended_cutoff(model).supersampling,  # 2.0 by default
                                 kgrid=KgridSpacing(2π * 0.022),
-                                kshift=nothing,
                                 variational=true, fft_size=nothing,
                                 symmetries_respect_rgrid=isnothing(fft_size),
                                 use_symmetries_for_kpoint_reduction=true,
                                 comm_kpts=MPI.COMM_WORLD, architecture=CPU()) where {T <: Real}
-    if isnothing(kshift)
-        kgrid_inner = build_kgrid(model.lattice, kgrid)
-    else
-        @warn("The kshift argument of PlaneWaveBasis is deprecated. " *
-              "Use `PlaneWaveBasis(model; kgrid=MonkHorstPack(kgrid, kshift))` instead")
-        kgrid_inner = MonkhorstPack(kgrid, kshift)
-    end
     if ismissing(Ecut)
         throw(ArgumentError(
             "For this model no recommended kinetic energy cutoff can be determined " *
@@ -343,6 +336,7 @@ basis = PlaneWaveBasis(model; Ecut=12, fft_size=(48,48,48))
             "therefore needs to be provided to the `PlaneWaveBasis` constructor."))
     end
 
+    kgrid_inner = build_kgrid(model.lattice, kgrid)
     if isnothing(fft_size)
         @assert variational
         # TODO Move this to compute_fft_size ?

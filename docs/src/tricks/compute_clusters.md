@@ -313,6 +313,123 @@ srun julia -t 1 --project -e '
 '
 ```
 
+## Running DFTK with MPI and GPUs
+Note that DFTK is implemented for GPU-aware MPI. If your cluster does not support
+such an MPI implementation, keep to CPU execution. This tutorial is illustrated with
+examples from a NVIDIA cluster using CUDA.jl, but adaptation to AMD GPUs is straightforward. We recommend using a [manual download of Julia](https://julialang.org/downloads/manual-downloads/) for finer control.
+
+The easiest way forward is the creation of a Julia environment, with a 
+`LocalPreferences.toml` file that defines where the GPU-aware MPI library
+is found on the system, as well as CUDA details. On AMD clusters, only the
+MPIPreferences are necessary.
+
+```julia
+# This preference can be removed on AMD GPU clusters
+[CUDA_Runtime_jll]
+__clear__ = ["local"]
+version = "13.1" # CUDA version number should match that of the cluster
+cuda_local = false # Use CUDA from a JLL download (see why below)
+
+[MPIPreferences]
+__clear__ = ["preloads_env_switch"]
+_format = "1.0"
+abi = "MPICH"
+binary = "system"
+cclibs = []
+# It is recommended to use an absolute path here
+libmpi = "/user-environment/linux-neoverse_v2/cray-mpich-9.1.1-tms3eeelzg36j7u2rqjsxz7pnz5if5bh/lib/libmpi"
+mpiexec = ["srun"] # srun for clusters using Slurm
+preloads = []
+```
+
+Depending on the cluster, various modules/uenv might need to be loaded to access GPU-aware MPI. For minimal calculations, the following `Project.toml`
+is sufficient:
+
+```julia
+[deps]
+#AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba" # Replace with AMDGPU if needed
+DFTK = "acf6eb54-70d9-11e9-0013-234b7a5f5337"
+MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
+MPIPreferences = "3da0fdf6-3ccc-4f1b-acd9-58baa6c99267"
+PseudoPotentialData = "5751a51d-ac76-4487-a056-413ecf6fbe19"
+
+[extras]
+CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2" # Not necessary on AMD
+```
+
+Note that before launching a MPI parallel calculation, it is very important 
+to pre-compile DFTK. When pre-compilation takes place on multiple ranks at once, 
+race conditions occur and compilation stalls. Make sure that pre-compilation 
+happens under the same conditions as the subsequent calculation (same module 
+loaded, same Julia environment, etc.), so as to avoid invalidations down the line.
+This can be done with a single MPI rank job, or in an interactive session. On 
+NVIDIA clusters, it is also important to set a persistent cache for CUDA, e.g. 
+'export CUDA_CACHE_PATH="/some_existing_directory_on_scratch"' (see below for the reason).
+
+After the code has been pre-compiled, it can be launched normally. Below is an
+illustrative Slurm submission script:
+
+```sh
+#!/bin/bash -l
+
+#SBATCH --job-name=DFTK_calc
+#SBATCH --time=00:30:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=4
+#SBATCH --account=<account_id>
+#SBATCH --hint=nomultithread
+#SBATCH --hint=exclusive
+
+### On this cluster, GPU-aware MPI is obtained via a uenv. Relevent 
+### modules might need loading elsewhere.
+#SBATCH --uenv=prgenv-gnu/26.3:v1
+
+# Specific cray-mpich env variables
+export MPICH_GPU_SUPPORT_ENABLED=1
+export MPICH_GPU_IPC_ENABLED=0
+
+# Add Julia exec to the PATH, and set JULIA_DEPOT_PATH to a place on $SCRATCH
+export PATH="/path_to_julia_installation_dir/julia-1.12.6/bin:$PATH"
+export JULIA_DEPOT_PATH="/path_to_julia_depot_on_scratch/.julia"
+
+# Directory for cached JIT compiled Libxc GPU code (only for NVIDIA)
+export CUDA_CACHE_PATH="/path_to_existing_folder_on_scratch"
+
+my_project="/absolute_path_to_julia_project"
+
+srun julia --project=$my_project --compiled-modules=strict example.jl > example.out
+```
+
+### Special notes on NVIDIA clusters
+Running on NVIDIA GPU clusters is trickier than on AMD because of how Libxc.jl
+works. With AMD GPUs, the data is always transferred to the host before functionals
+are evaluated, and the results are copied to the GPU once the operation has finished.
+With CUDA, the data stays on the device, and functionals are evaluated on the GPU 
+via a binary shipped by Libxc_GPU_jll. Due to the inner workings of CUDA.jl and
+BinaryBuilder.jl, the CUDA compatible Libxc JLL is only available when the CUDA
+toolkit is downloaded through Julia (hence `cuda_local = false` in the preferences).
+However, the cluster provided GPU-aware MPI library would have been built with 
+a different CUDA installation. As a result, MPI and Julia might link against 
+different CUDA libraries, which will generate a bunch of warnings. These can be
+safely ignored if both CUDA installation used the same major version, hence
+the importance of properly setting `version` for `[CUDA_Runtime_jll]` in the 
+preferences.
+
+Defining the `CUDA_CACHE_PATH` environment variable is very important to reduce
+calculation starting times. The binaries distributed by Libxc_GPU_jll are
+so-called fat binaries, made of generic PTX code, not specialized for specific
+device architecture (i.e. sm_70, sm_80, etc.). When the first calculation 
+is underway, the Libxc GPU code is JIT compiled and cached, an operation that
+can take up to 5 minutes. Because this JIT compilation is not performed by
+Julia, it is cached in a different location, typically in a temporary folder 
+local to the compute node. As a result, different calculations running on
+different nodes might not have access to the cache, and the lengthy JIT
+compilation keeps happening. Setting a `CUDA_CACHE_PATH` to a persistent, 
+existing, directory that all nodes can access solves that issue.
+
+
+
 ## Using DFTK via the Aiida workflow engine
 A preliminary integration of DFTK with the [Aiida](https://www.aiida.net/)
 high-throughput workflow engine is available

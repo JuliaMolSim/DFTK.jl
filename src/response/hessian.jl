@@ -419,7 +419,7 @@ end
     Ax = vec(δρ - χ0δV)  # (1 - χ0 K) δρ
     (; Ax, info=(; rtol, res...))
 end
-function size(ε_adj::DielectricAdjoint, i::Integer)
+function Base.size(ε_adj::DielectricAdjoint, i::Integer)
     if 1 ≤ i ≤ 2
         return prod(size(ε_adj.ρ))
     else

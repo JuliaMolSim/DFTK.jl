@@ -110,11 +110,13 @@ end
    
    @testset "Test Energy results" begin
         # The reference values are obtained with first released version
-        # of the Hubbard code in DFTK and are in good agreement with Quantum Espresso
-        ref = -354.907446880021
+        # of the Hubbard code in DFTK and are in good reasonable agreement with Quantum Espresso
+        # but at this supersampling the nlcc core density is badly aliased (~10mHa on the total energy),
+        # and the comparison should not be trusted too much
+        ref = -354.91625589331755
         e_total = scfres.energies.total
         @test e_total ≈ ref
-        ref_hub = 0.17629078433258719
+        ref_hub = 0.17631957087331435
         @test scfres.energies.Hubbard ≈ ref_hub
    end
    # The unfolding of the kpoints is not supported with MPI

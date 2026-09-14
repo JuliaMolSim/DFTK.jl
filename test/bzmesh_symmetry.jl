@@ -4,15 +4,15 @@
     using LinearAlgebra
     testcase = TestCases.silicon
 
-    args = ((; kgrid=[2, 2, 2], kshift=[1/2, 0, 0]),
-            (; kgrid=[2, 2, 2], kshift=[1/2, 1/2, 0]),
-            (; kgrid=[2, 2, 2], kshift=[0, 0, 0]),
-            (; kgrid=[3, 2, 3], kshift=[0, 0, 0]),
-            (; kgrid=[3, 2, 3], kshift=[0, 1/2, 1/2]))
-    for case in args
+    cases = (MonkhorstPack([2, 2, 2], kshift=[1/2,   0,   0]),
+             MonkhorstPack([2, 2, 2], kshift=[1/2, 1/2,   0]),
+             MonkhorstPack([2, 2, 2], kshift=[  0,   0,   0]),
+             MonkhorstPack([3, 2, 3], kshift=[  0,   0,   0]),
+             MonkhorstPack([3, 2, 3], kshift=[  0, 1/2, 1/2]))
+    for kgrid in cases
         model_nosym = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
                                 functionals=LDA(), symmetries=false)
-        basis = PlaneWaveBasis(model_nosym; Ecut=5, case...)
+        basis = PlaneWaveBasis(model_nosym; Ecut=5, kgrid)
         DFTK.check_group(basis.symmetries)
 
         scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-10))
@@ -21,7 +21,7 @@
 
         model_sym = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
                               functionals=LDA())
-        basis = PlaneWaveBasis(model_sym; Ecut=5, case...)
+        basis = PlaneWaveBasis(model_sym; Ecut=5, kgrid) 
         DFTK.check_group(basis.symmetries)
         scfres = self_consistent_field(basis; is_converged=DFTK.ScfConvergenceDensity(1e-10))
         ρ2 = scfres.ρ

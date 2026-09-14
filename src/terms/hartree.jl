@@ -37,8 +37,6 @@ function compute_poisson_green_coeffs(basis::PlaneWaveBasis{T}, scaling_factor;
     if iszero(q)
         # Compensating charge background => Zero DC.
         GPUArraysCore.@allowscalar poisson_green_coeffs[1] = 0
-        # Symmetrize Fourier coeffs to have real iFFT.
-        enforce_real!(poisson_green_coeffs, basis)
     end
     scaling_factor .* poisson_green_coeffs
 end

@@ -236,52 +236,6 @@ function build_kgrid(lattice::AbstractMatrix, kgen::KgridTotalNumber)
 end
 
 
-@doc raw"""
-Build a [`MonkhorstPack`](@ref) grid to ensure kpoints are at most this `spacing`
-apart (in inverse Bohrs). A reasonable spacing is `0.13` inverse Bohrs
-(around ``2π * 0.04 \, \text{Å}^{-1}``). The `kshift` keyword argument allows
-to specify an explicit shift for all ``k``-points.
-
-Note that this function is deprecated. Use [`KgridSpacing`](@ref) instead.
-"""
-function kgrid_from_maximal_spacing(system::AbstractSystem, spacing; kshift=[0, 0, 0])
-    @warn("kgrid_from_maximal_spacing(system, spacing; kshift) is now deprecated. " *
-          "Now you should pass the `KgridSpacing(spacing; kshift)` directly " *
-          "as `PlaneWaveBasis(model; kgrid=KgridSpacing(spacing; kshift), ...)` or " *
-          "use `build_kgrid(lattice, KgridSpacing(spacing; kshift))`")
-    pseudopotentials = fill(nothing, length(system))
-    kgen = KgridSpacing(spacing, kshift)
-    build_kgrid(parse_system(system, pseudopotentials).lattice, kgen)
-end
-function kgrid_from_maximal_spacing(lattice::AbstractMatrix, spacing; kshift=[0, 0, 0])
-    @warn("kgrid_from_maximal_spacing(system, spacing; kshift) is now deprecated. " *
-          "Now you should pass the `KgridSpacing(spacing; kshift)` directly " *
-          "as `PlaneWaveBasis(model; kgrid=KgridSpacing(spacing; kshift), ...)` or " *
-          "use `build_kgrid(lattice, KgridSpacing(spacing; kshift))`")
-    build_kgrid(lattice, KgridSpacing(spacing, kshift))
-end
-
-@doc raw"""
-Selects a [`MonkhorstPack`](@ref) grid size which ensures that at least a
-`n_kpoints` total number of ``k``-points are used. The distribution of
-``k``-points amongst coordinate directions is as uniformly as possible, trying to
-achieve an identical minimal spacing in all directions.
-
-Note that this function is deprecated. Use [`KgridTotalNumber`](@ref) instead.
-"""
-function kgrid_from_minimal_n_kpoints(system::AbstractSystem, n_kpoints::Integer; kshift=[0, 0, 0])
-    @warn("kgrid_from_minimial_n_kpoints(system, n_kpoints; kshift) is now deprecated. " *
-          "Now you should pass the `KgridTotalNumber(n_kpoints; kshift)` directly " *
-          "as `PlaneWaveBasis(model; kgrid=KgridTotalNumber(n_kpoints; kshift), ...)` or " *
-          "use `build_kgrid(lattice, KgridTotalNumber(n_kpoints; kshift))`")
-    pseudopotentials = fill(nothing, length(system))
-    kgrid_from_minimal_n_kpoints(parse_system(system, pseudopotentials).lattice, n_kpoints; kshift)
-end
-function kgrid_from_minimal_n_kpoints(lattice, n_kpoints::Integer; kshift=[0, 0, 0])
-    build_kgrid(lattice, KgridTotalNumber(n_kpoints, kshift))
-end
-
-
 @timing function _check_kpoint_reduction(symmetries::AbstractVector{<: SymOp},
                                          kgrid::MonkhorstPack, k_all_reducible, kirreds,
                                          grid_address)

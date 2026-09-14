@@ -35,7 +35,7 @@ struct ExternalFromValues
 end
 function (external::ExternalFromValues)(basis::PlaneWaveBasis{T}) where {T}
     # TODO Could do interpolation here
-    @assert size(external.potential_values) == basis.fft_size
+    @assert size(external.potential_values)[1:3] == basis.fft_size
     TermExternal(convert_dual.(T, external.potential_values))
 end
 
@@ -64,7 +64,6 @@ function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}) where {T}
     pot_fourier = map(G_vectors_cart(basis)) do G
         convert_dual(complex(T), external.potential(G) / sqrt(unit_cell_volume))
     end
-    enforce_real!(pot_fourier, basis)  # Symmetrize Fourier coeffs to have real iFFT
     TermExternal(irfft(basis, pot_fourier))
 end
 
@@ -130,7 +129,6 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
 
     pot_fourier = reshape(pot, basis.fft_size)
     if iszero(q)
-        enforce_real!(pot, basis)  # Symmetrize coeffs to have real iFFT
         return irfft(basis, pot_fourier)
     else
         return ifft(basis, pot_fourier)

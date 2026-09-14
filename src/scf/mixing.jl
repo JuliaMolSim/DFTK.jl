@@ -83,7 +83,6 @@ end
     δF_fourier    = fft(basis, δF)
     δFtot_fourier = total_density(δF_fourier)
     δρtot_fourier = δFtot_fourier .* G² ./ (kTF.^2 .+ G²)
-    enforce_real!(δρtot_fourier, basis)
     δρtot = irfft(basis, δρtot_fourier)
 
     # Copy DC component, otherwise it never gets updated
@@ -96,7 +95,6 @@ end
     else
         δFspin_fourier = spin_density(δF_fourier)
         δρspin_fourier = @. δFspin_fourier - δFtot_fourier * (4π * ΔDOS_Ω) / (kTF^2 + G²)
-        enforce_real!(δρspin_fourier, basis)
         δρspin = irfft(basis, δρspin_fourier)
         ρ_from_total_and_spin(δρtot, δρspin)
     end
