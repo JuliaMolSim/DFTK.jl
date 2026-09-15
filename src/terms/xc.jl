@@ -525,6 +525,10 @@ function DftFunctionals.potential_terms(xc::DispatchFunctional, density::LibxcDe
     potential_terms(xc, _matify(density.ρ_real), _matify(density.σ_real),
                         _matify(density.τ_real), _matify(density.Δρ_real))
 end
+function DftFunctionals.potential_terms(fun::DftFunctionals.Functional, density::LibxcDensities)
+    potential_terms(fun, _matify(density.ρ_real), _matify(density.σ_real),
+                         _matify(density.τ_real), _matify(density.Δρ_real))
+end
 
 function DftFunctionals.potential_terms(xcs::Vector{Functional}, density::LibxcDensities)
     isempty(xcs) && return NamedTuple()
@@ -538,6 +542,10 @@ end
 function DftFunctionals.energy_density(xc::DispatchFunctional, density::LibxcDensities)
     energy_density(xc, _matify(density.ρ_real), _matify(density.σ_real),
                        _matify(density.τ_real), _matify(density.Δρ_real))
+end
+function DftFunctionals.energy_density(fun::DftFunctionals.Functional, density::LibxcDensities)
+    energy_density(fun, _matify(density.ρ_real), _matify(density.σ_real),
+                        _matify(density.τ_real), _matify(density.Δρ_real))
 end
 function DftFunctionals.energy_density(xcs::Vector{Functional}, density::LibxcDensities{T}) where {T}
     xcs = filter(has_energy, xcs)
