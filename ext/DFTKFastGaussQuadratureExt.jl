@@ -1,27 +1,20 @@
 module DFTKFastGaussQuadratureExt
 using FastGaussQuadrature
 using DFTK
-using DFTK: to_cpu, eval_kernel_fourier, VoxelAveraged
+using DFTK: to_cpu, eval_kernel_fourier, VoxelAveraged, _kgrid_size
 using LinearAlgebra
 
 
 @views function DFTK._compute_kernel_fourier(kernel, regularization::VoxelAveraged,
-                                             basis::PlaneWaveBasis{T}, qpt, q) where {T}
+                                             basis::PlaneWaveBasis{T}, qpt) where {T}
     model = basis.model
     q = qpt.coordinate
-    
-    # Get kgrid_size
-    if isnothing(basis.kgrid)
-        kgrid_size = Vec3{Int}(1, 1, 1)
-    elseif basis.kgrid isa AbstractVector
-        kgrid_size = Vec3{Int}(basis.kgrid)
-    elseif basis.kgrid isa MonkhorstPack
-        kgrid_size = Vec3{Int}(basis.kgrid.kgrid_size)
-    else
-        @error "Cannot determine kgrid_size for VoxelAveraged Coulomb model."
-    end
 
-    # Define Voxels as reciprocal cell deivided by k-mesh
+    # Size of the k-point grid (inferred from the momentum transfers, such that shifted
+    # and explicit k-point grids work as well)
+    kgrid_size = _kgrid_size(basis)
+
+    # Define Voxels as reciprocal cell divided by k-mesh
     voxel_basis = model.recip_lattice * Diagonal(1 ./ Vec3{T}(kgrid_size))
     voxel_vol = abs(det(voxel_basis))
     
@@ -34,8 +27,9 @@ using LinearAlgebra
     q_locals = vec([voxel_basis * Vec3(x, y, z) for x in nodes, y in nodes, z in nodes])
     w_locals = vec([wx * wy * wz for wx in weights, wy in weights, wz in weights])
 
-    kernel_fourier = zeros(T, length(qpt.G_vectors))
-    for (iG, G) in enumerate(to_cpu(qpt.G_vectors))
+    # Kernel on the full FFT cube (see compute_kernel_fourier); linear index 1 is G=0
+    kernel_fourier = zeros(T, basis.fft_size)
+    for (iG, G) in enumerate(to_cpu(G_vectors(basis)))
         G_cart = model.recip_lattice * (G+q)
 
         found_singularity = (iG==1 && iszero(q))
@@ -81,9 +75,10 @@ using LinearAlgebra
         end
 
         # === Use smooth 3D Gaussian Quadrature ===
-        if norm(G) <= 10
-            # assume that interaction kernel varies strongly only among the 
-            # first 10 (hard coded!) nearest neighbors of the origin voxel
+        if norm(kgrid_size .* (G + q)) <= 10
+            # assume that interaction kernel varies strongly only among the
+            # first 10 (hard coded!) nearest neighbors of the origin voxel;
+            # kgrid_size .* (G+q) are the coordinates of G+q in units of the voxel basis
             integral = zero(T)
             for i in 1:length(q_locals)
                 G_total = G_cart + q_locals[i]

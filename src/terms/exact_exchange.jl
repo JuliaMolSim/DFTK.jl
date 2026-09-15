@@ -21,17 +21,32 @@ where the `kernel` keyword argument is an [`InteractionKernel`](@ref) , typicall
     kernel = Coulomb()
 end
 (ex::ExactExchange)(basis) = TermExactExchange(basis, ex.scaling_factor, ex.kernel)
+breaks_symmetries(::ExactExchange) = true  # TODO: make ExactExchange fit for symmetries 
 
-struct TermExactExchange <: Term
-    scaling_factor::Real  # scaling factor, absorbed into interaction_kernel
-    interaction_kernel::AbstractArray  # kernel values in Fourier space
+struct TermExactExchange{T, Tkernel, Tq, Tmap} <: Term
+    scaling_factor::T             # scaling factor, absorbed into interaction_kernels
+    interaction_kernels::Tkernel  # Vector{Array{T,3}}: kernel on the FFT cube, one per q
+    q_points::Tq                  # Vector{Kpoint{T}}
+    kprime_mapping::Tmap          # Matrix{Int}: find index for k'=k-q
 end
 function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, kernel) where {T}
-    # TODO: we need this for every q-point
-    fac::T = scaling_factor
-    interaction_kernel = fac .* compute_kernel_fourier(kernel, basis)
-    TermExactExchange(fac, interaction_kernel)
+    if mpi_nprocs(basis.comm_kpts) > 1
+        error("ExactExchange currently does not support MPI parallelization over k-points.")
+    end
+    fac::T = scaling_factor 
+
+    q_points, kprime_mapping = build_qpoints(basis)
+    if any(iszero, kprime_mapping)
+        error("ExactExchange requires a k-point set which is closed under differences, " *
+              "i.e. for each k-point k and momentum transfer q = k - k' the point k - q " *
+              "has to be a k-point of the basis as well. This is the case for a full " *
+              "(non-symmetry-reduced) k-point grid.")
+    end
+    interaction_kernels = fac .* compute_kernel_fourier(kernel, basis, q_points)
+
+    TermExactExchange(fac, interaction_kernels, q_points, kprime_mapping)
 end
+
 
 @timing "ene_ops: ExactExchange" function ene_ops(term::TermExactExchange, basis::PlaneWaveBasis{T},
                                                   ψ, occupation;
@@ -43,44 +58,108 @@ end
         return (; E=zero(T), ops=NoopOperator.(basis, basis.kpoints))
     end
 
+    # get occupied orbitals only 
     mask_occ = occupied_empty_masks(occupation, occupation_threshold).mask_occ
-    @assert length(basis.kpoints) == basis.model.n_spin_components  # no k-points, only spin
+    occ_occ = [occupation[ik][mask_occ[ik]] for ik in 1:length(basis.kpoints)]
+
+    # Precompute all occupied real-space orbitals once per SCF step
+    ψ_occ_real = map(1:length(basis.kpoints)) do ik
+        kpt = basis.kpoints[ik]
+        mask = mask_occ[ik]
+        ψk_occ = @view ψ[ik][:, mask]
+        ψk_real = similar(ψ[ik], basis.fft_size..., length(mask))
+        for (ψnk_real, ψnk) in zip(eachslice(ψk_real; dims=4), eachcol(ψk_occ))
+            ifft!(ψnk_real, basis, kpt, ψnk)
+        end
+        ψk_real
+    end
 
     E = zero(T)
     ops = []
     for (ik, kpt) in enumerate(basis.kpoints)
-        (; Ek, opk) = exx_operator(exxalg, basis, kpt, term.interaction_kernel,
-                                   ψ[ik], occupation[ik], mask_occ[ik])
+        (; Ek, opk) = build_exx(exxalg, basis, kpt, term, ψ, occupation, mask_occ,
+                                ψ_occ_real, occ_occ)
         push!(ops, opk)
-        E += Ek  # TODO: Need kweight here later for energy; see also non-local term for ideas
+        E += Ek * basis.kweights[ik]
     end
     (; E, ops)
 end
-
-# TODO: Should probably define an energy-only function, which directly calls into
-#       exx_energy_only for both ACE and Vanilla version.
-
 
 
 """
 Plain vanilla Fock exchange implementation without any tricks.
 """
 struct VanillaExx <: ExxAlgorithm end
-function exx_operator(::VanillaExx, basis::PlaneWaveBasis{T}, kpt, interaction_kernel,
-                      ψk, occk, maskk_occ) where {T}
-    # Perform FFT on occupied orbitals only
-    ψk_occ = @view ψk[:, maskk_occ]
-    ψk_occ_real = similar(ψk, basis.fft_size..., length(maskk_occ))
-    for (ψnk_real, ψnk) in zip(eachslice(ψk_occ_real; dims=4), eachcol(ψk_occ))
-        ifft!(ψnk_real, basis, kpt, ψnk)
-    end
+function build_exx(::VanillaExx, basis::PlaneWaveBasis{T}, kpt, term::TermExactExchange,
+                     ψ, occupation, mask_occ, ψ_occ_real, occ_occ) where {T}
+    
+    Ek = exx_energy_only(basis, kpt, term.interaction_kernels, term.q_points, 
+                         term.kprime_mapping, ψ_occ_real, occ_occ)
 
-    # Compute energy and build exchange operator
-    occk_occ = @view occk[maskk_occ]
-    Ek  = exx_energy_only(basis,  kpt, interaction_kernel, ψk_occ_real, occk_occ)
-    opk = ExchangeOperator(basis, kpt, interaction_kernel, occk_occ, ψk_occ, ψk_occ_real)
+    opk = ExchangeOperator(basis, kpt, term.interaction_kernels, term.q_points, 
+                           term.kprime_mapping, ψ_occ_real, occ_occ)
     (; Ek, opk)
 end
+
+# TODO: Should probably define an energy-only function, which directly calls into
+#       exx_energy_only for both ACE and Vanilla version.
+
+
+# TODO this is currently called only with interaction_kernel for one q (see build_exx)
+# Naive algorithm for computing the exact exchange energy only.
+function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, interaction_kernels, q_points,
+                         kprime_mapping, ψ_occ_real, occ_occ) where {T}
+
+    # get occupied orbitals at k
+    ik = findfirst(isequal(kpt), basis.kpoints)
+    ψk_real = ψ_occ_real[ik]
+
+    Ek = zero(T)
+
+    # outer loop over q
+    for iq in 1:length(q_points)
+
+        # construct k' = k - q
+        ikp = kprime_mapping[ik, iq]
+        ikp == 0 && continue 
+        
+        # get the Coulomb kernel Fourier components G+q
+        qpt = q_points[iq]
+        kernel_q = interaction_kernels[iq]
+        
+        # get occupied orbitals at k'
+        ψkp_real = ψ_occ_real[ikp]
+
+        # Calculate the reciprocal lattice shift Gb from BZ folding
+        # k - q = k' + G_b  =>  G_b = k - q - k'
+        kpt_prime = basis.kpoints[ikp]
+        Gb_frac = kpt.coordinate - kpt_prime.coordinate - qpt.coordinate
+        Gb = round.(Int, Gb_frac)
+        phase_shift = map(r -> cis2pi(dot(Gb, r)), r_vectors(basis))
+
+        for (n, ψnk_real) in enumerate(eachslice(ψk_real, dims=4))
+            for (m, ψmkp_real) in enumerate(eachslice(ψkp_real, dims=4))
+                m > n && ik == ikp && continue
+                
+                ρmn_real = conj(ψmkp_real) .* ψnk_real .* phase_shift
+                ρmn_fourier = fft(basis, ρmn_real) 
+
+                # Exact exchange is quadratic in occupations but linear in spin,
+                # hence we need to undo the fact that in DFTK for non-spin-polarized calcuations
+                # orbitals are considered as spin orbitals and thus occupations run from 0 to 2
+                # We do this by dividing by the filled_occupation.
+                fac_mn = occ_occ[ik][n] * occ_occ[ikp][m] / filled_occupation(basis.model)
+                
+                fac_mn *= basis.kweights[ikp] # k'-weight 
+                fac_mn *= ((m != n && ik == ikp) ? 2 : 1)  # factor 2 because we skipped m>n    
+
+                Ek -= 1/T(2) * fac_mn * real(dot(ρmn_fourier .* kernel_q, ρmn_fourier)) 
+            end
+        end
+    end
+    Ek
+end
+
 
 """
 Adaptively Compressed Exchange (ACE) implementation of the Fock exchange.
@@ -101,54 +180,62 @@ JCTC 2016, 12, 5, 2242-2249, doi.org/10.1021/acs.jctc.6b00092
     # or using only the occupied orbitals (false).
     sketch_with_extra_orbitals::Bool = true
 end 
-function exx_operator(ace::AceExx, basis::PlaneWaveBasis{T}, kpt, interaction_kernel,
-                      ψk, occk, maskk_occ) where {T}
-    # Perform FFT on orbitals
-    fftmask = ace.sketch_with_extra_orbitals ? (1:size(ψk, 2)) : maskk_occ
-    ψk_real = similar(ψk, basis.fft_size..., length(fftmask))
-    for (ψnk_real, n) in zip(eachslice(ψk_real; dims=4), fftmask)
-        ifft!(ψnk_real, basis, kpt, @view ψk[:, n])
+function build_exx(ace::AceExx, basis::PlaneWaveBasis{T}, kpt, term::TermExactExchange,
+                   ψ, occupation, mask_occ, ψ_occ_real, occ_occ) where {T}
+    # Occupied views using mask_occ
+    ψ_occ = [@view ψ[ik][:, mask_occ[ik]] for ik in 1:length(basis.kpoints)]
+    occ_occ = [occupation[ik][mask_occ[ik]] for ik in 1:length(basis.kpoints)]
+
+    # Build the ExchangeOperator K acting on orbital at k
+    Kk = ExchangeOperator(basis, kpt, term.interaction_kernels, term.q_points, 
+                          term.kprime_mapping, ψ_occ_real, occ_occ)
+
+    # Build mask for ACE sketch orbitals
+    ik = findfirst(isequal(kpt), basis.kpoints)
+    mask_sketch = ace.sketch_with_extra_orbitals ? (1:size(ψ[ik], 2)) : mask_occ[ik]
+
+    # FFT only the target sketch orbitals to real space
+    ψk_sketch = @view ψ[ik][:, mask_sketch]
+    ψk_sketch_real = similar(ψ[ik], basis.fft_size..., length(mask_sketch))
+    for (ψnk_real, ψnk) in zip(eachslice(ψk_sketch_real; dims=4), eachcol(ψk_sketch))
+        ifft!(ψnk_real, basis, kpt, ψnk)
     end
 
-    # Build exchange operator only using occupied orbitals (to save on FFTs)
-    occk_occ    = @view occk[maskk_occ]
-    ψk_occ      = @view ψk[:, maskk_occ]
-    ψk_occ_real = @view ψk_real[:, :, :, maskk_occ]
-    Vxk = ExchangeOperator(basis, kpt, interaction_kernel, occk_occ, ψk_occ, ψk_occ_real)
-
     # Apply ACE compression using as sketch space all orbitals the user wants for compression
-    occk_comp    = @view occk[fftmask]
-    ψk_comp      = @view ψk[:, fftmask]
-    ψk_comp_real = @view ψk_real[:, :, :, fftmask]
-    (; opk, Mk) = compress_exchange(Vxk, ψk_comp, ψk_comp_real)
+    (; opk, Mk) = compress_exchange(Kk, ψk_sketch, ψk_sketch_real)
 
-    # The compression computes Wnk = Vxk * ψnk  for all passed ψnk.
-    # Therefore [Mk]_{nm} is just < ψ_{nk}, Vxk ψmk>, which means that the
+    # Energy computation
+    #
+    # The compression computes Wnk = Kk * ψnk  for all passed ψnk.
+    # Therefore [Mk]_{nm} is just < ψ_{nk}, Kk ψmk>, which means that the
     # energy contribution from this k-point can be computed as
     #     1/2 * ∑_n occ_{nk} [Mk]_{nn}
-    Ek = 1/T(2) * real(tr(Diagonal(Mk) * Diagonal(occk_comp)))
+    occk_sketch = @view occupation[ik][mask_sketch]
+    Ek = 1/T(2) * real(tr(Diagonal(Mk) * Diagonal(occk_sketch)))
 
     (; Ek, opk)
 end
 
 # Sketch exchange operator of a particular k-point using the passed orbitals
 # in real and Fourier space
-function compress_exchange(Vxk::ExchangeOperator, ψk::AbstractMatrix,
+function compress_exchange(Kk::ExchangeOperator, ψk::AbstractMatrix,
                            ψk_real::AbstractArray{T,4}) where {T}
-    basis = Vxk.basis
-    kpt = Vxk.kpoint
+    basis = Kk.basis
+    kpt = Kk.kpoint
 
     Wk = similar(ψk)
     Wnk_real_tmp = similar(ψk_real, size(ψk_real)[1:3]...)
     for (Wnk, ψnk_real) in zip(eachcol(Wk), eachslice(ψk_real, dims=4))
-        # Compute Wnk = Vxk * ψnk in real space
+        # Compute Wnk = Kk * ψnk in real space
         Wnk_real_tmp .= 0
-        apply!((; real=Wnk_real_tmp), Vxk, (; real=ψnk_real))
+        apply!((; real=Wnk_real_tmp), Kk, (; real=ψnk_real))
         fft!(Wnk, basis, kpt, Wnk_real_tmp)
     end
 
-    Mk  = Hermitian(ψk' * Wk)
-    Bk  = InverseNegatedMap(cholesky(-Mk))
+    Mk = Hermitian(ψk' * Wk)
+    # -Mk is positive semi-definite. We use shifted_cholesky to handle
+    # potentially rank-deficient cases (e.g. HEG or extra bands).
+    Bk = InverseNegatedMap(shifted_cholesky(-Mk))
     opk = NonlocalOperator(basis, kpt, Wk, Bk)
     (; opk, Mk, Bk, Wk)
 end
@@ -157,27 +244,3 @@ struct InverseNegatedMap{T}
     B::T
 end
 Base.:*(op::InverseNegatedMap, x) = -(op.B \ x)
-
-
-function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, interaction_kernel, ψk_real, occk) where {T}
-    # Naive algorithm for computing the exact exchange energy only.
-
-    Ek = zero(T)
-    for (n, ψnk_real) in enumerate(eachslice(ψk_real, dims=4))
-        for (m, ψmk_real) in enumerate(eachslice(ψk_real, dims=4))
-            m > n && continue
-            ρmn_real = conj(ψmk_real) .* ψnk_real
-            ρmn_fourier = fft(basis, kpt, ρmn_real) # actually we need a q-point here
-
-            # Exact exchange is quadratic in occupations but linear in spin,
-            # hence we need to undo the fact that in DFTK for non-spin-polarized calcuations
-            # orbitals are considered as spin orbitals and thus occupations run from 0 to 2
-            # We do this by dividing by the filled_occupation.
-            fac_mn = occk[n] * occk[m] / filled_occupation(basis.model)
-
-            fac_mn *= (m != n ? 2 : 1) # factor 2 because we skipped m>n
-            Ek -= 1/T(2) * fac_mn * real(dot(ρmn_fourier .* interaction_kernel, ρmn_fourier))
-        end
-    end
-    Ek
-end
