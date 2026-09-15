@@ -22,7 +22,7 @@ test:
   variables:
     SLURM_JOB_NUM_NODES: 1
     SLURM_NTASKS: 1
-    SLURM_TIMELIMIT: "00:45:00"
+    SLURM_TIMELIMIT: "01:00:00"
     SLURM_MPI_TYPE: none
     CUDA_CACHE_PATH: "/cuda_cache"
   script:
