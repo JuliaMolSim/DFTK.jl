@@ -191,7 +191,7 @@ the kernel (i.e. only Hartree kernel is used and not XC kernel).
 Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `verbose`: Run the GMRES in verbose mode.
 - `reltol`: Relative tolerance for GMRES.
-- `maxiter`: MAximum number of iterations for GMRES.
+- `maxiter`: Maximum number of iterations for GMRES.
 """
 function LdosDielectricMixing(; εr=10.0, kTF=0.8, localization=identity,
                         smearing=nothing, temperature=nothing, RPA=true, kwargs...)
@@ -230,7 +230,7 @@ the kernel (i.e. only Hartree kernel is used and not XC kernel).
 Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `verbose`: Run the GMRES in verbose mode.
 - `reltol`: Relative tolerance for GMRES.
-- `maxiter`: MAximum number of iterations for GMRES.
+- `maxiter`: Maximum number of iterations for GMRES.
 """
 function LdosMixing(; smearing=nothing, temperature=nothing, RPA=true, kwargs...)
     # TODO: switch to non-adaptive version above
