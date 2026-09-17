@@ -347,12 +347,12 @@ function get_ε_op(mixing::χ0Mixing, basis::PlaneWaveBasis; ρin, kwargs...)
             # Apply kernel
             for term in basis.terms
                 if isa(term, term_type)
-                    εδV .-= apply_kernel(term, basis, χ0δV;  ρ=ρin)
+                    εδV .-= apply_kernel(term, basis, χ0δV; ρ=ρin)
                 end
             end
 
         end
-        return εδρ
+        return εδV
     end
 end
 
@@ -384,7 +384,7 @@ end
 end
 
 @timing "χ0Mixing" function mix_potential(mixing::χ0Mixing, basis, ΔV::AbstractArray{T};
-        kwargs...) where {T}
+        ρin, kwargs...) where {T}
 
     ε_op = get_ε_op(mixing, basis; ρin, kwargs...)
     ε_op == identity && return mix_potential(SimpleMixing(), basis, ΔV)
