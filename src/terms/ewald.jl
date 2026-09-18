@@ -133,33 +133,46 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
     sum_real::S = -2η / sqrt(S(π)) * sum(Z -> Z^2, charges)
     forces_real = zeros(Vec3{S}, length(positions))
 
+    # Note: there is symmetry in the Ewald term, i.e. Ewald(R, i, j) = Ewald(R, j, i)
+    #       and we can thus avoid the full double loop over i and j. However, when
+    #       computing the forces for phonons, this symmetry does not hold anymore
     for R1 in -Rlims[1]:Rlims[1], R2 in -Rlims[2]:Rlims[2], R3 in -Rlims[3]:Rlims[3]
         R = Vec3(R1, R2, R3)
-        for i = 1:length(positions), j = 1:length(positions)
-            # Avoid self-interaction
-            iszero(R) && i == j && continue
-            Zi = charges[i]
-            Zj = charges[j]
-            ti = positions[i]
-            tj = positions[j] + R
-            if !isnothing(ph_disp)
-                ti += ph_disp[i]  # * cis2pi(-dot(q, zeros(3))) === 1
-                                  #  as we use the forces at the nuclei in the unit cell
-                tj += ph_disp[j] * cis2pi(-dot(q, R))
+        for i = 1:length(positions)
+            start_j = isnothing(ph_disp) ? i : 1
+            for j = start_j:length(positions)
+                # Avoid self-interaction
+                iszero(R) && i == j && continue 
+                Zi = charges[i]
+                Zj = charges[j]
+                ti = positions[i]
+                tj = positions[j] + R
+                if !isnothing(ph_disp)
+                    ti += ph_disp[i]  # * cis2pi(-dot(q, zeros(3))) === 1
+                                      #  as we use the forces at the nuclei in the unit cell
+                    tj += ph_disp[j] * cis2pi(-dot(q, R))
+                end
+                Δr = lattice * (ti .- tj)
+                dist = norm_cplx(Δr)
+                energy_contribution = Zi * Zj * erfc(η * dist) / dist
+                # weight of energy contribution depends on whether we do the full double loop
+                weight = i == j ? 1.0 : 2.0
+                weight = isnothing(ph_disp) ? weight : 1.0
+                sum_real += weight * energy_contribution
+                # `dE_ddist` is the derivative of `energy_contribution` w.r.t. `dist`
+                dE_ddist = Zi * Zj * η * (-2exp(-(η * dist)^2) / sqrt(S(π)))
+                dE_ddist -= energy_contribution
+                dE_ddist /= dist
+                dE_dti = lattice' * ((dE_ddist / dist) * Δr)
+                if isnothing(ph_disp)
+                    # Symmetric loop over unique pairs: for i < j the force on j is
+                    # opposite to the force on i. Note dE_dti = 0 for i == j
+                    forces_real[i] -= dE_dti
+                    forces_real[j] += dE_dti
+                else
+                    forces_real[i] -= dE_dti
+                end
             end
-            Δr = lattice * (ti .- tj)
-            dist = norm_cplx(Δr)
-            energy_contribution = Zi * Zj * erfc(η * dist) / dist
-            sum_real += energy_contribution
-            # `dE_ddist` is the derivative of `energy_contribution` w.r.t. `dist`
-            # dE_ddist = Zi * Zj * η * (-2exp(-(η * dist)^2) / sqrt(S(π)))
-            dE_ddist = ForwardDiff.derivative(zero(T)) do ε
-                Zi * Zj * erfc(η * (dist + ε))
-            end
-            dE_ddist -= energy_contribution
-            dE_ddist /= dist
-            dE_dti = lattice' * ((dE_ddist / dist) * Δr)
-            forces_real[i] -= dE_dti
         end
     end
 
