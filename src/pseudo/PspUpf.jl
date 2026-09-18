@@ -1,25 +1,16 @@
 using LinearAlgebra
-using Interpolations: linear_interpolation
+using SpecialFunctions: erf
 import PseudoPotentialIO: load_psp_file, UpfFile, Psp8File
 
-struct PspUpf{T,I} <: NormConservingPsp
-    ## From file
+struct PspUpf{T} <: NormConservingPsp
+    ## From file, kept for the real-space local potential and the energy correction
     Zion::Int          # Pseudo-atomic (valence) charge. UPF: `z_valence`
     lmax::Int          # Maximal angular momentum in the non-local part. UPF: `l_max`
     rgrid::Vector{T}   # Radial grid, can be linear or logarithmic. UPF: `PP_MESH/PP_R`
     drgrid::Vector{T}  # Radial grid derivative / integration factors. UPF: `PP_MESH/PP_RAB`
     vloc::Vector{T}    # Local part of the potential on the radial grid. UPF: `PP_LOCAL`
-    # r^2 * β where β are Kleinman-Bylander non-local projectors on the radial grid.
-    # UPF: `PP_NONLOCAL/PP_BETA.i`
-    r2_projs::Vector{Vector{Vector{T}}}
-    # Kleinman-Bylander energies. Stored per AM channel `h[l+1][i,j]`.
-    # UPF: `PP_DIJ`
+    # Kleinman-Bylander energies. Stored per AM channel `h[l+1][i,j]`. UPF: `PP_DIJ`
     h::Vector{Matrix{T}}
-    # Pseudo-wavefunctions on the radial grid. Used as projectors for PDOS
-    # and DFT+U(+V), could be used for wavefunction initialization as well.
-    # r^2 * χ where χ are pseudo-atomic wavefunctions on the radial grid.
-    # UPF: `PP_PSWFC/PP_CHI.i`
-    r2_pswfcs::Vector{Vector{Vector{T}}}
     # (UNUSED) Occupations of the pseudo-atomic wavefunctions.
     # UPF: `PP_PSWFC/PP_CHI.i['occupation']`
     pswfc_occs::Vector{Vector{T}}
@@ -30,29 +21,26 @@ struct PspUpf{T,I} <: NormConservingPsp
     # Used for projector selection in PDOS and DFT+U(+V).
     # UPF: `PP_PSWFC/PP_CHI.i['label']`
     pswfc_labels::Vector{Vector{String}}
-    # 4πr^2 ρion where ρion is the pseudo-atomic (valence) charge density on the
-    # radial grid. Can be used for charge density initialization.
-    # UPF: `PP_RHOATOM`
-    r2_ρion::Vector{T}
-    # r^2 ρcore where ρcore is the atomic core charge density on the radial grid,
-    # used for non-linear core correction.
-    # UPF: `PP_NLCC`
-    r2_ρcore::Vector{T}
-    # same as `r2_ρcore` but for the kinetic energy density τ
-    # UPF: `PP_TAUMOD`
-    r2_τcore::Vector{T}
 
-    ## Precomputed for performance
-    # (USED IN TESTS) Local potential interpolator, stored for performance.
-    vloc_interp::I
-    # (USED IN TESTS) Projector interpolators, stored for performance.
-    r2_projs_interp::Vector{Vector{I}}
-    # (USED IN TESTS) Valence charge density interpolator, stored for performance.
-    r2_ρion_interp::I
-    # (USED IN TESTS) Core charge density interpolator, stored for performance.
-    r2_ρcore_interp::I
-    # (USED IN TESTS) Core kinetic energy density interpolator, stored for performance.
-    r2_τcore_interp::I
+    ## Radial quantities: raw data (real-space eval) + tabulated modified Hankel transform
+    ## (Fourier-space eval), see radial_part.jl.
+    # Local potential. The `RadialPart` tabulates the transform of the erf tail-corrected part
+    # r²V + Z r erf(r) (l = 0); `eval_psp_local_fourier` adds the analytic -Z/p² tail back.
+    # UPF: `PP_LOCAL`.
+    vloc_fourier::RadialPart{T}
+    # r² β where β are Kleinman-Bylander non-local projectors. `projs[l+1][i]`.
+    # UPF: `PP_NONLOCAL/PP_BETA.i`.
+    projs::Vector{Vector{RadialPart{T}}}
+    # r² χ where χ are pseudo-atomic wavefunctions, used as projectors for PDOS and DFT+U(+V).
+    # `pswfcs[l+1][i]`. UPF: `PP_PSWFC/PP_CHI.i`.
+    pswfcs::Vector{Vector{RadialPart{T}}}
+    # r² ρion, the pseudo-atomic (valence) charge density. UPF: `PP_RHOATOM`.
+    ρion::RadialPart{T}
+    # r² ρcore, the atomic core charge density for the non-linear core correction (or all-zero
+    # if absent). UPF: `PP_NLCC`.
+    ρcore::RadialPart{T}
+    # r² τcore, likewise for the core kinetic energy density. UPF: `PP_TAUMOD`.
+    τcore::RadialPart{T}
 
     ## Extras
     rcut::T              # Radial cutoff for all quantities except pswfc.
@@ -157,153 +145,115 @@ function PspUpf(pseudo::UpfFile; identifier, rcut=nothing)
     r2_ρcore = rgrid .^ 2 .* (@something pseudo.nlcc   zeros(length(rgrid)))
     r2_τcore = rgrid .^ 2 .* (@something pseudo.taumod zeros(length(rgrid)))
 
-    vloc_interp = linear_interpolation((rgrid,), vloc)
-    r2_projs_interp = map(r2_projs) do r2_projs_l
-        map(proj -> linear_interpolation((rgrid[1:length(proj)],), proj), r2_projs_l)
-    end
-    r2_ρion_interp = linear_interpolation((rgrid,), r2_ρion)
-    r2_ρcore_interp = linear_interpolation((rgrid,), r2_ρcore)
-    r2_τcore_interp = linear_interpolation((rgrid,), r2_τcore)
+    # Tabulate the modified Hankel transforms. Projectors and pseudo-wavefunctions live on the
+    # orbital cutoff sphere; the local potential and densities on the denser density grid,
+    # hence the two `pmax`. All are integrated only up to the radial cutoff `ircut` (except the
+    # projectors, already cut in the file, and the pseudo-wavefunctions, kept on the full mesh).
+    #
+    # The local potential's transform is that of its erf tail-corrected part r²V + Z r erf(r);
+    # see `eval_psp_local_fourier`, which adds the -Z/p² Coulomb tail back analytically.
+    r_cut = rgrid[1:ircut]
+    r2_vloc_corr = r_cut .^ 2 .* vloc[1:ircut] .+ Zion .* r_cut .* erf.(r_cut)
 
-    PspUpf{eltype(rgrid),typeof(vloc_interp)}(
-        Zion, lmax, rgrid, drgrid,
-        vloc, r2_projs, h, r2_pswfcs, pswfc_occs, pswfc_energies, pswfc_labels,
-        r2_ρion, r2_ρcore, r2_τcore,
-        vloc_interp, r2_projs_interp, r2_ρion_interp, r2_ρcore_interp, r2_τcore_interp,
+    # Collect every radial quantity as an (l, rgrid, r²f, pmax) build job -- local potential
+    # and densities first, then projectors, then pseudo-wavefunctions -- and tabulate them in
+    # parallel: the quantities are independent and the transform dominates load_psp.
+    jobs = [(0, r_cut, r2_vloc_corr,      RADIAL_TABLE_PMAX_LOCAL),
+            (0, r_cut, r2_ρion[1:ircut],  RADIAL_TABLE_PMAX_LOCAL),
+            (0, r_cut, r2_ρcore[1:ircut], RADIAL_TABLE_PMAX_LOCAL),
+            (0, r_cut, r2_τcore[1:ircut], RADIAL_TABLE_PMAX_LOCAL)]
+    for l = 0:lmax, r2_proj in r2_projs[l+1]
+        ncut = min(ircut, length(r2_proj))
+        push!(jobs, (l, rgrid[1:ncut], r2_proj[1:ncut], RADIAL_TABLE_PMAX_PROJ))
+    end
+    for l = 0:lmax, r2_pswfc in r2_pswfcs[l+1]
+        push!(jobs, (l, rgrid, r2_pswfc, RADIAL_TABLE_PMAX_PROJ))
+    end
+    # The few wide l = 0 quantities dwarf the rest; `parallel_loop_over_range` strides across
+    # workers, so those heavy jobs spread out rather than piling onto one thread.
+    tables = Vector{RadialPart{eltype(rgrid)}}(undef, length(jobs))
+    parallel_loop_over_range(eachindex(jobs)) do i
+        tables[i] = RadialPart(jobs[i][1], jobs[i][2], jobs[i][3]; pmax=jobs[i][4])
+    end
+
+    # Place the results back into their structure, in the order the jobs were pushed.
+    vloc_fourier, ρion, ρcore, τcore = tables[1], tables[2], tables[3], tables[4]
+    projs  = Vector{Vector{RadialPart{eltype(rgrid)}}}(undef, lmax + 1)
+    pswfcs = Vector{Vector{RadialPart{eltype(rgrid)}}}(undef, lmax + 1)
+    i = 4
+    for l = 0:lmax
+        n = length(r2_projs[l+1]);   projs[l+1]  = tables[i+1:i+n];  i += n
+    end
+    for l = 0:lmax
+        n = length(r2_pswfcs[l+1]);  pswfcs[l+1] = tables[i+1:i+n];  i += n
+    end
+
+    PspUpf{eltype(rgrid)}(
+        Zion, lmax, rgrid, drgrid, vloc, h, pswfc_occs, pswfc_energies, pswfc_labels,
+        vloc_fourier, projs, pswfcs, ρion, ρcore, τcore,
         rcut, ircut, identifier, description
     )
 end
 
 charge_ionic(psp::PspUpf) = psp.Zion
-has_valence_density(psp::PspUpf) = !all(iszero, psp.r2_ρion)
-has_core_density(psp::PspUpf) = !all(iszero, psp.r2_ρcore)
-has_core_kinetic_energy_density(psp::PspUpf) = !all(iszero, psp.r2_τcore)
+has_valence_density(psp::PspUpf) = !all(iszero, psp.ρion.r2_f)
+has_core_density(psp::PspUpf) = !all(iszero, psp.ρcore.r2_f)
+has_core_kinetic_energy_density(psp::PspUpf) = !all(iszero, psp.τcore.r2_f)
 
-function eval_psp_projector_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
-    psp.r2_projs_interp[l+1][i](r) / r^2  # TODO if r is below a threshold, return zero
-end
+eval_psp_projector_real(psp::PspUpf, i, l, r::Real) = eval_real(psp.projs[l+1][i], r)
+eval_psp_projector_fourier(psp::PspUpf, i, l, p::Real) = eval_fourier(psp.projs[l+1][i], p)
+eval_psp_projector_fourier(psp::PspUpf, i, l, ps::AbstractVector{<:Real}) =
+    eval_fourier(psp.projs[l+1][i], ps)
 
-function eval_psp_projector_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
-    # The projectors may have been cut off before the end of the radial mesh
-    # by PseudoPotentialIO because UPFs list a radial cutoff index for these
-    # functions after which they are strictly zero in the file.
-    ircut_proj = min(psp.ircut, length(psp.r2_projs[l+1][i]))
-    rgrid = @view psp.rgrid[1:ircut_proj]
-    r2_proj = @view psp.r2_projs[l+1][i][1:ircut_proj]
-    hankel(rgrid, r2_proj, l, p)
-end
-
-# Vectorized version of the above, GPU compatible
-function eval_psp_projector_fourier(psp::PspUpf, i, l, ps::AbstractVector{T}) where {T<:Real}
-    quadrature = default_psp_quadrature(psp.rgrid)
-    arch = architecture(ps)
-    ircut_proj = min(psp.ircut, length(psp.r2_projs[l+1][i]))
-    rgrid = to_device(arch, @view psp.rgrid[1:ircut_proj])
-    r2_proj = to_device(arch, @view psp.r2_projs[l+1][i][1:ircut_proj])
-    map(ps) do p
-        # GPU kernels with dynamic function calls do not compile,
-        # hence the pre-determined explicit integration function
-        hankel(quadrature, rgrid, r2_proj, l, p)
-    end
-end
-
-count_n_pswfc_radial(psp::PspUpf, l) = length(psp.r2_pswfcs[l+1])
+count_n_pswfc_radial(psp::PspUpf, l) = length(psp.pswfcs[l+1])
 
 pswfc_label(psp::PspUpf, i, l) = psp.pswfc_labels[l+1][i]
 
-function eval_psp_pswfc_real(psp::PspUpf, i, l, r::T)::T where {T<:Real}
-    psp.r2_pswfcs_interp[l+1][i](r) / r^2  # TODO if r is below a threshold, return zero
+eval_psp_pswfc_real(psp::PspUpf, i, l, r::Real) = eval_real(psp.pswfcs[l+1][i], r)
+eval_psp_pswfc_fourier(psp::PspUpf, i, l, p::Real) = eval_fourier(psp.pswfcs[l+1][i], p)
+eval_psp_pswfc_fourier(psp::PspUpf, i, l, ps::AbstractVector{<:Real}) =
+    eval_fourier(psp.pswfcs[l+1][i], ps)
+
+# The local potential in real space, by linear interpolation of the raw mesh (clamped: unlike
+# the compactly-supported quantities, vloc has a Coulomb tail and is only queried in range).
+function eval_psp_local_real(psp::PspUpf, r::T) where {T <: Real}
+    (; rgrid, vloc) = psp
+    r ≤ rgrid[1]   && return T(vloc[1])
+    r ≥ rgrid[end] && return T(vloc[end])
+    j = searchsortedlast(rgrid, r)
+    t = (r - rgrid[j]) / (rgrid[j+1] - rgrid[j])
+    (1 - t) * vloc[j] + t * vloc[j+1]
 end
 
-function eval_psp_pswfc_fourier(psp::PspUpf, i, l, p::T)::T where {T<:Real}
-    # Pseudo-atomic wavefunctions are _not_ currently cut off like the other
-    # quantities. They are the reason that PseudoDojo UPF files have a much
-    # larger radial grid than their psp8 counterparts.
-    # If issues arise, try cutting them off too.
-    return hankel(psp.rgrid, psp.r2_pswfcs[l+1][i], l, p)
+# `vloc_fourier` tabulates the transform of the erf tail-corrected local potential; the
+# long-range -Z/p² exp(-p²/4) Coulomb tail (H of the QE-style C(r) = -Z erf(r)/r) is added
+# back here. See `eval_psp_local_fourier` in NormConservingPsp.jl for the definitions.
+function _add_local_coulomb_tail(corrected::T, Zion, p) where {T}
+    iszero(p) && return zero(T)  # G = 0: the divergence is a compensating charge background
+    corrected + 4T(π) * (-Zion / p^2 * exp(-p^2 / T(4)))
 end
-
-eval_psp_local_real(psp::PspUpf, r::T) where {T<:Real} = psp.vloc_interp(r)
-
-# Low-level function for the local part of the pseudopotential in reciprocal space
-function _eval_psp_local_fourier(quadrature, rgrid, vloc, Zion, p::T)::T where {T<:Real}
-    # QE style C(r) = -Zerf(r)/r Coulomb tail correction used to ensure
-    # exponential decay of `f` so that the Hankel transform is accurate.
-    # H[Vloc(r)] = H[Vloc(r) - C(r)] + H[C(r)],
-    # where H[-Zerf(r)/r] = -Z/p^2 exp(-p^2 /4)
-    # ABINIT uses a more 'pure' Coulomb term with the same asymptotic behavior
-    # C(r) = -Z/r; H[-Z/r] = -Z/p^2
-    p == 0 && return zero(T)  # Compensating charge background
-    # Equal to \int r (r * vloc[i] - (-Zion) erf(r)) * sin(p*r)/(p*r)
-    I = 1/p * quadrature(rgrid) do i, r
-         (r * vloc[i] - (-Zion) * erf(r)) * sin(p * r)
-    end
-    4T(π) * (I + -Zion / p^2 * exp(-p^2 / T(4)))
-end
-
-function eval_psp_local_fourier(psp::PspUpf, p::T) where {T<:Real}
-    quadrature = default_psp_quadrature(psp.rgrid)
-    rgrid = @view psp.rgrid[1:psp.ircut]
-    vloc  = @view psp.vloc[1:psp.ircut]
-    _eval_psp_local_fourier(quadrature, rgrid, vloc, psp.Zion, p)
-end
-
-# Vectorized version of the above, GPU optimized
-function eval_psp_local_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Real}
-    quadrature = default_psp_quadrature(psp.rgrid)
-    arch = architecture(ps)
-    rgrid = to_device(arch, @view psp.rgrid[1:psp.ircut])
-    vloc  = to_device(arch, @view psp.vloc[1:psp.ircut])
+eval_psp_local_fourier(psp::PspUpf, p::Real) =
+    _add_local_coulomb_tail(eval_fourier(psp.vloc_fourier, p), psp.Zion, p)
+function eval_psp_local_fourier(psp::PspUpf, ps::AbstractVector{<:Real})
+    corrected = eval_fourier(psp.vloc_fourier, ps)
     Zion = psp.Zion
-    map(ps) do p
-        # GPU kernels with dynamic function calls do not compile,
-        # hence the pre-determined explicit integration function
-        _eval_psp_local_fourier(quadrature, rgrid, vloc, Zion, p)
-    end
+    map((c, p) -> _add_local_coulomb_tail(c, Zion, p), corrected, ps)
 end
 
-function eval_psp_valence_density_real(psp::PspUpf, r::T) where {T<:Real}
-    psp.r2_ρion_interp(r) / r^2  # TODO if r is below a threshold, return zero
-end
+eval_psp_valence_density_real(psp::PspUpf, r::Real) = eval_real(psp.ρion, r)
+eval_psp_valence_density_fourier(psp::PspUpf, p::Real) = eval_fourier(psp.ρion, p)
+eval_psp_valence_density_fourier(psp::PspUpf, ps::AbstractVector{<:Real}) =
+    eval_fourier(psp.ρion, ps)
 
-function eval_psp_valence_density_fourier(psp::PspUpf, p::T) where {T<:Real}
-    rgrid = @view psp.rgrid[1:psp.ircut]
-    r2_ρion = @view psp.r2_ρion[1:psp.ircut]
-    return hankel(rgrid, r2_ρion, 0, p)
-end
+eval_psp_core_density_real(psp::PspUpf, r::Real) = eval_real(psp.ρcore, r)
+eval_psp_core_density_fourier(psp::PspUpf, p::Real) = eval_fourier(psp.ρcore, p)
+eval_psp_core_density_fourier(psp::PspUpf, ps::AbstractVector{<:Real}) =
+    eval_fourier(psp.ρcore, ps)
 
-function eval_psp_core_density_real(psp::PspUpf, r::T) where {T<:Real}
-    psp.r2_ρcore_interp(r) / r^2  # TODO if r is below a threshold, return zero
-end
-
-function eval_psp_core_density_fourier(psp::PspUpf, p::T) where {T<:Real}
-    rgrid = @view psp.rgrid[1:psp.ircut]
-    r2_ρcore = @view psp.r2_ρcore[1:psp.ircut]
-    return hankel(rgrid, r2_ρcore, 0, p)
-end
-
-# Vectorized version of the above, GPU optimized
-function eval_psp_core_density_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Real}
-    quadrature = default_psp_quadrature(psp.rgrid)
-    arch = architecture(ps)
-    rgrid = to_device(arch, @view psp.rgrid[1:psp.ircut])
-    r2_ρcore = to_device(arch, @view psp.r2_ρcore[1:psp.ircut])
-    map(ps) do p
-        # GPU kernels with dynamic function calls do not compile,
-        # hence the pre-determined explicit integration function
-        hankel(quadrature, rgrid, r2_ρcore, 0, p)
-    end
-end
-
-function eval_psp_core_kinetic_energy_density_real(psp::PspUpf, r::T) where {T<:Real}
-    psp.r2_τcore_interp(r) / r^2  # TODO if r is below a threshold, return zero
-end
-
-function eval_psp_core_kinetic_energy_density_fourier(psp::PspUpf, p::T) where {T<:Real}
-    rgrid = @view psp.rgrid[1:psp.ircut]
-    r2_τcore = @view psp.r2_τcore[1:psp.ircut]
-    return hankel(rgrid, r2_τcore, 0, p)
-end
+eval_psp_core_kinetic_energy_density_real(psp::PspUpf, r::Real) = eval_real(psp.τcore, r)
+eval_psp_core_kinetic_energy_density_fourier(psp::PspUpf, p::Real) = eval_fourier(psp.τcore, p)
+eval_psp_core_kinetic_energy_density_fourier(psp::PspUpf, ps::AbstractVector{<:Real}) =
+    eval_fourier(psp.τcore, ps)
 
 function eval_psp_energy_correction(T, psp::PspUpf)
     rgrid = @view psp.rgrid[1:psp.ircut]
