@@ -263,9 +263,9 @@ function Base.show(io::IO, scf::Union{ScfAndersonSolver,ScfAndersonDensitySolver
         print(io, "ScfAndersonDensitySolver")
     end
     print(io, "(; m_start=$(scf.m_start)")
-    anderson = AndersonAcceleration(; scf.anderson_kwargs...)
-    for arg in (:m, :maxcond, :errorfactor)
-        print(io, ", $arg=$(getproperty(anderson, arg))")
+    anderson = Acceleration(AndersonType(); scf.anderson_kwargs...)
+    for arg in (:depth, :maxcond, :errorfactor)
+        print(io, ", $arg=$(getproperty(anderson.memory, arg))")
     end
     print(io, ")")
 end
