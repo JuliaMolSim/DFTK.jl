@@ -179,13 +179,14 @@ export newton
 export load_scfres, save_scfres
 include("scf/chi0models.jl")
 include("scf/mixing.jl")
+include("scf/acceleration.jl")
 include("scf/scf_solvers.jl")
 include("scf/nbands_algorithm.jl")
 include("scf/self_consistent_field.jl")
 include("scf/direct_minimization.jl")
 include("scf/newton.jl")
 include("scf/scfres.jl")
-include("scf/anderson.jl")
+#include("scf/anderson.jl")
 include("scf/potential_mixing.jl")
 
 export symmetry_operations

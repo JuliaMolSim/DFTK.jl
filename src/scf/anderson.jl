@@ -107,6 +107,7 @@ and returns ``xₙ₊₁``.
     #      (Note: This quickly happens in GPU scenarios)
     # Ensure the condition number of M stays below maxcond, else prune the history
     Mfac = qr(M)
+
     while size(M, 2) > 1 && cond(Mfac.R) > anderson.maxcond
         # Drop the entry with largest error, but keep the (n-1)-st entry in any case.
         error_max, idrop = findmax(anderson.errors[1:end-1])
@@ -118,9 +119,10 @@ and returns ``xₙ₊₁``.
         Mfac = qr(M)
     end
 
-    xₙ₊₁ = vec(xₙ) .+ αₙ .* vec(Pfxₙ)
     βs   = -(Mfac \ vec(Pfxₙ))
+    xₙ₊₁ = vec(xₙ) .+ αₙ .* vec(Pfxₙ)
     βs = to_cpu(βs)  # GPU computation only : get βs back on the CPU so we can iterate through it
+    #for β in βs println(β) end
     for (iβ, β) in enumerate(βs)
         xₙ₊₁ .+= β .* (xs[iβ] .- vec(xₙ) .+ αₙ .* (Pfxs[iβ] .- vec(Pfxₙ)))
     end

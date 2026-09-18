@@ -203,3 +203,20 @@ function split_gdensity(basis::PlaneWaveBasis, x::AbstractArray{T, 4}) where {T}
         (x, nothing)
     end
 end
+
+
+#Packed SCF state for accelerators that need orbitals in addition to the density.
+#`gdensity` is what `pack_gdensity(basis, ρ, τ)` already returns, ψ and occupation 
+#are the pw-coefficients and occupations. 
+mutable struct GdensityOrbitals{Tg<:AbstractArray, Tψ, To}
+    gdensity::Tg
+    ψ::Tψ
+    occupation::To
+end
+
+#Extension of pack_gdensity/split_gdensity for orbital-dependant accelerators
+pack_gdensity(basis, ρ, τ, ψ::Any, occupation::Any) =
+    GdensityOrbitals(pack_gdensity(basis, ρ, τ), ψ, occupation)
+
+split_gdensity(basis, x::GdensityOrbitals) =
+    (split_gdensity(basis, x.gdensity)..., x.ψ, x.occupation)
