@@ -117,6 +117,10 @@ end
             @test maximum(abs, ρ_mix - ρ_ref) < 10tol
         end
     end
+
+    # Potential mixing
+    scfres = DFTK.scf_potential_mixing(basis; mixing=LdosMixing(), tol, ρ=ρ0)
+    @test maximum(abs, scfres.ρ - ρ_def) < 10tol
 end
 
 
