@@ -281,7 +281,7 @@ convergence is controlled by `reltol` and `maxiter`.
 @kwdef struct χ0Mixing <: Mixing
     χ0terms_mapping::Dict = Dict(Union{TermHartree, TermXc} => [Applyχ0Model()])
     verbose::Bool = false   # Run the GMRES verbosely
-    reltol::Float64 = 1e-1  # Relative tolerance for the GMRES.
+    reltol::Float64 = 1e-2  # Relative tolerance for the GMRES.
     maxiter::Int = 20       # Maximum number of iterations for the GMRES
 end
 
