@@ -177,29 +177,8 @@ end
 #
 # Generalised density representation
 #
-# Many DFT functionals rely on the Hoffmann-Ostenhoff inequality τW(ρ) ≤ τ, i.e. that the
-# von Weizsäcker kinetic energy density is strictly a lower bound to the kinetic energy density.
-# This is satisfied if ρ and τ are built from the same orbitals, but may not be true if we
-# take (convex) combinations of the vector (ρ, τ). This is why we represent the packed
-# density as (ρ, τ_excess) where τ_excess = τ - τW(ρ).
-#
-# TODO: When we do the state refactor we should think how to deal with this;
-#       - Probably a ComponentArray or some form of custom struct is reasonable here
-#       - Do we want to compute the τW implicitly in here ? It's not a very cheap operation
-#         (i.e. not order-1) so that may be unexpected for such an operation. On the other
-#         hand we will probably not get around to have some form of additional computation
-#         that happens upon the construction of these "densities".
-pack_gdensity(basis::PlaneWaveBasis, ρ::AbstractArray, τ::Nothing) = ρ
-pack_gdensity(basis, ρ::AbstractArray, τ::AbstractArray) = cat(ρ, τ; dims=Val(4))
-function split_gdensity(basis::PlaneWaveBasis, x::AbstractArray{T, 4}) where {T}
-    # TODO: This breaks when non-collinear spin is implemented
-    n_spin = basis.model.n_spin_components
-    @assert size(x, 4) == n_spin || size(x, 4) == 2n_spin
-    if size(x, 4) == 2n_spin
-        ρ = @view x[:, :, :,        1:n_spin]
-        τ = @view x[:, :, :, n_spin+1:end   ]
-        (ρ, τ)
-    else
-        (x, nothing)
-    end
-end
+# The generalised density groups the density-like ρ, τ and hubbard_n.
+# For now a named tuple; a custom struct / ComponentArray could be considered.
+pack_gdensity(basis::PlaneWaveBasis, ρ::AbstractArray, τ=nothing, hubbard_n=nothing) =
+    (; ρ, τ, hubbard_n)
+split_gdensity(basis::PlaneWaveBasis, D::NamedTuple) = (D.ρ, D.τ, D.hubbard_n)

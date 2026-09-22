@@ -3,7 +3,7 @@
     using PseudoPotentialData
     using Logging
     using DFTK
-    using DFTK: TauVwScaled, to_representation!, from_representation!
+    using DFTK: TauVwScaled, to_representation, from_representation
     system = load_system("structures/AlVac_4.extxyz")
     pseudopotentials = Dict(:Al => "pseudos/Al_m.upf")
     τW = DFTK.von_weizsaecker_kinetic_energy_density
@@ -22,18 +22,18 @@
     @test all(τW(basis, ρ) .≤ τ)  # Hoffman-Ostenhof
 
     # Check that pack/split are identities
-    D = DFTK.pack_gdensity(basis, ρ, τ)
+    D = DFTK.pack_gdensity(basis, ρ, τ, nothing)
     let
-        ρs, τs = DFTK.split_gdensity(basis, D)
+        ρs, τs, hubbard_ns = DFTK.split_gdensity(basis, D)
         @test ρs ≈ ρ atol=1e-12
         @test τs ≈ τ atol=1e-12
+        @test isnothing(hubbard_ns)
     end
 
     let
         repr = TauVwScaled()
-        Dnew = to_representation!(repr, basis, copy(D))
-        Dnew = from_representation!(repr, basis,  Dnew)
-        ρs, τs = DFTK.split_gdensity(basis, Dnew)
+        ρτ = to_representation(repr, basis, ρ, τ)
+        ρs, τs = from_representation(repr, basis, ρτ)
         @test ρs ≈ ρ atol=1e-12
         @test τs ≈ τ atol=1e-12
     end
@@ -50,17 +50,18 @@
     @test all(τW(basis, scfres.ρ) .≤ scfres.τ)  # Hoffman-Ostenhof
 
     # Check that pack/split are identities
-    Dout = DFTK.pack_gdensity(basis, scfres.ρ, scfres.τ)
-    let 
-        ρs, τs = DFTK.split_gdensity(basis, Dout)
+    Dout = DFTK.pack_gdensity(basis, scfres.ρ, scfres.τ, nothing)
+    let
+        ρs, τs, hubbard_ns = DFTK.split_gdensity(basis, Dout)
         @test ρs ≈ scfres.ρ atol=1e-12
         @test τs ≈ scfres.τ atol=1e-12
+        @test isnothing(hubbard_ns)
     end
 
-    # Take a few random, convex linear combinations
+    # Take a few random, convex linear combinations (of the physical (ρ, τ) content)
     for α in (rand(), rand(), rand())
-        Dnew = D + α * (Dout - D)
-        ρnew, τnew = DFTK.split_gdensity(basis, Dnew)
+        ρnew = D.ρ + α * (Dout.ρ - D.ρ)
+        τnew = D.τ + α * (Dout.τ - D.τ)
 
         @test all(0 .≤ τnew)
         @test all(0 .≤ ρnew)
