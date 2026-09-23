@@ -48,19 +48,11 @@ function libxc_energy_density(terms::NamedTuple, ρ::AbstractMatrix)
     haskey(terms, :zk) ? reshape(terms.zk, 1, size(ρ, 2)) .* sum(ρ; dims=1) : false
 end
 
-DftFunctionals.energy_density(func::LibxcFunctional, ρ::M,
-                              σ::Union{Nothing,M}=nothing,
-                              τ::Union{Nothing,M}=nothing,
-                              Δρ::Union{Nothing,M}=nothing
-                              ) where {M<:Matrix{Float64}} =
-    _energy_density(func, ρ, σ, τ, Δρ)
-DftFunctionals.energy_density(func::LibxcFunctional, ρ::M,
-                              σ::Union{Nothing,M}=nothing,
-                              τ::Union{Nothing,M}=nothing,
-                              Δρ::Union{Nothing,M}=nothing
-                              ) where {M<:AbstractGPUMatrix{Float64}} =
-    _energy_density(func, ρ, σ, τ, Δρ)
-function _energy_density(func::LibxcFunctional, ρ::AbstractMatrix{Float64},
+# Custom input type encompassing both CPU Matrix{T} and GPU AbstractGPUMatrix{T} to avoid
+# ambiguities with methods defined in DftFunctionals with the more generic AbstractMatrix{T} type
+const InputMatrix{T} = Union{Matrix{T}, AbstractGPUMatrix{T}}
+
+function DftFunctionals.energy_density(func::LibxcFunctional, ρ::InputMatrix{Float64},
                                        σ=nothing, τ=nothing, Δρ=nothing)
     terms = (; )
     if has_energy(func)
@@ -88,26 +80,12 @@ end
 get_partials_(x_δx::AbstractArray, n::Integer) = ForwardDiff.partials.(x_δx, n)
 get_partials_(::Nothing, ::Integer)            = nothing
 
-DftFunctionals.energy_density(func::LibxcFunctional, ρ_δρ::M,
-                              σ_δσ::Union{Nothing,M}=nothing,
-                              τ_δτ::Union{Nothing,M}=nothing,
-                              l_δl::Union{Nothing,M}=nothing
-                              ) where {N,T,Tg,DT<:Dual{Tg,T,N},
-                                       M<:Matrix{DT}} =
-    _energy_density(func, ρ_δρ, σ_δσ, τ_δτ, l_δl)
-DftFunctionals.energy_density(func::LibxcFunctional, ρ_δρ::M,
-                              σ_δσ::Union{Nothing,M}=nothing,
-                              τ_δτ::Union{Nothing,M}=nothing,
-                              l_δl::Union{Nothing,M}=nothing
-                              ) where {N,T,Tg,DT<:Dual{Tg,T,N},
-                                       M<:AbstractGPUMatrix{DT}} =
-    _energy_density(func, ρ_δρ, σ_δσ, τ_δτ, l_δl)
-function _energy_density(func::LibxcFunctional,
-                         ρ_δρ::AbstractMatrix{DT},
-                         σ_δσ::Union{Nothing,AbstractMatrix{DT}}=nothing,
-                         τ_δτ::Union{Nothing,AbstractMatrix{DT}}=nothing,
-                         l_δl::Union{Nothing,AbstractMatrix{DT}}=nothing
-                         ) where {N,T,Tg,DT<:Dual{Tg,T,N}}
+function DftFunctionals.energy_density(func::LibxcFunctional, ρ_δρ::M,
+                                       σ_δσ::Union{Nothing,M}=nothing,
+                                       τ_δτ::Union{Nothing,M}=nothing,
+                                       l_δl::Union{Nothing,M}=nothing
+                                       ) where {N,T,Tg,DT<:Dual{Tg,T,N},
+                                                M<:InputMatrix{DT}}
     has_energy(func) || return zero(T)
     ρ     = ForwardDiff.value.(ρ_δρ)
     σ     = ForwardDiff.value.(σ_δσ)
@@ -131,14 +109,8 @@ end
 #
 # Potential terms
 #
-DftFunctionals.potential_terms(func::LibxcFunctional{:lda},
-                               ρ::Matrix{Float64}) =
-    _potential_terms(func, ρ)
-DftFunctionals.potential_terms(func::LibxcFunctional{:lda},
-                               ρ::AbstractGPUMatrix{Float64}) =
-    _potential_terms(func, ρ)
-function _potential_terms(func::LibxcFunctional{:lda},
-                          ρ::AbstractMatrix{Float64})
+function DftFunctionals.potential_terms(func::LibxcFunctional{:lda},
+                                        ρ::InputMatrix{Float64})
     s_ρ, n_p = size(ρ)
     fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
     derivatives = filter(in(Libxc.supported_derivatives(fun)), 0:1)
@@ -147,16 +119,9 @@ function _potential_terms(func::LibxcFunctional{:lda},
     Vρ = reshape(terms.vrho, s_ρ, n_p)
     (; e, Vρ)
 end
-DftFunctionals.potential_terms(func::LibxcFunctional{:gga},
-                               ρ::Matrix{Float64}, σ::Matrix{Float64}) =
-    _potential_terms(func, ρ, σ)
-DftFunctionals.potential_terms(func::LibxcFunctional{:gga},
-                               ρ::AbstractGPUMatrix{Float64},
-                               σ::AbstractGPUMatrix{Float64}) =
-    _potential_terms(func, ρ, σ)
-function _potential_terms(func::LibxcFunctional{:gga},
-                          ρ::AbstractMatrix{Float64},
-                          σ::AbstractMatrix{Float64})
+function DftFunctionals.potential_terms(func::LibxcFunctional{:gga},
+                                        ρ::M, σ::M
+                                        ) where {M<:InputMatrix{Float64}}
     s_ρ, n_p = size(ρ)
     s_σ = size(σ, 1)
     fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
@@ -167,19 +132,9 @@ function _potential_terms(func::LibxcFunctional{:gga},
     Vσ = reshape(terms.vsigma, s_σ, n_p)
     (; e, Vρ, Vσ)
 end
-DftFunctionals.potential_terms(func::LibxcFunctional{:mgga},
-                               ρ::Matrix{Float64}, σ::Matrix{Float64},
-                               τ::Matrix{Float64}) =
-    _potential_terms(func, ρ, σ, τ)
-DftFunctionals.potential_terms(func::LibxcFunctional{:mgga},
-                               ρ::AbstractGPUMatrix{Float64},
-                               σ::AbstractGPUMatrix{Float64},
-                               τ::AbstractGPUMatrix{Float64}) =
-    _potential_terms(func, ρ, σ, τ)
-function _potential_terms(func::LibxcFunctional{:mgga},
-                          ρ::AbstractMatrix{Float64},
-                          σ::AbstractMatrix{Float64},
-                          τ::AbstractMatrix{Float64})
+function DftFunctionals.potential_terms(func::LibxcFunctional{:mgga},
+                                        ρ::M, σ::M, τ::M
+                                        ) where {M<:InputMatrix{Float64}}
     s_ρ, n_p = size(ρ)
     s_σ = size(σ, 1)
     fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
@@ -191,22 +146,11 @@ function _potential_terms(func::LibxcFunctional{:mgga},
     Vτ = reshape(terms.vtau,   s_ρ, n_p)
     (; e, Vρ, Vσ, Vτ)
 end
-DftFunctionals.potential_terms(func::LibxcFunctional{:mggal},
-                               ρ::Matrix{Float64}, σ::Matrix{Float64},
-                               τ::Union{Nothing,Matrix{Float64}},
-                               Δρ::Matrix{Float64}) =
-    _potential_terms(func, ρ, σ, τ, Δρ)
-DftFunctionals.potential_terms(func::LibxcFunctional{:mggal},
-                               ρ::AbstractGPUMatrix{Float64},
-                               σ::AbstractGPUMatrix{Float64},
-                               τ::Union{Nothing,AbstractGPUMatrix{Float64}},
-                               Δρ::AbstractGPUMatrix{Float64}) =
-    _potential_terms(func, ρ, σ, τ, Δρ)
-function _potential_terms(func::LibxcFunctional{:mggal},
-                          ρ::AbstractMatrix{Float64},
-                          σ::AbstractMatrix{Float64},
-                          τ::Union{Nothing,AbstractMatrix{Float64}},
-                          Δρ::AbstractMatrix{Float64})
+function DftFunctionals.potential_terms(func::LibxcFunctional{:mggal},
+                                        ρ::M, σ::M,
+                                        τ::Union{Nothing,M},
+                                        Δρ::M
+                                        ) where {M<:InputMatrix{Float64}}
     s_ρ, n_p = size(ρ)
     s_σ = size(σ, 1)
     fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
@@ -340,17 +284,10 @@ end
     end
 end
 
-DftFunctionals.potential_terms(func::LibxcFunctional{:lda},
-                               ρ_δρ::Matrix{DT}
-                               ) where {N,T,DT<:Dual{T,Float64,N}} =
-    _potential_terms(func, ρ_δρ)
-DftFunctionals.potential_terms(func::LibxcFunctional{:lda},
-                               ρ_δρ::AbstractGPUMatrix{DT}
-                               ) where {N,T,DT<:Dual{T,Float64,N}} =
-    _potential_terms(func, ρ_δρ)
-@views function _potential_terms(func::LibxcFunctional{:lda},
-                                 ρ_δρ::AbstractMatrix{DT}
-                                 ) where {N,T,DT<:Dual{T,Float64,N}}
+@views function DftFunctionals.potential_terms(func::LibxcFunctional{:lda},
+                                               ρ_δρ::M
+                                               ) where {N,T,DT<:Dual{T,Float64,N},
+                                                        M<:InputMatrix{DT}}
     ρ = ForwardDiff.value.(ρ_δρ)
     s_ρ, n_p = size(ρ)
     fun = Libxc.Functional(func.identifier; n_spin=s_ρ)
@@ -369,19 +306,10 @@ DftFunctionals.potential_terms(func::LibxcFunctional{:lda},
     (; e=map(Dual{T}, e, δe...),
        Vρ=map(Dual{T}, Vρ, δVρ...))
 end
-DftFunctionals.potential_terms(func::LibxcFunctional{:gga},
-                               ρ_δρ::Matrix{DT}, σ_δσ::Matrix{DT}
-                               ) where {N,T,DT<:Dual{T,Float64,N}} =
-    _potential_terms(func, ρ_δρ, σ_δσ)
-DftFunctionals.potential_terms(func::LibxcFunctional{:gga},
-                               ρ_δρ::AbstractGPUMatrix{DT},
-                               σ_δσ::AbstractGPUMatrix{DT}
-                               ) where {N,T,DT<:Dual{T,Float64,N}} =
-    _potential_terms(func, ρ_δρ, σ_δσ)
-@views function _potential_terms(func::LibxcFunctional{:gga},
-                                 ρ_δρ::AbstractMatrix{DT},
-                                 σ_δσ::AbstractMatrix{DT}
-                                 ) where {N,T,DT<:Dual{T,Float64,N}}
+@views function DftFunctionals.potential_terms(func::LibxcFunctional{:gga},
+                                               ρ_δρ::M, σ_δσ::M
+                                               ) where {N,T,DT<:Dual{T,Float64,N},
+                                                        M<:InputMatrix{DT}}
     ρ = ForwardDiff.value.(ρ_δρ)
     σ = ForwardDiff.value.(σ_δσ)
     s_ρ, n_p = size(ρ)
@@ -412,22 +340,10 @@ DftFunctionals.potential_terms(func::LibxcFunctional{:gga},
        Vρ=map(Dual{T}, Vρ, δVρ...),
        Vσ=map(Dual{T}, Vσ, δVσ...))
 end
-DftFunctionals.potential_terms(func::LibxcFunctional{:mgga},
-                               ρ_δρ::Matrix{DT}, σ_δσ::Matrix{DT},
-                               τ_δτ::Matrix{DT}
-                               ) where {N,T,DT<:Dual{T,Float64,N}} =
-    _potential_terms(func, ρ_δρ, σ_δσ, τ_δτ)
-DftFunctionals.potential_terms(func::LibxcFunctional{:mgga},
-                               ρ_δρ::AbstractGPUMatrix{DT},
-                               σ_δσ::AbstractGPUMatrix{DT},
-                               τ_δτ::AbstractGPUMatrix{DT}
-                               ) where {N,T,DT<:Dual{T,Float64,N}} =
-    _potential_terms(func, ρ_δρ, σ_δσ, τ_δτ)
-@views function _potential_terms(func::LibxcFunctional{:mgga},
-                                 ρ_δρ::AbstractMatrix{DT},
-                                 σ_δσ::AbstractMatrix{DT},
-                                 τ_δτ::AbstractMatrix{DT}
-                                 ) where {N,T,DT<:Dual{T,Float64,N}}
+@views function DftFunctionals.potential_terms(func::LibxcFunctional{:mgga},
+                                               ρ_δρ::M, σ_δσ::M, τ_δτ::M
+                                               ) where {N,T,DT<:Dual{T,Float64,N},
+                                                        M<:InputMatrix{DT}}
     ρ = ForwardDiff.value.(ρ_δρ)
     σ = ForwardDiff.value.(σ_δσ)
     τ = ForwardDiff.value.(τ_δτ)
@@ -472,25 +388,12 @@ DftFunctionals.potential_terms(func::LibxcFunctional{:mgga},
        Vσ=map(Dual{T}, Vσ, δVσ...),
        Vτ=map(Dual{T}, Vτ, δVτ...))
 end
-DftFunctionals.potential_terms(func::LibxcFunctional{:mggal},
-                               ρ_δρ::Matrix{DT}, σ_δσ::Matrix{DT},
-                               τ_δτ::Union{Nothing,Matrix{DT}},
-                               l_δl::Matrix{DT}
-                               ) where {N,T,DT<:Dual{T,Float64,N}} =
-    _potential_terms(func, ρ_δρ, σ_δσ, τ_δτ, l_δl)
-DftFunctionals.potential_terms(func::LibxcFunctional{:mggal},
-                               ρ_δρ::AbstractGPUMatrix{DT},
-                               σ_δσ::AbstractGPUMatrix{DT},
-                               τ_δτ::Union{Nothing,AbstractGPUMatrix{DT}},
-                               l_δl::AbstractGPUMatrix{DT}
-                               ) where {N,T,DT<:Dual{T,Float64,N}} =
-    _potential_terms(func, ρ_δρ, σ_δσ, τ_δτ, l_δl)
-@views function _potential_terms(func::LibxcFunctional{:mggal},
-                                 ρ_δρ::AbstractMatrix{DT},
-                                 σ_δσ::AbstractMatrix{DT},
-                                 τ_δτ::Union{Nothing,AbstractMatrix{DT}},
-                                 l_δl::AbstractMatrix{DT}
-                                 ) where {N,T,DT<:Dual{T,Float64,N}}
+@views function DftFunctionals.potential_terms(func::LibxcFunctional{:mggal},
+                                               ρ_δρ::M, σ_δσ::M,
+                                               τ_δτ::Union{Nothing,M},
+                                               l_δl::M
+                                               ) where {N,T,DT<:Dual{T,Float64,N},
+                                                        M<:InputMatrix{DT}}
     ρ = ForwardDiff.value.(ρ_δρ)
     σ = ForwardDiff.value.(σ_δσ)
     τ = ForwardDiff.value.(τ_δτ)
@@ -580,19 +483,19 @@ DftFunctionals.needs_Δρ(fun::DispatchFunctional)   = needs_Δρ(fun.inner)
 # Note: GPU specific implementation and CPU fallback in Libxc.jl
 # Matrix element types that can dispatch to Libxc for potential computations
 const LibxcDispatchFloat = Union{Float64,Dual{<:Any,Float64}}
-function DftFunctionals.potential_terms(fun::DispatchFunctional, ρ::AbstractMatrix{<:LibxcDispatchFloat}, args...)
+function DftFunctionals.potential_terms(fun::DispatchFunctional, ρ::InputMatrix{<:LibxcDispatchFloat}, args...)
     potential_terms(fun.inner, ρ, args...)
 end
-function DftFunctionals.potential_terms(fun::DispatchFunctional, ρ::AbstractMatrix, args...)
+function DftFunctionals.potential_terms(fun::DispatchFunctional, ρ::InputMatrix, args...)
     potential_terms(DftFunctional(identifier(fun)), ρ, args...)
 end
 
 # Matrix element types that can dispatch to Libxc for energy computations
 const LibxcDispatchFloatEnergy = Union{LibxcDispatchFloat,Dual{<:Any,<:Dual{<:Any,Float64}}}
-function DftFunctionals.energy_density(fun::DispatchFunctional, ρ::AbstractMatrix{<:LibxcDispatchFloatEnergy}, args...)
+function DftFunctionals.energy_density(fun::DispatchFunctional, ρ::InputMatrix{<:LibxcDispatchFloatEnergy}, args...)
     energy_density(fun.inner, ρ, args...)
 end
-function DftFunctionals.energy_density(fun::DispatchFunctional, ρ::AbstractMatrix, args...)
+function DftFunctionals.energy_density(fun::DispatchFunctional, ρ::InputMatrix, args...)
     energy_density(DftFunctional(identifier(fun)), ρ, args...)
 end
 
