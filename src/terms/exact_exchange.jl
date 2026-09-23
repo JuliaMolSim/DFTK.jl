@@ -23,11 +23,10 @@ end
 (ex::ExactExchange)(basis) = TermExactExchange(basis, ex.scaling_factor, ex.kernel)
 breaks_symmetries(::ExactExchange) = true  # TODO: make ExactExchange fit for symmetries 
 
-struct TermExactExchange{T, Tkernel, Tq, Tmap} <: Term
+struct TermExactExchange{T, Tkernel, Tq} <: Term
     scaling_factor::T             # scaling factor, absorbed into interaction_kernels
     interaction_kernels::Tkernel  # Vector{Array{T,3}}: kernel on the FFT cube, one per q
     q_points::Tq                  # Vector{Kpoint{T}}
-    kprime_mapping::Tmap          # Matrix{Int}: find index for k'=k-q
 end
 function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, kernel) where {T}
     if mpi_nprocs(basis.comm_kpts) > 1
@@ -35,16 +34,16 @@ function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, kernel) whe
     end
     fac::T = scaling_factor 
 
-    q_points, kprime_mapping = build_qpoints(basis)
-    if any(iszero, kprime_mapping)
-        error("ExactExchange requires a k-point set which is closed under differences, " *
-              "i.e. for each k-point k and momentum transfer q = k - k' the point k - q " *
-              "has to be a k-point of the basis as well. This is the case for a full " *
-              "(non-symmetry-reduced) k-point grid.")
+    q_points = build_qpoints(basis)
+    # Exchange couples each k to k - q for all q, so every k - q has to be a k-point of
+    # the basis, which is the case for a full (non-symmetry-reduced) k-point grid.
+    # find_equivalent_kpt fails otherwise, so check this already here.
+    for kpt in basis.kpoints, qpt in q_points
+        find_equivalent_kpt(basis, kpt.coordinate - qpt.coordinate, kpt.spin)
     end
     interaction_kernels = fac .* compute_kernel_fourier(kernel, basis, q_points)
 
-    TermExactExchange(fac, interaction_kernels, q_points, kprime_mapping)
+    TermExactExchange(fac, interaction_kernels, q_points)
 end
 
 
@@ -93,11 +92,11 @@ struct VanillaExx <: ExxAlgorithm end
 function build_exx(::VanillaExx, basis::PlaneWaveBasis{T}, kpt, term::TermExactExchange,
                      ψ, occupation, mask_occ, ψ_occ_real, occ_occ) where {T}
     
-    Ek = exx_energy_only(basis, kpt, term.interaction_kernels, term.q_points, 
-                         term.kprime_mapping, ψ_occ_real, occ_occ)
+    Ek = exx_energy_only(basis, kpt, term.interaction_kernels, term.q_points,
+                         ψ_occ_real, occ_occ)
 
-    opk = ExchangeOperator(basis, kpt, term.interaction_kernels, term.q_points, 
-                           term.kprime_mapping, ψ_occ_real, occ_occ)
+    opk = ExchangeOperator(basis, kpt, term.interaction_kernels, term.q_points,
+                           ψ_occ_real, occ_occ)
     (; Ek, opk)
 end
 
@@ -108,7 +107,7 @@ end
 # TODO this is currently called only with interaction_kernel for one q (see build_exx)
 # Naive algorithm for computing the exact exchange energy only.
 function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, interaction_kernels, q_points,
-                         kprime_mapping, ψ_occ_real, occ_occ) where {T}
+                         ψ_occ_real, occ_occ) where {T}
 
     # get occupied orbitals at k
     ik = findfirst(isequal(kpt), basis.kpoints)
@@ -119,23 +118,16 @@ function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, interaction_kernels, q_p
     # outer loop over q
     for iq in 1:length(q_points)
 
-        # construct k' = k - q
-        ikp = kprime_mapping[ik, iq]
-        ikp == 0 && continue 
-        
         # get the Coulomb kernel Fourier components G+q
         qpt = q_points[iq]
         kernel_q = interaction_kernels[iq]
-        
+
+        # k - q is equivalent to the basis k-point k' = k - q + ΔG
+        ikp, ΔG = find_equivalent_kpt(basis, kpt.coordinate - qpt.coordinate, kpt.spin)
+        phase_shift = map(r -> cis2pi(-dot(ΔG, r)), r_vectors(basis))
+
         # get occupied orbitals at k'
         ψkp_real = ψ_occ_real[ikp]
-
-        # Calculate the reciprocal lattice shift Gb from BZ folding
-        # k - q = k' + G_b  =>  G_b = k - q - k'
-        kpt_prime = basis.kpoints[ikp]
-        Gb_frac = kpt.coordinate - kpt_prime.coordinate - qpt.coordinate
-        Gb = round.(Int, Gb_frac)
-        phase_shift = map(r -> cis2pi(dot(Gb, r)), r_vectors(basis))
 
         for (n, ψnk_real) in enumerate(eachslice(ψk_real, dims=4))
             for (m, ψmkp_real) in enumerate(eachslice(ψkp_real, dims=4))
@@ -187,8 +179,8 @@ function build_exx(ace::AceExx, basis::PlaneWaveBasis{T}, kpt, term::TermExactEx
     occ_occ = [occupation[ik][mask_occ[ik]] for ik in 1:length(basis.kpoints)]
 
     # Build the ExchangeOperator K acting on orbital at k
-    Kk = ExchangeOperator(basis, kpt, term.interaction_kernels, term.q_points, 
-                          term.kprime_mapping, ψ_occ_real, occ_occ)
+    Kk = ExchangeOperator(basis, kpt, term.interaction_kernels, term.q_points,
+                          ψ_occ_real, occ_occ)
 
     # Build mask for ACE sketch orbitals
     ik = findfirst(isequal(kpt), basis.kpoints)

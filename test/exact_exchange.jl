@@ -71,7 +71,7 @@ end
 
     # A k-point set which is not closed under k - k' cannot be used for exact exchange
     model = Model(silicon.lattice, [Si, Si], silicon.positions; terms=[ExactExchange()])
-    @test_throws ErrorException PlaneWaveBasis(model; Ecut=5,
+    @test_throws Exception PlaneWaveBasis(model; Ecut=5,
                                                kgrid=ExplicitKpoints([[0, 0, 0], [1/4, 0, 0]]))
 end
 
