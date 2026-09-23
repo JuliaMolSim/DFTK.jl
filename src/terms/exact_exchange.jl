@@ -26,7 +26,7 @@ breaks_symmetries(::ExactExchange) = true  # TODO: make ExactExchange fit for sy
 struct TermExactExchange{T, Tkernel, Tq} <: Term
     scaling_factor::T             # scaling factor, absorbed into interaction_kernels
     interaction_kernels::Tkernel  # Vector{Array{T,3}}: kernel on the FFT cube, one per q
-    q_points::Tq                  # Vector{Kpoint{T}}
+    q_points::Tq                  # Vector{Vec3{T}}: momentum transfers (reduced coordinates)
 end
 function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, kernel) where {T}
     if mpi_nprocs(basis.comm_kpts) > 1
@@ -38,8 +38,8 @@ function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, kernel) whe
     # Exchange couples each k to k - q for all q, so every k - q has to be a k-point of
     # the basis, which is the case for a full (non-symmetry-reduced) k-point grid.
     # find_equivalent_kpt fails otherwise, so check this already here.
-    for kpt in basis.kpoints, qpt in q_points
-        find_equivalent_kpt(basis, kpt.coordinate - qpt.coordinate, kpt.spin)
+    for kpt in basis.kpoints, q in q_points
+        find_equivalent_kpt(basis, kpt.coordinate - q, kpt.spin)
     end
     interaction_kernels = fac .* compute_kernel_fourier(kernel, basis, q_points)
 
@@ -119,11 +119,11 @@ function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, interaction_kernels, q_p
     for iq in 1:length(q_points)
 
         # get the Coulomb kernel Fourier components G+q
-        qpt = q_points[iq]
+        q = q_points[iq]
         kernel_q = interaction_kernels[iq]
 
         # k - q is equivalent to the basis k-point k' = k - q + ΔG
-        ikp, ΔG = find_equivalent_kpt(basis, kpt.coordinate - qpt.coordinate, kpt.spin)
+        ikp, ΔG = find_equivalent_kpt(basis, kpt.coordinate - q, kpt.spin)
         phase_shift = map(r -> cis2pi(-dot(ΔG, r)), r_vectors(basis))
 
         # get occupied orbitals at k'

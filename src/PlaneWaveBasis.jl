@@ -654,8 +654,7 @@ function scatter_kpts_block(basis::PlaneWaveBasis, data::Union{Nothing,AbstractA
 end
 
 """
-Computes the unique momentum transfers q = k - k' for a given basis.
-Returns the Kpoint objects for the q-grid.
+Computes the unique momentum transfers q = k - k' (in reduced coordinates) for a given basis.
 """
 function build_qpoints(basis::PlaneWaveBasis{T}; tol=1e-12) where {T}
     # Since spin-polarization is encoded as additional k-points, we filter only unique
@@ -668,19 +667,12 @@ function build_qpoints(basis::PlaneWaveBasis{T}; tol=1e-12) where {T}
         for k1 in spatial_k, k2 in spatial_k
     ]
     # Filter unique q-coordinates (modulo reciprocal lattice vectors) using tolerance
-    q_coords = Vec3{T}[]
+    q_points = Vec3{T}[]
     for q in vec(q_coords_all)
-        if !any(qp -> is_approx_integer(q - qp; atol=tol), q_coords)
-            push!(q_coords, q)
+        if !any(qp -> is_approx_integer(q - qp; atol=tol), q_points)
+            push!(q_points, q)
         end
     end
-
-    # Build Kpoint objects
-    # DFTK's build_kpoints duplicates points for spin-polarized models.
-    # We must filter out these duplicates because q-transfers are spin-independent.
-    q_points_all = build_kpoints(basis.model, basis.fft_size, q_coords, basis.Ecut; basis.architecture)
-    q_points = unique(q -> q.coordinate, q_points_all)
-
     q_points
 end
 

@@ -24,11 +24,11 @@ eval_probe_charge_integral(::InteractionKernel, α)
     Should return ∫_{BZ}  kernel(q) * e^(-α * q^2) dq
     This is needed for the ProbeCharge regularisation. Note, that no factor 1/Γ
     where Γ is BZ volume) is used.
-_compute_kernel_fourier(::InteractionKernel, basis, qpt::Kpoint)
+_compute_kernel_fourier(::InteractionKernel, basis, q::Vec3)
     The single q-point version of compute_kernel_fourier. Returns the kernel at G+q
     for all G of the full FFT cube `G_vectors(basis)` as an array of shape
-    `basis.fft_size` (linear index 1 is G=0). Only `qpt.coordinate` is used.
-_compute_kernel_fourier(::InteractionKernel, basis, q_points::AbstractVector{<:Kpoint})
+    `basis.fft_size` (linear index 1 is G=0). `q` is in reduced coordinates.
+_compute_kernel_fourier(::InteractionKernel, basis, q_points::AbstractVector{<:Vec3})
     Optional: The kernels for several momentum transfers at once (as a vector). Defaults
     to calling the single q-point version for each q-point. Kernels which are cheaper
     to compute for all q-points together (e.g. `WignerSeitzTruncatedCoulomb`) specialise it.
@@ -51,16 +51,15 @@ abstract type InteractionKernel end
 Base.Broadcast.broadcastable(k::InteractionKernel) = Ref(k)
 
 # |G+q|² for all G of the full FFT cube G_vectors(basis)
-function _norm2_Gplusq_on_cube(basis::PlaneWaveBasis, qpt::Kpoint)
-    recip_lattice = basis.model.recip_lattice  # hoist: avoid closure over basis / qpt
-    q = qpt.coordinate
+function _norm2_Gplusq_on_cube(basis::PlaneWaveBasis, q::Vec3)
+    recip_lattice = basis.model.recip_lattice  # hoist: avoid closure over basis
     map(G -> norm2(recip_lattice * (G + q)), G_vectors(basis))
 end
 
 # Evaluate the kernel at G+q for all G of the full FFT cube. The G+q=0 component is not
 # special-cased (i.e. may be Inf or NaN) and is left to the regularization.
-function _eval_kernel_on_cube(kernel, basis::PlaneWaveBasis, qpt::Kpoint)
-    eval_kernel_fourier.(kernel, _norm2_Gplusq_on_cube(basis, qpt))
+function _eval_kernel_on_cube(kernel, basis::PlaneWaveBasis, q::Vec3)
+    eval_kernel_fourier.(kernel, _norm2_Gplusq_on_cube(basis, q))
 end
 
 # Size of the k-point grid, i.e. of the supercell corresponding to the k-point sampling,
@@ -70,7 +69,7 @@ end
 function _kgrid_size(basis::PlaneWaveBasis; tol=1e-8)
     q_points = build_qpoints(basis)
     kgrid_size = map(1:3) do i
-        q_i = sort([qpt.coordinate[i] for qpt in q_points])
+        q_i = sort([q[i] for q in q_points])
         1 + count(>(tol), diff(q_i))
     end
     if prod(kgrid_size) != length(q_points)
@@ -94,7 +93,7 @@ Coulomb interaction: 1/r
 end
 eval_kernel_fourier(::Coulomb, Gsq::T) where {T} = 4T(π) / Gsq
 eval_probe_charge_integral(::Coulomb, α) = 8π^2 * sqrt(π / α)
-_compute_kernel_fourier(k::Coulomb, basis, qpt::Kpoint) = _compute_kernel_fourier(k, k.regularization, basis, qpt)
+_compute_kernel_fourier(k::Coulomb, basis, q::Vec3) = _compute_kernel_fourier(k, k.regularization, basis, q)
 
 
 """
@@ -108,10 +107,10 @@ ShortRangeCoulomb(μ::Quantity) = ShortRangeCoulomb(austrip(μ))
 function eval_kernel_fourier(k::ShortRangeCoulomb, Gsq::T) where {T}
     -(4T(π) / Gsq) * expm1(-Gsq / (4 * T(k.μ)^2))
 end
-function _compute_kernel_fourier(k::ShortRangeCoulomb, basis, qpt::Kpoint)
+function _compute_kernel_fourier(k::ShortRangeCoulomb, basis, q::Vec3)
     # Use ReplaceSingularity regularisation to explicitly set as the G==0
     # component the exact limit of the kernel for G->0, namely π/μ^2
-    _compute_kernel_fourier(k, ReplaceSingularity(π/k.μ^2), basis, qpt)
+    _compute_kernel_fourier(k, ReplaceSingularity(π/k.μ^2), basis, q)
 end
 
 
@@ -131,8 +130,8 @@ end
 function eval_probe_charge_integral(k::LongRangeCoulomb, α::T) where {T}
     8T(π)^2 * sqrt(T(π) / (α + 1/(4 * T(k.μ)^2)))
 end
-function _compute_kernel_fourier(k::LongRangeCoulomb, basis, qpt::Kpoint)
-    _compute_kernel_fourier(k, k.regularization, basis, qpt)
+function _compute_kernel_fourier(k::LongRangeCoulomb, basis, q::Vec3)
+    _compute_kernel_fourier(k, k.regularization, basis, q)
 end
 
 
@@ -149,18 +148,18 @@ In the most simple case this is essentially 4π/(G+q)².
 ## Arguments
 - `kernel::InteractionKernel`: The physical operator defining the electron-electron interaction
 - `basis::PlaneWaveBasis`: Plane-wave basis defining the grid
-- `qpt::Kpoint`: Momentum transfer; only `qpt.coordinate` (fractional coordinates) is used
+- `q`: Momentum transfer in reduced coordinates
 
 ## Returns
 Array of shape `basis.fft_size` with the kernel value for each `G` of `G_vectors(basis)`.
 """
 function compute_kernel_fourier(kernel::InteractionKernel, basis::PlaneWaveBasis{T},
-                                qpt::Kpoint) where {T}
+                                q::AbstractVector{<:Real}) where {T}
     if mpi_nprocs(basis.comm_kpts) > 1
         error("MPI parallelisation not yet supported for coulomb kernel")
     end
 
-    kernel_fourier = _compute_kernel_fourier(kernel, basis, qpt)
+    kernel_fourier = _compute_kernel_fourier(kernel, basis, Vec3{T}(q))
 
     # TODO: if q=0, symmetrize Fourier coeffs to have real iFFT 
 
@@ -171,17 +170,17 @@ end
 The kernels for several momentum transfers `q_points` at once, returned as a vector
 with one entry per q-point. See [`compute_kernel_fourier`](@ref).
 """
-function compute_kernel_fourier(kernel::InteractionKernel, basis::PlaneWaveBasis,
-                                q_points::AbstractVector{<:Kpoint})
+function compute_kernel_fourier(kernel::InteractionKernel, basis::PlaneWaveBasis{T},
+                                q_points::AbstractVector{<:AbstractVector}) where {T}
     if mpi_nprocs(basis.comm_kpts) > 1
         error("MPI parallelisation not yet supported for coulomb kernel")
     end
-    kernels_fourier = _compute_kernel_fourier(kernel, basis, q_points)
+    kernels_fourier = _compute_kernel_fourier(kernel, basis, [Vec3{T}(q) for q in q_points])
     [to_device(basis.architecture, kernel_fourier) for kernel_fourier in kernels_fourier]
 end
 function _compute_kernel_fourier(kernel::InteractionKernel, basis::PlaneWaveBasis,
-                                 q_points::AbstractVector{<:Kpoint})
-    [_compute_kernel_fourier(kernel, basis, qpt) for qpt in q_points]
+                                 q_points::AbstractVector{<:Vec3})
+    [_compute_kernel_fourier(kernel, basis, q) for q in q_points]
 end
 
 
@@ -200,7 +199,7 @@ end
 function eval_kernel_fourier(k::SphericallyTruncatedCoulomb, Gsq::T) where {T}
     4T(π) / Gsq * (1 - cos(T(k.Rcut) * sqrt(Gsq)))
 end
-function _compute_kernel_fourier(k::SphericallyTruncatedCoulomb, basis, qpt::Kpoint)
+function _compute_kernel_fourier(k::SphericallyTruncatedCoulomb, basis, q::Vec3)
     # TODO: This is a bit hackish as the parameter needs
     #       to be re-computed every kernel evaluation.
     Ω_supercell = basis.model.unit_cell_volume * length(basis.kgrid)  # Nk = length(kgrid)
@@ -209,7 +208,7 @@ function _compute_kernel_fourier(k::SphericallyTruncatedCoulomb, basis, qpt::Kpo
 
     # Use ReplaceSingularity regularisation to explicitly set as the G==0
     # component the exact limit of the kernel for G->0
-    _compute_kernel_fourier(kRcut, ReplaceSingularity(2π*Rcut^2), basis, qpt)
+    _compute_kernel_fourier(kRcut, ReplaceSingularity(2π*Rcut^2), basis, q)
 end
 
 
@@ -243,11 +242,11 @@ Since this function is periodic on the supercell, one FFT (including the Bloch p
 - [R. Sundararaman, T. A. Arias. Phys. Rev. B **87**, 165122 (2013)](https://doi.org/10.1103/PhysRevB.87.165122)
 """
 struct WignerSeitzTruncatedCoulomb <: InteractionKernel end
-function _compute_kernel_fourier(k::WignerSeitzTruncatedCoulomb, basis, qpt::Kpoint)
-    only(_compute_kernel_fourier(k, basis, [qpt]))
+function _compute_kernel_fourier(k::WignerSeitzTruncatedCoulomb, basis, q::Vec3)
+    only(_compute_kernel_fourier(k, basis, [q]))
 end
 function _compute_kernel_fourier(::WignerSeitzTruncatedCoulomb, basis::PlaneWaveBasis{T},
-                                 q_points::AbstractVector{<:Kpoint}) where {T}
+                                 q_points::AbstractVector{<:Vec3}) where {T}
     model = basis.model
 
     # The truncated kernel is periodic on the supercell corresponding to the k-point grid
@@ -300,8 +299,7 @@ function _compute_kernel_fourier(::WignerSeitzTruncatedCoulomb, basis::PlaneWave
 
     # === Analytic short-range term + long-range term for each q ===
 
-    map(q_points) do qpt
-        q = qpt.coordinate
+    map(q_points) do q
 
         # Fourier coefficients ∫ V_lr(r) e^{-i(G+q)r} dr over the supercell for all G of the
         # unit cell grid: Bloch phase e^{-iqr} (r in unit cell fractional coordinates is
@@ -349,14 +347,14 @@ charges, which can be computed using an Ewald sum.
     α::Union{Float64, Nothing} = nothing  # Width of the probe charge
 end
 @views function _compute_kernel_fourier(kernel, regularization::ProbeCharge,
-                                        basis::PlaneWaveBasis{T}, qpt) where {T}
+                                        basis::PlaneWaveBasis{T}, q) where {T}
     # Default value well-tested in VASP; ensures that e^(-α*G²) is localized
     # charge with full support on G grid
     α::T = @something regularization.α   π^2/basis.Ecut
 
-    kernel_fourier = _eval_kernel_on_cube(kernel, basis, qpt)
+    kernel_fourier = _eval_kernel_on_cube(kernel, basis, q)
 
-    if iszero(qpt.coordinate)
+    if iszero(q)
         # Interaction of Gaussian charges with uniform background (i.e. integral of charges)
         # = 1/Γ ∫_{BZ} kernel(q) e^(-αq²) dq, where the integral is computed by the
         # eval_probe_charge_integral function.
@@ -370,11 +368,11 @@ end
         # weight below rescales the sum to Nk terms, which is exact if basis.kpoints
         # is the full (non-symmetry-reduced) k-grid.
         Q_points = build_qpoints(basis)
-        probe_charge_sum = sum(Q_points) do Qpt
+        probe_charge_sum = sum(Q_points) do Q
             weight = Nk / length(Q_points)
-            Gsq_Q = _norm2_Gplusq_on_cube(basis, Qpt)
+            Gsq_Q = _norm2_Gplusq_on_cube(basis, Q)
             summands = eval_kernel_fourier.(kernel, Gsq_Q) .* exp.(-α .* Gsq_Q)
-            if iszero(Qpt.coordinate)  # skip the singular G+Q=0 term
+            if iszero(Q)  # skip the singular G+Q=0 term
                 GPUArraysCore.@allowscalar summands[1] = zero(T)
             end
             weight * sum(summands)
@@ -401,9 +399,9 @@ struct ReplaceSingularity{T <: Real}
     Gpq_zero_value::T
 end
 @views function _compute_kernel_fourier(kernel, regularization::ReplaceSingularity,
-                                        basis::PlaneWaveBasis{T}, qpt) where {T}
-    kernel_fourier = _eval_kernel_on_cube(kernel, basis, qpt)
-    if iszero(qpt.coordinate)  # Replace the singular G+q=0 component
+                                        basis::PlaneWaveBasis{T}, q) where {T}
+    kernel_fourier = _eval_kernel_on_cube(kernel, basis, q)
+    if iszero(q)  # Replace the singular G+q=0 component
         GPUArraysCore.@allowscalar kernel_fourier[1] = T(regularization.Gpq_zero_value)
     end
     kernel_fourier

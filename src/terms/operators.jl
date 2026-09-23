@@ -185,7 +185,7 @@ struct ExchangeOperator{T <: Real,Tkernel,Tq,Tocc,Tpsi} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
     kpoint::Kpoint{T}
     interaction_kernels::Tkernel  # Vector{Array{T,3}}: kernel on the FFT cube, one per q
-    q_points::Tq                  # Vector{Kpoint{T}}
+    q_points::Tq                  # Vector{Vec3{T}}: momentum transfers (reduced coordinates)
     ψ_occ_real::Tpsi              # Store precomputed real-space orbitals
     occ_occ::Tocc
 end
@@ -196,12 +196,12 @@ function apply!(Hψ, op::ExchangeOperator, ψ)
     for iq in 1:length(op.q_points)
 
         # get the Coulomb kernel Fourier components G+q
-        qpt = op.q_points[iq]
+        q = op.q_points[iq]
         kernel_q = op.interaction_kernels[iq]
 
         # k - q is equivalent to the basis k-point k' = k - q + ΔG
         kpt = op.kpoint
-        ikp, ΔG = find_equivalent_kpt(basis, kpt.coordinate - qpt.coordinate, kpt.spin)
+        ikp, ΔG = find_equivalent_kpt(basis, kpt.coordinate - q, kpt.spin)
         phase_forward = map(r -> cis2pi(-dot(ΔG, r)), r_vectors(basis))
         phase_reverse = map(r -> cis2pi( dot(ΔG, r)), r_vectors(basis))
 

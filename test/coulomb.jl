@@ -21,41 +21,40 @@
         ifft!(ψk_real[:, :, :, n], basis, kpt, ψk[:, n])
     end
 
-    # assume Gamma-only
-    qpt = basis.kpoints[1]
+    q = zero(Vec3{Float64})  # Gamma-only
 
-    k_probe = compute_kernel_fourier(Coulomb(ProbeCharge()), basis, qpt)
+    k_probe = compute_kernel_fourier(Coulomb(ProbeCharge()), basis, q)
     @testset "Coulomb with ProbeCharge" begin
-        E_probe = exx_energy_only(basis, kpt, [k_probe], [qpt], [ψk_real], [occk])
+        E_probe = exx_energy_only(basis, kpt, [k_probe], [q], [ψk_real], [occk])
         E_ref = -2.3383182267689455
         @test abs(E_ref - E_probe) < 1e-6
     end
 
     @testset "Coulomb with ReplaceSingularity" begin
-        k_neglect = compute_kernel_fourier(Coulomb(ReplaceSingularity(0.0)), basis, qpt)
-        E_neglect = exx_energy_only(basis, kpt, [k_neglect], [qpt], [ψk_real], [occk])
+        k_neglect = compute_kernel_fourier(Coulomb(ReplaceSingularity(0.0)), basis, q)
+        E_neglect = exx_energy_only(basis, kpt, [k_neglect], [q], [ψk_real], [occk])
         E_ref = -0.7349576391625812
         @test abs(E_ref - E_neglect) < 1e-6
         @test norm(k_neglect[2:end] - k_probe[2:end]) < 1e-6
     end
 
     @testset "LongRangeCoulomb with ProbeCharge" begin
-        k_lr = compute_kernel_fourier(LongRangeCoulomb(0.1, ProbeCharge()), basis, qpt)
-        E_lr = exx_energy_only(basis, kpt, [k_lr], [qpt], [ψk_real], [occk])
+        k_lr = compute_kernel_fourier(LongRangeCoulomb(0.1, ProbeCharge()), basis, q)
+        E_lr = exx_energy_only(basis, kpt, [k_lr], [q], [ψk_real], [occk])
         E_ref = -0.44269774759135383
         @test abs(E_ref - E_lr) < 1e-6
     end
 
     @testset "ShortRangeCoulomb" begin
-        k_sr = compute_kernel_fourier(ShortRangeCoulomb(0.1), basis, qpt)
-        E_sr = exx_energy_only(basis, kpt, [k_sr], [qpt], [ψk_real], [occk])
+        k_sr = compute_kernel_fourier(ShortRangeCoulomb(0.1), basis, q)
+        E_sr = exx_energy_only(basis, kpt, [k_sr], [q], [ψk_real], [occk])
         E_ref = -5.384700394473846
         @test abs(E_ref - E_sr) < 1e-6
     end
 
     @testset "ShortRangeCoulomb plus LongRangeCoulomb is coulomb" begin
-        k_lr  = compute_kernel_fourier(LongRangeCoulomb(0.1, ProbeCharge()), basis, qpt)
-        k_sr  = compute_kernel_fourier(ShortRangeCoulomb(0.1), basis, qpt)
+        k_lr  = compute_kernel_fourier(LongRangeCoulomb(0.1, ProbeCharge()), basis, q)
+        k_sr  = compute_kernel_fourier(ShortRangeCoulomb(0.1), basis, q)
         k_sum = k_lr + k_sr
 
         # Note: The G=0 component does not match up, because in short-range Coulomb
@@ -67,8 +66,8 @@
     end
 
     @testset "SphericallyTruncatedCoulomb" begin
-        k_strunc = compute_kernel_fourier(SphericallyTruncatedCoulomb(), basis, qpt)
-        E_strunc = exx_energy_only(basis, kpt, [k_strunc], [qpt], [ψk_real], [occk])
+        k_strunc = compute_kernel_fourier(SphericallyTruncatedCoulomb(), basis, q)
+        E_strunc = exx_energy_only(basis, kpt, [k_strunc], [q], [ψk_real], [occk])
         E_ref = -2.3601703303468677
         @test abs(E_ref - E_strunc) < 1e-6
 
@@ -76,15 +75,15 @@
     end
 
     @testset "WignerSeitzTruncatedCoulomb" begin
-        k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis, qpt)
-        E_wstrunc = exx_energy_only(basis, kpt, [k_wstrunc], [qpt], [ψk_real], [occk])
+        k_wstrunc = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis, q)
+        E_wstrunc = exx_energy_only(basis, kpt, [k_wstrunc], [q], [ψk_real], [occk])
         E_ref = -2.345693220097827
         @test abs(E_ref - E_wstrunc) < 1e-6
     end
 
     @testset "VoxelAveraged" begin
-        k_voxavg = compute_kernel_fourier(Coulomb(VoxelAveraged()), basis, qpt)
-        E_voxavg = exx_energy_only(basis, kpt, [k_voxavg], [qpt], [ψk_real], [occk])
+        k_voxavg = compute_kernel_fourier(Coulomb(VoxelAveraged()), basis, q)
+        E_voxavg = exx_energy_only(basis, kpt, [k_voxavg], [q], [ψk_real], [occk])
         E_ref = -2.2490445915201622
         @test abs(E_ref - E_voxavg) < 1e-6
     end
@@ -130,7 +129,7 @@ end
         # The kernel lives on the full FFT cube, so k_wstrunc[1:5] are the values at
         # G = (0,0,0), (1,0,0), (2,0,0), (3,0,0), (4,0,0)
         kernel_Γ(basis) = compute_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis,
-                                                 basis.kpoints[1])
+                                                 zero(Vec3{Float64}))
 
         k_wstrunc = kernel_Γ(basis_Pt)
         @test k_wstrunc[1:5] ≈ [289.8199039694483, 39.805749013785956, 5.580324780990978,
@@ -215,8 +214,9 @@ end
         ψk_real ./= sqrt(sum(abs2, ψk_real) * basis.dvol)  # normalise ψk
         occk = [2.0]
 
-        kernel_values = compute_kernel_fourier(kernel, basis, kpt)  # Γ-only: q = k = 0
-        exx_energy_only(basis, kpt, [kernel_values], [kpt], [ψk_real], [occk])
+        q = zero(Vec3{Float64})  # Γ-only
+        kernel_values = compute_kernel_fourier(kernel, basis, q)
+        exx_energy_only(basis, kpt, [kernel_values], [q], [ψk_real], [occk])
     end
 
     # Extrapolate E(a) = E_inf + c * exp(-alpha a) for equally spaced a_vals
@@ -312,12 +312,11 @@ end
         @testset "$label: k-point grid against supercell" begin
             # The kernel at G+q of the k-point grid is the kernel of the supercell at Γ,
             # evaluated at the supercell reciprocal lattice vector kgrid_size .* (G+q)
-            K_supercell = compute_kernel_fourier(kernel, basis_supercell,
-                                                 basis_supercell.kpoints[1])
-            for (qpt, K_q) in zip(q_points, K_q_all)
+            K_supercell = compute_kernel_fourier(kernel, basis_supercell, zero(Vec3{Float64}))
+            for (q, K_q) in zip(q_points, K_q_all)
                 error = zero(eltype(K_q))
                 for (iG, G) in enumerate(G_vectors(basis))
-                    G_supercell = round.(Int, kgrid_size .* (G + qpt.coordinate))
+                    G_supercell = round.(Int, kgrid_size .* (G + q))
                     idx = DFTK.index_G_vectors(basis_supercell, G_supercell)
                     isnothing(idx) && continue  # beyond the supercell FFT grid
                     error = max(error, abs(K_q[iG] - K_supercell[idx]))
@@ -333,10 +332,8 @@ end
                 q_points_shifted = build_qpoints(basis_shifted)
                 K_shifted = compute_kernel_fourier(kernel, basis_shifted, q_points_shifted)
                 @test length(q_points_shifted) == length(q_points)
-                for (qpt, K_q) in zip(q_points_shifted, K_shifted)
-                    iq = findfirst(q_points) do q
-                        is_approx_integer(q.coordinate - qpt.coordinate; atol=1e-8)
-                    end
+                for (q_shifted, K_q) in zip(q_points_shifted, K_shifted)
+                    iq = findfirst(q -> is_approx_integer(q - q_shifted; atol=1e-8), q_points)
                     @test !isnothing(iq)
                     @test K_q ≈ K_q_all[iq]
                 end
