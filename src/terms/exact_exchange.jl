@@ -224,15 +224,13 @@ function compress_exchange(Kk::ExchangeOperator, ψk::AbstractMatrix,
         fft!(Wnk, basis, kpt, Wnk_real_tmp)
     end
 
+    # The compressed operator is Wk Mk⁻¹ Wk'. Mk is Hermitian, but depending on the kernel
+    # possibly indefinite and nearly singular. We therefore use its pseudo-inverse, 
+    # dropping eigenvalues below the tolerance.
     Mk = Hermitian(ψk' * Wk)
-    # -Mk is positive semi-definite. We use shifted_cholesky to handle
-    # potentially rank-deficient cases (e.g. HEG or extra bands).
-    Bk = InverseNegatedMap(shifted_cholesky(-Mk))
-    opk = NonlocalOperator(basis, kpt, Wk, Bk)
-    (; opk, Mk, Bk, Wk)
+    λ, U = eigen(Mk)
+    cutoff = size(Mk, 1) * eps(real(T)) * maximum(abs, λ)
+    Dk = Diagonal(map(λi -> abs(λi) > cutoff ? inv(λi) : zero(λi), λ))
+    opk = NonlocalOperator(basis, kpt, Wk * U, Dk)
+    (; opk, Mk, Dk, Wk)
 end
-
-struct InverseNegatedMap{T}
-    B::T
-end
-Base.:*(op::InverseNegatedMap, x) = -(op.B \ x)

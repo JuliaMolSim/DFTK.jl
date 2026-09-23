@@ -20,15 +20,25 @@
         occ_scaling = length(basis.kpoints) * silicon.n_electrons / sum(sum(occupation))
         occupation  = [occ * occ_scaling for occ in occupation]
 
-        (; energies ) = energy_hamiltonian(basis, ψ, occupation; exxalg=VanillaExx())
+        (; energies, ham) = energy_hamiltonian(basis, ψ, occupation; exxalg=VanillaExx())
         energies2     = DFTK.energy(basis, ψ, occupation; exxalg=VanillaExx()).energies
         energies_ace  = DFTK.energy(basis, ψ, occupation; exxalg=AceExx()).energies
 
         @test abs(energies.total - energies2.total)    < atol
         @test abs(energies.total - energies_ace.total) < atol
+
+        # ACE compresses the exchange operator using all orbitals in ψ,
+        # so on these orbitals it has to act like the full operator
+        ham_ace = energy_hamiltonian(basis, ψ, occupation; exxalg=AceExx()).ham
+        for ik = 1:length(basis.kpoints)
+            @test ham_ace.blocks[ik] * ψ[ik] ≈ ham.blocks[ik] * ψ[ik] rtol=1e-8
+        end
     end
 
-    for kernel in (Coulomb(ProbeCharge()), ShortRangeCoulomb(), SphericallyTruncatedCoulomb())
+    # The last kernel has a negative G=0 component, which makes the exchange operator
+    # indefinite. ACE has to handle this as well.
+    for kernel in (Coulomb(ProbeCharge()), ShortRangeCoulomb(), SphericallyTruncatedCoulomb(),
+                   Coulomb(ReplaceSingularity(-100.0)))
         test_acexx_consistency(; kgrid=(1, 1, 1), kshift=(0, 0, 0), kernel)
         test_acexx_consistency(; kgrid=(1, 1, 1), kshift=(0, 0, 0), kernel, spin_polarization=:collinear)
         test_acexx_consistency(; kgrid=(2, 1, 1), kshift=(0, 0, 0), kernel)

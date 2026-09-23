@@ -166,13 +166,9 @@ end
         ρ = guess_density(basis_pbe, magnetic_moments)
         scfres_pbe = self_consistent_field(basis_pbe; ρ, tol=1e-6)
 
-        # Sketch ACE with the occupied orbitals only, as the other spin-polarised tests do.
-        # With the default sketch (including the extra bands) the Cholesky factorisation in
-        # the ACE compression failed for this system when starting from the atomic guess.
         self_consistent_field(basis_hf; scfres_pbe.ρ, scfres_pbe.ψ, scfres_pbe.eigenvalues,
                               scfres_pbe.occupation, is_converged=ScfConvergenceEnergy(1e-10),
-                              exxalg=AceExx(sketch_with_extra_orbitals=false),
-                              solver=DFTK.scf_damping_solver(), damping=0.4)
+                              exxalg=AceExx(), solver=DFTK.scf_damping_solver(), damping=0.4)
     end
 
     # 1. Unit cell calculation
