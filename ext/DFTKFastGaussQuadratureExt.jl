@@ -6,9 +6,8 @@ using LinearAlgebra
 
 
 @views function DFTK._compute_kernel_fourier(kernel, regularization::VoxelAveraged,
-                                             basis::PlaneWaveBasis{T}, qpt) where {T}
+                                             basis::PlaneWaveBasis{T}, q) where {T}
     model = basis.model
-    q = qpt.coordinate
 
     # Size of the k-point grid (inferred from the momentum transfers, such that shifted
     # and explicit k-point grids work as well)
