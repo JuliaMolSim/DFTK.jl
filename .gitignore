@@ -10,5 +10,3 @@ Manifest.toml
 /LocalPreferences.toml
 .vscode
 .CondaPkg
-/src/scf/claude
-/minimaltest
