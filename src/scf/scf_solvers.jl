@@ -14,13 +14,6 @@
 #
 # The solver must return an object supporting res.fixpoint and res.info
  
-## `x` is always the *packed generalised density* (see `pack_gdensity`/`split_gdensity`
-## in densities.jl), i.e. a plain array combining `ρ` and (if present) `τ`. Solvers that
-## need more than the density (e.g. PCDIIS, which needs reference orbitals) read that
-## extra state off `info` (in particular `info.ψ` and `info.basis`), which is passed
-## through on every fixed-point call regardless of which solver is used. This keeps a
-## single state representation for all solvers instead of a solver-specific `StateType`.
- 
 abstract type ScfSolver end
 
 """
@@ -86,7 +79,6 @@ function (scf::ScfAndersonDensitySolver)(f, x0, info0; maxiter, damping)
     x = x0
     ρ, _ = split_gdensity(info0.basis, x0)
     info = info0
-    #acceleration = AndersonAcceleration(; scf.anderson_kwargs...)
     acceleration = Acceleration(AndersonType(); α, scf.anderson_kwargs...)
     for i = 1:maxiter
         fx, info = f(x, info)
@@ -101,7 +93,6 @@ function (scf::ScfAndersonDensitySolver)(f, x0, info0; maxiter, damping)
         else
             @debug "Using Anderson acceleration in iteration $i"
             # Damp ρ and send it to anderson; τ is just patched through without any changes
-            #residual_ρ = fρ - ρ
             ρ = acceleration(ρ, fρ, nothing) #this is a bit ugly, since info is not necessary here, but is needed for Pcdiis
         end
         x = pack_gdensity(info.basis, ρ, fτ)
@@ -138,7 +129,6 @@ function (scf::ScfAndersonSolver)(f, x0, info0; maxiter, damping)
     α = convert(T, damping)
     x = x0
     info = info0
-    #acceleration = AndersonAcceleration(; scf.anderson_kwargs...)
     acceleration = Acceleration(AndersonType(); α, scf.anderson_kwargs...)
     for i = 1:maxiter
         fx, info = f(x, info)
@@ -154,7 +144,6 @@ function (scf::ScfAndersonSolver)(f, x0, info0; maxiter, damping)
         else
             @debug "Using Anderson acceleration in iteration $i"
             # Damp ρ and send it to anderson; τ is just patched through without any changes
-            #residual = fx - x
             x = acceleration(x, fx, nothing) #this is a bit ugly, since info is not necessary here, but is needed for Pcdiis
         end
         x = from_representation!(scf.representation, info.basis, x)
