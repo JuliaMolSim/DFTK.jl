@@ -181,12 +181,11 @@ function apply!(Hψ, op::DivAgradOperator, ψ;
 end
 # TODO Implement  Base.Matrix(op::DivAgradOperator)
 
-struct ExchangeOperator{T <: Real,Tkernel,Tq,Tmap,Tocc,Tpsi} <: RealFourierOperator
+struct ExchangeOperator{T <: Real,Tkernel,Tq,Tocc,Tpsi} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
     kpoint::Kpoint{T}
     interaction_kernels::Tkernel  # Vector{Array{T,3}}: kernel on the FFT cube, one per q
     q_points::Tq                  # Vector{Kpoint{T}}
-    kprime_mapping::Tmap          # Matrix{Int}: find index for k'=k-q
     ψ_occ_real::Tpsi              # Store precomputed real-space orbitals
     occ_occ::Tocc
 end
@@ -196,25 +195,18 @@ function apply!(Hψ, op::ExchangeOperator, ψ)
 
     for iq in 1:length(op.q_points)
 
-        # construct k' = k - q
-        ikp = op.kprime_mapping[ik, iq]
-        ikp == 0 && continue 
-        
         # get the Coulomb kernel Fourier components G+q
         qpt = op.q_points[iq]
         kernel_q = op.interaction_kernels[iq]
 
+        # k - q is equivalent to the basis k-point k' = k - q + ΔG
+        kpt = op.kpoint
+        ikp, ΔG = find_equivalent_kpt(basis, kpt.coordinate - qpt.coordinate, kpt.spin)
+        phase_forward = map(r -> cis2pi(-dot(ΔG, r)), r_vectors(basis))
+        phase_reverse = map(r -> cis2pi( dot(ΔG, r)), r_vectors(basis))
+
         # get occupied orbitals at k' in real-space
         ψkp_real = op.ψ_occ_real[ikp]
-
-        # Calculate the reciprocal lattice shift Gb from BZ folding
-        # k - q = k' + G_b  =>  G_b = k - q - k'
-        kpt = basis.kpoints[ik]
-        kpt_prime = basis.kpoints[ikp]
-        Gb_frac = kpt.coordinate - kpt_prime.coordinate - qpt.coordinate
-        Gb = round.(Int, Gb_frac)
-        phase_forward = map(r -> cis2pi( dot(Gb, r)), r_vectors(basis))
-        phase_reverse = map(r -> cis2pi(-dot(Gb, r)), r_vectors(basis)) 
 
         # Hψ = - ∑_n f_n ψ_n(r) ∫ (ψ_n)†(r') * ψ(r') / |r-r'| dr'
         for (n, ψnkp_real) in enumerate(eachslice(ψkp_real, dims=4))

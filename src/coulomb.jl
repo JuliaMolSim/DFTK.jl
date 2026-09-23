@@ -68,7 +68,7 @@ end
 # themselves the momentum transfers always form a Γ-centred grid, such that this also
 # works for shifted and for explicitly given k-point grids.
 function _kgrid_size(basis::PlaneWaveBasis; tol=1e-8)
-    q_points, _ = build_qpoints(basis)
+    q_points = build_qpoints(basis)
     kgrid_size = map(1:3) do i
         q_i = sort([qpt.coordinate[i] for qpt in q_points])
         1 + count(>(tol), diff(q_i))
@@ -369,7 +369,7 @@ end
         # Note: build_qpoints derives the Q-points from basis.kpoints. The uniform
         # weight below rescales the sum to Nk terms, which is exact if basis.kpoints
         # is the full (non-symmetry-reduced) k-grid.
-        Q_points, _ = build_qpoints(basis)
+        Q_points = build_qpoints(basis)
         probe_charge_sum = sum(Q_points) do Qpt
             weight = Nk / length(Q_points)
             Gsq_Q = _norm2_Gplusq_on_cube(basis, Qpt)

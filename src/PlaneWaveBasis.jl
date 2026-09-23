@@ -655,8 +655,7 @@ end
 
 """
 Computes the unique momentum transfers q = k - k' for a given basis.
-Returns the Kpoint objects for the q-grid and the integer mapping table
-`kprime_mapping[ik, iq]` such that k' = k - q.
+Returns the Kpoint objects for the q-grid.
 """
 function build_qpoints(basis::PlaneWaveBasis{T}; tol=1e-12) where {T}
     # Since spin-polarization is encoded as additional k-points, we filter only unique
@@ -682,32 +681,7 @@ function build_qpoints(basis::PlaneWaveBasis{T}; tol=1e-12) where {T}
     q_points_all = build_kpoints(basis.model, basis.fft_size, q_coords, basis.Ecut; basis.architecture)
     q_points = unique(q -> q.coordinate, q_points_all)
 
-    # Build mapping table
-    N_k = length(basis.kpoints)
-    N_q = length(q_coords)
-    kprime_mapping = zeros(Int, N_k, N_q)
-
-    for iq in 1:N_q
-        q_coord = q_points[iq].coordinate
-        for ik in 1:N_k
-            kpt = basis.kpoints[ik]
-            k_prime = kpt.coordinate .- q_coord
-
-            # For the mapping both have to match: the coordinate modulo reciprocal lattice
-            # vectors (k-point coordinates are not necessarily normalised to [-1/2, 1/2),
-            # e.g. for ExplicitKpoints) and the spin
-            ikp = findfirst(basis.kpoints) do kpt_prime
-                is_approx_integer(kpt_prime.coordinate - k_prime; atol=tol) &&
-                    kpt_prime.spin == kpt.spin
-            end
-
-            if !isnothing(ikp)
-                kprime_mapping[ik, iq] = ikp
-            end
-        end
-    end
-
-    return q_points, kprime_mapping
+    q_points
 end
 
 """
