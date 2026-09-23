@@ -28,7 +28,7 @@ _compute_kernel_fourier(::InteractionKernel, basis, q::Vec3)
     The single q-point version of compute_kernel_fourier. Returns the kernel at G+q
     for all G of the full FFT cube `G_vectors(basis)` as an array of shape
     `basis.fft_size` (linear index 1 is G=0). `q` is in reduced coordinates.
-_compute_kernel_fourier(::InteractionKernel, basis, q_points::AbstractVector{<:Vec3})
+_compute_kernel_fourier(::InteractionKernel, basis, q_points::Vector{<:Vec3})
     Optional: The kernels for several momentum transfers at once (as a vector). Defaults
     to calling the single q-point version for each q-point. Kernels which are cheaper
     to compute for all q-points together (e.g. `WignerSeitzTruncatedCoulomb`) specialise it.
@@ -179,7 +179,7 @@ function compute_kernel_fourier(kernel::InteractionKernel, basis::PlaneWaveBasis
     [to_device(basis.architecture, kernel_fourier) for kernel_fourier in kernels_fourier]
 end
 function _compute_kernel_fourier(kernel::InteractionKernel, basis::PlaneWaveBasis,
-                                 q_points::AbstractVector{<:Vec3})
+                                 q_points::Vector{<:Vec3})
     [_compute_kernel_fourier(kernel, basis, q) for q in q_points]
 end
 
@@ -246,7 +246,7 @@ function _compute_kernel_fourier(k::WignerSeitzTruncatedCoulomb, basis, q::Vec3)
     only(_compute_kernel_fourier(k, basis, [q]))
 end
 function _compute_kernel_fourier(::WignerSeitzTruncatedCoulomb, basis::PlaneWaveBasis{T},
-                                 q_points::AbstractVector{<:Vec3}) where {T}
+                                 q_points::Vector{<:Vec3}) where {T}
     model = basis.model
 
     # The truncated kernel is periodic on the supercell corresponding to the k-point grid
