@@ -231,6 +231,6 @@ function compress_exchange(Kk::ExchangeOperator, ψk::AbstractMatrix,
     λ, U = eigen(Mk)
     cutoff = size(Mk, 1) * eps(real(T)) * maximum(abs, λ)
     Dk = Diagonal(map(λi -> abs(λi) > cutoff ? inv(λi) : zero(λi), λ))
-    opk = NonlocalOperator(basis, kpt, Wk * U, Dk)
+    opk = NonlocalOperator(basis, kpt, Wk, U*Dk*U')  
     (; opk, Mk, Dk, Wk)
 end
