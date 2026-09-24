@@ -139,10 +139,9 @@ struct ScfConvergenceEnergy
     tolerance::Float64
 end
 function (conv::ScfConvergenceEnergy)(info)
-    #This needs a fix for the orbital solver: 
-    #if last(info.history_Δρ) > 10sqrt(conv.tolerance)
-    #    return false  # The ρ change should also be small to avoid the SCF being just stuck
-    #end
+    if last(info.history_Δρ) > 10sqrt(conv.tolerance)
+        return false  # The ρ change should also be small to avoid the SCF being just stuck
+    end
     length(info.history_Etot) < 2 && return false
     ΔE = (info.history_Etot[end-1] - info.history_Etot[end])
     ΔE < conv.tolerance

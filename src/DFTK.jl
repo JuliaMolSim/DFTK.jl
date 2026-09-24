@@ -171,8 +171,7 @@ export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing
 export LdosMixing, LdosDielectricMixing, LdosXcDiagonalMixing, χ0Mixing
 export FixedBands, AdaptiveBands
 export ScfDampingSolver, ScfAndersonDensitySolver, ScfAndersonSolver
-export self_consistent_field, kwargs_scf_checkpoints
-export self_consistent_orbitals
+export self_consistent_field, kwargs_scf_checkpoints, self_consistent_orbitals
 export ScfConvergenceEnergy, ScfConvergenceDensity, ScfConvergenceForce
 export ScfSaveCheckpoints, ScfDefaultCallback, AdaptiveDiagtol
 export ResponseOptions
@@ -185,7 +184,6 @@ include("scf/acceleration.jl")
 include("scf/scf_solvers.jl")
 include("scf/nbands_algorithm.jl")
 include("scf/self_consistent_field.jl")
-include("scf/self_consistent_orbitals.jl")
 include("scf/direct_minimization.jl")
 include("scf/newton.jl")
 include("scf/scfres.jl")
