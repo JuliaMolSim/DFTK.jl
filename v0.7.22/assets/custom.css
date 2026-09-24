@@ -1,0 +1,9 @@
+/* Code blocks with language specifier - keep gray */
+pre:has(> code[class*="language-"]) {
+    background-color: #F3F3F3;
+}
+
+/* Output blocks without language specifier - white like Documenter */
+pre:has(> code:not([class*="language-"])) {
+    background-color: #fff;
+}
