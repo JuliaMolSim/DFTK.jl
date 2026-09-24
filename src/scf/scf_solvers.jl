@@ -151,82 +151,6 @@ function (scf::ScfAndersonSolver)(f, x0, info0; maxiter, damping)
     (; fixpoint=x, info)
 end
 
-@doc raw"""
-Create a Pcdiis-accelerated solver for the [`self_consistent_field`](@ref) solver.
-
-This solver performs acceleration on a packed SCF state of type GdensityOrbitals that
-also contains the ψ and occupation in addition to the density. 
-
-Internally, acceleration is performed on ψ, then ρ is recomputed with the updated ψ.
-
-## Keyword arguments
-- `depth::Integer`       (default: `10`) Maximal Pcdiis history size
-- `m_start::Integer`     (default: `1`)  Start collecting history in the `m_start`th SCF iteration
-- `maxcond::Real`        (default: `1e6`)
-  Maximal condition number in Pcdiis matrix; a larger value triggers truncation of the
-  older entries in the Anderson history.
-- `errorfactor::Real`    (default: `1e5`): Drop iterates that to don satisfy
-  ```math
-      \|r(ψᵢ)\| < \text{errorfactor} minᵢ \|r(ψᵢ)\|
-  ```
-  where $r(ψ)$ denotes the commutator of the density matrix Ρ(ψ) and the Fock matrix F(ψ), 
-  and the norm is the Frobenius norm.
-- `reference`            (default: `nothing`) Reference for gauge fixing. Has to be provided 
-manually. If not provided, fall back on start guess. If this is also not provided, stop.
-"""
-struct ScfPcdiisSolver{Targs} <: ScfSolver
-    m_start::Int
-    pcdiis_kwargs::Targs
-end
-function ScfPcdiisSolver(; m_start::Integer=2, kwargs...)
-    m_start < 1 && throw(ArgumentError("m_start must be ≥ 1"))
-    ScfPcdiisSolver(m_start, NamedTuple(kwargs)) 
-end
-function (scf::ScfPcdiisSolver)(f, x0, info0; maxiter, damping)
-    basis = info0.basis
-    x = pack_gdensity(basis, split_gdensity(basis, x0)..., info0.ψ, info0.occupation)
-    info = info0
-
-    m_start        = scf.m_start
-    pcdiis_kwargs  = scf.pcdiis_kwargs
-    has_reference  = haskey(pcdiis_kwargs, :reference)
-
-    if has_reference
-        # Case 1: Reference provided. 
-    elseif !isnothing(info.ψ) && !isnothing(info.occupation)
-        # Case 2: no explicit ψ_ref, but a start guess was passed in. Use it as
-        # the reference — but only safe with an adaptive (growable) band algorithm.
-        @warn "Using the provided initial guess wavefunction as the Pcdiis " *
-              "reference. Ensure it has a sufficient number of bands!"
-        pcdiis_kwargs = merge(pcdiis_kwargs, (; reference=info.ψ))
-    else
-        # Case 3: nothing provided at all.
-        @error "Neither reference nor inital guess provided. Stop."
-    end
-
-    acceleration = Acceleration(PcdiisType(); pcdiis_kwargs...)
-
-    for i = 1:maxiter
-        (ρ, τ, _) = split_gdensity(basis, x)
-
-        fx, info = f(ρ, info) #this is not nice. Maybe solve like above with to/from_representation.
-        if info.converged || info.timedout
-            break
-        end
-        fx = pack_gdensity(basis, split_gdensity(basis, fx)..., info.ψ, info.occupation)
-        if i < m_start
-            @debug "Skipping Pcdiis acceleration in iteration $i"
-            x = fx
-        else
-            @debug "Using Pcdiis acceleration in iteration $i"
-            x = acceleration(x, fx, info)
-        end
-    end
-
-    (ρ, τ, _) = split_gdensity(basis, x)
-    (; fixpoint=pack_gdensity(basis, ρ, τ), info)
-end
-
 struct TauVwScaled; end
 function to_representation!(::TauVwScaled, basis, x)
     inv_τUEG(τ::AbstractArray) = (10/3 * (3π^2)^(-2/3) * max.(0, τ)) .^ (3/5)
@@ -263,3 +187,50 @@ end
 
 @deprecate scf_damping_solver(; damping=1.0)           ScfDampingSolver()
 @deprecate scf_anderson_solver(; m_start=1, kwargs...) ScfAndersonDensitySolver(; m_start, kwargs...)
+
+abstract type OrbitalSolver end
+
+struct OrbitalSimpleSolver <: OrbitalSolver end
+function (sco::OrbitalSimpleSolver)(f, x0, info0; maxiter)
+    x = x0
+    info = info0
+    for _ = 1:maxiter
+        x, info = f(x, info)
+        if info.converged || info.timedout
+            break
+        end
+    end
+    (; fixpoint=x, info)
+end
+
+struct OrbitalPcdiisSolver <: OrbitalSolver
+    m_start::Int
+    pcdiis_kwargs
+end
+function OrbitalPcdiisSolver(;m_start::Integer=1, kwargs...)
+    m_start < 1 && throw(ArgumentError("m_start must be ≥ 1"))
+    OrbitalPcdiisSolver(m_start, NamedTuple(kwargs)) 
+end
+function (sco::OrbitalPcdiisSolver)(f, x0, info0; maxiter)
+    x = x0
+    info = info0
+    m_start = sco.m_start
+
+    acceleration = Acceleration(PcdiisType(); sco.pcdiis_kwargs...)
+
+    for i = 1:maxiter
+        fx, info = f(x, info)
+        if info.converged || info.timedout
+            break
+        end
+        if i < m_start
+            @debug "Skipping Pcdiis acceleration in iteration $i"
+            x = fx
+        else
+            @debug "Using Pcdiis acceleration in iteration $i"
+            x = acceleration(x, fx, info)
+        end
+    end
+
+    (; fixpoint=x, info)
+end
