@@ -1,4 +1,4 @@
-# This file provides fixed-pointmping
+# This file provides fixed-point solvers that can be passed to `self_consistent_field`
 #
 # The callables subtyping `ScfSolver` must accept being called like
 # `fp_solver(f, x0, info0; maxiter, damping)`, where `f` is the fixed-point map.
