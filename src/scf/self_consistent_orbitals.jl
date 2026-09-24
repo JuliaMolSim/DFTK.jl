@@ -1,6 +1,3 @@
-include("scf_callbacks.jl")
-using Dates
-
 """
 Obtain new density ρ by diagonalizing `ham`. Follows the policy imposed by the `bands`
 data structure to determine and adjust the number of bands to be computed.
@@ -62,14 +59,13 @@ end
     miniter=0,
     maxiter=100,
     maxtime=Year(1),
-    solver=ScfPcdiisSolver(),
+    solver::OrbitalSolver=OrbitalSimpleSolver(),
     eigensolver=lobpcg_hyper,
-    diagtolalg=default_diagtolalg(basis; tol),
+    diagtolalg=default_diagtolalg(basis; tol=1e-6),
     nbandsalg::NbandsAlgorithm=AdaptiveBands(basis.model),
     fermialg::AbstractFermiAlgorithm=default_fermialg(basis.model),
     exxalg::ExxAlgorithm=AceExx(),
     callback=ScfDefaultCallback(; show_damping=false),
-    compute_consistent_energies=true,
     seed=nothing,
 ) where {T}
     if !isnothing(ψ)
@@ -83,35 +79,39 @@ end
     # linear combinations (such as mixing or Anderson); see split_gdensity and pack_gdensity in
     # densities.jl for details.
     #
-    function fixpoint_map(ψin, info)
-        (; occupation, eigenvalues, εF, n_iter, converged, timedout) = info
+    function fixpoint_map(x, info)
+        (;ψ, occupation) = x
+        (;eigenvalues, εF, n_iter, converged, timedout) = info
         n_iter += 1
 
-        energies, ham = energy_hamiltonian(basis, ψin, occupation;
-                                           exxalg, eigenvalues, εF, 
+        energies, ham = energy_hamiltonian(basis, ψ, occupation;
+                                           exxalg, eigenvalues, εF, ρ=compute_density(basis, ψ, occupation;nbandsalg.occupation_threshold), 
                                            nbandsalg.occupation_threshold)
 
         # Diagonalize `ham` to get the new state
-        nextstate = next_orbitals(ham, nbandsalg, fermialg; eigensolver, ψ=ψin, eigenvalues,
+        nextstate = next_orbitals(ham, nbandsalg, fermialg; eigensolver, ψ, eigenvalues,
                                   occupation, miniter=1,
                                   tol=determine_diagtol(diagtolalg, info))
 
-	(; ψ, eigenvalues, occupation, εF) = nextstate
+	    (;ψ, eigenvalues, occupation, εF) = nextstate
+        ρ = compute_density(basis, ψ, occupation; nbandsalg.occupation_threshold)
 
         # Update info with results gathered so far
-        info_next = (; ham, basis, converged, stage=:iterate, algorithm="SCF",
+        info_next = (; ham, basis, converged, ρ, stage=:iterate, algorithm="SCF",
                        n_iter, nbandsalg.occupation_threshold,
                        seed, runtime_ns=time_ns() - start_ns, nextstate...,
                        diagonalization=[nextstate.diagonalization])
 
         # Compute the energy of the new state
         (; energies) = energy(basis, ψ, occupation;
-                              exxalg, eigenvalues, εF,
+                              exxalg, eigenvalues, εF, ρ,
                               nbandsalg.occupation_threshold)
 
         history_Etot = vcat(info.history_Etot, energies.total)
+        history_Δρ   = vcat(info.history_Δρ, 1.0)
 
-        info_next = merge(info_next, (; energies, history_Etot,
+
+        info_next = merge(info_next, (; energies, history_Etot, history_Δρ,
                                         n_matvec=info.n_matvec + nextstate.n_matvec))
 
         converged = mpi_bcast(n_iter ≥ miniter && is_converged(info_next), basis.comm_kpts)
@@ -119,10 +119,10 @@ end
         info_next = merge(info_next, (; converged, timedout))
         callback(info_next)
 
-        ψ, info_next
+        (;ψ, occupation), info_next
     end
 
-    if isnothing(ψ) || isnothing(occupation) || isnothing(eigenvalues)
+    if isnothing(ψ) || isnothing(occupation)
         energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=guess_density(basis),
                                            exxalg, eigenvalues, 
                                            nbandsalg.occupation_threshold)
@@ -131,29 +131,29 @@ end
                                   occupation, miniter=1,
                                   tol=determine_diagtol(diagtolalg, info))
 
-	(; ψ, eigenvalues, occupation, εF) = nextstate
+	(;ψ, eigenvalues, occupation, εF) = nextstate
     end
 
-    info_init = (; basis, occupation, eigenvalues, εF,
-                   n_iter=0, n_matvec=0, timedout=false, converged=false,
-                   history_Etot=T[])
+    info_init = (;basis, eigenvalues, εF,
+                  n_iter=0, n_matvec=0, timedout=false, converged=false,
+                  history_Etot=T[], history_Δρ=T[])
 
     # Convergence is flagged by is_converged inside the fixpoint_map.
-    _, info = solver(fixpoint_map, ψ, info_init; maxiter)
+    _, info = solver(fixpoint_map, (;ψ, occupation), info_init; maxiter)
 
     # We do not use the return value of solver but rather the one that got updated by fixpoint_map
     # ψ is consistent with ρ, so we return that. We also perform a last energy computation
     # to return a correct variational energy and to build a Hamiltonian without any compression
     # applied to the exchange operator.
-    (; ψ, occupation, eigenvalues, εF, converged) = info
+    (;ψ,occupation,eigenvalues,εF,converged,ρ) = info
     energies, ham = energy_hamiltonian(basis, ψ, occupation; 
                                        exxalg=VanillaExx(),
-                                       eigenvalues, εF, 
+                                       eigenvalues, εF, ρ, 
                                        nbandsalg.occupation_threshold)
 
     # Callback is run one last time with final state to allow callback to clean up
     scfres = (; ham, basis, energies, converged, nbandsalg.occupation_threshold,
-                eigenvalues, occupation, εF,
+                eigenvalues, occupation, εF, ρ,
                 info.n_bands_converge, info.n_iter, info.n_matvec, ψ, info.diagonalization,
                 stage=:finalize, info.history_Etot,
                 info.timedout, is_converged, nbandsalg, fermialg, diagtolalg, solver,

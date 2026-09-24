@@ -186,7 +186,6 @@ function accelerate(acc::Acceleration{PcdiisType}, xₙ, fxₙ, info)
 		fxₙ.ψ[ik] = Matrix(qr(fxₙ.ψ[ik]).Q)
 	end
 
-    fxₙ.gdensity = compute_density(info.basis, fxₙ.ψ, fxₙ.occupation)
     fxₙ
 end
 
