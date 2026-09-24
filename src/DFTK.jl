@@ -114,6 +114,7 @@ export Hamiltonian
 export HamiltonianBlock
 export energy_hamiltonian  # Also energy ... but too generic, thus not exported
 export Kinetic
+export KineticDensityFunctional
 export ExactExchange
 export VanillaExx, AceExx
 export ExternalFromFourier
@@ -161,7 +162,7 @@ export diagonalize_all_kblocks
 include("eigen/preconditioners.jl")
 include("eigen/diag.jl")
 
-export model_atomic, model_DFT, model_HF
+export model_atomic, model_DFT, model_HF, model_OFDFT
 export LDA, PBE, PBEsol, SCAN, r2SCAN
 export HybridFunctional, PBE0, HSE
 include("standard_models.jl")
@@ -175,6 +176,7 @@ export ScfConvergenceEnergy, ScfConvergenceDensity, ScfConvergenceForce
 export ScfSaveCheckpoints, ScfDefaultCallback, AdaptiveDiagtol
 export ResponseOptions
 export direct_minimization
+export direct_minimization_density
 export newton
 export load_scfres, save_scfres
 include("scf/chi0models.jl")
@@ -183,6 +185,7 @@ include("scf/scf_solvers.jl")
 include("scf/nbands_algorithm.jl")
 include("scf/self_consistent_field.jl")
 include("scf/direct_minimization.jl")
+include("scf/direct_minimization_density.jl")
 include("scf/newton.jl")
 include("scf/scfres.jl")
 include("scf/anderson.jl")
