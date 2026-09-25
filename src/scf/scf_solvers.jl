@@ -13,7 +13,7 @@
 # with the default convention being that either of these flags leads to termination.
 #
 # The solver must return an object supporting res.fixpoint and res.info
-
+ 
 abstract type ScfSolver end
 
 """
@@ -37,7 +37,6 @@ function (scf::ScfDampingSolver)(f, x0, info0; maxiter, damping)
     end
     (; fixpoint=x, info)
 end
-
 
 @doc raw"""
 Create an anderson-accelerated SCF solver for the [`self_consistent_field`](@ref) solver.
@@ -69,17 +68,18 @@ struct ScfAndersonDensitySolver{Targs} <: ScfSolver
     m_start::Int
     anderson_kwargs::Targs
 end
+
 function ScfAndersonDensitySolver(; m_start::Integer=1, kwargs...)
     ScfAndersonDensitySolver(m_start, kwargs)
 end
 # For the show function, see below
 function (scf::ScfAndersonDensitySolver)(f, x0, info0; maxiter, damping)
     T = eltype(x0)
-    β = convert(T, damping)
+    α = convert(T, damping)
     x = x0
     ρ, _ = split_gdensity(info0.basis, x0)
     info = info0
-    acceleration = AndersonAcceleration(; scf.anderson_kwargs...)
+    acceleration = Acceleration(AndersonType(); α, scf.anderson_kwargs...)
     for i = 1:maxiter
         fx, info = f(x, info)
         if info.converged || info.timedout
@@ -89,12 +89,11 @@ function (scf::ScfAndersonDensitySolver)(f, x0, info0; maxiter, damping)
         fρ, fτ = split_gdensity(info.basis, fx)
         if i < scf.m_start
             @debug "Skipping Anderson acceleration in iteration $i"
-            ρ = @. ρ + β * (fρ - ρ)
+            ρ = @. ρ + α * (fρ - ρ)
         else
             @debug "Using Anderson acceleration in iteration $i"
             # Damp ρ and send it to anderson; τ is just patched through without any changes
-            residual_ρ = fρ - ρ
-            ρ = acceleration(ρ, β, residual_ρ)
+            ρ = acceleration(ρ, fρ, nothing) #this is a bit ugly, since info is not necessary here, but is needed for Pcdiis
         end
         x = pack_gdensity(info.basis, ρ, fτ)
     end
@@ -127,10 +126,10 @@ function ScfAndersonSolver(; representation=TauVwScaled(), m_start::Integer=1, k
 end
 function (scf::ScfAndersonSolver)(f, x0, info0; maxiter, damping)
     T = eltype(x0)
-    β = convert(T, damping)
+    α = convert(T, damping)
     x = x0
     info = info0
-    acceleration = AndersonAcceleration(; scf.anderson_kwargs...)
+    acceleration = Acceleration(AndersonType(); α, scf.anderson_kwargs...)
     for i = 1:maxiter
         fx, info = f(x, info)
         if info.converged || info.timedout
@@ -141,12 +140,11 @@ function (scf::ScfAndersonSolver)(f, x0, info0; maxiter, damping)
         fx = to_representation!(scf.representation, info.basis, fx)
         if i < scf.m_start
             @debug "Skipping Anderson acceleration in iteration $i"
-            x = @. x + β * (fx - x)
+            x = @. x + α * (fx - x)
         else
             @debug "Using Anderson acceleration in iteration $i"
             # Damp ρ and send it to anderson; τ is just patched through without any changes
-            residual = fx - x
-            x = acceleration(x, β, residual)
+            x = acceleration(x, fx, nothing) #this is a bit ugly, since info is not necessary here, but is needed for Pcdiis
         end
         x = from_representation!(scf.representation, info.basis, x)
     end
@@ -178,13 +176,59 @@ function Base.show(io::IO, scf::Union{ScfAndersonSolver,ScfAndersonDensitySolver
         print(io, "ScfAndersonDensitySolver")
     end
     print(io, "(; m_start=$(scf.m_start)")
-    anderson = AndersonAcceleration(; scf.anderson_kwargs...)
-    for arg in (:m, :maxcond, :errorfactor)
-        print(io, ", $arg=$(getproperty(anderson, arg))")
+    anderson = Acceleration(AndersonType(); scf.anderson_kwargs...)
+    for arg in (:depth, :maxcond, :errorfactor)
+        print(io, ", $arg=$(getproperty(anderson.memory, arg))")
     end
     print(io, ")")
 end
 
-
 @deprecate scf_damping_solver(; damping=1.0)           ScfDampingSolver()
 @deprecate scf_anderson_solver(; m_start=1, kwargs...) ScfAndersonDensitySolver(; m_start, kwargs...)
+
+abstract type OrbitalSolver end
+
+struct OrbitalSimpleSolver <: OrbitalSolver end
+function (sco::OrbitalSimpleSolver)(f, x0, info0; maxiter)
+    x = x0
+    info = info0
+    for _ = 1:maxiter
+        x, info = f(x, info)
+        if info.converged || info.timedout
+            break
+        end
+    end
+    (; fixpoint=x, info)
+end
+
+struct OrbitalPcdiisSolver <: OrbitalSolver
+    m_start::Int
+    pcdiis_kwargs
+end
+function OrbitalPcdiisSolver(;m_start::Integer=1, kwargs...)
+    m_start < 1 && throw(ArgumentError("m_start must be ≥ 1"))
+    OrbitalPcdiisSolver(m_start, NamedTuple(kwargs)) 
+end
+function (sco::OrbitalPcdiisSolver)(f, x0, info0; maxiter)
+    x = x0
+    info = info0
+    m_start = sco.m_start
+
+    acceleration = Acceleration(PcdiisType(); sco.pcdiis_kwargs...)
+
+    for i = 1:maxiter
+        fx, info = f(x, info)
+        if info.converged || info.timedout
+            break
+        end
+        if i < m_start
+            @debug "Skipping Pcdiis acceleration in iteration $i"
+            x = fx
+        else
+            @debug "Using Pcdiis acceleration in iteration $i"
+            x = acceleration(x, fx, info)
+        end
+    end
+
+    (; fixpoint=x, info)
+end
