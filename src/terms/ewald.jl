@@ -92,12 +92,6 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
     recip_lattice = compute_recip_lattice(lattice)
     Glims = estimate_integer_lattice_bounds(recip_lattice, sqrt(max_exp_arg) * 2η)
 
-    # In the real-space term we have erfc(η ||A(rj - rk - R)||),
-    # where A is the real-space lattice, rj and rk are atomic positions and
-    # thus use the bound  ||A(rj - rk - R)|| * η ≤ max_erfc_arg
-    poslims = [maximum(rj[i] - rk[i] for rj in positions for rk in positions) for i = 1:3]
-    Rlims = estimate_integer_lattice_bounds(lattice, max_erfc_arg / η, poslims)
-
     #
     # Reciprocal space sum
     #
@@ -109,16 +103,18 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
         G = Vec3(G1, G2, G3)
         iszero(G) && continue
         Gsq = norm2(recip_lattice * G)
+        Gsq > 4η^2 * max_exp_arg && continue
+        factor = exp(-Gsq / 4η^2) / Gsq
         cos_strucfac = sum(Z * cos2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
         sin_strucfac = sum(Z * sin2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
         sum_strucfac = cos_strucfac^2 + sin_strucfac^2
-        sum_recip += sum_strucfac * exp(-Gsq / 4η^2) / Gsq
+        sum_recip += sum_strucfac * factor
         for (ir, r) in enumerate(positions)
             Z = charges[ir]
             dc = -Z*2S(π)*G*sin2pi(dot(r, G))
             ds = +Z*2S(π)*G*cos2pi(dot(r, G))
             dsum = cos_strucfac*dc + sin_strucfac*ds
-            forces_recip[ir] -= dsum * exp(-Gsq / 4η^2)/Gsq
+            forces_recip[ir] -= dsum * factor
         end
     end
 
@@ -133,34 +129,62 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
     sum_real::S = -2η / sqrt(S(π)) * sum(Z -> Z^2, charges)
     forces_real = zeros(Vec3{S}, length(positions))
 
-    for R1 in -Rlims[1]:Rlims[1], R2 in -Rlims[2]:Rlims[2], R3 in -Rlims[3]:Rlims[3]
-        R = Vec3(R1, R2, R3)
-        for i = 1:length(positions), j = 1:length(positions)
-            # Avoid self-interaction
-            iszero(R) && i == j && continue
-            Zi = charges[i]
-            Zj = charges[j]
-            ti = positions[i]
-            tj = positions[j] + R
+    radius = max_erfc_arg / η
+    inv_lattice_t = compute_inverse_lattice(lattice')
+    # ||A(d - R)|| ≤ radius implies |d[k] - R[k]| ≤ ||A⁻ᵀ eₖ|| radius.
+    image_scales = Vec3(ntuple(k -> norm(inv_lattice_t[:, k]), 3))
+    cart_positions = [Vec3(lattice * r) for r in positions]
+    cart_displacements = isnothing(ph_disp) ? nothing : [Vec3(lattice * u) for u in ph_disp]
+    a1, a2, a3 = Vec3.(eachcol(lattice))
+    derivative_factor = -2η / sqrt(S(π))
+
+    for i in eachindex(positions)
+        # Accumulate per atom to limit roundoff in large cells.
+        sum_real_i = zero(S)
+        force_cart = zero(Vec3{S})
+        for j in eachindex(positions)
+            d = Vec3(positions[i] - positions[j])
+            image_bounds = radius * image_scales
             if !isnothing(ph_disp)
-                ti += ph_disp[i]  # * cis2pi(-dot(q, zeros(3))) === 1
-                                  #  as we use the forces at the nuclei in the unit cell
-                tj += ph_disp[j] * cis2pi(-dot(q, R))
+                # Include finite displacements, also allowing for the imaginary part of
+                # the complex-analytic distance used in the phonon calculation.
+                # The ℓ¹ bound avoids norm's zero-vector scaling for complex duals.
+                displacement_bound = sum(abs, cart_displacements[i]) +
+                                     sum(abs, cart_displacements[j])
+                image_bounds += displacement_bound * image_scales
+                image_bounds += abs.(ph_disp[i]) + abs.(ph_disp[j])
             end
-            Δr = lattice * (ti .- tj)
-            dist = norm_cplx(Δr)
-            energy_contribution = Zi * Zj * erfc(η * dist) / dist
-            sum_real += energy_contribution
-            # `dE_ddist` is the derivative of `energy_contribution` w.r.t. `dist`
-            # dE_ddist = Zi * Zj * η * (-2exp(-(η * dist)^2) / sqrt(S(π)))
-            dE_ddist = ForwardDiff.derivative(zero(T)) do ε
-                Zi * Zj * erfc(η * (dist + ε))
+            Rmin = ceil.(Int, d - image_bounds)
+            Rmax = floor.(Int, d + image_bounds)
+            Δr_pair = cart_positions[i] - cart_positions[j]
+            charge_product = charges[i] * charges[j]
+            for R1 = Rmin[1]:Rmax[1]
+                Δr1 = Δr_pair - R1 * a1
+                for R2 = Rmin[2]:Rmax[2]
+                    Δr12 = Δr1 - R2 * a2
+                    for R3 = Rmin[3]:Rmax[3]
+                        R = Vec3(R1, R2, R3)
+                        iszero(R) && i == j && continue
+                        Δr = Δr12 - R3 * a3
+                        if !isnothing(ph_disp)
+                            Δr += cart_displacements[i]
+                            Δr -= cart_displacements[j] * cis2pi(-dot(q, R))
+                        end
+                        dist_sq = sum(x -> x * x, Δr)
+                        real(dist_sq) > radius^2 && continue
+                        dist = sqrt(dist_sq)
+                        energy_contribution = charge_product * erfc(η * dist) / dist
+                        sum_real_i += energy_contribution
+                        # Derivative of charge_product * erfc(η * dist) / dist.
+                        dE_ddist = charge_product * derivative_factor * exp(-η^2 * dist_sq)
+                        dE_ddist = (dE_ddist - energy_contribution) / dist
+                        force_cart -= (dE_ddist / dist) * Δr
+                    end
+                end
             end
-            dE_ddist -= energy_contribution
-            dE_ddist /= dist
-            dE_dti = lattice' * ((dE_ddist / dist) * Δr)
-            forces_real[i] -= dE_dti
         end
+        sum_real += sum_real_i
+        forces_real[i] = lattice' * force_cart
     end
 
     (; energy=(sum_recip + sum_real) / 2,  # divide by 2 (because of double counting)
@@ -169,7 +193,7 @@ end
 # For convenience
 function energy_forces_ewald(lattice::AbstractArray{T}, charges::AbstractArray,
                              positions; kwargs...) where {T}
-    energy_forces_ewald(T, lattice, charges, positions, zero(Vec3{T}), nothing)
+    energy_forces_ewald(T, lattice, charges, positions, zero(Vec3{T}), nothing; kwargs...)
 end
 function energy_forces_ewald(lattice::AbstractArray{T}, charges, positions, q,
                              ph_disp; kwargs...) where{T}
