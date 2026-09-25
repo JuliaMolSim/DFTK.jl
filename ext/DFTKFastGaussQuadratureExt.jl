@@ -1,13 +1,14 @@
 module DFTKFastGaussQuadratureExt
 using FastGaussQuadrature
 using DFTK
-using DFTK: to_cpu, eval_kernel_fourier, VoxelAveraged, _kgrid_size
+using DFTK: to_cpu, to_device, norm2, eval_kernel_fourier, VoxelAverage, _kgrid_size
 using LinearAlgebra
 
 
-@views function DFTK._compute_kernel_fourier(kernel, regularization::VoxelAveraged,
-                                             basis::PlaneWaveBasis{T}, q) where {T}
-    model = basis.model
+@views function DFTK.eval_kernel_fourier(voxel_average::VoxelAverage,
+                                         basis::PlaneWaveBasis{T}, q::Vec3) where {T}
+    model  = basis.model
+    kernel = voxel_average.inner_kernel
 
     # Size of the k-point grid (inferred from the momentum transfers, such that shifted
     # and explicit k-point grids work as well)
@@ -18,7 +19,7 @@ using LinearAlgebra
     voxel_vol = abs(det(voxel_basis))
     
     # Get Gauss-Legendre nodes and weights and scale from [-1, 1] to [-0.5, 0.5]
-    nodes_std, weights_std = gausslegendre(regularization.n_quadrature_points)
+    nodes_std, weights_std = gausslegendre(voxel_average.n_quadrature_points)
     nodes = T.(nodes_std ./ 2)
     weights = T.(weights_std ./ 2)
     
@@ -26,7 +27,7 @@ using LinearAlgebra
     q_locals = vec([voxel_basis * Vec3(x, y, z) for x in nodes, y in nodes, z in nodes])
     w_locals = vec([wx * wy * wz for wx in weights, wy in weights, wz in weights])
 
-    # Kernel on the full FFT cube (see compute_kernel_fourier); linear index 1 is G=0
+    # Kernel on the full FFT cube (see eval_kernel_fourier); linear index 1 is G=0
     kernel_fourier = zeros(T, basis.fft_size)
     for (iG, G) in enumerate(to_cpu(G_vectors(basis)))
         G_cart = model.recip_lattice * (G+q)
@@ -37,7 +38,7 @@ using LinearAlgebra
             # === At Singularity (G+q=0) use surface reduction method ===
             
             # We only do that for the 4π/(G+q)^2 kernel, hence the quadrature below
-            # covers the rest if kernel_fourier is different from Coulomb().
+            # covers the rest if kernel is different from BareCoulomb().
             
             # Transforms volume integral ∫ 1/G^2 dV to surface integral Σ h * ∫ 1/G^2 dS
             integral = zero(T)
@@ -81,16 +82,15 @@ using LinearAlgebra
             integral = zero(T)
             for i in 1:length(q_locals)
                 G_total = G_cart + q_locals[i]
-                Gsq = dot(G_total, G_total)
 
                 if found_singularity
                     # switch temporarily to BigFloat to avoid catastrophic cancellation
-                    Gsq_big = BigFloat(Gsq)
-                    val_big = eval_kernel_fourier(kernel, Gsq_big)
-                    val_big -= 4π/Gsq_big
+                    G_total_big = BigFloat.(G_total)
+                    val_big = eval_kernel_fourier(kernel, G_total_big)
+                    val_big -= 4big(π) / norm2(G_total_big)
                     val = T(val_big)
                 else
-                    val = eval_kernel_fourier(kernel, Gsq)
+                    val = eval_kernel_fourier(kernel, G_total)
                 end
 
                 integral += w_locals[i] * val
@@ -100,12 +100,11 @@ using LinearAlgebra
             # For G vectors far from the origin, the interaction kernel is practically flat
             # over the voxel. Bypassing the 1728-point quadrature and using the exact
             # midpoint saves enormous CPU time.
-            Gsq = dot(G_cart, G_cart)
-            kernel_fourier[iG] += eval_kernel_fourier(kernel, Gsq)
+            kernel_fourier[iG] += eval_kernel_fourier(kernel, G_cart)
         end
     end
-    
-    kernel_fourier
+
+    to_device(basis.architecture, kernel_fourier)
 end
 
 end

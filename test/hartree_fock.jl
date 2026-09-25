@@ -42,7 +42,7 @@
     # Then run Hartree-Fock
     model = model_HF(lattice, atoms, positions;
                      temperature=0.001, smearing=DFTK.Smearing.Gaussian(),
-                     exx_kernel=Coulomb(ReplaceSingularity(0.0)))
+                     exx_kernel=ReplaceSingularity(BareCoulomb(), 0.0))
     basis = PlaneWaveBasis(model; Ecut=20, kgrid=[1, 1, 1])
 
     run_scf_and_compare(Float64, basis, ref_hf, ref_etot; 
@@ -67,7 +67,7 @@ end
     
     # We use a temperature to ensure unique occupations and better convergence
     model = model_HF(silicon.lattice, [Si, Si], silicon.positions;
-                     exx_kernel=Coulomb(ProbeCharge()),
+                     exx_kernel=ProbeCharge(BareCoulomb()),
                      temperature=1e-3, smearing=DFTK.Smearing.Gaussian())
     basis = PlaneWaveBasis(model; Ecut, kgrid)
 
@@ -102,7 +102,7 @@ end
 
     function make_basis(spin_polarization)
         model = Model(silicon.lattice, [Si, Si], silicon.positions; spin_polarization,
-                      terms=[ExactExchange(; kernel=Coulomb(ProbeCharge()))])
+                      terms=[ExactExchange(; kernel=ProbeCharge(BareCoulomb()))])
         PlaneWaveBasis(model; Ecut, kgrid)
     end
     basis     = make_basis(:none)
@@ -156,7 +156,7 @@ end
     model_pbe = model_DFT(system; pseudopotentials, magnetic_moments, temperature=0.01,
                           functionals=PBE())
     model_hf  = model_HF(system; pseudopotentials, magnetic_moments, temperature=0.01,
-                         exx_kernel=Coulomb(ProbeCharge()))
+                         exx_kernel=ProbeCharge(BareCoulomb()))
     basis_pbe = PlaneWaveBasis(model_pbe; Ecut, kgrid)
     basis_hf  = PlaneWaveBasis(model_hf;  Ecut, kgrid)
 
@@ -257,7 +257,7 @@ end
     scfres_pbe = self_consistent_field(basis; ρ, tol=1e-3)
     
     model  = model_HF(system; pseudopotentials, magnetic_moments, temperature=0.01,
-                      exx_kernel=Coulomb(ProbeCharge()))
+                      exx_kernel=ProbeCharge(BareCoulomb()))
     basis  = PlaneWaveBasis(model; Ecut, kgrid=[1, 1, 1])
 
     RunSCF.run_scf_and_compare(Float64, basis, ref_hf, ref_etot;

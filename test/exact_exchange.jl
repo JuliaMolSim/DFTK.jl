@@ -5,7 +5,7 @@
 
     function test_acexx_consistency(; kgrid=[1, 2, 3], kshift=[0, 1, 0]/2, Ecut=10,
                                       n_empty=3, atol=1e-8, spin_polarization=:none,
-                                      kernel=Coulomb(ProbeCharge()))
+                                      kernel=ProbeCharge(BareCoulomb()))
         Si = ElementPsp(14, load_psp(silicon.psp_upf))
         model = Model(silicon.lattice, [Si, Si], silicon.positions;
                       spin_polarization, symmetries=true, terms=[ExactExchange(; kernel)])
@@ -37,8 +37,8 @@
 
     # The last kernel has a negative G=0 component, which makes the exchange operator
     # indefinite. ACE has to handle this as well.
-    for kernel in (Coulomb(ProbeCharge()), ShortRangeCoulomb(), SphericallyTruncatedCoulomb(),
-                   Coulomb(ReplaceSingularity(-100.0)))
+    for kernel in (ProbeCharge(BareCoulomb()), ShortRangeCoulomb(),
+                   SphericallyTruncatedCoulomb(), ReplaceSingularity(BareCoulomb(), -100.0))
         test_acexx_consistency(; kgrid=(1, 1, 1), kshift=(0, 0, 0), kernel)
         test_acexx_consistency(; kgrid=(1, 1, 1), kshift=(0, 0, 0), kernel, spin_polarization=:collinear)
         test_acexx_consistency(; kgrid=(2, 1, 1), kshift=(0, 0, 0), kernel)
@@ -65,7 +65,7 @@ end
     centers = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.0, 0.5, 0.0], [0.0, 0.0, 0.5]]
     function exchange_energy(kgrid)
         model = Model(silicon.lattice, [Si, Si], silicon.positions;
-                      terms=[ExactExchange(; kernel=Coulomb(ProbeCharge()))])
+                      terms=[ExactExchange(; kernel=ProbeCharge(BareCoulomb()))])
         basis = PlaneWaveBasis(model; Ecut=5, kgrid)
         ψ = map(basis.kpoints) do kpt
             Gpk = Gplusk_vectors_cart(basis, kpt)
@@ -98,7 +98,7 @@ end
     Si = ElementPsp(silicon.atnum, load_psp(silicon.psp_upf))
     kgrid   = [2, 1, 2]
     n_bands = 4
-    for kernel in (Coulomb(ProbeCharge()), Coulomb(VoxelAveraged()),
+    for kernel in (ProbeCharge(BareCoulomb()), VoxelAverage(BareCoulomb()),
                    SphericallyTruncatedCoulomb(), WignerSeitzTruncatedCoulomb())
         model = Model(silicon.lattice, [Si, Si], silicon.positions;
                       terms=[ExactExchange(; kernel)])

@@ -7,9 +7,9 @@ Term for (possibly screened) Hartree-Fock exact exchange energy of the form
 -1/2 ∑_{nm} f_n f_m ∫∫ ψ_n^*(r)ψ_m^*(r') kernel(r, r')  ψ_n(r')ψ_m(r) dr dr'
 ```
 where the `kernel` keyword argument is an [`InteractionKernel`](@ref) , typically
-- the untruncated, unscreened [`Coulomb`](@ref) kernel `G(r, r') = 1/|r - r'|` for
-  Hartree-Fock exact exchange, by default some form of regularisation is applied,
-  see e.g. [`ProbeCharge`](@ref).
+- the untruncated, unscreened [`BareCoulomb`](@ref) kernel `G(r, r') = 1/|r - r'|` for
+  Hartree-Fock exact exchange, wrapped in a singularity treatment, by default
+  [`ProbeCharge`](@ref).
 - [`SphericallyTruncatedCoulomb`](@ref) and 
 - [`WignerSeitzTruncatedCoulomb`](@ref) for a Coulomb kernels with truncated range, 
   that converge faster with the size of the Born-von Karman cell.
@@ -18,7 +18,7 @@ where the `kernel` keyword argument is an [`InteractionKernel`](@ref) , typicall
 """
 @kwdef struct ExactExchange
     scaling_factor::Real = 1.0
-    kernel = Coulomb()
+    kernel = ProbeCharge(BareCoulomb())
 end
 (ex::ExactExchange)(basis) = TermExactExchange(basis, ex.scaling_factor, ex.kernel)
 breaks_symmetries(::ExactExchange) = true  # TODO: make ExactExchange fit for symmetries 
@@ -41,9 +41,13 @@ function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, kernel) whe
     for kpt in basis.kpoints, q in q_points
         find_equivalent_kpt(basis, kpt.coordinate - q, kpt.spin)
     end
-    interaction_kernels = fac .* compute_kernel_fourier(kernel, basis, q_points)
+    interaction_kernels = eval_kernel_fourier(kernel, basis, q_points)
+    if !all(kernel_fourier -> all(isfinite, kernel_fourier), interaction_kernels)
+        error("Interaction kernel $(nameof(typeof(kernel))) is singular at G+q=0. Wrap it " *
+              "in a singularity treatment, e.g. ProbeCharge($(nameof(typeof(kernel)))()).")
+    end
 
-    TermExactExchange(fac, interaction_kernels, q_points)
+    TermExactExchange(fac, fac .* interaction_kernels, q_points)
 end
 
 

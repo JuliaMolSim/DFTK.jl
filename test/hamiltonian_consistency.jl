@@ -170,7 +170,7 @@ end
         # TODO: AD of energy( ) function not yet supported for ExactExchange
         exxad = (; test_energy_ad=false)
         for exxalg in (VanillaExx(), AceExx())
-            test_consistency_term(ExactExchange(; kernel=Coulomb(ProbeCharge()));
+            test_consistency_term(ExactExchange(; kernel=ProbeCharge(BareCoulomb()));
                                   exxad..., exxalg, kgrid=(1, 1, 1), kshift=(0, 0, 0))
         end
         test_consistency_term(ExactExchange(); spin_polarization=:collinear,
