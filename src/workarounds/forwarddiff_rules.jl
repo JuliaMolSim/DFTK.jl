@@ -15,6 +15,9 @@ ForwardDiff.npartials(::Type{<:Complex{<:Dual{T,V,N}}}) where {T,V,N} = N
 ForwardDiff.tagtype(x::Complex{<:Dual{T,V,N}}) where {T,V,N} = T
 ForwardDiff.tagtype(::Type{<:Complex{<:Dual{T,V,N}}}) where {T,V,N} = T
 
+ForwardDiff.valtype(x::Complex{<:Dual{T,V,N}}) where {T,V,N} = Complex{V}
+ForwardDiff.valtype(::Type{<:Complex{<:Dual{T,V,N}}}) where {T,V,N} = Complex{V}
+
 AbstractFFTs.complexfloat(x::AbstractArray{<:Dual}) = AbstractFFTs.complexfloat.(x)
 AbstractFFTs.complexfloat(d::Dual{T,V,N}) where {T,V,N} = convert(Dual{T,float(V),N}, d) + 0im
 
@@ -50,6 +53,99 @@ function dual_fft_mul(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:Dual{Tg
 end
 function Base.:*(p::AbstractFFTs.Plan, x::AbstractArray{<:Complex{<:Dual{Tg}}}) where {Tg}
     dual_fft_mul(p, x)
+end
+
+# Simple BLAS-capable matmul for Dual-valued matrices.
+# We extract the value and each partial into plain arrays, call ordinary
+# (BLAS-backed) matmul on those, and rebuild the Dual result.
+
+# Performance workaround for GEMM of matrices with Dual/Complex{Dual} element types, ensuring
+# that the matrix multiplication is dispatched to BLAS instead of the generic Julia implementation.
+function dual_matrix_value_and_partials(A::AbstractMatrix{<:Union{Dual, Complex{<:Dual}}}, N::Int)
+    (ForwardDiff.value.(A), ntuple(p -> ForwardDiff.partials.(A, p), N))
+end
+function dual_matrix_value_and_partials(A::AbstractMatrix, N::Int)
+    (A, ntuple(_ -> nothing, N))
+end
+
+# Overload of 5-argument mul! resulting in a matrix of Dual/Complex{Dual}. Values of C are the
+# product of the values of A and B. Partials of C are the cross product of values and partials
+# of A and B. This break down results in GEMM of matrices of BlasFloat.
+function LinearAlgebra.mul!(C::AbstractMatrix{S}, A::AbstractMatrix, B::AbstractMatrix,
+                            α::Number, β::Number) where {T,V,N,
+                            S<:Union{Dual{T,V,N}, Complex{Dual{T,V,N}}}}
+    A_val, A_parts = dual_matrix_value_and_partials(A, N)
+    B_val, B_parts = dual_matrix_value_and_partials(B, N)
+
+    # Value type underlying the Dual element (V for Dual, Complex{V} for Complex{Dual}).
+    VT = ForwardDiff.valtype(S)
+
+    # Value part: C_val = α * A_val * B_val + β * C_val
+    C_val = similar(C, VT)
+    if iszero(β)
+        fill!(C_val, zero(VT))
+    else
+        C_val .= ForwardDiff.value.(C)
+    end
+    mul!(C_val, A_val, B_val, α, β)
+
+    # Partial parts, i.e. cross products of A and B values and partials
+    C_parts = ntuple(N) do p
+        Cp = similar(C, VT)
+        if iszero(β)
+            fill!(Cp, zero(VT))
+        else
+            Cp .= ForwardDiff.partials.(C, p)
+        end
+        Ap = A_parts[p]
+        Bp = B_parts[p]
+        if isnothing(Ap) && isnothing(Bp)
+            # Cp already contains β*∂C_p
+        elseif isnothing(Ap)
+            mul!(Cp, A_val, Bp, α, β)
+        elseif isnothing(Bp)
+            mul!(Cp, Ap, B_val, α, β)
+        else
+            mul!(Cp, Ap, B_val, α, β)
+            mul!(Cp, A_val, Bp, α, true)
+        end
+        Cp
+    end
+
+    # Reconstruct C as matrix of Dual/Complex{Dual} from value and partial arrays.
+    if S <: Dual
+        map!((val, parts...) -> Dual{T,V,N}(val, ForwardDiff.Partials{N,V}(parts)),
+             C, C_val, C_parts...)
+    else
+        map!((val, parts...) -> Complex(
+                 Dual{T,V,N}(real(val), ForwardDiff.Partials{N,V}(ntuple(i -> real(parts[i]), N))),
+                 Dual{T,V,N}(imag(val), ForwardDiff.Partials{N,V}(ntuple(i -> imag(parts[i]), N)))),
+             C, C_val, C_parts...)
+    end
+    C
+end
+
+# Explicit 3-argument mul! and Base.:* overloads calling the above
+function LinearAlgebra.mul!(C::AbstractMatrix{S}, A::AbstractMatrix, B::AbstractMatrix) where {T,V,N,
+                            S<:Union{Dual{T,V,N}, Complex{Dual{T,V,N}}}}
+    mul!(C, A, B, true, false)
+end
+
+function Base.:*(A::AbstractMatrix{<:Union{Dual, Complex{<:Dual}}}, B::AbstractMatrix)
+    S = promote_type(eltype(A), eltype(B))
+    C = similar(A, S, size(A,1), size(B,2))
+    mul!(C, A, B)
+end
+function Base.:*(A::AbstractMatrix, B::AbstractMatrix{<:Union{Dual, Complex{<:Dual}}})
+    S = promote_type(eltype(A), eltype(B))
+    C = similar(A, S, size(A,1), size(B,2))
+    mul!(C, A, B)
+end
+function Base.:*(A::AbstractMatrix{<:Union{Dual, Complex{<:Dual}}},
+                 B::AbstractMatrix{<:Union{Dual, Complex{<:Dual}}})
+    S = promote_type(eltype(A), eltype(B))
+    C = similar(A, S, size(A,1), size(B,2))
+    mul!(C, A, B)
 end
 
 function build_fft_plans!(tmp::AbstractArray{Complex{T}}) where {T<:Dual}
