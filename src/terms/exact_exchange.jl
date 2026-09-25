@@ -228,13 +228,12 @@ function compress_exchange(Kk::ExchangeOperator, ψk::AbstractMatrix,
         fft!(Wnk, basis, kpt, Wnk_real_tmp)
     end
 
-    # The compressed operator is Wk Mk⁻¹ Wk'. Mk is Hermitian, but depending on the kernel
-    # possibly indefinite and nearly singular. We therefore use its pseudo-inverse, 
-    # dropping eigenvalues below the tolerance.
+    # The compressed operator is Wk Mk⁺ Wk'. Mk is Hermitian, but depending on the kernel
+    # possibly indefinite and nearly singular, so we use its pseudo-inverse. For a Hermitian
+    # matrix pinv works via an eigendecomposition and drops eigenvalues below its default
+    # tolerance, size(Mk, 1) * eps relative to the largest one.
     Mk = Hermitian(ψk' * Wk)
-    λ, U = eigen(Mk)
-    cutoff = size(Mk, 1) * eps(real(T)) * maximum(abs, λ)
-    Dk = Diagonal(map(λi -> abs(λi) > cutoff ? inv(λi) : zero(λi), λ))
-    opk = NonlocalOperator(basis, kpt, Wk, U*Dk*U')  
-    (; opk, Mk, Dk, Wk)
+    Mk_pinv = pinv(Mk)
+    opk = NonlocalOperator(basis, kpt, Wk, Mk_pinv)
+    (; opk, Mk, Mk_pinv, Wk)
 end
