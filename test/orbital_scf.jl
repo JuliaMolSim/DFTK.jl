@@ -1,4 +1,4 @@
-@testitem "Testing HF/Hybrids using self_consistent_orbitals()" setup=[TestCases] begin
+@testitem "Testing HF/Hybrids using self_consistent_orbitals()" begin
 using DFTK
 using LinearAlgebra
 using PseudoPotentialData
@@ -13,7 +13,7 @@ function subspace_difference(scfres1, scfres2)
         ovlp = scfres1.ψ[i][:,1:nspace]' * scfres2.ψ[i][:,1:nspace]
         Δρ += abs((nspace-norm(ovlp)^2)/nspace)
     end
-    Δρ = Δρ / length(ψ)
+    Δρ = Δρ / length(scfres1.ψ)
     Δρ
 end
 
@@ -29,7 +29,7 @@ function test_hybrid(testcase; Ecut=18, kgrid=[1,1,1], functionals = PBE0())
     scfres_lda = self_consistent_field(basis_lda)
     scfres_ref = self_consistent_field(basis_lda; maxiter=1, ρ=scfres_lda.ρ, nbandsalg=FixedBands(;n_bands_converge=n_bands))
 
-    scfres = self_consistent_filed(basis_hf; 
+    scfres = self_consistent_field(basis_hf; 
                                    tol         = 1e-8,
                                    maxiter     = 50,
                                    ρ           = scfres_lda.ρ,
@@ -66,7 +66,7 @@ function test_hf(testcase; Ecut=18, kgrid=[1,1,1])
     scfres_lda = self_consistent_field(basis_lda)
     scfres_ref = self_consistent_field(basis_lda; maxiter=1, ρ=scfres_lda.ρ, nbandsalg=FixedBands(;n_bands_converge=n_bands))
 
-    scfres = self_consistent_filed(basis_hf; 
+    scfres = self_consistent_field(basis_hf; 
                                    tol         = 1e-8,
                                    maxiter     = 50,
                                    ρ           = scfres_lda.ρ,
