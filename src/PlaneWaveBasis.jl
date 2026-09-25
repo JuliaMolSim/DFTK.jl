@@ -654,6 +654,29 @@ function scatter_kpts_block(basis::PlaneWaveBasis, data::Union{Nothing,AbstractA
 end
 
 """
+Computes the unique momentum transfers q = k - k' (in reduced coordinates) for a given basis.
+"""
+function build_qpoints(basis::PlaneWaveBasis{T}; tol=1e-12) where {T}
+    # Since spin-polarization is encoded as additional k-points, we filter only unique
+    # k-coordinates here to avoid confusion with spin and k-points.
+    spatial_k = unique(k -> normalize_kpoint_coordinate(k.coordinate), basis.kpoints)
+
+    # Find unique q-coordinates
+    q_coords_all = [
+        normalize_kpoint_coordinate(k1.coordinate .- k2.coordinate)
+        for k1 in spatial_k, k2 in spatial_k
+    ]
+    # Filter unique q-coordinates (modulo reciprocal lattice vectors) using tolerance
+    q_points = Vec3{T}[]
+    for q in vec(q_coords_all)
+        if !any(qp -> is_approx_integer(q - qp; atol=tol), q_points)
+            push!(q_points, q)
+        end
+    end
+    q_points
+end
+
+"""
 Forward FFT calls to the PlaneWaveBasis fft_grid field
 """
 ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis, f_fourier::AbstractArray3) = 
