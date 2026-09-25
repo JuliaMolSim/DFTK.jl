@@ -319,8 +319,10 @@ end
         (;eigenvalues, εF, n_iter, converged, timedout) = info
         n_iter += 1
 
-        ψin = deepcopy(ψ)
-        ρin, τin = split_gdensity(basis, compute_density(basis,ψin,occupation;nbandsalg.occupation_threshold))
+        ψin = ψ
+        ρin = compute_density(basis,ψin,occupation;nbandsalg.occupation_threshold)
+        τin = compute_kinetic_energy_density(basis,ψin,occupation)
+
         energies, ham = energy_hamiltonian(basis, ψin, occupation;
                                            exxalg, eigenvalues, εF, ρ=ρin, τ=τin, 
                                            nbandsalg.occupation_threshold)
@@ -346,8 +348,8 @@ end
         #use difference of subspaces rather than the difference of densities here
         Δρ = 0
         for i in length(ψ)
-            nspace = Int(sum(occupation[1])/2)
-            ovlp = ψ[1][:,1:nspace]' * ψin[1][:,1:nspace]
+            nspace = Int(sum(occupation[i])/2)
+            ovlp = ψ[i][:,1:nspace]' * ψin[i][:,1:nspace]
             Δρ += sqrt(abs((nspace-norm(ovlp)^2)/nspace))
         end
         Δρ = Δρ / length(ψ)
@@ -392,7 +394,7 @@ end
     (;ψ,occupation,eigenvalues,εF,converged,ρ,τ) = info
     energies, ham = energy_hamiltonian(basis, ψ, occupation; 
                                        exxalg=VanillaExx(),
-                                       eigenvalues, εF, ρ, 
+                                       eigenvalues, εF, ρ, τ, 
                                        nbandsalg.occupation_threshold)
 
     # Callback is run one last time with final state to allow callback to clean up
