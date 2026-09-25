@@ -183,8 +183,6 @@ function Base.show(io::IO, scf::Union{ScfAndersonSolver,ScfAndersonDensitySolver
     print(io, ")")
 end
 
-#TODO Base.show(ScfPcdiisSolver)
-
 @deprecate scf_damping_solver(; damping=1.0)           ScfDampingSolver()
 @deprecate scf_anderson_solver(; m_start=1, kwargs...) ScfAndersonDensitySolver(; m_start, kwargs...)
 
