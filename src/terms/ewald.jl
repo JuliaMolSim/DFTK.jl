@@ -104,17 +104,16 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
         iszero(G) && continue
         Gsq = norm2(recip_lattice * G)
         Gsq > 4η^2 * max_exp_arg && continue
-        factor = exp(-Gsq / 4η^2) / Gsq
         cos_strucfac = sum(Z * cos2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
         sin_strucfac = sum(Z * sin2pi(dot(r, G)) for (r, Z) in zip(positions, charges))
         sum_strucfac = cos_strucfac^2 + sin_strucfac^2
-        sum_recip += sum_strucfac * factor
+        sum_recip += sum_strucfac * exp(-Gsq / 4η^2) / Gsq
         for (ir, r) in enumerate(positions)
             Z = charges[ir]
             dc = -Z*2S(π)*G*sin2pi(dot(r, G))
             ds = +Z*2S(π)*G*cos2pi(dot(r, G))
             dsum = cos_strucfac*dc + sin_strucfac*ds
-            forces_recip[ir] -= dsum * factor
+            forces_recip[ir] -= dsum * exp(-Gsq / 4η^2)/Gsq
         end
     end
 
@@ -136,7 +135,6 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
     cart_positions = [Vec3(lattice * r) for r in positions]
     cart_displacements = isnothing(ph_disp) ? nothing : [Vec3(lattice * u) for u in ph_disp]
     a1, a2, a3 = Vec3.(eachcol(lattice))
-    derivative_factor = -2η / sqrt(S(π))
 
     for i in eachindex(positions)
         # Accumulate per atom to limit roundoff in large cells.
@@ -176,7 +174,7 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
                         energy_contribution = charge_product * erfc(η * dist) / dist
                         sum_real_i += energy_contribution
                         # Derivative of charge_product * erfc(η * dist) / dist.
-                        dE_ddist = charge_product * derivative_factor * exp(-η^2 * dist_sq)
+                        dE_ddist = charge_product * -2η * exp(-η^2 * dist_sq) / sqrt(S(π))
                         dE_ddist = (dE_ddist - energy_contribution) / dist
                         force_cart -= (dE_ddist / dist) * Δr
                     end
