@@ -247,6 +247,10 @@ export compute_current
 include("postprocess/current.jl")
 export elastic_tensor
 include("postprocess/elastic.jl")
+export electric_field_responses
+export compute_dielectric_cart
+export compute_Zstar_cart
+include("postprocess/electric_field.jl")
 export phonon_modes
 include("postprocess/phonon.jl")
 export refine_scfres
