@@ -232,6 +232,34 @@ element of `basis.kpoints` equivalent to ``k-q``.
 end
 
 """
+For phonons, the Sternheimer equation for δψ_{n,k} is solved at k'=k+q.
+To build the rhs in the k' basis, we thus need ∇⋅(Vτ_{q} ∇ψ_{n,k'-q}).
+Note that the divergence has momentum k' so is computed with G+k',
+whereas the gradient has momentum k'-q so is computed with G+k'-q.
+"""
+@views function apply_Vτ(basis::PlaneWaveBasis{T}, ψ, Vτ_real, q=zero(Vec3{T})) where {T}
+    fψ = zero.(ψ)
+    # First, express ψ_{[k-q]} in the basis of k-q points…
+    ψ_minus_q = transfer_blochwave_equivalent_to_actual(basis, ψ, -q)
+    for (ik, kpt) in enumerate(basis.kpoints)
+        G_plus_k = [map(p -> p[α], Gplusk_vectors_cart(basis, kpt)) for α = 1:3]
+        G_plus_k_minus_q = [map(p -> p[α], Gplusk_vectors_cart(basis, ψ_minus_q[ik].kpt)) for α = 1:3]
+        # … then perform the multiplication with f in real space and get the Fourier
+        # coefficients.
+        for n = 1:size(ψ[ik], 2)
+            for α = 1:3
+                ∇ψ_recip = im .* G_plus_k_minus_q[α] .* ψ_minus_q[ik].ψk[:, n]
+                Vτ∇ψ_recip = fft(basis, kpt,
+                                 ifft(basis, ψ_minus_q[ik].kpt, ∇ψ_recip)
+                                 .* Vτ_real[:, :, :, kpt.spin])
+                fψ[ik][:, n] .-= im .* G_plus_k[α] .* Vτ∇ψ_recip ./ 2
+            end
+        end
+    end
+    fψ
+end
+
+"""
 For Bloch waves ``ψ`` such that `ψ[ik]` is defined in a point in `basis.kpoints` equivalent
 to `basis.kpoints[ik] + q`, return the Bloch waves `ψ_plus_q[ik]` defined on `kpt_plus_q[ik]`.
 """

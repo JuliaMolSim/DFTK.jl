@@ -105,7 +105,7 @@ function ifft!(f_real::AbstractArray3, fft_grid::FFTGrid,
     @inbounds f_real[Gvec_mapping] = f_fourier
 
     # Perform iFFT, equivalent to mul!(f_real, fft_grid.ipBFFT, f_real)
-    f_real = fft_grid.ipBFFT * f_real
+    mul!(f_real, fft_grid.ipBFFT, f_real)
     normalize && (f_real .*= fft_grid.ifft_normalization)
     f_real
 end

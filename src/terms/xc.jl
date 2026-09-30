@@ -479,30 +479,40 @@ end
 
 
 function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArray{Tδρ};
-                      ρ, q=zero(Vec3{T}), kwargs...) where {T, Tδρ<:Union{T,Complex{T}}}
-    isempty(term.functionals) && return nothing
-    @assert (all(family(xc) in (:lda, :gga, :mggal) && !needs_τ(xc) for xc in term.functionals))
-
-    if !iszero(q) && !isnothing(term.ρcore)
-        error("Phonon computations are not supported for models using nonlinear core "
-              * "correction.")
+                      ρ, τ=nothing, δτ=nothing, q=zero(Vec3{T}),
+                      kwargs...) where {T, Tδρ<:Union{T,Complex{T}}}
+    isempty(term.functionals) && return (; )
+    if needs_τ(term)
+        if isnothing(τ)
+            error("TermXc needs the kinetic energy density τ in the kernel.")
+        end
+        if isnothing(δτ)
+            error("TermXc needs the kinetic energy density variation δτ in the kernel.")
+        end
     end
 
     # Key insight: kernel application is just a Hessian-vector product,
     # which is computed with a push-forward of the gradient.
-    f(ρ_eval) = xc_potential_real(term, basis, nothing, nothing; ρ=ρ_eval).potential
+    f(ρ_eval, τ_eval) = xc_potential_real(term, basis, nothing, nothing; ρ=ρ_eval, τ=τ_eval, q)
     Tag = typeof(ForwardDiff.Tag(f, T))
     if Tδρ <: T
         # Usually δρ has the same type, so we do a standard push-forward
         ε = Dual{Tag}(zero(T), one(T))
-        ForwardDiff.partials.(f(ρ .+ ε .* δρ), 1)
+        τ_δτ = isnothing(τ) ? nothing : τ .+ ε .* δτ
+        pot = f(ρ .+ ε .* δρ, τ_δτ)
+        δVρ = ForwardDiff.partials.(pot.potential, 1)
+        δVτ = isnothing(pot.Vτ) ? nothing : ForwardDiff.partials.(pot.Vτ, 1)
+        (; δVρ, δVτ)
     else
         # But for complex δρ (phonons) we need to push the real and imaginary
         # parts forward separately
         ε1 = Dual{Tag}(zero(T), one(T), zero(T))
         ε2 = Dual{Tag}(zero(T), zero(T), one(T))
-        potential = f(ρ .+ ε1 .* real.(δρ) .+ ε2 .* imag.(δρ))
-        ForwardDiff.partials.(potential, 1) .+ im .* ForwardDiff.partials.(potential, 2)
+        τ_δτ = isnothing(τ) ? nothing : τ .+ ε1 .* real.(δτ) .+ ε2 .* imag.(δτ)
+        pot = f(ρ .+ ε1 .* real.(δρ) .+ ε2 .* imag.(δρ), τ_δτ)
+        δVρ = ForwardDiff.partials.(pot.potential, 1) .+ im .* ForwardDiff.partials.(pot.potential, 2)
+        δVτ = isnothing(pot.Vτ) ? nothing : ForwardDiff.partials.(pot.Vτ, 1) .+ im .* ForwardDiff.partials.(pot.Vτ, 2)
+        (; δVρ, δVτ)
     end
 end
 
