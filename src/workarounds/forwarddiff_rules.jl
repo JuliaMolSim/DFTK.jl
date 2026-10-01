@@ -238,8 +238,8 @@ end
         basis_dual::PlaneWaveBasis{<:Dual{Tg,V,N}};
         response=ResponseOptions(),
         kwargs...) where {Tg,V,N}
-    if any(needs_τ, basis_dual.terms)
-        error("Cannot yet compute SCF derivatives with meta-GGA functionals.")
+    if any(t -> t isa TermHubbard, basis_dual.terms)
+        error("Cannot yet compute SCF derivatives with Hubbard corrections.")
     end
 
     basis_primal = construct_value(basis_dual)

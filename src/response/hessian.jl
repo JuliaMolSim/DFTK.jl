@@ -295,7 +295,6 @@ Input parameters:
               "quantity to solve_ΩplusK_split as the τ keyword argument or use the " *
               "solve_ΩplusK_split(scfres) function.")
     end
-    # TODO: should probably use a τ of size 0 instead of nothing to avoid having to check isnothing(τ) everywhere
     @assert size(δHextψ[1]) == size(ψ[1])
     start_ns = time_ns()
 
@@ -327,33 +326,18 @@ Input parameters:
     ε_adj = DielectricAdjoint(ham, ρ, τ, ψ, occupation, εF, eigenvalues, occupation_threshold,
                               bandtolalg, maxiter_sternheimer, q)
     precon = FunctionPreconditioner() do Px, x
-        if isnothing(τ)
-            δρ = reshape(x, size(ρ))
-            Px .= vec(mix_density(mixing, basis, δρ;
-                                  ham, basis, ρin=ρ, εF, eigenvalues, ψ))
-        else
-            # Only precondition the density
-            δρ = reshape(@view(x[1:length(ρ)]), size(ρ))
-            Px[1:length(ρ)] .= vec(mix_density(mixing, basis, δρ;
-                                            ham, basis, ρin=ρ, εF, eigenvalues, ψ))
-            # Keep the τ unchanged
-            # TODO: we could precondition with the inverse laplacian
-            Px[length(ρ)+1:end] .= @view x[length(ρ)+1:end]
-        end
-        Px
+        δρ, δτ = split_gdensity(basis, reshape(x, basis.fft_size..., :))
+        # Only the density is preconditioned for now...
+        # TODO Precondition or at least rescale τ
+        Pδρ = mix_density(mixing, basis, δρ;
+                          ham, basis, ρin=ρ, εF, eigenvalues, ψ)
+        Px .= vec(pack_gdensity(basis, Pδρ, δτ))
     end
     callback_inner(info) = callback(merge(info, (; runtime_ns=time_ns() - start_ns, basis=basis)))
-    x0 = isnothing(τ) ? vec(δρ0) : vcat(vec(δρ0), vec(δτ0))
-    info_gmres = inexact_gmres(ε_adj, x0;
+    info_gmres = inexact_gmres(ε_adj, vec(pack_gdensity(basis, δρ0, δτ0));
                                tol, precon, krylovdim, maxiter, s,
                                callback=callback_inner, kwargs...)
-    if isnothing(τ)
-        δρ = reshape(info_gmres.x, size(ρ))
-        δτ = nothing
-    else
-        δρ = reshape(info_gmres.x[1:length(ρ)], size(ρ))
-        δτ = reshape(info_gmres.x[length(ρ)+1:end], size(τ))
-    end
+    δρ, δτ = split_gdensity(basis, reshape(info_gmres.x, basis.fft_size..., :))
     if !info_gmres.converged
         @warn "Solve_ΩplusK_split solver not converged"
     end
@@ -445,23 +429,23 @@ function DielectricAdjoint(scfres; bandtolalg=BandtolBalanced(scfres), q=zero(Ve
                       scfres.eigenvalues, scfres.occupation_threshold, bandtolalg, maxiter, q)
 end
 @views @timing "DielectricAdjoint" function mul_approximate(ε_adj::DielectricAdjoint, x; rtol=0.0, kwargs...)
-    δρ = reshape(x[1:length(ε_adj.ρ)], size(ε_adj.ρ))
-    δτ = isnothing(ε_adj.τ) ? nothing : reshape(x[length(ε_adj.ρ)+1:end], size(ε_adj.τ))
     basis = ε_adj.ham.basis
+    δρ, δτ = split_gdensity(basis, reshape(x, basis.fft_size..., :))
     δV = apply_kernel(basis, δρ; ε_adj.ρ, ε_adj.q, ε_adj.τ, δτ)
     res = apply_χ0(ε_adj.ham, ε_adj.ψ, ε_adj.occupation, ε_adj.εF, ε_adj.eigenvalues, δV.δVρ;
                    δVτ=δV.δVτ,
                    miniter=1, ε_adj.occupation_threshold, tol=rtol*norm(δρ),
                    ε_adj.bandtolalg, ε_adj.q, ε_adj.maxiter, kwargs...)
     χ0δVρ = res.δρ
-    χ0δVτ = isnothing(ε_adj.τ) ? nothing : res.δτ
+    χ0δVτ = res.δτ
     # (1 - χ0 K) δρ
-    Ax = isnothing(ε_adj.τ) ? vec(δρ - χ0δVρ) : vcat(vec(δρ - χ0δVρ), vec(δτ - χ0δVτ))
+    Ax = vec(pack_gdensity(basis, δρ - χ0δVρ,
+                                  isnothing(δτ) ? nothing : δτ - χ0δVτ))
     (; Ax, info=(; rtol, res...))
 end
 function Base.size(ε_adj::DielectricAdjoint, i::Integer)
     if 1 ≤ i ≤ 2
-        return length(ε_adj.ρ) + (isnothing(ε_adj.τ) ? 0 : length(ε_adj.τ))
+        return length(ε_adj.ρ) + (isnothing(ε_adj.τ) ? zero(i) : length(ε_adj.τ))
     else
         return one(i)
     end

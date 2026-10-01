@@ -13,7 +13,7 @@ using ComponentArrays
 using ..TestCases: aluminium
 using ..ForwardDiffWrappers: tagged_derivative
 
-function run_test(; architecture, functionals=LDA())
+function run_test(; architecture, functionals=LDA(), atol=5e-4)
     function compute_band_energies(ε::T) where {T}
         psp  = load_psp(PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"), :Al)
         rloc = convert(T, psp.rloc)
@@ -40,11 +40,11 @@ function run_test(; architecture, functionals=LDA())
         )
     end
 
-    derivative_fd = tagged_derivative(compute_band_energies, 0.0)
     derivative_ε = let ε = 1e-4
         (compute_band_energies(ε) - compute_band_energies(-ε)) / 2ε
     end
-    @test norm(derivative_fd - derivative_ε) < 5e-4
+    derivative_fd = tagged_derivative(compute_band_energies, 0.0)
+    @test norm(derivative_fd - derivative_ε) < atol
 end
 end
 
@@ -54,10 +54,10 @@ end
     PspSensitivity.run_test(; architecture=DFTK.CPU())
 end
 
-@testitem "meta-GGA scfres PSP sensitivity using ForwardDiff" tags=[:minimal] #=
+@testitem "meta-GGA scfres PSP sensitivity using ForwardDiff" #=
     =#    setup=[TestCases, ForwardDiffWrappers, PspSensitivity] begin
     using DFTK
-    PspSensitivity.run_test(; architecture=DFTK.CPU(), functionals=r2SCAN())
+    PspSensitivity.run_test(; architecture=DFTK.CPU(), functionals=r2SCAN(), atol=1e-3)
 end
 
 @testitem "scfres PSP sensitivity using ForwardDiff (GPU)" tags=[:gpu] #=

@@ -19,7 +19,7 @@ abstract type Term end
 # Terms that are linear in the density matrix, i.e. have zero second derivative
 abstract type TermLinear <: Term end
 compute_kernel(term::TermLinear, basis::AbstractBasis; kwargs...) = nothing
-apply_kernel(term::TermLinear, basis::AbstractBasis, δρ; kwargs...) = nothing
+apply_kernel(term::TermLinear, basis::AbstractBasis, δρ; kwargs...) = (;)
 
 # Terms that are non-linear in the density (i.e. which give rise to a Hamiltonian
 # contribution that is density-dependent or orbital-dependent as well)
@@ -120,11 +120,13 @@ end
 
 
 """
-    apply_kernel(basis::PlaneWaveBasis, δρ; kwargs...)
+    apply_kernel(basis::PlaneWaveBasis, δρ; δτ=nothing, kwargs...)
 
-TODO: update comment
-Computes the potential response to a perturbation δρ in real space,
+Computes the potential response to a perturbation δρ (and possibly δτ) in real space,
 as a 4D `(i,j,k,σ)` array.
+
+Returns a named tuple containing any combination of δVρ and δVτ,
+the variations in local potential and nonlocal meta-GGA potential (divAgrad) respectively.
 """
 @timing function apply_kernel(basis::PlaneWaveBasis, δρ; RPA=false, δτ=nothing, kwargs...)
     n_spin = basis.model.n_spin_components
@@ -139,7 +141,6 @@ as a 4D `(i,j,k,σ)` array.
         δVτ = isnothing(δτ) ? nothing : zero(δτ)
         for term in basis.terms
             δV_term = apply_kernel(term, basis, δρ; δτ, kwargs...)
-            isnothing(δV_term) && continue
             if haskey(δV_term, :δVρ) && !isnothing(δV_term.δVρ)
                 δVρ .+= δV_term.δVρ
             end

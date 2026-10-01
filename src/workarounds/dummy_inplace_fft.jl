@@ -7,9 +7,3 @@ end
 import Base: *, length
 Base.:*(p::DummyInplace, X) = copy!(X, p.fft * X)
 length(p::DummyInplace) = length(p.fft)
-
-# TODO: are both needed?
-function LinearAlgebra.mul!(Y, p::DummyInplace, X)
-    copy!(Y, p.fft * X)
-    Y
-end

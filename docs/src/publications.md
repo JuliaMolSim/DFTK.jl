@@ -27,7 +27,7 @@ The current DFTK reference paper to cite is
 The following publications describe DFTK algorithms:
 
 - B. Ploumhans, N.F. Schmitz and M. F. Herbst.
-  [*Density functional perturbation theory of meta-generalized gradient approximations using algorithmic differentiation.*](https://doi.org/10.48550/arXiv.2609.35572) arXiv:2609.35572 [cond-mat.mtrl-sci] (2026).
+  [*Density functional perturbation theory of meta-generalized gradient approximations using algorithmic differentiation.*](https://doi.org/10.48550/arXiv.2609.35572) arXiv:2609.35572 (2026).
 
 - N. F. Schmitz, B. Ploumhans and M. F. Herbst.
   [*Algorithmic differentiation for plane-wave DFT: materials design, error control and learning model parameters.*](https://doi.org/10.1038/s41524-025-01880-3) npj Computational Materials **12**, 6 (2026).
