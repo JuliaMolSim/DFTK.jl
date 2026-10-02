@@ -41,7 +41,7 @@ end
 
     @test psp.vloc[1] ≈ -1.2501238567E+01 / 2
     @test psp.h[1][1,1] ≈ -9.7091222353E+0 * 2
-    @test psp.r2_projs[1][1][1] ≈ psp.rgrid[1] * -7.5698070034E-10 / 2
+    @test psp.projs[1][1].r2_f[1] ≈ psp.rgrid[1] * -7.5698070034E-10 / 2
 end
 
 @testitem "Check reading PseudoDojo Li PSP8" tags=[:psp] setup=[mPspUpf] begin
@@ -57,7 +57,7 @@ end
 
     @test psp.vloc[1] ≈ -6.2945684552403
     @test psp.h[1][1,1] ≈ -4.9515440588302 * 4
-    @test psp.r2_projs[1][1][1] ≈ psp.rgrid[1] * -6.2444638349035e-10
+    @test psp.projs[1][1].r2_f[1] ≈ psp.rgrid[1] * -6.2444638349035e-10
 end
 
 @testitem "Real potentials are consistent with HGH" tags=[:psp] setup=[mPspUpf] begin
@@ -102,13 +102,12 @@ end
         end
 
         for l = 0:upf.lmax, i in count_n_proj_radial(upf, l)
-            ircut = length(upf.r2_projs[l+1][i])
             for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
                 reference_gth = eval_psp_projector_fourier(gth, i, l, p)
                 proj_upf = eval_psp_projector_fourier(upf, i, l, p)
                 @test reference_gth ≈ proj_upf atol=1e-5 rtol=1e-5
             end
-            for r in [upf.rgrid[1], upf.rgrid[ircut]]
+            for r in [upf.rgrid[1], upf.projs[l+1][i].rgrid[end]]
                 reference_gth = eval_psp_projector_real(gth, i, l, r)
                 proj_upf = eval_psp_projector_real(upf, i, l, r)
                 @test reference_gth ≈ proj_upf atol=1e-5 rtol=1e-5
@@ -161,11 +160,10 @@ end
     for psp in values(mPspUpf.upf_pseudos)
         ir_start = iszero(psp.rgrid[1]) ? 2 : 1
         for l = 0:psp.lmax, i in count_n_proj_radial(psp, l)
-            ir_cut = min(psp.ircut, length(psp.r2_projs[l+1][i]))
             for p in (0.01, 0.1, 0.2, 0.5, 1., 2., 5., 10.)
                 # DFTK uses a modified Hankel, hence divide by 1/p^l
                 reference = 1/p^l * quadgk(r -> integrand(psp, i, l, p, r),
-                                           psp.rgrid[ir_start], psp.rgrid[ir_cut])[1]
+                                           psp.rgrid[ir_start], psp.projs[l+1][i].rgrid[end])[1]
                 @test reference ≈ eval_psp_projector_fourier(psp, i, l, p) atol=1e-2 rtol=1e-2
             end
         end
@@ -266,7 +264,7 @@ end
     lattice = 5 * I(3)
     positions = [zeros(3)]
     for (element, psp) in mPspUpf.upf_pseudos
-        if sum(psp.r2_ρion) > 0  # Otherwise, it's all 0 in the UPF as a placeholder
+        if sum(psp.ρion.r2_f) > 0  # Otherwise, it's all 0 in the UPF as a placeholder
             atoms = [ElementPsp(element, psp)]
             model = model_DFT(lattice, atoms, positions; functionals=LDA())
             basis = PlaneWaveBasis(model; Ecut=22, kgrid=[2, 2, 2])
