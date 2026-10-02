@@ -82,14 +82,14 @@ end
     # The perturbation of the density
     #   |ψ_{n,k}|² is 2 ψ_{n,k} * δψ_{n,k+q}.
     # Hence, we first get the δψ_{[k+q]} as δψ_{k+q}…
-    δψ_plus_k = transfer_blochwave_equivalent_to_actual(basis, δψ, q)
+    δψ_plus_q = transfer_blochwave_equivalent_to_actual(basis, δψ, q)
     storages = parallel_loop_over_range(range; allocate_local_storage) do kn, storage
         (ik, n) = kn
 
         kpt = basis.kpoints[ik]
         ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n]; normalize=false)
         # … and then we compute the real Fourier transform in the adequate basis.
-        ifft!(storage.δψnk_real, basis, δψ_plus_k[ik].kpt, δψ_plus_k[ik].ψk[:, n]; normalize=false)
+        ifft!(storage.δψnk_real, basis, δψ_plus_q[ik].kpt, δψ_plus_q[ik].ψk[:, n]; normalize=false)
         # use unnormalized plans for extra speed, normalize at the end
         ifft_normalization = basis.fft_grid.ifft_normalization
 
@@ -111,7 +111,7 @@ end
     T = promote_type(eltype(basis), real(eltype(ψ[1])))
     τ = similar(ψ[1], T, (basis.fft_size..., basis.model.n_spin_components))
     τ .= 0
-    dαψnk_real = zeros_like(G_vectors(basis), complex(eltype(basis)), basis.fft_size...)
+    dαψnk_real = zeros_like(G_vectors(basis), complex(T), basis.fft_size...)
     occupation = [to_cpu(oc) for oc in occupation]
     for (ik, kpt) in enumerate(basis.kpoints)
         G_plus_k = [map(p -> p[α], Gplusk_vectors_cart(basis, kpt)) for α = 1:3]
@@ -122,6 +122,44 @@ end
     end
     mpi_sum!(τ, basis.comm_kpts)
     symmetrize_ρ(basis, τ)
+end
+
+# Variation in kinetic energy density corresponding to a variation in the orbitals and occupations.
+@views @timing function compute_δτ(basis::PlaneWaveBasis{T}, ψ, δψ, occupation,
+                                   δoccupation=zero.(occupation);
+                                   q=zero(Vec3{T})) where {T}
+    Tψ = promote_type(T, eltype(ψ[1]))
+    # δτ is expected to be real when computations are not phonon-related.
+    Tδτ = iszero(q) ? real(Tψ) : Tψ
+    real_qzero = iszero(q) ? real : identity
+
+    # occupation should be on the CPU as we are going to be doing scalar indexing.
+    occupation = [to_cpu(oc) for oc in occupation]
+
+    δτ=zeros_like(G_vectors(basis), Tδτ, basis.fft_size..., basis.model.n_spin_components)
+    dαψnk_real=zeros_like(G_vectors(basis), Tψ, basis.fft_size...)
+    dαδψnk_real=zeros_like(G_vectors(basis), Tψ, basis.fft_size...)
+
+    # The perturbation of the kinetic energy density (see also compute_δρ above) is
+    #   1/2 * |∇ψ_{n,k}|² is ∇ψ_{n,k}* ∇δψ_{n,k+q}.
+    # Note that we need (G+k) for the first gradient and (G+k+q) for the second one.
+    δψ_plus_q = transfer_blochwave_equivalent_to_actual(basis, δψ, q)
+
+    for (ik, kpt) in enumerate(basis.kpoints)
+        G_plus_k = [map(p -> p[α], Gplusk_vectors_cart(basis, kpt)) for α = 1:3]
+        G_plus_k_plus_q = [map(p -> p[α], Gplusk_vectors_cart(basis, δψ_plus_q[ik].kpt)) for α = 1:3]
+        for n = 1:size(ψ[ik], 2), α = 1:3
+            ifft!(dαψnk_real, basis, kpt, im .* G_plus_k[α] .* ψ[ik][:, n])
+            ifft!(dαδψnk_real, basis, δψ_plus_q[ik].kpt, im .* G_plus_k_plus_q[α] .* δψ_plus_q[ik].ψk[:, n])
+            @. δτ[:, :, :, kpt.spin] += real_qzero.(
+                # note: 1/2 factor from the kinetic energy cancels out the 2 factor from the square
+                   occupation[ik][n]  .* basis.kweights[ik] .* conj.(dαψnk_real) .* dαδψnk_real
+                .+ δoccupation[ik][n] .* basis.kweights[ik] .* abs2.(dαψnk_real) ./ 2)
+        end
+    end
+
+    mpi_sum!(δτ, basis.comm_kpts)
+    symmetrize_ρ(basis, δτ)
 end
 
 """

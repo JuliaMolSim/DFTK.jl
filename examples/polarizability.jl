@@ -125,7 +125,7 @@ using KrylovKit
 
 ## Apply ``(1- χ_0 K)``
 function dielectric_operator(δρ)
-    δV = apply_kernel(basis, δρ; scfres.ρ)
+    δV = apply_kernel(basis, δρ; scfres.ρ).δVρ
     χ0δV = apply_χ0(scfres, δV).δρ
     δρ - χ0δV
 end

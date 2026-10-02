@@ -52,7 +52,7 @@ Compute the application of K defined at ψ to δψ. ρ is the density issued fro
 
     δψ = proj_tangent(δψ, ψ)
     δρ = compute_δρ(basis, ψ, δψ, occupation)
-    δV = apply_kernel(basis, δρ; ρ)
+    δV = apply_kernel(basis, δρ; ρ).δVρ
     # normalize here so we can use unnormalized FFTs for extra speed
     δV .*= basis.fft_grid.ifft_normalization * basis.fft_grid.fft_normalization
 
@@ -265,6 +265,7 @@ Input parameters:
 """
 @timing function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
                                     eigenvalues, δHextψ;
+                                    τ=nothing,
                                     δtemperature=zero(real(T)),
                                     tol=1e-8, verbose=true,
                                     mixing=SimpleMixing(),
@@ -289,6 +290,11 @@ Input parameters:
     #          =  χ04P (-1 + E K2P (1 - χ02P K2P)^-1 R (-χ04P))
     # where χ02P = R χ04P E and K2P = R K E
     basis = ham.basis
+    if isnothing(τ) && any(needs_τ, basis.terms)
+        error("A term requires evaluation of the kinetic energy density τ. Please pass this " *
+              "quantity to solve_ΩplusK_split as the τ keyword argument or use the " *
+              "solve_ΩplusK_split(scfres) function.")
+    end
     @assert size(δHextψ[1]) == size(ψ[1])
     start_ns = time_ns()
 
@@ -297,7 +303,7 @@ Input parameters:
     #      value also does the trick.
 
     # compute δρ0 (ignoring interactions)
-    δρ0, δψ0 = let  # Make sure memory owned by res0 is freed
+    δρ0, δτ0, δψ0 = let  # Make sure memory owned by res0 is freed
         res0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHextψ;
                            δtemperature,
                            maxiter=maxiter_sternheimer, tol=tol * factor_initial,
@@ -305,23 +311,33 @@ Input parameters:
                            q, kwargs...)  # = χ04P * δHext
         callback((; stage=:noninteracting, runtime_ns=time_ns() - start_ns, basis,
                     Axinfos=[(; tol=tol*factor_initial, res0...)]))
-        (compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
-                    occupation_threshold, q), res0.δψ)
+        δρ0 = compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
+                         occupation_threshold, q)
+        if isnothing(τ)
+            (δρ0, nothing, res0.δψ)
+        else
+            δτ0 = compute_δτ(basis, ψ, res0.δψ, occupation, res0.δoccupation; q)
+            (δρ0, δτ0, res0.δψ)
+        end
     end
 
     # compute total δρ
     # TODO Can be smarter here, e.g. use mixing to come up with initial guess.
-    ε_adj = DielectricAdjoint(ham, ρ, ψ, occupation, εF, eigenvalues, occupation_threshold,
+    ε_adj = DielectricAdjoint(ham, ρ, τ, ψ, occupation, εF, eigenvalues, occupation_threshold,
                               bandtolalg, maxiter_sternheimer, q)
-    precon = FunctionPreconditioner() do Pδρ, δρ
-        Pδρ .= vec(mix_density(mixing, basis, reshape(δρ, size(ρ));
-                               ham, basis, ρin=ρ, εF, eigenvalues, ψ))
+    precon = FunctionPreconditioner() do Px, x
+        δρ, δτ = split_gdensity(basis, reshape(x, basis.fft_size..., :))
+        # Only the density is preconditioned for now...
+        # TODO Precondition or at least rescale τ
+        Pδρ = mix_density(mixing, basis, δρ;
+                          ham, basis, ρin=ρ, εF, eigenvalues, ψ)
+        Px .= vec(pack_gdensity(basis, Pδρ, δτ))
     end
     callback_inner(info) = callback(merge(info, (; runtime_ns=time_ns() - start_ns, basis=basis)))
-    info_gmres = inexact_gmres(ε_adj, vec(δρ0);
+    info_gmres = inexact_gmres(ε_adj, vec(pack_gdensity(basis, δρ0, δτ0));
                                tol, precon, krylovdim, maxiter, s,
                                callback=callback_inner, kwargs...)
-    δρ = reshape(info_gmres.x, size(ρ))
+    δρ, δτ = split_gdensity(basis, reshape(info_gmres.x, basis.fft_size..., :))
     if !info_gmres.converged
         @warn "Solve_ΩplusK_split solver not converged"
     end
@@ -330,12 +346,15 @@ Input parameters:
     # so we redo an apply_χ0_4P
 
     # Induced potential variation
-    δVind = apply_kernel(basis, δρ; ρ, q)  # Change in potential induced by δρ
+    δVind = apply_kernel(basis, δρ; ρ, q, τ, δτ)  # Change in potential induced by δρ
 
     # Total variation δHtot ψ
     # For phonon calculations, assemble
     #   δHψ_k = δV_{q} · ψ_{k-q}.
-    δHtotψ = multiply_ψ_by_blochwave(basis, ψ, δVind, q) .+ δHextψ
+    δHtotψ = multiply_ψ_by_blochwave(basis, ψ, δVind.δVρ, q) .+ δHextψ
+    if !isnothing(τ)
+        δHtotψ .+= apply_Vτ(basis, ψ, δVind.δVτ, q)
+    end
 
     # Compute final orbital response
     # TODO Here we just use what DFTK did before the inexact Krylov business, namely
@@ -354,7 +373,7 @@ Input parameters:
         end
     end
 
-    (; resfinal.δψ, δρ, δHtotψ, δVind, δρ0, δeigenvalues, resfinal.δoccupation,
+    (; resfinal.δψ, δρ, δτ, δHtotψ, δVind, δρ0, δτ0, δeigenvalues, resfinal.δoccupation,
        resfinal.δεF, ε_adj, info_gmres)
 end
 
@@ -381,15 +400,16 @@ function solve_ΩplusK_split(scfres::NamedTuple, response::ResponseOptions, δHe
     tol = @something response.tol last(scfres.history_Δρ)
     solve_ΩplusK_split(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation,
                        scfres.εF, scfres.eigenvalues, δHextψ;
-                       scfres.occupation_threshold, mixing,
+                       scfres.τ, scfres.occupation_threshold, mixing,
                        bandtolalg=BandtolBalanced(scfres), tol,
                        response.verbose, response.krylovdim, response.s,
                        kwargs...)
 end
 
-struct DielectricAdjoint{Tρ, Tψ, Toccupation, TεF, Teigenvalues, Tq}
+struct DielectricAdjoint{Tρ, Tτ, Tψ, Toccupation, TεF, Teigenvalues, Tq}
     ham::Hamiltonian
     ρ::Tρ
+    τ::Tτ
     ψ::Tψ
     occupation::Toccupation
     εF::TεF
@@ -405,23 +425,27 @@ Representation of the dielectric adjoint operator ``ε^† = (1 - χ_0 K)``.
 This is the adjoint of the dielectric operator ``ε = (1 - K χ_0)``.
 """
 function DielectricAdjoint(scfres; bandtolalg=BandtolBalanced(scfres), q=zero(Vec3{Float64}), maxiter=100)
-    DielectricAdjoint(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation, scfres.εF,
+    DielectricAdjoint(scfres.ham, scfres.ρ, scfres.τ, scfres.ψ, scfres.occupation, scfres.εF,
                       scfres.eigenvalues, scfres.occupation_threshold, bandtolalg, maxiter, q)
 end
-@timing "DielectricAdjoint" function mul_approximate(ε_adj::DielectricAdjoint, δρ; rtol=0.0, kwargs...)
-    δρ = reshape(δρ, size(ε_adj.ρ))
+@views @timing "DielectricAdjoint" function mul_approximate(ε_adj::DielectricAdjoint, x; rtol=0.0, kwargs...)
     basis = ε_adj.ham.basis
-    δV = apply_kernel(basis, δρ; ε_adj.ρ, ε_adj.q)
-    res = apply_χ0(ε_adj.ham, ε_adj.ψ, ε_adj.occupation, ε_adj.εF, ε_adj.eigenvalues, δV;
+    δρ, δτ = split_gdensity(basis, reshape(x, basis.fft_size..., :))
+    δV = apply_kernel(basis, δρ; ε_adj.ρ, ε_adj.q, ε_adj.τ, δτ)
+    res = apply_χ0(ε_adj.ham, ε_adj.ψ, ε_adj.occupation, ε_adj.εF, ε_adj.eigenvalues, δV.δVρ;
+                   δVτ=δV.δVτ,
                    miniter=1, ε_adj.occupation_threshold, tol=rtol*norm(δρ),
                    ε_adj.bandtolalg, ε_adj.q, ε_adj.maxiter, kwargs...)
-    χ0δV = res.δρ
-    Ax = vec(δρ - χ0δV)  # (1 - χ0 K) δρ
+    χ0δVρ = res.δρ
+    χ0δVτ = res.δτ
+    # (1 - χ0 K) δρ
+    Ax = vec(pack_gdensity(basis, δρ - χ0δVρ,
+                                  isnothing(δτ) ? nothing : δτ - χ0δVτ))
     (; Ax, info=(; rtol, res...))
 end
 function Base.size(ε_adj::DielectricAdjoint, i::Integer)
     if 1 ≤ i ≤ 2
-        return prod(size(ε_adj.ρ))
+        return length(ε_adj.ρ) + (isnothing(ε_adj.τ) ? zero(i) : length(ε_adj.τ))
     else
         return one(i)
     end

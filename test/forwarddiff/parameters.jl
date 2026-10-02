@@ -13,7 +13,7 @@ using ComponentArrays
 using ..TestCases: aluminium
 using ..ForwardDiffWrappers: tagged_derivative
 
-function run_test(; architecture)
+function run_test(; architecture, functionals=LDA(), atol=5e-4)
     function compute_band_energies(ε::T) where {T}
         psp  = load_psp(PseudoFamily("cp2k.nc.sr.lda.v0_1.semicore.gth"), :Al)
         rloc = convert(T, psp.rloc)
@@ -23,7 +23,7 @@ function run_test(; architecture)
                         psp.identifier, psp.description)
         atoms = fill(ElementPsp(aluminium.atnum, pspmod), length(aluminium.positions))
         model = model_DFT(Matrix{T}(aluminium.lattice), atoms, aluminium.positions;
-                          functionals=LDA(), temperature=1e-2, smearing=Smearing.Gaussian())
+                          functionals, temperature=1e-2, smearing=Smearing.Gaussian())
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], architecture)
 
         scfres = self_consistent_field(basis; tol=1e-12, mixing=KerkerMixing(),
@@ -44,7 +44,7 @@ function run_test(; architecture)
         (compute_band_energies(ε) - compute_band_energies(-ε)) / 2ε
     end
     derivative_fd = tagged_derivative(compute_band_energies, 0.0)
-    @test norm(derivative_fd - derivative_ε) < 5e-4
+    @test norm(derivative_fd - derivative_ε) < atol
 end
 end
 
@@ -64,6 +64,25 @@ end
     end
     if AMDGPU.has_rocm_gpu()
         PspSensitivity.run_test(; architecture=DFTK.GPU(ROCArray))
+    end
+end
+
+@testitem "meta-GGA scfres PSP sensitivity using ForwardDiff" #=
+    =#    setup=[TestCases, ForwardDiffWrappers, PspSensitivity] begin
+    using DFTK
+    PspSensitivity.run_test(; architecture=DFTK.CPU(), functionals=r2SCAN(), atol=1e-3)
+end
+
+@testitem "meta-GGA scfres PSP sensitivity using ForwardDiff (GPU)" tags=[:gpu] #=
+    =#    setup=[TestCases, ForwardDiffWrappers, PspSensitivity] begin
+    using DFTK
+    using CUDA
+    using AMDGPU
+    if CUDA.has_cuda() && CUDA.has_cuda_gpu()
+        PspSensitivity.run_test(; architecture=DFTK.GPU(CuArray), functionals=r2SCAN(), atol=1e-3)
+    end
+    if AMDGPU.has_rocm_gpu()
+        PspSensitivity.run_test(; architecture=DFTK.GPU(ROCArray), functionals=r2SCAN(), atol=1e-3)
     end
 end
 
@@ -225,7 +244,7 @@ using Test
 using LinearAlgebra
 using PseudoPotentialData
 using ..ForwardDiffWrappers: tagged_derivative
-function run_test(; architecture)
+function run_test(; architecture, functionals=LDA())
     a = 10.26  # Silicon lattice constant in Bohr
     lattice = a / 2 * [[0 1 1.];
                        [1 0 1.];
@@ -235,7 +254,7 @@ function run_test(; architecture)
     positions = [ones(3)/8, -ones(3)/8]
 
     function get(T)
-        model = model_DFT(lattice, atoms, positions; functionals=LDA(), temperature=T)
+        model = model_DFT(lattice, atoms, positions; functionals, temperature=T)
         basis = PlaneWaveBasis(model; Ecut=10, kgrid=[1, 1, 1], architecture)
         scfres = self_consistent_field(basis, tol=1e-12)
         scfres.energies.Entropy
@@ -265,5 +284,24 @@ end
     end
     if AMDGPU.has_rocm_gpu()
         TemperatureSensitivity.run_test(; architecture=DFTK.GPU(ROCArray))
+    end
+end
+
+@testitem "meta-GGA ForwardDiff wrt temperature" tags=[:minimal] #=
+    =#    setup=[ForwardDiffWrappers, TemperatureSensitivity] begin
+    using DFTK
+    TemperatureSensitivity.run_test(; architecture=DFTK.CPU(), functionals=r2SCAN())
+end
+
+@testitem "meta-GGA ForwardDiff wrt temperature (GPU)" tags=[:gpu] #=
+    =#    setup=[ForwardDiffWrappers, TemperatureSensitivity] begin
+    using DFTK
+    using CUDA
+    using AMDGPU
+    if CUDA.has_cuda() && CUDA.has_cuda_gpu()
+        TemperatureSensitivity.run_test(; architecture=DFTK.GPU(CuArray), functionals=r2SCAN())
+    end
+    if AMDGPU.has_rocm_gpu()
+        TemperatureSensitivity.run_test(; architecture=DFTK.GPU(ROCArray), functionals=r2SCAN())
     end
 end

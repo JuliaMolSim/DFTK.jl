@@ -56,7 +56,7 @@ Pinv_Kerker(δρ) = DFTK.mix_density(KerkerMixing(), basis_Al, δρ)
 
 ## Function which applies ε† = 1 - χ0 K
 function epsilon(δρ)
-    δV   = apply_kernel(basis_Al, δρ; ρ=scfres_Al.ρ)
+    δV   = apply_kernel(basis_Al, δρ; ρ=scfres_Al.ρ).δVρ
     χ0δV = apply_χ0(scfres_Al, δV).δρ
     δρ - χ0δV
 end
