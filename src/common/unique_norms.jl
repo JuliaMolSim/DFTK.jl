@@ -4,7 +4,7 @@ norm(Gs[i]) = unique_ps[iG2ifnorm[i]]. Runs on CPU and GPU.
 """
 function unique_norms_and_mapping(Gs::AbstractArray{<:Vec3})
     # Sort the norms and remember where each original element were
-    ps = vec(map(norm, Gs))
+    ps = vec(map(norm, Gs))  # vec() insures 1D array for sorting
     perm = sortperm(ps)
     sorted_ps = ps[perm]
 
