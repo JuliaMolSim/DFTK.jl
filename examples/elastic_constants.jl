@@ -92,7 +92,7 @@ println("C44: ", uconvert(u"GPa", C[4, 4] * u"hartree" / u"bohr"^3))
 # constants using the r2SCAN functional, again using AD-DFPT.
 # This is enabled by the recent extension of AD-DFPT to meta-GGA functionals[^PSH2026].
 #
-# [^PSH2026]
+# [^PSH2026]:
 #     Ploumhans, B., Schmitz, N. F. & Herbst, M. F. (2026).
 #     *Density functional perturbation theory of meta-generalized gradient approximations using algorithmic differentiation.*
 #     [arXiv:2609.35572 [cond-mat.mtrl-sci]](https://doi.org/10.48550/arXiv.2609.35572).
