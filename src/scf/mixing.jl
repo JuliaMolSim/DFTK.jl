@@ -23,12 +23,12 @@ function mix_potential(args...; kwargs...)
 end
 
 
-# Mixing in the generalised density (essentially an adapted tuple of ρ and τ;
-# see pack_gdensity in densities.jl): For now just fall back to ρ-only mixing
+# Mixing in the generalised density (see pack_gdensity in densities.jl):
+# For now just fall back to ρ-only mixing
 function mix_gdensity(mixing, basis, ΔD; kwargs...)
-    Δρ, Δτ  = split_gdensity(basis, ΔD)
+    Δρ, Δτ, Δhubbard_n = split_gdensity(basis, ΔD)
     Pinv_Δρ = mix_density(mixing, basis, Δρ; kwargs...)
-    pack_gdensity(basis, Pinv_Δρ, Δτ)
+    pack_gdensity(basis, Pinv_Δρ, Δτ, Δhubbard_n)
 end
 
 

@@ -255,3 +255,34 @@ function reshape_hubbard_proj(projectors::Vector{Matrix{Complex{T}}},
 
     p_I
 end
+
+"""
+Guess an initial hubbard_n if the basis has a Hubbard term, otherwise nothing.
+For now, uses a naive 1/2 occupancy initial guess (i.e. zero Hubbard potential).
+Better guesses could be implemented based on the pseudopotential.
+However, generally speaking there can be many metastable solutions.
+"""
+function guess_hubbard_n(basis::PlaneWaveBasis{T}) where {T}
+    ihubbard = findfirst(t -> t isa TermHubbard, basis.terms)
+    isnothing(ihubbard) && return nothing
+
+    term = basis.terms[ihubbard]
+    map(term.manifolds) do manifold
+        n_spin = basis.model.n_spin_components
+
+        manifold_atoms = manifold.iatoms
+        natoms = length(manifold_atoms)
+        l = manifold.l
+        hubbard_n = Array{Matrix{Complex{T}}}(undef, n_spin, natoms, natoms)
+        for σ in 1:n_spin
+            for idx in 1:natoms, jdx in 1:natoms
+                if idx == jdx
+                    hubbard_n[σ, idx, jdx] = I(2l+1) / 2
+                else
+                    hubbard_n[σ, idx, jdx] = zeros(Complex{T}, 2l+1, 2l+1)
+                end
+            end
+        end
+        hubbard_n
+    end
+end
