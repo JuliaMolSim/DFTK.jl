@@ -508,7 +508,7 @@ function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArra
         # parts forward separately
         ε1 = Dual{Tag}(zero(T), one(T), zero(T))
         ε2 = Dual{Tag}(zero(T), zero(T), one(T))
-        τ_δτ = needs_τ(term) ? nothing : τ .+ ε1 .* real.(δτ) .+ ε2 .* imag.(δτ)
+        τ_δτ = needs_τ(term) ? τ .+ ε1 .* real.(δτ) .+ ε2 .* imag.(δτ) : nothing
         pot = f(ρ .+ ε1 .* real.(δρ) .+ ε2 .* imag.(δρ), τ_δτ)
         δVρ = ForwardDiff.partials.(pot.potential, 1) .+ im .* ForwardDiff.partials.(pot.potential, 2)
         δVτ = isnothing(pot.Vτ) ? nothing : ForwardDiff.partials.(pot.Vτ, 1) .+ im .* ForwardDiff.partials.(pot.Vτ, 2)
