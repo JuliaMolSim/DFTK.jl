@@ -7,7 +7,7 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
 
 - `kgrid`: A custom kgrid to perform the band computation, e.g. a new
   [`MonkhorstPack`](@ref) grid or a [`KgridSpacing`](@ref).
-- `tol` The default tolerance for the eigensolver is substantially lower than
+- `tol` The default tolerance for the eigensolver is substantially looser than
   for SCF computations. Increase if higher accuracy desired.
 - `eigensolver`: The diagonalisation method to be employed.
 """
