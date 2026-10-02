@@ -54,12 +54,6 @@ end
     PspSensitivity.run_test(; architecture=DFTK.CPU())
 end
 
-@testitem "meta-GGA scfres PSP sensitivity using ForwardDiff" #=
-    =#    setup=[TestCases, ForwardDiffWrappers, PspSensitivity] begin
-    using DFTK
-    PspSensitivity.run_test(; architecture=DFTK.CPU(), functionals=r2SCAN(), atol=1e-3)
-end
-
 @testitem "scfres PSP sensitivity using ForwardDiff (GPU)" tags=[:gpu] #=
     =#    setup=[TestCases, ForwardDiffWrappers, PspSensitivity] begin
     using DFTK
@@ -70,6 +64,25 @@ end
     end
     if AMDGPU.has_rocm_gpu()
         PspSensitivity.run_test(; architecture=DFTK.GPU(ROCArray))
+    end
+end
+
+@testitem "meta-GGA scfres PSP sensitivity using ForwardDiff" #=
+    =#    setup=[TestCases, ForwardDiffWrappers, PspSensitivity] begin
+    using DFTK
+    PspSensitivity.run_test(; architecture=DFTK.CPU(), functionals=r2SCAN(), atol=1e-3)
+end
+
+@testitem "meta-GGA scfres PSP sensitivity using ForwardDiff (GPU)" tags=[:gpu] #=
+    =#    setup=[TestCases, ForwardDiffWrappers, PspSensitivity] begin
+    using DFTK
+    using CUDA
+    using AMDGPU
+    if CUDA.has_cuda() && CUDA.has_cuda_gpu()
+        PspSensitivity.run_test(; architecture=DFTK.GPU(CuArray), functionals=r2SCAN(), atol=1e-3)
+    end
+    if AMDGPU.has_rocm_gpu()
+        PspSensitivity.run_test(; architecture=DFTK.GPU(ROCArray), functionals=r2SCAN(), atol=1e-3)
     end
 end
 
@@ -261,12 +274,6 @@ end
     TemperatureSensitivity.run_test(; architecture=DFTK.CPU())
 end
 
-@testitem "meta-GGA ForwardDiff wrt temperature" tags=[:minimal] #=
-    =#    setup=[ForwardDiffWrappers, TemperatureSensitivity] begin
-    using DFTK
-    TemperatureSensitivity.run_test(; architecture=DFTK.CPU(), functionals=r2SCAN())
-end
-
 @testitem "ForwardDiff wrt temperature (GPU)" tags=[:gpu] #=
     =#    setup=[ForwardDiffWrappers, TemperatureSensitivity] begin
     using DFTK
@@ -277,5 +284,24 @@ end
     end
     if AMDGPU.has_rocm_gpu()
         TemperatureSensitivity.run_test(; architecture=DFTK.GPU(ROCArray))
+    end
+end
+
+@testitem "meta-GGA ForwardDiff wrt temperature" tags=[:minimal] #=
+    =#    setup=[ForwardDiffWrappers, TemperatureSensitivity] begin
+    using DFTK
+    TemperatureSensitivity.run_test(; architecture=DFTK.CPU(), functionals=r2SCAN())
+end
+
+@testitem "meta-GGA ForwardDiff wrt temperature (GPU)" tags=[:gpu] #=
+    =#    setup=[ForwardDiffWrappers, TemperatureSensitivity] begin
+    using DFTK
+    using CUDA
+    using AMDGPU
+    if CUDA.has_cuda() && CUDA.has_cuda_gpu()
+        TemperatureSensitivity.run_test(; architecture=DFTK.GPU(CuArray), functionals=r2SCAN())
+    end
+    if AMDGPU.has_rocm_gpu()
+        TemperatureSensitivity.run_test(; architecture=DFTK.GPU(ROCArray), functionals=r2SCAN())
     end
 end
