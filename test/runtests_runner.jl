@@ -2,9 +2,12 @@
 # This is needed to play nicely with MPI parallelised tests
 #
 using TestItemRunner
+using DFTK
 
 include("runtests_parser.jl")
 (; base_tag, excluded, included) = parse_test_args()
+
+setup_threading()
 
 println("Running $base_tag tests")
 if !isempty(excluded)
