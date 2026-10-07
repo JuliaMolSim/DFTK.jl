@@ -86,3 +86,25 @@ function parallel_loop_over_range(fun, range, storages)
 
     return storages
 end
+
+function parallel_map(f, T, src::AbstractVector)
+    dest = similar(src, T)
+    parallel_map!(f, dest, src)
+end
+
+function parallel_map!(f, dest::AbstractVector, src::AbstractVector)
+    @assert axes(dest) == axes(src)
+    nthreads = get_DFTK_threads()
+    chunk_length = cld(length(dest), nthreads)
+
+    if nthreads <= 1
+        map!(f, dest, src)
+    else
+        @sync for chunk in Iterators.partition(eachindex(dest), chunk_length)
+            Threads.@spawn let
+                @views map!(f, dest[chunk], src[chunk])
+            end
+        end
+    end
+    dest
+end
