@@ -519,12 +519,13 @@ function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{
                   occupation_threshold=default_occupation_threshold(TδV),
                   q=zero(Vec3{eltype(ham.basis)}),
                   bandtolalg=BandtolBalanced(ham.basis, ψ, occupation; occupation_threshold),
+                  symmetries=ham.basis.symmetries,
                   kwargs_sternheimer...) where {T, TδV}
     basis = ham.basis
 
     # Make δV respect the basis symmetry group, since we won't be able
     # to compute perturbations that don't anyway
-    δV = symmetrize_ρ(basis, δV)
+    δV = symmetrize_ρ(basis, δV; symmetries)
 
     # Normalize δV to avoid numerical trouble; theoretically should not be necessary,
     # but it simplifies the interaction with the Sternheimer linear solver
@@ -546,7 +547,7 @@ function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{
                       δtemperature, occupation_threshold, q, bandtolalg,
                       kwargs_sternheimer...)
 
-    δρ = compute_δρ(basis, ψ, res.δψ, occupation, res.δoccupation; occupation_threshold, q)
+    δρ = compute_δρ(basis, ψ, res.δψ, occupation, res.δoccupation; occupation_threshold, q, symmetries)
     δρ = δρ * normδH
     (; δρ, normδH, res...)
 end

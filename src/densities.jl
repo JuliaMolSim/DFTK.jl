@@ -11,7 +11,7 @@ It is possible to ask only for occupations higher than a certain level to be com
 using an optional `occupation_threshold`. By default all occupation numbers are considered.
 """
 @views @timing function compute_density(basis::PlaneWaveBasis{T,VT}, ψ, occupation;
-                                        occupation_threshold=zero(T), label=:ρ) where {T,VT}
+                                        occupation_threshold=zero(T), label=:ρ, symmetries=basis.symmetries) where {T,VT}
     # Occupation should be on the CPU as we are going to be doing scalar indexing.
     occupation = [to_cpu(oc) for oc in occupation]
     mask_occ = [findall(occnk -> abs(occnk) ≥ occupation_threshold, occk)
@@ -44,7 +44,7 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
     ρ = sum(storage -> storage.ρ, storages)
 
     mpi_sum!(ρ, basis.comm_kpts)
-    ρ = symmetrize_ρ(basis, ρ)
+    ρ = symmetrize_ρ(basis, ρ; symmetries)
 
     # There can always be small negative densities, e.g. due to numerical fluctuations
     # in a vacuum region, so put some tolerance even if occupation_threshold == 0
@@ -59,7 +59,8 @@ end
 # Variation in density corresponding to a variation in the orbitals and occupations.
 @views @timing function compute_δρ(basis::PlaneWaveBasis{T}, ψ, δψ, occupation,
                                    δoccupation=zero.(occupation);
-                                   occupation_threshold=zero(T), q=zero(Vec3{T})) where {T}
+                                   occupation_threshold=zero(T), q=zero(Vec3{T}),
+                                   symmetries=basis.symmetries) where {T}
     Tψ = promote_type(T, eltype(ψ[1]))
     # δρ is expected to be real when computations are not phonon-related.
     Tδρ = iszero(q) ? real(Tψ) : Tψ
@@ -104,7 +105,7 @@ end
     δρ = sum(getfield.(storages, :δρ))
 
     mpi_sum!(δρ, basis.comm_kpts)
-    symmetrize_ρ(basis, δρ)
+    symmetrize_ρ(basis, δρ; symmetries)
 end
 
 @views @timing function compute_kinetic_energy_density(basis::PlaneWaveBasis, ψ, occupation)

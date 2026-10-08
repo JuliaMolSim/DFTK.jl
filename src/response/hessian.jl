@@ -239,6 +239,21 @@ function (cb::OmegaPlusKDefaultCallback)(info)
     info
 end
 
+# Must implement Base.length and symmetrize_δρs
+abstract type PerturbationSet end
+
+function symmetrize_δρs end
+
+struct IndependentPerturbations <: PerturbationSet
+    npert::Int
+end
+Base.length(indep::IndependentPerturbations) = indep.npert
+function symmetrize_δρs(::IndependentPerturbations, basis, δρs)
+    map(δρs) do δρ
+        symmetrize_ρ(basis, δρ)
+    end
+end
+
 """
 Solve the problem `(Ω+K) δψ = -δHextψ` (density-functional perturbation theory)
 using a split algorithm, where
@@ -264,7 +279,7 @@ Input parameters:
    see [arxiv 2505.02319](https://arxiv.org/pdf/2505.02319) for more details.
 """
 @timing function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
-                                    eigenvalues, δHextψ;
+                                    eigenvalues, δHextψs, pertset::PerturbationSet;
                                     δtemperature=zero(real(T)),
                                     tol=1e-8, verbose=true,
                                     mixing=SimpleMixing(),
@@ -289,39 +304,52 @@ Input parameters:
     #          =  χ04P (-1 + E K2P (1 - χ02P K2P)^-1 R (-χ04P))
     # where χ02P = R χ04P E and K2P = R K E
     basis = ham.basis
-    @assert size(δHextψ[1]) == size(ψ[1])
+    npert = length(pertset)
+    @assert length(δHextψs) == npert
+    @assert size(δHextψs[1][1]) == size(ψ[1])
+    symmetries_id_only = [one(first(basis.symmetries))]
     start_ns = time_ns()
 
     # TODO Use tol_density=tol/10 to make sure that the density is very accurate.
     #      This is likely overdoing it and we should investigate if a smaller
     #      value also does the trick.
 
+    # TODO: inspect adaptive bandtol for multiple perturbations
     # compute δρ0 (ignoring interactions)
-    δρ0, δψ0 = let  # Make sure memory owned by res0 is freed
-        res0 = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHextψ;
-                           δtemperature,
-                           maxiter=maxiter_sternheimer, tol=tol * factor_initial,
-                           bandtolalg, occupation_threshold,
-                           q, kwargs...)  # = χ04P * δHext
+    δρ0s, δψ0s = let  # Make sure memory owned by res0 is freed
+        res0s = map(δHextψs) do δHextψ
+            apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHextψ;
+                        δtemperature,
+                        maxiter=maxiter_sternheimer, tol=tol * factor_initial,
+                        bandtolalg, occupation_threshold,
+                        q, kwargs...)  # = χ04P * δHext
+        end
+        # TODO: fix callback
         callback((; stage=:noninteracting, runtime_ns=time_ns() - start_ns, basis,
-                    Axinfos=[(; tol=tol*factor_initial, res0...)]))
-        (compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
-                    occupation_threshold, q), res0.δψ)
+                    Axinfos=[(; tol=tol*factor_initial, ress=res0s)]))
+        δρ0s = map(res0s) do res0
+            compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
+                       occupation_threshold, q, symmetries=symmetries_id_only)
+        end
+        (symmetrize_δρs(pertset, basis, δρ0s), map(res0 -> res0.δψ, res0s))
     end
 
     # compute total δρ
     # TODO Can be smarter here, e.g. use mixing to come up with initial guess.
     ε_adj = DielectricAdjoint(ham, ρ, ψ, occupation, εF, eigenvalues, occupation_threshold,
-                              bandtolalg, maxiter_sternheimer, q)
-    precon = FunctionPreconditioner() do Pδρ, δρ
-        Pδρ .= vec(mix_density(mixing, basis, reshape(δρ, size(ρ));
-                               ham, basis, ρin=ρ, εF, eigenvalues, ψ))
+                              bandtolalg, maxiter_sternheimer, q, pertset)
+    precon = FunctionPreconditioner() do Pδρs, δρs
+        for (Pδρ, δρ) in zip(eachslice(reshape(Pδρs, size(ρ)..., npert), dims=5),
+                             eachslice(reshape(δρs,  size(ρ)..., npert), dims=5))
+            Pδρ .= mix_density(mixing, basis, δρ; ham, basis, ρin=ρ, εF, eigenvalues, ψ)
+        end
+        Pδρs
     end
-    callback_inner(info) = callback(merge(info, (; runtime_ns=time_ns() - start_ns, basis=basis)))
-    info_gmres = inexact_gmres(ε_adj, vec(δρ0);
+    callback_inner(info) = callback(merge(info, (; runtime_ns=time_ns() - start_ns, basis)))
+    info_gmres = inexact_gmres(ε_adj, vec(stack(δρ0s));
                                tol, precon, krylovdim, maxiter, s,
                                callback=callback_inner, kwargs...)
-    δρ = reshape(info_gmres.x, size(ρ))
+    δρs = collect(eachslice(reshape(info_gmres.x, size(ρ)..., npert); dims=5))
     if !info_gmres.converged
         @warn "Solve_ΩplusK_split solver not converged"
     end
@@ -330,37 +358,59 @@ Input parameters:
     # so we redo an apply_χ0_4P
 
     # Induced potential variation
-    δVind = apply_kernel(basis, δρ; ρ, q)  # Change in potential induced by δρ
+    δVinds = map(δρs) do δρ
+        apply_kernel(basis, δρ; ρ, q)  # Change in potential induced by δρ
+    end
 
     # Total variation δHtot ψ
     # For phonon calculations, assemble
     #   δHψ_k = δV_{q} · ψ_{k-q}.
-    δHtotψ = multiply_ψ_by_blochwave(basis, ψ, δVind, q) .+ δHextψ
+    δHtotψs = map(δVinds, δHextψs) do δVind, δHextψ
+        multiply_ψ_by_blochwave(basis, ψ, δVind, q) .+ δHextψ
+    end
 
     # Compute final orbital response
     # TODO Here we just use what DFTK did before the inexact Krylov business, namely
     #      a fixed Sternheimer tolerance of tol / 10. There are probably
     #      smarter things one could do here
-    resfinal = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHtotψ;
-                           δtemperature,
-                           maxiter=maxiter_sternheimer, tol=tol * factor_final,
-                           bandtolalg, occupation_threshold, q, δψ0, kwargs...)
+    resfinals = map(δHtotψs, δψ0s) do δHtotψ, δψ0
+        apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHtotψ;
+                    δtemperature,
+                    maxiter=maxiter_sternheimer, tol=tol * factor_final,
+                    bandtolalg, occupation_threshold, q, δψ0, kwargs...)
+    end
     callback((; stage=:final, runtime_ns=time_ns() - start_ns, basis,
-                Axinfos=[(; tol=tol*factor_final, resfinal...)]))
+                Axinfos=[(; tol=tol*factor_final, ress=resfinals)]))
     # Compute total change in eigenvalues
-    δeigenvalues = map(ψ, δHtotψ) do ψk, δHtotψk
-        map(eachcol(ψk), eachcol(δHtotψk)) do ψnk, δHtotψnk
-            real(dot(ψnk, δHtotψnk))  # δε_{nk} = <ψnk | δHtot | ψnk>
+    δeigenvaluess = map(δHtotψs) do δHtotψ
+        map(ψ, δHtotψ) do ψk, δHtotψk
+            map(eachcol(ψk), eachcol(δHtotψk)) do ψnk, δHtotψnk
+                real(dot(ψnk, δHtotψnk))  # δε_{nk} = <ψnk | δHtot | ψnk>
+            end
         end
     end
 
-    (; resfinal.δψ, δρ, δHtotψ, δVind, δρ0, δeigenvalues, resfinal.δoccupation,
-       resfinal.δεF, ε_adj, info_gmres)
+    δψs = map(res -> res.δψ, resfinals)
+    δoccupations = map(res -> res.δoccupation, resfinals)
+    δεFs = map(res -> res.δεF, resfinals)
+    (; δψs, δρs, δHtotψs, δVinds, δρ0s, δeigenvaluess, δoccupations,
+       δεFs, ε_adj, info_gmres)
 end
 
-function solve_ΩplusK_split(scfres::NamedTuple, δHextψ; kwargs...)
+@timing function solve_ΩplusK_split(ham::Hamiltonian, ρ::AbstractArray{T}, ψ, occupation, εF,
+                                    eigenvalues, δHextψ;
+                                    kwargs...) where {T}
+    res = solve_ΩplusK_split(ham, ρ, ψ, occupation, εF, eigenvalues,
+                             [δHextψ], IndependentPerturbations(1); kwargs...)
+    (; δψ=res.δψs[1], δρ=res.δρs[1], δHtotψ=res.δHtotψs[1], δVind=res.δVinds[1],
+       δρ0=res.δρ0s[1], δeigenvalues=res.δeigenvaluess[1], δoccupation=res.δoccupations[1],
+       δεF=res.δεFs[1], res.ε_adj, res.info_gmres)
+end
+
+function solve_ΩplusK_split(scfres::NamedTuple, δHextψs, pertset::PerturbationSet;
+                            kwargs...)
     solve_ΩplusK_split(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation,
-                       scfres.εF, scfres.eigenvalues, δHextψ;
+                       scfres.εF, scfres.eigenvalues, δHextψs, pertset;
                        scfres.occupation_threshold, scfres.mixing,
                        bandtolalg=BandtolBalanced(scfres), kwargs...)
 end
@@ -387,7 +437,7 @@ function solve_ΩplusK_split(scfres::NamedTuple, response::ResponseOptions, δHe
                        kwargs...)
 end
 
-struct DielectricAdjoint{Tρ, Tψ, Toccupation, TεF, Teigenvalues, Tq}
+struct DielectricAdjoint{Tρ, Tψ, Toccupation, TεF, Teigenvalues, Tq, Tpertset}
     ham::Hamiltonian
     ρ::Tρ
     ψ::Tψ
@@ -398,6 +448,7 @@ struct DielectricAdjoint{Tρ, Tψ, Toccupation, TεF, Teigenvalues, Tq}
     bandtolalg
     maxiter::Int  # CG maximum number of iterations
     q::Tq
+    pertset::Tpertset
 end
 
 @doc raw"""
@@ -408,20 +459,28 @@ function DielectricAdjoint(scfres; bandtolalg=BandtolBalanced(scfres), q=zero(Ve
     DielectricAdjoint(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation, scfres.εF,
                       scfres.eigenvalues, scfres.occupation_threshold, bandtolalg, maxiter, q)
 end
-@timing "DielectricAdjoint" function mul_approximate(ε_adj::DielectricAdjoint, δρ; rtol=0.0, kwargs...)
-    δρ = reshape(δρ, size(ε_adj.ρ))
+@timing "DielectricAdjoint" function mul_approximate(ε_adj::DielectricAdjoint, δρs; rtol=0.0, kwargs...)
+    δρs = reshape(δρs, size(ε_adj.ρ)..., length(ε_adj.pertset))
     basis = ε_adj.ham.basis
-    δV = apply_kernel(basis, δρ; ε_adj.ρ, ε_adj.q)
-    res = apply_χ0(ε_adj.ham, ε_adj.ψ, ε_adj.occupation, ε_adj.εF, ε_adj.eigenvalues, δV;
-                   miniter=1, ε_adj.occupation_threshold, tol=rtol*norm(δρ),
-                   ε_adj.bandtolalg, ε_adj.q, ε_adj.maxiter, kwargs...)
-    χ0δV = res.δρ
-    Ax = vec(δρ - χ0δV)  # (1 - χ0 K) δρ
-    (; Ax, info=(; rtol, res...))
+    symmetries_id_only = [one(first(basis.symmetries))]
+    χ0ress = map(eachslice(δρs, dims=5)) do δρ
+        δV = apply_kernel(basis, δρ; ε_adj.ρ, ε_adj.q)
+        apply_χ0(ε_adj.ham, ε_adj.ψ, ε_adj.occupation, ε_adj.εF, ε_adj.eigenvalues, δV;
+        # TODO: adjust tol for npert > 1
+                 miniter=1, ε_adj.occupation_threshold, tol=rtol*norm(δρ),
+                 ε_adj.bandtolalg, ε_adj.q, ε_adj.maxiter,
+                 symmetries=symmetries_id_only, kwargs...)
+    end
+    χ0Kδρs = symmetrize_δρs(ε_adj.pertset, basis, map(res -> res.δρ, χ0ress))
+    Ax = vec(stack(map(eachslice(δρs, dims=5),
+                       χ0Kδρs) do δρ, χ0Kδρ
+        δρ - χ0Kδρ # (1 - χ0 K) δρ
+    end))
+    (; Ax, info=(; rtol, ress=χ0ress))
 end
 function Base.size(ε_adj::DielectricAdjoint, i::Integer)
     if 1 ≤ i ≤ 2
-        return prod(size(ε_adj.ρ))
+        return prod(size(ε_adj.ρ)) * length(ε_adj.pertset)
     else
         return one(i)
     end

@@ -351,6 +351,21 @@ function symmetrize_stresses(basis::PlaneWaveBasis, stresses; symmetries=basis.s
 end
 
 """
+Symmetrize the elastic tensor, given in Voigt notation as a 6x6 Matrix
+"""
+function symmetrize_elastic_tensor(model::Model, C; symmetries)
+    # TODO: if one index is stress and one index is strain we might have to symmetrize them differently!
+    C_symmetrized = zero(C)
+    for symop in symmetries
+        W_cart = matrix_red_to_cart(model, symop.W)
+        W_cart_voigt = transformation_to_voigt(W_cart)
+        C_symmetrized += W_cart_voigt * C / W_cart_voigt
+    end
+    C_symmetrized /= length(symmetries)
+    C_symmetrized
+end
+
+"""
 Find the symmetry preimage of `position`, returning the corresponding index in `positions_group`.
 """
 function find_symmetry_preimage(positions_group, position, symop;
