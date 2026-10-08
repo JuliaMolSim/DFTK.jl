@@ -432,15 +432,14 @@ end
     basis = ε_adj.ham.basis
     δρ, δτ = split_gdensity(basis, reshape(x, basis.fft_size..., :))
     δV = apply_kernel(basis, δρ; ε_adj.ρ, ε_adj.q, ε_adj.τ, δτ)
-    res = apply_χ0(ε_adj.ham, ε_adj.ψ, ε_adj.occupation, ε_adj.εF, ε_adj.eigenvalues, δV.δVρ;
+    χ0δV = apply_χ0(ε_adj.ham, ε_adj.ψ, ε_adj.occupation, ε_adj.εF, ε_adj.eigenvalues, δV.δVρ;
                    δVτ=δV.δVτ,
                    miniter=1, ε_adj.occupation_threshold, tol=rtol*norm(δρ),
                    ε_adj.bandtolalg, ε_adj.q, ε_adj.maxiter, kwargs...)
-    χ0δVρ = res.δρ
-    χ0δVτ = res.δτ
     # (1 - χ0 K) δρ
-    Ax = vec(pack_gdensity(basis, δρ - χ0δVρ,
-                                  isnothing(δτ) ? nothing : δτ - χ0δVτ))
+    ε_δρ = δρ - χ0δV.δρ
+    ε_δτ = isnothing(δτ) ? nothing : δτ - χ0δV.δτ
+    Ax = vec(pack_gdensity(basis, ε_δρ, ε_δτ))
     (; Ax, info=(; rtol, res...))
 end
 function Base.size(ε_adj::DielectricAdjoint, i::Integer)
