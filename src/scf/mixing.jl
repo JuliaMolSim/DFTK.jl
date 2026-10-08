@@ -298,9 +298,9 @@ end
 Apply χ0Mixing to a density difference (act_on_density=true) or to a potential difference
 (act_on_density=false).
 """
-function mix_dielectric_model(mixing::χ0Mixing, basis::PlaneWaveBasis, Δx;
-                              act_on_density::Bool, ρin, kwargs...)
-    terms = map(mixing.terms) do (kernel_types, χ0terms)
+function mix_dielectric_model(mixing::χ0Mixing, basis::PlaneWaveBasis, Δx::AbstractArray{T};
+                              act_on_density::Bool, ρin, kwargs...) where {T}
+    dielectric_terms = map(mixing.terms) do (kernel_types, χ0terms)
         # Filter out χ0terms that give nothing apply functions and kernel terms
         # that are not present in the basis; also prepare the χ0applies and select
         # the actual instantiated terms instead of the term types.
@@ -308,11 +308,12 @@ function mix_dielectric_model(mixing::χ0Mixing, basis::PlaneWaveBasis, Δx;
         kernel_terms  = [term for term in basis.terms if any(term isa t for t in kernel_types)]
         (kernel_terms, χ0applies)
     end
-    terms = filter(t -> !isempty(t[1]) && !isempty(t[2]), terms)
-    isempty(terms) && return Δx
+    dielectric_terms = filter(t -> !isempty(t[1]) && !isempty(t[2]), dielectric_terms)
+    isempty(dielectric_terms) && return Δx
 
     # Either ε = 1 - Kχ0 (adjoint=false) or ε^† = 1 - χ0K (adjoint=true)
-    dielectric = act_on_density ? get_ε_adj_op(terms) : get_ε_op(terms)
+    dielectric = (act_on_density ? get_ε_adj_op(dielectric_terms, basis; ρ=ρin)
+                                 : get_ε_op(dielectric_terms, basis;     ρ=ρin))
 
     mixed_Δx, info = linsolve(dielectric, Δx;
         verbosity=(mixing.verbose ? 3 : 0),
@@ -336,15 +337,15 @@ function mix_dielectric_model(mixing::χ0Mixing, basis::PlaneWaveBasis, Δx;
 end
 
 
-function get_ε_adj_op(terms::AbtractVector)
+function get_ε_adj_op(dielectric_terms::AbstractVector, basis; ρ)
     # TODO : Combine this with the DielectricAdjoint struct
 
     function ε_adj(δρ)
         εδρ = copy(δρ)
-        for (kernel_terms, χ0applies) in terms
+        for (kernel_terms, χ0applies) in dielectric_terms
             Kδρ = zero(δρ)
             for term in kernel_terms
-                Kδρ .+= apply_kernel(term, basis, δρ; ρ=ρin)
+                Kδρ .+= apply_kernel(term, basis, δρ; ρ)
             end
 
             # Apply χ0 model
@@ -356,10 +357,10 @@ function get_ε_adj_op(terms::AbtractVector)
         εδρ
     end
 end
-function get_ε_op(terms::AbstractVector)
+function get_ε_op(dielectric_terms::AbstractVector, basis; ρ)
     function ε(δV)
         εδV = copy(δV)
-        for (kernel_terms, χ0applies) in terms
+        for (kernel_terms, χ0applies) in dielectric_terms
             # Apply χ0 model
             χ0δV = zero(δV)
             for apply_term! in χ0applies
@@ -367,7 +368,7 @@ function get_ε_op(terms::AbstractVector)
             end
 
             for term in kernel_terms
-                εδV .-= apply_kernel(term, basis, χ0δV; ρ=ρin)
+                εδV .-= apply_kernel(term, basis, χ0δV; ρ)
             end
         end
         εδV
