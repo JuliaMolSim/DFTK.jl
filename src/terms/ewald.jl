@@ -152,7 +152,7 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
                 image_bounds += displacement_bound * image_scales
                 image_bounds += abs.(ph_disp[i]) + abs.(ph_disp[j])
             end
-            Rmin = ceil.(Int, d - image_bounds)
+            Rmin = ceil.(Int,  d - image_bounds)
             Rmax = floor.(Int, d + image_bounds)
             Δr_pair = cart_positions[i] - cart_positions[j]
             charge_product = charges[i] * charges[j]
@@ -165,7 +165,8 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
                         iszero(R) && i == j && continue
                         Δr = Δr12 - R3 * a3
                         if !isnothing(ph_disp)
-                            Δr += cart_displacements[i]
+                            Δr += cart_displacements[i] # * cis2pi(-dot(q, zeros(3))) === 1
+                            #           as we use the forces at the nuclei in the unit cell
                             Δr -= cart_displacements[j] * cis2pi(-dot(q, R))
                         end
                         dist_sq = sum(x -> x * x, Δr)
