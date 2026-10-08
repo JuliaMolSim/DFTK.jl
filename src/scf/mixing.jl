@@ -196,10 +196,7 @@ Important `kwargs` passed on to [`χ0Mixing`](@ref)
 function LdosDielectricMixing(; εr=10.0, kTF=0.8, localization=identity,
                                 smearing=nothing, temperature=nothing, RPA=true, kwargs...)
     # TODO: switch to non-adaptive version above
-    term_types = TermHartree
-    if !RPA
-        term_types = Union{TermHartree, TermXc}
-    end
+    term_types = RPA ? TermHartree : Union{TermHartree, TermXc}
     χ0terms = [DielectricModel(; εr, kTF, localization),
                LdosModel(; smearing, temperature)]
     χ0terms_mapping = Dict(term_types => χ0terms)
@@ -234,10 +231,7 @@ Important `kwargs` passed on to [`χ0Mixing`](@ref)
 """
 function LdosMixing(; smearing=nothing, temperature=nothing, RPA=true, kwargs...)
     # TODO: switch to non-adaptive version above
-    term_types = TermHartree
-    if !RPA
-        term_types = Union{TermHartree, TermXc}
-    end
+    term_types = RPA ? TermHartree : Union{TermHartree, TermXc}
     χ0terms_mapping = Dict(term_types => [LdosModel(; smearing, temperature)])
     χ0Mixing(; χ0terms_mapping, kwargs...)
 end
@@ -266,10 +260,9 @@ Important `kwargs` passed on to [`χ0Mixing`](@ref)
 """
 function LdosXcDiagonalMixing(; verbose=false, maxiter=20, reltol=1e-6, 
                                 smearing=nothing, temperature=nothing, kwargs...)
-    χ0Mixing(; χ0terms_mapping = Dict(
-                    TermHartree => [LdosModel(; smearing, temperature)],
-                    TermXc =>      [DiagonalModel(; smearing, temperature)]),
-               verbose, maxiter, reltol)
+    χ0terms_mapping = Dict(TermHartree => [LdosModel(; smearing, temperature)],
+                           TermXc =>      [DiagonalModel(; smearing, temperature)])
+    χ0Mixing(; χ0terms_mapping, verbose, maxiter, reltol)
 end
 
 @doc raw"""
