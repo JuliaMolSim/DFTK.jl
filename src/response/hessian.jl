@@ -326,12 +326,8 @@ Input parameters:
     ε_adj = DielectricAdjoint(ham, ρ, τ, ψ, occupation, εF, eigenvalues, occupation_threshold,
                               bandtolalg, maxiter_sternheimer, q)
     precon = FunctionPreconditioner() do Px, x
-        δρ, δτ = split_gdensity(basis, reshape(x, basis.fft_size..., :))
-        # Only the density is preconditioned for now...
-        # TODO Precondition or at least rescale τ
-        Pδρ = mix_density(mixing, basis, δρ;
-                          ham, basis, ρin=ρ, εF, eigenvalues, ψ)
-        Px .= vec(pack_gdensity(basis, Pδρ, δτ))
+        Px .= vec(mix_gdensity(mixing, basis, reshape(x, basis.fft_size..., :);
+                               ham, basis, ρin=ρ, εF, eigenvalues, ψ))
     end
     callback_inner(info) = callback(merge(info, (; runtime_ns=time_ns() - start_ns, basis=basis)))
     info_gmres = inexact_gmres(ε_adj, vec(pack_gdensity(basis, δρ0, δτ0));
@@ -433,18 +429,18 @@ end
     δρ, δτ = split_gdensity(basis, reshape(x, basis.fft_size..., :))
     δV = apply_kernel(basis, δρ; ε_adj.ρ, ε_adj.q, ε_adj.τ, δτ)
     χ0δV = apply_χ0(ε_adj.ham, ε_adj.ψ, ε_adj.occupation, ε_adj.εF, ε_adj.eigenvalues, δV.δVρ;
-                   δVτ=δV.δVτ,
-                   miniter=1, ε_adj.occupation_threshold, tol=rtol*norm(δρ),
-                   ε_adj.bandtolalg, ε_adj.q, ε_adj.maxiter, kwargs...)
+                    δVτ=δV.δVτ,
+                    miniter=1, ε_adj.occupation_threshold, tol=rtol*norm(δρ),
+                    ε_adj.bandtolalg, ε_adj.q, ε_adj.maxiter, kwargs...)
     # (1 - χ0 K) δρ
     ε_δρ = δρ - χ0δV.δρ
     ε_δτ = isnothing(δτ) ? nothing : δτ - χ0δV.δτ
     Ax = vec(pack_gdensity(basis, ε_δρ, ε_δτ))
-    (; Ax, info=(; rtol, res...))
+    (; Ax, info=(; rtol, χ0δV...))
 end
 function Base.size(ε_adj::DielectricAdjoint, i::Integer)
     if 1 ≤ i ≤ 2
-        return length(ε_adj.ρ) + (isnothing(ε_adj.τ) ? zero(i) : length(ε_adj.τ))
+        return length(ε_adj.ρ) + (isnothing(ε_adj.τ) ? false : length(ε_adj.τ))
     else
         return one(i)
     end

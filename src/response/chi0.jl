@@ -533,7 +533,7 @@ function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{
     # (it makes the rhs be order 1 even if δV is small)
     # TODO: what about δVτ? we maybe at least take a joint norm?
     normδH = norm(δV)
-    normδH < eps(T) && return (; δρ=zero(δV), δτ = isnothing(δVτ) ? nothing : zero(δVτ), normδH)
+    normδH < eps(T) && return (; δρ=zero(δV), δτ=isnothing(δVτ) ? nothing : zero(δVτ), normδH)
     δV ./= normδH
     isnothing(δVτ) || (δVτ ./= normδH)
 
