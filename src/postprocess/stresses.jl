@@ -25,23 +25,29 @@ for details. In Voigt notation one would use the vector
     to explicitly make sure that the `stresses` returned by this function keep the symmetry
     of the physical model. See also the discussion in [`compute_forces`](@ref).
 """
-@timing function compute_stresses_cart(scfres)
+@timing function compute_stresses_cart(basis, ψ, occupation; eigenvalues, εF, symmetries=basis.symmetries, ρ=nothing)
     # compute the Hellmann-Feynman energy (with fixed ψ/occ/ρ)
     function HF_energy(lattice)
-        basis = scfres.basis
         new_model = Model(basis.model; lattice)
         new_basis = PlaneWaveBasis(basis; model=new_model)
-        ρ = compute_density(new_basis, scfres.ψ, scfres.occupation)
-        τ = nothing
-        if any(needs_τ, basis.terms)
-            τ = compute_kinetic_energy_density(new_basis, scfres.ψ, scfres.occupation)
+        if isnothing(ρ)
+            ρ_strained = compute_density(new_basis, ψ, occupation; symmetries)
+        else
+            # TODO: horrible hack to avoid symmetrizing with fully reduced IBZ
+            # TODO: will not work for τ and USPP/PAW
+            # TODO: fix this
+            ρ_strained = ρ .* (basis.dvol / new_basis.dvol)
         end
-        (; energies) = energy(new_basis, scfres.ψ, scfres.occupation;
-                              ρ, τ, scfres.eigenvalues, scfres.εF)
+        τ = nothing
+        # if any(needs_τ, basis.terms)
+        #     τ = compute_kinetic_energy_density(new_basis, ψ, occupation) # TODO symmetries
+        # end
+        (; energies) = energy(new_basis, ψ, occupation;
+                              ρ=ρ_strained, τ, eigenvalues, εF)
         energies.total
     end
-    L  = scfres.basis.model.lattice
-    Ω  = scfres.basis.model.unit_cell_volume
+    L  = basis.model.lattice
+    Ω  = basis.model.unit_cell_volume
 
     # Note that both strain and stress are symmetric, therefore we only do
     # AD with respect to the 6 free Voigt strain components. Note, that the
@@ -51,7 +57,11 @@ for details. In Voigt notation one would use the vector
     # Use chunk size of 1 to limit memory usage
     config = ForwardDiff.GradientConfig(f, x, ForwardDiff.Chunk{1}())
     stress_voigt = 1/Ω * ForwardDiff.gradient(f, x, config)::Vector{eltype(L)}
-    symmetrize_stresses(scfres.basis, voigt_stress_to_full(stress_voigt))
+    symmetrize_stresses(basis, voigt_stress_to_full(stress_voigt); symmetries)
+end
+@timing function compute_stresses_cart(scfres; symmetries=scfres.basis.symmetries)
+    compute_stresses_cart(scfres.basis, scfres.ψ, scfres.occupation;
+                          scfres.eigenvalues, scfres.εF, symmetries, scfres.ρ)
 end
 function voigt_stress_to_full(v::AbstractVector{T}) where {T}
     @SArray[v[1] v[6] v[5];
@@ -69,11 +79,21 @@ function voigt_strain_to_full(v::AbstractVector{T}) where {T}
                 v[6]/T(2)  1 + v[2]            v[4]/T(2);
                 v[5]/T(2)      v[4]/T(2)   1 + v[3]     ]
 end
-function full_strain_to_voigt(ε::AbstractVector{T}) where {T}
+function full_strain_to_voigt(ε::AbstractMatrix{T}) where {T}
     @SVector[ε[1, 1] - 1, ε[2, 2] - 1, ε[3, 3] - 1,
              ε[3, 2] + ε[2, 3],
              ε[3, 1] + ε[1, 3],
              ε[1, 2] + ε[2, 1]]
+end
+
+function transformation_to_voigt(A::AbstractMatrix{T}) where {T}
+    stack(1:6; dims=1) do i
+        η = zeros(T, 6)
+        η[i] = one(T)
+        ϵ = voigt_strain_to_full(η)
+        ϵ_transformed = A \ ϵ * A
+        full_strain_to_voigt(ϵ_transformed)
+    end
 end
 
 

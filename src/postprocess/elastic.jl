@@ -97,3 +97,108 @@ function elastic_tensor(scfres::NamedTuple;
 
     (; voigt_stress, C)
 end
+
+struct ElasticPerturbations <: PerturbationSet end
+Base.length(::ElasticPerturbations) = 6
+
+function symmetrize_δρs(::ElasticPerturbations, basis::PlaneWaveBasis{T}, δρs) where {T}
+    @assert length(δρs) == 6
+    map(1:6) do iη
+        δρ_sym = zeros_like(δρs[iη])
+        strain = zeros(T, 6)
+        strain[iη] = one(T)
+        ϵ = voigt_strain_to_full(strain)
+        for symop in basis.symmetries
+            W_cart = matrix_red_to_cart(basis.model, symop.W)
+            ϵ_transformed = W_cart * ϵ / W_cart
+            strain_transformed = full_strain_to_voigt(ϵ_transformed)
+            for j in 1:6
+                if abs(strain_transformed[j]) > sqrt(eps(T))
+                    δρ_sym .+= strain_transformed[j] .* apply_symop(symop, basis, δρs[j])
+                end
+            end
+        end
+        δρ_sym / length(basis.symmetries)
+    end
+end
+
+"""
+    elastic_tensor(scfres;
+                   response=ResponseOptions(),
+                   tol_symmetry=SYMMETRY_TOLERANCE)
+
+Computes the *clamped-ion* elastic tensor (without ionic relaxation) via
+automatic differentiation of the stress tensor with respect to strain.
+Returns a named tuple `(; voigt_stress, C)` where `C[i,j] = ∂σᵢ/∂ηⱼ` is
+the 6×6 elastic tensor in Voigt notation.
+
+`response` controls the implicit response solver
+(`solve_ΩplusK_split`) performed when the SCF is differentiated.
+
+`tol_symmetry` controls the tolerance for symmetry detection on the
+strained lattice.
+
+For cubic systems the three independent constants (C11, C12, C44) are
+obtained from a single directional derivative; for other symmetries the
+full Jacobian is computed.
+"""
+function elastic_tensor_v2(scfres::NamedTuple;
+                           response=ResponseOptions())
+    basis0 = scfres.basis
+    T = eltype(basis0)
+    model0 = basis0.model
+
+    function make_strained_basis(η)
+        lattice = voigt_strain_to_full(η) * model0.lattice
+        # explicitly keep model0's symmetries!
+        model = Model(model0; lattice, symmetries=model0.symmetries)
+        PlaneWaveBasis(basis0; model)
+    end
+
+    Tag = typeof(ForwardDiff.Tag(make_strained_basis, T))
+    ε = Dual{Tag}(zero(T), one(T))
+
+    δHψs = map(1:6) do istrain
+        δη = zeros(T, 6)
+        δη[istrain] = one(T)
+        basis = make_strained_basis(ε .* δη)
+        # TODO: τ, occupation_threshold
+        ρ = compute_density(basis, scfres.ψ, scfres.occupation)
+        # τ = isnothing(scfres.τ) ? nothing : compute_kinetic_energy_density(strained_basis, scfres.ψ, scfres.occupation)
+        ham = energy_hamiltonian(basis, scfres.ψ, scfres.occupation;
+                                 ρ, scfres.eigenvalues, scfres.εF).ham
+        ForwardDiff.extract_derivative(Tag, ham * scfres.ψ)
+    end
+
+    tol = last(scfres.history_Δρ)
+    dfpt_res = solve_ΩplusK_split(scfres, δHψs, ElasticPerturbations(); tol)
+
+    symmetries_id_only = [one(first(basis0.symmetries))]
+    δρs = map(1:6) do istrain
+        δη = zeros(T, 6)
+        δη[istrain] = one(T)
+        # TODO: building a full basis just to compute ρ is rather wasteful
+        basis = make_strained_basis(ε .* δη)
+        ψ = scfres.ψ .+ ε .* dfpt_res.δψs[istrain]
+        occupation = scfres.occupation .+ ε .* dfpt_res.δoccupations[istrain]
+        ForwardDiff.extract_derivative(Tag, compute_density(basis, ψ, occupation; symmetries=symmetries_id_only))
+    end
+    δρs = symmetrize_δρs(ElasticPerturbations(), basis0, δρs)
+
+    C_cols = map(1:6) do istrain
+        δη = zeros(T, 6)
+        δη[istrain] = one(T)
+        basis = make_strained_basis(ε * δη)
+        ψ = scfres.ψ .+ ε .* dfpt_res.δψs[istrain]
+        occupation = scfres.occupation .+ ε .* dfpt_res.δoccupations[istrain]
+        eigenvalues = scfres.eigenvalues .+ ε .* dfpt_res.δeigenvaluess[istrain]
+        ρ = scfres.ρ .+ ε .* δρs[istrain]
+        εF = scfres.εF + ε * dfpt_res.δεFs[istrain]
+        # TODO: τ = isnothing(scfres.τ) ? nothing : compute_kinetic_energy_density(strained_basis, ψ, scfres.occupation)
+        σ = compute_stresses_cart(basis, ψ, occupation; eigenvalues, εF, symmetries=symmetries_id_only, ρ)
+        ForwardDiff.extract_derivative(Tag, full_stress_to_voigt(σ))
+    end
+
+    C = symmetrize_elastic_tensor(model0, stack(C_cols); basis0.symmetries)
+    (; C, dfpt_res)
+end
