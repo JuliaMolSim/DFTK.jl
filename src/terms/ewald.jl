@@ -130,7 +130,7 @@ function energy_forces_ewald(S, lattice::AbstractArray{T}, charges, positions, q
 
     radius = max_erfc_arg / η
     inv_lattice_t = compute_inverse_lattice(lattice')
-    # ||A(d - R)|| ≤ radius implies |d[k] - R[k]| ≤ ||A⁻ᵀ eₖ|| radius.
+    # ||A(d - R)|| ≤ radius implies |d[k] - R[k]| ≤ ||A⁻ᵀ eₖ|| * radius.
     image_scales = Vec3(ntuple(k -> norm(inv_lattice_t[:, k]), 3))
     cart_positions = [Vec3(lattice * r) for r in positions]
     cart_displacements = isnothing(ph_disp) ? nothing : [Vec3(lattice * u) for u in ph_disp]
