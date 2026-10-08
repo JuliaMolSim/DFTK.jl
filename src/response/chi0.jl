@@ -515,6 +515,7 @@ Parameters:
 - `maxiter`: Maximal number of CG iterations per k and band for Sternheimer
 """
 function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{TδV};
+                  δVτ=nothing,
                   δtemperature=zero(eltype(ham.basis)),
                   occupation_threshold=default_occupation_threshold(TδV),
                   q=zero(Vec3{eltype(ham.basis)}),
@@ -525,13 +526,16 @@ function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{
     # Make δV respect the basis symmetry group, since we won't be able
     # to compute perturbations that don't anyway
     δV = symmetrize_ρ(basis, δV)
+    δVτ = isnothing(δVτ) ? nothing : symmetrize_ρ(basis, δVτ)
 
     # Normalize δV to avoid numerical trouble; theoretically should not be necessary,
     # but it simplifies the interaction with the Sternheimer linear solver
     # (it makes the rhs be order 1 even if δV is small)
+    # TODO: what about δVτ? we maybe at least take a joint norm?
     normδH = norm(δV)
-    normδH < eps(T) && return (; δρ=zero(δV), normδH)
+    normδH < eps(T) && return (; δρ=zero(δV), δτ=isnothing(δVτ) ? nothing : zero(δVτ), normδH)
     δV ./= normδH
+    isnothing(δVτ) || (δVτ ./= normδH)
 
     if bandtolalg isa BandtolGuaranteed
         # This is the ||K v|| term of arxiv 2505.02319, see also the discussion
@@ -542,13 +546,22 @@ function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{
     # For phonon calculations, assemble
     #   δHψ_k = δV_{q} · ψ_{k-q}.
     δHψ = multiply_ψ_by_blochwave(basis, ψ, δV, q)
+    if !isnothing(δVτ)
+        δHψ .+= apply_Vτ(basis, ψ, δVτ, q)
+    end
     res = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                       δtemperature, occupation_threshold, q, bandtolalg,
                       kwargs_sternheimer...)
 
     δρ = compute_δρ(basis, ψ, res.δψ, occupation, res.δoccupation; occupation_threshold, q)
     δρ = δρ * normδH
-    (; δρ, normδH, res...)
+    if isnothing(δVτ)
+        δτ = nothing
+    else
+        δτ = compute_δτ(basis, ψ, res.δψ, occupation, res.δoccupation; q)
+        δτ = δτ * normδH
+    end
+    (; δρ, δτ, normδH, res...)
 end
 
 function apply_χ0(scfres, δV; kwargs...)

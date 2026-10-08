@@ -266,7 +266,7 @@ end
     # Solve (ε^†) δρ = δF with ε^† = (1 - χ₀ vc) and χ₀ given as the sum of the χ0terms
     function dielectric_adjoint(δF)
         # Apply Kernel (just vc for RPA and (vc + K_{xc}) if not RPA)
-        δV = apply_kernel(basis, δF; ρ=ρin, mixing.RPA)
+        δV = apply_kernel(basis, δF; ρ=ρin, mixing.RPA).δVρ
         δV .-= mean(δV)
         εδF = copy(δF)
         for apply_term! in χ0applies

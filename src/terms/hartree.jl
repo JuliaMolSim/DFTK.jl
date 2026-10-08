@@ -75,5 +75,5 @@ function apply_kernel(term::TermHartree, basis::PlaneWaveBasis{T}, δρ::Abstrac
         coeffs = compute_poisson_green_coeffs(basis, term.scaling_factor; q)
         δV .= ifft(basis, coeffs .* fft(basis, δρtot))  # Note the ifft
     end
-    δV
+    (; δVρ=δV)
 end

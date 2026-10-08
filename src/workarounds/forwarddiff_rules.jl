@@ -241,8 +241,8 @@ end
         basis_dual::PlaneWaveBasis{<:Dual{Tg,V,N}};
         response=ResponseOptions(),
         kwargs...) where {Tg,V,N}
-    if any(needs_τ, basis_dual.terms)
-        error("Cannot yet compute SCF derivatives with meta-GGA functionals.")
+    if any(t -> t isa TermHubbard, basis_dual.terms)
+        error("Cannot yet compute SCF derivatives with Hubbard corrections.")
     end
 
     basis_primal = construct_value(basis_dual)
@@ -250,11 +250,12 @@ end
 
     # Compute explicit density perturbation (including strain) due to normalization
     ρ_basis = compute_density(basis_dual, scfres.ψ, scfres.occupation; scfres.occupation_threshold)
+    τ_basis = isnothing(scfres.τ) ? nothing : compute_kinetic_energy_density(basis_dual, scfres.ψ, scfres.occupation)
 
     # Compute external perturbation (contained in ham_dual)
     Hψ_dual = let
         ham_dual = energy_hamiltonian(basis_dual, scfres.ψ, scfres.occupation;
-                                      ρ=ρ_basis, scfres.eigenvalues,
+                                      ρ=ρ_basis, τ=τ_basis, scfres.eigenvalues,
                                       scfres.εF).ham
         ham_dual * scfres.ψ
     end
@@ -287,16 +288,17 @@ end
     # For strain, basis_dual contributes an explicit lattice contribution which
     # is not contained in δresults, so we need to recompute ρ here
     ρ = compute_density(basis_dual, ψ, occupation; scfres.occupation_threshold)
+    τ = isnothing(scfres.τ) ? nothing : compute_kinetic_energy_density(basis_dual, ψ, occupation)
 
     # TODO Could add δresults[α].δVind the dual part of the total local potential in ham_dual
     # and in this way return a ham that represents also the total change in Hamiltonian
 
-    energies, ham = energy_hamiltonian(basis_dual, ψ, occupation; ρ, eigenvalues, εF)
+    energies, ham = energy_hamiltonian(basis_dual, ψ, occupation; ρ, τ, eigenvalues, εF)
 
     # This has to be changed whenever the scfres structure changes
-    (; ham, basis=basis_dual, energies, ρ, eigenvalues, occupation, εF, ψ,
-       # TODO make τ and hubbard_n also differentiable for meta-GGA/DFT+U DFPT
-       scfres.τ, scfres.hubbard_n,
+    (; ham, basis=basis_dual, energies, ρ, τ, eigenvalues, occupation, εF, ψ,
+       # TODO make hubbard_n also differentiable for DFPT+U
+       scfres.hubbard_n,
        # non-differentiable metadata:
        response=getfield.(δresults, :info_gmres),
        scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter,
