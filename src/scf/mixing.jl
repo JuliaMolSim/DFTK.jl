@@ -375,7 +375,7 @@ function get_ε_op(terms::AbstractVector)
 end
 
 function default_smearing_temperature(model::Model)
-    # Set temperature to be α times the model temperature, but make sure
+    # Set temperature to be 100 times the model temperature, but make sure
     # to never overshoot 0.1 and never under-shoot the model.temperature
     temperature = max(model.temperature, min(0.1, 100model.temperature))
     (; smearing=Smearing.Gaussian(), temperature)
