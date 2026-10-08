@@ -354,13 +354,13 @@ function get_ε_op(mixing::χ0Mixing, basis::PlaneWaveBasis; ρin, kwargs...)
             end
 
         end
-        return εδV
+        εδV
     end
 end
 
 @views @timing "χ0Mixing" function mix_density(mixing::χ0Mixing, 
-        basis, Δρ::AbstractArray{T};
-        ρin, kwargs...) where {T}
+                                               basis, Δρ::AbstractArray{T};
+                                               ρin, kwargs...) where {T}
 
     ε_adj_op = get_ε_adj_op(mixing, basis; ρin, kwargs...)
     ε_adj_op == identity && return mix_density(SimpleMixing(), basis, Δρ)
@@ -382,7 +382,7 @@ end
 
     # Ensuring that the mean value of Δρ is unchanged 
     # (conservation of electron number).
-    return mixed_Δρ .+ mean(Δρ) .- mean(mixed_Δρ)
+    mixed_Δρ .+ mean(Δρ) .- mean(mixed_Δρ)
 end
 
 @timing "χ0Mixing" function mix_potential(mixing::χ0Mixing, basis, ΔV::AbstractArray{T};
@@ -405,7 +405,7 @@ end
     end
 
     MPI.Bcast!(mixed_ΔV, 0, MPI.COMM_WORLD) 
-    return mixed_ΔV
+    mixed_ΔV
 end
 
 function default_smearing_temperature(model::Model)
