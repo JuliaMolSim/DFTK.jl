@@ -194,7 +194,7 @@ Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `maxiter`: Maximum number of iterations for GMRES.
 """
 function LdosDielectricMixing(; εr=10.0, kTF=0.8, localization=identity,
-                        smearing=nothing, temperature=nothing, RPA=true, kwargs...)
+                                smearing=nothing, temperature=nothing, RPA=true, kwargs...)
     # TODO: switch to non-adaptive version above
     term_types = TermHartree
     if !RPA
@@ -247,11 +247,13 @@ Hybrid mixing for ferromagnetic systems, that uses the LDOS χ0-model [`LdosMode
 for the Hartree  kernel and a diagonal χ0-model for the exchange-correlation kernel: 
 ```math
 \begin{aligned}
-    & χ_0^\text{diag} = \sum_{i=1}^\infty f'(\varepsilon_i-\varepsilon_F) |\psi_i|^2(r)+|\psi_i|^2(r') + \frac1D D_\text{loc}(r) D_\text{loc}(r') \\
+    & χ_0^\text{diag} = \sum_{i=1}^\infty f'(\varepsilon_i-\varepsilon_F)
+      |\psi_i|^2(r)+|\psi_i|^2(r') + \frac1D D_\text{loc}(r) D_\text{loc}(r') \\
     & \varepsilon^\dagger = I - \chi_0^text{LDOS} K_H - \chi_0^\text{diag} K_\text{XC}
 \end{aligned}
 ```
 For details see [Barat, Levitt, Torrent 2026](https://hal.science/hal-05658631).
+Note, also that ABINIT calls this the Hybrid preconditioner.
 
 The smearing temperature and smearing functions used in the LDOS and diagonal χ0-models can
 be set with the `smearing` and `temperature` keyword arguments. The default is 
@@ -263,7 +265,7 @@ Important `kwargs` passed on to [`χ0Mixing`](@ref)
 - `maxiter`: Maximum number of iterations for GMRES.
 """
 function LdosXcDiagonalMixing(; verbose=false, maxiter=20, reltol=1e-6, 
-                            smearing=nothing, temperature=nothing, kwargs...)
+                                smearing=nothing, temperature=nothing, kwargs...)
     χ0Mixing(; χ0terms_mapping = Dict(
                     TermHartree => [LdosModel(; smearing, temperature)],
                     TermXc =>      [DiagonalModel(; smearing, temperature)]),
