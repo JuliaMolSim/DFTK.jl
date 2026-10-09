@@ -43,6 +43,7 @@ include("common/versioninfo.jl")
 include("architecture.jl")
 include("common/zeros_like.jl")
 include("common/norm.jl")
+include("common/unique_norms.jl")
 include("common/quadrature.jl")
 include("common/hankel.jl")
 include("common/hydrogenic.jl")
@@ -253,10 +254,10 @@ include("postprocess/refine.jl")
 # Workarounds
 include("workarounds/dummy_inplace_fft.jl")
 include("workarounds/forwarddiff_rules.jl")
+include("workarounds/forwarddiff_gemm.jl")
 
 # Optimized generic GPU functions and GPU workarounds
 include("gpu/linalg.jl")
-include("gpu/gpu_arrays.jl")
 
 # Precompilation block with a basic workflow
 

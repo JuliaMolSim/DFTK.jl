@@ -15,6 +15,9 @@ ForwardDiff.npartials(::Type{<:Complex{<:Dual{T,V,N}}}) where {T,V,N} = N
 ForwardDiff.tagtype(x::Complex{<:Dual{T,V,N}}) where {T,V,N} = T
 ForwardDiff.tagtype(::Type{<:Complex{<:Dual{T,V,N}}}) where {T,V,N} = T
 
+ForwardDiff.valtype(x::Complex{<:Dual{T,V,N}}) where {T,V,N} = Complex{V}
+ForwardDiff.valtype(::Type{<:Complex{<:Dual{T,V,N}}}) where {T,V,N} = Complex{V}
+
 AbstractFFTs.complexfloat(x::AbstractArray{<:Dual}) = AbstractFFTs.complexfloat.(x)
 AbstractFFTs.complexfloat(d::Dual{T,V,N}) where {T,V,N} = convert(Dual{T,float(V),N}, d) + 0im
 

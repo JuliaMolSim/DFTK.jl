@@ -119,14 +119,14 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     # Potential contributions Vρ -2 ∇⋅(Vσ ∇ρ) + ΔVl
     potential = zero(ρ)
     @views for s = 1:n_spin
-        Vρ = to_device(basis.architecture, reshape(terms.Vρ, n_spin, basis.fft_size...))
+        Vρ = reshape(terms.Vρ, n_spin, basis.fft_size...)
 
         potential[:, :, :, s] .+= Vρ[s, :, :, :]
         if haskey(terms, :Vσ) && any(x -> abs(x) > potential_threshold, terms.Vσ)
             # Need gradient correction
             # TODO Drop do-block syntax here?
             potential[:, :, :, s] .+= -2divergence_real(basis) do α
-                Vσ = to_device(basis.architecture, reshape(terms.Vσ, :, basis.fft_size...))
+                Vσ = reshape(terms.Vσ, :, basis.fft_size...)
 
                 # Extra factor (1/2) for s != t is needed because libxc only keeps σ_{αβ}
                 # in the energy expression. See comment block below on spin-polarised XC.
@@ -138,7 +138,7 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
         if haskey(terms, :Vl) && any(x -> abs(x) > potential_threshold, terms.Vl)
             @warn "Meta-GGAs with a Δρ term have not yet been thoroughly tested." maxlog=1
             mG² = .-norm2.(G_vectors_cart(basis))
-            Vl  = to_device(basis.architecture, reshape(terms.Vl, n_spin, basis.fft_size...))
+            Vl  = reshape(terms.Vl, n_spin, basis.fft_size...)
             Vl_fourier = fft(basis, Vl[s, :, :, :])
             potential[:, :, :, s] .+= irfft(basis, mG² .* Vl_fourier)  # ΔVl
         end
@@ -148,7 +148,7 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     Vτ = nothing
     if haskey(terms, :Vτ) && any(x -> abs(x) > potential_threshold, terms.Vτ)
         # Need meta-GGA non-local operator (Note: -½ part of the definition of DivAgrid)
-        Vτ = to_device(basis.architecture, reshape(terms.Vτ, n_spin, basis.fft_size...))
+        Vτ = reshape(terms.Vτ, n_spin, basis.fft_size...)
         Vτ = term.scaling_factor * permutedims(Vτ, (2, 3, 4, 1))
     end
 
@@ -525,14 +525,9 @@ function DftFunctionals.potential_terms(xc::DispatchFunctional, density::LibxcDe
     potential_terms(xc, _matify(density.ρ_real), _matify(density.σ_real),
                         _matify(density.τ_real), _matify(density.Δρ_real))
 end
-
-# Ensure functionals from DftFunctionals are sent to the CPU
-# TODO: Allow GPUArrys once DftFunctionals is refactored to support GPU. 
 function DftFunctionals.potential_terms(fun::DftFunctionals.Functional, density::LibxcDensities)
-    maticpuify(::Nothing) = nothing
-    maticpuify(x::AbstractArray) = reshape(Array(x), size(x, 1), :)
-    DftFunctionals.potential_terms(fun, maticpuify(density.ρ_real), maticpuify(density.σ_real),
-                                        maticpuify(density.τ_real), maticpuify(density.Δρ_real))
+    potential_terms(fun, _matify(density.ρ_real), _matify(density.σ_real),
+                         _matify(density.τ_real), _matify(density.Δρ_real))
 end
 
 function DftFunctionals.potential_terms(xcs::Vector{Functional}, density::LibxcDensities)
@@ -544,17 +539,13 @@ function DftFunctionals.potential_terms(xcs::Vector{Functional}, density::LibxcD
     result
 end
 
-# Ensure functionals from DftFunctionals are sent to the CPU
-# TODO: Allow GPUArrys once DftFunctionals is refactored to support GPU. 
-function DftFunctionals.energy_density(fun::DftFunctionals.Functional, density::LibxcDensities)
-    maticpuify(::Nothing) = nothing
-    maticpuify(x::AbstractArray) = reshape(Array(x), size(x, 1), :)
-    DftFunctionals.energy_density(fun, maticpuify(density.ρ_real), maticpuify(density.σ_real),
-                                       maticpuify(density.τ_real), maticpuify(density.Δρ_real))
-end
 function DftFunctionals.energy_density(xc::DispatchFunctional, density::LibxcDensities)
     energy_density(xc, _matify(density.ρ_real), _matify(density.σ_real),
                        _matify(density.τ_real), _matify(density.Δρ_real))
+end
+function DftFunctionals.energy_density(fun::DftFunctionals.Functional, density::LibxcDensities)
+    energy_density(fun, _matify(density.ρ_real), _matify(density.σ_real),
+                        _matify(density.τ_real), _matify(density.Δρ_real))
 end
 function DftFunctionals.energy_density(xcs::Vector{Functional}, density::LibxcDensities{T}) where {T}
     xcs = filter(has_energy, xcs)

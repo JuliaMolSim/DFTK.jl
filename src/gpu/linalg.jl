@@ -38,3 +38,6 @@ function mul!(Y::AbstractGPUArray{T}, P::PreconditionerTPA, R::AbstractGPUArray{
     end
     Y
 end
+
+# https://github.com/JuliaGPU/CUDA.jl/issues/1565
+LinearAlgebra.dot(x::AbstractGPUArray, D::Diagonal, y::AbstractGPUArray) = x' * (D * y)
