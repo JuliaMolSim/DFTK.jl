@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>AtomsBase integration · DFTK.jl</title><meta name="title" content="AtomsBase integration · DFTK.jl"/><meta property="og:title" content="AtomsBase integration · DFTK.jl"/><meta property="twitter:title" content="AtomsBase integration · DFTK.jl"/><meta name="description" content="Documentation for DFTK.jl."/><meta property="og:description" content="Documentation for DFTK.jl."/><meta property="twitter:description" content="Documentation for DFTK.jl."/><meta property="og:url" content="https://docs.dftk.org/stable/ecosystem/atomsbase/"/><meta property="twitter:url" content="https://docs.dftk.org/stable/ecosystem/atomsbase/"/><link rel="canonical" href="https://docs.dftk.org/stable/ecosystem/atomsbase/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="DFTK.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">DFTK.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../features/">DFTK features</a></li><li><span class="tocitem">Getting started</span><ul><li><a class="tocitem" href="../../guide/installation/">Installation</a></li><li><a class="tocitem" href="../../guide/tutorial/">Tutorial</a></li></ul></li><li><span class="tocitem">Background</span><ul><li><a class="tocitem" href="../../guide/introductory_resources/">Introductory resources</a></li><li><a class="tocitem" href="../../guide/periodic_problems/">Periodic problems and plane-wave discretisations</a></li><li><a class="tocitem" href="../../guide/discretisation/">Comparing discretization techniques</a></li><li><a class="tocitem" href="../../guide/atomic_chains/">Modelling atomic chains</a></li><li><a class="tocitem" href="../../guide/density_functional_theory/">Introduction to density-functional theory</a></li><li><a class="tocitem" href="../../guide/self_consistent_field/">Self-consistent field methods</a></li><li><a class="tocitem" href="../../school2022/">DFTK School 2022</a></li></ul></li><li><span class="tocitem">Basic DFT calculations</span><ul><li><a class="tocitem" href="../../examples/metallic_systems/">Temperature and metallic systems</a></li><li><a class="tocitem" href="../../examples/collinear_magnetism/">Collinear spin and magnetic systems</a></li><li><a class="tocitem" href="../../examples/convergence_study/">Performing a convergence study</a></li><li><a class="tocitem" href="../../examples/pseudopotentials/">Pseudopotentials</a></li><li><a class="tocitem" href="../../examples/supercells/">Creating and modelling metallic supercells</a></li><li><a class="tocitem" href="../../examples/gaas_surface/">Modelling a gallium arsenide surface</a></li><li><a class="tocitem" href="../../examples/graphene/">Graphene band structure</a></li><li><a class="tocitem" href="../../examples/geometry_optimization/">Geometry optimization</a></li><li><a class="tocitem" href="../../examples/energy_cutoff_smearing/">Energy cutoff smearing</a></li></ul></li><li><span class="tocitem">Response and properties</span><ul><li><a class="tocitem" href="../../examples/polarizability/">Polarizability by linear response</a></li><li><a class="tocitem" href="../../examples/forwarddiff/">Polarizability using automatic differentiation</a></li><li><a class="tocitem" href="../../examples/phonons/">Phonon computations</a></li></ul></li><li><span class="tocitem">Ecosystem integration</span><ul><li class="is-active"><a class="tocitem" href>AtomsBase integration</a><ul class="internal"><li><a class="tocitem" href="#Feeding-an-AtomsBase-AbstractSystem-to-DFTK"><span>Feeding an AtomsBase AbstractSystem to DFTK</span></a></li><li><a class="tocitem" href="#Obtaining-an-AbstractSystem-from-DFTK-data"><span>Obtaining an AbstractSystem from DFTK data</span></a></li></ul></li><li><a class="tocitem" href="../atomscalculators/">AtomsCalculators integration</a></li><li><a class="tocitem" href="../input_output/">Input and output formats</a></li><li><a class="tocitem" href="../atomistic_simulation_environment/">Atomistic simulation environment</a></li><li><a class="tocitem" href="../wannier/">Wannierization using Wannier.jl or Wannier90</a></li></ul></li><li><span class="tocitem">Tips and tricks</span><ul><li><a class="tocitem" href="../../tricks/achieving_convergence/">Achieving DFT convergence</a></li><li><a class="tocitem" href="../../tricks/parallelization/">Timings and parallelization</a></li><li><a class="tocitem" href="../../tricks/gpu/">Using DFTK on GPUs</a></li><li><a class="tocitem" href="../../tricks/scf_checkpoints/">Saving SCF results on disk and SCF checkpoints</a></li><li><a class="tocitem" href="../../tricks/compute_clusters/">Using DFTK on compute clusters</a></li></ul></li><li><span class="tocitem">Solvers</span><ul><li><a class="tocitem" href="../../examples/custom_solvers/">Custom solvers</a></li><li><a class="tocitem" href="../../examples/scf_callbacks/">Monitoring self-consistent field calculations</a></li><li><a class="tocitem" href="../../examples/compare_solvers/">Comparison of DFT solvers</a></li><li><a class="tocitem" href="../../examples/analysing_scf_convergence/">Analysing SCF convergence</a></li></ul></li><li><span class="tocitem">Nonstandard models</span><ul><li><a class="tocitem" href="../../examples/gross_pitaevskii/">Gross-Pitaevskii equation in one dimension</a></li><li><a class="tocitem" href="../../examples/gross_pitaevskii_2D/">Gross-Pitaevskii equation with external magnetic field</a></li><li><a class="tocitem" href="../../examples/custom_potential/">Custom potential</a></li><li><a class="tocitem" href="../../examples/cohen_bergstresser/">Cohen-Bergstresser model</a></li><li><a class="tocitem" href="../../examples/anyons/">Anyonic models</a></li></ul></li><li><span class="tocitem">Error control</span><ul><li><a class="tocitem" href="../../examples/arbitrary_floattype/">Arbitrary floating-point types</a></li><li><a class="tocitem" href="../../examples/error_estimates_forces/">Practical error bounds for the forces</a></li></ul></li><li><span class="tocitem">Developer resources</span><ul><li><a class="tocitem" href="../../developer/setup/">Developer setup</a></li><li><a class="tocitem" href="../../developer/testsystem/">Unit test system</a></li><li><a class="tocitem" href="../../developer/conventions/">Notation and conventions</a></li><li><a class="tocitem" href="../../developer/style_guide/">Developer&#39;s style guide</a></li><li><a class="tocitem" href="../../developer/data_structures/">Data structures</a></li><li><a class="tocitem" href="../../developer/useful_formulas/">Useful formulas</a></li><li><a class="tocitem" href="../../developer/symmetries/">Crystal symmetries</a></li><li><a class="tocitem" href="../../developer/gpu_computations/">GPU computations</a></li></ul></li><li><a class="tocitem" href="../../api/">API reference</a></li><li><a class="tocitem" href="../../publications/">Publications</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Ecosystem integration</a></li><li class="is-active"><a href>AtomsBase integration</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>AtomsBase integration</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaMolSim/DFTK.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaMolSim/DFTK.jl/blob/master/docs/src/ecosystem/atomsbase.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="AtomsBase-integration"><a class="docs-heading-anchor" href="#AtomsBase-integration">AtomsBase integration</a><a id="AtomsBase-integration-1"></a><a class="docs-heading-anchor-permalink" href="#AtomsBase-integration" title="Permalink"></a></h1><p><a href="https://mybinder.org/v2/gh/JuliaMolSim/DFTK.jl/gh-pages?filepath=v0.7.14/ecosystem/atomsbase.ipynb"><img src="https://mybinder.org/badge_logo.svg" alt/></a> <a href="https://nbviewer.jupyter.org/github/JuliaMolSim/DFTK.jl/blob/gh-pages/v0.7.14/ecosystem/atomsbase.ipynb"><img src="https://img.shields.io/badge/show-nbviewer-579ACA.svg" alt/></a></p><p><a href="https://github.com/JuliaMolSim/AtomsBase.jl">AtomsBase.jl</a> is a common interface for representing atomic structures in Julia. DFTK directly supports using such structures to run a calculation as is demonstrated here.</p><pre><code class="language-julia hljs">using DFTK
+using AtomsBuilder</code></pre><h2 id="Feeding-an-AtomsBase-AbstractSystem-to-DFTK"><a class="docs-heading-anchor" href="#Feeding-an-AtomsBase-AbstractSystem-to-DFTK">Feeding an AtomsBase AbstractSystem to DFTK</a><a id="Feeding-an-AtomsBase-AbstractSystem-to-DFTK-1"></a><a class="docs-heading-anchor-permalink" href="#Feeding-an-AtomsBase-AbstractSystem-to-DFTK" title="Permalink"></a></h2><p>In this example we construct a bulk silicon system using the <code>bulk</code> function from <a href="https://github.com/JuliaMolSim/AtomsBuilder.jl">AtomsBuilder</a>. This function uses tabulated data to set up a reasonable starting geometry and lattice for bulk silicon.</p><pre><code class="language-julia hljs">system = bulk(:Si)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">FlexibleSystem(Si₂, periodicity = TTT):
+    cell_vectors      : [       0    2.715    2.715;
+                            2.715        0    2.715;
+                            2.715    2.715        0]u&quot;Å&quot;
+
+    Atom(Si, [       0,        0,        0]u&quot;Å&quot;)
+    Atom(Si, [  1.3575,   1.3575,   1.3575]u&quot;Å&quot;)
+</code></pre><p>By default the atoms of an <code>AbstractSystem</code> employ the bare Coulomb potential. To employ pseudpotential models (which is almost always advisable for plane-wave DFT) one employs the <code>pseudopotential</code> keyword argument in model constructors such as <a href="../../api/#DFTK.model_DFT-Tuple{AtomsBase.AbstractSystem}"><code>model_DFT</code></a>. For example we can employ a <code>PseudoFamily</code> object from the <a href="https://github.com/JuliaMolSim/PseudoPotentialData.jl">PseudoPotentialData</a> package. See its documentation for more information on the available pseudopotential families and how to select them.</p><pre><code class="language-julia hljs">using PseudoPotentialData  # defines PseudoFamily
+
+pd_lda_family = PseudoFamily(&quot;dojo.nc.sr.lda.v0_4_1.standard.upf&quot;)
+model = model_DFT(system; functionals=LDA(), temperature=1e-3,
+                  pseudopotentials=pd_lda_family)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Model(lda_x+lda_c_pw, 3D):
+    lattice (in Bohr)    : [0         , 5.13061   , 5.13061   ]
+                           [5.13061   , 0         , 5.13061   ]
+                           [5.13061   , 5.13061   , 0         ]
+    unit cell volume     : 270.11 Bohr³
+
+    atoms                : Si₂
+    atom potentials      : ElementPsp(Si, &quot;/home/runner/.julia/artifacts/326db5c901e2681584ec5c06fc17f6c96e516ff9/Si.upf&quot;)
+                           ElementPsp(Si, &quot;/home/runner/.julia/artifacts/326db5c901e2681584ec5c06fc17f6c96e516ff9/Si.upf&quot;)
+
+    num. electrons       : 8
+    spin polarization    : none
+    temperature          : 0.001 Ha
+    smearing             : DFTK.Smearing.FermiDirac()
+
+    terms                : Kinetic()
+                           AtomicLocal()
+                           AtomicNonlocal()
+                           Ewald(nothing)
+                           PspCorrection()
+                           Hartree()
+                           Xc(lda_x, lda_c_pw)
+                           Entropy()</code></pre><p>Alternatively the <code>pseudopotentials</code> object also accepts a <code>Dict{Symbol,String}</code>, which provides for each element symbol the filename or identifier of the pseudopotential to be employed, e.g.</p><pre><code class="language-julia hljs">path_to_pspfile = PseudoFamily(&quot;cp2k.nc.sr.lda.v0_1.semicore.gth&quot;)[:Si]
+model = model_DFT(system; functionals=LDA(), temperature=1e-3,
+                  pseudopotentials=Dict(:Si =&gt; path_to_pspfile))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Model(lda_x+lda_c_pw, 3D):
+    lattice (in Bohr)    : [0         , 5.13061   , 5.13061   ]
+                           [5.13061   , 0         , 5.13061   ]
+                           [5.13061   , 5.13061   , 0         ]
+    unit cell volume     : 270.11 Bohr³
+
+    atoms                : Si₂
+    atom potentials      : ElementPsp(Si, &quot;/home/runner/.julia/artifacts/966fd9cdcd7dbaba6dc2bf43ee50dd81e63e8837/Si.gth&quot;)
+                           ElementPsp(Si, &quot;/home/runner/.julia/artifacts/966fd9cdcd7dbaba6dc2bf43ee50dd81e63e8837/Si.gth&quot;)
+
+    num. electrons       : 8
+    spin polarization    : none
+    temperature          : 0.001 Ha
+    smearing             : DFTK.Smearing.FermiDirac()
+
+    terms                : Kinetic()
+                           AtomicLocal()
+                           AtomicNonlocal()
+                           Ewald(nothing)
+                           PspCorrection()
+                           Hartree()
+                           Xc(lda_x, lda_c_pw)
+                           Entropy()</code></pre><p>We can then discretise such a model and solve:</p><pre><code class="language-julia hljs">basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
+scfres = self_consistent_field(basis, tol=1e-8);</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime
+---   ---------------   ---------   ---------   ----   ------
+  1   -7.921712881829                   -0.69    5.5    215ms
+  2   -7.926132166907       -2.35       -1.22    1.0    142ms
+  3   -7.926833336176       -3.15       -2.37    2.0    182ms
+  4   -7.926861284717       -4.55       -2.99    3.1    205ms
+  5   -7.926861644987       -6.44       -3.38    1.9    171ms
+  6   -7.926861670139       -7.60       -3.83    1.5    157ms
+  7   -7.926861679589       -8.02       -4.20    1.4    158ms
+  8   -7.926861681789       -8.66       -5.00    1.6    161ms
+  9   -7.926861681849      -10.21       -5.09    2.5    187ms
+ 10   -7.926861681870      -10.68       -5.77    1.0    151ms
+ 11   -7.926861681873      -11.65       -6.35    2.0    172ms
+ 12   -7.926861681873      -12.98       -7.43    2.2    177ms
+ 13   -7.926861681873      -14.21       -7.56    3.0    201ms
+ 14   -7.926861681873   +  -14.75       -8.92    1.0    154ms</code></pre><p>If we did not want to use <a href="https://github.com/JuliaMolSim/AtomsBuilder.jl">AtomsBuilder</a> we could of course use any other package which yields an AbstractSystem object. This includes:</p><h3 id="Reading-a-system-using-AtomsIO"><a class="docs-heading-anchor" href="#Reading-a-system-using-AtomsIO">Reading a system using AtomsIO</a><a id="Reading-a-system-using-AtomsIO-1"></a><a class="docs-heading-anchor-permalink" href="#Reading-a-system-using-AtomsIO" title="Permalink"></a></h3><p>Read a file using <a href="https://github.com/mfherbst/AtomsIO.jl">AtomsIO</a>, which directly yields an AbstractSystem.</p><pre><code class="language-julia hljs">using AtomsIO
+system = load_system(&quot;Si.extxyz&quot;);</code></pre><p>Run the LDA calculation:</p><pre><code class="language-julia hljs">pseudopotentials = PseudoFamily(&quot;cp2k.nc.sr.lda.v0_1.semicore.gth&quot;)
+model  = model_DFT(system; pseudopotentials, functionals=LDA(), temperature=1e-3)
+basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
+scfres = self_consistent_field(basis, tol=1e-8);</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime
+---   ---------------   ---------   ---------   ----   ------
+  1   -7.921745770613                   -0.69    5.8    220ms
+  2   -7.926130650740       -2.36       -1.22    1.0    162ms
+  3   -7.926831444553       -3.15       -2.37    2.0    174ms
+  4   -7.926861278121       -4.53       -2.99    3.0    205ms
+  5   -7.926861647041       -6.43       -3.40    2.1    175ms
+  6   -7.926861671723       -7.61       -3.87    1.5    160ms
+  7   -7.926861679297       -8.12       -4.15    1.2    157ms
+  8   -7.926861681787       -8.60       -5.09    1.4    156ms
+  9   -7.926861681850      -10.20       -5.11    3.0    202ms
+ 10   -7.926861681870      -10.71       -5.70    1.0    153ms
+ 11   -7.926861681873      -11.58       -6.44    1.6    242ms
+ 12   -7.926861681873      -13.10       -6.84    2.5    821ms
+ 13   -7.926861681873      -14.10       -7.54    1.8    165ms
+ 14   -7.926861681873   +  -14.75       -7.62    2.2    183ms
+ 15   -7.926861681873      -14.45       -7.93    1.1    171ms
+ 16   -7.926861681873   +  -15.05       -8.56    1.1    171ms</code></pre><p>The same could be achieved using <a href="https://github.com/libAtoms/ExtXYZ.jl">ExtXYZ</a> by <code>system = Atoms(read_frame(&quot;Si.extxyz&quot;))</code>, since the <code>ExtXYZ.Atoms</code> object is directly AtomsBase-compatible.</p><h3 id="Directly-setting-up-a-system-in-AtomsBase"><a class="docs-heading-anchor" href="#Directly-setting-up-a-system-in-AtomsBase">Directly setting up a system in AtomsBase</a><a id="Directly-setting-up-a-system-in-AtomsBase-1"></a><a class="docs-heading-anchor-permalink" href="#Directly-setting-up-a-system-in-AtomsBase" title="Permalink"></a></h3><pre><code class="language-julia hljs">using AtomsBase
+using Unitful
+using UnitfulAtomic
+
+# Construct a system in the AtomsBase world
+a = 10.26u&quot;bohr&quot;  # Silicon lattice constant
+lattice = a / 2 * [[0, 1, 1.],  # Lattice as vector of vectors
+                   [1, 0, 1.],
+                   [1, 1, 0.]]
+atoms  = [:Si =&gt; ones(3)/8, :Si =&gt; -ones(3)/8]
+system = periodic_system(atoms, lattice; fractional=true)
+
+# Now run the LDA calculation:
+pseudopotentials = PseudoFamily(&quot;cp2k.nc.sr.lda.v0_1.semicore.gth&quot;)
+model  = model_DFT(system; pseudopotentials, functionals=LDA(), temperature=1e-3)
+basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[4, 4, 4])
+scfres = self_consistent_field(basis, tol=1e-4);</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime
+---   ---------------   ---------   ---------   ----   ------
+  1   -7.921735597996                   -0.69    5.6    244ms
+  2   -7.926135856920       -2.36       -1.22    1.0    126ms
+  3   -7.926837521742       -3.15       -2.37    2.0    150ms
+  4   -7.926864679588       -4.57       -3.02    3.0    200ms
+  5   -7.926865067440       -6.41       -3.45    2.1    174ms
+  6   -7.926865086012       -7.73       -4.01    1.5    140ms</code></pre><h2 id="Obtaining-an-AbstractSystem-from-DFTK-data"><a class="docs-heading-anchor" href="#Obtaining-an-AbstractSystem-from-DFTK-data">Obtaining an AbstractSystem from DFTK data</a><a id="Obtaining-an-AbstractSystem-from-DFTK-data-1"></a><a class="docs-heading-anchor-permalink" href="#Obtaining-an-AbstractSystem-from-DFTK-data" title="Permalink"></a></h2><p>At any point we can also get back the DFTK model as an AtomsBase-compatible <code>AbstractSystem</code>:</p><pre><code class="language-julia hljs">second_system = atomic_system(model)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">FlexibleSystem(Si₂, periodicity = TTT):
+    cell_vectors      : [       0     5.13     5.13;
+                             5.13        0     5.13;
+                             5.13     5.13        0]u&quot;a₀&quot;
+
+    Atom(Si, [  1.2825,   1.2825,   1.2825]u&quot;a₀&quot;)
+    Atom(Si, [ -1.2825,  -1.2825,  -1.2825]u&quot;a₀&quot;)
+</code></pre><p>Similarly DFTK offers a method to the <code>atomic_system</code> and <code>periodic_system</code> functions (from AtomsBase), which enable a seamless conversion of the usual data structures for setting up DFTK calculations into an <code>AbstractSystem</code>:</p><pre><code class="language-julia hljs">lattice = 5.431u&quot;Å&quot; / 2 * [[0 1 1.];
+                           [1 0 1.];
+                           [1 1 0.]];
+Si = ElementPsp(:Si, pseudopotentials)
+atoms     = [Si, Si]
+positions = [ones(3)/8, -ones(3)/8]
+
+third_system = atomic_system(lattice, atoms, positions)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">FlexibleSystem(Si₂, periodicity = TTT):
+    cell_vectors      : [       0  5.13155  5.13155;
+                          5.13155        0  5.13155;
+                          5.13155  5.13155        0]u&quot;a₀&quot;
+
+    Atom(Si, [ 1.28289,  1.28289,  1.28289]u&quot;a₀&quot;)
+    Atom(Si, [-1.28289, -1.28289, -1.28289]u&quot;a₀&quot;)
+</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../examples/phonons/">« Phonon computations</a><a class="docs-footer-nextpage" href="../atomscalculators/">AtomsCalculators integration »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.8.1 on <span class="colophon-date" title="Friday 20 June 2025 20:12">Friday 20 June 2025</span>. Using Julia version 1.11.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
