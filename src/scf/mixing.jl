@@ -294,22 +294,35 @@ end
     mix_dielectric_model(mixing, basis, Δρ; act_on_density=false, kwargs...)
 end
 
+function build_dielectric_terms_(mixing::χ0Mixing, basis::PlaneWaveBasis; ρin, kwargs...)
+    dielectric_terms = map(mixing.terms) do (kernel_types, χ0terms)
+        # Filter out χ0terms that give nothing apply functions and kernel terms
+        # that are not present in the basis; also prepare the χ0applies and select
+        # the actual instantiated terms instead of the term types.
+        kernel_terms  = [term for term in basis.terms if any(term isa t for t in kernel_types)]
+        χ0applies     = filter(!isnothing, [χ₀(basis; ρin, kwargs...) for χ₀ in χ0terms])
+        (kernel_terms, χ0applies)
+    end
+    dielectric_terms = filter(t -> !isempty(t[1]) && !isempty(t[2]), dielectric_terms)
+
+    if mpi_master(MPI.COMM_WORLD)
+        stringlist = map(t -> "$(length(t[1])) kernels, $(length(t[2])) χ0s", dielectric_terms)
+        @debug "χ0Mixing dielectric terms: string(stringlist)"
+    end
+
+    dielectric_terms
+end
+
 """
 Apply χ0Mixing to a density difference (act_on_density=true) or to a potential difference
 (act_on_density=false).
 """
 function mix_dielectric_model(mixing::χ0Mixing, basis::PlaneWaveBasis, Δx::AbstractArray{T};
                               act_on_density::Bool, ρin, kwargs...) where {T}
-    dielectric_terms = map(mixing.terms) do (kernel_types, χ0terms)
-        # Filter out χ0terms that give nothing apply functions and kernel terms
-        # that are not present in the basis; also prepare the χ0applies and select
-        # the actual instantiated terms instead of the term types.
-        χ0applies     = filter(!isnothing, [χ₀(basis; ρin, kwargs...) for χ₀ in χ0terms])
-        kernel_terms  = [term for term in basis.terms if any(term isa t for t in kernel_types)]
-        (kernel_terms, χ0applies)
+    dielectric_terms = build_dielectric_terms_(mixing, basis; ρin, kwargs...)
+    if isempty(dielectric_terms)
+        return Δx  # No preconditioning
     end
-    dielectric_terms = filter(t -> !isempty(t[1]) && !isempty(t[2]), dielectric_terms)
-    isempty(dielectric_terms) && return Δx
 
     # Either ε = 1 - Kχ0 (adjoint=false) or ε^† = 1 - χ0K (adjoint=true)
     dielectric = (act_on_density ? get_ε_adj_op(dielectric_terms, basis; ρ=ρin)
@@ -324,6 +337,9 @@ function mix_dielectric_model(mixing::χ0Mixing, basis::PlaneWaveBasis, Δx::Abs
         isposdef=false,
     )
     if mpi_master(MPI.COMM_WORLD)
+        cond_not = info.converged == 0 ? "NOT " : ""
+        cond_eps = act_on_density ? "ε_adj" : "ε"
+        @debug "χ0Mixing GMRES$(cond_not) on $(cond_eps) converged in $(info.numiter) iterations."
         info.converged == 0 && @warn "χ0-mixing GMRES not converged"
     end
     MPI.Bcast!(mixed_Δx, 0, MPI.COMM_WORLD)
@@ -339,7 +355,6 @@ end
 
 function get_ε_adj_op(dielectric_terms::AbstractVector, basis; ρ)
     # TODO : Combine this with the DielectricAdjoint struct
-
     function ε_adj(δρ)
         εδρ = copy(δρ)
         for (kernel_terms, χ0applies) in dielectric_terms
@@ -349,8 +364,8 @@ function get_ε_adj_op(dielectric_terms::AbstractVector, basis; ρ)
             end
 
             # Apply χ0 model
-            for apply_term! in χ0applies
-                apply_term!(εδρ, Kδρ, -1)  # εδρ .-= χ₀ * Kδρ
+            for apply_χ0! in χ0applies
+                apply_χ0!(εδρ, Kδρ, -1)  # εδρ .-= χ₀ * Kδρ
             end
         end
 
@@ -363,8 +378,8 @@ function get_ε_op(dielectric_terms::AbstractVector, basis; ρ)
         for (kernel_terms, χ0applies) in dielectric_terms
             # Apply χ0 model
             χ0δV = zero(δV)
-            for apply_term! in χ0applies
-                apply_term!(χ0δV, δV, 1)  # χ0δV .+= χ₀ * δV
+            for apply_χ0! in χ0applies
+                apply_χ0!(χ0δV, δV, 1)  # χ0δV .+= χ₀ * δV
             end
 
             for term in kernel_terms

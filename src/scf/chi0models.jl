@@ -95,8 +95,12 @@ function (χ0::Applyχ0Model)(basis; ham, eigenvalues, ψ, occupation, εF, kwar
     defaults = default_smearing_temperature(basis.model)
     temperature = @something(χ0.temperature, defaults.temperature)
     smearing    = @something(χ0.smearing,    defaults.smearing)
-    kwargs = (; smearing, temperature, χ0.compute_orbital_response, χ0.kwargs_apply_χ0...)
+    @debug "Mixing smearing and temperature: $smearing $temperature"
 
+    # Catch cases without contribution
+    iszero(temperature) && !χ0.compute_orbital_response && return nothing
+
+    kwargs = (; smearing, temperature, χ0.compute_orbital_response, χ0.kwargs_apply_χ0...)
     function apply!(δρ, δV, α=1)
         χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV; kwargs...).δρ
         δρ .+= α .* χ0δV
