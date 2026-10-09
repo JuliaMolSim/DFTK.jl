@@ -317,14 +317,7 @@ function build_dielectric_terms_(mixing::χ0Mixing, basis::PlaneWaveBasis; ρin,
         χ0applies     = filter(!isnothing, [χ₀(basis; ρin, kwargs...) for χ₀ in χ0terms])
         (kernel_terms, χ0applies)
     end
-    dielectric_terms = filter(t -> !isempty(t[1]) && !isempty(t[2]), dielectric_terms)
-
-    if mpi_master(MPI.COMM_WORLD)
-        stringlist = map(t -> "$(length(t[1])) kernels, $(length(t[2])) χ0s", dielectric_terms)
-        @debug "χ0Mixing dielectric terms: string(stringlist)"
-    end
-
-    dielectric_terms
+    filter(t -> !isempty(t[1]) && !isempty(t[2]), dielectric_terms)
 end
 
 """
@@ -353,8 +346,8 @@ function mix_dielectric_model(mixing::χ0Mixing, basis::PlaneWaveBasis, Δx::Abs
     if mpi_master(MPI.COMM_WORLD)
         cond_not = info.converged == 0 ? "NOT " : ""
         cond_eps = act_on_density ? "ε_adj" : "ε"
-        @debug "χ0Mixing GMRES$(cond_not) on $(cond_eps) converged in $(info.numiter) iterations."
-        info.converged == 0 && @warn "χ0-mixing GMRES not converged"
+        @debug "χ0Mixing GMRES$(cond_not) on $(cond_eps) converged in $(info.numops) ε-vec-products."
+        info.converged == 0 && @warn "χ0-mixing GMRES not converged."
     end
     MPI.Bcast!(mixed_Δx, 0, MPI.COMM_WORLD)
 

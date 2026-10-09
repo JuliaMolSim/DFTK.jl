@@ -25,7 +25,7 @@ pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
 
 model_nospin  = model_DFT(bulk(:Fe); pseudopotentials, functionals=LDA(), temperature=0.01)
 basis_nospin  = PlaneWaveBasis(model_nospin; kgrid, Ecut)
-scfres_nospin = self_consistent_field(basis_nospin; tol=1e-4, mixing=KerkerDosMixing());
+scfres_nospin = self_consistent_field(basis_nospin; tol=1e-4, mixing=LdosXcDiagonalMixing());
 #-
 scfres_nospin.energies
 
@@ -60,7 +60,7 @@ model = model_DFT(bulk(:Fe); pseudopotentials, functionals=LDA(),
                   temperature=0.01, magnetic_moments)
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 ρ0 = guess_density(basis, magnetic_moments)
-scfres = self_consistent_field(basis, tol=1e-6; ρ=ρ0, mixing=KerkerDosMixing());
+scfres = self_consistent_field(basis, tol=1e-6; ρ=ρ0, mixing=LdosXcDiagonalMixing());
 #-
 scfres.energies
 
@@ -69,6 +69,12 @@ scfres.energies
 #     to determine the lattice symmetries. This step was taken to keep `Model`
 #     (which contains the physical model) independent of the details of the numerical details
 #     such as the initial guess for the spin density.
+#
+# !!! tip "Mixing for magnetic calculations"
+#     For magnetic systems near a magnetic phase transition the [`LdosXcDiagonalMixing`](@ref)
+#     mixing method (as used above) *can* give a better SCF convergence compared to
+#     the default [`LdosMixing`](@ref). So if you have problems converging magnetic
+#     calculations giving [`LdosXcDiagonalMixing`](@ref) a try can be worth it.
 #
 # In direct comparison we notice the first, spin-paired calculation to be
 # a little higher in energy
