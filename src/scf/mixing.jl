@@ -199,7 +199,8 @@ function LdosDielectricMixing(; εr=10.0, kTF=0.8, localization=identity,
     kernel_types = RPA ? [TermHartree, ] : [TermHartree, TermXc]
     χ0s = [DielectricModel(; εr, kTF, localization),
            LdosModel(; smearing, temperature)]
-    χ0Mixing(; terms=[(kernel_types, χ0s)], kwargs...)
+    model_name = "LdosDielectricMixing(εr=$εr, kTF=$(kTF), RPA=$(RPA))"
+    χ0Mixing(; terms=[(kernel_types, χ0s)], model_name,  kwargs...)
 end
 
 
@@ -232,7 +233,8 @@ function LdosMixing(; smearing=nothing, temperature=nothing, RPA=true, kwargs...
     # TODO: switch to non-adaptive version above
     kernel_types = RPA ? [TermHartree, ] : [TermHartree, TermXc]
     χ0s = [LdosModel(; smearing, temperature), ]
-    χ0Mixing(; terms=[(kernel_types, χ0s)], kwargs...)
+    model_name="LdosMixing(RPA=$(RPA))"
+    χ0Mixing(; terms=[(kernel_types, χ0s)], model_name, kwargs...)
 end
 
 @doc raw"""
@@ -262,27 +264,39 @@ function LdosXcDiagonalMixing(; reltol=1e-6, smearing=nothing, temperature=nothi
         ([TermHartree], [LdosModel(;     smearing, temperature)]),
         ([TermXc],      [DiagonalModel(; smearing, temperature)]),
     ]
-    χ0Mixing(; terms, reltol, kwargs...)
+    # TODO: Maybe reltol can be raised to similar levels (1e-2) as in LdosMixing ?
+    χ0Mixing(; terms, model_name="LdosXcDiagonalMixing()", reltol, kwargs...)
 end
 
 @doc raw"""
 Generic mixing function using model susceptibilities. `terms` links which kernels are
 combined with which approximations of the independent particle susceptibility to make
 up the approximation of the dielectric model, see the implementations of [`LdosMixing`](@ref)
-and [`LdosXcDiagonalMixing`](@ref) for examples. Note, that the details of this field
-of the interface of `χ0Mixing` is not considered stable and may change according to future
-needs without considering this a breaking change.
+and [`LdosXcDiagonalMixing`](@ref) for examples. The datastructure used to represent
+the `terms` may change in future versions of DFTK. Don't rely on it in your work
+and instead use [`LdosMixing`](@ref), [`LdosDielectricMixing`](@ref) and
+[`LdosXcDiagonalMixing`](@ref) to construct mixing methods.
 
 The dielectric model is solved in real space using a GMRES, whose
 convergence is controlled by `reltol` and `maxiter`.
 `verbose=true` lets the GMRES run in verbose mode (useful for debugging).
 """
 @kwdef struct χ0Mixing <: Mixing
-    terms::Vector = [([TermsHartree, TermsXc], [Applyχ0Model()])]
-    verbose::Bool = false   # Run the GMRES verbosely
-    reltol::Float64 = 1e-2  # Relative tolerance for the GMRES.
-    maxiter::Int = 20       # Maximum number of iterations for the GMRES
+    terms::Vector = [([TermHartree, TermXc], [Applyχ0Model()])]
+    model_name = "χ0Mixing(custom)"  # Human-readable model name (used for printing)
+    verbose::Bool = false            # Run the GMRES verbosely
+    reltol::Float64 = 1e-2           # Relative tolerance for the GMRES.
+    maxiter::Int = 20                # Maximum number of iterations for the GMRES
 end
+function Base.show(io::IO, mixing::χ0Mixing)
+    extra_string = "reltol=$(mixing.reltol)"
+    if endswith(mixing.model_name, "()")
+        print(io, mixing.model_name[1:end-2], "($extra_string)")
+    else
+        print(io, replace(mixing.model_name, ")" => ", $extra_string)"))
+    end
+end
+
 
 @views @timing "χ0Mixing" function mix_density(mixing::χ0Mixing, basis, Δρ::AbstractArray{T};
                                                kwargs...) where {T}
@@ -291,7 +305,7 @@ end
 
 @timing "χ0Mixing" function mix_potential(mixing::χ0Mixing, basis, ΔV::AbstractArray{T};
                                           kwargs...) where {T}
-    mix_dielectric_model(mixing, basis, Δρ; act_on_density=false, kwargs...)
+    mix_dielectric_model(mixing, basis, ΔV; act_on_density=false, kwargs...)
 end
 
 function build_dielectric_terms_(mixing::χ0Mixing, basis::PlaneWaveBasis; ρin, kwargs...)
