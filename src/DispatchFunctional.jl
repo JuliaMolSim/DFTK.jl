@@ -20,8 +20,9 @@ struct LibxcFunctional{Family,Kind} <: Functional{Family,Kind}
 end
 function LibxcFunctional(identifier::Symbol)
     fun = Libxc.Functional(identifier)
-    @assert fun.kind   in (:exchange, :correlation, :exchange_correlation)
-    kind = Dict(:exchange => :x, :correlation => :c, :exchange_correlation => :xc)[fun.kind]
+    @assert fun.kind in (:exchange, :correlation, :exchange_correlation, :kinetic)
+    kind = Dict(:exchange => :x, :correlation => :c, :exchange_correlation => :xc,
+                :kinetic => :k)[fun.kind]
 
     @assert fun.family in (:lda, :gga, :mgga, :hyb_lda, :hyb_gga, :hyb_mgga)
     # Libxc maintains the distinction between hybrid and non-hybrid equivalents,
