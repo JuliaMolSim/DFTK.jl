@@ -125,20 +125,15 @@ end
 Computes the potential response to a perturbation δρ in real space,
 as a 4D `(i,j,k,σ)` array.
 """
-@timing function apply_kernel(basis::PlaneWaveBasis, δρ; RPA=false, kwargs...)
+@timing function apply_kernel(basis::PlaneWaveBasis, δρ; kwargs...)
     n_spin = basis.model.n_spin_components
     @assert 1 ≤ n_spin ≤ 2
 
-    if RPA
-        hartree = filter(t -> t isa TermHartree, basis.terms)
-        δV = isempty(hartree) ? zero(δρ) : apply_kernel(only(hartree), basis, δρ; kwargs...)
-    else
-        δV = zero(δρ)
-        for term in basis.terms
-            δV_term = apply_kernel(term, basis, δρ; kwargs...)
-            if !isnothing(δV_term)
-                δV .+= δV_term
-            end
+    δV = zero(δρ)
+    for term in basis.terms
+        δV_term = apply_kernel(term, basis, δρ; kwargs...)
+        if !isnothing(δV_term)
+            δV .+= δV_term
         end
     end
     δV

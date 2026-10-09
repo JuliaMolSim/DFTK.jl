@@ -178,10 +178,6 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
     max_backtracks=3,  # Maximal number of backtracking line searches
     seed=nothing,
 )
-    # TODO Test other mixings and lift this
-    @assert (   mixing isa SimpleMixing
-             || mixing isa KerkerMixing
-             || mixing isa KerkerDosMixing)
     damping isa Number && (damping = FixedDamping(damping))
     if any(needs_τ, basis.terms)
         error("meta-GGA functionals not yet supported in scf_potential_mixing.")

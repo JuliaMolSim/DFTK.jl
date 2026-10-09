@@ -15,7 +15,7 @@ where ``D_\text{loc}`` is the local density of states and ``D`` the density of s
 For details see [Herbst, Levitt 2020](https://arxiv.org/abs/2009.01665).
 
 By default the LdosModel is constructed using the smearing of
-`basis.model.smearing` and a temperature of `min(50basis.model.temperature, 0.1)`,
+`Smearing.Gaussian` and a temperature of `min(100basis.model.temperature, 0.1)`,
 but this may be changed using the `smearing` and `temperature` arguments.
 """
 @kwdef struct LdosModel <: χ0Model
@@ -77,18 +77,39 @@ function (χ0::DielectricModel)(basis; kwargs...)
 end
 
 """
-Full χ0 application, optionally dropping terms or disabling Sternheimer.
-All keyword arguments passed to [`apply_χ0`](@ref).
+Full χ0 application, optionally disabling the orbital response or using a modified
+smearing temperature and smearing function. Other keywords of `kwargs_apply_χ0`
+are passed to [`apply_χ0`](@ref).
+
+By default the modified temperature is `min(100basis.model.temperature, 0.1)`, and the 
+modified smearing is `Smearing.Gaussian` but this may be changed using the `smearing` and 
+`temperature` arguments.
 """
-struct Applyχ0Model <: χ0Model
-    kwargs_apply_χ0
+@kwdef struct Applyχ0Model <: χ0Model
+    smearing::Union{Nothing,Smearing.SmearingFunction} = nothing
+    temperature::Union{Nothing,Float64} = nothing
+    compute_orbital_response = true
+    kwargs_apply_χ0 = (; )
 end
-Applyχ0Model(; kwargs_apply_χ0...) = Applyχ0Model(kwargs_apply_χ0)
-function (χ0::Applyχ0Model)(basis; ham, eigenvalues, ψ, occupation, εF,
-                            kwargs...)
+function (χ0::Applyχ0Model)(basis; ham, eigenvalues, ψ, occupation, εF, kwargs...)
+    defaults = default_smearing_temperature(basis.model)
+    temperature = @something(χ0.temperature, defaults.temperature)
+    smearing    = @something(χ0.smearing,    defaults.smearing)
+    @debug "Mixing smearing and temperature: $smearing $temperature"
+
+    # Catch cases without contribution
+    iszero(temperature) && !χ0.compute_orbital_response && return nothing
+
+    kwargs = (; smearing, temperature, χ0.compute_orbital_response, χ0.kwargs_apply_χ0...)
     function apply!(δρ, δV, α=1)
-        χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV;
-                        χ0.kwargs_apply_χ0...).δρ
+        χ0δV = apply_χ0(ham, ψ, occupation, εF, eigenvalues, δV; kwargs...).δρ
         δρ .+= α .* χ0δV
     end
 end
+
+"""
+Diagonal approximation of ``χ_0``, that disables the Sternheimer solver. For other
+possible keyword arguments (e.g. to modify smearing function or smearing temperature),
+see [`Applyχ0Model`](@ref).
+"""
+DiagonalModel(; kwargs...) = Applyχ0Model(; compute_orbital_response=false, kwargs...)
