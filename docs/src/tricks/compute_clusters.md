@@ -240,21 +240,16 @@ using PseudoPotentialData
 disable_threading()  # Threading and MPI not compatible
 
 function main(structure; pseudofamily, Ecut, kspacing)
-    if mpi_master()
-        println("DEPOT_PATH=$DEPOT_PATH")
-        println(DFTK.versioninfo())
-        println()
-    end
-
     model  = model_DFT(load_system(structure);
                        pseudopotentials=PseudoFamily(pseudofamily),
                        functionals=PBE(),
                        temperature=1e-3,
                        smearing=Smearing.MarzariVanderbilt())
-    kgrid = kgrid_from_minimal_spacing(model, kspacing)
-    basis = PlaneWaveBasis(model; Ecut, kgrid)
+    basis = PlaneWaveBasis(model; Ecut, kgrid=KgridSpacing(kspacing))
 
-    if mpi_master()
+    if mpi_master(basis.comm_kpts)
+        println()
+        println("DEPOT_PATH=$DEPOT_PATH")
         println()
         show(stdout, MIME("text/plain"), basis)
         println()
@@ -307,7 +302,7 @@ module load julia
 srun julia -t 1 --project -e '
     include("dftk.jl")
     main("silicon.extxyz";
-         pseudofamily="pd_nc_sr_pbe_standard_0.4.1_upf",
+         pseudofamily="dojo.nc.sr.pbe.v0_5.standard.upf",
          Ecut=10,
          kspacing=0.3)
 '
