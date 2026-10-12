@@ -531,9 +531,13 @@ function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{
     # Normalize δV to avoid numerical trouble; theoretically should not be necessary,
     # but it simplifies the interaction with the Sternheimer linear solver
     # (it makes the rhs be order 1 even if δV is small)
-    # TODO: what about δVτ? we maybe at least take a joint norm?
     normδH = norm(δV)
-    normδH < eps(T) && return (; δρ=zero(δV), δτ=isnothing(δVτ) ? nothing : zero(δVτ), normδH)
+    if norm < eps(T)
+        isnothing(δVτ) || norm(δVτ) < eps(T) || error(
+            "Attempted to apply_χ0 with zero δV but nonzero δVτ." *
+            " This is currently not supported, please open an issue.")
+        return (; δρ=zero(δV), δτ=isnothing(δVτ) ? nothing : zero(δVτ), normδH)
+    end
     δV ./= normδH
     isnothing(δVτ) || (δVτ ./= normδH)
 

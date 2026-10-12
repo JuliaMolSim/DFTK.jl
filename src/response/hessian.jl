@@ -430,6 +430,8 @@ end
     δV = apply_kernel(basis, δρ; ε_adj.ρ, ε_adj.q, ε_adj.τ, δτ)
     χ0δV = apply_χ0(ε_adj.ham, ε_adj.ψ, ε_adj.occupation, ε_adj.εF, ε_adj.eigenvalues, δV.δVρ;
                     δVτ=δV.δVτ,
+                    # TODO: only δρ is currently used for the tolerance,
+                    #       revisit once the inexact Krylov theory is extended to meta-GGAs
                     miniter=1, ε_adj.occupation_threshold, tol=rtol*norm(δρ),
                     ε_adj.bandtolalg, ε_adj.q, ε_adj.maxiter, kwargs...)
     # (1 - χ0 K) δρ
