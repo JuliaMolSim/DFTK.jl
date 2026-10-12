@@ -549,10 +549,7 @@ function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{
 
     # For phonon calculations, assemble
     #   δHψ_k = δV_{q} · ψ_{k-q}.
-    δHψ = multiply_ψ_by_blochwave(basis, ψ, δV, q)
-    if !isnothing(δVτ)
-        δHψ .+= apply_Vτ(basis, ψ, δVτ, q)
-    end
+    δHψ = apply_potential_blochwave(basis, ψ, δV, q; Vτ=δVτ)
     res = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                       δtemperature, occupation_threshold, q, bandtolalg,
                       kwargs_sternheimer...)

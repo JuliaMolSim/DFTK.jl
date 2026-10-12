@@ -347,10 +347,7 @@ Input parameters:
     # Total variation δHtot ψ
     # For phonon calculations, assemble
     #   δHψ_k = δV_{q} · ψ_{k-q}.
-    δHtotψ = multiply_ψ_by_blochwave(basis, ψ, δVind.δVρ, q) .+ δHextψ
-    if !isnothing(τ)
-        δHtotψ .+= apply_Vτ(basis, ψ, δVind.δVτ, q)
-    end
+    δHtotψ = apply_potential_blochwave(basis, ψ, δVind.δVρ, q; Vτ=δVind.δVτ) .+ δHextψ
 
     # Compute final orbital response
     # TODO Here we just use what DFTK did before the inexact Krylov business, namely

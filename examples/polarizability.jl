@@ -105,7 +105,7 @@ nothing  # hide
 #     [arXiv 2505.02319](http://arxiv.org/abs/2505.02319)
 
 ## Multiply δVext times the Bloch waves, then solve the Dyson equation:
-δVψ = DFTK.multiply_ψ_by_blochwave(scfres.basis, scfres.ψ, δVext)
+δVψ = DFTK.apply_potential_blochwave(scfres.basis, scfres.ψ, δVext)
 res = DFTK.solve_ΩplusK_split(scfres, δVψ; verbose=true);
 nothing  # hide
 
