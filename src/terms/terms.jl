@@ -128,26 +128,20 @@ as a 4D `(i,j,k,σ)` array.
 Returns a named tuple containing any combination of δVρ and δVτ,
 the variations in local potential and nonlocal meta-GGA potential (divAgrad) respectively.
 """
-@timing function apply_kernel(basis::PlaneWaveBasis, δρ; RPA=false, δτ=nothing, kwargs...)
+@timing function apply_kernel(basis::PlaneWaveBasis, δρ; δτ=nothing, kwargs...)
     n_spin = basis.model.n_spin_components
     @assert 1 ≤ n_spin ≤ 2
 
-    if RPA
-        hartree = filter(t -> t isa TermHartree, basis.terms)
-        δV = isempty(hartree) ? zero(δρ) : apply_kernel(only(hartree), basis, δρ; δτ, kwargs...).δVρ
-        (; δVρ=δV)
-    else
-        δVρ = zero(δρ)
-        δVτ = isnothing(δτ) ? nothing : zero(δτ)
-        for term in basis.terms
-            δV_term = apply_kernel(term, basis, δρ; δτ, kwargs...)
-            if haskey(δV_term, :δVρ) && !isnothing(δV_term.δVρ)
-                δVρ .+= δV_term.δVρ
-            end
-            if haskey(δV_term, :δVτ) && !isnothing(δV_term.δVτ)
-                δVτ .+= δV_term.δVτ
-            end
+    δVρ = zero(δρ)
+    δVτ = isnothing(δτ) ? nothing : zero(δτ)
+    for term in basis.terms
+        δV_term = apply_kernel(term, basis, δρ; δτ, kwargs...)
+        if haskey(δV_term, :δVρ) && !isnothing(δV_term.δVρ)
+            δVρ .+= δV_term.δVρ
         end
-        (; δVρ, δVτ)
+        if haskey(δV_term, :δVτ) && !isnothing(δV_term.δVτ)
+            δVτ .+= δV_term.δVτ
+        end
     end
+    (; δVρ, δVτ)
 end

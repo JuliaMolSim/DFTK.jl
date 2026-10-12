@@ -184,24 +184,15 @@ Returns the form factors at unique values of |G + q| (in Cartesian coordinates).
 Additionally, returns a mapping from any G index to the corresponding entry in the form_factors array.
 """
 function atomic_density_form_factors(basis::PlaneWaveBasis{T}, method::AtomicDensity) where {T<:Real}
-    G_cart = to_cpu(G_vectors_cart(basis))
+    G_cart = vec(G_vectors_cart(basis))
 
-    iG2ifnorm_cpu = zeros(Int, length(G_cart))
-    norm_indices = IdDict{T, Int}()
-    for (iG, G) in enumerate(G_cart)
-        p = norm(G)
-        iG2ifnorm_cpu[iG] = get!(norm_indices, p, length(norm_indices) + 1)
-    end
-    iG2ifnorm = to_device(basis.architecture, iG2ifnorm_cpu)
+    # For efficiency, get unique norms |G| and the mapping such that norm(G[i]) = unique_ps[iG2ifnorm[i]]
+    unique_ps, iG2ifnorm = unique_norms_and_mapping(G_cart)
 
-    ni_pairs = collect(pairs(norm_indices))
-    ps = to_device(basis.architecture, first.(ni_pairs))
-    indices = to_device(basis.architecture, last.(ni_pairs))
-
-    form_factors = similar(ps, length(norm_indices), length(basis.model.atom_groups))
+    form_factors = similar(unique_ps, length(unique_ps), length(basis.model.atom_groups))
     for (igroup, group) in enumerate(basis.model.atom_groups)
         element = basis.model.atoms[first(group)]
-        @inbounds form_factors[indices, igroup] .= atomic_density(element, ps, method)
+        @inbounds form_factors[:, igroup] .= atomic_density(element, unique_ps, method)
     end
 
     (; form_factors, iG2ifnorm)
