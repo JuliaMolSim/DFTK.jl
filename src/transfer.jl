@@ -209,48 +209,6 @@ function k_to_kpq_permutation(basis::PlaneWaveBasis, q)
     indices
 end
 
-@doc raw"""
-Perform a multiplication of a wavefunction ``ψ`` by a local potential
-``V(x) = V_{q}(x) exp(iq * x)``.
-
-Takes ``ψ_{k}`` and returns ``Vψ_{k} = V^{\rm real}_{q} ψ_{k-q}``,
-i.e. this function takes care of transferring ψ to the equivalent ``k-q``.
-
-An additional Vτ (divAgrad meta-GGA potential) can be passed to add
-``-1/2 ∇⋅(Vτ_{q} ∇) ψ_{k-q}`` to the output.
-"""
-@views function apply_potential_blochwave(basis::PlaneWaveBasis{T}, ψ, f_real, q=zero(Vec3{T}); Vτ=nothing) where {T}
-    fψ = zero.(ψ)
-    real_buffer = similar(f_real, Complex{T}, basis.fft_size...)
-    norm = basis.fft_grid.fft_normalization * basis.fft_grid.ifft_normalization
-    # First, express ψ_{[k-q]} in the basis of k-q points…
-    ψ_minus_q = transfer_blochwave_equivalent_to_actual(basis, ψ, -q)
-    for (ik, kpt) in enumerate(basis.kpoints)
-        # … then perform the multiplication with f in real space and get the Fourier
-        # coefficients.
-        for n = 1:size(ψ[ik], 2)
-            ifft!(real_buffer, basis, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk[:, n]; normalize=false)
-            real_buffer .*= f_real[:, :, :, kpt.spin] .* norm
-            fft!(fψ[ik][:, n], basis, kpt, real_buffer; normalize=false)
-        end
-
-        if !isnothing(Vτ)
-            # Note that the gradient of ψ_{k-q} is computed with G+k-q,
-            # while the operand of the divergence has momentum k and is thus computed with G+k.
-            G_plus_k_minus_q = [map(p -> p[α], Gplusk_vectors_cart(basis, ψ_minus_q[ik].kpt)) for α = 1:3]
-            G_plus_k         = [map(p -> p[α], Gplusk_vectors_cart(basis, kpt)) for α = 1:3]
-            for n = 1:size(ψ[ik], 2), α = 1:3
-                ∇ψ_recip = im .* G_plus_k_minus_q[α] .* ψ_minus_q[ik].ψk[:, n]
-                Vτ∇ψ_recip = fft(basis, kpt,
-                                 ifft(basis, ψ_minus_q[ik].kpt, ∇ψ_recip)
-                                 .* Vτ_real[:, :, :, kpt.spin])
-                fψ[ik][:, n] .-= im .* G_plus_k[α] .* Vτ∇ψ_recip ./ 2
-            end
-        end
-    end
-    fψ
-end
-
 """
 For Bloch waves ``ψ`` such that `ψ[ik]` is defined in a point in `basis.kpoints` equivalent
 to `basis.kpoints[ik] + q`, return the Bloch waves `ψ_plus_q[ik]` defined on `kpt_plus_q[ik]`.
