@@ -314,11 +314,11 @@ Input parameters:
         δρ0 = compute_δρ(basis, ψ, res0.δψ, occupation, res0.δoccupation;
                          occupation_threshold, q)
         if isnothing(τ)
-            (δρ0, nothing, res0.δψ)
+            δτ0 = nothing
         else
             δτ0 = compute_δτ(basis, ψ, res0.δψ, occupation, res0.δoccupation; q)
-            (δρ0, δτ0, res0.δψ)
         end
+        (δρ0, δτ0, res0.δψ)
     end
 
     # compute total δρ
