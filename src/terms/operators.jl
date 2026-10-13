@@ -170,7 +170,7 @@ function apply!(Hψ, op::DivAgradOperator, ψ;
 
     # use unnormalized FFT plans for speed
     norm = op.basis.fft_grid.fft_normalization * op.basis.fft_grid.ifft_normalization
-    ψ_recip = similar(ψ.fourier)   # pre-allocate large array
+    ψ_recip = similar(ψ.fourier, complex(eltype(op.basis)))   # pre-allocate large array
     for α = 1:3
         ψ_recip .= im .* G_plus_k[α] .* ψ.fourier .* norm   # ∂αψ
         ifft!(ψ_real, op.basis, op.kpoint, ψ_recip; normalize=false)

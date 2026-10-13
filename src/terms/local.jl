@@ -211,5 +211,5 @@ function compute_δHψ_αs(::TermAtomicLocal, basis::PlaneWaveBasis, ψ, α, s, 
     δV_αs .= derivative_wrt_αs(basis.model.positions, α, s) do positions_αs
         compute_local_potential(basis; q, positions=positions_αs)
     end
-    multiply_ψ_by_blochwave(basis, ψ, δV_αs, q)
+    apply_potential_blochwave(basis, ψ, δV_αs, q)
 end

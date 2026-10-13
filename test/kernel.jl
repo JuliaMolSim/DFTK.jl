@@ -46,7 +46,7 @@
             end
 
             @testset "Test apply_kernel" begin
-                δV_apply = DFTK.apply_kernel(term, basis, δρ; ρ=ρ0)
+                δV_apply = DFTK.apply_kernel(term, basis, δρ; ρ=ρ0).δVρ
                 @test δV ≈ δV_apply rtol=rtol
             end
 
@@ -60,8 +60,8 @@
 
             @testset "Self-adjointness" begin
                 δρ2 = randn(size(ρ0))
-                left = dot(δρ, DFTK.apply_kernel(term, basis, δρ2; ρ=ρ0))      * basis.dvol
-                rght = dot(    DFTK.apply_kernel(term, basis, δρ;  ρ=ρ0), δρ2) * basis.dvol
+                left = dot(δρ, DFTK.apply_kernel(term, basis, δρ2; ρ=ρ0).δVρ)      * basis.dvol
+                rght = dot(    DFTK.apply_kernel(term, basis, δρ;  ρ=ρ0).δVρ, δρ2) * basis.dvol
                 @test isapprox(left, rght; atol=1e-11)
             end
         end
@@ -85,11 +85,11 @@
 
             ρ0 = guess_density(basis)
             δρ = randn(size(ρ0)) / model.unit_cell_volume
-            δV = DFTK.apply_kernel(term, basis, δρ; ρ=ρ0)
+            δV = DFTK.apply_kernel(term, basis, δρ; ρ=ρ0).δVρ
 
             ρ0_col = cat(0.5ρ0, 0.5ρ0, dims=4)
             δρ_col = cat(0.5δρ, 0.5δρ, dims=4)
-            δV_pol = DFTK.apply_kernel(term_col, basis_col, δρ_col; ρ=ρ0_col)
+            δV_pol = DFTK.apply_kernel(term_col, basis_col, δρ_col; ρ=ρ0_col).δVρ
 
             @test δV_pol[:, :, :, 1] ≈ δV_pol[:, :, :, 2] rtol=rtol
             @test δV ≈  δV_pol[:, :, :, 1:1] rtol=rtol

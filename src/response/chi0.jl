@@ -518,6 +518,48 @@ compute_δψ! for additional kwargs.
     end
 end
 
+@doc raw"""
+Perform a multiplication of a wavefunction ``ψ`` by a local potential
+``V(x) = V_{q}(x) exp(iq * x)``.
+
+Takes ``ψ_{k}`` and returns ``Vψ_{k} = V^{\rm real}_{q} ψ_{k-q}``,
+i.e. this function takes care of transferring ψ to the equivalent ``k-q``.
+
+An additional Vτ (divAgrad meta-GGA potential) can be passed to add
+``-1/2 ∇⋅(Vτ_{q} ∇) ψ_{k-q}`` to the output.
+"""
+@views function apply_potential_blochwave(basis::PlaneWaveBasis{T}, ψ, V, q=zero(Vec3{T}); Vτ=nothing) where {T}
+    fψ = zero.(ψ)
+    real_buffer = similar(V, Complex{T}, basis.fft_size...)
+    norm = basis.fft_grid.fft_normalization * basis.fft_grid.ifft_normalization
+    # First, express ψ_{[k-q]} in the basis of k-q points…
+    ψ_minus_q = transfer_blochwave_equivalent_to_actual(basis, ψ, -q)
+    for (ik, kpt) in enumerate(basis.kpoints)
+        # … then perform the multiplication with f in real space and get the Fourier
+        # coefficients.
+        for n = 1:size(ψ[ik], 2)
+            ifft!(real_buffer, basis, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk[:, n]; normalize=false)
+            real_buffer .*= V[:, :, :, kpt.spin] .* norm
+            fft!(fψ[ik][:, n], basis, kpt, real_buffer; normalize=false)
+        end
+
+        if !isnothing(Vτ)
+            # Note that the gradient of ψ_{k-q} is computed with G+k-q,
+            # while the operand of the divergence has momentum k and is thus computed with G+k.
+            G_plus_k_minus_q = [map(p -> p[α], Gplusk_vectors_cart(basis, ψ_minus_q[ik].kpt)) for α = 1:3]
+            G_plus_k         = [map(p -> p[α], Gplusk_vectors_cart(basis, kpt)) for α = 1:3]
+            for n = 1:size(ψ[ik], 2), α = 1:3
+                ∇ψ_recip = im .* G_plus_k_minus_q[α] .* ψ_minus_q[ik].ψk[:, n]
+                Vτ∇ψ_recip = fft(basis, kpt,
+                                 ifft(basis, ψ_minus_q[ik].kpt, ∇ψ_recip)
+                                 .* Vτ[:, :, :, kpt.spin])
+                fψ[ik][:, n] .-= im .* G_plus_k[α] .* Vτ∇ψ_recip ./ 2
+            end
+        end
+    end
+    fψ
+end
+
 """
 Get the density variation `δρ` corresponding to a potential variation `δV`.
 
@@ -531,6 +573,7 @@ Parameters:
 - `maxiter`: Maximal number of CG iterations per k and band for Sternheimer
 """
 function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{TδV};
+                  δVτ=nothing,
                   δtemperature=zero(eltype(ham.basis)),
                   occupation_threshold=default_occupation_threshold(TδV),
                   q=zero(Vec3{eltype(ham.basis)}),
@@ -541,13 +584,20 @@ function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{
     # Make δV respect the basis symmetry group, since we won't be able
     # to compute perturbations that don't anyway
     δV = symmetrize_ρ(basis, δV)
+    δVτ = isnothing(δVτ) ? nothing : symmetrize_ρ(basis, δVτ)
 
     # Normalize δV to avoid numerical trouble; theoretically should not be necessary,
     # but it simplifies the interaction with the Sternheimer linear solver
     # (it makes the rhs be order 1 even if δV is small)
     normδH = norm(δV)
-    normδH < eps(T) && return (; δρ=zero(δV), normδH)
+    if normδH < eps(T)
+        isnothing(δVτ) || norm(δVτ) < eps(T) || error(
+            "Attempted to apply_χ0 with zero δV but nonzero δVτ." *
+            " This is currently not supported, please open an issue.")
+        return (; δρ=zero(δV), δτ=isnothing(δVτ) ? nothing : zero(δVτ), normδH)
+    end
     δV ./= normδH
+    isnothing(δVτ) || (δVτ ./= normδH)
 
     if bandtolalg isa BandtolGuaranteed
         # This is the ||K v|| term of arxiv 2505.02319, see also the discussion
@@ -557,13 +607,19 @@ function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{
 
     # For phonon calculations, assemble
     #   δHψ_k = δV_{q} · ψ_{k-q}.
-    δHψ = multiply_ψ_by_blochwave(basis, ψ, δV, q)
+    δHψ = apply_potential_blochwave(basis, ψ, δV, q; Vτ=δVτ)
     res = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                       δtemperature, occupation_threshold, q, bandtolalg, kwargs...)
 
     δρ = compute_δρ(basis, ψ, res.δψ, occupation, res.δoccupation; occupation_threshold, q)
     δρ = δρ * normδH
-    (; δρ, normδH, res...)
+    if isnothing(δVτ)
+        δτ = nothing
+    else
+        δτ = compute_δτ(basis, ψ, res.δψ, occupation, res.δoccupation; q)
+        δτ = δτ * normδH
+    end
+    (; δρ, δτ, normδH, res...)
 end
 
 function apply_χ0(scfres, δV; kwargs...)
