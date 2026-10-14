@@ -37,6 +37,109 @@
 using LinearMaps
 import DifferentiationInterface: AutoForwardDiff, value_and_derivative
 
+@doc raw"""
+Select an energy cutoff ``E_\mathrm{cut,ref}`` to be used for the refinement basis
+passed to [`refine_scfres`](@ref).
+
+The selection is performed based on the decay of the nonlocal operator PDP'ψ,
+such that the selected cutoff reduces the residual due to the nonlocal operator
+by a factor ``η`` compared to using the original basis with cutoff ``E_\mathrm{cut}``.
+As such all pseudopotentials in the system must contain nonlocal projectors.
+This is for example satisfied by ONCVPSP-generated pseudopotentials.
+"""
+# TODO: there is a bunch of type instability in this function, mostly coming from the psps
+@timing function select_refinement_Ecutref(basis::PlaneWaveBasis{T}, ψ, occ;
+                                   η=20, Ecut=basis.Ecut,
+                                   # Max Ecutref we will consider selecting
+                                   Ecutrefmax = T(4) * Ecut,
+                                   # (Somewhat arbitrary) upper bound for the numerical integration
+                                   Ecutrefinf = T(10) * Ecut) where {T}
+    model = basis.model
+
+    qs = 1:0.01:(sqrt(2 * Ecutrefinf)+0.1)
+
+    psp_groups = model.atom_groups
+    for g in psp_groups
+        at = model.atoms[first(g)]
+        if !(at isa ElementPsp)
+            error("Only ElementPsp is supported, received $(typeof(at)).")
+        end
+    end
+    psps = [model.atoms[first(group)].psp for group in psp_groups]
+    psp_positions = [model.positions[group] for group in psp_groups]
+
+    DPψs = map(basis.kpoints, ψ) do kpt, ψk
+        P = build_projection_vectors(basis, kpt, psps, psp_positions)
+        D = build_projection_coefficients(T, psps, psp_positions)
+        D * (P' * ψk)
+    end
+    mean_kins = map(basis.kpoints, ψ) do kpt, ψk
+        tpa = PreconditionerTPA(basis, kpt)
+        DFTK.precondprep!(tpa, ψk)
+        tpa.mean_kin
+    end
+
+    integrand = zeros(T, length(qs))
+    offset = 0
+    for (group, psp) in zip(psp_groups, psps)
+        for iatom in group
+            any_proj = false
+            for l in 0:(psp.lmax::Int)
+                n_proj_l = DFTK.count_n_proj_radial(psp, l)::Int
+                for i1 in 1:n_proj_l, i2 in 1:n_proj_l
+                    any_proj = true
+                    form_q2 = (DFTK.eval_psp_projector_fourier.(psp, i1, l, qs)
+                               .* DFTK.eval_psp_projector_fourier.(psp, i2, l, qs)
+                               .* qs.^2)
+                    for ik in 1:length(basis.kpoints)
+                        for n in 1:size(DPψs[ik], 2)
+                            m_sum = zero(T)
+                            for m in 0:2l
+                                @inbounds m_sum += real(conj(DPψs[ik][offset + i1 + m*n_proj_l, n])
+                                                           * DPψs[ik][offset + i2 + m*n_proj_l, n])
+                            end
+                            integrand .+= (basis.kweights[ik] * occ[ik][n] * m_sum) .* form_q2 .* (one(T)/2 .* qs.^2 .+ mean_kins[ik][n]).^-2
+                        end
+                    end
+                end
+                offset += (2l+1)*n_proj_l;
+            end
+            if !any_proj
+                error("Pseudopotential for atom $iatom of species $(model.atoms[iatom]) has no projectors, cannot select Ecutref.")
+            end
+        end
+    end
+    @assert offset == size(DPψs[1], 1)
+    mpi_sum!(integrand, basis.comm_kpts)
+
+    @views function get_error(qi)
+        return sqrt(DFTK.simpson(integrand[qi:end], qs[qi:end]) / (2π)^3)
+    end
+
+    # Find error at Ecut
+    qcut_i = findfirst(q -> q^2/2 >= Ecut, qs)
+    Ecut_error = get_error(qcut_i)
+
+    # Find Eref such that the error is reduced by η
+    selected_Ecutref = nothing
+    for qref_i in qcut_i+1:length(qs)
+        Ecutref = qs[qref_i]^2/2
+        if Ecutref > Ecutrefmax
+            @warn "Could not find suitable Ecutref up to $Ecutrefmax Hartree."
+            selected_Ecutref = Ecutrefmax
+            break
+        end
+        if get_error(qref_i) <= Ecut_error / η
+            selected_Ecutref = Ecutref
+            break
+        end
+    end
+
+    # Take the max across all processes in case there is a slight difference
+    # in the selected Ecutref
+    return mpi_max(selected_Ecutref, basis.comm_kpts)
+end
+
 """
 Invert the metric operator M.
 """
@@ -114,7 +217,7 @@ Returns a [`RefinementResult`](@ref) instance that can be used to refine quantit
 through [`refine_energies`](@ref) and [`refine_forces`](@ref).
 """
 @timing function refine_scfres(scfres, basis_ref::PlaneWaveBasis{T};
-                               tol=1e-6,
+                               atol=T(1e-12), rtol=T(1e-4),
                                occ_threshold=default_occupation_threshold(T),
                                kwargs...) where {T}
     basis = scfres.basis
@@ -154,7 +257,7 @@ through [`refine_energies`](@ref) and [`refine_forces`](@ref).
     rhs = ΩpKe2 - resLF
 
     # Invert Ω+K on the small space
-    ΩpK_res = solve_ΩplusK(basis, ψ, rhs, occ; tol, kwargs...)
+    ΩpK_res = solve_ΩplusK(basis, ψ, rhs, occ; atol, rtol, kwargs...)
 
     e1 = transfer_blochwave(ΩpK_res.δψ, basis, basis_ref)
     schur_residual = e1 + e2

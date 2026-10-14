@@ -220,3 +220,22 @@ end
         Hessian.test_solve_ΩplusK(scfres, δV)
     end
 end
+
+@testitem "consistency of optimized ΩplusK" #=
+    =#    tags=[:dont_test_mpi] setup=[Hessian, TestCases] begin
+    using DFTK
+    using DFTK: apply_Ω, apply_K, prepare_ΩplusK
+    using LinearAlgebra
+    (; basis, ψ, occupation, ρ, rhs, ϕ) = Hessian.setup_quantities(TestCases.silicon)
+
+    H = energy_hamiltonian(basis, ψ, occupation; ρ).ham
+    # Rayleigh-coefficients
+    Λ = [ψk'Hψk for (ψk, Hψk) in zip(ψ, H * ψ)]
+
+    slow_version = apply_Ω(rhs, ψ, H, Λ) + apply_K(basis, rhs, ψ, ρ, occupation)
+
+    apply_ΩplusK = prepare_ΩplusK(basis, H, ψ, ρ, occupation)
+    fast_version = apply_ΩplusK(rhs)
+
+    @test slow_version ≈ fast_version rtol=1e-14
+end
