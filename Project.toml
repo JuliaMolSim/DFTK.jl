@@ -71,7 +71,7 @@ DFTKWriteVTKExt = "WriteVTK"
 
 [compat]
 AMDGPU = "1.2.3, 2"
-ASEconvert = "0.1, 0.2"
+ASEconvert = "0.2, 0.3"
 AbstractFFTs = "1"
 Aqua = "0.8.5"
 Artifacts = "1"
