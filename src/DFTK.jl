@@ -85,6 +85,7 @@ export irfft
 export ifft!
 export fft
 export fft!
+export build_qpoints
 export KgridTotalNumber, KgridSpacing
 include("Smearing.jl")
 include("Model.jl")
@@ -104,11 +105,11 @@ include("supercell.jl")
 export Energies
 include("Energies.jl")
 
-export Coulomb
+export BareCoulomb
 export SphericallyTruncatedCoulomb
 export WignerSeitzTruncatedCoulomb
 export ShortRangeCoulomb, LongRangeCoulomb
-export ProbeCharge, ReplaceSingularity, VoxelAveraged
+export ProbeCharge, ReplaceSingularity, VoxelAverage
 include("coulomb.jl")
 
 export Hamiltonian
