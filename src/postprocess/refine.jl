@@ -70,7 +70,7 @@ This is for example satisfied by ONCVPSP-generated pseudopotentials.
 
     DPψs = map(basis.kpoints, ψ) do kpt, ψk
         P = build_projection_vectors(basis, kpt, psps, psp_positions)
-        D = build_projection_coefficients(T, psps, psp_positions)
+        D = build_projection_coefficients(basis, psps, psp_positions)
         D * (P' * ψk)
     end
     mean_kins = map(basis.kpoints, ψ) do kpt, ψk

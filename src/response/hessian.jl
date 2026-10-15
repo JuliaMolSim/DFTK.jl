@@ -112,10 +112,10 @@ This version trades additional memory for speed by caching `ifft(ψ)` and `ifft(
                       .* conj.(ψnk_real) .* δψnk_real)
             end
             mpi_sum!(δρ, basis.comm_kpts)
-            δρ = symmetrize_ρ(basis, δρ; do_lowpass=false)
+            δρ = symmetrize_ρ(basis, δρ)
         end
         # Compute kernel
-        δV = apply_kernel(basis, δρ; ρ)
+        δV = apply_kernel(basis, δρ; ρ).δVρ
         # normalize here so we can use unnormalized FFTs for extra speed
         δV .*= fft_normalization * ifft_normalization
         # Now apply both δV * ψ (K) and the first part of H * δψ (first part of Ω),
