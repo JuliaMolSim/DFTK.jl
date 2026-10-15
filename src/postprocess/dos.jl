@@ -153,12 +153,18 @@ Notes:
     orthonormalized only against the manifold basis. 
     Most applications require the whole projectors basis to be orthonormal instead.
 """
-function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
+function atomic_orbital_projectors(basis::PlaneWaveBasis;
                                    isonmanifold = l -> true,
-                                   positions = basis.model.positions) where {T}
-    
-    G_plus_k_all = [Gplusk_vectors(basis, basis.kpoints[ik])
-                    for ik = 1:length(basis.kpoints)]
+                                   positions = basis.model.positions)
+    (; orbitals, labels) = _atomic_orbitals_nonorthogonal(basis; isonmanifold, positions)
+    (; projectors=ortho_lowdin.(orbitals), labels)
+end
+
+# Non-orthogonalized atomic orbitals, i.e. `atomic_orbital_projectors` before the Löwdin step.
+function _atomic_orbitals_nonorthogonal(basis::PlaneWaveBasis{T};
+                                        isonmanifold = l -> true,
+                                        positions = basis.model.positions) where {T}
+    G_plus_k_all = [Gplusk_vectors(basis, kpt) for kpt in basis.kpoints]
     G_plus_k_all_cart = [map(recip_vector_red_to_cart(basis.model), gpk) 
                          for gpk in G_plus_k_all]
 
@@ -186,9 +192,81 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
         end
     end
 
-    projectors = ortho_lowdin.(projectors)
+    (; orbitals=projectors, labels)
+end
 
-    return (; projectors, labels)
+"""
+    atomic_orbital_projector_derivatives(basis; [ψ, selected, positions])
+
+Derivatives of the projectors returned by [`atomic_orbital_projectors`](@ref) with respect
+to the atomic positions:
+
+    dprojectors[ik][iatom][α] = ∂ projectors[ik] / ∂ r[iatom][α]
+
+where `r[iatom][α]` is the `α`-th reduced coordinate of atom `iatom`. The derivative includes
+the change of the Löwdin orthogonalization, so displacing one atom also changes the
+projectors centered on all other atoms.
+
+Overview of inputs:
+- `ψ` (opt): Bloch waves. If given, the overlaps ``⟨ψ_{nk}|∂ϕ̃_k/∂r⟩``, i.e.
+  `ψ[ik]' * dprojectors[ik][iatom][α]`, are returned instead, without storing the
+  plane-wave sized derivatives. Without `ψ`, the output takes 3 × (number of atoms) times
+  the memory of the projectors.
+- `selected` (opt): A function of the label selecting the projectors (columns) to differentiate.
+  All atomic orbitals still enter the orthogonalization.
+
+Overview of outputs:
+- `dprojectors`: `dprojectors[ik][iatom][α]` is a matrix of size (number of G vectors or
+  bands) × (number of selected projectors)
+- `labels`: labels of the selected projectors, see [`atomic_orbital_projectors`](@ref)
+- `projections`: if `ψ` is given, the overlaps `ψ[ik]' * projectors[ik]` with the selected
+  projectors (obtained at no extra plane-wave cost), otherwise `nothing`
+"""
+function atomic_orbital_projector_derivatives(basis::PlaneWaveBasis;
+                                              ψ = nothing,
+                                              selected = l -> true,
+                                              positions = basis.model.positions)
+    (; orbitals, labels) = _atomic_orbitals_nonorthogonal(basis; positions)
+    cols = findall(selected, labels)
+    results = map(enumerate(basis.kpoints)) do (ik, kpt)
+        Φk = orbitals[ik]
+        ψk = isnothing(ψ) ? nothing : ψ[ik]
+        lowdin = lowdin_overlap(Φk)
+        ψΦk = isnothing(ψk) ? nothing : ψk' * Φk
+        G_plus_k = Gplusk_vectors(basis, kpt)
+        dprojectors_k = map(eachindex(basis.model.atoms)) do iatom
+            atom_orbitals = findall(label -> label.iatom == iatom, labels)
+            map(1:3) do α
+                _lowdin_orbitals_derivative(Φk, lowdin, G_plus_k, atom_orbitals, α, cols;
+                                            ψk, ψΦk)
+            end
+        end
+        # ψ' * Φ O^{-1/2}, i.e. the overlaps with the orthogonalized projectors
+        projections_k = isnothing(ψk) ? nothing : ψΦk * lowdin.O_invsqrt[:, cols]
+        (; dprojectors_k, projections_k)
+    end
+    dprojectors = [result.dprojectors_k for result in results]
+    projections = isnothing(ψ) ? nothing : [result.projections_k for result in results]
+    (; dprojectors, labels=labels[cols], projections)
+end
+
+# Derivative of the columns `cols` of the Löwdin-orthogonalized orbitals Φk * O^{-1/2} with
+# respect to the reduced coordinate α of the atom carrying the orbitals `atom_orbitals`.
+# If ψk is given, returns ψk' times this derivative, with ψΦk = ψk' * Φk.
+function _lowdin_orbitals_derivative(Φk, lowdin, G_plus_k, atom_orbitals, α, cols;
+                                     ψk=nothing, ψΦk=nothing)
+    # Only the orbitals of the displaced atom move:
+    #   ∂/∂r_α e^{-2πi (k+G)·r} = -2πi (k+G)_α e^{-2πi (k+G)·r}
+    dΦ_atom = (-2π * im) .* getindex.(G_plus_k, α) .* Φk[:, atom_orbitals]
+    δO = zero(lowdin.O_invsqrt)
+    δO[atom_orbitals, :] = dΦ_atom' * Φk
+    δO = δO + δO'
+    dO_invsqrt = lowdin_overlap_derivative(lowdin, δO)[:, cols]
+    if isnothing(ψk)
+        dΦ_atom * lowdin.O_invsqrt[atom_orbitals, cols] + Φk * dO_invsqrt
+    else
+        (ψk' * dΦ_atom) * lowdin.O_invsqrt[atom_orbitals, cols] + ψΦk * dO_invsqrt
+    end
 end
 
 """

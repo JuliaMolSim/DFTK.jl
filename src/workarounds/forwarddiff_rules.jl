@@ -330,6 +330,22 @@ function hankel(quadrature, r::AbstractVector, r2_f::AbstractVector, l::Integer,
     Dual{Tg,V,N}(value, derivative * ForwardDiff.partials(p))
 end
 
+# The generic ForwardDiff rule for eigen(::Hermitian) divides by eigenvalue differences and
+# is wrong for a degenerate overlap, which is the common case for atomic orbitals in a crystal.
+# Nested Duals (higher derivatives) still go through that generic rule for the inner level.
+function ortho_lowdin(φk::AbstractMatrix{Complex{Dual{Tg,V,N}}}) where {Tg,V,N}
+    φ = ForwardDiff.value.(φk)
+    lowdin = lowdin_overlap(φ)
+    δresults = ntuple(N) do p
+        δφ = ForwardDiff.partials.(φk, p)
+        δO = δφ' * φ + φ' * δφ
+        δφ * lowdin.O_invsqrt + φ * lowdin_overlap_derivative(lowdin, δO)
+    end
+    map(φ * lowdin.O_invsqrt, δresults...) do x, δx...
+        Complex(Dual{Tg}(real(x), real.(δx)), Dual{Tg}(imag(x), imag.(δx)))
+    end
+end
+
 # other workarounds
 
 # problem: ForwardDiff of norm of SVector gives NaN derivative at zero
