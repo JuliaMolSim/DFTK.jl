@@ -173,6 +173,14 @@ end
 # Special case for Monkhorst-Pack grids since the generic function above
 # is quadratic in the number of k-points.
 function symmetries_preserving_kgrid(symmetries, kgrid::MonkhorstPack)
+    # Spglib only supports shifts that are 0 or 1//2, so the same holds true
+    # for our irreducible_kcoords function. We disable all symmetries in this case.
+    are_shifts_supported_by_spglib = all(ks -> ks in (0, 1//2), kgrid.kshift)
+    if !are_shifts_supported_by_spglib
+        @warn "Disabling basis symmetries for non-integer or non-half-integer k-point shifts."
+        return [one(SymOp)]
+    end
+
     # we have to check if S * k is in the grid for all k
     # by linearity, it is enough to check the origin and
     # (1/kgrid_size[1], 0, 0), (0, 1/kgrid_size[2], 0), (0, 0, 1/kgrid_size[3]).

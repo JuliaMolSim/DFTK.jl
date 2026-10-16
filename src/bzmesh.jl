@@ -24,14 +24,15 @@ structure of the calculation.
 struct MonkhorstPack <: AbstractKgrid
     kgrid_size::Vec3{Int}
     kshift::Vec3{Rational{Int}}
+    function MonkhorstPack(kgrid_size, kshift)
+        # Note: While a convert(Rational{Int}, number) tries to be exact, rationalize
+        # approximates, which gives more reasonable fractions in the end and is
+        # thus preferred.
+        new(kgrid_size, rationalize.(normalize_kpoint_coordinate(kshift)))
+    end
 end
-function MonkhorstPack(kgrid_size::AbstractVector; kshift=[0, 0, 0])
-    # Note: While a convert(Rational{Int}, number) tries to be exact, rationalize
-    # approximates, which gives more reasonable fractions in the end and is
-    # thus preferred.
-    MonkhorstPack(kgrid_size, rationalize.(kshift))
-end
-MonkhorstPack(kgrid_size::Tuple; kshift=[0, 0, 0]) = MonkhorstPack(kgrid_size, rationalize.(kshift))
+MonkhorstPack(kgrid_size::AbstractVector; kshift=[0, 0, 0]) = MonkhorstPack(kgrid_size, kshift)
+MonkhorstPack(kgrid_size::Tuple; kshift=[0, 0, 0]) = MonkhorstPack(kgrid_size, kshift)
 MonkhorstPack(k1::Integer, k2::Integer, k3::Integer) = MonkhorstPack([k1, k2, k3])
 function Base.show(io::IO, kgrid::MonkhorstPack)
     print(io, "MonkhorstPack(", kgrid.kgrid_size)
@@ -45,7 +46,7 @@ Base.length(kgrid::MonkhorstPack) = prod(kgrid.kgrid_size)
 function breaks_time_reversal_symmetry(kgrid::MonkhorstPack)
     # In order to have time-reversal symmetry, the k-point grid needs to be closed under
     # k ↦ -k, which can only be the case if the k-shift is 0 or 0.5.
-    all(ks -> ks in (0, 1//2), kgrid.kshifts)
+    !all(ks -> ks in (0, 1//2), kgrid.kshift)
 end
 
 """Construct the coordinates of the k-points in a (shifted) Monkhorst-Pack grid"""
@@ -65,14 +66,14 @@ coordinates and the associated weights.
 function irreducible_kcoords(kgrid::MonkhorstPack, symmetries::AbstractVector{<:SymOp};
                              check_symmetry=SYMMETRY_CHECK)
     if all(isone, kgrid.kgrid_size)
-        kshift_norm = normalize_kpoint_coordinate.(kgrid.kshift)
+        kshift_norm = normalize_kpoint_coordinate(kgrid.kshift)
         return (; kcoords=[Vec3{Float64}(kshift_norm)], kweights=[1.0])
     end
 
-    # Spglib only supports shifts that are 0 or 1//2
-    are_shifts_supported_by_spglib = all(ks -> ks in (0, 1//2), kgrid.kshifts)
-    if length(symmetries) == 1 || !are_shifts_supported_by_spglib
-        # Disable symmetry detection by Spglib
+    if length(symmetries) == 1
+        # Disable symmetry detection by Spglib. This is done in particular to
+        # capture cases where Spglib itself cannot determine the symmetry, e.g.
+        # for cases where the k-point grid is shifted randomly
         kcoords  = reducible_kcoords(kgrid).kcoords
         kweights = fill(1 / length(kcoords), length(kcoords))
         return (; kcoords, kweights)
