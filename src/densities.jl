@@ -65,6 +65,10 @@ end
     Tδρ = iszero(q) ? real(Tψ) : Tψ
     real_qzero = iszero(q) ? real : identity
 
+    # Note: This routine assumes the existence of time-reversal symmetry
+    #       in the model/discretisation for q!=0, see also the comment in postprocess/phonon.jl.
+    @assert !breaks_time_reversal_symmetry(basis)
+
     # occupation should be on the CPU as we are going to be doing scalar indexing.
     occupation = [to_cpu(oc) for oc in occupation]
     mask_occ = [findall(occnk -> abs(occnk) ≥ occupation_threshold, occk)
@@ -94,7 +98,7 @@ end
         ifft_normalization = basis.fft_grid.ifft_normalization
 
         # For the (non-trivial) explanation of why we don't take real parts when q!=0,
-        # see comment in phonon.jl
+        # see comment in postprocess/phonon.jl
         storage.δρ[:, :, :, kpt.spin] .+= ifft_normalization^2 .* real_qzero.(
             2 .* occupation[ik][n]  .* basis.kweights[ik] .* conj.(storage.ψnk_real)
                                                           .* storage.δψnk_real

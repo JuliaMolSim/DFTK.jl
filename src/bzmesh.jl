@@ -25,8 +25,13 @@ struct MonkhorstPack <: AbstractKgrid
     kgrid_size::Vec3{Int}
     kshift::Vec3{Rational{Int}}
 end
-MonkhorstPack(kgrid_size::AbstractVector; kshift=[0, 0, 0]) = MonkhorstPack(kgrid_size, kshift)
-MonkhorstPack(kgrid_size::Tuple; kshift=[0, 0, 0]) = MonkhorstPack(kgrid_size, kshift)
+function MonkhorstPack(kgrid_size::AbstractVector; kshift=[0, 0, 0])
+    # Note: While a convert(Rational{Int}, number) tries to be exact, rationalize
+    # approximates, which gives more reasonable fractions in the end and is
+    # thus preferred.
+    MonkhorstPack(kgrid_size, rationalize.(kshift))
+end
+MonkhorstPack(kgrid_size::Tuple; kshift=[0, 0, 0]) = MonkhorstPack(kgrid_size, rationalize.(kshift))
 MonkhorstPack(k1::Integer, k2::Integer, k3::Integer) = MonkhorstPack([k1, k2, k3])
 function Base.show(io::IO, kgrid::MonkhorstPack)
     print(io, "MonkhorstPack(", kgrid.kgrid_size)
@@ -36,6 +41,12 @@ function Base.show(io::IO, kgrid::MonkhorstPack)
     print(io, ")")
 end
 Base.length(kgrid::MonkhorstPack) = prod(kgrid.kgrid_size)
+
+function breaks_time_reversal_symmetry(kgrid::MonkhorstPack)
+    # In order to have time-reversal symmetry, the k-point grid needs to be closed under
+    # k ↦ -k, which can only be the case if the k-shift is 0 or 0.5.
+    all(ks -> ks in (0, 1//2), kgrid.kshifts)
+end
 
 """Construct the coordinates of the k-points in a (shifted) Monkhorst-Pack grid"""
 function reducible_kcoords(kgrid::MonkhorstPack)
@@ -54,13 +65,23 @@ coordinates and the associated weights.
 function irreducible_kcoords(kgrid::MonkhorstPack, symmetries::AbstractVector{<:SymOp};
                              check_symmetry=SYMMETRY_CHECK)
     if all(isone, kgrid.kgrid_size)
-        return (; kcoords=[Vec3{Float64}(kgrid.kshift)], kweights=[1.0])
+        kshift_norm = normalize_kpoint_coordinate.(kgrid.kshift)
+        return (; kcoords=[Vec3{Float64}(kshift_norm)], kweights=[1.0])
+    end
+
+    # Spglib only supports shifts that are 0 or 1//2
+    are_shifts_supported_by_spglib = all(ks -> ks in (0, 1//2), kgrid.kshifts)
+    if length(symmetries) == 1 || !are_shifts_supported_by_spglib
+        # Disable symmetry detection by Spglib
+        kcoords  = reducible_kcoords(kgrid).kcoords
+        kweights = fill(1 / length(kcoords), length(kcoords))
+        return (; kcoords, kweights)
     end
 
     # Give the remaining symmetries to spglib to compute an irreducible k-point mesh
     # TODO implement time-reversal symmetry and turn the flag below to true
     is_shift = map(kgrid.kshift) do ks
-        ks in (0, 1//2) || error("Only kshifts of 0 or 1//2 implemented.")
+        @assert ks in (0, 1//2)
         ks == 1//2
     end
     rotations = [symop.W for symop in symmetries]
@@ -121,6 +142,7 @@ function Base.show(io::IO, kgrid::ExplicitKpoints)
     print(io, "ExplicitKpoints with $(length(kgrid.kcoords)) k-points")
 end
 Base.length(kgrid::ExplicitKpoints) = length(kgrid.kcoords)
+breaks_time_reversal_symmetry(::ExplicitKpoints) = true
 reducible_kcoords(kgrid::ExplicitKpoints) = (; kgrid.kcoords)
 function irreducible_kcoords(kgrid::ExplicitKpoints, ::AbstractVector{<:SymOp})
     (; kgrid.kcoords, kgrid.kweights)

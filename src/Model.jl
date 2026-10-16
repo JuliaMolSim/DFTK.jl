@@ -318,6 +318,11 @@ normalize_magnetic_moment(mm::AbstractVector)::Vec3{Float64} = mm
 """Number of valence electrons."""
 n_electrons_from_atoms(atoms) = sum(n_elec_valence, atoms; init=0)
 
+function breaks_time_reversal_symmetry(model::Model)
+    any(breaks_time_reversal_symmetry, model.term_types)
+end
+
+
 """
 Default logic to determine the symmetry operations to be used in the model.
 """
