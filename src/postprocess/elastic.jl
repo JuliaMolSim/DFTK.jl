@@ -155,50 +155,98 @@ function elastic_tensor_v2(scfres::NamedTuple;
         PlaneWaveBasis(basis0; model)
     end
 
-    Tag = typeof(ForwardDiff.Tag(make_strained_basis, T))
-    ε = Dual{Tag}(zero(T), one(T))
+    Tag = typeof(ForwardDiff.Tag(ElasticPerturbations(), T))
+    εs = map(1:6) do istrain
+        Dual{Tag}(zero(T), ntuple(i -> i == istrain ? one(T) : zero(T), Val(6))...)
+    end
+    lattice = voigt_strain_to_full(εs) * model0.lattice
+    # explicitly keep model0's symmetries!
+    model = Model(model0; lattice, symmetries=model0.symmetries)
+    basis = PlaneWaveBasis(basis0; model)
 
-    δHψs = map(1:6) do istrain
-        δη = zeros(T, 6)
-        δη[istrain] = one(T)
-        basis = make_strained_basis(ε .* δη)
+    δHψs = let
         # TODO: τ, occupation_threshold
         ρ = compute_density(basis, scfres.ψ, scfres.occupation)
-        # τ = isnothing(scfres.τ) ? nothing : compute_kinetic_energy_density(strained_basis, scfres.ψ, scfres.occupation)
         ham = energy_hamiltonian(basis, scfres.ψ, scfres.occupation;
                                  ρ, scfres.eigenvalues, scfres.εF).ham
-        ForwardDiff.extract_derivative(Tag, ham * scfres.ψ)
+        δHψ = ham * scfres.ψ
+        map(1:6) do istrain
+            [ForwardDiff.partials.(Tag, δHψk, istrain) for δHψk in δHψ]
+        end
     end
 
     tol = last(scfres.history_Δρ)
     dfpt_res = solve_ΩplusK_split(scfres, δHψs, ElasticPerturbations(); tol)
 
-    symmetries_id_only = [one(first(basis0.symmetries))]
-    δρs = map(1:6) do istrain
-        δη = zeros(T, 6)
-        δη[istrain] = one(T)
-        # TODO: building a full basis just to compute ρ is rather wasteful
-        basis = make_strained_basis(ε .* δη)
-        ψ = scfres.ψ .+ ε .* dfpt_res.δψs[istrain]
-        occupation = scfres.occupation .+ ε .* dfpt_res.δoccupations[istrain]
-        ForwardDiff.extract_derivative(Tag, compute_density(basis, ψ, occupation; symmetries=symmetries_id_only))
+    # Careful that the resulting δρs do not account for basis_dual contribution to strain yet
+    ψ = map(scfres.ψ, dfpt_res.δψs...) do ψk, δψk...
+        map(ψk, δψk...) do ψnk, δψnk...
+            Complex(Dual{Tag}(real(ψnk), real.(δψnk)),
+                    Dual{Tag}(imag(ψnk), imag.(δψnk)))
+        end
     end
-    δρs = symmetrize_δρs(ElasticPerturbations(), basis0, δρs)
-
-    C_cols = map(1:6) do istrain
-        δη = zeros(T, 6)
-        δη[istrain] = one(T)
-        basis = make_strained_basis(ε * δη)
-        ψ = scfres.ψ .+ ε .* dfpt_res.δψs[istrain]
-        occupation = scfres.occupation .+ ε .* dfpt_res.δoccupations[istrain]
-        eigenvalues = scfres.eigenvalues .+ ε .* dfpt_res.δeigenvaluess[istrain]
-        ρ = scfres.ρ .+ ε .* δρs[istrain]
-        εF = scfres.εF + ε * dfpt_res.δεFs[istrain]
-        # TODO: τ = isnothing(scfres.τ) ? nothing : compute_kinetic_energy_density(strained_basis, ψ, scfres.occupation)
-        σ = compute_stresses_cart(basis, ψ, occupation; eigenvalues, εF, symmetries=symmetries_id_only, ρ)
-        ForwardDiff.extract_derivative(Tag, full_stress_to_voigt(σ))
+    eigenvalues = map(scfres.eigenvalues, dfpt_res.δeigenvaluess...) do εk, δεk...
+        map((εnk, δεnk...) -> Dual{Tag}(εnk, δεnk), εk, δεk...)
     end
+    occupation = map(scfres.occupation, dfpt_res.δoccupations...) do occk, δocck...
+        occk_cpu = to_cpu(occk)
+        to_device(basis.architecture,
+                  map((occk_cpu, δocck...) -> Dual{Tag}(occk_cpu, δocck), occk_cpu, δocck...))
+    end
+    εF = Dual{Tag}(scfres.εF, dfpt_res.δεFs...)
 
-    C = symmetrize_elastic_tensor(model0, stack(C_cols); basis0.symmetries)
+    sym_id = [one(first(basis.symmetries))]
+    σ = full_stress_to_voigt(compute_stresses_cart(basis, ψ, occupation; eigenvalues, εF, symmetries=sym_id))
+    C_nosym = [ForwardDiff.partials(Tag, σ[i], j) for i in 1:6, j in 1:6]
+    C = symmetrize_elastic_tensor(model0, C_nosym; basis0.symmetries)
+
     (; C, dfpt_res)
+end
+
+const ElasticDual{V} = ForwardDiff.Dual{ForwardDiff.Tag{ElasticPerturbations,V},V,6}
+
+# This is needed to differentiate through compute_stresses_cart
+# Let ε1 be the outer dual (the one carrying the 6 elastic perturbations from DFPT)
+# and ε2 be the inner dual (another elastic perturbation using Hellmann-Feynman)
+# Overall the density ρ = ρ0 + ρ1 ε1 + ρ2 ε2 + ρ12 ε1 ε2
+# ρ0 and ρ2 are symmetrized as usual since they are built from the unperturbed ψ,
+# whereas ρ1 and ρ12 are built from a perturbed ψ and need to be symmetrized by mixing
+# the perturbations.
+# We will anyway symmetrize the elastic tensor, so as long as the elastic tensor is linear in the
+# considered density component we can skip symmetrizing it.
+# For a second order derivative we will have products of order 0 * order 2 and products of order 1 * order 1
+# So we can get away with only symmetrizing ρ0 and ρ2 and leaving the others alone!
+# With the usual nesting the representation is (ρ0 + ρ1 ε1) + (ρ2 + ρ12 ε1) ε2
+# TODO: according to Claude we would still need to symmetrize ρ2 for meta-GGA (so τ) or USPP,
+#       so we should instead symmetrize ρ1 for which all required partials are already available.
+@views @timing function symmetrize_ρ(basis, ρ::AbstractArray{<:Dual{Tg,<:ElasticDual{V}}};
+                                     symmetries=basis.symmetries) where {Tg, V<:AbstractFloat}
+    # Due to the ffts inside symmetrize_̢ρ, we have to build a non-dual basis
+    # To keep this reasonably cheap, we first build a non-dual model with no terms
+    # and then construct a new basis.
+    # Quite awkward but yeah... Maybe we could instead pass an fft_grid to symmetrize_ρ
+    model0 = construct_value(construct_value(basis.model))
+    model0 = Model(model0; terms=[Kinetic()])
+    basis0 = PlaneWaveBasis(model0, ForwardDiff.value(ForwardDiff.value(basis.Ecut)),
+                   basis.fft_size, basis.variational,
+                   basis.kgrid, basis.symmetries_respect_rgrid,
+                   basis.use_symmetries_for_kpoint_reduction,
+                   basis.comm_kpts, basis.architecture)
+
+    npartials_2 = ForwardDiff.npartials(eltype(ρ))
+    ρ0_ρ1 = symmetrize_value_only(basis0, ForwardDiff.value.(Tg, ρ), symmetries)
+    ρ2_ρ12 = map(1:npartials_2) do α
+        symmetrize_value_only(basis0, ForwardDiff.partials.(Tg, ρ, α), symmetries)
+    end
+    map(ρ0_ρ1, ρ2_ρ12...) do v, dv...
+        ForwardDiff.Dual{Tg}(v, dv...)
+    end
+end
+
+function symmetrize_value_only(basis, ρ::AbstractArray{<:Dual{Tg}}, symmetries) where {Tg}
+    ρ0 = ForwardDiff.value.(ρ)
+    ρ0 = symmetrize_ρ(basis, ρ0; symmetries)
+    map(ρ0, ρ) do ρ0i, ρi
+        Dual{Tg}(ρ0i, ForwardDiff.partials(ρi))
+    end
 end

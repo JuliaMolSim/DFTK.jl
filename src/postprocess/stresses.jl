@@ -25,25 +25,18 @@ for details. In Voigt notation one would use the vector
     to explicitly make sure that the `stresses` returned by this function keep the symmetry
     of the physical model. See also the discussion in [`compute_forces`](@ref).
 """
-@timing function compute_stresses_cart(basis, ψ, occupation; eigenvalues, εF, symmetries=basis.symmetries, ρ=nothing)
-    # compute the Hellmann-Feynman energy (with fixed ψ/occ/ρ)
+@timing function compute_stresses_cart(basis, ψ, occupation; eigenvalues, εF, symmetries=basis.symmetries)
+    # compute the Hellmann-Feynman energy (with fixed ψ and occ)
     function HF_energy(lattice)
         new_model = Model(basis.model; lattice)
         new_basis = PlaneWaveBasis(basis; model=new_model)
-        if isnothing(ρ)
-            ρ_strained = compute_density(new_basis, ψ, occupation; symmetries)
-        else
-            # TODO: horrible hack to avoid symmetrizing with fully reduced IBZ
-            # TODO: will not work for τ and USPP/PAW
-            # TODO: fix this
-            ρ_strained = ρ .* (basis.dvol / new_basis.dvol)
-        end
+        ρ = compute_density(new_basis, ψ, occupation)
         τ = nothing
         # if any(needs_τ, basis.terms)
         #     τ = compute_kinetic_energy_density(new_basis, ψ, occupation) # TODO symmetries
         # end
         (; energies) = energy(new_basis, ψ, occupation;
-                              ρ=ρ_strained, τ, eigenvalues, εF)
+                              ρ, τ, eigenvalues, εF)
         energies.total
     end
     L  = basis.model.lattice
@@ -61,7 +54,7 @@ for details. In Voigt notation one would use the vector
 end
 @timing function compute_stresses_cart(scfres; symmetries=scfres.basis.symmetries)
     compute_stresses_cart(scfres.basis, scfres.ψ, scfres.occupation;
-                          scfres.eigenvalues, scfres.εF, symmetries, scfres.ρ)
+                          scfres.eigenvalues, scfres.εF, symmetries)
 end
 function voigt_stress_to_full(v::AbstractVector{T}) where {T}
     @SArray[v[1] v[6] v[5];
