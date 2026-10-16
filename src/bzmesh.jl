@@ -27,8 +27,9 @@ struct MonkhorstPack <: AbstractKgrid
     function MonkhorstPack(kgrid_size, kshift)
         # Note: While a convert(Rational{Int}, number) tries to be exact, rationalize
         # approximates, which gives more reasonable fractions in the end and is
-        # thus preferred.
-        new(kgrid_size, rationalize.(normalize_kpoint_coordinate(kshift)))
+        # thus preferred. Don't use normalize_kpoint_coordinate here as we want
+        # the shift to be in [0, 1)
+        new(kgrid_size, mod.(rationalize.(Vec3(kshift)), 1))
     end
 end
 MonkhorstPack(kgrid_size::AbstractVector; kshift=[0, 0, 0]) = MonkhorstPack(kgrid_size, kshift)
