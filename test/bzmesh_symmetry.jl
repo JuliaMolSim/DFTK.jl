@@ -31,3 +31,27 @@
         @test norm(ρ1 - ρ2) .* sqrt(basis.dvol) < 1e-8
     end
 end
+
+@testitem "SCF on a generically shifted k-grid" setup=[TestCases] begin
+    # Tests that generically shifted SCF runs and that the results are not too far
+    # off a case without a generic shift
+    using DFTK
+    using LinearAlgebra
+    testcase = TestCases.silicon
+
+    model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                      functionals=LDA())
+
+    kgrid_size = [4, 5, 6)
+    basis_noshift  = PlaneWaveBasis(model; Ecut=5, kgrid=MonkhorstPack(kgrid_size)
+    scfres_noshift = self_consistent_field(basis_noshift; tol=1e-10)
+    @test length(basis_noshift.symmetries) > 1
+
+    basis_shift  = PlaneWaveBasis(model; Ecut=5,
+                                  kgrid=MonkhorstPack(kgrid_size; kshift=[0.0, 0.1, 0.05])
+    scfres_shift = self_consistent_field(basis_shift; tol=1e-10)
+    @test length(basis_shift.symmetries) == 1  # Symmetries disabled
+
+    @test abs(scfres_shift.energies.total - scfres_noshift.energies.total) < 1e-3
+    @test norm(scfres_shift.ρ - scfres_noshift.ρ) < 1e-4
+end

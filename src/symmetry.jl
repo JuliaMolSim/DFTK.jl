@@ -177,7 +177,6 @@ function symmetries_preserving_kgrid(symmetries, kgrid::MonkhorstPack)
     # for our irreducible_kcoords function. We disable all symmetries in this case.
     are_shifts_supported_by_spglib = all(ks -> ks in (0, 1//2), kgrid.kshift)
     if !are_shifts_supported_by_spglib && length(symmetries) > 1
-        @warn "Disabling basis symmetries for k-point shifts other than 0 or 1/2."
         return filter(isone, symmetries)
     end
 
