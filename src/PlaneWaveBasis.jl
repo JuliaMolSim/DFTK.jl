@@ -657,7 +657,6 @@ function breaks_time_reversal_symmetry(basis::PlaneWaveBasis)
     breaks_time_reversal_symmetry(basis.model) || breaks_time_reversal_symmetry(basis.kgrid)
 end
 
-
 """
 Forward FFT calls to the PlaneWaveBasis fft_grid field
 """

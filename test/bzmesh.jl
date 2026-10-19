@@ -44,6 +44,9 @@ end
         red_kcoords   = DFTK.reducible_kcoords(kgrid).kcoords
         irred_kcoords = DFTK.irreducible_kcoords(kgrid, sym_preserving_grid).kcoords
         @test length(irred_kcoords) == kirredsize
+        if iszero(kshift)
+            @test iszero(irred_kcoords[1])  # First item in kcoords should be the Gamma point
+        end
 
         # Try to reproduce all kcoords from irred_kcoords
         all_kcoords = Vector{Vec3{Rational{Int}}}()
@@ -63,6 +66,7 @@ end
     test_reduction(silicon, [ 3,  3,  3],   4)
     test_reduction(silicon, [ 2,  3,  4],  14)
     test_reduction(silicon, [ 9, 11, 13], 644)
+    test_reduction(silicon, [ 2,  3,  2],  12, kshift=[0, 0.3, 0.25])
 
     test_reduction(silicon, [ 3,  3,  3], 6, kshift=[1//2, 1//2, 1//2])
     test_reduction(silicon, [ 3,  3,  3], 6, kshift=[1//2, 0, 1//2])

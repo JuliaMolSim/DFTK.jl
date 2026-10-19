@@ -322,7 +322,6 @@ function breaks_time_reversal_symmetry(model::Model)
     any(breaks_time_reversal_symmetry, model.term_types)
 end
 
-
 """
 Default logic to determine the symmetry operations to be used in the model.
 """

@@ -43,12 +43,12 @@ end
                       functionals=LDA())
 
     kgrid_size = [4, 5, 6]
-    basis_noshift  = PlaneWaveBasis(model; Ecut=5, kgrid=MonkhorstPack(kgrid_size)
+    basis_noshift  = PlaneWaveBasis(model; Ecut=5, kgrid=MonkhorstPack(kgrid_size))
     scfres_noshift = self_consistent_field(basis_noshift; tol=1e-10)
     @test length(basis_noshift.symmetries) > 1
 
     basis_shift  = PlaneWaveBasis(model; Ecut=5,
-                                  kgrid=MonkhorstPack(kgrid_size; kshift=[0.0, 0.1, 0.05])
+                                  kgrid=MonkhorstPack(kgrid_size; kshift=[0.0, 0.1, 0.05]))
     scfres_shift = self_consistent_field(basis_shift; tol=1e-10)
     @test length(basis_shift.symmetries) == 1  # Symmetries disabled
 
