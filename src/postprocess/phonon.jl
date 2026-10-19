@@ -99,7 +99,7 @@ in reduced coordinates.
     # to compute δρ from a single Sternheimer equation at +q (instead of one at
     # +q and one at -q) is only valid under TRS. See the discussion in
     # JuliaMolSim/DFTK.jl#1310 and Dal Corso, https://arxiv.org/abs/1906.11673.
-    if breaks_time_reversal_symmetry(basis)
+    if breaks_conjugation(basis)
         error("Phonons are currently only implemented in the presence of time-reversal-symmetry.")
     end
 

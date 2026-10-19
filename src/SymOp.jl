@@ -30,41 +30,55 @@ function is_approx_integer(r; atol=100eps(eltype(r)))
 end
 
 struct SymOp{T <: Real}
-    # (Uu)(x) = u(W x + w) in real space
+    # (Uu)(x) = u(W x + w) in real space           (θ = +1, unitary)
+    # (Uu)(x) = conj(u(W x + w)) in real space     (θ = -1, antiunitary / conjugation)
+    # TODO: for noncollinear spin, this should carry a SU(2) matrix acting on the spinor
     W::Mat3{Int}
     w::Vec3{T}
 
-    # (Uu)(G) = e^{-i G τ} u(S^-1 G) in reciprocal space
+    # (Uu)(G) = e^{-i G τ} u(S^-1 G) in reciprocal space           (θ = +1)
+    # (Uu)(G) = e^{+i G τ} conj(u(-S^-1 G)) in reciprocal space    (θ = -1)
     S::Mat3{Int}
     τ::Vec3{T}
+
+    # θ ∈ {+1, -1}: +1 for unitary, -1 for antiunitary (conjugation, maps k → -k)
+    θ::Int
 end
-function SymOp(W, w::AbstractVector{T}) where {T}
+function SymOp(W, w::AbstractVector{T}; θ=1) where {T}
+    @assert θ ∈ (1, -1)
     w = mod.(w, 1)
     S = W'
     τ = -W \ w
-    SymOp{T}(W, w, S, τ)
+    SymOp{T}(W, w, S, τ, Int(θ))
 end
 
-function Base.convert(::Type{SymOp{T}}, S::SymOp{U}) where {U <: Real, T <: Real}
-    SymOp{T}(S.W, T.(S.w), S.S, T.(S.τ))
+function Base.convert(::Type{SymOp{T}}, op::SymOp{U}) where {U <: Real, T <: Real}
+    SymOp{T}(op.W, T.(op.w), op.S, T.(op.τ), op.θ)
 end
 
-Base.:(==)(op1::SymOp, op2::SymOp) = op1.W == op2.W && op1.w == op2.w
+Base.:(==)(op1::SymOp, op2::SymOp) = op1.W == op2.W && op1.w == op2.w && op1.θ == op2.θ
 function Base.isapprox(op1::SymOp, op2::SymOp; atol=SYMMETRY_TOLERANCE)
-    op1.W == op2.W && is_approx_integer(op1.w - op2.w; atol)
+    op1.W == op2.W && op1.θ == op2.θ && is_approx_integer(op1.w - op2.w; atol)
 end
 Base.one(::Type{SymOp}) = one(SymOp{Bool})  # Not sure about this method
 Base.one(::Type{SymOp{T}}) where {T} = SymOp(Mat3{Int}(I), Vec3(zeros(T, 3)))
 Base.one(::SymOp{T}) where {T} = one(SymOp{T})
-Base.isone(op::SymOp) = isone(op.W) && iszero(op.w)
+Base.isone(op::SymOp) = isone(op.W) && iszero(op.w) && op.θ == 1
 
-# group composition and inverse.
+# group composition: spatial parts compose normally, θ multiplies
 function Base.:*(op1::SymOp, op2::SymOp)
     W = op1.W * op2.W
     w = op1.w + op1.W * op2.w
-    SymOp(W, w)
+    SymOp(W, w; θ=op1.θ * op2.θ)
 end
-Base.inv(op::SymOp) = SymOp(inv(op.W), -op.W\op.w)
+# inverse: (W^{-1}, -W^{-1}w, θ) — θ unchanged, antiunitary inverse is antiunitary
+Base.inv(op::SymOp) = SymOp(inv(op.W), -op.W\op.w; θ=op.θ)
+
+# k → θ·S·k: the BZ action of a symop (maps k-points in reduced coordinates)
+transform_kpoint_coordinate(op::SymOp, k) = op.θ * op.S * k
+
+# Conjugate x when the symop is antiunitary (θ=-1), identity otherwise
+maybe_conjugate(op::SymOp, x) = op.θ == 1 ? x : conj(x)
 
 is_approx_in(symop, group; kwargs...) = any(s -> isapprox(s, symop; kwargs...), group)
 function check_group(symops::Vector; kwargs...)

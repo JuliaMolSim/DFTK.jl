@@ -291,7 +291,7 @@ Interface each term implements:
   `nothing`) or `TermNonlinear`.
 - Optional, all defaulting to no-op/`nothing`: `compute_kernel`/`apply_kernel` (response),
   `compute_forces`, `compute_dynmat`/`compute_δHψ_αs` (phonons), and the traits
-  `breaks_symmetries` / `breaks_time_reversal_symmetry` (default `false`; set `true` for e.g.
+  `breaks_symmetries` / `breaks_conjugation` (default `false`; set `true` for e.g.
   `Magnetic` and external potentials — otherwise k-point symmetry reduction would be invalid).
 
 | File | Term |
