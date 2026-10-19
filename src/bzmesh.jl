@@ -53,10 +53,11 @@ end
 """Construct the coordinates of the k-points in a (shifted) Monkhorst-Pack grid"""
 function reducible_kcoords(kgrid::MonkhorstPack)
     kgrid_size = kgrid.kgrid_size
-    start   = -floor.(Int, (kgrid_size .- 1) ./ 2)
-    stop    = ceil.(Int, (kgrid_size .- 1) ./ 2)
+    start   = .- cld.(kgrid_size .- 1, 2)
+    stop    = fld.(kgrid_size .- 1, 2)
+    axes    = [[collect(0:stop[i]); collect(start[i]:-1)] for i = 1:3]
     kcoords = [(kgrid.kshift .+ Vec3([i, j, k])) .// kgrid_size
-               for i=start[1]:stop[1], j=start[2]:stop[2], k=start[3]:stop[3]]
+               for i in axes[1], j in axes[2], k in axes[3]]
     (; kcoords=vec(normalize_kpoint_coordinate.(kcoords)))
 end
 
@@ -77,6 +78,7 @@ function irreducible_kcoords(kgrid::MonkhorstPack, symmetries::AbstractVector{<:
         # for cases where the k-point grid is shifted randomly
         kcoords  = reducible_kcoords(kgrid).kcoords
         kweights = fill(1 / length(kcoords), length(kcoords))
+        iszero(kgrid.kshift) && @assert iszero(kcoords[1])  # DFTK assumes: 1st k-point is Γ
         return (; kcoords, kweights)
     end
 
@@ -114,6 +116,7 @@ function irreducible_kcoords(kgrid::MonkhorstPack, symmetries::AbstractVector{<:
                                 kirreds, spg_mesh.grid_address)
     end
 
+    iszero(kgrid.kshift) && @assert iszero(kirreds[1])  # DFTK assumes: 1st k-point is Γ
     (; kcoords=kirreds, kweights)
 end
 
