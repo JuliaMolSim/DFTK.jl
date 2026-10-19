@@ -153,7 +153,7 @@ function irreducible_kcoords(kgrid::ExplicitKpoints, ::AbstractVector{<:SymOp})
 end
 
 function breaks_time_reversal_symmetry(::ExplicitKpoints)
-    # TODO: Set to "false" if for every k there is not a corresponding -k in the mesh
+    # TODO: Set to "false" if for every k there is a corresponding -k in the mesh
     true
 end
 
