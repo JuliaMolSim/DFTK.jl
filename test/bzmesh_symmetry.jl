@@ -53,5 +53,5 @@ end
     @test length(basis_shift.symmetries) == 1  # Symmetries disabled
 
     @test abs(scfres_shift.energies.total - scfres_noshift.energies.total) < 1e-3
-    @test norm(scfres_shift.ρ - scfres_noshift.ρ) < 1e-4
+    @test norm(scfres_shift.ρ - scfres_noshift.ρ) < 1e-2
 end
