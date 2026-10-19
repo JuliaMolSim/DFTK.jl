@@ -20,7 +20,7 @@ basis  = PlaneWaveBasis(model; Ecut=15, kgrid=[1, 1, 1])
 scfres = self_consistent_field(basis; tol=1e-6);
 nothing  # hide
 
-# Then run PBE0, see also [PBE0](@ref) and [HybridFunctional](@ref) for more documentation.
+# Then run PBE0, see also [`PBE0`](@ref) and [`HybridFunctional`](@ref) for more documentation.
 model  = model_DFT(system; pseudopotentials, functionals=PBE0())
 basis  = PlaneWaveBasis(model; basis.Ecut, basis.kgrid)
 scfres = self_consistent_field(basis; tol=1e-4, scfres.ρ, scfres.ψ, scfres.occupation,

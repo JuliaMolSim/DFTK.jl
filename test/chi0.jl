@@ -50,14 +50,13 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
 
         fd_basis_kwargs = merge(basis_kwargs, (; basis.fft_size))
         function compute_ρ_FD(ε)
-            model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
-                              functionals, model_kwargs...,
-                              extra_terms=[DFTK.ExternalFromValues(ε * δV)])
-            basis_fd = PlaneWaveBasis(model; fd_basis_kwargs...)
+            model_fd = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
+                                 functionals, model_kwargs...,
+                                 extra_terms=[DFTK.ExternalFromValues(ε * δV)])
+            basis_fd = PlaneWaveBasis(model_fd; fd_basis_kwargs...)
             @test length(basis_fd.symmetries) == 1  # δV breaks all symmetries
-            ham = energy_hamiltonian(basis_fd, nothing, nothing; ρ=ρ0).ham
-            res = DFTK.next_density(ham, nbandsalg; tol, eigensolver)
-            res.ρ
+            ham_fd = energy_hamiltonian(basis_fd, nothing, nothing; ρ=ρ0).ham
+            DFTK.next_density(ham_fd, nbandsalg; tol, eigensolver).ρ
         end
 
         # middle point finite difference for more precision
@@ -80,8 +79,8 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
 
         # just to cover it here
         if temperature > 0
-            D = compute_dos(res.εF, basis, res.eigenvalues)
-            LDOS = compute_ldos(res.εF, basis, res.eigenvalues, res.ψ)
+            compute_dos(res.εF,  basis, res.eigenvalues)
+            compute_ldos(res.εF, basis, res.eigenvalues, res.ψ)
         end
 
         if !symmetries
