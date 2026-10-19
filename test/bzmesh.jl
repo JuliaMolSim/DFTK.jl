@@ -24,9 +24,7 @@
     test_against_spglib([ 9, 11, 13])
 end
 
-# PythonCall does not play nicely with MPI.
-@testitem "MonkhorstPack irreducible_kcoords is correct reduction" #=
-    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+@testitem "MonkhorstPack irreducible_kcoords is correct reduction" setup=[TestCases] begin
     using AtomsBuilder
     using DFTK
     using Logging

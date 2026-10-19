@@ -42,7 +42,7 @@ end
     model = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
                       functionals=LDA())
 
-    kgrid_size = [4, 5, 6)
+    kgrid_size = [4, 5, 6]
     basis_noshift  = PlaneWaveBasis(model; Ecut=5, kgrid=MonkhorstPack(kgrid_size)
     scfres_noshift = self_consistent_field(basis_noshift; tol=1e-10)
     @test length(basis_noshift.symmetries) > 1

@@ -144,12 +144,15 @@ function Base.show(io::IO, kgrid::ExplicitKpoints)
     print(io, "ExplicitKpoints with $(length(kgrid.kcoords)) k-points")
 end
 Base.length(kgrid::ExplicitKpoints) = length(kgrid.kcoords)
-breaks_time_reversal_symmetry(::ExplicitKpoints) = true
 reducible_kcoords(kgrid::ExplicitKpoints) = (; kgrid.kcoords)
 function irreducible_kcoords(kgrid::ExplicitKpoints, ::AbstractVector{<:SymOp})
     (; kgrid.kcoords, kgrid.kweights)
 end
 
+function breaks_time_reversal_symmetry(::ExplicitKpoints)
+    # TODO: Set to "false" if for every k there is not a corresponding -k in the mesh
+    true
+end
 
 # A datastructure that should return an AbstractKgrid (usually a MonkhorstPack)
 # when used with `build_kgrid`.
