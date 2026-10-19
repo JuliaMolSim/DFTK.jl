@@ -42,6 +42,6 @@ DFTK = {path = ".."}
 [compat]
 AtomsBuilder = "0.2"
 AtomsCalculators = "0.2.3"
-Documenter = "1"
+Documenter = "~1.18"
 GeometryOptimization = "0.1"
 PseudoPotentialData = "0.2.0"
