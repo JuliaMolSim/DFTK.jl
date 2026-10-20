@@ -191,14 +191,10 @@ struct ExchangeOperator{T <: Real,Tkernel,Tq,Tocc,Tpsi} <: RealFourierOperator
 end
 function apply!(Hψ, op::ExchangeOperator, ψ)
     basis = op.basis
-    for iq in 1:length(op.q_points)
-
-        # get the Coulomb kernel Fourier components G+q
-        q = op.q_points[iq]
-        kernel_q = op.interaction_kernels[iq]
-
+    kpt = op.kpoint
+    # kernel_q holds the Fourier components of the interaction kernel at G+q
+    for (q, kernel_q) in zip(op.q_points, op.interaction_kernels)
         # k - q is equivalent to the basis k-point k' = k - q + ΔG
-        kpt = op.kpoint
         ikp, ΔG = find_equivalent_kpt(basis, kpt.coordinate - q, kpt.spin)
         phase_forward = map(r -> cis2pi(-dot(ΔG, r)), r_vectors(basis))
         phase_reverse = map(r -> cis2pi( dot(ΔG, r)), r_vectors(basis))

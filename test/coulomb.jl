@@ -25,14 +25,14 @@
 
     k_probe = eval_kernel_fourier(ProbeCharge(BareCoulomb()), basis, q)
     @testset "Coulomb with ProbeCharge" begin
-        E_probe = exx_energy_only(basis, kpt, [k_probe], [q], [ψk_real], [occk])
+        E_probe = exx_energy_only(basis, 1, [k_probe], [q], [ψk_real], [occk])
         E_ref = -2.3383182267689455
         @test abs(E_ref - E_probe) < 1e-6
     end
 
     @testset "Coulomb with ReplaceSingularity" begin
         k_neglect = eval_kernel_fourier(ReplaceSingularity(BareCoulomb(), 0.0), basis, q)
-        E_neglect = exx_energy_only(basis, kpt, [k_neglect], [q], [ψk_real], [occk])
+        E_neglect = exx_energy_only(basis, 1, [k_neglect], [q], [ψk_real], [occk])
         E_ref = -0.7349576391625812
         @test abs(E_ref - E_neglect) < 1e-6
         @test norm(k_neglect[2:end] - k_probe[2:end]) < 1e-6
@@ -40,14 +40,14 @@
 
     @testset "LongRangeCoulomb with ProbeCharge" begin
         k_lr = eval_kernel_fourier(ProbeCharge(LongRangeCoulomb(0.1)), basis, q)
-        E_lr = exx_energy_only(basis, kpt, [k_lr], [q], [ψk_real], [occk])
+        E_lr = exx_energy_only(basis, 1, [k_lr], [q], [ψk_real], [occk])
         E_ref = -0.44269774759135383
         @test abs(E_ref - E_lr) < 1e-6
     end
 
     @testset "ShortRangeCoulomb" begin
         k_sr = eval_kernel_fourier(ShortRangeCoulomb(0.1), basis, q)
-        E_sr = exx_energy_only(basis, kpt, [k_sr], [q], [ψk_real], [occk])
+        E_sr = exx_energy_only(basis, 1, [k_sr], [q], [ψk_real], [occk])
         E_ref = -5.384700394473846
         @test abs(E_ref - E_sr) < 1e-6
     end
@@ -67,7 +67,7 @@
 
     @testset "SphericallyTruncatedCoulomb" begin
         k_strunc = eval_kernel_fourier(SphericallyTruncatedCoulomb(), basis, q)
-        E_strunc = exx_energy_only(basis, kpt, [k_strunc], [q], [ψk_real], [occk])
+        E_strunc = exx_energy_only(basis, 1, [k_strunc], [q], [ψk_real], [occk])
         E_ref = -2.3601703303468677
         @test abs(E_ref - E_strunc) < 1e-6
 
@@ -76,14 +76,14 @@
 
     @testset "WignerSeitzTruncatedCoulomb" begin
         k_wstrunc = eval_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis, q)
-        E_wstrunc = exx_energy_only(basis, kpt, [k_wstrunc], [q], [ψk_real], [occk])
+        E_wstrunc = exx_energy_only(basis, 1, [k_wstrunc], [q], [ψk_real], [occk])
         E_ref = -2.345693220097827
         @test abs(E_ref - E_wstrunc) < 1e-6
     end
 
     @testset "VoxelAverage" begin
         k_voxavg = eval_kernel_fourier(VoxelAverage(BareCoulomb()), basis, q)
-        E_voxavg = exx_energy_only(basis, kpt, [k_voxavg], [q], [ψk_real], [occk])
+        E_voxavg = exx_energy_only(basis, 1, [k_voxavg], [q], [ψk_real], [occk])
         E_ref = -2.2490445915201622
         @test abs(E_ref - E_voxavg) < 1e-6
     end
@@ -242,7 +242,7 @@ end
 
         q = zero(Vec3{Float64})  # Γ-only
         kernel_values = eval_kernel_fourier(kernel, basis, q)
-        exx_energy_only(basis, kpt, [kernel_values], [q], [ψk_real], [occk])
+        exx_energy_only(basis, 1, [kernel_values], [q], [ψk_real], [occk])
     end
 
     # Extrapolate E(a) = E_inf + c * exp(-alpha a) for equally spaced a_vals

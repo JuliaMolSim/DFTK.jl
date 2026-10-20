@@ -86,7 +86,7 @@ function exx_operator(::VanillaExx, basis::PlaneWaveBasis{T}, interaction_kernel
     E = zero(T)
     ops = []
     for (ik, kpt) in enumerate(basis.kpoints)
-        Ek = exx_energy_only(basis, kpt, interaction_kernels, q_points, ψ_occ_real, occ_occ)
+        Ek = exx_energy_only(basis, ik, interaction_kernels, q_points, ψ_occ_real, occ_occ)
         opk = ExchangeOperator(basis, kpt, interaction_kernels, q_points,
                                ψ_occ_real, occ_occ)
         push!(ops, opk)
@@ -100,11 +100,11 @@ end
 
 
 # Naive algorithm for computing the exact exchange energy only.
-function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, interaction_kernels, q_points,
+function exx_energy_only(basis::PlaneWaveBasis{T}, ik, interaction_kernels, q_points,
                          ψ_occ_real, occ_occ) where {T}
 
     # get occupied orbitals at k
-    ik = findfirst(isequal(kpt), basis.kpoints)
+    kpt = basis.kpoints[ik]
     ψk_real = ψ_occ_real[ik]
 
     Ek = zero(T)
