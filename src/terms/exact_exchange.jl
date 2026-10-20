@@ -58,7 +58,8 @@ end
     end
 
     mask_occ = occupied_empty_masks(occupation, occupation_threshold).mask_occ
-    exx_operator(exxalg, basis, term, ψ, occupation, mask_occ)
+    exx_operator(exxalg, basis, term.interaction_kernels, term.q_points,
+                 ψ, occupation, mask_occ)
 end
 
 # Transform the orbitals selected by masks[ik] at each k-point to real space
@@ -77,7 +78,7 @@ end
 Plain vanilla Fock exchange implementation without any tricks.
 """
 struct VanillaExx <: ExxAlgorithm end
-function exx_operator(::VanillaExx, basis::PlaneWaveBasis{T}, term::TermExactExchange,
+function exx_operator(::VanillaExx, basis::PlaneWaveBasis{T}, interaction_kernels, q_points,
                       ψ, occupation, mask_occ) where {T}
     occ_occ    = [occupation[ik][mask_occ[ik]] for ik in 1:length(basis.kpoints)]
     ψ_occ_real = _orbitals_real(basis, ψ, mask_occ)
@@ -85,9 +86,8 @@ function exx_operator(::VanillaExx, basis::PlaneWaveBasis{T}, term::TermExactExc
     E = zero(T)
     ops = []
     for (ik, kpt) in enumerate(basis.kpoints)
-        Ek = exx_energy_only(basis, kpt, term.interaction_kernels, term.q_points,
-                             ψ_occ_real, occ_occ)
-        opk = ExchangeOperator(basis, kpt, term.interaction_kernels, term.q_points,
+        Ek = exx_energy_only(basis, kpt, interaction_kernels, q_points, ψ_occ_real, occ_occ)
+        opk = ExchangeOperator(basis, kpt, interaction_kernels, q_points,
                                ψ_occ_real, occ_occ)
         push!(ops, opk)
         E += Ek * basis.kweights[ik]
@@ -166,7 +166,7 @@ JCTC 2016, 12, 5, 2242-2249, doi.org/10.1021/acs.jctc.6b00092
     # or using only the occupied orbitals (false).
     sketch_with_extra_orbitals::Bool = true
 end 
-function exx_operator(ace::AceExx, basis::PlaneWaveBasis{T}, term::TermExactExchange,
+function exx_operator(ace::AceExx, basis::PlaneWaveBasis{T}, interaction_kernels, q_points,
                       ψ, occupation, mask_occ) where {T}
     mask_sketch = ace.sketch_with_extra_orbitals ? [1:size(ψk, 2) for ψk in ψ] : mask_occ
     occ_occ = [occupation[ik][mask_occ[ik]] for ik in 1:length(basis.kpoints)]
@@ -181,7 +181,7 @@ function exx_operator(ace::AceExx, basis::PlaneWaveBasis{T}, term::TermExactExch
     ops = []
     for (ik, kpt) in enumerate(basis.kpoints)
         # Build the ExchangeOperator Vxk acting on orbitals at k
-        Vxk = ExchangeOperator(basis, kpt, term.interaction_kernels, term.q_points,
+        Vxk = ExchangeOperator(basis, kpt, interaction_kernels, q_points,
                                ψ_occ_real, occ_occ)
 
         # ACE compression using as sketch space all orbitals the user wants for compression
