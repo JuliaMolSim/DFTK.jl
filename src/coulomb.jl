@@ -183,7 +183,7 @@ function eval_kernel_fourier(::WignerSeitzTruncatedCoulomb, basis::PlaneWaveBasi
 
     # The truncated kernel is periodic on the supercell corresponding to the k-point grid
     kgrid_size = basis.kgrid.kgrid_size
-    lattice_supercell  = model.lattice .* kgrid_size'
+    lattice_supercell = model.lattice .* kgrid_size'  # scale i-th vector by kgrid_size[i]
     fft_size_supercell = Tuple(basis.fft_size .* kgrid_size)
     Ω_supercell = model.unit_cell_volume * prod(kgrid_size)
 
@@ -283,35 +283,38 @@ function eval_kernel_fourier(k::ProbeCharge, basis::PlaneWaveBasis{T}, q::Vec3) 
     α::T = @something k.α π^2/basis.Ecut
 
     kernel_fourier = eval_kernel_fourier(k.inner_kernel, basis, q)
-
     if iszero(q)
-        # Interaction of Gaussian charges with uniform background (i.e. integral of charges)
-        # = Ω_supercell/(2π)³ ∫_{ℝ³} kernel(q) e^(-αq²) dq, where the integral is
-        # computed by the compute_probe_charge_integral function.
-        Ω_supercell = basis.model.unit_cell_volume * length(basis.kgrid)
-        probe_charge_integral = (compute_probe_charge_integral(k.inner_kernel, α)
-                                 * Ω_supercell / (2T(π))^3)
-
-        # Potential of the Gaussian charges: sum over all G+Q with Q in the k-point grid,
-        # i.e. over all momentum transfers Q = k - k', except G+Q=0.
-        Q_points = build_qpoints(basis)
-        recip_lattice = basis.model.recip_lattice  # hoist: avoid closure over basis
-        probe_charge_sum = sum(Q_points) do Q
-            # |G+Q|² on the full FFT cube G_vectors(basis)
-            norm2_GplusQ = map(G -> norm2(recip_lattice * (G + Q)), G_vectors(basis))
-            summands = (eval_kernel_fourier(k.inner_kernel, basis, Q)
-                        .* exp.(-α .* norm2_GplusQ))
-            if iszero(Q)  # skip the singular G+Q=0 term
-                GPUArraysCore.@allowscalar summands[1] = zero(T)
-            end
-            sum(summands)
-        end
-
         GPUArraysCore.@allowscalar begin
-            kernel_fourier[1] = probe_charge_integral - probe_charge_sum
+            kernel_fourier[1] = _probe_charge_singularity(k.inner_kernel, basis, α)
         end
     end
     kernel_fourier
+end
+
+# Regularised G+q=0 component of `inner_kernel` in the probe charge method
+function _probe_charge_singularity(inner_kernel::InteractionKernel,
+                                   basis::PlaneWaveBasis{T}, α::T) where {T}
+    # Interaction of Gaussian charges with uniform background (i.e. integral of charges)
+    # = Ω_supercell/(2π)³ ∫_{ℝ³} kernel(q) e^(-αq²) dq, where the integral is
+    # computed by the compute_probe_charge_integral function.
+    Ω_supercell = basis.model.unit_cell_volume * length(basis.kgrid)
+    probe_charge_integral = (compute_probe_charge_integral(inner_kernel, α)
+                             * Ω_supercell / (2T(π))^3)
+
+    # Potential of the Gaussian charges: sum over all G+q with q in the k-point grid,
+    # i.e. over all momentum transfers q = k - k', except G+q=0.
+    recip_lattice = basis.model.recip_lattice  # hoist: avoid closure over basis
+    probe_charge_sum = sum(build_qpoints(basis)) do q
+        # |G+q|² on the full FFT cube G_vectors(basis)
+        norm2_Gplusq = map(G -> norm2(recip_lattice * (G + q)), G_vectors(basis))
+        summands = eval_kernel_fourier(inner_kernel, basis, q) .* exp.(-α .* norm2_Gplusq)
+        if iszero(q)  # skip the singular G+q=0 term
+            GPUArraysCore.@allowscalar summands[1] = zero(T)
+        end
+        sum(summands)
+    end
+
+    probe_charge_integral - probe_charge_sum
 end
 
 
