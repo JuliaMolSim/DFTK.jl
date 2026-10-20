@@ -178,22 +178,22 @@ function transfer_density(ρ_in, basis_in::PlaneWaveBasis{T},
 end
 
 """
-Find the equivalent index of the coordinate `kcoord` ∈ ℝ³ in a list `kcoords`.
-`ΔG` is the vector of ℤ³ such that `kcoords[index] = kcoord + ΔG`.
+Find the equivalent index of the coordinate `kcoord` ∈ ℝ³ in the list of `basis.kpoints`
+(of spin `spin`), whose coordinates are assumed to lie in [-½, ½)³.
+`ΔG` is the vector of ℤ³ such that `basis.kpoints[index].coordinate = kcoord + ΔG`.
 """
 function find_equivalent_kpt(basis::PlaneWaveBasis{T}, kcoord, spin; tol=sqrt(eps(T))) where {T}
     kcoord_red = normalize_kpoint_coordinate(kcoord .+ eps(T))
 
-    indices_σ = krange_spin(basis, spin)
-    # Stored coordinates are not necessarily in [-½, ½)³ (e.g. for ExplicitKpoints)
-    kcoords_σ = normalize_kpoint_coordinate.(getfield.(basis.kpoints[indices_σ], :coordinate))
-    # Unique by construction.
-    index::Int = findfirst(isapprox(kcoord_red; atol=tol), kcoords_σ) + (indices_σ[1] - 1)
-
-    ΔG = basis.kpoints[index].coordinate - kcoord
+    ΔG = kcoord_red - kcoord
     # ΔG should be an integer.
     @assert all(is_approx_integer.(ΔG; atol=SYMMETRY_TOLERANCE))
     ΔG = round.(Int, ΔG)
+
+    indices_σ = krange_spin(basis, spin)
+    kcoords_σ = getfield.(basis.kpoints[indices_σ], :coordinate)
+    # Unique by construction.
+    index::Int = findfirst(isapprox(kcoord_red; atol=tol), kcoords_σ) + (indices_σ[1] - 1)
 
     return (; index, ΔG)
 end
