@@ -662,7 +662,7 @@ Momentum transfers q = k - k' (reduced coordinates) of the Monkhorst-Pack grid o
 For any shift of the k-point grid these form the unshifted grid of the same size.
 """
 function build_qpoints(basis::PlaneWaveBasis{T}) where {T}
-    # n_irreducible_kpoints does not count k-points duplicated over MPI ranks
+    # TODO: check if this is safe for MPI paralelization over k-points
     if !(basis.kgrid isa MonkhorstPack) || basis.n_irreducible_kpoints != length(basis.kgrid)
         error("build_qpoints requires a full (non-symmetry-reduced) Monkhorst-Pack grid.")
     end

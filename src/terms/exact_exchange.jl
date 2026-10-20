@@ -76,7 +76,7 @@ end
     E = zero(T)
     ops = []
     for (ik, kpt) in enumerate(basis.kpoints)
-        (; Ek, opk) = build_exx(exxalg, basis, kpt, term, ψ, occupation, mask_occ,
+        (; Ek, opk) = exx_operator(exxalg, basis, kpt, term, ψ, occupation, mask_occ,
                                 ψ_occ_real, occ_occ)
         push!(ops, opk)
         E += Ek * basis.kweights[ik]
@@ -89,7 +89,7 @@ end
 Plain vanilla Fock exchange implementation without any tricks.
 """
 struct VanillaExx <: ExxAlgorithm end
-function build_exx(::VanillaExx, basis::PlaneWaveBasis{T}, kpt, term::TermExactExchange,
+function exx_operator(::VanillaExx, basis::PlaneWaveBasis{T}, kpt, term::TermExactExchange,
                      ψ, occupation, mask_occ, ψ_occ_real, occ_occ) where {T}
     
     Ek = exx_energy_only(basis, kpt, term.interaction_kernels, term.q_points,
@@ -104,7 +104,6 @@ end
 #       exx_energy_only for both ACE and Vanilla version.
 
 
-# TODO this is currently called only with interaction_kernel for one q (see build_exx)
 # Naive algorithm for computing the exact exchange energy only.
 function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, interaction_kernels, q_points,
                          ψ_occ_real, occ_occ) where {T}
@@ -172,7 +171,7 @@ JCTC 2016, 12, 5, 2242-2249, doi.org/10.1021/acs.jctc.6b00092
     # or using only the occupied orbitals (false).
     sketch_with_extra_orbitals::Bool = true
 end 
-function build_exx(ace::AceExx, basis::PlaneWaveBasis{T}, kpt, term::TermExactExchange,
+function exx_operator(ace::AceExx, basis::PlaneWaveBasis{T}, kpt, term::TermExactExchange,
                    ψ, occupation, mask_occ, ψ_occ_real, occ_occ) where {T}
     # Occupied views using mask_occ
     ψ_occ = [@view ψ[ik][:, mask_occ[ik]] for ik in 1:length(basis.kpoints)]
