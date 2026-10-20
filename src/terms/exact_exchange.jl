@@ -125,7 +125,9 @@ function exx_energy_only(basis::PlaneWaveBasis{T}, ik, interaction_kernels, q_po
     kpt = basis.kpoints[ik]
     ψk_real = ψ_occ_real[ik]
 
-    Ek = zero(T)
+    # Energy contribution of each occupied orbital n at k, such that the threads
+    # in the loop over n below never write to the same entry
+    Ek_n = zeros(T, size(ψk_real, 4))
 
     # kernel_q holds the Fourier components of the interaction kernel at G+q
     for (q, kernel_q) in zip(q_points, interaction_kernels)
@@ -136,7 +138,8 @@ function exx_energy_only(basis::PlaneWaveBasis{T}, ik, interaction_kernels, q_po
         # get occupied orbitals at k'
         ψkp_real = ψ_occ_real[ikp]
 
-        for (n, ψnk_real) in enumerate(eachslice(ψk_real, dims=4))
+        parallel_loop_over_range(1:size(ψk_real, 4)) do n
+            ψnk_real = @view ψk_real[:, :, :, n]
             for (m, ψmkp_real) in enumerate(eachslice(ψkp_real, dims=4))
                 m > n && ik == ikp && continue
                 
@@ -152,11 +155,11 @@ function exx_energy_only(basis::PlaneWaveBasis{T}, ik, interaction_kernels, q_po
                 fac_mn *= basis.kweights[ikp] # k'-weight 
                 fac_mn *= ((m != n && ik == ikp) ? 2 : 1)  # factor 2 because we skipped m>n    
 
-                Ek -= 1/T(2) * fac_mn * real(dot(ρmn_fourier .* kernel_q, ρmn_fourier)) 
+                Ek_n[n] -= 1/T(2) * fac_mn * real(dot(ρmn_fourier .* kernel_q, ρmn_fourier))
             end
         end
     end
-    Ek
+    sum(Ek_n)
 end
 
 
@@ -222,13 +225,13 @@ function compress_exchange(Vxk::ExchangeOperator, ψk::AbstractMatrix,
     basis = Vxk.basis
     kpt = Vxk.kpoint
 
+    # Compute Wnk = Vxk * ψnk in real space, threaded over the sketch orbitals
     Wk = similar(ψk)
-    Wnk_real_tmp = similar(ψk_real, size(ψk_real)[1:3]...)
-    for (Wnk, ψnk_real) in zip(eachcol(Wk), eachslice(ψk_real, dims=4))
-        # Compute Wnk = Vxk * ψnk in real space
-        Wnk_real_tmp .= 0
-        apply!((; real=Wnk_real_tmp), Vxk, (; real=ψnk_real))
-        fft!(Wnk, basis, kpt, Wnk_real_tmp)
+    allocate_local_storage() = (; Wnk_real=similar(ψk_real, size(ψk_real)[1:3]...))
+    parallel_loop_over_range(1:size(ψk, 2); allocate_local_storage) do n, storage
+        storage.Wnk_real .= 0
+        apply!((; real=storage.Wnk_real), Vxk, (; real=@view ψk_real[:, :, :, n]))
+        fft!(@view(Wk[:, n]), basis, kpt, storage.Wnk_real)
     end
 
     # The compressed operator is Wk Mk⁺ Wk'. Mk is Hermitian, but depending on the kernel
