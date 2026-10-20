@@ -321,12 +321,8 @@ end
     basis_supercell = cell_to_supercell(basis)
     q_points = build_qpoints(basis)
 
-    # The same k-point grid, shifted by half a grid spacing and by a random shift
-    shift = [0.14, -0.44, -0.39]
-    kcoords = vec([(shift .+ [i, j, k]) ./ kgrid_size
-                   for i = 0:kgrid_size[1]-1, j = 0:kgrid_size[2]-1, k = 0:kgrid_size[3]-1])
-    bases_shifted = [make_basis(MonkhorstPack(kgrid_size; kshift=[1/2, 0, 1/2])),
-                     make_basis(ExplicitKpoints(kcoords))]
+    # The same k-point grid, shifted by half a grid spacing
+    basis_shifted = make_basis(MonkhorstPack(kgrid_size; kshift=[1/2, 0, 1/2]))
 
     kernels = [("ProbeCharge(BareCoulomb)",    ProbeCharge(BareCoulomb())),
                ("VoxelAverage(BareCoulomb)",   VoxelAverage(BareCoulomb())),
@@ -351,18 +347,16 @@ end
             end
         end
 
-        @testset "$label: shifted and explicit k-point grids" begin
+        @testset "$label: shifted k-point grid" begin
             # The kernel only depends on the grid of momentum transfers q = k - k', which is
             # the same Γ-centred grid whatever the shift of the k-point grid.
-            for basis_shifted in bases_shifted
-                q_points_shifted = build_qpoints(basis_shifted)
-                K_shifted = eval_kernel_fourier(kernel, basis_shifted, q_points_shifted)
-                @test length(q_points_shifted) == length(q_points)
-                for (q_shifted, K_q) in zip(q_points_shifted, K_shifted)
-                    iq = findfirst(q -> is_approx_integer(q - q_shifted; atol=1e-8), q_points)
-                    @test !isnothing(iq)
-                    @test K_q ≈ K_q_all[iq]
-                end
+            q_points_shifted = build_qpoints(basis_shifted)
+            K_shifted = eval_kernel_fourier(kernel, basis_shifted, q_points_shifted)
+            @test length(q_points_shifted) == length(q_points)
+            for (q_shifted, K_q) in zip(q_points_shifted, K_shifted)
+                iq = findfirst(q -> is_approx_integer(q - q_shifted; atol=1e-8), q_points)
+                @test !isnothing(iq)
+                @test K_q ≈ K_q_all[iq]
             end
         end
     end

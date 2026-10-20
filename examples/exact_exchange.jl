@@ -2,6 +2,11 @@
 #
 # This is a quick sketch how to run a simple hybrid DFT calculation using DFTK.
 #
+# !!! warning "Preliminary implementation"
+#     Hybrid-DFT is not yet performance-optimised and has only seen rudimentary testing
+#     so far. Further only Gamma point calculations are supported and the interface is not
+#     yet considered stable. We appreciate any issues, bug reports or PRs.
+#
 using AtomsBuilder
 using DFTK
 using PseudoPotentialData

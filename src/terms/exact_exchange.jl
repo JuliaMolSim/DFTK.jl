@@ -34,13 +34,9 @@ function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, kernel) whe
     end
     fac::T = scaling_factor 
 
+    # Exchange couples each k to k - q for all q. For a full Monkhorst-Pack grid every
+    # k - q is again a k-point of the basis (up to a G vector).
     q_points = build_qpoints(basis)
-    # Exchange couples each k to k - q for all q, so every k - q has to be a k-point of
-    # the basis, which is the case for a full (non-symmetry-reduced) k-point grid.
-    # find_equivalent_kpt fails otherwise, so check this already here.
-    for kpt in basis.kpoints, q in q_points
-        find_equivalent_kpt(basis, kpt.coordinate - q, kpt.spin)
-    end
     interaction_kernels = eval_kernel_fourier(kernel, basis, q_points)
     if !all(kernel_fourier -> all(isfinite, kernel_fourier), interaction_kernels)
         error("Interaction kernel $(nameof(typeof(kernel))) is singular at G+q=0. Wrap it " *

@@ -73,22 +73,6 @@ function _norm2_Gplusq_on_cube(basis::PlaneWaveBasis, q::Vec3)
     map(G -> norm2(recip_lattice * (G + q)), G_vectors(basis))
 end
 
-# Size of the k-point grid, i.e. of the supercell corresponding to the k-point sampling,
-# inferred from the grid of momentum transfers q = k - k'. In contrast to the k-points
-# themselves the momentum transfers always form a Γ-centred grid, such that this also
-# works for shifted and for explicitly given k-point grids.
-function _kgrid_size(basis::PlaneWaveBasis; tol=1e-8)
-    q_points = build_qpoints(basis)
-    kgrid_size = map(1:3) do i
-        q_i = sort([q[i] for q in q_points])
-        1 + count(>(tol), diff(q_i))
-    end
-    if prod(kgrid_size) != length(q_points)
-        error("The k-point grid is not a regular (Monkhorst-Pack-like) grid.")
-    end
-    Vec3{Int}(kgrid_size)
-end
-
 
 """
 Bare Coulomb interaction: 1/r
@@ -204,7 +188,7 @@ function eval_kernel_fourier(::WignerSeitzTruncatedCoulomb, basis::PlaneWaveBasi
     model = basis.model
 
     # The truncated kernel is periodic on the supercell corresponding to the k-point grid
-    kgrid_size = _kgrid_size(basis)
+    kgrid_size = basis.kgrid.kgrid_size
     lattice_supercell  = model.lattice .* kgrid_size'  # scale the i-th lattice vector by kgrid_size[i]
     fft_size_supercell = Tuple(basis.fft_size .* kgrid_size)
     Ω_supercell = model.unit_cell_volume * prod(kgrid_size)
@@ -316,18 +300,14 @@ function eval_kernel_fourier(k::ProbeCharge, basis::PlaneWaveBasis{T}, q::Vec3) 
 
         # Potential of the Gaussian charges: sum over all G+Q with Q in the k-point grid,
         # i.e. over all momentum transfers Q = k - k', except G+Q=0.
-        # Note: build_qpoints derives the Q-points from basis.kpoints. The uniform
-        # weight below rescales the sum to Nk terms, which is exact if basis.kpoints
-        # is the full (non-symmetry-reduced) k-grid.
         Q_points = build_qpoints(basis)
         probe_charge_sum = sum(Q_points) do Q
-            weight = Nk / length(Q_points)
             summands = (eval_kernel_fourier(k.inner_kernel, basis, Q)
                         .* exp.(-α .* _norm2_Gplusq_on_cube(basis, Q)))
             if iszero(Q)  # skip the singular G+Q=0 term
                 GPUArraysCore.@allowscalar summands[1] = zero(T)
             end
-            weight * sum(summands)
+            sum(summands)
         end
 
         GPUArraysCore.@allowscalar begin

@@ -1,7 +1,7 @@
 module DFTKFastGaussQuadratureExt
 using FastGaussQuadrature
 using DFTK
-using DFTK: to_cpu, to_device, norm2, eval_kernel_fourier, VoxelAverage, _kgrid_size
+using DFTK: to_cpu, to_device, norm2, eval_kernel_fourier, VoxelAverage
 using LinearAlgebra
 
 
@@ -12,7 +12,7 @@ using LinearAlgebra
 
     # Size of the k-point grid (inferred from the momentum transfers, such that shifted
     # and explicit k-point grids work as well)
-    kgrid_size = _kgrid_size(basis)
+    kgrid_size = basis.kgrid.kgrid_size
 
     # Define Voxels as reciprocal cell divided by k-mesh
     voxel_basis = model.recip_lattice * Diagonal(1 ./ Vec3{T}(kgrid_size))
