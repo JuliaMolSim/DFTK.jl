@@ -286,11 +286,11 @@ function eval_kernel_fourier(k::ProbeCharge, basis::PlaneWaveBasis{T}, q::Vec3) 
 
     if iszero(q)
         # Interaction of Gaussian charges with uniform background (i.e. integral of charges)
-        # = 1/Ω ∫_{BZ} kernel(q) e^(-αq²) dq, where the integral is computed by the
-        # compute_probe_charge_integral function.
-        Ω = basis.model.recip_cell_volume
-        Nk = length(basis.kgrid)  # number of (reducible) k-points
-        probe_charge_integral = compute_probe_charge_integral(k.inner_kernel, α) * Nk / Ω
+        # = Ω_supercell/(2π)³ ∫_{ℝ³} kernel(q) e^(-αq²) dq, where the integral is
+        # computed by the compute_probe_charge_integral function.
+        Ω_supercell = basis.model.unit_cell_volume * length(basis.kgrid)
+        probe_charge_integral = (compute_probe_charge_integral(k.inner_kernel, α)
+                                 * Ω_supercell / (2T(π))^3)
 
         # Potential of the Gaussian charges: sum over all G+Q with Q in the k-point grid,
         # i.e. over all momentum transfers Q = k - k', except G+Q=0.
