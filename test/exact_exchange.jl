@@ -21,15 +21,16 @@
         occupation  = [occ * occ_scaling for occ in occupation]
 
         (; energies, ham) = energy_hamiltonian(basis, ψ, occupation; exxalg=VanillaExx())
-        energies2     = DFTK.energy(basis, ψ, occupation; exxalg=VanillaExx()).energies
-        energies_ace  = DFTK.energy(basis, ψ, occupation; exxalg=AceExx()).energies
+        energies_only = DFTK.energy(basis, ψ, occupation).energies
+        res_ace       = energy_hamiltonian(basis, ψ, occupation; exxalg=AceExx())
+        energies_ace  = res_ace.energies
+        ham_ace       = res_ace.ham
 
-        @test abs(energies.total - energies2.total)    < atol
-        @test abs(energies.total - energies_ace.total) < atol
+        @test abs(energies.total - energies_only.total) < atol
+        @test abs(energies.total - energies_ace.total)  < atol
 
         # ACE compresses the exchange operator using all orbitals in ψ,
         # so on these orbitals it has to act like the full operator
-        ham_ace = energy_hamiltonian(basis, ψ, occupation; exxalg=AceExx()).ham
         for ik = 1:length(basis.kpoints)
             @test ham_ace.blocks[ik] * ψ[ik] ≈ ham.blocks[ik] * ψ[ik] rtol=1e-8
         end

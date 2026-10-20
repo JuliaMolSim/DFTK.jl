@@ -83,21 +83,39 @@ function exx_operator(::VanillaExx, basis::PlaneWaveBasis{T}, interaction_kernel
     occ_occ    = [occupation[ik][mask_occ[ik]] for ik in 1:length(basis.kpoints)]
     ψ_occ_real = _orbitals_real(basis, ψ, mask_occ)
 
-    E = zero(T)
-    ops = []
-    for (ik, kpt) in enumerate(basis.kpoints)
-        Ek = exx_energy_only(basis, ik, interaction_kernels, q_points, ψ_occ_real, occ_occ)
-        opk = ExchangeOperator(basis, kpt, interaction_kernels, q_points,
-                               ψ_occ_real, occ_occ)
-        push!(ops, opk)
-        E += Ek * basis.kweights[ik]
-    end
+    E   = exx_energy(basis, interaction_kernels, q_points, ψ_occ_real, occ_occ)
+    ops = [ExchangeOperator(basis, kpt, interaction_kernels, q_points, ψ_occ_real, occ_occ)
+           for kpt in basis.kpoints]
     (; E, ops)
 end
 
-# TODO: Should probably define an energy-only function, which directly calls into
-#       exx_energy_only for both ACE and Vanilla version.
+# The energy alone does not need the exchange operator (nor its ACE compression),
+# so we evaluate it directly from the occupied orbitals, independent of the ExxAlgorithm.
+@timing "energy: ExactExchange" function energy(term::TermExactExchange,
+                                                basis::PlaneWaveBasis{T}, ψ, occupation;
+                                                occupation_threshold=zero(T),
+                                                kwargs...) where {T}
+    if isnothing(ψ) || isnothing(occupation)
+        @warn "Exact exchange requires orbitals and occupation, return zero energy."
+        return zero(T)
+    end
 
+    mask_occ   = occupied_empty_masks(occupation, occupation_threshold).mask_occ
+    occ_occ    = [occupation[ik][mask_occ[ik]] for ik in 1:length(basis.kpoints)]
+    ψ_occ_real = _orbitals_real(basis, ψ, mask_occ)
+    exx_energy(basis, term.interaction_kernels, term.q_points, ψ_occ_real, occ_occ)
+end
+
+# Exact exchange energy summed over all k-points
+function exx_energy(basis::PlaneWaveBasis{T}, interaction_kernels, q_points,
+                    ψ_occ_real, occ_occ) where {T}
+    E = zero(T)
+    for ik = 1:length(basis.kpoints)
+        Ek = exx_energy_only(basis, ik, interaction_kernels, q_points, ψ_occ_real, occ_occ)
+        E += Ek * basis.kweights[ik]
+    end
+    E
+end
 
 # Naive algorithm for computing the exact exchange energy only.
 function exx_energy_only(basis::PlaneWaveBasis{T}, ik, interaction_kernels, q_points,
