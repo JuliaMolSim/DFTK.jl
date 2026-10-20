@@ -67,12 +67,6 @@ function compute_probe_charge_integral(kernel::InteractionKernel, α)
           "treatment (compute_probe_charge_integral not implemented).")
 end
 
-# |G+q|² for all G of the full FFT cube G_vectors(basis)
-function _norm2_Gplusq_on_cube(basis::PlaneWaveBasis, q::Vec3)
-    recip_lattice = basis.model.recip_lattice  # hoist: avoid closure over basis
-    map(G -> norm2(recip_lattice * (G + q)), G_vectors(basis))
-end
-
 
 """
 Bare Coulomb interaction: 1/r
@@ -292,18 +286,21 @@ function eval_kernel_fourier(k::ProbeCharge, basis::PlaneWaveBasis{T}, q::Vec3) 
 
     if iszero(q)
         # Interaction of Gaussian charges with uniform background (i.e. integral of charges)
-        # = 1/Γ ∫_{BZ} kernel(q) e^(-αq²) dq, where the integral is computed by the
+        # = 1/Ω ∫_{BZ} kernel(q) e^(-αq²) dq, where the integral is computed by the
         # compute_probe_charge_integral function.
-        Γ = basis.model.recip_cell_volume
+        Ω = basis.model.recip_cell_volume
         Nk = length(basis.kgrid)  # number of (reducible) k-points
-        probe_charge_integral = compute_probe_charge_integral(k.inner_kernel, α) * Nk / Γ
+        probe_charge_integral = compute_probe_charge_integral(k.inner_kernel, α) * Nk / Ω
 
         # Potential of the Gaussian charges: sum over all G+Q with Q in the k-point grid,
         # i.e. over all momentum transfers Q = k - k', except G+Q=0.
         Q_points = build_qpoints(basis)
+        recip_lattice = basis.model.recip_lattice  # hoist: avoid closure over basis
         probe_charge_sum = sum(Q_points) do Q
+            # |G+Q|² on the full FFT cube G_vectors(basis)
+            norm2_GplusQ = map(G -> norm2(recip_lattice * (G + Q)), G_vectors(basis))
             summands = (eval_kernel_fourier(k.inner_kernel, basis, Q)
-                        .* exp.(-α .* _norm2_Gplusq_on_cube(basis, Q)))
+                        .* exp.(-α .* norm2_GplusQ))
             if iszero(Q)  # skip the singular G+Q=0 term
                 GPUArraysCore.@allowscalar summands[1] = zero(T)
             end

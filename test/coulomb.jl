@@ -129,7 +129,7 @@ end
         # The kernel lives on the full FFT cube, so k_wstrunc[1:5] are the values at
         # G = (0,0,0), (1,0,0), (2,0,0), (3,0,0), (4,0,0)
         kernel_Γ(basis) = eval_kernel_fourier(WignerSeitzTruncatedCoulomb(), basis,
-                                                 zero(Vec3{Float64}))
+                                              zero(Vec3{Float64}))
 
         k_wstrunc = kernel_Γ(basis_Pt)
         @test k_wstrunc[1:5] ≈ [289.8199039694483, 39.805749013785956, 5.580324780990978,
