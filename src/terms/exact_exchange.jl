@@ -109,13 +109,8 @@ function exx_energy_only(basis::PlaneWaveBasis{T}, kpt, interaction_kernels, q_p
 
     Ek = zero(T)
 
-    # outer loop over q
-    for iq in 1:length(q_points)
-
-        # get the Coulomb kernel Fourier components G+q
-        q = q_points[iq]
-        kernel_q = interaction_kernels[iq]
-
+    # kernel_q holds the Fourier components of the interaction kernel at G+q
+    for (q, kernel_q) in zip(q_points, interaction_kernels)
         # k - q is equivalent to the basis k-point k' = k - q + ΔG
         ikp, ΔG = find_equivalent_kpt(basis, kpt.coordinate - q, kpt.spin)
         phase_shift = map(r -> cis2pi(-dot(ΔG, r)), r_vectors(basis))
