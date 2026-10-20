@@ -4,8 +4,8 @@
 #
 # !!! warning "Preliminary implementation"
 #     Hybrid-DFT is not yet performance-optimised and has only seen rudimentary testing
-#     so far. Further only Gamma point calculations are supported and the interface is not
-#     yet considered stable. We appreciate any issues, bug reports or PRs.
+#     so far. Further k-point sampling requires a Monkhorst-Pack grid without symmetry 
+#     reduction (`symmetries=false`) and the interface is not yet considered stable.
 #
 using AtomsBuilder
 using DFTK

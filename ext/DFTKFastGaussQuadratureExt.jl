@@ -10,8 +10,6 @@ using LinearAlgebra
     model  = basis.model
     kernel = voxel_average.inner_kernel
 
-    # Size of the k-point grid (inferred from the momentum transfers, such that shifted
-    # and explicit k-point grids work as well)
     kgrid_size = basis.kgrid.kgrid_size
 
     # Define Voxels as reciprocal cell divided by k-mesh

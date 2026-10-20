@@ -142,7 +142,7 @@ function eval_kernel_fourier(k::SphericallyTruncatedCoulomb{<:Real},
 end
 function eval_kernel_fourier(::SphericallyTruncatedCoulomb{Nothing},
                              basis::PlaneWaveBasis, q::Vec3)
-    Ω_supercell = basis.model.unit_cell_volume * length(basis.kgrid)  # Nk = length(kgrid)
+    Ω_supercell = basis.model.unit_cell_volume * length(basis.kgrid)
     Rcut = cbrt(3Ω_supercell / (4π))
     eval_kernel_fourier(SphericallyTruncatedCoulomb(Rcut), basis, q)
 end
@@ -189,7 +189,7 @@ function eval_kernel_fourier(::WignerSeitzTruncatedCoulomb, basis::PlaneWaveBasi
 
     # The truncated kernel is periodic on the supercell corresponding to the k-point grid
     kgrid_size = basis.kgrid.kgrid_size
-    lattice_supercell  = model.lattice .* kgrid_size'  # scale the i-th lattice vector by kgrid_size[i]
+    lattice_supercell  = model.lattice .* kgrid_size'
     fft_size_supercell = Tuple(basis.fft_size .* kgrid_size)
     Ω_supercell = model.unit_cell_volume * prod(kgrid_size)
 
