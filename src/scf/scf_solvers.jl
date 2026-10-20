@@ -75,11 +75,11 @@ end
 # For the show function, see below
 function (scf::ScfAndersonDensitySolver)(f, x0, info0; maxiter, damping)
     T = eltype(x0)
-    α = convert(T, damping)
+    β = convert(T, damping)
     x = x0
     ρ, _ = split_gdensity(info0.basis, x0)
     info = info0
-    acceleration = Acceleration(AndersonType(); α, scf.anderson_kwargs...)
+    acceleration = Acceleration(AndersonType(); scf.anderson_kwargs...)
     for i = 1:maxiter
         fx, info = f(x, info)
         if info.converged || info.timedout
@@ -89,11 +89,12 @@ function (scf::ScfAndersonDensitySolver)(f, x0, info0; maxiter, damping)
         fρ, fτ = split_gdensity(info.basis, fx)
         if i < scf.m_start
             @debug "Skipping Anderson acceleration in iteration $i"
-            ρ = @. ρ + α * (fρ - ρ)
+            ρ = @. ρ + β * (fρ - ρ)
         else
             @debug "Using Anderson acceleration in iteration $i"
             # Damp ρ and send it to anderson; τ is just patched through without any changes
-            ρ = acceleration(ρ, fρ, nothing) #this is a bit ugly, since info is not necessary here, but is needed for Pcdiis
+            residual_ρ = fρ-ρ
+            ρ = acceleration(ρ,residual_ρ,β)
         end
         x = pack_gdensity(info.basis, ρ, fτ)
     end
@@ -129,7 +130,7 @@ function (scf::ScfAndersonSolver)(f, x0, info0; maxiter, damping)
     α = convert(T, damping)
     x = x0
     info = info0
-    acceleration = Acceleration(AndersonType(); α, scf.anderson_kwargs...)
+    acceleration = Acceleration(AndersonType(); scf.anderson_kwargs...)
     for i = 1:maxiter
         fx, info = f(x, info)
         if info.converged || info.timedout
@@ -144,7 +145,7 @@ function (scf::ScfAndersonSolver)(f, x0, info0; maxiter, damping)
         else
             @debug "Using Anderson acceleration in iteration $i"
             # Damp ρ and send it to anderson; τ is just patched through without any changes
-            x = acceleration(x, fx, nothing) #this is a bit ugly, since info is not necessary here, but is needed for Pcdiis
+            x = acceleration(x, fx-x, α) 
         end
         x = from_representation!(scf.representation, info.basis, x)
     end
