@@ -235,7 +235,7 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
 
         # Ensure same α on all processors
         α_trial = mpi_bcast(α_trial, 0, basis.comm_kpts)
-        δV = (acceleration(info.Vin, α_trial, info.Pinv_δV) - info.Vin) / α_trial
+        δV = (acceleration(info.Vin, info.Pinv_δV, α_trial) - info.Vin) / α_trial
 
         # Determine damping and take next step
         guess   = info.ψ

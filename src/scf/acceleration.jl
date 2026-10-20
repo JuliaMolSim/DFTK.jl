@@ -227,20 +227,19 @@ namely:
 [^CDLS21]: Chupin, Dupuy, Legendre, Séré. Math. Model. Num. Anal. **55**, 2785 (2021) dDOI [10.1051/m2an/2021069](https://doi.org/10.1051/m2an/2021069)
 """
 
-init_specifics(::AndersonType; α::Real=1.0, kwargs...) =
-    Dict{Symbol,Any}(:α => α)
+init_specifics(::AndersonType; kwargs...) = Dict{Symbol,Any}()
 
-function accelerate(acc::Acceleration{AndersonType}, xₙ::AbstractArray, fxₙ::AbstractArray, info)
-    α = acc.specifics[:α]
+function accelerate(acc::Acceleration{AndersonType}, xₙ::AbstractArray, Pfxₙ::AbstractArray, α::Real=1.0)
     if acc.memory.depth == 0 || acc.memory.errorfactor ≤ 1 || acc.memory.maxcond ≤ 1
-        return xₙ + α * (fxₙ - xₙ) # Disables Anderson
+        return xₙ .+ α .* Pfxₙ # Disables Anderson
     elseif length(acc.memory) < 1
-        Pfxₙ = fxₙ-xₙ
         push!(acc.memory, vec(xₙ), vec(Pfxₙ), norm(Pfxₙ))
-        return  xₙ + α * (fxₙ - xₙ)
+        return  xₙ .+ α .* Pfxₙ
     end
     
-    Pfxₙ = vec(fxₙ-xₙ)
+    mold = size(xₙ)
+    
+    Pfxₙ = vec(Pfxₙ)
     xₙ = vec(xₙ)
 
     # Adaptive depth Anderson: Ensure |Pfxᵢ| ≤ errorfactor * minᵢ |Pfxᵢ|, but keep
@@ -265,6 +264,5 @@ function accelerate(acc::Acceleration{AndersonType}, xₙ::AbstractArray, fxₙ:
     end
 
     push!(acc.memory, xₙ, Pfxₙ, norm(Pfxₙ))
-    fxₙ = reshape(xₙ₊₁, size(fxₙ))
-    return fxₙ
+    reshape(xₙ₊₁, mold)
 end
