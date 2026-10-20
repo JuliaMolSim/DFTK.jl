@@ -57,31 +57,19 @@ end
         return (; E=zero(T), ops=NoopOperator.(basis, basis.kpoints))
     end
 
-    # get occupied orbitals only 
     mask_occ = occupied_empty_masks(occupation, occupation_threshold).mask_occ
-    occ_occ = [occupation[ik][mask_occ[ik]] for ik in 1:length(basis.kpoints)]
+    exx_operator(exxalg, basis, term, ψ, occupation, mask_occ)
+end
 
-    # Precompute all occupied real-space orbitals once per SCF step
-    ψ_occ_real = map(1:length(basis.kpoints)) do ik
-        kpt = basis.kpoints[ik]
-        mask = mask_occ[ik]
-        ψk_occ = @view ψ[ik][:, mask]
-        ψk_real = similar(ψ[ik], basis.fft_size..., length(mask))
-        for (ψnk_real, ψnk) in zip(eachslice(ψk_real; dims=4), eachcol(ψk_occ))
+# Transform the orbitals selected by masks[ik] at each k-point to real space
+function _orbitals_real(basis::PlaneWaveBasis, ψ, masks)
+    map(basis.kpoints, ψ, masks) do kpt, ψk, mask
+        ψk_real = similar(ψk, basis.fft_size..., length(mask))
+        for (ψnk_real, ψnk) in zip(eachslice(ψk_real; dims=4), eachcol(@view ψk[:, mask]))
             ifft!(ψnk_real, basis, kpt, ψnk)
         end
         ψk_real
     end
-
-    E = zero(T)
-    ops = []
-    for (ik, kpt) in enumerate(basis.kpoints)
-        (; Ek, opk) = exx_operator(exxalg, basis, kpt, term, ψ, occupation, mask_occ,
-                                ψ_occ_real, occ_occ)
-        push!(ops, opk)
-        E += Ek * basis.kweights[ik]
-    end
-    (; E, ops)
 end
 
 
@@ -89,15 +77,22 @@ end
 Plain vanilla Fock exchange implementation without any tricks.
 """
 struct VanillaExx <: ExxAlgorithm end
-function exx_operator(::VanillaExx, basis::PlaneWaveBasis{T}, kpt, term::TermExactExchange,
-                     ψ, occupation, mask_occ, ψ_occ_real, occ_occ) where {T}
-    
-    Ek = exx_energy_only(basis, kpt, term.interaction_kernels, term.q_points,
-                         ψ_occ_real, occ_occ)
+function exx_operator(::VanillaExx, basis::PlaneWaveBasis{T}, term::TermExactExchange,
+                      ψ, occupation, mask_occ) where {T}
+    occ_occ    = [occupation[ik][mask_occ[ik]] for ik in 1:length(basis.kpoints)]
+    ψ_occ_real = _orbitals_real(basis, ψ, mask_occ)
 
-    opk = ExchangeOperator(basis, kpt, term.interaction_kernels, term.q_points,
-                           ψ_occ_real, occ_occ)
-    (; Ek, opk)
+    E = zero(T)
+    ops = []
+    for (ik, kpt) in enumerate(basis.kpoints)
+        Ek = exx_energy_only(basis, kpt, term.interaction_kernels, term.q_points,
+                             ψ_occ_real, occ_occ)
+        opk = ExchangeOperator(basis, kpt, term.interaction_kernels, term.q_points,
+                               ψ_occ_real, occ_occ)
+        push!(ops, opk)
+        E += Ek * basis.kweights[ik]
+    end
+    (; E, ops)
 end
 
 # TODO: Should probably define an energy-only function, which directly calls into
@@ -171,55 +166,55 @@ JCTC 2016, 12, 5, 2242-2249, doi.org/10.1021/acs.jctc.6b00092
     # or using only the occupied orbitals (false).
     sketch_with_extra_orbitals::Bool = true
 end 
-function exx_operator(ace::AceExx, basis::PlaneWaveBasis{T}, kpt, term::TermExactExchange,
-                   ψ, occupation, mask_occ, ψ_occ_real, occ_occ) where {T}
-    # Occupied views using mask_occ
-    ψ_occ = [@view ψ[ik][:, mask_occ[ik]] for ik in 1:length(basis.kpoints)]
+function exx_operator(ace::AceExx, basis::PlaneWaveBasis{T}, term::TermExactExchange,
+                      ψ, occupation, mask_occ) where {T}
+    mask_sketch = ace.sketch_with_extra_orbitals ? [1:size(ψk, 2) for ψk in ψ] : mask_occ
     occ_occ = [occupation[ik][mask_occ[ik]] for ik in 1:length(basis.kpoints)]
 
-    # Build the ExchangeOperator K acting on orbital at k
-    Kk = ExchangeOperator(basis, kpt, term.interaction_kernels, term.q_points,
-                          ψ_occ_real, occ_occ)
+    # FFT the sketch orbitals once. They include the occupied orbitals, which are the
+    # leading columns (mask_occ[ik] = 1:n_occ), so the latter can be taken as views.
+    ψ_sketch_real = _orbitals_real(basis, ψ, mask_sketch)
+    ψ_occ_real = [@view ψk_sketch_real[:, :, :, mask]
+                  for (ψk_sketch_real, mask) in zip(ψ_sketch_real, mask_occ)]
 
-    # Build mask for ACE sketch orbitals
-    ik = findfirst(isequal(kpt), basis.kpoints)
-    mask_sketch = ace.sketch_with_extra_orbitals ? (1:size(ψ[ik], 2)) : mask_occ[ik]
+    E = zero(T)
+    ops = []
+    for (ik, kpt) in enumerate(basis.kpoints)
+        # Build the ExchangeOperator Vxk acting on orbitals at k
+        Vxk = ExchangeOperator(basis, kpt, term.interaction_kernels, term.q_points,
+                               ψ_occ_real, occ_occ)
 
-    # FFT only the target sketch orbitals to real space
-    ψk_sketch = @view ψ[ik][:, mask_sketch]
-    ψk_sketch_real = similar(ψ[ik], basis.fft_size..., length(mask_sketch))
-    for (ψnk_real, ψnk) in zip(eachslice(ψk_sketch_real; dims=4), eachcol(ψk_sketch))
-        ifft!(ψnk_real, basis, kpt, ψnk)
+        # ACE compression using as sketch space all orbitals the user wants for compression
+        ψk_sketch = @view ψ[ik][:, mask_sketch[ik]]
+        (; opk, Mk) = compress_exchange(Vxk, ψk_sketch, ψ_sketch_real[ik])
+        push!(ops, opk)
+
+        # Energy computation
+        #
+        # The compression computes Wnk = Vxk * ψnk  for all passed ψnk.
+        # Therefore [Mk]_{nm} is just < ψ_{nk}, Vxk ψmk>, which means that the
+        # energy contribution from this k-point can be computed as
+        #     1/2 * ∑_n occ_{nk} [Mk]_{nn}
+        occk_sketch = @view occupation[ik][mask_sketch[ik]]
+        Ek = 1/T(2) * real(tr(Diagonal(Mk) * Diagonal(occk_sketch)))
+        E += Ek * basis.kweights[ik]
     end
-
-    # Apply ACE compression using as sketch space all orbitals the user wants for compression
-    (; opk, Mk) = compress_exchange(Kk, ψk_sketch, ψk_sketch_real)
-
-    # Energy computation
-    #
-    # The compression computes Wnk = Kk * ψnk  for all passed ψnk.
-    # Therefore [Mk]_{nm} is just < ψ_{nk}, Kk ψmk>, which means that the
-    # energy contribution from this k-point can be computed as
-    #     1/2 * ∑_n occ_{nk} [Mk]_{nn}
-    occk_sketch = @view occupation[ik][mask_sketch]
-    Ek = 1/T(2) * real(tr(Diagonal(Mk) * Diagonal(occk_sketch)))
-
-    (; Ek, opk)
+    (; E, ops)
 end
 
 # Sketch exchange operator of a particular k-point using the passed orbitals
 # in real and Fourier space
-function compress_exchange(Kk::ExchangeOperator, ψk::AbstractMatrix,
+function compress_exchange(Vxk::ExchangeOperator, ψk::AbstractMatrix,
                            ψk_real::AbstractArray{T,4}) where {T}
-    basis = Kk.basis
-    kpt = Kk.kpoint
+    basis = Vxk.basis
+    kpt = Vxk.kpoint
 
     Wk = similar(ψk)
     Wnk_real_tmp = similar(ψk_real, size(ψk_real)[1:3]...)
     for (Wnk, ψnk_real) in zip(eachcol(Wk), eachslice(ψk_real, dims=4))
-        # Compute Wnk = Kk * ψnk in real space
+        # Compute Wnk = Vxk * ψnk in real space
         Wnk_real_tmp .= 0
-        apply!((; real=Wnk_real_tmp), Kk, (; real=ψnk_real))
+        apply!((; real=Wnk_real_tmp), Vxk, (; real=ψnk_real))
         fft!(Wnk, basis, kpt, Wnk_real_tmp)
     end
 
