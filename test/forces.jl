@@ -58,7 +58,7 @@
             smearing=Smearing.Gaussian(),
             pseudopotentials=PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf"),
             magnetic_moments=[], symmetries=true, ρ=nothing,
-            mixing=HybridMixing(), basis_kwargs...)
+            mixing=LdosDielectricMixing(), basis_kwargs...)
         particles = map(system, position(system, :) + dx) do atom, pos
             Atom(atom; position=pos)
         end

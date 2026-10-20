@@ -105,7 +105,7 @@ nothing  # hide
 #     [arXiv 2505.02319](http://arxiv.org/abs/2505.02319)
 
 ## Multiply δVext times the Bloch waves, then solve the Dyson equation:
-δVψ = DFTK.multiply_ψ_by_blochwave(scfres.basis, scfres.ψ, δVext)
+δVψ = DFTK.apply_potential_blochwave(scfres.basis, scfres.ψ, δVext)
 res = DFTK.solve_ΩplusK_split(scfres, δVψ; verbose=true);
 nothing  # hide
 
@@ -125,7 +125,7 @@ using KrylovKit
 
 ## Apply ``(1- χ_0 K)``
 function dielectric_operator(δρ)
-    δV = apply_kernel(basis, δρ; scfres.ρ)
+    δV = apply_kernel(basis, δρ; scfres.ρ).δVρ
     χ0δV = apply_χ0(scfres, δV).δρ
     δρ - χ0δV
 end

@@ -2,12 +2,12 @@ import DifferentiationInterface as DI
 
 
 function _stress_from_strain(basis0::PlaneWaveBasis, voigt_strain;
-                             symmetries=true, ρ, kwargs_scf...)
+                             symmetries=true, kwargs_scf...)
     model0 = basis0.model
     lattice = DFTK.voigt_strain_to_full(voigt_strain) * model0.lattice
     model = Model(model0; lattice, symmetries)
     basis = PlaneWaveBasis(basis0; model)
-    scfres = self_consistent_field(basis; ρ, kwargs_scf...)
+    scfres = self_consistent_field(basis; kwargs_scf...)
     DFTK.full_stress_to_voigt(compute_stresses_cart(scfres))
 end
 
@@ -76,7 +76,7 @@ function elastic_tensor(scfres::NamedTuple;
 
         stress_fn(η) = _stress_from_strain(basis0, η;
                                            symmetries=symmetries_strain,
-                                           ρ=scfres.ρ,
+                                           ρ=scfres.ρ, τ=scfres.τ,
                                            response, kwargs_scf...)
         voigt_stress, (dstress,) = DI.value_and_pushforward(
             stress_fn, DI.AutoForwardDiff(), η0, (strain_pattern,))
@@ -91,7 +91,7 @@ function elastic_tensor(scfres::NamedTuple;
     else
         # General elastic constants fallback: no symmetries & 6 strain perturbations
         f(η) = _stress_from_strain(basis0, η; symmetries=false,
-                                   ρ=scfres.ρ, response, kwargs_scf...)
+                                   ρ=scfres.ρ, τ=scfres.τ, response, kwargs_scf...)
         (voigt_stress, C) = DI.value_and_jacobian(f, DI.AutoForwardDiff(), η0)
     end
 

@@ -311,10 +311,10 @@ The derivatives of the occupations are in-place stored in δocc.
 The tuple (; δocc, δεF) is returned. It is assumed the passed `δocc`
 are initialised to zero.
 """
-function compute_δocc!(δocc, basis::PlaneWaveBasis{T}, ψ, εF, ε, δHψ, δtemperature) where {T}
+function compute_δocc!(δocc, basis::PlaneWaveBasis{T}, ψ, εF, ε, δHψ, δtemperature;
+                       temperature=basis.model.temperature,
+                       smearing=basis.model.smearing) where {T}
     model = basis.model
-    temperature = model.temperature
-    smearing = model.smearing
     filled_occ = filled_occupation(model)
 
     # compute the derivative of
@@ -360,7 +360,9 @@ in `basis.kpoints[ik]` from which `δψ` is computed (but expressed in `basis.kp
 """
 function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε_minus_q=ε;
                      ψ_extra=[zeros_like(ψk, size(ψk,1), 0) for ψk in ψ],
-                     q=zero(Vec3{T}), bandtol_minus_q, δψ0=nothing, kwargs_sternheimer...) where {T}
+                     q=zero(Vec3{T}), bandtol_minus_q, δψ0=nothing,
+                     temperature=basis.model.temperature, smearing=basis.model.smearing,
+                     kwargs_sternheimer...) where {T}
     # We solve the Sternheimer equation for all columns n at once
     #   (H_k - ε_{n,k-q}) δψ_{n,k} = - (1 - P_{k}) δHψ_{n, k-q},
     # where P_{k} is the projector on ψ_{k} and with the conventions:
@@ -368,8 +370,6 @@ function compute_δψ!(δψ, basis::PlaneWaveBasis{T}, H, ψ, εF, ε, δHψ, ε
     #     δψ_{k-q} ∈ ℬ_{k-q} and δHψ_{k-q} ∈ ℬ_{k};
     # * δHψ[ik] = δH ψ_{k-q};
     # * ε_minus_q[ik] = ε_{·, k-q}.
-    temperature = basis.model.temperature
-    smearing = basis.model.smearing
     filled_occ = filled_occupation(basis.model)
     @assert !haskey(kwargs_sternheimer, :tol)
 
@@ -435,12 +435,16 @@ end
 
 """
 Compute the orbital and occupation changes as a result of applying the ``χ_0`` superoperator
-to the Hamiltonian change `δH` represented by the matrix-vector products `δHψ`. 
+to the Hamiltonian change `δH` represented by the matrix-vector products `δHψ`. See also
+compute_δψ! for additional kwargs.
 """
 @views @timing function apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
                                     δtemperature=zero(eltype(ham.basis)),
                                     occupation_threshold, q=zero(Vec3{eltype(ham.basis)}),
-                                    bandtolalg, tol=1e-9, δψ0=nothing, kwargs_sternheimer...)
+                                    bandtolalg, tol=1e-9, δψ0=nothing,
+                                    temperature=ham.basis.model.temperature,
+                                    smearing=ham.basis.model.smearing,
+                                    compute_orbital_response=true, kwargs_sternheimer...)
     basis = ham.basis
     k_to_k_minus_q = k_to_kpq_permutation(basis, -q)
 
@@ -478,7 +482,8 @@ to the Hamiltonian change `δH` represented by the matrix-vector products `δHψ
     δoccupation = zero.(occupation)
     if iszero(q)
         δocc_occ = [δoccupation[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-        (; δεF) = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, δtemperature)
+        (; δεF) = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, δtemperature;
+                                temperature, smearing)
     else
         # When δH is not periodic, δH ψnk is a Bloch wave at k+q and ψnk at k,
         # so that δεnk = <ψnk|δH|ψnk> = 0 and there is no occupation shift
@@ -486,20 +491,73 @@ to the Hamiltonian change `δH` represented by the matrix-vector products `δHψ
         δεF = zero(εF)
     end
 
-    # Then we compute δψ (again in-place into a zero-padded array) with elements of
-    # `basis.kpoints` that are equivalent to `k+q`.
-    δψ = zero.(δHψ)
-    δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ[k_to_k_minus_q])]
+    if compute_orbital_response
+        # Then we compute δψ (again in-place into a zero-padded array) with elements of
+        # `basis.kpoints` that are equivalent to `k+q`.
+        δψ = zero.(δHψ)
+        δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ[k_to_k_minus_q])]
 
-    if isnothing(δψ0)
-        δψ0_occ = nothing
+        if isnothing(δψ0)
+            δψ0_occ = nothing
+        else
+            δψ0_occ = [δψ0[ik][:, mask_occ[k_to_k_minus_q[ik]]] for ik = 1:length(basis.kpoints)]
+        end
+
+        res = compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, ε_minus_q_occ;
+                          ψ_extra, q, bandtol_minus_q=bandtol_minus_q_occ, δψ0=δψ0_occ,
+                          temperature, smearing, kwargs_sternheimer...)
+
+        return (; δψ, δoccupation, δεF, res.n_iter, res.residual_norms, res.converged)
     else
-        δψ0_occ = [δψ0[ik][:, mask_occ[k_to_k_minus_q[ik]]] for ik = 1:length(basis.kpoints)]
+        # TODO: This is wasteful as it allocates an unused array of zeros and later
+        #       works on it (with FFTs ...) to compute the density response δρ, which in
+        #       this special case could be computed more efficiently by only considering the
+        #       δoccupation term ...
+        return (; δψ=zero.(δHψ), δoccupation, δεF,
+                  n_iter=nothing, residual_norms=nothing, converged=nothing)
     end
-    res = compute_δψ!(δψ_occ, basis, ham.blocks, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, ε_minus_q_occ;
-                      ψ_extra, q, bandtol_minus_q=bandtol_minus_q_occ, δψ0=δψ0_occ,
-                      kwargs_sternheimer...)
-    (; δψ, δoccupation, δεF, res.n_iter, res.residual_norms, res.converged)
+end
+
+@doc raw"""
+Perform a multiplication of a wavefunction ``ψ`` by a local potential
+``V(x) = V_{q}(x) exp(iq * x)``.
+
+Takes ``ψ_{k}`` and returns ``Vψ_{k} = V^{\rm real}_{q} ψ_{k-q}``,
+i.e. this function takes care of transferring ψ to the equivalent ``k-q``.
+
+An additional Vτ (divAgrad meta-GGA potential) can be passed to add
+``-1/2 ∇⋅(Vτ_{q} ∇) ψ_{k-q}`` to the output.
+"""
+@views function apply_potential_blochwave(basis::PlaneWaveBasis{T}, ψ, V, q=zero(Vec3{T}); Vτ=nothing) where {T}
+    fψ = zero.(ψ)
+    real_buffer = similar(V, Complex{T}, basis.fft_size...)
+    norm = basis.fft_grid.fft_normalization * basis.fft_grid.ifft_normalization
+    # First, express ψ_{[k-q]} in the basis of k-q points…
+    ψ_minus_q = transfer_blochwave_equivalent_to_actual(basis, ψ, -q)
+    for (ik, kpt) in enumerate(basis.kpoints)
+        # … then perform the multiplication with f in real space and get the Fourier
+        # coefficients.
+        for n = 1:size(ψ[ik], 2)
+            ifft!(real_buffer, basis, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk[:, n]; normalize=false)
+            real_buffer .*= V[:, :, :, kpt.spin] .* norm
+            fft!(fψ[ik][:, n], basis, kpt, real_buffer; normalize=false)
+        end
+
+        if !isnothing(Vτ)
+            # Note that the gradient of ψ_{k-q} is computed with G+k-q,
+            # while the operand of the divergence has momentum k and is thus computed with G+k.
+            G_plus_k_minus_q = [map(p -> p[α], Gplusk_vectors_cart(basis, ψ_minus_q[ik].kpt)) for α = 1:3]
+            G_plus_k         = [map(p -> p[α], Gplusk_vectors_cart(basis, kpt)) for α = 1:3]
+            for n = 1:size(ψ[ik], 2), α = 1:3
+                ∇ψ_recip = im .* G_plus_k_minus_q[α] .* ψ_minus_q[ik].ψk[:, n]
+                Vτ∇ψ_recip = fft(basis, kpt,
+                                 ifft(basis, ψ_minus_q[ik].kpt, ∇ψ_recip)
+                                 .* Vτ[:, :, :, kpt.spin])
+                fψ[ik][:, n] .-= im .* G_plus_k[α] .* Vτ∇ψ_recip ./ 2
+            end
+        end
+    end
+    fψ
 end
 
 """
@@ -515,23 +573,31 @@ Parameters:
 - `maxiter`: Maximal number of CG iterations per k and band for Sternheimer
 """
 function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{TδV};
+                  δVτ=nothing,
                   δtemperature=zero(eltype(ham.basis)),
                   occupation_threshold=default_occupation_threshold(TδV),
                   q=zero(Vec3{eltype(ham.basis)}),
                   bandtolalg=BandtolBalanced(ham.basis, ψ, occupation; occupation_threshold),
-                  kwargs_sternheimer...) where {T, TδV}
+                  kwargs...) where {T, TδV}
     basis = ham.basis
 
     # Make δV respect the basis symmetry group, since we won't be able
     # to compute perturbations that don't anyway
     δV = symmetrize_ρ(basis, δV)
+    δVτ = isnothing(δVτ) ? nothing : symmetrize_ρ(basis, δVτ)
 
     # Normalize δV to avoid numerical trouble; theoretically should not be necessary,
     # but it simplifies the interaction with the Sternheimer linear solver
     # (it makes the rhs be order 1 even if δV is small)
     normδH = norm(δV)
-    normδH < eps(T) && return (; δρ=zero(δV), normδH)
+    if normδH < eps(T)
+        isnothing(δVτ) || norm(δVτ) < eps(T) || error(
+            "Attempted to apply_χ0 with zero δV but nonzero δVτ." *
+            " This is currently not supported, please open an issue.")
+        return (; δρ=zero(δV), δτ=isnothing(δVτ) ? nothing : zero(δVτ), normδH)
+    end
     δV ./= normδH
+    isnothing(δVτ) || (δVτ ./= normδH)
 
     if bandtolalg isa BandtolGuaranteed
         # This is the ||K v|| term of arxiv 2505.02319, see also the discussion
@@ -541,14 +607,19 @@ function apply_χ0(ham, ψ, occupation, εF::T, eigenvalues, δV::AbstractArray{
 
     # For phonon calculations, assemble
     #   δHψ_k = δV_{q} · ψ_{k-q}.
-    δHψ = multiply_ψ_by_blochwave(basis, ψ, δV, q)
+    δHψ = apply_potential_blochwave(basis, ψ, δV, q; Vτ=δVτ)
     res = apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψ;
-                      δtemperature, occupation_threshold, q, bandtolalg,
-                      kwargs_sternheimer...)
+                      δtemperature, occupation_threshold, q, bandtolalg, kwargs...)
 
     δρ = compute_δρ(basis, ψ, res.δψ, occupation, res.δoccupation; occupation_threshold, q)
     δρ = δρ * normδH
-    (; δρ, normδH, res...)
+    if isnothing(δVτ)
+        δτ = nothing
+    else
+        δτ = compute_δτ(basis, ψ, res.δψ, occupation, res.δoccupation; q)
+        δτ = δτ * normδH
+    end
+    (; δρ, δτ, normδH, res...)
 end
 
 function apply_χ0(scfres, δV; kwargs...)

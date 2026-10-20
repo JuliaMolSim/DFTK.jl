@@ -205,25 +205,15 @@ This is a highly optimized, GPU compatible function.
 """
 function build_projector_form_factors(psp::NormConservingPsp,
                                       G_plus_k::AbstractVector{Vec3{T}}) where {T}
-    Gpk = to_cpu(G_plus_k)
     arch = architecture(G_plus_k)
 
-    iG2ifnorm_cpu = zeros(Int, length(Gpk))
-    norm_indices = IdDict{T, Int}()
-    for (iG, G) in enumerate(Gpk)
-        p = norm(G)
-        iG2ifnorm_cpu[iG] = get!(norm_indices, p, length(norm_indices) + 1)
-    end
-    iG2ifnorm = to_device(arch, iG2ifnorm_cpu)
-
-    ni_pairs = collect(pairs(norm_indices))
-    ps = to_device(arch, first.(ni_pairs))
-    p_indices = to_device(arch, last.(ni_pairs))
+    # For efficiency, get unique norms |G| and the mapping such that norm(G[i]) = unique_ps[iG2ifnorm[i]]
+    unique_ps, iG2ifnorm = unique_norms_and_mapping(G_plus_k)
 
     n_proj = count_n_proj(psp)
     form_factors = similar(G_plus_k, Complex{T}, length(G_plus_k), n_proj)
     G_indices = to_device(arch, collect(1:length(G_plus_k)))
-    proj_li = similar(G_indices, Complex{T}, length(G_indices))
+    proj_li = similar(G_indices, Complex{T}, length(unique_ps))
     for l = 0:psp.lmax, 
         n_proj_l = count_n_proj_radial(psp, l)
         offset = sum(x -> count_n_proj(psp, x), 0:l-1; init=0) .+ 
@@ -232,7 +222,7 @@ function build_projector_form_factors(psp::NormConservingPsp,
             # Performs same computation as build_form_factors(eval_psp_projector_fourier, l, [G_plus_k]),
             # but in a highly optimized, vectorized, and GPU compatible way. Also saves on allocations,
             # and many recomputations of unique |G+k|.
-            proj_li[p_indices] .= eval_psp_projector_fourier(psp, i, l, ps)
+            proj_li[:] .= eval_psp_projector_fourier(psp, i, l, unique_ps)
             for m = -l:l
                 map!(@view(form_factors[:, offset[m + l + 1] + i]), G_indices) do iG
                     angular = (-im)^l * solid_harmonic_real(l, m, G_plus_k[iG])

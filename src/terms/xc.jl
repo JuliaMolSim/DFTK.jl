@@ -80,8 +80,7 @@ struct TermXc{T,CT,TCT} <: TermNonlinear where {T,CT,TCT}
 end
 DftFunctionals.needs_τ(term::TermXc) = any(needs_τ, term.functionals)
 
-function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupation;
-                           ρ, τ=nothing) where {T}
+function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}; ρ, τ=nothing) where {T}
     @assert !isempty(term.functionals)
     @assert all(family(xc) in (:lda, :gga, :mgga, :mggal) for xc in term.functionals)
 
@@ -119,14 +118,14 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     # Potential contributions Vρ -2 ∇⋅(Vσ ∇ρ) + ΔVl
     potential = zero(ρ)
     @views for s = 1:n_spin
-        Vρ = to_device(basis.architecture, reshape(terms.Vρ, n_spin, basis.fft_size...))
+        Vρ = reshape(terms.Vρ, n_spin, basis.fft_size...)
 
         potential[:, :, :, s] .+= Vρ[s, :, :, :]
         if haskey(terms, :Vσ) && any(x -> abs(x) > potential_threshold, terms.Vσ)
             # Need gradient correction
             # TODO Drop do-block syntax here?
             potential[:, :, :, s] .+= -2divergence_real(basis) do α
-                Vσ = to_device(basis.architecture, reshape(terms.Vσ, :, basis.fft_size...))
+                Vσ = reshape(terms.Vσ, :, basis.fft_size...)
 
                 # Extra factor (1/2) for s != t is needed because libxc only keeps σ_{αβ}
                 # in the energy expression. See comment block below on spin-polarised XC.
@@ -138,7 +137,7 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
         if haskey(terms, :Vl) && any(x -> abs(x) > potential_threshold, terms.Vl)
             @warn "Meta-GGAs with a Δρ term have not yet been thoroughly tested." maxlog=1
             mG² = .-norm2.(G_vectors_cart(basis))
-            Vl  = to_device(basis.architecture, reshape(terms.Vl, n_spin, basis.fft_size...))
+            Vl  = reshape(terms.Vl, n_spin, basis.fft_size...)
             Vl_fourier = fft(basis, Vl[s, :, :, :])
             potential[:, :, :, s] .+= irfft(basis, mG² .* Vl_fourier)  # ΔVl
         end
@@ -148,7 +147,7 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     Vτ = nothing
     if haskey(terms, :Vτ) && any(x -> abs(x) > potential_threshold, terms.Vτ)
         # Need meta-GGA non-local operator (Note: -½ part of the definition of DivAgrid)
-        Vτ = to_device(basis.architecture, reshape(terms.Vτ, n_spin, basis.fft_size...))
+        Vτ = reshape(terms.Vτ, n_spin, basis.fft_size...)
         Vτ = term.scaling_factor * permutedims(Vτ, (2, 3, 4, 1))
     end
 
@@ -160,7 +159,7 @@ end
 
 @views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis,
                                               ψ, occupation; ρ, τ=nothing, kwargs...)
-    E, Vxc, Vτ = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
+    E, Vxc, Vτ = xc_potential_real(term, basis; ρ, τ)
 
     ops = map(basis.kpoints) do kpt
         if !isnothing(Vτ)
@@ -204,7 +203,7 @@ end
     isnothing(term.ρcore) && isnothing(term.τcore) && return nothing
 
     model = basis.model
-    _, Vρ_real, Vτ_real = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
+    _, Vρ_real, Vτ_real = xc_potential_real(term, basis; ρ, τ)
     Vτ_fourier = nothing
     if model.spin_polarization in (:none, :spinless)
         Vρ_fourier = fft(basis, Vρ_real[:,:,:,1])
@@ -454,7 +453,7 @@ function compute_kernel(term::TermXc, basis::PlaneWaveBasis{T}; ρ, kwargs...) w
     # For LDA the Kernel is known to be diagonal, so we can get away
     # with a single push-forward (two for spin-polarized case)
     if n_spin == 1
-        f_spinless(ε) = xc_potential_real(term, basis, nothing, nothing; ρ=ρ.+ε).potential
+        f_spinless(ε) = xc_potential_real(term, basis; ρ=ρ.+ε).potential
         δpotential = ForwardDiff.derivative(f_spinless, zero(T))
         Diagonal(vec(δpotential))
     else
@@ -462,8 +461,8 @@ function compute_kernel(term::TermXc, basis::PlaneWaveBasis{T}; ρ, kwargs...) w
         function f_collinear(ε)
             dρ1 = reshape([ε, 0], 1, 1, 1, 2)
             dρ2 = reshape([0, ε], 1, 1, 1, 2)
-            stack([xc_potential_real(term, basis, nothing, nothing; ρ=ρ.+dρ1).potential,
-                   xc_potential_real(term, basis, nothing, nothing; ρ=ρ.+dρ2).potential])
+            stack([xc_potential_real(term, basis; ρ=ρ.+dρ1).potential,
+                   xc_potential_real(term, basis; ρ=ρ.+dρ2).potential])
         end
         δpotential = ForwardDiff.derivative(f_collinear, zero(T))
 
@@ -479,30 +478,41 @@ end
 
 
 function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArray{Tδρ};
-                      ρ, q=zero(Vec3{T}), kwargs...) where {T, Tδρ<:Union{T,Complex{T}}}
-    isempty(term.functionals) && return nothing
-    @assert (all(family(xc) in (:lda, :gga, :mggal) && !needs_τ(xc) for xc in term.functionals))
-
-    if !iszero(q) && !isnothing(term.ρcore)
-        error("Phonon computations are not supported for models using nonlinear core "
-              * "correction.")
+                      ρ, τ=nothing, δτ=nothing, q=zero(Vec3{T}),
+                      kwargs...) where {T, Tδρ<:Union{T,Complex{T}}}
+    isempty(term.functionals) && return (;)
+    if needs_τ(term)
+        isnothing(τ) && error("TermXc needs the kinetic energy density τ in the kernel.")
+        isnothing(δτ) && error("TermXc needs the kinetic energy density variation δτ in the kernel.")
+    end
+    if !iszero(q)
+        isnothing(term.ρcore) || error("Phonon computations are not supported for models "
+                                       * "using nonlinear core correction.")
+        @assert all(family(xc) in (:lda,) for xc in term.functionals)
     end
 
     # Key insight: kernel application is just a Hessian-vector product,
     # which is computed with a push-forward of the gradient.
-    f(ρ_eval) = xc_potential_real(term, basis, nothing, nothing; ρ=ρ_eval).potential
+    f(ρ_eval, τ_eval) = xc_potential_real(term, basis; ρ=ρ_eval, τ=τ_eval)
     Tag = typeof(ForwardDiff.Tag(f, T))
     if Tδρ <: T
         # Usually δρ has the same type, so we do a standard push-forward
         ε = Dual{Tag}(zero(T), one(T))
-        ForwardDiff.partials.(f(ρ .+ ε .* δρ), 1)
+        τ_δτ = needs_τ(term) ? τ .+ ε .* δτ : nothing
+        pot = f(ρ .+ ε .* δρ, τ_δτ)
+        δVρ = ForwardDiff.partials.(pot.potential, 1)
+        δVτ = isnothing(pot.Vτ) ? nothing : ForwardDiff.partials.(pot.Vτ, 1)
+        (; δVρ, δVτ)
     else
         # But for complex δρ (phonons) we need to push the real and imaginary
         # parts forward separately
         ε1 = Dual{Tag}(zero(T), one(T), zero(T))
         ε2 = Dual{Tag}(zero(T), zero(T), one(T))
-        potential = f(ρ .+ ε1 .* real.(δρ) .+ ε2 .* imag.(δρ))
-        ForwardDiff.partials.(potential, 1) .+ im .* ForwardDiff.partials.(potential, 2)
+        τ_δτ = needs_τ(term) ? τ .+ ε1 .* real.(δτ) .+ ε2 .* imag.(δτ) : nothing
+        pot = f(ρ .+ ε1 .* real.(δρ) .+ ε2 .* imag.(δρ), τ_δτ)
+        δVρ = ForwardDiff.partials.(pot.potential, 1) .+ im .* ForwardDiff.partials.(pot.potential, 2)
+        δVτ = isnothing(pot.Vτ) ? nothing : ForwardDiff.partials.(pot.Vτ, 1) .+ im .* ForwardDiff.partials.(pot.Vτ, 2)
+        (; δVρ, δVτ)
     end
 end
 
@@ -525,14 +535,9 @@ function DftFunctionals.potential_terms(xc::DispatchFunctional, density::LibxcDe
     potential_terms(xc, _matify(density.ρ_real), _matify(density.σ_real),
                         _matify(density.τ_real), _matify(density.Δρ_real))
 end
-
-# Ensure functionals from DftFunctionals are sent to the CPU
-# TODO: Allow GPUArrys once DftFunctionals is refactored to support GPU. 
 function DftFunctionals.potential_terms(fun::DftFunctionals.Functional, density::LibxcDensities)
-    maticpuify(::Nothing) = nothing
-    maticpuify(x::AbstractArray) = reshape(Array(x), size(x, 1), :)
-    DftFunctionals.potential_terms(fun, maticpuify(density.ρ_real), maticpuify(density.σ_real),
-                                        maticpuify(density.τ_real), maticpuify(density.Δρ_real))
+    potential_terms(fun, _matify(density.ρ_real), _matify(density.σ_real),
+                         _matify(density.τ_real), _matify(density.Δρ_real))
 end
 
 function DftFunctionals.potential_terms(xcs::Vector{Functional}, density::LibxcDensities)
@@ -544,17 +549,13 @@ function DftFunctionals.potential_terms(xcs::Vector{Functional}, density::LibxcD
     result
 end
 
-# Ensure functionals from DftFunctionals are sent to the CPU
-# TODO: Allow GPUArrys once DftFunctionals is refactored to support GPU. 
-function DftFunctionals.energy_density(fun::DftFunctionals.Functional, density::LibxcDensities)
-    maticpuify(::Nothing) = nothing
-    maticpuify(x::AbstractArray) = reshape(Array(x), size(x, 1), :)
-    DftFunctionals.energy_density(fun, maticpuify(density.ρ_real), maticpuify(density.σ_real),
-                                       maticpuify(density.τ_real), maticpuify(density.Δρ_real))
-end
 function DftFunctionals.energy_density(xc::DispatchFunctional, density::LibxcDensities)
     energy_density(xc, _matify(density.ρ_real), _matify(density.σ_real),
                        _matify(density.τ_real), _matify(density.Δρ_real))
+end
+function DftFunctionals.energy_density(fun::DftFunctionals.Functional, density::LibxcDensities)
+    energy_density(fun, _matify(density.ρ_real), _matify(density.σ_real),
+                        _matify(density.τ_real), _matify(density.Δρ_real))
 end
 function DftFunctionals.energy_density(xcs::Vector{Functional}, density::LibxcDensities{T}) where {T}
     xcs = filter(has_energy, xcs)

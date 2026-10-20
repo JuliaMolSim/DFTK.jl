@@ -43,6 +43,7 @@ include("common/versioninfo.jl")
 include("architecture.jl")
 include("common/zeros_like.jl")
 include("common/norm.jl")
+include("common/unique_norms.jl")
 include("common/quadrature.jl")
 include("common/hankel.jl")
 include("common/hydrogenic.jl")
@@ -167,7 +168,7 @@ export HybridFunctional, PBE0, HSE
 include("standard_models.jl")
 
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing
-export LdosMixing, HybridMixing, χ0Mixing
+export LdosMixing, LdosDielectricMixing, LdosXcDiagonalMixing, χ0Mixing
 export FixedBands, AdaptiveBands
 export ScfDampingSolver, ScfAndersonDensitySolver, ScfAndersonSolver
 export self_consistent_field, kwargs_scf_checkpoints
@@ -253,10 +254,10 @@ include("postprocess/refine.jl")
 # Workarounds
 include("workarounds/dummy_inplace_fft.jl")
 include("workarounds/forwarddiff_rules.jl")
+include("workarounds/forwarddiff_gemm.jl")
 
 # Optimized generic GPU functions and GPU workarounds
 include("gpu/linalg.jl")
-include("gpu/gpu_arrays.jl")
 
 # Precompilation block with a basic workflow
 
