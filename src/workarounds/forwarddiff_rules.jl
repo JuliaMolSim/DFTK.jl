@@ -309,6 +309,44 @@ end
        scfres.seed, scfres.algorithm, scfres.runtime_ns)
 end
 
+@timing function compute_bands(basis::PlaneWaveBasis{T},
+                               kgrid::Union{AbstractKgrid,AbstractKgridGenerator};
+                               ρ=nothing, τ=nothing, hubbard_n=nothing,
+                               kwargs...) where {T <: ForwardDiff.Dual}
+    @assert isnothing(τ) && isnothing(hubbard_n)  # These cases are not yet implemented.
+
+    # Primal pass
+    basis_primal = DFTK.construct_value(basis_dual)
+    ρ_primal = ForwardDiff.value.(ρ)
+    bands_primal = compute_bands(basis_primal, kgrid; ρ=ρ_primal, kwargs...)
+
+    # 1st order perturbation theory of eigenvalues
+    basis = PlaneWaveBasis(basis_dual, kgrid)
+    ham_dual = Hamiltonian(basis; bands_primal.ψ, bands_primal.occupation,
+                           ρ, τ, hubbard_n, bands_primal.eigenvalues, bands_primal.εF,
+                           exxalg=VanillaExx())
+
+    Hψ_dual = ham_dual * bands_primal.ψ
+    δeigenvalues = ntuple(ForwardDiff.npartials(T)) do α
+        δHψ = [ForwardDiff.partials.(δHψk, α) for δHψk in Hψ_dual]
+        map(bands_primal.ψ, δHψ) do ψk, δHψk
+            map(eachcol(ψk), eachcol(δHψk)) do ψnk, δHψnk
+                real(dot(ψnk, δHψnk))  # δε_{nk} = <ψnk | δH | ψnk>
+            end
+        end
+    end
+
+    # Convert and combine
+    DT = ForwardDiff.Dual{ForwardDiff.tagtype(T)}
+    eigenvalues = map(bands_primal.eigenvalues, δeigenvalues...) do εk, δεk...
+        map((εnk, δεnk...) -> DT(εnk, δεnk), εk, δεk...)
+    end
+
+    # Currently misses ψ and occupation compared to primal data structure.
+    (; basis, eigenvalues, ρ, τ, hubbard_n, bands_primal.diagonalization,
+       bands_primal.εF, bands_primal.seed)
+end
+
 # For GPU kernels to compile, dynamic function calls must be avoided. Therefore, the quadrature
 # must be known and passed ahead of time, and the Dual type explicitly parametrized.
 function hankel(quadrature, r::AbstractVector, r2_f::AbstractVector, l::Integer, p::Dual{Tg,V,N}) where {Tg,V,N}

@@ -58,7 +58,7 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
     #      AbstractBandData type from which the BandData and ScfResults
     #      types subtype. In a first version the ScfResult could just contain
     #      the currently used named tuple and forward all operations to it.
-    (; basis=bs_basis, ψ=eigres.X, eigenvalues=eigres.λ, ρ, εF, occupation,
+    (; basis=bs_basis, ψ=eigres.X, eigenvalues=eigres.λ, ρ, τ, hubbard_n, εF, occupation,
      diagonalization=[eigres], seed)
 end
 
