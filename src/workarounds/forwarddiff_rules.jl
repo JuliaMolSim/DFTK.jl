@@ -309,22 +309,19 @@ end
        scfres.seed, scfres.algorithm, scfres.runtime_ns)
 end
 
-@timing function compute_bands(basis::PlaneWaveBasis{T},
+@timing function compute_bands(basis_dual::PlaneWaveBasis{T},
                                kgrid::Union{AbstractKgrid,AbstractKgridGenerator};
-                               ρ=nothing, τ=nothing, hubbard_n=nothing,
+                               ρ=nothing, τ=nothing, hubbard_n=nothing, εF=nothing,
                                kwargs...) where {T <: ForwardDiff.Dual}
     @assert isnothing(τ) && isnothing(hubbard_n)  # These cases are not yet implemented.
 
     # Primal pass
-    basis_primal = DFTK.construct_value(basis_dual)
-    ρ_primal = ForwardDiff.value.(ρ)
-    bands_primal = compute_bands(basis_primal, kgrid; ρ=ρ_primal, kwargs...)
+    basis_primal = construct_value(basis_dual)
+    bands_primal = compute_bands(basis_primal, kgrid; ρ=ForwardDiff.value.(ρ), kwargs...)
 
     # 1st order perturbation theory of eigenvalues
     basis = PlaneWaveBasis(basis_dual, kgrid)
-    ham_dual = Hamiltonian(basis; bands_primal.ψ, bands_primal.occupation,
-                           ρ, τ, hubbard_n, bands_primal.eigenvalues, bands_primal.εF,
-                           exxalg=VanillaExx())
+    ham_dual = Hamiltonian(basis; ρ, τ, hubbard_n)
 
     Hψ_dual = ham_dual * bands_primal.ψ
     δeigenvalues = ntuple(ForwardDiff.npartials(T)) do α
@@ -343,8 +340,8 @@ end
     end
 
     # Currently misses ψ and occupation compared to primal data structure.
-    (; basis, eigenvalues, ρ, τ, hubbard_n, bands_primal.diagonalization,
-       bands_primal.εF, bands_primal.seed)
+    (; basis, eigenvalues, ρ, τ, hubbard_n, εF, bands_primal.diagonalization,
+       bands_primal.seed)
 end
 
 # For GPU kernels to compile, dynamic function calls must be avoided. Therefore, the quadrature
