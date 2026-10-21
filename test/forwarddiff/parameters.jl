@@ -86,6 +86,45 @@ end
     end
 end
 
+@testmodule BandsSensitivity begin
+using DFTK
+using Test
+using LinearAlgebra
+using ..TestCases: silicon
+using ..ForwardDiffWrappers: tagged_derivative
+
+function run_test(; architecture)
+    function compute_bands_eigenvalues(ε::T) where {T}
+        psp = load_psp(silicon.psp_gth)
+        pspmod = PspHgh(psp.Zion, convert(T, psp.rloc),
+                        psp.cloc, psp.rp .+ [0, ε], psp.h;
+                        psp.identifier, psp.description)
+        atoms = fill(ElementPsp(silicon.atnum, pspmod), length(silicon.positions))
+        model = model_DFT(Matrix{T}(silicon.lattice), atoms, silicon.positions;
+                          functionals=LDA())
+        basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], architecture)
+        scfres = self_consistent_field(basis; tol=1e-12,
+                                       response=ResponseOptions(; tol=1e-12))
+
+        kgrid = ExplicitKpoints([[0.0, 0.0, 0.0], [0.1, 0.2, 0.3]])
+        bands = compute_bands(scfres, kgrid; n_bands=6, tol=1e-10)
+        stack(bands.eigenvalues)
+    end
+
+    derivative_ε = let ε = 1e-4
+        (compute_bands_eigenvalues(ε) - compute_bands_eigenvalues(-ε)) / 2ε
+    end
+    derivative_fd = tagged_derivative(compute_bands_eigenvalues, 0.0)
+    @test norm(derivative_fd - derivative_ε) < 1e-5
+end
+end
+
+@testitem "compute_bands PSP sensitivity using ForwardDiff" tags=[:minimal] #=
+    =#    setup=[TestCases, ForwardDiffWrappers, BandsSensitivity] begin
+    using DFTK
+    BandsSensitivity.run_test(; architecture=DFTK.CPU())
+end
+
 @testmodule ForceSensitivity begin
 using DFTK
 using Test
