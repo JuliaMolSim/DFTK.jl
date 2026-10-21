@@ -207,6 +207,9 @@ where `r[iatom][α]` is the `α`-th reduced coordinate of atom `iatom`. The deri
 the change of the Löwdin orthogonalization, so displacing one atom also changes the
 projectors centered on all other atoms.
 
+## References
+- [I. Timrov et al. Phys. Rev. B **102**, 235159 (2020)](https://journals.aps.org/prb/abstract/10.1103/PhysRevB.102.235159)
+
 Overview of inputs:
 - `ψ` (opt): Bloch waves. If given, the overlaps ``⟨ψ_{nk}|∂ϕ̃_k/∂r⟩``, i.e.
   `ψ[ik]' * dprojectors[ik][iatom][α]`, are returned instead, without storing the
@@ -231,18 +234,19 @@ function atomic_orbital_projector_derivatives(basis::PlaneWaveBasis;
     results = map(enumerate(basis.kpoints)) do (ik, kpt)
         Φk = orbitals[ik]
         ψk = isnothing(ψ) ? nothing : ψ[ik]
-        lowdin = lowdin_overlap(Φk)
+        O_eigen = eigen(Hermitian(Φk' * Φk))
+        O_invsqrt = matrix_function(invsqrt, O_eigen)
         ψΦk = isnothing(ψk) ? nothing : ψk' * Φk
         G_plus_k = Gplusk_vectors(basis, kpt)
         dprojectors_k = map(eachindex(basis.model.atoms)) do iatom
             atom_orbitals = findall(label -> label.iatom == iatom, labels)
             map(1:3) do α
-                _lowdin_orbitals_derivative(Φk, lowdin, G_plus_k, atom_orbitals, α, cols;
-                                            ψk, ψΦk)
+                _lowdin_orbitals_derivative(Φk, O_eigen, O_invsqrt, G_plus_k, atom_orbitals,
+                                            α, cols; ψk, ψΦk)
             end
         end
         # ψ' * Φ O^{-1/2}, i.e. the overlaps with the orthogonalized projectors
-        projections_k = isnothing(ψk) ? nothing : ψΦk * lowdin.O_invsqrt[:, cols]
+        projections_k = isnothing(ψk) ? nothing : ψΦk * O_invsqrt[:, cols]
         (; dprojectors_k, projections_k)
     end
     dprojectors = [result.dprojectors_k for result in results]
@@ -252,20 +256,21 @@ end
 
 # Derivative of the columns `cols` of the Löwdin-orthogonalized orbitals Φk * O^{-1/2} with
 # respect to the reduced coordinate α of the atom carrying the orbitals `atom_orbitals`.
+# O_eigen is the eigendecomposition of the overlap O = Φk' * Φk.
 # If ψk is given, returns ψk' times this derivative, with ψΦk = ψk' * Φk.
-function _lowdin_orbitals_derivative(Φk, lowdin, G_plus_k, atom_orbitals, α, cols;
+function _lowdin_orbitals_derivative(Φk, O_eigen, O_invsqrt, G_plus_k, atom_orbitals, α, cols;
                                      ψk=nothing, ψΦk=nothing)
     # Only the orbitals of the displaced atom move:
     #   ∂/∂r_α e^{-2πi (k+G)·r} = -2πi (k+G)_α e^{-2πi (k+G)·r}
     dΦ_atom = (-2π * im) .* getindex.(G_plus_k, α) .* Φk[:, atom_orbitals]
-    δO = zero(lowdin.O_invsqrt)
+    δO = zero(O_invsqrt)
     δO[atom_orbitals, :] = dΦ_atom' * Φk
     δO = δO + δO'
-    dO_invsqrt = lowdin_overlap_derivative(lowdin, δO)[:, cols]
+    dO_invsqrt = matrix_function_derivative(invsqrt, O_eigen, δO)[:, cols]
     if isnothing(ψk)
-        dΦ_atom * lowdin.O_invsqrt[atom_orbitals, cols] + Φk * dO_invsqrt
+        dΦ_atom * O_invsqrt[atom_orbitals, cols] + Φk * dO_invsqrt
     else
-        (ψk' * dΦ_atom) * lowdin.O_invsqrt[atom_orbitals, cols] + ψΦk * dO_invsqrt
+        (ψk' * dΦ_atom) * O_invsqrt[atom_orbitals, cols] + ψΦk * dO_invsqrt
     end
 end
 

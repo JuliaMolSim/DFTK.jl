@@ -10,6 +10,7 @@
 # See also https://www.vasp.at/vasp-workshop/k-points.pdf
 module Smearing
 import ForwardDiff
+import ..divided_difference
 using SpecialFunctions: erf, erfc, factorial
 
 abstract type SmearingFunction end
@@ -45,14 +46,6 @@ function occupation_divided_difference(S::SmearingFunction, x, y, εF, temp)
         fder(z) = occupation_derivative(S, (z-εF)/temp) / temp
         divided_difference(f, fder, x, y)
     end
-end
-function divided_difference(f, fder, x::T, y) where {T}
-    # (f(x) - f(y))/(x - y) is accurate to ε/|x-y|
-    # so for x ~= y we use the approximation (f'(x)+f'(y))/2,
-    # which is accurate to |x-y|^2, and therefore better when |x-y| ≤ cbrt(ε)
-    # The resulting method is accurate to ε^2/3
-    abs(x-y) < cbrt(eps(T)) && return (fder(x) + fder(y))/2
-    (f(x)-f(y)) / (x-y)
 end
 
 """

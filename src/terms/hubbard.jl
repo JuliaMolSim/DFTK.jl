@@ -47,9 +47,7 @@ function resolve_hubbard_manifold(manifold::OrbitalManifold, model::Model)
     else
         # guaranteed by union
         @assert manifold.atoms isa Vector{Int}
-        # Sorted, since hubbard_n, the projectors (in label order) and the blocks of the
-        # Hubbard potential all assume ascending atom order
-        iatoms = sort(manifold.atoms)
+        iatoms = manifold.atoms
     end
     isempty(iatoms) && error("Orbital manifold has no atoms.")
 
@@ -181,19 +179,20 @@ function hubbard_potential_coefficients(term::TermHubbard, basis::PlaneWaveBasis
     D = [zeros(Complex{T}, D_size, D_size) for _ in 1:basis.model.n_spin_components]
     offset = 0
     for (iman, manifold) in enumerate(term.manifolds)
-        nproj_atom = 2*manifold.l + 1
-        for σ in 1:basis.model.n_spin_components, iatom in 1:length(manifold.iatoms)
-            n_II = hubbard_n[iman][σ, iatom, iatom]
-            proj_range = (offset + (iatom-1)*nproj_atom + 1):(offset + iatom*nproj_atom)
+        labels = term.labels[iman]
+        for σ in 1:basis.model.n_spin_components, (idx, iatom) in enumerate(manifold.iatoms)
+            n_II = hubbard_n[iman][σ, idx, idx]
+            # The columns of P are in label order, not in the order of manifold.iatoms
+            proj_range = offset .+ findall(label -> label.iatom == iatom, labels)
             D[σ][proj_range, proj_range] = 1/T(2) * term.U[iman] * (I - 2*n_II)
         end
-        offset += nproj_atom*length(manifold.iatoms)
+        offset += length(labels)
     end
     D
 end
 
 @timing "forces: hubbard" function compute_forces(term::TermHubbard, basis::PlaneWaveBasis{TT},
-                                                  ψ, occupation; kwargs...) where {TT}
+                                                  ψ, occupation; hubbard_n, kwargs...) where {TT}
     T = promote_type(TT, real(eltype(ψ[1])))
     isempty(term.U) && return nothing
     # At fixed ψ, the energy depends on the positions only through hubbard_n, and
@@ -201,8 +200,6 @@ end
     # with D = U/2 (1 - 2 hubbard_n), the same structure as for the nonlocal term. The
     # projectors P are Löwdin-orthogonalized against the atomic orbitals of all atoms, so every
     # atom carrying orbitals feels a force.
-    # hubbard_n is not passed in the kwargs; recompute it from the same ψ the force is taken at
-    hubbard_n = compute_hubbard_n(term, basis, ψ, occupation)
     D = hubbard_potential_coefficients(term, basis, hubbard_n)
     hubbard_labels = reduce(vcat, term.labels)  # columns of term.P_vec
 

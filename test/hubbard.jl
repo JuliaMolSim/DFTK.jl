@@ -124,11 +124,8 @@ end
         @testset "Test symmetry consistency" begin
              n_hub = scfres.hubbard_n
              scfres_nosym = DFTK.unfold_bz(scfres)
-             term_idx = findfirst(term -> isa(term, DFTK.TermHubbard),
-                                  scfres_nosym.basis.terms)
-             term_hub = scfres_nosym.basis.terms[term_idx]
-             nhub_nosym = DFTK.compute_hubbard_n(term_hub, scfres_nosym.basis,
-                                                 scfres_nosym.ψ, scfres_nosym.occupation)
+             nhub_nosym = DFTK.compute_hubbard_n(scfres_nosym.basis, scfres_nosym.ψ,
+                                                 scfres_nosym.occupation)
              @test n_hub ≈ nhub_nosym
         end
    end
@@ -232,7 +229,8 @@ end
         hubbard = Hubbard(OrbitalManifold(atoms, "3P") => 5u"eV")
         basis_U = make_basis(lattice, positions; symmetries=false, hubbard)
         ihub = findfirst(term -> term isa DFTK.TermHubbard, basis_U.terms)
-        forces = DFTK.compute_forces(basis_U.terms[ihub], basis_U, ψ, occupation)
+        hubbard_n = DFTK.compute_hubbard_n(basis_U, ψ, occupation)
+        forces = DFTK.compute_forces(basis_U.terms[ihub], basis_U, ψ, occupation; hubbard_n)
         for iatom = 1:2
             dE = FiniteDiff.finite_difference_derivative(0.0) do ε
                 hubbard_energy(ψ, occupation, lattice, displaced(ε, iatom); hubbard)

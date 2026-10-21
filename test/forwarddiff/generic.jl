@@ -92,3 +92,24 @@ end
         @test ForwardDiffWrappers.tagged_derivative(g, 0.0) ≈ 2 * real(sum(A * B))
     end
 end
+@testitem "Derivative of matrix functions with degenerate eigenvalues" #=
+    =#    tags=[:dont_test_mpi, :minimal] setup=[ForwardDiffWrappers] begin
+    using DFTK
+    using DFTK: matrix_function, invsqrt
+    using LinearAlgebra
+    using Random
+
+    # Eigenvalues (2, 2, 3) in a random basis. ForwardDiff's eigen rule divides by
+    # eigenvalue differences and gives NaN here; the Dual overload of matrix_function
+    # must not.
+    U = Matrix(qr(randn(Xoshiro(1), ComplexF64, 3, 3)).Q)
+    A = U * Diagonal([2.0, 2.0, 3.0]) * U'
+    δA = Hermitian(randn(Xoshiro(2), ComplexF64, 3, 3))
+    # invsqrt uses its exact divided difference, exp the generic one from ForwardDiff
+    for f in (invsqrt, exp)
+        fA(t) = matrix_function(f, Hermitian(A + t * δA))
+        h = 1e-5
+        reference = (fA(h) - fA(-h)) / 2h
+        @test ForwardDiffWrappers.tagged_derivative(fA, 0.0) ≈ reference atol=1e-8
+    end
+end
