@@ -33,7 +33,7 @@ function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, kernel) whe
         error("ExactExchange currently does not support MPI parallelization over k-points.")
     end
     if !(basis.kgrid isa MonkhorstPack) || basis.n_irreducible_kpoints != length(basis.kgrid)
-        error("build_qpoints requires a full (non-symmetry-reduced) Monkhorst-Pack grid.")
+        error("ExactExchange requires a full (non-symmetry-reduced) Monkhorst-Pack grid.")
     end
     fac::T = scaling_factor 
 

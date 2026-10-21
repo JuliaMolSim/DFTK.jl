@@ -177,10 +177,8 @@ function eval_kernel_fourier(kernel::WignerSeitzTruncatedCoulomb, basis::PlaneWa
 end
 function eval_kernel_fourier(::WignerSeitzTruncatedCoulomb, basis::PlaneWaveBasis{T},
                              q_points::AbstractVector{<:Vec3}) where {T}
-    
     # TODO: A pointwise eval_kernel_fourier(::WignerSeitzTruncatedCoulomb, ...) could be obtained
     #       by a slow Fourier transform (explicit sum over the real-space grid).
-    
     model = basis.model
 
     # The truncated kernel is periodic on the supercell corresponding to the k-point grid
