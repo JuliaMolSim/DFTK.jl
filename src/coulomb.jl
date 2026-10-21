@@ -171,17 +171,20 @@ Since this function is periodic on the supercell, one FFT (including the Bloch p
 - [R. Sundararaman, T. A. Arias. Phys. Rev. B **87**, 165122 (2013)](https://doi.org/10.1103/PhysRevB.87.165122)
 """
 struct WignerSeitzTruncatedCoulomb <: InteractionKernel end
-# TODO: A pointwise eval_kernel_fourier(::WignerSeitzTruncatedCoulomb, p) could be obtained
-#       by a slow Fourier transform (explicit sum over the real-space grid).
 function eval_kernel_fourier(kernel::WignerSeitzTruncatedCoulomb, basis::PlaneWaveBasis,
                              q::Vec3)
     only(eval_kernel_fourier(kernel, basis, [q]))
 end
 function eval_kernel_fourier(::WignerSeitzTruncatedCoulomb, basis::PlaneWaveBasis{T},
                              q_points::AbstractVector{<:Vec3}) where {T}
+    
+    # TODO: A pointwise eval_kernel_fourier(::WignerSeitzTruncatedCoulomb, ...) could be obtained
+    #       by a slow Fourier transform (explicit sum over the real-space grid).
+    
     model = basis.model
 
     # The truncated kernel is periodic on the supercell corresponding to the k-point grid
+    @assert basis.kgrid isa MonkhorstPack
     kgrid_size = basis.kgrid.kgrid_size
     lattice_supercell = model.lattice .* kgrid_size'  # scale i-th vector by kgrid_size[i]
     fft_size_supercell = Tuple(basis.fft_size .* kgrid_size)

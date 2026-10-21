@@ -10,6 +10,7 @@ using LinearAlgebra
     model  = basis.model
     kernel = voxel_average.inner_kernel
 
+    @assert basis.kgrid isa MonkhorstPack
     kgrid_size = basis.kgrid.kgrid_size
 
     # Define Voxels as reciprocal cell divided by k-mesh
