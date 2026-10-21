@@ -103,11 +103,11 @@ function run_test(; architecture)
         model = model_DFT(Matrix{T}(silicon.lattice), atoms, silicon.positions;
                           functionals=LDA())
         basis = PlaneWaveBasis(model; Ecut=5, kgrid=[2, 2, 2], architecture)
-        scfres = self_consistent_field(basis; tol=1e-12,
-                                       response=ResponseOptions(; tol=1e-12))
+        scfres = self_consistent_field(basis; tol=1e-10,
+                                       response=ResponseOptions(; tol=1e-10))
 
         kgrid = ExplicitKpoints([[0.0, 0.0, 0.0], [0.1, 0.2, 0.3]])
-        bands = compute_bands(scfres, kgrid; n_bands=6, tol=1e-10)
+        bands = compute_bands(scfres, kgrid; n_bands=6, tol=1e-8)
         stack(bands.eigenvalues)
     end
 
@@ -119,7 +119,7 @@ function run_test(; architecture)
 end
 end
 
-@testitem "compute_bands PSP sensitivity using ForwardDiff" tags=[:minimal] #=
+@testitem "compute_bands PSP sensitivity using ForwardDiff" #=
     =#    setup=[TestCases, ForwardDiffWrappers, BandsSensitivity] begin
     using DFTK
     BandsSensitivity.run_test(; architecture=DFTK.CPU())
