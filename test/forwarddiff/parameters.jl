@@ -324,8 +324,8 @@ function run_test(; architecture)
 
     # Compute bands with primal and dual
     kgrid = ExplicitKpoints([[0.1, 0.2, 0.3], [0.4, -0.1, 0.25]])
-    bands      = compute_bands(scfres,      kgrid; n_bands=6, kline_density=5)
-    bands_dual = compute_bands(scfres_dual, kgrid; n_bands=6, kline_density=5)
+    bands      = compute_bands(scfres,      kgrid; n_bands=6)
+    bands_dual = compute_bands(scfres_dual, kgrid; n_bands=6)
 
     # Keys agree except :ψ
     @test Set(keys(bands)) == Set((keys(bands_dual)..., :ψ))
