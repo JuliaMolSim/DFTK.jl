@@ -658,6 +658,15 @@ function breaks_time_reversal_symmetry(basis::PlaneWaveBasis)
 end
 
 """
+Momentum transfers q = k - k' (reduced coordinates) of the Monkhorst-Pack grid of `basis`.
+For any shift of the k-point grid these form the unshifted grid of the same size.
+"""
+function build_qpoints(basis::PlaneWaveBasis{T}) where {T}
+    @assert basis.kgrid isa MonkhorstPack
+    Vec3{T}.(reducible_kcoords(MonkhorstPack(basis.kgrid.kgrid_size)).kcoords)
+end
+
+"""
 Forward FFT calls to the PlaneWaveBasis fft_grid field
 """
 ifft!(f_real::AbstractArray3, basis::PlaneWaveBasis, f_fourier::AbstractArray3) = 

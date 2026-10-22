@@ -178,8 +178,9 @@ function transfer_density(ρ_in, basis_in::PlaneWaveBasis{T},
 end
 
 """
-Find the equivalent index of the coordinate `kcoord` ∈ ℝ³ in a list `kcoords` ∈ [-½, ½)³.
-`ΔG` is the vector of ℤ³ such that `kcoords[index] = kcoord + ΔG`.
+Find the equivalent index of the coordinate `kcoord` ∈ ℝ³ in the list of `basis.kpoints`
+(of spin `spin`), whose coordinates are assumed to lie in [-½, ½)³.
+`ΔG` is the vector of ℤ³ such that `basis.kpoints[index].coordinate = kcoord + ΔG`.
 """
 function find_equivalent_kpt(basis::PlaneWaveBasis{T}, kcoord, spin; tol=sqrt(eps(T))) where {T}
     kcoord_red = normalize_kpoint_coordinate(kcoord .+ eps(T))
