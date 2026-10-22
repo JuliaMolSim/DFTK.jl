@@ -231,7 +231,6 @@ end
         ihub = findfirst(term -> term isa DFTK.TermHubbard, basis_U.terms)
         hubbard_n = DFTK.compute_hubbard_n(basis_U, ψ, occupation)
         forces = DFTK.compute_forces(basis_U.terms[ihub], basis_U, ψ, occupation; hubbard_n)
-        # Full gradient: one direction can be nearly orthogonal to the force for a given ψ
         for iatom = 1:2
             dE = FiniteDiff.finite_difference_gradient(zeros(3), Val(:central)) do δr
                 positions_δr = [position + (i == iatom) * δr
