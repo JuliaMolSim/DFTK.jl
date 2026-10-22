@@ -231,12 +231,15 @@ end
         ihub = findfirst(term -> term isa DFTK.TermHubbard, basis_U.terms)
         hubbard_n = DFTK.compute_hubbard_n(basis_U, ψ, occupation)
         forces = DFTK.compute_forces(basis_U.terms[ihub], basis_U, ψ, occupation; hubbard_n)
+        # Full gradient: one direction can be nearly orthogonal to the force for a given ψ
         for iatom = 1:2
-            dE = FiniteDiff.finite_difference_derivative(0.0) do ε
-                hubbard_energy(ψ, occupation, lattice, displaced(ε, iatom); hubbard)
+            dE = FiniteDiff.finite_difference_gradient(zeros(3), Val(:central)) do δr
+                positions_δr = [position + (i == iatom) * δr
+                                for (i, position) in enumerate(positions)]
+                hubbard_energy(ψ, occupation, lattice, positions_δr; hubbard)
             end
-            @test abs(dE) > 1e-4
-            @test dot(dir_atom, forces[iatom]) ≈ -dE  atol=1e-8
+            @test norm(dE) > 1e-4
+            @test forces[iatom] ≈ -dE  atol=1e-8
         end
     end
 
