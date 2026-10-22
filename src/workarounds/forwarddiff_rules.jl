@@ -311,19 +311,28 @@ end
 
 @timing function compute_bands(basis_dual::PlaneWaveBasis{T},
                                kgrid::Union{AbstractKgrid,AbstractKgridGenerator};
-                               ρ=nothing, τ=nothing, hubbard_n=nothing, εF=nothing,
-                               kwargs...) where {T <: ForwardDiff.Dual}
-    @assert isnothing(τ) && isnothing(hubbard_n)  # These cases are not yet implemented.
+                               ρ=nothing, τ=nothing, hubbard_n=nothing, kwargs...) where {T <: Dual}
+    @assert isnothing(hubbard_n)  # This case is not yet implemented.
 
-    # Primal pass
+    # Strip the dual part of the (possibly nested) quantities passed to compute_bands.
+    _value_or_nothing(::Nothing) = nothing
+    _value_or_nothing(x::AbstractArray{<:Dual})   = ForwardDiff.value.(x)
+    _value_or_nothing(x::AbstractArray{<:Number}) = x
+
+    # Primal pass (also does all argument checking)
     basis_primal = construct_value(basis_dual)
-    bands_primal = compute_bands(basis_primal, kgrid; ρ=ForwardDiff.value.(ρ), kwargs...)
+    bands_primal = compute_bands(basis_primal, kgrid;
+                                 ρ=_value_or_nothing(ρ),
+                                 τ=_value_or_nothing(τ),
+                                 hubbard_n, kwargs...)
+
+    basis = PlaneWaveBasis(basis_dual, kgrid)
+    ham_dual = Hamiltonian(basis; bands_primal.ψ, bands_primal.occupation,
+                           ρ, τ, hubbard_n, bands_primal.eigenvalues, bands_primal.εF,
+                           exxalg=VanillaExx())
+    Hψ_dual = ham_dual * bands_primal.ψ
 
     # 1st order perturbation theory of eigenvalues
-    basis = PlaneWaveBasis(basis_dual, kgrid)
-    ham_dual = Hamiltonian(basis; ρ, τ, hubbard_n)
-
-    Hψ_dual = ham_dual * bands_primal.ψ
     δeigenvalues = ntuple(ForwardDiff.npartials(T)) do α
         δHψ = [ForwardDiff.partials.(δHψk, α) for δHψk in Hψ_dual]
         map(bands_primal.ψ, δHψ) do ψk, δHψk
@@ -334,14 +343,19 @@ end
     end
 
     # Convert and combine
-    DT = ForwardDiff.Dual{ForwardDiff.tagtype(T)}
+    DT = Dual{ForwardDiff.tagtype(T)}
     eigenvalues = map(bands_primal.eigenvalues, δeigenvalues...) do εk, δεk...
         map((εnk, δεnk...) -> DT(εnk, δεnk), εk, δεk...)
     end
+    if isnothing(εF)
+        occupation = nothing
+    else
+        (; occupation) = compute_occupation(basis, eigenvalues, bands_primal.εF)
+    end
 
-    # Currently misses ψ and occupation compared to primal data structure.
-    (; basis, eigenvalues, ρ, τ, hubbard_n, εF, bands_primal.diagonalization,
-       bands_primal.seed)
+    # Same as the return value of the primal, except ψ is deliberately not returned
+    (; basis, eigenvalues, ρ, τ, hubbard_n, bands_primal.εF, occupation,
+       bands_primal.diagonalization, bands_primal.seed)
 end
 
 # For GPU kernels to compile, dynamic function calls must be avoided. Therefore, the quadrature
