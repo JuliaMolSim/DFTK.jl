@@ -67,13 +67,13 @@ end
     end
 end
 
-@testitem "meta-GGA scfres PSP sensitivity using ForwardDiff" #=
+@testitem "scfres PSP sensitivity using ForwardDiff (r2SCAN)" #=
     =#    setup=[TestCases, ForwardDiffWrappers, PspSensitivity] begin
     using DFTK
     PspSensitivity.run_test(; architecture=DFTK.CPU(), functionals=r2SCAN(), atol=1e-3)
 end
 
-@testitem "meta-GGA scfres PSP sensitivity using ForwardDiff (GPU)" tags=[:gpu] #=
+@testitem "scfres PSP sensitivity using ForwardDiff (r2SCAN, GPU)" tags=[:gpu] #=
     =#    setup=[TestCases, ForwardDiffWrappers, PspSensitivity] begin
     using DFTK
     using CUDA
@@ -85,6 +85,66 @@ end
         PspSensitivity.run_test(; architecture=DFTK.GPU(ROCArray), functionals=r2SCAN(), atol=1e-3)
     end
 end
+
+@testmodule BandsSensitivity begin
+using DFTK
+using Test
+using LinearAlgebra
+using ..TestCases: silicon
+using ..ForwardDiffWrappers: tagged_derivative
+
+function run_test(; architecture, functionals=LDA(), atol=1e-5)
+    function compute_bands_eigenvalues(ε::T) where {T}
+        psp = load_psp(silicon.psp_gth)
+        pspmod = PspHgh(psp.Zion, convert(T, psp.rloc),
+                        psp.cloc, psp.rp .+ [0, ε], psp.h;
+                        psp.identifier, psp.description)
+        atoms = fill(ElementPsp(silicon.atnum, pspmod), length(silicon.positions))
+        model = model_DFT(Matrix{T}(silicon.lattice), atoms, silicon.positions; functionals)
+        basis = PlaneWaveBasis(model; Ecut=10, kgrid=[2, 2, 2], architecture)
+        scfres = self_consistent_field(basis; tol=1e-10,
+                                       response=ResponseOptions(; tol=1e-10))
+
+        # Generic points, avoiding high-symmetry points
+        kgrid = ExplicitKpoints([[0.1, 0.2, 0.3], [0.4, -0.1, 0.25]])
+        bands = compute_bands(scfres, kgrid; n_bands=6, tol=1e-8)
+        stack(bands.eigenvalues)
+    end
+
+    derivative_ε = let ε = 1e-4
+        (compute_bands_eigenvalues(ε) - compute_bands_eigenvalues(-ε)) / 2ε
+    end
+    derivative_fd = tagged_derivative(compute_bands_eigenvalues, 0.0)
+    @test norm(derivative_fd - derivative_ε) < atol
+end
+end
+
+@testitem "compute_bands PSP sensitivity using ForwardDiff" #=
+    =#    setup=[TestCases, ForwardDiffWrappers, BandsSensitivity] begin
+    using DFTK
+    BandsSensitivity.run_test(; architecture=DFTK.CPU(), functionals=LDA())
+end
+
+@testitem "compute_bands PSP sensitivity using ForwardDiff (r2SCAN)" #=
+    =#    setup=[TestCases, ForwardDiffWrappers, BandsSensitivity] begin
+    using DFTK
+    BandsSensitivity.run_test(; architecture=DFTK.CPU(), functionals=r2SCAN())
+end
+
+@testitem "compute_bands PSP sensitivity using ForwardDiff (GPU)" tags=[:gpu] #=
+    =#    setup=[TestCases, ForwardDiffWrappers, BandsSensitivity] begin
+    using DFTK
+    using CUDA
+    using AMDGPU
+    if CUDA.has_cuda() && CUDA.has_cuda_gpu()
+        BandsSensitivity.run_test(; architecture=DFTK.GPU(CuArray), functionals=LDA())
+    end
+    if AMDGPU.has_rocm_gpu()
+        BandsSensitivity.run_test(; architecture=DFTK.GPU(ROCArray), functionals=LDA())
+    end
+end
+
+
 
 @testmodule ForceSensitivity begin
 using DFTK
@@ -199,7 +259,7 @@ function run_test(; architecture)
     # Make silicon primal model
     model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
                       functionals=LDA(), temperature=1e-3, smearing=Smearing.Gaussian())
-    
+
     # Make silicon dual model
     # We need to call the `Tag` constructor to trigger the `ForwardDiff.tagcount`
     T = typeof(ForwardDiff.Tag(Val(:mytag), Float64))
@@ -213,7 +273,7 @@ function run_test(; architecture)
     # Compute scfres with primal and dual basis
     scfres = self_consistent_field(basis; tol=1e-5)
     scfres_dual = self_consistent_field(basis_dual; tol=1e-5)
-    
+
     # Check that scfres_dual has the same parameters as scfres
     @test isempty(setdiff(keys(scfres), keys(scfres_dual)))
 end
@@ -237,6 +297,47 @@ end
         ScfresParameterConsistency.run_test(; architecture=DFTK.GPU(ROCArray))
     end
 end
+
+@testmodule BandsParameterConsistency begin
+using DFTK
+using Test
+using ForwardDiff
+using ..TestCases: silicon
+function run_test(; architecture)
+    # Make silicon primal model
+    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                      functionals=LDA(), temperature=1e-3, smearing=Smearing.Gaussian())
+
+    # Make silicon dual model
+    # We need to call the `Tag` constructor to trigger the `ForwardDiff.tagcount`
+    T = typeof(ForwardDiff.Tag(Val(:mytag), Float64))
+    x_dual = ForwardDiff.Dual{T}(1.0, 1.0)
+    model_dual = Model(model; lattice=x_dual * model.lattice)
+
+    # Construct the primal and dual basis
+    basis      = PlaneWaveBasis(model;      Ecut=5, kgrid=(1,1,1), architecture)
+    basis_dual = PlaneWaveBasis(model_dual; Ecut=5, kgrid=(1,1,1), architecture)
+
+    # Compute scfres with primal and dual basis
+    scfres      = self_consistent_field(basis;      tol=1e-5)
+    scfres_dual = self_consistent_field(basis_dual; tol=1e-5)
+
+    # Compute bands with primal and dual
+    kgrid = ExplicitKpoints([[0.1, 0.2, 0.3], [0.4, -0.1, 0.25]])
+    bands      = compute_bands(scfres,      kgrid; n_bands=6)
+    bands_dual = compute_bands(scfres_dual, kgrid; n_bands=6)
+
+    # Keys agree except :ψ
+    @test Set(keys(bands)) == Set((keys(bands_dual)..., :ψ))
+end
+end
+
+@testitem "compute_bands dual has the same keys as primal" tags=[:minimal] #=
+    =#    setup=[TestCases, BandsParameterConsistency] begin
+    using DFTK
+    BandsParameterConsistency.run_test(; architecture=DFTK.CPU())
+end
+
 
 @testmodule TemperatureSensitivity begin
 using DFTK
@@ -287,13 +388,13 @@ end
     end
 end
 
-@testitem "meta-GGA ForwardDiff wrt temperature" tags=[:minimal] #=
+@testitem "ForwardDiff wrt temperature (r2SCAN)" tags=[:minimal] #=
     =#    setup=[ForwardDiffWrappers, TemperatureSensitivity] begin
     using DFTK
     TemperatureSensitivity.run_test(; architecture=DFTK.CPU(), functionals=r2SCAN())
 end
 
-@testitem "meta-GGA ForwardDiff wrt temperature (GPU)" tags=[:gpu] #=
+@testitem "ForwardDiff wrt temperature (r2SCAN, GPU)" tags=[:gpu] #=
     =#    setup=[ForwardDiffWrappers, TemperatureSensitivity] begin
     using DFTK
     using CUDA
