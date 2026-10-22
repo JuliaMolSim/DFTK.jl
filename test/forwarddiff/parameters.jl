@@ -319,10 +319,11 @@ function run_test(; architecture)
     basis_dual = PlaneWaveBasis(model_dual; Ecut=5, kgrid=(1,1,1), architecture)
 
     # Compute scfres with primal and dual basis
-    scfres = self_consistent_field(basis; tol=1e-5)
+    scfres      = self_consistent_field(basis;      tol=1e-5)
     scfres_dual = self_consistent_field(basis_dual; tol=1e-5)
 
     # Compute bands with primal and dual
+    kgrid = ExplicitKpoints([[0.1, 0.2, 0.3], [0.4, -0.1, 0.25]])
     bands      = compute_bands(scfres,      kgrid; n_bands=6, kline_density=5)
     bands_dual = compute_bands(scfres_dual, kgrid; n_bands=6, kline_density=5)
 
