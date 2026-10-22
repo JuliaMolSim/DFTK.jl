@@ -314,16 +314,11 @@ end
                                ρ=nothing, τ=nothing, hubbard_n=nothing, kwargs...) where {T <: Dual}
     @assert isnothing(hubbard_n)  # This case is not yet implemented.
 
-    # Strip the dual part of the (possibly nested) quantities passed to compute_bands.
-    _value_or_nothing(::Nothing) = nothing
-    _value_or_nothing(x::AbstractArray{<:Dual})   = ForwardDiff.value.(x)
-    _value_or_nothing(x::AbstractArray{<:Number}) = x
-
     # Primal pass (also does all argument checking)
     basis_primal = construct_value(basis_dual)
     bands_primal = compute_bands(basis_primal, kgrid;
-                                 ρ=_value_or_nothing(ρ),
-                                 τ=_value_or_nothing(τ),
+                                 ρ=ForwardDiff.value.(ρ),
+                                 τ=ForwardDiff.value.(τ),
                                  hubbard_n, kwargs...)
 
     basis = PlaneWaveBasis(basis_dual, kgrid)
@@ -347,7 +342,7 @@ end
     eigenvalues = map(bands_primal.eigenvalues, δeigenvalues...) do εk, δεk...
         map((εnk, δεnk...) -> DT(εnk, δεnk), εk, δεk...)
     end
-    if isnothing(εF)
+    if isnothing(bands_primal.εF)
         occupation = nothing
     else
         (; occupation) = compute_occupation(basis, eigenvalues, bands_primal.εF)
