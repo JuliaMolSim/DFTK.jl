@@ -7,11 +7,6 @@
 """
 matrix_function(f, F::Eigen) = F.vectors * Diagonal(f.(F.values)) * F.vectors'
 matrix_function(f, A::Hermitian) = matrix_function(f, eigen(A))
-# A^{-1/2} needs a well-conditioned A, e.g. an overlap of linearly independent orbitals
-function matrix_function(::typeof(invsqrt), F::Eigen)
-    @assert minimum(abs, F.values) > eps(real(eltype(F.values))) * maximum(abs, F.values)
-    F.vectors * Diagonal(invsqrt.(F.values)) * F.vectors'
-end
 
 """
 Derivative of `f(A)` along the Hermitian perturbation `δA`, for the Hermitian matrix
@@ -22,6 +17,18 @@ Derivative of `f(A)` along the Hermitian perturbation `δA`, for the Hermitian m
 The eigendecomposition is passed so that it can be reused for several `δA`.
 """
 function matrix_function_derivative(f, F::Eigen, δA)
-    K = [divided_difference(f, λi, λj) for λi in F.values, λj in F.values]
+    K = divided_difference.(f, F.values, transpose(F.values))
     F.vectors * ((F.vectors' * δA * F.vectors) .* K) * F.vectors'
+end
+
+# The generic ForwardDiff rule for eigen(::Hermitian) divides by eigenvalue differences and
+# is wrong for degenerate eigenvalues, e.g. of the overlap of atomic orbitals in a crystal.
+# Nested Duals (higher derivatives) still go through that generic rule for the inner level.
+function matrix_function(f, A::Hermitian{Complex{ForwardDiff.Dual{Tg,V,N}}}) where {Tg,V,N}
+    F = eigen(Hermitian(ForwardDiff.value.(A)))
+    δfA = ntuple(p -> matrix_function_derivative(f, F, ForwardDiff.partials.(A, p)), N)
+    map(matrix_function(f, F), δfA...) do x, δx...
+        Complex(ForwardDiff.Dual{Tg}(real(x), real.(δx)),
+                ForwardDiff.Dual{Tg}(imag(x), imag.(δx)))
+    end
 end

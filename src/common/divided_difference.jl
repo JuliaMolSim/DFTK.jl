@@ -1,7 +1,8 @@
 """
 `(f(x) - f(y))/(x - y)`, computed stably in the case where `x` and `y` are close.
 Without `fder`, the derivative `f'` is computed by ForwardDiff. Functions with a closed form
-that is exact for `x ≈ y` overload the method without `fder`, e.g. `invsqrt` below.
+that is exact for `x ≈ y` overload the method without `fder`, which can fall back to the
+method with `fder` (e.g. `fermi_dirac`).
 """
 function divided_difference(f, fder, x::T, y) where {T}
     # (f(x) - f(y))/(x - y) is accurate to ε/|x-y|
@@ -12,6 +13,3 @@ function divided_difference(f, fder, x::T, y) where {T}
     (f(x)-f(y)) / (x-y)
 end
 divided_difference(f, x, y) = divided_difference(f, z -> ForwardDiff.derivative(f, z), x, y)
-
-invsqrt(x) = 1 / sqrt(x)
-divided_difference(::typeof(invsqrt), x, y) = -1 / (sqrt(x) * sqrt(y) * (sqrt(x) + sqrt(y)))

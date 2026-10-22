@@ -328,17 +328,6 @@ function hankel(quadrature, r::AbstractVector, r2_f::AbstractVector, l::Integer,
     Dual{Tg,V,N}(value, derivative * ForwardDiff.partials(p))
 end
 
-# The generic ForwardDiff rule for eigen(::Hermitian) divides by eigenvalue differences and
-# is wrong for degenerate eigenvalues, e.g. of the overlap of atomic orbitals in a crystal.
-# Nested Duals (higher derivatives) still go through that generic rule for the inner level.
-function matrix_function(f, A::Hermitian{Complex{Dual{Tg,V,N}}}) where {Tg,V,N}
-    F = eigen(Hermitian(ForwardDiff.value.(A)))
-    δfA = ntuple(p -> matrix_function_derivative(f, F, ForwardDiff.partials.(A, p)), N)
-    map(matrix_function(f, F), δfA...) do x, δx...
-        Complex(Dual{Tg}(real(x), real.(δx)), Dual{Tg}(imag(x), imag.(δx)))
-    end
-end
-
 # other workarounds
 
 # problem: ForwardDiff of norm of SVector gives NaN derivative at zero
