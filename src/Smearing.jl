@@ -44,7 +44,7 @@ function occupation_divided_difference(S::SmearingFunction, x, y, εF, temp)
     else
         f(z) = occupation(S, (z-εF) / temp)
         fder(z) = occupation_derivative(S, (z-εF)/temp) / temp
-        divided_difference(f, fder, x, y)
+        divided_difference(f, x, y; fder)
     end
 end
 
@@ -72,15 +72,20 @@ function fermi_dirac(x)
     1 / (1 + exp(x))
 end
 function divided_difference(::typeof(fermi_dirac), x, y)
+    f = fermi_dirac
+    # f'(x) = -f(x)(1 - f(x)) = -exp(-|x|) / (1 + exp(-|x|))^2, the latter without
+    # cancellation in 1 - f and without overflow
+    fder(z) = -exp(-abs(z)) / (1 + exp(-abs(z)))^2
+    x == y && return (fder(x) + fder(y)) / 2
+    # If exp overflows, the plain formula is accurate: either |x - y| is large,
+    # or f(x) and f(y) are both within exp(-|x|) of 0 or 1.
+    large_float = floatmax(typeof(x)) / 1e4 # conservative
+    if max(abs(x), abs(y), abs(x - y)) > log(large_float)
+        return (f(x) - f(y)) / (x - y)
+    end
     # For a stable computation we use
     # (fx - fy) = fx fy (exp(y) - exp(x)) = fx fy exp(x) expm1(y-x)
-    # which we symmetrize. This can overflow, in which case
-    # we fall back to the standard method
-    large_float = floatmax(typeof(x)) / 1e4 # conservative
-    if x == y || max(abs(x), abs(y), abs(x - y)) > log(large_float)
-        return divided_difference(fermi_dirac, z -> occupation_derivative(FermiDirac(), z), x, y)
-    end
-    f = fermi_dirac
+    # which we symmetrize.
     Δfxy = f(x) * f(y) * exp(x) * expm1(y - x)
     Δfyx = f(x) * f(y) * exp(y) * expm1(x - y)
     (Δfxy - Δfyx) / 2 / (x - y)
