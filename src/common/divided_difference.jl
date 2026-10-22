@@ -1,7 +1,7 @@
 """
 `(f(x) - f(y))/(x - y)`, computed stably in the case where `x` and `y` are close.
 By default the derivative `fder` of `f` is computed by ForwardDiff. Functions with a closed
-form that is exact for `x ≈ y` overload this function, e.g. `invsqrt`.
+form that is exact for `x ≈ y` overload this function.
 """
 function divided_difference(f, x::T, y; fder=z -> ForwardDiff.derivative(f, z)) where {T}
     # (f(x) - f(y))/(x - y) is accurate to ε/|x-y|
