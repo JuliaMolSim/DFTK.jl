@@ -309,9 +309,9 @@ end
        scfres.seed, scfres.algorithm, scfres.runtime_ns)
 end
 
-@timing function compute_bands(basis_dual::PlaneWaveBasis{T},
-                               kgrid::Union{AbstractKgrid,AbstractKgridGenerator};
-                               ρ=nothing, τ=nothing, hubbard_n=nothing, kwargs...) where {T <: Dual}
+@timing "compute_bands ForwardDiff" function compute_bands(basis_dual::PlaneWaveBasis{T},
+       kgrid::Union{AbstractKgrid,AbstractKgridGenerator};
+       ρ=nothing, τ=nothing, hubbard_n=nothing, kwargs...) where {T <: Dual}
     @assert isnothing(hubbard_n)  # This case is not yet implemented.
 
     # Primal pass (also does all argument checking)
