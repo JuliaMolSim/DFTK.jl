@@ -73,22 +73,23 @@ function fermi_dirac(x)
 end
 function divided_difference(::typeof(fermi_dirac), x, y)
     f = fermi_dirac
-    # f'(x) = -f(x)(1 - f(x)) = -exp(-|x|) / (1 + exp(-|x|))^2, the latter without
-    # cancellation in 1 - f and without overflow
+    # f'(x) = -f(x)(1 - f(x)), written without cancellation in 1 - f and without overflow
     fder(z) = -exp(-abs(z)) / (1 + exp(-abs(z)))^2
-    x == y && return (fder(x) + fder(y)) / 2
-    # If exp overflows, the plain formula is accurate: either |x - y| is large,
-    # or f(x) and f(y) are both within exp(-|x|) of 0 or 1.
-    large_float = floatmax(typeof(x)) / 1e4 # conservative
-    if max(abs(x), abs(y), abs(x - y)) > log(large_float)
-        return (f(x) - f(y)) / (x - y)
-    end
     # For a stable computation we use
     # (fx - fy) = fx fy (exp(y) - exp(x)) = fx fy exp(x) expm1(y-x)
-    # which we symmetrize.
-    Δfxy = f(x) * f(y) * exp(x) * expm1(y - x)
-    Δfyx = f(x) * f(y) * exp(y) * expm1(x - y)
-    (Δfxy - Δfyx) / 2 / (x - y)
+    # which we symmetrize. This can overflow, in which case the plain formula
+    # is accurate: either |x-y| is large, or fx and fy are exponentially close to 0 or 1.
+    large_float = floatmax(typeof(x)) / 1e4 # conservative
+    will_exp_overflow(z1, z2) = abs(z1-z2) > log(large_float)
+    if x == y
+        (fder(x) + fder(y)) / 2
+    elseif will_exp_overflow(x, y) || will_exp_overflow(x, 0) || will_exp_overflow(y, 0)
+        (f(x)-f(y)) / (x-y)
+    else
+        Δfxy = f(x) * f(y) * exp(x) * expm1(y-x)
+        Δfyx = f(x) * f(y) * exp(y) * expm1(x-y)
+        (Δfxy-Δfyx) / 2 / (x-y)
+    end
 end
 occupation(S::FermiDirac, x) = fermi_dirac(x)
 function xlogx(x)
