@@ -3,10 +3,10 @@
 # This is a quick sketch how to run a simple hybrid DFT calculation using DFTK.
 #
 # !!! warning "Preliminary implementation"
-#     Hybrid-DFT is not yet performance-optimised and has only seen rudimentary testing
-#     so far. Further k-point sampling requires a Monkhorst-Pack grid without symmetry 
-#     reduction (`symmetries=false`) and the interface is not yet considered stable.
-#     We appreciate any issues, bug reports or PRs.
+#     Hybrid-DFT is not yet performance-optimised, MPI parallelisation does not work
+#     and all treatment of ``k``-point symmetry is disabled when using exact exchange terms.
+#     As the implementation is still in an early stage we appreciate any issues,
+#     bug reports or PRs.
 #
 using AtomsBuilder
 using DFTK
@@ -27,3 +27,5 @@ basis  = PlaneWaveBasis(model; basis.Ecut, basis.kgrid)
 scfres = self_consistent_field(basis; tol=1e-4, scfres.ρ, scfres.ψ, scfres.occupation,
                                scfres.eigenvalues, solver=DFTK.scf_damping_solver());
 nothing  # hide
+
+# See also [`HSE`](@ref) and [`model_HF`](@ref) for setting up Hartree-Fock calculations.
