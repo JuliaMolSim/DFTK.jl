@@ -162,8 +162,8 @@ end
 
 # Non-orthogonalized atomic orbitals, i.e. `atomic_orbital_projectors` before the Löwdin step.
 function _atomic_orbitals_nonorthogonal(basis::PlaneWaveBasis{T};
-                                        isonmanifold = l -> true,
-                                        positions = basis.model.positions) where {T}
+                                        isonmanifold=l -> true,
+                                        positions=basis.model.positions) where {T}
     G_plus_k_all = [Gplusk_vectors(basis, kpt) for kpt in basis.kpoints]
     G_plus_k_all_cart = [map(recip_vector_red_to_cart(basis.model), gpk) 
                          for gpk in G_plus_k_all]
