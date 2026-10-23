@@ -196,15 +196,10 @@ end
         projectors_at(ε) = DFTK.atomic_orbital_projectors(basis; positions=displaced(ε)).projectors
         ref = (projectors_at(h) - projectors_at(-h)) / 2h
         dprojectors = DFTK.atomic_orbital_projector_derivatives(basis).dprojectors
-        # Overlaps with the Bloch waves, computed without the plane-wave sized derivative
-        ψresults = DFTK.atomic_orbital_projector_derivatives(basis; ψ)
-        (; projections) = ψresults
-        ψdprojectors = ψresults.dprojectors
-        projectors = projectors_at(0.0)
+        ψ_dprojectors = DFTK.atomic_orbital_projector_derivatives(basis, ψ).dprojectors
         for ik in eachindex(basis.kpoints)
             @test sum(dir_atom .* dprojectors[ik][1]) ≈ ref[ik]  rtol=1e-6
-            @test ψdprojectors[ik][1] ≈ [ψ[ik]' * dP for dP in dprojectors[ik][1]]
-            @test projections[ik] ≈ ψ[ik]' * projectors[ik]
+            @test ψ_dprojectors[ik][1] ≈ [ψ[ik]' * dP for dP in dprojectors[ik][1]]
         end
     end
 
