@@ -204,13 +204,13 @@ end
     hubbard_labels = reduce(vcat, term.labels)  # columns of term.P_vec
 
     # We compute the forces from the irreducible BZ; they are symmetrized later.
-    (; dprojectors, labels, projections) = atomic_orbital_projector_derivatives(
-        basis; ψ, selected=(label -> label in hubbard_labels))
+    (; dprojectors, labels) = atomic_orbital_projector_derivatives(
+        basis, ψ; selected=(label -> label in hubbard_labels))
     P_columns = [findfirst(isequal(label), labels) for label in hubbard_labels]
 
     forces = [zero(Vec3{T}) for _ in basis.model.positions]
     for (ik, kpt) in enumerate(basis.kpoints)
-        Pψk = projections[ik][:, P_columns]'  # = term.P_vec[ik]' * ψ[ik]
+        Pψk = term.P_vec[ik]' * ψ[ik]
         DPψk = D[kpt.spin] * Pψk
         for iatom in eachindex(forces)
             forces[iatom] -= map(1:3) do α
