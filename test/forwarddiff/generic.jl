@@ -113,3 +113,19 @@ end
         @test ForwardDiffWrappers.tagged_derivative(fA, 0.0) ≈ reference atol=1e-8
     end
 end
+
+@testitem "Löwdin orthogonalization ForwardDiff rule" #=
+    =#    tags=[:minimal] setup=[ForwardDiffWrappers] begin
+    using DFTK
+    using LinearAlgebra
+
+    φ_orthonormal = Matrix(qr(randn(ComplexF64, 8, 3)).Q)  # case 1: φ'φ = I
+    φ_generic     = randn(ComplexF64, 8, 3)                # case 2: φ'φ ≠ I
+    δφ = randn(ComplexF64, 8, 3)
+    for φ in (φ_orthonormal, φ_generic)
+        P(t) = DFTK.ortho_lowdin(φ + t * δφ)
+        h = 1e-5
+        reference = (P(h) - P(-h)) / 2h
+        @test ForwardDiffWrappers.tagged_derivative(P, 0.0) ≈ reference rtol=1e-7
+    end
+end

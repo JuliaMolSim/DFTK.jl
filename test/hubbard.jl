@@ -131,21 +131,6 @@ end
    end
 end
 
-@testitem "Löwdin orthogonalization ForwardDiff rule" tags=[:minimal] begin
-    using DFTK
-    using ForwardDiff
-    using LinearAlgebra
-    using Random
-
-    δφ = randn(Xoshiro(2), ComplexF64, 8, 3)
-    # Orthonormal columns (fully degenerate overlap) and generic non-orthogonal columns
-    for φ in (Matrix(qr(randn(Xoshiro(1), ComplexF64, 8, 3)).Q), randn(Xoshiro(3), ComplexF64, 8, 3))
-        f(t) = real(sum(DFTK.ortho_lowdin(φ + t * δφ) * [1.0, 2.0, 3.0 + 1im]))
-        h = 1e-5
-        @test ForwardDiff.derivative(f, 0.0) ≈ (f(h) - f(-h)) / 2h  rtol=1e-7
-    end
-end
-
 @testmodule HubbardSilicon begin
     using DFTK
     using LinearAlgebra
