@@ -218,10 +218,7 @@ Overview of parameters:
         # TODO: Dirty hack. This should be solved more generally and hubbard should be on
         #       the same footing as τ and ρ as part of the generalised density;
         #       see discussion in https://github.com/JuliaMolSim/DFTK.jl/issues/1065
-        ihubbard = findfirst(t -> t isa TermHubbard, basis.terms)
-        if !isnothing(ihubbard)
-            hubbard_n = compute_hubbard_n(basis.terms[ihubbard], basis, ψ, occupation)
-        end
+        hubbard_n = compute_hubbard_n(basis, ψ, occupation)
 
         # Update info with results gathered so far
         info_next = (; ham, basis, ρin, τin, converged, stage=:iterate, algorithm="SCF",

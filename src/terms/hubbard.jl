@@ -138,11 +138,11 @@ function (hubbard::Hubbard{T})(basis::AbstractBasis) where {T}
     TermHubbard(manifolds, hubbard.U, projs_matrices, projs_per_kpt, manifold_labels)
 end
 
-struct TermHubbard{T, PT, L} <: Term
+struct TermHubbard{T, PT, PV, L} <: Term
     manifolds::Vector{ResolvedOrbitalManifold}
     U::Vector{T}  # U values
     P::Vector{PT} # projectors per manifold
-    P_vec::Vector{Matrix{Complex{T}}} # projectors per k-point (all manifolds concatenated)
+    P_vec::Vector{PV} # projectors per k-point (all manifolds concatenated)
     labels::Vector{L}
 end
 
@@ -155,32 +155,73 @@ end
     end
    
     filled_occ = filled_occupation(basis.model)
-    n_spin = basis.model.n_spin_components
-    projs = term.P_vec
-    # For the ops we have to reshape hubbard_n to match the NonlocalOperator structure, 
-    # using a block diagonal form whit one block per atom per manifold
-    # 2l+1 is the number of projectors per atom, i.e. the dimension of the blocks
-    D_size = 0
-    for manifold in term.manifolds
-        D_size += (2*manifold.l + 1) * length(manifold.iatoms)
-    end
-    D = [zeros(Complex{T}, D_size, D_size) for _ in 1:n_spin]
-
     E = zero(T)
-    offset = 0 
     for (iman, manifold) in enumerate(term.manifolds)
-        nproj_atom = 2*manifold.l + 1
-        for σ in 1:n_spin, iatom in 1:length(manifold.iatoms)
-            proj_range = (offset + (iatom-1)*nproj_atom + 1):(offset + iatom*nproj_atom)
-            D[σ][proj_range, proj_range] = 1/T(2) * term.U[iman] * (I - 2*hubbard_n[iman][σ, iatom, iatom])
-            E += filled_occ * 1/T(2) * term.U[iman] *
-                 real(tr(hubbard_n[iman][σ, iatom, iatom] * (I - hubbard_n[iman][σ, iatom, iatom])))
+        for σ in 1:basis.model.n_spin_components, iatom in 1:length(manifold.iatoms)
+            n_II = hubbard_n[iman][σ, iatom, iatom]
+            E += filled_occ * 1/T(2) * term.U[iman] * real(tr(n_II * (I - n_II)))
         end
-        offset += nproj_atom*length(manifold.iatoms)
     end
-    ops = [NonlocalOperator(basis, kpt, projs[ik], D[kpt.spin]) 
-           for (ik,kpt) in enumerate(basis.kpoints)]
+    D = hubbard_potential_coefficients(term, basis, hubbard_n)
+    ops = [NonlocalOperator(basis, kpt, term.P_vec[ik], D[kpt.spin])
+           for (ik, kpt) in enumerate(basis.kpoints)]
     return (; E, ops)
+end
+
+"""
+Coefficients `D[σ]` of the Hubbard potential `P D[σ] P'` with `P = term.P_vec[ik]`, i.e.
+`U/2 (1 - 2 hubbard_n)`. To match the `NonlocalOperator` structure, `D[σ]` is block diagonal
+with one block of size `2l+1` per atom per manifold.
+"""
+function hubbard_potential_coefficients(term::TermHubbard, basis::PlaneWaveBasis{T},
+                                        hubbard_n) where {T}
+    D_size = sum(manifold -> (2manifold.l + 1) * length(manifold.iatoms), term.manifolds)
+    D = [zeros(Complex{T}, D_size, D_size) for _ in 1:basis.model.n_spin_components]
+    offset = 0
+    for (iman, manifold) in enumerate(term.manifolds)
+        labels = term.labels[iman]
+        for σ in 1:basis.model.n_spin_components, (idx, iatom) in enumerate(manifold.iatoms)
+            n_II = hubbard_n[iman][σ, idx, idx]
+            # The columns of P are in label order, not in the order of manifold.iatoms
+            proj_range = offset .+ findall(label -> label.iatom == iatom, labels)
+            D[σ][proj_range, proj_range] = 1/T(2) * term.U[iman] * (I - 2*n_II)
+        end
+        offset += length(labels)
+    end
+    D
+end
+
+@timing "forces: hubbard" function compute_forces(term::TermHubbard, basis::PlaneWaveBasis{TT},
+                                                  ψ, occupation; hubbard_n, kwargs...) where {TT}
+    T = promote_type(TT, real(eltype(ψ[1])))
+    isempty(term.U) && return nothing
+    # At fixed ψ, the energy depends on the positions only through hubbard_n, and
+    #   force = -∂E/∂r = -Σ_k w_k Σ_n f_n 2Re⟨ψ_n|∂P D P'|ψ_n⟩
+    # with D = U/2 (1 - 2 hubbard_n), the same structure as for the nonlocal term. The
+    # projectors P are Löwdin-orthogonalized against the atomic orbitals of all atoms, so every
+    # atom carrying orbitals feels a force.
+    D = hubbard_potential_coefficients(term, basis, hubbard_n)
+    hubbard_labels = reduce(vcat, term.labels)  # columns of term.P_vec
+
+    # We compute the forces from the irreducible BZ; they are symmetrized later.
+    (; dprojectors, labels) = atomic_orbital_projector_derivatives(
+        basis, ψ; selected=(label -> label in hubbard_labels))
+    P_columns = [findfirst(isequal(label), labels) for label in hubbard_labels]
+
+    forces = [zero(Vec3{T}) for _ in basis.model.positions]
+    for (ik, kpt) in enumerate(basis.kpoints)
+        Pψk = term.P_vec[ik]' * ψ[ik]
+        DPψk = D[kpt.spin] * Pψk
+        for iatom in eachindex(forces)
+            forces[iatom] -= map(1:3) do α
+                ψdPk = dprojectors[ik][iatom][α][:, P_columns]  # ⟨ψ_n|∂P⟩
+                dE_bands = 2 * real.(columnwise_dots(ψdPk', DPψk))
+                basis.kweights[ik] * sum(occupation[ik] .* dE_bands)
+            end
+        end
+    end
+    mpi_sum!(forces, basis.comm_kpts)
+    symmetrize_forces(basis, forces)
 end
 
 """
@@ -229,6 +270,17 @@ end
 function compute_hubbard_n(term::TermHubbard, basis::PlaneWaveBasis, ψ, occupation)
     [compute_hubbard_n(manifold, P, labels, basis, ψ, occupation)
      for (manifold, P, labels) in zip(term.manifolds, term.P, term.labels)]
+end
+
+"""
+    compute_hubbard_n(basis, ψ, occupation)
+
+`hubbard_n` of the Hubbard term of `basis`, or `nothing` if `basis` has no Hubbard term.
+"""
+function compute_hubbard_n(basis::PlaneWaveBasis, ψ, occupation)
+    ihubbard = findfirst(term -> term isa TermHubbard, basis.terms)
+    isnothing(ihubbard) && return nothing
+    compute_hubbard_n(basis.terms[ihubbard], basis, ψ, occupation)
 end
 
 """
