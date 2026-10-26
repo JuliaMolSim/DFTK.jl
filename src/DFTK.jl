@@ -210,6 +210,7 @@ include("pseudo/pseudopotential_data.jl")
 
 export atomic_system, periodic_system  # Reexport from AtomsBase
 export run_wannier90
+export DFTD3
 export DFTKCalculator
 include("external/atomsbase.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods

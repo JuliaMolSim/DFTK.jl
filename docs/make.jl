@@ -35,6 +35,7 @@ PAGES = [
         "examples/geometry_optimization.jl",
         "examples/energy_cutoff_smearing.jl",
         "examples/hubbard.jl",
+        "examples/dispersion_correction.jl",
         "examples/exact_exchange.jl",
     ],
     "Response and properties" => [
