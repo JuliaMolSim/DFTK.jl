@@ -74,6 +74,7 @@ end
         end
     end
 end
+
 @testitem "Matrix products with a Dual scaling factor" #=
     =#    tags=[:dont_test_mpi, :minimal] setup=[ForwardDiffWrappers] begin
     using DFTK
@@ -83,6 +84,7 @@ end
 
     # LinearAlgebra turns γ * A * B into mul!(C, A, B, γ, false), so the scaling factor of
     # the BLAS-dispatched Dual matrix product can itself be a Dual.
+    # This is a regression test for src/workarounds/forwarddiff_gemm.jl with a Dual factor.
     for T in (Float64, ComplexF64)
         A = randn(Xoshiro(1), T, 4, 3)
         B = randn(Xoshiro(2), T, 3, 5)
@@ -92,6 +94,7 @@ end
         @test ForwardDiffWrappers.tagged_derivative(g, 0.0) ≈ 2 * real(sum(A * B))
     end
 end
+
 @testitem "Derivative of matrix functions with degenerate eigenvalues" #=
     =#    tags=[:dont_test_mpi, :minimal] setup=[ForwardDiffWrappers] begin
     using DFTK
