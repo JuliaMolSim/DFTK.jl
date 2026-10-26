@@ -1,69 +1,51 @@
-# TODO: names need another pass :)
-# TODO: careful with minus signs
-
 # Electric field perturbations at zero field.
 #
-# We start from the electric enthalpy functional
-# F({uₙₖ}, E) = Energy({uₙₖ}) - Ω E * Ptot({uₙₖ}),
-# where Ptot is the total polarization (electronic + ionic).
-# Its electronic part in direction α is given by
-# Pel_α({uₙₖ}) = - Σₙₖ wₖfₙₖ <uₙₖ|i ∂k_α|uₙₖ>.
+# Berry phase electronic polarization in direction α:
+# Pel_α({uₙₖ}) = -2i/(2π)^3 ∑ₙ ∫ <uₙₖ|∂k_α uₙₖ>
+#             = -i/Ω * Σₙₖ wₖfₙₖ <uₙₖ|∂k_α uₙₖ>.
+# Total polarization (electronic + ionic):
+# Ptot_α({uₙₖ}) = Pel_α({uₙₖ}) + ∑ₛ Zₛ Rₛ_α.
 #
-# The first step of the computation is to evaluate i ∂k_α|uₙₖ>,
-# which requires only a bare χ0 solve per direction α.
-# For an electric field perturbation, the perturbing potential is:
-# 1/fₙₖ ∂²F/∂uₙₖ*∂E = -Ω/fₙₖ ∂P/∂uₙₖ* = Ω i ∂k_α|uₙₖ>,
-# and we have to solve the full self-consistent DFPT equation.
+# At nonzero field, the {uₙₖ} minimize the electric enthalpy functional:
+# F({uₙₖ}, E) = Energy({uₙₖ}) - Ω E ⋅ Ptot({uₙₖ}).
+# The DFPT rhs for an electric field perturbation in direction α is
+# 1/wₖfₙₖ ∂²F/∂<uₙₖ|∂E_α = -Ω/wₖfₙₖ ∂P_α/∂<uₙₖ| = i ∂k_α uₙₖ.
+# So the steps are:
+# 1. Compute ∂k_α|uₙₖ> as response to ∂H/∂k_α (Sternheimer).
+# 2. Compute DFPT response to i ∂k_α uₙₖ.
+# 3. Evaluate required derivative of quantity wrt. uₙₖ with AD
 #
-#
-# The fundamental trick is that while the position operator r_α is ill-defined in
-# a crystal, for m != n and εₘₖ != εₙₖ, we can compute
-# <ψₘₖ|r_α|ψₙₖ> = <ψₘₖ|[H, r_α]|ψₙₖ> / (εₘₖ - εₙₖ)
-#             = 1/im * <ψₘₖ|∂H/∂k_α|ψₙₖ> / (εₘₖ - εₙₖ),
-# which is well-defined.
-# Assuming a non-zero band gap and full occupations,
-# the Sternheimer equation, given a δH, gives us δψₙₖ:
-# |δψₙₖ> = Σₘ <ψₘₖ|δH|ψₙₖ> / (εₘₖ - εₙₖ) |ψₘₖ>
-# where the sum runs over unoccupied states m.
-# By solving a Sternheimer equation given -1/im * ∂H/∂k_α|ψₙₖ> as RHS,
-# we thus obtain an effective "r_α|ψₙₖ>", which we call `ψbar_α`.
-#
-# To compute the response to an electric field change "V = r_α δE_α" (for electrons),
-# we compute the self-consistent response to ψbar_α.
-#
-# Similarly, the polarization change
-# δP_α = " -1/Ω ∫ δρ(r) r_α dr "
-# is rewritten as:
-#      = -4/Ω Re Σₙₖ <ψₙₖ|r_α|δψₙₖ>
-#      = -4/Ω Re Σₙₖ <ψbar_αₙₖ|δψₙₖ>
+# For the special case of a polarization derivative ∂P_α/∂θ, (3) is replaced by:
+# ∂Pel_α({uₙₖ})/∂θ = -i/Ω * Σₙₖ wₖfₙₖ (<∂θ uₙₖ|∂k_α uₙₖ> + <uₙₖ|∂k_α∂θ uₙₖ>)
+#                 (by parts wrt k because the sum approximates an integral over k)
+#                 = -i/Ω * Σₙₖ wₖfₙₖ (<∂θ uₙₖ|∂k_α uₙₖ> - <∂k_α uₙₖ|∂θ uₙₖ>)
+#                 = -i/Ω * Σₙₖ wₖfₙₖ (<∂θ uₙₖ|∂k_α uₙₖ> - conj(<∂ θuₙₖ|∂k_α uₙₖ>))
+#                 =  1/Ω * Σₙₖ wₖfₙₖ 2 Im <∂θ uₙₖ|∂k_α uₙₖ>.
 
-# TODO: it might be cleaner to start from the electric enthalpy
-# F(ψ, E) = Energy(Ψ) - Ω E * P(Ψ)
-# and motivative the ψbar construction from the implicit function derivative
-# inv(δ²Energy/δψ²) * ∂²F/δψδE,
-# where ∂²F/δψδE ends up being precisely ψbar.
-
-function compute_δHδk(basis::PlaneWaveBasis{T}, ψ; ρ=nothing, τ=nothing) where {T}
-    model = basis.model
-    function apply_kshift(kshift)
-        T_new = promote_type(eltype(basis), eltype(kshift))
-        # TODO: likely not mpi compatible yet
-        kcoords = map(basis.kpoints) do kpt
-            kpt.coordinate + kshift
+@doc raw"""
+Compute the Jacobian-vector product of H_k u_{nk} wrt. k in direction δk.
+The passed δk must be in reduced coordinates!
+"""
+function compute_δHψδk(basis::PlaneWaveBasis, ψ, δk; ρ=nothing, τ=nothing)
+    function apply_kshift(ε::T) where {T}
+        kcoords = map(basis.kcoords_global) do kcoord
+            kcoord + ε * δk
         end
-        kpoints_shifted = ExplicitKpoints(kcoords, convert.(T_new, basis.kweights))
-        model_new = Model(model; lattice=convert.(T_new, model.lattice))
-        basis_shifted = PlaneWaveBasis(model_new; Ecut=basis.Ecut, kgrid=kpoints_shifted)
-        ρ_new = isnothing(ρ) ? nothing : convert.(T_new, ρ)
-        τ_new = isnothing(τ) ? nothing : convert.(T_new, τ)
+        kgrid_shifted = ExplicitKpoints(kcoords, convert.(T, basis.kweights))
+        model = Model(basis.model; lattice=convert.(T, basis.model.lattice))
+        basis_shifted = PlaneWaveBasis(model; basis.Ecut, kgrid=kgrid_shifted,
+                                       basis.variational, basis.fft_size,
+                                       basis.symmetries_respect_rgrid,
+                                       basis.use_symmetries_for_kpoint_reduction,
+                                       basis.comm_kpts, basis.architecture)
+        # TODO: what would happen if we were to recompute ρ and τ?
+        #       in principle the k derivatives in τ should not change the result?
+        ρ_new = isnothing(ρ) ? nothing : convert.(T, ρ)
+        τ_new = isnothing(τ) ? nothing : convert.(T, τ)
         ham = Hamiltonian(basis_shifted; ρ=ρ_new, τ=τ_new)
         ham * ψ
     end
-    map(1:3) do α
-        kshift = zeros(T, 3)
-        kshift[α] = one(T)
-        ForwardDiff.derivative(ε -> apply_kshift(ε .* kshift), zero(T))
-    end
+    ForwardDiff.derivative(apply_kshift, eltype(basis))
 end
 
 function compute_ψbars(ham, ψ, occupation, εF, eigenvalues;
