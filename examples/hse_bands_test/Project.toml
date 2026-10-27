@@ -1,0 +1,9 @@
+[deps]
+AtomsBuilder = "f5cc8831-eeb7-4288-8d9f-d6c1ddb77004"
+DFTK = "acf6eb54-70d9-11e9-0013-234b7a5f5337"
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+PseudoPotentialData = "5751a51d-ac76-4487-a056-413ecf6fbe19"
+Wannier = "2b19380a-1f7e-4d7d-b1b8-8aa60b3321c9"
+
+[sources]
+DFTK = {path = ".."}
