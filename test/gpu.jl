@@ -212,7 +212,7 @@ end
     end
     end
 
-    @testset "AMDGPU Vanilla Exx" begin
+    @testset "AMDGPU ACE Exx" begin
     if AMDGPU.has_rocm_gpu()
         scfres_rocm = run_problem(; architecture=DFTK.GPU(ROCArray), exxalg=AceExx())
         @test scfres_rocm.ρ isa ROCArray
