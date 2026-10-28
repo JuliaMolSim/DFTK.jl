@@ -163,3 +163,63 @@ end
     end
     end
 end
+
+@testitem "GPU silicon HSE test" tags=[:gpu] setup=[TestCases] begin
+    using DFTK
+    using CUDA
+    using AMDGPU
+    using LinearAlgebra
+    silicon = TestCases.silicon
+
+    function run_problem(; architecture, exxalg)
+        model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
+                          functionals=HSE())
+        basis = PlaneWaveBasis(model; Ecut=15, kgrid=(2, 2, 2), architecture)
+        self_consistent_field(basis; tol=1e-9, exxalg, solver=scf_damping_solver(),)
+    end
+
+    # Vanilla Exx
+    scfres_cpu = run_problem(; architecture=DFTK.CPU(), exxalg=VanillaExx())
+    @testset "CUDA Vanilla Exx" begin
+    if CUDA.has_cuda() && CUDA.has_cuda_gpu()
+        scfres_cuda = run_problem(; architecture=DFTK.GPU(CuArray), exxalg=VanillaExx())
+        @test scfres_cuda.ρ isa CuArray
+        @test abs(scfres_cpu.energies.total - scfres_cuda.energies.total) < 1e-8
+        @test norm(scfres_cpu.ρ - Array(scfres_cuda.ρ)) < 1e-8
+        @test_broken norm(compute_forces(scfres_cuda)) < 1e-6  # Symmetric structure
+    end
+    end
+
+    @testset "AMDGPU Vanilla Exx" begin
+    if AMDGPU.has_rocm_gpu()
+        scfres_rocm = run_problem(; architecture=DFTK.GPU(ROCArray), exxalg=VanillaExx())
+        @test scfres_rocm.ρ isa ROCArray
+        @test abs(scfres_cpu.energies.total - scfres_rocm.energies.total) < 1e-8
+        @test norm(scfres_cpu.ρ - Array(scfres_rocm.ρ)) < 1e-8
+        @test_broken norm(compute_forces(scfres_rocm)) < 1e-6  # Symmetric structure
+    end
+    end
+
+    # ACE Exx
+    scfres_cpu = run_problem(; architecture=DFTK.CPU(), exxalg=AceExx())
+    @testset "CUDA ACE Exx" begin
+    if CUDA.has_cuda() && CUDA.has_cuda_gpu()
+        scfres_cuda = run_problem(; architecture=DFTK.GPU(CuArray), exxalg=AceExx())
+        @test scfres_cuda.ρ isa CuArray
+        @test abs(scfres_cpu.energies.total - scfres_cuda.energies.total) < 1e-8
+        @test norm(scfres_cpu.ρ - Array(scfres_cuda.ρ)) < 1e-8
+        @test_broken norm(compute_forces(scfres_cuda)) < 1e-6  # Symmetric structure
+    end
+    end
+
+    @testset "AMDGPU Vanilla Exx" begin
+    if AMDGPU.has_rocm_gpu()
+        scfres_rocm = run_problem(; architecture=DFTK.GPU(ROCArray), exxalg=AceExx())
+        @test scfres_rocm.ρ isa ROCArray
+        @test abs(scfres_cpu.energies.total - scfres_rocm.energies.total) < 1e-8
+        @test norm(scfres_cpu.ρ - Array(scfres_rocm.ρ)) < 1e-8
+        @test_broken norm(compute_forces(scfres_rocm)) < 1e-6  # Symmetric structure
+    end
+    end
+    end
+end

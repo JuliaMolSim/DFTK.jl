@@ -47,13 +47,12 @@ function LinearAlgebra.svd(A::Union{Hermitian{T, <:AbstractGPUArray{T}},
     E = eigen(A)
     λ, U = E.values, E.vectors
 
-    # Tranfer to the CPU to sort
-    σ = to_cpu(abs.(λ))
+    # Sort the eigenvalues
+    σ = abs.(λ)
     p = sortperm(σ; rev=true)
-    arch = architecture(parent(A))
-    S = to_device(arch, σ[p])
+    S = σ[p]
     Up = U[:, p]
-    signs = to_device(arch, sign.(λ[p]))  # sign of the eigenvalues (not of σ!)
+    signs = sign.(λ[p])  # sign of the eigenvalues (not of σ!)
 
     # Vt[i, j] = signᵢ * conj(Up[j, i]), i.e. Vt = (Up * Diagonal(signs))†
     Vt = adjoint(Up) .* permutedims(signs)
