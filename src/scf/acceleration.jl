@@ -115,6 +115,7 @@ the occupied states are mixed after gauge fixing (gf): ψ_gf = |ψ_occ><ψ_occ|�
 init_specifics(::PcdiisType; reference=nothing, kwargs...) = 
     Dict{Symbol,Any}(:reference => reference)
 
+#need to implement weighted sum according to Maschio DOI:10.1007/s00214-018-2238-8
 function k_metric(Mk,bk)
     M = sum(Mk)
     b = sum(bk)
@@ -132,15 +133,6 @@ function accelerate(acc::Acceleration{PcdiisType}, xₙ, fxₙ, info)
     #compute iterates and residuals from input
 	k_errors::Vector = []
 	k_states::Vector = []
-
-	for ik in 1:length(fxₙ.ψ)
-        println(fxₙ.occupation[ik])
-        println(xₙ.occupation[ik])
-        println()
-        #println(fxₙ.ψ[ik][1,:])
-        #println(xₙ.ψ[ik][1,:])
-    end
-
 
 	for ik in 1:length(fxₙ.ψ)
         mask = xₙ.occupation[ik] .> 0
@@ -185,10 +177,7 @@ function accelerate(acc::Acceleration{PcdiisType}, xₙ, fxₙ, info)
         push!(Mk, m)
 	end
 
-    #for now only one kpoint, later need to implement proper k-weights
-    #implement k_metric(Mk,bk)...
-
-    #βs = solve_for_βs(Mk[1], bk[1], acc.memory)
+    #k_metric(Mk,bk)... 
     βs = solve_for_βs(k_metric(Mk, bk)..., acc.memory)
 
     Φs = acc.memory.iterates
