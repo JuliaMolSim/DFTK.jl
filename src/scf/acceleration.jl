@@ -115,6 +115,12 @@ the occupied states are mixed after gauge fixing (gf): ψ_gf = |ψ_occ><ψ_occ|�
 init_specifics(::PcdiisType; reference=nothing, kwargs...) = 
     Dict{Symbol,Any}(:reference => reference)
 
+function k_metric(Mk,bk)
+    M = sum(Mk)
+    b = sum(bk)
+    M,b
+end
+
 function accelerate(acc::Acceleration{PcdiisType}, xₙ, fxₙ, info)
     if acc.memory.depth == 0 || acc.memory.errorfactor ≤ 1 || acc.memory.maxcond ≤ 1 || isnothing(xₙ.ψ) || isnothing(xₙ.occupation)
         return fxₙ
@@ -122,17 +128,26 @@ function accelerate(acc::Acceleration{PcdiisType}, xₙ, fxₙ, info)
 
     ψ_ref = acc.specifics[:reference]
 
-    mask = xₙ.occupation[1] .> 0
-	old_length = length(mask)
-	mask_ref = deepcopy(mask)
-	resize!(mask_ref, size(ψ_ref[1],2))
-	mask_ref[old_length+1:end] .= false
 
     #compute iterates and residuals from input
 	k_errors::Vector = []
 	k_states::Vector = []
 
 	for ik in 1:length(fxₙ.ψ)
+        println(fxₙ.occupation[ik])
+        println(xₙ.occupation[ik])
+        println()
+        #println(fxₙ.ψ[ik][1,:])
+        #println(xₙ.ψ[ik][1,:])
+    end
+
+
+	for ik in 1:length(fxₙ.ψ)
+        mask = xₙ.occupation[ik] .> 0
+	    old_length = length(mask)
+	    mask_ref = deepcopy(mask)
+	    resize!(mask_ref, size(ψ_ref[ik],2))
+	    mask_ref[old_length+1:end] .= false
         #compute gauge-fixed states (iterate)
 		push!(k_states, fxₙ.ψ[ik][:,mask] * (fxₙ.ψ[ik][:,mask]' * ψ_ref[ik][:,mask_ref]))
 
@@ -157,21 +172,24 @@ function accelerate(acc::Acceleration{PcdiisType}, xₙ, fxₙ, info)
         return fxₙ
     end
 
-    M = Vector{Any}()
-    b = Vector{Any}()
+    Mk = Vector{Any}()
+    bk = Vector{Any}()
     Y = [Rs[i-1] .- Rs[i] for i in 2:length(Rs)] 
     n = length(Y)
 	for ik in 1:length(fxₙ.ψ)
-        push!(b, vec([real(dot(Y[i][ik], Rs[end][ik])) for i in 1:n]))
+        push!(bk, vec([real(dot(Y[i][ik], Rs[end][ik])) for i in 1:n]))
         m = zeros(Float64, n, n)
         for i in 1:n, j in i:n
             m[i,j] = m[j,i] =  real(dot(Y[i][ik], Y[j][ik]))
         end
-        push!(M, m)
+        push!(Mk, m)
 	end
 
     #for now only one kpoint, later need to implement proper k-weights
-    βs = solve_for_βs(M[1], b[1], acc.memory)
+    #implement k_metric(Mk,bk)...
+
+    #βs = solve_for_βs(Mk[1], bk[1], acc.memory)
+    βs = solve_for_βs(k_metric(Mk, bk)..., acc.memory)
 
     Φs = acc.memory.iterates
     ΔΦ = [Φs[i-1] .- Φs[i] for i in 2:length(Φs)] 
@@ -182,6 +200,7 @@ function accelerate(acc::Acceleration{PcdiisType}, xₙ, fxₙ, info)
             axpy!(βs[iβ], ΔΦ[iβ][ik], Φmix)
 		end
 
+        mask = xₙ.occupation[ik] .> 0
 		fxₙ.ψ[ik][:,mask] = Φmix
 		fxₙ.ψ[ik] = Matrix(qr(fxₙ.ψ[ik]).Q)
 	end
