@@ -1,6 +1,6 @@
 name = "DFTK"
 uuid = "acf6eb54-70d9-11e9-0013-234b7a5f5337"
-version = "0.8.0"
+version = "0.8.1"
 authors = ["Michael F. Herbst <info@michael-herbst.com>", "Antoine Levitt <antoine.levitt@inria.fr>"]
 
 [deps]
@@ -127,7 +127,7 @@ StaticArrays = "1"
 Statistics = "1"
 Test = "1"
 TestItemRunner = "1"
-TimerOutputs = "0.5.29, 1"
+TimerOutputs = "0.5.29"
 Unitful = "1"
 UnitfulAtomic = "1"
 Wannier = "0.3.2"

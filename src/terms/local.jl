@@ -12,8 +12,9 @@ abstract type TermLocalPotential <: TermLinear end
     potview(data, spin) = ndims(data) == 4 ? (@view data[:, :, :, spin]) : data
     ops = [RealSpaceMultiplication(basis, kpt, potview(term.potential_values, kpt.spin))
            for kpt in basis.kpoints]
-    if :ρ in keys(kwargs)
-        E = sum(total_density(kwargs[:ρ]) .* term.potential_values) * basis.dvol
+    ρ = get(kwargs, :ρ, nothing)
+    if !isnothing(ρ)
+        E = sum(total_density(ρ) .* term.potential_values) * basis.dvol
     else
         E = T(Inf)
     end

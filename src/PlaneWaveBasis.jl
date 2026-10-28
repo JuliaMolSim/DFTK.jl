@@ -653,6 +653,19 @@ function scatter_kpts_block(basis::PlaneWaveBasis, data::Union{Nothing,AbstractA
     end
 end
 
+function breaks_time_reversal_symmetry(basis::PlaneWaveBasis)
+    breaks_time_reversal_symmetry(basis.model) || breaks_time_reversal_symmetry(basis.kgrid)
+end
+
+"""
+Momentum transfers q = k - k' (reduced coordinates) of the Monkhorst-Pack grid of `basis`.
+For any shift of the k-point grid these form the unshifted grid of the same size.
+"""
+function build_qpoints(basis::PlaneWaveBasis{T}) where {T}
+    @assert basis.kgrid isa MonkhorstPack
+    Vec3{T}.(reducible_kcoords(MonkhorstPack(basis.kgrid.kgrid_size)).kcoords)
+end
+
 """
 Forward FFT calls to the PlaneWaveBasis fft_grid field
 """
