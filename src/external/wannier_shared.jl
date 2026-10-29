@@ -100,8 +100,8 @@ function wannier_projectors_sp3(position; n=1, α=1/1.8897261,  # Wannier90 defa
                                 directions=[[1, 1, 1.0], [1, -1, -1.0], [-1, 1, -1.0], [-1, -1, 1.0]])
     map(directions) do direction
         d = normalize(direction)
-        coeffs_s = [0.5]
-        coeffs_p = 0.5 .* d
+        coeffs_s = [1/2]
+        coeffs_p = sqrt(3)/2 .* d
         # TODO: Could read pseudo from element and use that to make better hybrid shapes
         HybridWannierProjection(position, n, coeffs_s, coeffs_p, α)
     end

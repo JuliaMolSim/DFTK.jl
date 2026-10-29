@@ -12,7 +12,7 @@ using DFTK
 using PseudoPotentialData
 using Wannier
 using Brillouin
-using GLMakie
+using CairoMakie
 using Unitful
 using UnitfulAtomic
 
@@ -33,7 +33,7 @@ nothing  # hide
 # First using a more aggressive ACE compression techniques that is more memory efficient and
 # slightly faster (by ignoring all unoccupied orbitals), but that gives the wrong unoccupied bands.
 model  = model_DFT(system; pseudopotentials, functionals=HSE())
-basis  = PlaneWaveBasis(model; basis.Ecut, basis.kgrid)
+basis  = PlaneWaveBasis(model; basis_PBE.Ecut, basis_PBE.kgrid)
 
 exxalg = AceExx(; sketch_with_extra_orbitals=false)
 scfres = self_consistent_field(basis; tol=1e-6, scfres_PBE.ρ, scfres_PBE.ψ, scfres_PBE.occupation, exxalg,
@@ -91,16 +91,16 @@ E_HSE = data .- maximum(data[1:4, :])
 nothing  # hide
 
 # ## Plot the bands
-# Finally we plot the bands using the GLMakie interface of Brillouin:
+# Finally we plot the bands using the Makie interface of Brillouin:
 
-fig = GLMakie.Figure(size=(700, 500))
-GLMakie.plot(fig[1, 1], kinter, permutedims(E_HSE), permutedims(E_PBE);
-             label=["HSE", "PBE"],
-             ylabel    = "E - E_VBM (eV)",
-             ylims     = (-13.0, 10.0),
-             linewidth = 2,
-             linestyle = [:solid, :dash],
-             color     = [:royalblue, :black])
+fig = Figure(size=(700, 500))
+CairoMakie.plot(fig[1, 1], kinter, permutedims(E_HSE), permutedims(E_PBE);
+                label=["HSE", "PBE"],
+                ylabel="E - E_VBM (eV)",
+                ylims=(-13.0, 10.0),
+                linewidth=2,
+                linestyle=[:solid, :dash],
+                color=[:royalblue, :black])
 
 fig
 
