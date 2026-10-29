@@ -367,7 +367,7 @@ function get_ε_adj_op(dielectric_terms::AbstractVector, basis; ρ)
         for (kernel_terms, χ0applies) in dielectric_terms
             Kδρ = zero(δρ)
             for term in kernel_terms
-                Kδρ .+= apply_kernel(term, basis, δρ; ρ)
+                Kδρ .+= apply_kernel(term, basis, δρ; ρ).δVρ
             end
 
             # Apply χ0 model
@@ -390,7 +390,7 @@ function get_ε_op(dielectric_terms::AbstractVector, basis; ρ)
             end
 
             for term in kernel_terms
-                εδV .-= apply_kernel(term, basis, χ0δV; ρ)
+                εδV .-= apply_kernel(term, basis, χ0δV; ρ).δVρ
             end
         end
         εδV

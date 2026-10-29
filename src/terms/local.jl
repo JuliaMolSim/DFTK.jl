@@ -12,8 +12,9 @@ abstract type TermLocalPotential <: TermLinear end
     potview(data, spin) = ndims(data) == 4 ? (@view data[:, :, :, spin]) : data
     ops = [RealSpaceMultiplication(basis, kpt, potview(term.potential_values, kpt.spin))
            for kpt in basis.kpoints]
-    if :ρ in keys(kwargs)
-        E = sum(total_density(kwargs[:ρ]) .* term.potential_values) * basis.dvol
+    ρ = get(kwargs, :ρ, nothing)
+    if !isnothing(ρ)
+        E = sum(total_density(ρ) .* term.potential_values) * basis.dvol
     else
         E = T(Inf)
     end
@@ -211,5 +212,5 @@ function compute_δHψ_αs(::TermAtomicLocal, basis::PlaneWaveBasis, ψ, α, s, 
     δV_αs .= derivative_wrt_αs(basis.model.positions, α, s) do positions_αs
         compute_local_potential(basis; q, positions=positions_αs)
     end
-    multiply_ψ_by_blochwave(basis, ψ, δV_αs, q)
+    apply_potential_blochwave(basis, ψ, δV_αs, q)
 end

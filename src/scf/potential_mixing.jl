@@ -52,7 +52,7 @@ function scf_damping_quadratic_model(info, info_next; modeltol=0.1)
     #      <δV | ∇²E|_(V=Vin) | δV> = - δV ⋅ δρ + δρ ⋅ K(δρ)
     #
     slope = dot(Vout .- Vin, δρ) / α0 * dvol
-    Kδρ   = apply_kernel(info.basis, δρ; ρ=ρin)
+    Kδρ   = apply_kernel(info.basis, δρ; ρ=ρin).δVρ
     curv  = dvol * (-dot(Vnext .- Vin, δρ) + dot(δρ, Kδρ)) / α0^2
     Emodel(α) = info.energies.total + slope * α + curv * α^2 / 2
 

@@ -80,8 +80,7 @@ struct TermXc{T,CT,TCT} <: TermNonlinear where {T,CT,TCT}
 end
 DftFunctionals.needs_τ(term::TermXc) = any(needs_τ, term.functionals)
 
-function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupation;
-                           ρ, τ=nothing) where {T}
+function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}; ρ, τ=nothing) where {T}
     @assert !isempty(term.functionals)
     @assert all(family(xc) in (:lda, :gga, :mgga, :mggal) for xc in term.functionals)
 
@@ -160,7 +159,7 @@ end
 
 @views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis,
                                               ψ, occupation; ρ, τ=nothing, kwargs...)
-    E, Vxc, Vτ = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
+    E, Vxc, Vτ = xc_potential_real(term, basis; ρ, τ)
 
     ops = map(basis.kpoints) do kpt
         if !isnothing(Vτ)
@@ -204,7 +203,7 @@ end
     isnothing(term.ρcore) && isnothing(term.τcore) && return nothing
 
     model = basis.model
-    _, Vρ_real, Vτ_real = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
+    _, Vρ_real, Vτ_real = xc_potential_real(term, basis; ρ, τ)
     Vτ_fourier = nothing
     if model.spin_polarization in (:none, :spinless)
         Vρ_fourier = fft(basis, Vρ_real[:,:,:,1])
@@ -454,7 +453,7 @@ function compute_kernel(term::TermXc, basis::PlaneWaveBasis{T}; ρ, kwargs...) w
     # For LDA the Kernel is known to be diagonal, so we can get away
     # with a single push-forward (two for spin-polarized case)
     if n_spin == 1
-        f_spinless(ε) = xc_potential_real(term, basis, nothing, nothing; ρ=ρ.+ε).potential
+        f_spinless(ε) = xc_potential_real(term, basis; ρ=ρ.+ε).potential
         δpotential = ForwardDiff.derivative(f_spinless, zero(T))
         Diagonal(vec(δpotential))
     else
@@ -462,8 +461,8 @@ function compute_kernel(term::TermXc, basis::PlaneWaveBasis{T}; ρ, kwargs...) w
         function f_collinear(ε)
             dρ1 = reshape([ε, 0], 1, 1, 1, 2)
             dρ2 = reshape([0, ε], 1, 1, 1, 2)
-            stack([xc_potential_real(term, basis, nothing, nothing; ρ=ρ.+dρ1).potential,
-                   xc_potential_real(term, basis, nothing, nothing; ρ=ρ.+dρ2).potential])
+            stack([xc_potential_real(term, basis; ρ=ρ.+dρ1).potential,
+                   xc_potential_real(term, basis; ρ=ρ.+dρ2).potential])
         end
         δpotential = ForwardDiff.derivative(f_collinear, zero(T))
 
@@ -479,30 +478,41 @@ end
 
 
 function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArray{Tδρ};
-                      ρ, q=zero(Vec3{T}), kwargs...) where {T, Tδρ<:Union{T,Complex{T}}}
-    isempty(term.functionals) && return nothing
-    @assert (all(family(xc) in (:lda, :gga, :mggal) && !needs_τ(xc) for xc in term.functionals))
-
-    if !iszero(q) && !isnothing(term.ρcore)
-        error("Phonon computations are not supported for models using nonlinear core "
-              * "correction.")
+                      ρ, τ=nothing, δτ=nothing, q=zero(Vec3{T}),
+                      kwargs...) where {T, Tδρ<:Union{T,Complex{T}}}
+    isempty(term.functionals) && return (;)
+    if needs_τ(term)
+        isnothing(τ) && error("TermXc needs the kinetic energy density τ in the kernel.")
+        isnothing(δτ) && error("TermXc needs the kinetic energy density variation δτ in the kernel.")
+    end
+    if !iszero(q)
+        isnothing(term.ρcore) || error("Phonon computations are not supported for models "
+                                       * "using nonlinear core correction.")
+        @assert all(family(xc) in (:lda,) for xc in term.functionals)
     end
 
     # Key insight: kernel application is just a Hessian-vector product,
     # which is computed with a push-forward of the gradient.
-    f(ρ_eval) = xc_potential_real(term, basis, nothing, nothing; ρ=ρ_eval).potential
+    f(ρ_eval, τ_eval) = xc_potential_real(term, basis; ρ=ρ_eval, τ=τ_eval)
     Tag = typeof(ForwardDiff.Tag(f, T))
     if Tδρ <: T
         # Usually δρ has the same type, so we do a standard push-forward
         ε = Dual{Tag}(zero(T), one(T))
-        ForwardDiff.partials.(f(ρ .+ ε .* δρ), 1)
+        τ_δτ = needs_τ(term) ? τ .+ ε .* δτ : nothing
+        pot = f(ρ .+ ε .* δρ, τ_δτ)
+        δVρ = ForwardDiff.partials.(pot.potential, 1)
+        δVτ = isnothing(pot.Vτ) ? nothing : ForwardDiff.partials.(pot.Vτ, 1)
+        (; δVρ, δVτ)
     else
         # But for complex δρ (phonons) we need to push the real and imaginary
         # parts forward separately
         ε1 = Dual{Tag}(zero(T), one(T), zero(T))
         ε2 = Dual{Tag}(zero(T), zero(T), one(T))
-        potential = f(ρ .+ ε1 .* real.(δρ) .+ ε2 .* imag.(δρ))
-        ForwardDiff.partials.(potential, 1) .+ im .* ForwardDiff.partials.(potential, 2)
+        τ_δτ = needs_τ(term) ? τ .+ ε1 .* real.(δτ) .+ ε2 .* imag.(δτ) : nothing
+        pot = f(ρ .+ ε1 .* real.(δρ) .+ ε2 .* imag.(δρ), τ_δτ)
+        δVρ = ForwardDiff.partials.(pot.potential, 1) .+ im .* ForwardDiff.partials.(pot.potential, 2)
+        δVτ = isnothing(pot.Vτ) ? nothing : ForwardDiff.partials.(pot.Vτ, 1) .+ im .* ForwardDiff.partials.(pot.Vτ, 2)
+        (; δVρ, δVτ)
     end
 end
 

@@ -178,8 +178,9 @@ function transfer_density(ρ_in, basis_in::PlaneWaveBasis{T},
 end
 
 """
-Find the equivalent index of the coordinate `kcoord` ∈ ℝ³ in a list `kcoords` ∈ [-½, ½)³.
-`ΔG` is the vector of ℤ³ such that `kcoords[index] = kcoord + ΔG`.
+Find the equivalent index of the coordinate `kcoord` ∈ ℝ³ in the list of `basis.kpoints`
+(of spin `spin`), whose coordinates are assumed to lie in [-½, ½)³.
+`ΔG` is the vector of ℤ³ such that `basis.kpoints[index].coordinate = kcoord + ΔG`.
 """
 function find_equivalent_kpt(basis::PlaneWaveBasis{T}, kcoord, spin; tol=sqrt(eps(T))) where {T}
     kcoord_red = normalize_kpoint_coordinate(kcoord .+ eps(T))
@@ -207,28 +208,6 @@ function k_to_kpq_permutation(basis::PlaneWaveBasis, q)
                for kpt in kpoints]
     @assert isperm(indices)
     indices
-end
-
-@doc raw"""
-Return the Fourier coefficients for the Bloch waves ``f^{\rm real}_{q} ψ_{k-q}`` in an
-element of `basis.kpoints` equivalent to ``k-q``.
-"""
-@views function multiply_ψ_by_blochwave(basis::PlaneWaveBasis{T}, ψ, f_real, q=zero(Vec3{T})) where {T}
-    fψ = zero.(ψ)
-    real_buffer = similar(f_real, Complex{T}, basis.fft_size...)
-    norm = basis.fft_grid.fft_normalization * basis.fft_grid.ifft_normalization
-    # First, express ψ_{[k-q]} in the basis of k-q points…
-    ψ_minus_q = transfer_blochwave_equivalent_to_actual(basis, ψ, -q)
-    for (ik, kpt) in enumerate(basis.kpoints)
-        # … then perform the multiplication with f in real space and get the Fourier
-        # coefficients.
-        for n = 1:size(ψ[ik], 2)
-            ifft!(real_buffer, basis, ψ_minus_q[ik].kpt, ψ_minus_q[ik].ψk[:, n]; normalize=false)
-            real_buffer .*= f_real[:, :, :, kpt.spin] .* norm
-            fft!(fψ[ik][:, n], basis, kpt, real_buffer; normalize=false)
-        end
-    end
-    fψ
 end
 
 """

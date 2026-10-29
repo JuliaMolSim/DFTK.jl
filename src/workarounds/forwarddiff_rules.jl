@@ -241,8 +241,8 @@ end
         basis_dual::PlaneWaveBasis{<:Dual{Tg,V,N}};
         response=ResponseOptions(),
         kwargs...) where {Tg,V,N}
-    if any(needs_τ, basis_dual.terms)
-        error("Cannot yet compute SCF derivatives with meta-GGA functionals.")
+    if any(t -> t isa TermHubbard, basis_dual.terms)
+        error("Cannot yet compute SCF derivatives with Hubbard corrections.")
     end
 
     basis_primal = construct_value(basis_dual)
@@ -250,11 +250,12 @@ end
 
     # Compute explicit density perturbation (including strain) due to normalization
     ρ_basis = compute_density(basis_dual, scfres.ψ, scfres.occupation; scfres.occupation_threshold)
+    τ_basis = isnothing(scfres.τ) ? nothing : compute_kinetic_energy_density(basis_dual, scfres.ψ, scfres.occupation)
 
     # Compute external perturbation (contained in ham_dual)
     Hψ_dual = let
         ham_dual = energy_hamiltonian(basis_dual, scfres.ψ, scfres.occupation;
-                                      ρ=ρ_basis, scfres.eigenvalues,
+                                      ρ=ρ_basis, τ=τ_basis, scfres.eigenvalues,
                                       scfres.εF).ham
         ham_dual * scfres.ψ
     end
@@ -287,16 +288,17 @@ end
     # For strain, basis_dual contributes an explicit lattice contribution which
     # is not contained in δresults, so we need to recompute ρ here
     ρ = compute_density(basis_dual, ψ, occupation; scfres.occupation_threshold)
+    τ = isnothing(scfres.τ) ? nothing : compute_kinetic_energy_density(basis_dual, ψ, occupation)
 
     # TODO Could add δresults[α].δVind the dual part of the total local potential in ham_dual
     # and in this way return a ham that represents also the total change in Hamiltonian
 
-    energies, ham = energy_hamiltonian(basis_dual, ψ, occupation; ρ, eigenvalues, εF)
+    energies, ham = energy_hamiltonian(basis_dual, ψ, occupation; ρ, τ, eigenvalues, εF)
 
     # This has to be changed whenever the scfres structure changes
-    (; ham, basis=basis_dual, energies, ρ, eigenvalues, occupation, εF, ψ,
-       # TODO make τ and hubbard_n also differentiable for meta-GGA/DFT+U DFPT
-       scfres.τ, scfres.hubbard_n,
+    (; ham, basis=basis_dual, energies, ρ, τ, eigenvalues, occupation, εF, ψ,
+       # TODO make hubbard_n also differentiable for DFPT+U
+       scfres.hubbard_n,
        # non-differentiable metadata:
        response=getfield.(δresults, :info_gmres),
        scfres.converged, scfres.occupation_threshold, scfres.α, scfres.n_iter,
@@ -305,6 +307,50 @@ end
        scfres.mixing, scfres.is_converged, scfres.nbandsalg, scfres.fermialg,
        scfres.diagtolalg, scfres.solver, scfres.eigensolver,
        scfres.seed, scfres.algorithm, scfres.runtime_ns)
+end
+
+@timing "compute_bands ForwardDiff" function compute_bands(basis_dual::PlaneWaveBasis{T},
+       kgrid::Union{AbstractKgrid,AbstractKgridGenerator};
+       ρ=nothing, τ=nothing, hubbard_n=nothing, kwargs...) where {T <: Dual}
+    @assert isnothing(hubbard_n)  # This case is not yet implemented.
+
+    # Primal pass (also does all argument checking)
+    basis_primal = construct_value(basis_dual)
+    bands_primal = compute_bands(basis_primal, kgrid;
+                                 ρ=ForwardDiff.value.(ρ),
+                                 τ=ForwardDiff.value.(τ),
+                                 hubbard_n, kwargs...)
+
+    basis = PlaneWaveBasis(basis_dual, kgrid)
+    ham_dual = Hamiltonian(basis; bands_primal.ψ, bands_primal.occupation,
+                           ρ, τ, hubbard_n, bands_primal.eigenvalues, bands_primal.εF,
+                           exxalg=VanillaExx())
+    Hψ_dual = ham_dual * bands_primal.ψ
+
+    # 1st order perturbation theory of eigenvalues
+    δeigenvalues = ntuple(ForwardDiff.npartials(T)) do α
+        δHψ = [ForwardDiff.partials.(δHψk, α) for δHψk in Hψ_dual]
+        map(bands_primal.ψ, δHψ) do ψk, δHψk
+            map(eachcol(ψk), eachcol(δHψk)) do ψnk, δHψnk
+                real(dot(ψnk, δHψnk))  # δε_{nk} = <ψnk | δH | ψnk>
+            end
+        end
+    end
+
+    # Convert and combine
+    DT = Dual{ForwardDiff.tagtype(T)}
+    eigenvalues = map(bands_primal.eigenvalues, δeigenvalues...) do εk, δεk...
+        map((εnk, δεnk...) -> DT(εnk, δεnk), εk, δεk...)
+    end
+    if isnothing(bands_primal.εF)
+        occupation = nothing
+    else
+        (; occupation) = compute_occupation(basis, eigenvalues, bands_primal.εF)
+    end
+
+    # Same as the return value of the primal, except ψ is deliberately not returned
+    (; basis, eigenvalues, ρ, τ, hubbard_n, bands_primal.εF, occupation,
+       bands_primal.diagonalization, bands_primal.seed)
 end
 
 # For GPU kernels to compile, dynamic function calls must be avoided. Therefore, the quadrature

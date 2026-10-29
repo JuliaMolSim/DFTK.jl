@@ -1,5 +1,10 @@
 @timing function ortho_qr(φk::ArrayType) where {ArrayType <: AbstractArray}
-    x = convert(ArrayType, qr(φk).Q)
+    fact = qr(φk)
+    # The phase of the Q vectors in a QR factorization is arbitrary.
+    # We fix the phase of Q (i.e. enforcing positive real R diagonal)
+    # to ensure that ortho_qr is always first-order accurate
+    # which phase shifts could otherwise break.
+    x = convert(ArrayType, fact.Q) * Diagonal(sign.(diag(fact.R)))
     if size(x) == size(φk)
         return x
     else
