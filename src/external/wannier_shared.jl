@@ -71,6 +71,45 @@ function (proj::HydrogenicWannierProjection)(basis::PlaneWaveBasis, ps)
 end
 
 """
+hybrid orbital initial guess sitting on `center`. For now only sp hybrids are supported.
+Built as a linear combination of hydrogenic projections.
+"""
+struct HybridWannierProjection
+    center::Vector{Float64}
+    n::Int                     # Radial function index, n = 1 is nodeless
+    coeffs_s::Vector{Float64}  # Coefficient  for s functions
+    coeffs_p::Vector{Float64}  # Coefficients for p functions
+    α::Float64                 # Z/a in 1/Bohr
+end
+
+function (proj::HybridWannierProjection)(basis, ps)
+    orb(l, m) = DFTK.HydrogenicWannierProjection(proj.center, proj.n, l, m, proj.α)(basis, ps)
+    # DFTK real harmonics: (l=1, m=1) = p_x, (1,-1) = p_y, (1,0) = p_z
+    res = only(proj.coeffs_s) .* orb(0, 0)
+    for (c, m) in zip(proj.coeffs_p, (1, -1, 0))
+        iszero(c) || (res = res .+ c .* orb(1, m))
+    end
+    res
+end
+
+"""
+Four sp3 hybrids along tetrahedral `directions` (Cartesian). The default is
+Wannier90's set (1,1,1), (1,-1,-1), (-1,1,-1), (-1,-1,1)
+"""
+function wannier_projectors_sp3(position; n=1, α=1/1.8897261,  # Wannier90 default
+                                directions=[[1, 1, 1.0], [1, -1, -1.0], [-1, 1, -1.0], [-1, -1, 1.0]])
+    map(directions) do direction
+        d = normalize(direction)
+        coeffs_s = [0.5]
+        coeffs_p = 0.5 .* d
+        # TODO: Could read pseudo from element and use that to make better hybrid shapes
+        HybridWannierProjection(position, n, coeffs_s, coeffs_p, α)
+    end
+end
+
+# TODO: Could make similar projector functions for sp2 and sp
+
+"""
 Write a win file at the indicated prefix.
 Parameters to Wannier90 can be added as kwargs: e.g. `num_iter=500`.
 """
@@ -344,7 +383,7 @@ Shared file writing code for Wannier.jl and Wannier90.
     # TODO Use band_data_to_dict to get this easily MPI compatible.
 
     # Undo symmetry operations to get full k-point list
-    scfres_unfold = unfold_bz(scfres)
+    scfres_unfold = unfold_bz(scfres; skip_hamiltonian=true)
     basis = scfres_unfold.basis
     ψ = scfres_unfold.ψ
 
