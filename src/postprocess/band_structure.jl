@@ -88,7 +88,7 @@ ensure these are taken into account when determining the path.
 function compute_bands(basis_or_scfres, kpath::KPath; kline_density=40u"bohr", kwargs...)
     kinter = Brillouin.interpolate(kpath, density=austrip(kline_density))
     res = compute_bands(basis_or_scfres, ExplicitKpoints(kinter); kwargs...)
-    merge(res, (; kinter))
+    merge(res, (; kinter, kpath))
 end
 function compute_bands(scfres::NamedTuple; magnetic_moments=[], kwargs...)
     compute_bands(scfres, irrfbz_path(scfres.basis.model, magnetic_moments); kwargs...)
