@@ -9,7 +9,8 @@
         Si = ElementPsp(14, load_psp(silicon.psp_upf))
         model = Model(silicon.lattice, [Si, Si], silicon.positions;
                       spin_polarization, symmetries=true, terms=[ExactExchange(; kernel)])
-        basis = PlaneWaveBasis(model; Ecut, kgrid=MonkhorstPack(kgrid; kshift))
+        basis = PlaneWaveBasis(model; Ecut, kgrid=MonkhorstPack(kgrid; kshift),
+                               use_symmetries_for_kpoint_reduction=false)
 
         n_bands = div(silicon.n_electrons, 2, RoundUp)
         filled_occ = DFTK.filled_occupation(model)
@@ -65,7 +66,7 @@ end
                    SphericallyTruncatedCoulomb(), WignerSeitzTruncatedCoulomb())
         model = Model(silicon.lattice, [Si, Si], silicon.positions;
                       terms=[ExactExchange(; kernel)])
-        basis = PlaneWaveBasis(model; Ecut=5, kgrid)
+        basis = PlaneWaveBasis(model; Ecut=5, kgrid, use_symmetries_for_kpoint_reduction=false)
         basis_supercell = cell_to_supercell(basis)
 
         ψ = [Matrix(qr(randn(ComplexF64, length(G_vectors(basis, kpt)), n_bands)).Q)
