@@ -73,8 +73,7 @@ wannier_model = Wannier.Model(scfres;
                               n_wannier=length(projections),
                               n_bands=12,
                               projections,
-                              dis_froz_max,
-                              fileprefix="wannier/silicon")
+                              dis_froz_max)
 
 ## Run disentanglement, returns a (n_bands, n_wann, n_kpts) array 
 U = disentangle(wannier_model; max_iter=500);
@@ -106,6 +105,3 @@ fig
 
 # ## Further reading
 # For more details on Wannierisation, see also [Wannierization using Wannier.jl or Wannier90](@ref).
-
-# (Delete temporary files when done.)
-rm("wannier", recursive=true)
