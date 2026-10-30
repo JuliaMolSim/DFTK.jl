@@ -124,12 +124,42 @@ end
         @testset "Test symmetry consistency" begin
              n_hub = scfres.hubbard_n
              scfres_nosym = DFTK.unfold_bz(scfres)
-             term_idx = findfirst(term -> isa(term, DFTK.TermHubbard),
-                                  scfres_nosym.basis.terms)
-             term_hub = scfres_nosym.basis.terms[term_idx]
-             nhub_nosym = DFTK.compute_hubbard_n(term_hub, scfres_nosym.basis,
-                                                 scfres_nosym.ψ, scfres_nosym.occupation)
+             nhub_nosym = DFTK.compute_hubbard_n(scfres_nosym.basis, scfres_nosym.ψ,
+                                                 scfres_nosym.occupation)
              @test n_hub ≈ nhub_nosym
         end
    end
+end
+
+@testitem "Atomic orbital projector derivatives" setup=[TestCases] begin
+    using DFTK
+    using LinearAlgebra
+    silicon = TestCases.silicon
+
+    # atomic_orbital_projectors: returns atomic projectors Φk in plane wave basis.
+    # atomic_orbital_projector_derivatives(basis): returns derivatives of atomic projectors
+    #                                              dΦk/dR in plane wave basis.
+    # atomic_orbital_projector_derivatives(basis, ψ): returns the overlap ψ' * dΦk/dR.
+
+    Si = ElementPsp(:Si, TestCases.pd_lda_family)
+    positions = [silicon.positions[1] + [0.02, -0.01, 0.0], silicon.positions[2]]
+    model = model_atomic(silicon.lattice, [Si, Si], positions; symmetries=false)
+    basis = PlaneWaveBasis(model; Ecut=10, kgrid=(2, 2, 2))
+
+    dir = normalize(randn(3))
+    h = 1e-5
+    function projectors_at(ε)
+        positions_ε = [positions[1] + ε * dir, positions[2]]
+        DFTK.atomic_orbital_projectors(basis; positions=positions_ε).projectors
+    end
+    reference = (projectors_at(h) - projectors_at(-h)) / 2h
+
+    ψ = [randn(ComplexF64, size(P, 1), 4) for P in projectors_at(0.0)]
+    dprojectors = DFTK.atomic_orbital_projector_derivatives(basis).dprojectors
+    ψ_dprojectors = DFTK.atomic_orbital_projector_derivatives(basis, ψ).dprojectors
+    for ik in eachindex(basis.kpoints)
+        # All columns change, also those of the projectors on atom 2
+        @test sum(dir .* dprojectors[ik][1]) ≈ reference[ik] rtol=1e-6
+        @test sum(dir .* ψ_dprojectors[ik][1]) ≈ ψ[ik]' * reference[ik] rtol=1e-6
+    end
 end
