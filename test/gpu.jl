@@ -221,5 +221,4 @@ end
         @test_broken norm(compute_forces(scfres_rocm)) < 1e-6  # Symmetric structure
     end
     end
-    end
 end
