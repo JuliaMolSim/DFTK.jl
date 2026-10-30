@@ -204,8 +204,8 @@ end
     hubbard_labels = reduce(vcat, term.labels)  # columns of term.P_vec
 
     # We compute the forces from the irreducible BZ; they are symmetrized later.
-    (; dprojectors, labels) = atomic_orbital_projector_derivatives(
-        basis, ψ; selected=(label -> label in hubbard_labels))
+    selected = label -> label in hubbard_labels
+    (; dprojectors, labels) = atomic_orbital_projector_derivatives(basis, ψ; selected)
     P_columns = [findfirst(isequal(label), labels) for label in hubbard_labels]
 
     forces = [zero(Vec3{T}) for _ in basis.model.positions]
