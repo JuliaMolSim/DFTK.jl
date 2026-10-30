@@ -299,6 +299,9 @@ end
 function __init__()
     # Reset timer; otherwise the starting time is the time of precompilation
     reset_timer!(timer)
+
+    # nthreads() is 1 at precompile time, so apply the thread defaults at load
+    setup_threading(; verbose=false)
 end
 
 end # module DFTK
