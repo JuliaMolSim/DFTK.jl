@@ -3,10 +3,9 @@
 # This is a quick sketch how to run a simple hybrid DFT calculation using DFTK.
 #
 # !!! warning "Preliminary implementation"
-#     Hybrid-DFT is not yet performance-optimised, MPI parallelisation does not work
+#     Hybrid-DFT in DFTK is still in its early stages. MPI parallelisation does not work
 #     and all treatment of ``k``-point symmetry is disabled when using exact exchange terms.
-#     As the implementation is still in an early stage we appreciate any issues,
-#     bug reports or PRs.
+#     We appreciate any issues, bug reports or PRs.
 #
 using AtomsBuilder
 using DFTK
@@ -28,4 +27,6 @@ scfres = self_consistent_field(basis; tol=1e-4, scfres.ρ, scfres.ψ, scfres.occ
                                scfres.eigenvalues, solver=DFTK.scf_damping_solver());
 nothing  # hide
 
-# See also [`HSE`](@ref) and [`model_HF`](@ref) for setting up Hartree-Fock calculations.
+# See also [`HSE`](@ref) and [`model_HF`](@ref) for setting up Hartree-Fock calculations
+# and the example [Hybrid DFT band structures](@ref) how to compute band structures
+# using DFTK and Hybrid functionals.
