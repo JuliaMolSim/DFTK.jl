@@ -45,7 +45,7 @@ nothing  # hide
 # the unoccupied orbitals into account (such that virtual bands are accurate)
 exxalg = AceExx(; sketch_with_extra_orbitals=true)
 scfres = self_consistent_field(basis; tol=1e-7, scfres.ρ, scfres.ψ, scfres.occupation, exxalg,
-                               scfres.eigenvalues, scfres.solver, scfres.nbandsalg,
+                               scfres.eigenvalues, scfres.solver, scfres.nbandsalg, miniter=2,
                                diagtolalg=AdaptiveDiagtol(; diagtol_max=1e-6, ratio_ρdiff=0.0005))
 nothing  # hide
 
@@ -106,3 +106,6 @@ fig
 
 # ## Further reading
 # For more details on Wannierisation, see also [Wannierization using Wannier.jl or Wannier90](@ref).
+
+# (Delete temporary files when done.)
+rm("wannier", recursive=true)
