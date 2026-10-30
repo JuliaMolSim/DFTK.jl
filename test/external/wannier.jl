@@ -11,21 +11,23 @@
     nbandsalg = AdaptiveBands(model; n_bands_converge=12)
     scfres = self_consistent_field(basis; nbandsalg, tol=1e-12)
 
-    n_wannier = 8
-    projections = [DFTK.GaussianWannierProjection(rand(3)) for _ = 1:n_wannier]
+    # sp3 orbitals on both silicon atoms
+    projections = [DFTK.wannier_projectors_sp3(silicon.positions[1]);
+                   DFTK.wannier_projectors_sp3(silicon.positions[2])]
+    n_wannier = length(projections)
 
     mktempdir() do tmpdir
         @testset "Using wannier90" begin
                 run_wannier90(scfres;
-                    projections,
-                    fileprefix="$tmpdir/Si",
-                    n_bands=10, n_wannier, bands_plot=true,
-                    num_print_cycles=50, num_iter=500,
-                    dis_win_max=17.185257,
-                    dis_froz_max=6.8318033,
-                    dis_num_iter=120,
-                    dis_mix_ratio=1.0,
-                    wannier_plot=true)
+                              projections,
+                              fileprefix="$tmpdir/Si",
+                              n_bands=10, n_wannier, bands_plot=true,
+                              num_print_cycles=50, num_iter=500,
+                              dis_win_max=17.185257,
+                              dis_froz_max=6.8318033,
+                              dis_num_iter=120,
+                              dis_mix_ratio=1.0,
+                              wannier_plot=true)
 
                 @test  isfile("$tmpdir/Si.amn")
                 @test  isfile("$tmpdir/Si.chk")
@@ -40,8 +42,8 @@
         @testset "Using Wannier.jl agrees with wannier90" begin
             model_files  = Wannier.read_w90("$tmpdir/Si")
             model_memory = Wannier.Model(scfres;
-                                          n_bands=10, n_wannier, projections,
-                                          dis_froz_max=6.8318033u"eV")
+                                         n_bands=10, n_wannier, projections,
+                                         dis_froz_max=6.8318033u"eV")
 
             # Files store numbers to a limited number of digits
             for field in (:lattice, :atom_positions, :kpoints, :M, :U, :E, :recip_lattice)
@@ -55,7 +57,9 @@
             @test model_memory.bvectors.kpb_b == model_files.bvectors.kpb_b
             @test model_memory.bvectors.weights ≈ model_files.bvectors.weights rtol=1e-5
 
-            Ω_initial = omega(model_memory).Ω
+            # disentangle starts from the gauge projected onto the frozen states
+            X0, Y0 = Wannier.U_to_X_Y(model_memory.U, model_memory.frozen_bands)
+            Ω_initial = omega(model_memory, X0, Y0).Ω
             model_memory.U .= disentangle(model_memory; max_iter=500)
             @test omega(model_memory).Ω < Ω_initial
         end

@@ -66,8 +66,8 @@ projections = [DFTK.wannier_projectors_sp3(model.positions[1]);
                DFTK.wannier_projectors_sp3(model.positions[2])]
 
 ## Set the frozen window size. Since this is an insulator, about 2eV above the Fermi level
-## should be good. Note that Wannier.jl uses eV units for energies:
-dis_froz_max = ustrip(auconvert(u"eV", scfres.εF)) + 2.0
+## should be good.
+dis_froz_max = scfres.εF + austrip(2u"eV")
 
 wannier_model = Wannier.Model(scfres;
                               n_wannier=length(projections),
