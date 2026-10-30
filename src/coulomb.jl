@@ -367,4 +367,9 @@ function VoxelAverage(inner_kernel=BareCoulomb(); n_quadrature_points=12)
     VoxelAverage(inner_kernel, n_quadrature_points)
 end
 
-# For the implementation see DFTKFastGaussQuadratureExt.jl
+# For the implementation see DFTKFastGaussQuadratureExt.jl, which overrides the grid method.
+# Without the extension the generic grid method falls back to this pointwise method.
+function eval_kernel_fourier(::VoxelAverage, ::AbstractVector)
+    error("VoxelAverage is currently not available. " *
+          "A required package (FastGaussQuadrature) is not yet loaded.")
+end
