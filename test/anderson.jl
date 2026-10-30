@@ -14,13 +14,17 @@ function test_addiis(testcase; temperature=0, Ecut=10, kgrid=[3, 3, 3], n_bands=
     scfres_simple = self_consistent_field(basis; ρ, ψ, tol=1e-11, mixing=SimpleMixing(), solver)
 
     solver = scf_anderson_solver(; errorfactor=Inf, maxcond=1e6, m=100)
-    scfres_rdiis = self_consistent_field(basis; ρ, ψ, tol=1e-11, mixing=SimpleMixing(), solver)
+    scfres_rdiis  = self_consistent_field(basis; ρ, ψ, tol=1e-11, mixing=SimpleMixing(), solver)
 
     solver = scf_anderson_solver(; errorfactor=1e5, maxcond=Inf, m=100)
     scfres_addiis = self_consistent_field(basis; ρ, ψ, tol=1e-11, mixing=SimpleMixing(), solver)
 
-    @test norm(scfres_addiis.ρ - scfres_rdiis.ρ) * sqrt(basis.dvol) < 5e-9
-    @test norm(scfres_simple.ρ - scfres_rdiis.ρ) * sqrt(basis.dvol) < 5e-9
+    @test scfres_simple.converged
+    @test scfres_rdiis.converged
+    @test scfres_addiis.converged
+    @test norm(scfres_addiis.ρ -  scfres_rdiis.ρ) * sqrt(basis.dvol) < 5e-9
+    @test norm(scfres_simple.ρ -  scfres_rdiis.ρ) * sqrt(basis.dvol) < 5e-9
+    @test norm(scfres_addiis.ρ - scfres_simple.ρ) * sqrt(basis.dvol) < 5e-9
 end
 
 @testset "Aluminium, temp" begin
