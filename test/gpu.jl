@@ -174,7 +174,8 @@ end
     function run_problem(; architecture, exxalg)
         model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions;
                           functionals=HSE())
-        basis = PlaneWaveBasis(model; Ecut=15, kgrid=(2, 2, 2), architecture)
+        basis = PlaneWaveBasis(model; Ecut=15, kgrid=(2, 2, 2), architecture,
+                               use_symmetries_for_kpoint_reduction=false)
         self_consistent_field(basis; tol=1e-9, exxalg, solver=scf_damping_solver(),)
     end
 
