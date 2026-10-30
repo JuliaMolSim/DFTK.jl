@@ -47,10 +47,12 @@ function compute_forces_cart(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
 end
 
 function compute_forces(scfres)
-    compute_forces(scfres.basis, scfres.ψ, scfres.occupation; scfres.ρ, scfres.τ)
+    compute_forces(scfres.basis, scfres.ψ, scfres.occupation;
+                   scfres.ρ, scfres.τ, scfres.hubbard_n)
 end
 function compute_forces_cart(scfres)
-    compute_forces_cart(scfres.basis, scfres.ψ, scfres.occupation; scfres.ρ, scfres.τ)
+    compute_forces_cart(scfres.basis, scfres.ψ, scfres.occupation;
+                        scfres.ρ, scfres.τ, scfres.hubbard_n)
 end
 
 # Internal function used to not only compute a force, but also symmetrise with respect

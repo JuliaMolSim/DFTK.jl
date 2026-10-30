@@ -40,10 +40,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6,
             compute_density(basis, ψ, occupation)
         end
         τ = compute_kinetic_energy_density(basis, ψ, occupation)
-        hubbard_n = nothing
-        if term isa Hubbard
-            hubbard_n = DFTK.compute_hubbard_n(only(basis.terms), basis, ψ, occupation)
-        end
+        hubbard_n = DFTK.compute_hubbard_n(basis, ψ, occupation)
         E0, ham = energy_hamiltonian(basis, ψ, occupation; exxalg, ρ, τ, hubbard_n)
 
         # Function to compute energy only
@@ -71,11 +68,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6,
             if needs_τ(only(basisE.terms))
                 τ_trial = compute_kinetic_energy_density(basisE, ψ_trial, occupation)
             end
-            hubbard_n_trial = nothing
-            if term isa Hubbard
-                thub = only(basisE.terms)
-                hubbard_n_trial = DFTK.compute_hubbard_n(thub, basisE, ψ_trial, occupation)
-            end
+            hubbard_n_trial = DFTK.compute_hubbard_n(basisE, ψ_trial, occupation)
             (; energies) = DFTK.energy(basisE, ψ_trial, occupation;
                                        exxalg, ρ=ρ_trial, τ=τ_trial, hubbard_n=hubbard_n_trial)
             energies.total

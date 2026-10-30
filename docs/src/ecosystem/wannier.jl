@@ -103,7 +103,8 @@ kpath = irrfbz_path(model)
 interp_model = Wannier.InterpModel(wannier_model; kpath=kpath)
 
 # And so on...
-# Refer to the Wannier.jl documentation for further examples.
+# Refer to the Wannier.jl documentation for further examples
+# and [Hybrid DFT band structures](@ref) for an example how to use Wannierization for band structure computation.
 
 # (Delete temporary files when done.)
 rm("wannier", recursive=true)
