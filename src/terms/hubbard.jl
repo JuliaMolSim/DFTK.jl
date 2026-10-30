@@ -150,8 +150,13 @@ end
                                             basis::PlaneWaveBasis{T},
                                             ψ, occupation; hubbard_n=nothing,
                                             kwargs...) where {T}
-    if isnothing(hubbard_n) || isempty(term.U)
+    if isempty(term.U)
        return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
+    end
+    if isnothing(hubbard_n)
+        throw(ArgumentError("TermHubbard needs the Hubbard occupation matrix hubbard_n. " *
+                            "Please pass a `hubbard_n` keyword argument to your " *
+                            "`Hamiltonian` or `energy_hamiltonian` call."))
     end
    
     filled_occ = filled_occupation(basis.model)

@@ -119,6 +119,10 @@ end
         ref_hub = 0.17631957087331435
         @test scfres.energies.Hubbard ≈ ref_hub
    end
+   @testset "Missing hubbard_n is an error" begin
+        @test_throws ArgumentError DFTK.ene_ops(hubbard(basis), basis, scfres.ψ, scfres.occupation)
+        @test_throws ArgumentError energy_hamiltonian(basis, nothing, nothing; scfres.ρ)
+   end
    # The unfolding of the kpoints is not supported with MPI
    if mpi_nprocs(basis.comm_kpts) == 1
         @testset "Test symmetry consistency" begin
