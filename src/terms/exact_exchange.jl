@@ -21,7 +21,6 @@ where the `kernel` keyword argument is an [`InteractionKernel`](@ref) , typicall
     kernel = ProbeCharge(BareCoulomb())
 end
 (ex::ExactExchange)(basis) = TermExactExchange(basis, ex.scaling_factor, ex.kernel)
-breaks_symmetries(::ExactExchange) = true  # TODO: make ExactExchange fit for symmetries 
 
 struct TermExactExchange{T, Tkernel, Tq} <: Term
     scaling_factor::T             # scaling factor, absorbed into interaction_kernels
@@ -32,8 +31,14 @@ function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, kernel) whe
     if mpi_nprocs(basis.comm_kpts) > 1
         error("ExactExchange currently does not support MPI parallelization over k-points.")
     end
-    if !(basis.kgrid isa MonkhorstPack) || basis.n_irreducible_kpoints != length(basis.kgrid)
-        error("ExactExchange requires a full (non-symmetry-reduced) Monkhorst-Pack grid.")
+    if !(basis.kgrid isa MonkhorstPack)
+        error("ExactExchange requires a Monkhorst-Pack k-point grid.")
+    end
+    if basis.n_irreducible_kpoints != length(basis.kgrid)
+        # TODO: make ExactExchange fit for symmetry-reduced k-point grids
+        error("ExactExchange does not yet support symmetry-reduced k-point grids. " *
+              "Pass `use_symmetries_for_kpoint_reduction=false` when constructing " *
+              "the PlaneWaveBasis to use the full Monkhorst-Pack grid.")
     end
     fac::T = scaling_factor 
 
