@@ -9,6 +9,10 @@ const DualEltype{T,V,N} = Union{Dual{T,V,N}, Complex{Dual{T,V,N}}}
 # Helper type for strict scalars
 const ScalarEltype = Union{AbstractFloat, Complex{<:AbstractFloat}}
 
+# Scaling factors α, β of a 5-argument mul! handled by _dual_mul!. Dual factors, e.g. from
+# `γ * A * B` with a Dual γ, use the generic implementation.
+const ScalingFactor = Union{Integer, Complex{<:Integer}, ScalarEltype}
+
 function dual_matrix_value_and_partials(A::AbstractMatrix{<:DualEltype{T,V,N}}, npartials::Int) where {T,V,N}
     (ForwardDiff.value.(A), ntuple(p -> ForwardDiff.partials.(A, p), npartials))
 end
@@ -81,19 +85,19 @@ end
 function LinearAlgebra.mul!(C::AbstractMatrix{<:DualEltype{T,V,N}},
                             A::AbstractMatrix{<:DualEltype{T,V,N}},
                             B::AbstractMatrix{<:DualEltype{T,V,N}},
-                            α::Number, β::Number) where {T,V,N}
+                            α::ScalingFactor, β::ScalingFactor) where {T,V,N}
     _dual_mul!(C, A, B, α, β)
 end
 function LinearAlgebra.mul!(C::AbstractMatrix{<:DualEltype{T,V,N}},
                             A::AbstractMatrix{<:DualEltype{T,V,N}},
                             B::AbstractMatrix{<:ScalarEltype},
-                            α::Number, β::Number) where {T,V,N}
+                            α::ScalingFactor, β::ScalingFactor) where {T,V,N}
     _dual_mul!(C, A, B, α, β)
 end
 function LinearAlgebra.mul!(C::AbstractMatrix{<:DualEltype{T,V,N}},
                             A::AbstractMatrix{<:ScalarEltype},
                             B::AbstractMatrix{<:DualEltype{T,V,N}},
-                            α::Number, β::Number) where {T,V,N}
+                            α::ScalingFactor, β::ScalingFactor) where {T,V,N}
     _dual_mul!(C, A, B, α, β)
 end
 

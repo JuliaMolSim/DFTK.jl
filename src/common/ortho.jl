@@ -13,11 +13,13 @@
     end
 end
 
-@timing function ortho_lowdin(φk::AbstractArray{T}) where {T}
-    evals, evecs = eigen(Hermitian(φk' * φk))
-    # Check for linear dependence: eigenvalues close to zero
-    @assert minimum(abs, evals) > eps(real(T)) * maximum(abs, evals) 
-    ihS = evecs * Diagonal(evals .^ (-0.5)) * evecs'
-    φk * ihS
-end
+invsqrt(x) = 1 / sqrt(x)
+divided_difference(::typeof(invsqrt), x, y) = -1 / (sqrt(x) * sqrt(y) * (sqrt(x) + sqrt(y)))
 
+@timing function ortho_lowdin(φk::AbstractArray)
+    O = Hermitian(φk' * φk)
+    # Check for linear dependence: eigenvalues close to zero
+    λ = eigvals(Hermitian(ForwardDiff.value.(O)))
+    @assert minimum(abs, λ) > eps(real(eltype(λ))) * maximum(abs, λ)
+    φk * matrix_function(invsqrt, O)
+end
