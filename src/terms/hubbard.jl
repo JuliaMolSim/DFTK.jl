@@ -328,17 +328,11 @@ function guess_hubbard_n(basis::PlaneWaveBasis{T}) where {T}
         n_spin = basis.model.n_spin_components
 
         manifold_atoms = manifold.iatoms
-        natoms = length(manifold_atoms)
+        n_atoms = length(manifold_atoms)
         l = manifold.l
-        hubbard_n = Array{Matrix{Complex{T}}}(undef, n_spin, natoms, natoms)
-        for σ in 1:n_spin
-            for idx in 1:natoms, jdx in 1:natoms
-                if idx == jdx
-                    hubbard_n[σ, idx, jdx] = I(2l+1) / 2
-                else
-                    hubbard_n[σ, idx, jdx] = zeros(Complex{T}, 2l+1, 2l+1)
-                end
-            end
+        hubbard_n = Array{Matrix{Complex{T}}}(undef, n_spin, n_atoms, n_atoms)
+        for jdx in 1:n_atoms, idx in 1:n_atoms, σ in 1:n_spin
+            hubbard_n[σ, idx, jdx] = (idx == jdx) / 2 * I(2l+1)
         end
         hubbard_n
     end
