@@ -150,8 +150,13 @@ end
                                             basis::PlaneWaveBasis{T},
                                             ψ, occupation; hubbard_n=nothing,
                                             kwargs...) where {T}
-    if isnothing(hubbard_n) || isempty(term.U)
+    if isempty(term.U)
        return (; E=zero(T), ops=[NoopOperator(basis, kpt) for kpt in basis.kpoints])
+    end
+    if isnothing(hubbard_n)
+        throw(ArgumentError("TermHubbard needs the Hubbard occupation matrix hubbard_n. " *
+                            "Please pass a `hubbard_n` keyword argument to your " *
+                            "`Hamiltonian` or `energy_hamiltonian` call."))
     end
    
     filled_occ = filled_occupation(basis.model)
@@ -306,4 +311,29 @@ function reshape_hubbard_proj(projectors::Vector{Matrix{Complex{T}}},
     end
 
     p_I
+end
+
+"""
+Guess an initial hubbard_n if the basis has a Hubbard term, otherwise nothing.
+For now, uses a naive 1/2 occupancy initial guess (i.e. zero Hubbard potential).
+Better guesses could be implemented based on the pseudopotential.
+However, generally speaking there can be many metastable solutions.
+"""
+function guess_hubbard_n(basis::PlaneWaveBasis{T}) where {T}
+    ihubbard = findfirst(t -> t isa TermHubbard, basis.terms)
+    isnothing(ihubbard) && return nothing
+
+    term = basis.terms[ihubbard]
+    map(term.manifolds) do manifold
+        n_spin = basis.model.n_spin_components
+
+        manifold_atoms = manifold.iatoms
+        n_atoms = length(manifold_atoms)
+        l = manifold.l
+        hubbard_n = Array{Matrix{Complex{T}}}(undef, n_spin, n_atoms, n_atoms)
+        for jdx in 1:n_atoms, idx in 1:n_atoms, σ in 1:n_spin
+            hubbard_n[σ, idx, jdx] = (idx == jdx) / 2 * I(2l+1)
+        end
+        hubbard_n
+    end
 end
