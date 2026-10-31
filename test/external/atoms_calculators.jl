@@ -64,7 +64,8 @@
         res = AC.calculate(Energy(), perturbed_system, calculator, ps, res.state)
         @test res.state.n_iter < n_iter_ref
 
-        F = I + 1e-3randn(3, 3)
+
+        F = I + 1e-3rand(3, 3)
         cv = [F * v for v in cell_vectors(perturbed_system)]
         rattled = AbstractSystem(perturbed_system; cell_vectors=cv)
         res = AC.calculate(Energy(), rattled, calculator, ps, res.state)
