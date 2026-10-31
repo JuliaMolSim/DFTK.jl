@@ -362,14 +362,20 @@ J. Chem. Phys. 160, 051101 (2024) (doi.org/10.1063/5.0182729)
 struct VoxelAverage{K <: InteractionKernel} <: InteractionKernel
     inner_kernel::K
     n_quadrature_points::Int
+    function VoxelAverage(inner_kernel::K, n_quadrature_points::Integer) where {K}
+        error_if_kernel_not_available(VoxelAverage)
+        new{K}(inner_kernel, n_quadrature_points)
+    end
 end
 function VoxelAverage(inner_kernel=BareCoulomb(); n_quadrature_points=12)
     VoxelAverage(inner_kernel, n_quadrature_points)
 end
 
-# For the implementation see DFTKFastGaussQuadratureExt.jl, which overrides the grid method.
-# Without the extension the generic grid method falls back to this pointwise method.
-function eval_kernel_fourier(::VoxelAverage, ::AbstractVector)
+# Errors if the implementation of a kernel lives in a package extension which is not loaded.
+# Extensions providing the implementation define a more specific no-op method.
+function error_if_kernel_not_available(::Type{<:VoxelAverage})
     error("VoxelAverage is currently not available. " *
           "A required package (FastGaussQuadrature) is not yet loaded.")
 end
+
+# For the implementation see DFTKFastGaussQuadratureExt.jl

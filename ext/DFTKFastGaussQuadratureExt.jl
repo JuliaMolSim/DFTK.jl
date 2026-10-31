@@ -4,6 +4,7 @@ using DFTK
 using DFTK: to_cpu, to_device, norm2, eval_kernel_fourier, VoxelAverage
 using LinearAlgebra
 
+DFTK.error_if_kernel_not_available(::Type{VoxelAverage}) = nothing
 
 @views function DFTK.eval_kernel_fourier(voxel_average::VoxelAverage,
                                          basis::PlaneWaveBasis{T}, q::Vec3) where {T}
