@@ -2,6 +2,7 @@
     using DFTK
     using Wannier
     using wannier90_jll
+    using Unitful
     silicon = TestCases.silicon
 
     model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions; functionals=LDA())
@@ -10,18 +11,23 @@
     nbandsalg = AdaptiveBands(model; n_bands_converge=12)
     scfres = self_consistent_field(basis; nbandsalg, tol=1e-12)
 
-    @testset begin
+    # sp3 orbitals on both silicon atoms
+    projections = [DFTK.wannier_projectors_sp3(silicon.positions[1]);
+                   DFTK.wannier_projectors_sp3(silicon.positions[2])]
+    n_wannier = length(projections)
+
+    mktempdir() do tmpdir
         @testset "Using wannier90" begin
-            mktempdir() do tmpdir
                 run_wannier90(scfres;
-                    fileprefix="$tmpdir/Si",
-                    n_wannier=8, bands_plot=true,
-                    num_print_cycles=50, num_iter=500,
-                    dis_win_max=17.185257,
-                    dis_froz_max=6.8318033,
-                    dis_num_iter=120,
-                    dis_mix_ratio=1.0,
-                    wannier_plot=true)
+                              projections,
+                              fileprefix="$tmpdir/Si",
+                              n_bands=10, n_wannier, bands_plot=true,
+                              num_print_cycles=50, num_iter=500,
+                              dis_win_max=17.185257,
+                              dis_froz_max=6.8318033,
+                              dis_num_iter=120,
+                              dis_mix_ratio=1.0,
+                              wannier_plot=true)
 
                 @test  isfile("$tmpdir/Si.amn")
                 @test  isfile("$tmpdir/Si.chk")
@@ -32,30 +38,30 @@
                 @test  isfile("$tmpdir/Si.wout")
                 @test !isfile("$tmpdir/Si.werr")
             end
-        end
 
-        @testset "Using Wannier.jl" begin
-            mktempdir() do tmpdir
-                wannier_model = Wannier.Model(scfres;
-                    fileprefix="$tmpdir/Si",
-                    n_wannier=8, bands_plot=true,
-                    dis_win_max=17.185257,
-                    dis_froz_max=6.8318033,
-                    dis_mix_ratio=1.0,
-                    wannier_plot=true)
+        @testset "Using Wannier.jl agrees with wannier90" begin
+            model_files  = Wannier.read_w90("$tmpdir/Si")
+            model_memory = Wannier.Model(scfres;
+                                         n_bands=10, n_wannier, projections,
+                                         dis_froz_max=6.8318033u"eV")
 
-                wannier_model.U .= disentangle(wannier_model; max_iter=500)
-
-                # for now the Wannier.jl compat writes the amn, eig, mmn and win files
-                @test  isfile("$tmpdir/Si.amn")
-                @test !isfile("$tmpdir/Si.chk")
-                @test  isfile("$tmpdir/Si.eig")
-                @test  isfile("$tmpdir/Si.mmn")
-                @test !isfile("$tmpdir/Si.nnkp")
-                @test  isfile("$tmpdir/Si.win")
-                @test !isfile("$tmpdir/Si.wout") # NO .wout file, the output is in the `wannier_model`
-                @test !isfile("$tmpdir/Si.werr")
+            # Files store numbers to a limited number of digits
+            for field in (:lattice, :atom_positions, :kpoints, :M, :U, :E, :recip_lattice)
+                @test getfield(model_memory, field) ≈ getfield(model_files, field) atol=1e-5
             end
+            @test model_memory.atom_labels == model_files.atom_labels
+            @test model_memory.kgrid == model_files.kgrid
+            @test model_memory.frozen_bands == model_files.frozen_bands
+            @test any(model_memory.frozen_bands)
+            @test model_memory.bvectors.kpb_k == model_files.bvectors.kpb_k
+            @test model_memory.bvectors.kpb_b == model_files.bvectors.kpb_b
+            @test model_memory.bvectors.weights ≈ model_files.bvectors.weights rtol=1e-5
+
+            # disentangle starts from the gauge projected onto the frozen states
+            X0, Y0 = Wannier.U_to_X_Y(model_memory.U, model_memory.frozen_bands)
+            Ω_initial = omega(model_memory, X0, Y0).Ω
+            model_memory.U .= disentangle(model_memory; max_iter=500)
+            @test omega(model_memory).Ω < Ω_initial
         end
     end
 end

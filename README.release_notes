@@ -6,3 +6,7 @@ Note that this release increases the minor version and contains a number of brea
 
 - Dummy 1
 - Dummy 2
+- Deprecated the JSON3-based JSON output (package extension `DFTKJSON3Ext`): saving
+  `scfres` or band data as JSON with `using JSON3` now prints a deprecation warning.
+  Use `using JSON` instead (extension `DFTKJSONExt`), which supports the same
+  functions and writes the same file format.

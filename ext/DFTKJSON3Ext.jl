@@ -4,6 +4,13 @@ using JSON3
 using MPI
 using Preferences
 
+function _warn_deprecated()
+    @warn("Saving JSON files via the JSON3-based extension is deprecated and will be " *
+          "removed in the next minor version bump, as JSON3 itself is unmaintained. " *
+          "Please switch to `using JSON`, which provides the same functionality " *
+          "and the same file format.")
+end
+
 function save_json(todict_function, filename::AbstractString, scfres::NamedTuple;
                    save_ψ=false, extra_data=Dict{String,Any}(), save_ρ=false, kwargs...)
     if save_ψ
@@ -23,14 +30,17 @@ function save_json(todict_function, filename::AbstractString, scfres::NamedTuple
     nothing
 end
 function DFTK.save_scfres(::Val{:json}, filename::AbstractString, scfres::NamedTuple; kwargs...)
+    _warn_deprecated()
     save_json(DFTK.scfres_to_dict, filename, scfres; kwargs...)
 end
 function DFTK.save_bands(::Val{:json}, filename::AbstractString, band_data::NamedTuple; kwargs...)
+    _warn_deprecated()
     save_json(DFTK.band_data_to_dict, filename, band_data; kwargs...)
 end
 
 function DFTK.save_debugdump(::Val{:json}, prefix::AbstractString, comm::MPI.Comm,
                              dftkalgorithm::AbstractString, data::AbstractDict)
+    _warn_deprecated()
     if mpi_master(comm) && !isempty(prefix)
         fn = "$(prefix)-$(dftkalgorithm)-$(getpid()).json"
         open(fn, "w") do io

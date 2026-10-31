@@ -121,6 +121,7 @@ function compute_scf(system::AbstractSystem, calc::DFTKCalculator, oldstate)
     τ = nothing
     ψ = nothing
     basis = PlaneWaveBasis(model; calc.params.basis_kwargs...)
+    diagtolalg = @something get(calc.params.scf_kwargs, :diagtolalg, nothing) AdaptiveDiagtol()
     if (haskey(oldstate, :basis) && haskey(oldstate, :ρ))
         lattice_agrees = maximum(abs, model.lattice - oldstate.basis.model.lattice) < 1e-6
         fft_size_agrees = (basis.fft_size..., model.n_spin_components) == size(oldstate.ρ)
@@ -139,7 +140,15 @@ function compute_scf(system::AbstractSystem, calc::DFTKCalculator, oldstate)
                 τ = interpolate_density(oldstate.τ, oldstate.basis, basis)
             end
         end
+
+        # Adjust diagtol
+        diagtol_first = min(diagtolalg.diagtol_first, 1e-3)
+        diagtolalg = AdaptiveDiagtol(; diagtol_first,
+                                       diagtolalg.diagtol_max,
+                                       diagtolalg.diagtol_min,
+                                       diagtolalg.ratio_ρdiff)
     end
+
     if isnothing(ρ)
         @debug "compute_scf: Forming new guess density"
         ρ = guess_density(basis, system)
@@ -148,7 +157,7 @@ function compute_scf(system::AbstractSystem, calc::DFTKCalculator, oldstate)
         end
     end
 
-    scfres = self_consistent_field(basis; ρ, τ, ψ, calc.params.scf_kwargs...)
+    scfres = self_consistent_field(basis; ρ, τ, ψ, diagtolalg, calc.params.scf_kwargs...)
     calc.enforce_convergence && !scfres.converged && error("SCF not converged.")
     calc.counter_n_iter[] += scfres.n_iter
     calc.counter_matvec[] += scfres.n_matvec
