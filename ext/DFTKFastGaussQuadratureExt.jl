@@ -4,7 +4,7 @@ using DFTK
 using DFTK: to_cpu, to_device, norm2, eval_kernel_fourier, VoxelAverage
 using LinearAlgebra
 
-DFTK.error_if_kernel_not_available(::Type{VoxelAverage}) = nothing
+DFTK.error_if_kernel_not_available(::Type{<:VoxelAverage}, string) = nothing
 
 @views function DFTK.eval_kernel_fourier(voxel_average::VoxelAverage,
                                          basis::PlaneWaveBasis{T}, q::Vec3) where {T}
@@ -17,12 +17,12 @@ DFTK.error_if_kernel_not_available(::Type{VoxelAverage}) = nothing
     # Define Voxels as reciprocal cell divided by k-mesh
     voxel_basis = model.recip_lattice * Diagonal(1 ./ Vec3{T}(kgrid_size))
     voxel_vol = abs(det(voxel_basis))
-    
+
     # Get Gauss-Legendre nodes and weights and scale from [-1, 1] to [-0.5, 0.5]
     nodes_std, weights_std = gausslegendre(voxel_average.n_quadrature_points)
     nodes = T.(nodes_std ./ 2)
     weights = T.(weights_std ./ 2)
-    
+
     # Precompute all local q vectors and their weights for the voxel
     q_locals = vec([voxel_basis * Vec3(x, y, z) for x in nodes, y in nodes, z in nodes])
     w_locals = vec([wx * wy * wz for wx in weights, wy in weights, wz in weights])
@@ -33,28 +33,28 @@ DFTK.error_if_kernel_not_available(::Type{VoxelAverage}) = nothing
         G_cart = model.recip_lattice * (G+q)
 
         found_singularity = (iG==1 && iszero(q))
-        
+
         if found_singularity 
             # === At Singularity (G+q=0) use surface reduction method ===
-            
+
             # We only do that for the 4π/(G+q)^2 kernel, hence the quadrature below
             # covers the rest if kernel is different from BareCoulomb().
-            
+
             # Transforms volume integral ∫ 1/G^2 dV to surface integral Σ h * ∫ 1/G^2 dS
             integral = zero(T)
             for i in 1:3
                 u_i = voxel_basis[:, i]
                 u_j = voxel_basis[:, mod1(i+1, 3)]
                 u_k = voxel_basis[:, mod1(i+2, 3)]
-                
+
                 # Height of the face from origin
                 normal = cross(u_j, u_k)
                 area_norm = norm(normal)
-                
+
                 # Calculate distance h from center to face.
                 # Since face is at u_i/2, h = |(u_i/2) . n|
                 h = abs(dot(u_i, normal)) / (2 * area_norm)
-                
+
                 # Integrate 1/G^2 over the face parallelogram
                 face_integral = zero(T)
                 for (wa, a) in zip(weights, nodes)
@@ -65,12 +65,12 @@ DFTK.error_if_kernel_not_available(::Type{VoxelAverage}) = nothing
                         face_integral += wa * wb / r_sq
                     end
                 end
-                
+
                 # Add contribution: 2 faces * h * Area * Mean(1/r^2)
                 # Area factor (area_norm) comes from the Jacobian.
                 integral += 2 * h * area_norm * face_integral
             end
-            
+
             kernel_fourier[iG] = 4T(π) * (integral / voxel_vol)
         end
 
