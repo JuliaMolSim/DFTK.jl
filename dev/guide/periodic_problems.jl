@@ -1,11 +1,12 @@
-# # [Problems and plane-wave discretisations](@id periodic-problems)
-#md # [![](https://mybinder.org/badge_logo.svg)](@__BINDER_ROOT_URL__/guide/@__NAME__.ipynb)
-#md # [![](https://img.shields.io/badge/show-nbviewer-579ACA.svg)](@__NBVIEWER_ROOT_URL__/guide/@__NAME__.ipynb)
+# # [Periodic problems and plane-wave discretisations](@id periodic-problems)
 
 # In this example we want to show how DFTK can be used to solve simple one-dimensional
 # periodic problems. Along the lines this notebook serves as a concise introduction into
 # the underlying theory and jargon for solving periodic problems using plane-wave
-# discretizations.
+# discretizations. This example provides a high-level overview focused on plane-wave
+# discretisations. For a more hands-on introduction walking you through some exercises
+# on these topics see [Comparing discretization techniques](@ref) and
+# [Modelling atomic chains](@ref).
 
 # ## Periodicity and lattices
 # A periodic problem is characterized by being invariant to certain translations.
@@ -36,7 +37,7 @@
 # ```
 # with lattice constant ``a``. Each cell of the lattice is an identical periodic image of
 # any of its neighbors. For finding ``f`` it is thus sufficient to consider only the
-# problem inside a **unit cell** ``[-a/2, a/2)`` (this is the convention used by DFTK, but this is arbitrary, and for instance ``[0,a)`` would have worked just as well).
+# problem inside a **unit cell** ``[-a/2, a/2)`` (this is arbitrary, and for instance ``[0,a)`` would have worked just as well, which is the convention used by DFTK).
 #
 # ## Periodic operators and the Bloch transform
 # Not only functions, but also operators can feature periodicity.
@@ -181,7 +182,7 @@
 # and typically one forms basis sets from these by specifying a
 # **kinetic energy cutoff** ``E_\text{cut}``:
 # ```math
-# \left\{ e_{G} \, \big| \, (G + k)^2 \leq 2E_\text{cut} \right\}
+# \left\{ e_{G} \, \big| \, \frac{1}{2} (G + k)^2 \leq E_\text{cut} \right\}
 # ```
 #
 # ## Correspondence of theory to DFTK code
@@ -189,13 +190,13 @@
 # Before solving a few example problems numerically in DFTK, a short overview
 # of the correspondence of the introduced quantities to data structures inside DFTK.
 #
-# - ``H`` is represented by a `Hamiltonian` object and variables for hamiltonians are usually called `ham`.
+# - ``H`` is represented by a [`Hamiltonian`](@ref) object and variables for hamiltonians are usually called `ham`.
 # - ``H_k`` by a `HamiltonianBlock` and variables are `hamk`.
 # - ``ψ_{kn}`` is usually just called `ψ`.
 #   ``u_{kn}`` is not stored (in favor of ``ψ_{kn}``).
 # - ``ε_{kn}`` is called `eigenvalues`.
-# - ``k``-points are represented by `Kpoint` and respective variables called `kpt`.
-# - The basis of plane waves is managed by `PlaneWaveBasis` and variables usually just called `basis`.
+# - ``k``-points are represented by [`Kpoint`](@ref) and respective variables called `kpt`.
+# - The basis of plane waves is managed by [`PlaneWaveBasis`](@ref) and variables usually just called `basis`.
 #
 # ## Solving the free-electron Hamiltonian
 #
@@ -232,19 +233,20 @@ using Unitful
 using UnitfulAtomic
 using Plots
 
-plot_bandstructure(basis; n_bands=6, kline_density=100)
+bands = compute_bands(basis; n_bands=6, kline_density=100)
+plot_bandstructure(bands)
 
-# !!! note "Selection of k-point grids in `PlaneWaveBasis` construction"
+# !!! note "Selection of k-point grids in [`PlaneWaveBasis`](@ref) construction"
 #     You might wonder why we only selected a single ``k``-point (clearly a very crude
 #     and inaccurate approximation). In this example the `kgrid` parameter specified
-#     in the construction of the `PlaneWaveBasis`
+#     in the construction of the [`PlaneWaveBasis`](@ref)
 #     is not actually used for plotting the bands. It is only used when solving more
 #     involved models like density-functional theory (DFT) where the Hamiltonian is
 #     non-linear. In these cases before plotting the bands the self-consistent field
 #     equations (SCF) need to be solved first. This is typically done on
 #     a different ``k``-point grid than the grid used for the bands later on.
 #     In our case we don't need this extra step and therefore the `kgrid` value passed
-#     to `PlaneWaveBasis` is actually arbitrary.
+#     to [`PlaneWaveBasis`](@ref) is actually arbitrary.
 
 
 # ## Adding potentials
@@ -267,7 +269,7 @@ plot_bandstructure(basis; n_bands=6, kline_density=100)
 #     (see [Gross-Pitaevskii equation in one dimension](@ref gross-pitaevskii))
 #   * even some more unusual cases like anyonic models.
 #
-# We will use `ElementGaussian`, which is an analytic potential describing a Gaussian
+# We will use [`ElementGaussian`](@ref), which is an analytic potential describing a Gaussian
 # interaction with the electrons to DFTK. See [Custom potential](@ref custom-potential) for
 # how to create a custom potential.
 #
@@ -280,11 +282,11 @@ plot(r -> DFTK.local_potential_real(nucleus, norm(r)), xlims=(-50, 50))
 
 # With this element at hand we can easily construct a setting
 # where two potentials of this form are located at positions
-# ``20`` and ``80`` inside the lattice ``[0, 100]``:
+# ``20`` and ``80`` inside the lattice ``[0, 100)``:
 
 using LinearAlgebra
 
-## Define the 1D lattice [0, 100]
+## Define the 1D lattice [0, 100)
 lattice = diagm([100., 0, 0])
 
 ## Place them at 20 and 80 in *fractional coordinates*,
@@ -315,7 +317,8 @@ plot(x, potential, label="", xlabel="x", ylabel="V(x)")
 using Unitful
 using UnitfulAtomic
 
-plot_bandstructure(basis; n_bands=6, kline_density=500)
+bands = compute_bands(basis; n_bands=6, kline_density=500)
+plot_bandstructure(bands)
 
 # The bands are noticeably different.
 #  - The bands no longer overlap, meaning that the spectrum of $H$ is no longer continuous
@@ -330,3 +333,10 @@ plot_bandstructure(basis; n_bands=6, kline_density=500)
 #    (the degree to which they are free-electron-like) is highly related to the delocalization
 #    of electrons in these bands: The more curved the more delocalized. In some sense
 #    "free electrons" correspond to perfect delocalization.
+#
+#  - Try playing with the parameters of the Gaussian potentials by setting
+#    ```julia
+#    nucleus   = ElementGaussian(α, L)
+#    ```
+#    with different $α$ and $L$. You should notice the influence on the bands. Pay particular
+#    attention to the relation between the depth of the potential and the shape of the bands.
