@@ -8,6 +8,7 @@ function test_addiis(testcase; temperature=0, Ecut=10, kgrid=[3, 3, 3], n_bands=
                       functionals=LDA(), temperature)
     basis = PlaneWaveBasis(model; kgrid, Ecut)
     ρ = guess_density(basis)
+    DFTK.seed_task_local_rng!(0x67a2ba06e7acfacb, basis.comm_kpts)
     ψ = DFTK.random_orbitals(basis, n_bands)
     scfargs = (; ρ, ψ, tol=1e-10, mixing=SimpleMixing())
 

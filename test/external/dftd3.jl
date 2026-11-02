@@ -140,6 +140,7 @@ end
     using DFTK
     using SimpleDFTD3
     using LinearAlgebra
+    using PseudoPotentialData
 
     # The D3 contribution to energy, forces and stresses, compared to SimpleDFTD3 directly
     lattice   = Matrix(6.0I, 3, 3)
