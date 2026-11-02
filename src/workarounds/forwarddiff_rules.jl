@@ -180,7 +180,7 @@ function construct_value(model::Model{T}) where {T <: Dual}
           model.model_name,
           model.n_electrons,
           magnetic_moments=value_type(T)[],  # Symmetries given explicitly
-          terms=model.term_types,
+          terms=construct_term_value.(model.term_types),
           temperature=ForwardDiff.value(model.temperature),
           model.smearing,
           εF=ForwardDiff.value(model.εF),
@@ -219,6 +219,11 @@ function construct_value(psp::PspLinComb{<: Dual})
                construct_value.(psp.pseudos),
                psp.identifier,
                psp.description)
+end
+
+construct_term_value(term_type) = term_type
+function construct_term_value(e::ElectricField)
+    ElectricField(ForwardDiff.value.(e.strength_red), e.polarization_method)
 end
 
 function construct_value(basis::PlaneWaveBasis{T}) where {T <: Dual}

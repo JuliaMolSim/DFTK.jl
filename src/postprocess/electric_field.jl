@@ -1,13 +1,14 @@
-# Electric field perturbations at zero field.
-#
 # Berry phase electronic polarization in direction α:
 # Pel_α({uₙₖ}) = -2i/(2π)^3 ∑ₙ ∫ <uₙₖ|∂k_α uₙₖ>
 #             = -i/Ω * Σₙₖ wₖfₙₖ <uₙₖ|∂k_α uₙₖ>.
 # Total polarization (electronic + ionic):
 # Ptot_α({uₙₖ}) = Pel_α({uₙₖ}) + ∑ₛ Zₛ Rₛ_α.
-#
 # At nonzero field, the {uₙₖ} minimize the electric enthalpy functional:
 # F({uₙₖ}, E) = Energy({uₙₖ}) - Ω E ⋅ Ptot({uₙₖ}).
+#
+# # Analytic k-derivative
+# The k-derivative can be evaluated analytically, which allows perturbations
+# to be computed at zero field.
 # The DFPT rhs for an electric field perturbation in direction α is
 # 1/wₖfₙₖ ∂²F/∂<uₙₖ|∂E_α = -Ω/wₖfₙₖ ∂P_α/∂<uₙₖ| = i ∂k_α uₙₖ.
 # So the steps are:
@@ -21,6 +22,99 @@
 #                 = -i/Ω * Σₙₖ wₖfₙₖ (<∂θ uₙₖ|∂k_α uₙₖ> - <∂k_α uₙₖ|∂θ uₙₖ>)
 #                 = -i/Ω * Σₙₖ wₖfₙₖ (<∂θ uₙₖ|∂k_α uₙₖ> - conj(<∂ θuₙₖ|∂k_α uₙₖ>))
 #                 =  1/Ω * Σₙₖ wₖfₙₖ 2 Im <∂θ uₙₖ|∂k_α uₙₖ>.
+#
+# # Numerical k-derivative
+# The k-derivative can be evaluated numerically with finite differences,
+# which allows both solving for the metastable "ground state" at a finite field,
+# and the response to perturbations (perturbation expansion after discretization aka. PEAD)
+# TODO: implement numerical derivative (Berry phase formula) in DFTK
+
+abstract type PolarizationMethod end
+@kwdef struct LinearResponsePolarization <: PolarizationMethod
+    verbose::Bool = true
+    # TODO: not sure this is the best place to specify it?
+    tol::Float64 = 1e-10
+end
+
+function electronic_polarization(basis, ψ, occupation, ::LinearResponsePolarization;
+                                 kwargs...)
+    @warn "electronic_polarization(::LinearResponsePolarization) always returns zero"
+    zero(Vec3{eltype(basis)})
+end
+@timing function electronic_polarization(basis::PlaneWaveBasis{T}, ψ, occupation,
+                                 lrpol::LinearResponsePolarization;
+                                 εF, eigenvalues, occupation_threshold,
+                                 ρ=nothing, τ=nothing) where {Tg,V,T<:Dual{Tg,V}}
+    basis0 = construct_value(basis)
+    ψ0           = map(ψ) do ψk
+        ForwardDiff.value.(Tg, real.(ψk)) .+ im .* ForwardDiff.value.(Tg, imag.(ψk))
+    end
+    occupation0  = [ForwardDiff.value.(Tg, occk) for occk in occupation]
+    εF0          = ForwardDiff.value(Tg, εF)
+    eigenvalues0 = [ForwardDiff.value.(Tg, εk) for εk in eigenvalues]
+    ρ0           = ForwardDiff.value.(Tg, ρ)
+    τ0           = isnothing(τ) ? nothing : ForwardDiff.value.(Tg, τ)
+
+    # The polarization is only well-defined for insulators!
+    filled_occ = filled_occupation(basis0.model)
+    for occk in occupation0
+        all(abs.(occk) .<= occupation_threshold .|| abs.(occk .- filled_occ) .<= occupation_threshold) ||
+            error("Only full or zero occupations are supported for polarization, found partial occupation: $occk.")
+    end
+
+    ham = Hamiltonian(basis0; ψ=ψ0, occupation=occupation0, ρ=ρ0, τ=τ0)
+    bandtolalg = BandtolBalanced(basis0, ψ0, occupation0; occupation_threshold)
+
+    dψ_dk = map(1:3) do α
+        lrpol.verbose && mpi_master(basis0.comm_kpts) && println("Computing dunk/dk_$α")
+        δk = zeros(V, 3)
+        δk[α] = one(V)
+        dH_dkψ = compute_δHψδk(basis0, ψ0, δk; ρ=ρ0, τ=τ0)
+        apply_χ0_4P(ham, ψ0, occupation0, εF0, eigenvalues0, dH_dkψ;
+                    occupation_threshold, bandtolalg, lrpol.tol).δψ
+    end
+    P = zero(Vec3{V})
+    Ω = basis0.model.unit_cell_volume
+    dP = ntuple(ForwardDiff.npartials(T)) do n
+        δψ = [ForwardDiff.partials.(Tg, ψk, n) for ψk in ψ]
+        δP = Vec3{V}(map(1:3) do α
+            δPk = map(occupation0, δψ, dψ_dk[α]) do occk, δψk, dψk_dk
+                2/Ω * sum(occk .* imag.(columnwise_dots(δψk, dψk_dk)))
+            end
+            weighted_ksum(basis0, δPk)
+        end)
+        # TODO: missing symmetrization
+        # d/dkcart = 1/2π * lattice * d/dkred
+        # TODO: I think we should multiply by 1/2π by not lattice
+        # this will avoid problems with stresses and improper piezoelectric tensors
+        # (for finite E with discretized k-grid)
+        1/2π * basis0.model.lattice * δP
+    end
+    map(P, dP...) do Pα, dPα...
+        ForwardDiff.Dual{Tg}(Pα, dPα)
+    end
+end
+
+function electronic_polarization(scfres, method::PolarizationMethod)
+    electronic_polarization(scfres.basis, scfres.ψ, scfres.occupation, method;
+                            scfres.εF, scfres.eigenvalues, scfres.occupation_threshold,
+                            scfres.ρ, scfres.τ)
+end
+
+function ionic_polarization(model::Model)
+    1/model.unit_cell_volume * sum(zip(model.positions, model.atoms)) do (pos, atom)
+        model.lattice * pos * charge_ionic(atom)
+    end
+end
+
+function total_polarization(basis::PlaneWaveBasis, ψ, occupation,
+                            method::PolarizationMethod; kwargs...)
+    ( electronic_polarization(basis, ψ, occupation, method; kwargs...)
+    + ionic_polarization(basis.model))
+end
+function total_polarization(scfres, method::PolarizationMethod)
+    electronic_polarization(scfres, method) + ionic_polarization(scfres.basis.model)
+end
 
 @doc raw"""
 Compute the Jacobian-vector product of H_k u_{nk} wrt. k in direction δk.
@@ -39,13 +133,13 @@ function compute_δHψδk(basis::PlaneWaveBasis, ψ, δk; ρ=nothing, τ=nothing
                                        basis.use_symmetries_for_kpoint_reduction,
                                        basis.comm_kpts, basis.architecture)
         # TODO: what would happen if we were to recompute ρ and τ?
-        #       in principle the k derivatives in τ should not change the result?
+        #       in principle the k derivatives in τ should not change the result, should test this!
         ρ_new = isnothing(ρ) ? nothing : convert.(T, ρ)
         τ_new = isnothing(τ) ? nothing : convert.(T, τ)
         ham = Hamiltonian(basis_shifted; ρ=ρ_new, τ=τ_new)
         ham * ψ
     end
-    ForwardDiff.derivative(apply_kshift, eltype(basis))
+    ForwardDiff.derivative(apply_kshift, zero(eltype(basis)))
 end
 
 function compute_ψbars(ham, ψ, occupation, εF, eigenvalues;

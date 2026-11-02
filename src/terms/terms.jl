@@ -72,6 +72,7 @@ include("psp_correction.jl")
 include("entropy.jl")
 include("pairwise.jl")
 include("hubbard.jl")
+include("electric_field.jl")
 include("exact_exchange.jl")
 
 include("magnetic.jl")
