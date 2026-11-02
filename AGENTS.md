@@ -338,6 +338,7 @@ code belongs in `ext/`.
 | `DFTKJSON3Ext` | `JSON3` | JSON checkpoint I/O (deprecated, use `JSON`) |
 | `DFTKJSONExt` | `JSON` | JSON checkpoint I/O |
 | `DFTKPlotsExt` | `Plots` | Band/DOS visualization |
+| `DFTKSimpleDFTD3Ext` | `SimpleDFTD3` | DFT-D3 dispersion correction (`DFTD3` term) |
 | `DFTKWannierExt` | `Wannier` | Maximally-localized Wannier functions |
 | `DFTKWannier90Ext` | `wannier90_jll` | Wannier90 interface |
 | `DFTKWriteVTKExt` | `WriteVTK` | VTK file export |
