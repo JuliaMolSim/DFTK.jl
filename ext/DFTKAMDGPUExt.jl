@@ -5,7 +5,7 @@ using LinearAlgebra
 import DFTK: CPU, GPU, precompilation_workflow
 using DFTK
 
-DFTK.synchronize_device(::GPU{<:AMDGPU.ROCArray}) = AMDGPU.synchronize()
+DFTK.synchronize_device(::GPU{<:AMDGPU.ROCArray}) = AMDGPU.synchronize(; stop_hostcalls=true)
 
 function DFTK.memory_usage(::GPU{<:AMDGPU.ROCArray})
     merge(DFTK.memory_usage(CPU()), (; gpu=AMDGPU.memory_stats().live))
