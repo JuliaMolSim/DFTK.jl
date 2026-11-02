@@ -112,6 +112,14 @@ julia> model_DFT(system; functionals=HSE(μ=0.2, exx_fraction=0.1),
                  pseudopotentials=PseudoFamily("dojo.nc.sr.pbe.v0_5_1-fix.standard.upf"))
 ```
 Build an HSE06 model with custom range-separation parameter and custom exact exchange fraction.
+
+```julia-repl
+julia> using SimpleDFTD3
+julia> functionals=PBE()
+julia> model_DFT(system; functionals, extra_terms=[DFTD3(functionals; damping="D3(BJ)")],
+                 pseudopotentials=PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf"))
+```
+Build a PBE-D3(BJ) model.
 """
 function model_DFT(system::AbstractSystem; pseudopotentials, functionals, kwargs...)
     # Note: We are deliberately enforcing the user to specify pseudopotentials here.

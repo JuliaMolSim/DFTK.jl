@@ -18,34 +18,36 @@ The function returns the `fileprefix`.
 function run_wannier90 end
 
 """
-    DFTD3(damping=nothing; cutoffs=(;))
+    DFTD3(method; damping="D3(BJ)", three_body=false,
+          switching_width_2body=0.0, switching_width_3body=0.0)
+    DFTD3(method, dispersion_model; damping="D3(BJ)", three_body=false)
+    DFTD3(damping::AbstractDamping; switching_width_2body=0.0, switching_width_3body=0.0)
+    DFTD3(damping::AbstractDamping, dispersion_model)
 
 DFT-D3 dispersion correction of [Grimme et al. (2010)](https://doi.org/10.1063/1.3382344),
 to be passed in the `extra_terms` of [`model_DFT`](@ref) (or the `terms` of a
 [`Model`](@ref)). Requires `using SimpleDFTD3`.
 
-`damping` can be any damping from
-[SimpleDFTD3](https://github.com/JuliaMolSim/SimpleDFTD3.jl), e.g.
-`RationalDamping("pbe"; atm=true)`. By default the D3(BJ) parameters (D3 with rational
-Becke-Johnson damping) fitted for the model's exchange-correlation functional are used.
-For a modified functional (scaled, or with custom exact exchange) pass a damping instead.
-`cutoffs` is passed to `SimpleDFTD3.set_realspace_cutoff!` (in Bohr). With the default hard
-cutoffs the energy jumps slightly when atoms cross a cutoff.
+`method` is a method name of [SimpleDFTD3](https://github.com/JuliaMolSim/SimpleDFTD3.jl)
+(e.g. `"pbe"`) or an [`Xc`](@ref) term (e.g. `PBE()`), for which the parameters stored
+in SimpleDFTD3 are used. If you customise the XC functional (i.e. change its parameters,
+scale it, change the EXX fraction, etc.) custom parameters should be used instead. `damping`
+selects the dispersion damping function by its SimpleDFTD3 identifier, e.g. `"D3(BJ)"`
+(rational Becke-Johnson damping) or `"D3(0)"` (zero damping), and `three_body` includes
+the three-body Axilrod-Teller-Muto term.
 
-The D3 energy depends only on the atomic positions, so it does not enter the Kohn-Sham
-Hamiltonian and leaves the SCF unchanged. It contributes to energies, forces and stresses.
-See [Dispersion correction (DFT-D3)](@ref) for an example.
+With hard real-space cutoffs (the default) the energy jumps slightly when atoms cross a
+cutoff. `switching_width_2body` and `switching_width_3body` (in Bohr) smoothly switch off
+the two-body and three-body terms at their cutoffs instead.
+
+For full control a SimpleDFTD3 `DispersionModel` can be passed, e.g. one built with
+`DispersionModel(lattice, atoms, positions)` and modified using `set_realspace_cutoff!`
+or `set_ewald_summation!`. It is used as is, so it must describe the structure of the model.
 
 # Examples
 ```julia-repl
-julia> model_DFT(system; functionals=PBE(), pseudopotentials, extra_terms=[DFTD3()])
+julia> model_DFT(system; functionals=PBE(), pseudopotentials, extra_terms=[DFTD3(PBE())])
 ```
-builds a PBE-D3(BJ) model.
-
-!!! warning "Experimental feature"
-    Only fully periodic 3D systems are supported. Phonons and second derivatives of the
-    energy (e.g. elastic constants) are not available. Results computed with an explicit
-    `damping` cannot be reloaded with [`load_scfres`](@ref), since SimpleDFTD3 damping
-    objects refer to memory of the C library.
+Builds a PBE-D3(BJ) model.
 """
 function DFTD3 end

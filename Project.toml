@@ -66,7 +66,7 @@ DFTKGeometryOptimizationExt = "GeometryOptimization"
 DFTKJLD2Ext = "JLD2"
 DFTKJSON3Ext = ["JSON3", "MPI", "Preferences"]
 DFTKPlotsExt = "Plots"
-DFTKSimpleDFTD3Ext = "SimpleDFTD3"
+DFTKSimpleDFTD3Ext = ["SimpleDFTD3", "ForwardDiff"]
 DFTKWannier90Ext = "wannier90_jll"
 DFTKWannierExt = "Wannier"
 DFTKWriteVTKExt = "WriteVTK"
@@ -122,7 +122,7 @@ PythonCall = "0.9"
 QuadGK = "2"
 Random = "1"
 Roots = "2, 3"
-SimpleDFTD3 = "0.1"
+SimpleDFTD3 = "0.1.1"
 SparseArrays = "1"
 SpecialFunctions = "2"
 Spglib = "0.9.4, 1"
@@ -169,6 +169,3 @@ wannier90_jll = "c5400fa0-8d08-52c2-913f-1e3f656c1ce9"
 
 [targets]
 test = ["Test", "TestItemRunner", "AMDGPU", "ASEconvert", "AtomsBuilder", "Aqua", "AtomsIO", "AtomsIOPython", "CUDA", "CUDA_Runtime_jll", "ComponentArrays", "DoubleFloats", "FastGaussQuadrature", "FiniteDiff", "FiniteDifferences", "GenericLinearAlgebra", "GeometryOptimization", "JLD2", "JSON3", "Logging", "Plots", "PythonCall", "QuadGK", "Random", "KrylovKit", "SimpleDFTD3", "Wannier", "WriteVTK", "wannier90_jll"]
-
-[sources]
-SimpleDFTD3 = {url = "https://github.com/JuliaMolSim/SimpleDFTD3.jl", rev = "master"}

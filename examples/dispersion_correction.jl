@@ -1,25 +1,17 @@
 # # Dispersion correction (DFT-D3)
 #
-# In this example we use the DFT-D3 dispersion correction to compute how strongly the
-# layers of graphite bind. Semilocal functionals such as LDA or PBE depend only on the
-# density (and its gradient) at each point, so they miss the long-range dispersion
-# (van der Waals) attraction between parts of a system that are not chemically bonded.
-# This attraction holds together layered materials, molecular crystals and molecules
-# adsorbed on surfaces.
-#
-# The DFT-D3 method[^GAEK2010] adds it to the DFT energy as a sum of pair terms
-# ``-C_6/r^6`` and ``-C_8/r^8``, damped at short distances. The coefficients depend on the
-# element and the surroundings of each atom. The D3 energy depends only on the atomic
-# positions, so it does not enter the Kohn-Sham Hamiltonian and leaves the SCF unchanged.
-# It contributes to energies, forces and stresses.
+# In this example we compute how strongly two layers of graphite bind. Since
+# semilocal functionals such as LDA or PBE depend only on the density they miss
+# the long-range dispersion (van der Waals) attraction between parts of a
+# system that are not chemically bonded. The DFT-D3 method[^GAEK2010] adds such
+# dispersions to the DFT energy as a sum of pair terms ``-C_6/r^6`` and
+# ``-C_8/r^8``, damped at short distances. The coefficients depend on the
+# element and the surroundings of each atom.
 #
 # DFTK provides D3 through [SimpleDFTD3](https://github.com/JuliaMolSim/SimpleDFTD3.jl),
 # a Julia wrapper of the [simple-dftd3](https://github.com/dftd3/simple-dftd3) library.
-# The [`DFTD3`](@ref) term becomes available once SimpleDFTD3 is loaded.
-#
-# !!! warning "Experimental feature"
-#     D3 is only available for fully periodic 3D systems, and not yet for phonons or
-#     second derivatives of the energy such as elastic constants.
+# Once SimpleDFTD3 is loaded, D3 is added by passing a [`DFTD3`](@ref) term in the
+# `extra_terms` of [`model_DFT`](@ref).
 #
 # [^GAEK2010]:
 #     S. Grimme, J. Antony, S. Ehrlich and H. Krieg
@@ -39,69 +31,85 @@ using Unitful
 using UnitfulAtomic
 using Plots
 
-# We consider AB-stacked graphite with two carbon layers per cell; `d` is the distance
-# between the layers. Graphite is a semimetal, so we use a small smearing.
+# We consider AB-stacked graphite with two carbon layers per cell. The distance
+# `d` between the layers we keep as a variable.
 
-pseudopotentials = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
 
-function graphite_model(d)
+function graphite_basis(d)
     a = austrip(2.46u"Å")
     c = 2d
     lattice = [a  -a/2      0;
                0  a*√3/2    0;
                0  0         c]
-    C = ElementPsp(:C, pseudopotentials)
+    C = ElementPsp(:C, PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf"))
     positions = [[0, 0, 1/4], [0, 0, 3/4], [1/3, 2/3, 1/4], [2/3, 1/3, 3/4]]
-    model_DFT(lattice, fill(C, 4), positions; functionals=PBE(), extra_terms=[DFTD3()],
-              temperature=0.01, smearing=Smearing.Gaussian())
+    functionals = PBE()
+    model = model_DFT(lattice, fill(C, 4), positions;
+                      functionals, extra_terms=[DFTD3(functionals)],
+                      temperature=0.01, smearing=Smearing.Gaussian())
+    PlaneWaveBasis(model; Ecut=20, kgrid=[6, 6, 2])
 end;
 
-# `DFTD3()` uses the D3(BJ) parameters, i.e. D3 with the rational damping of Becke and
-# Johnson[^GEG2011], fitted for the functional of the model (here PBE).
-# The D3 energy appears as its own entry among the energies:
+# Here, `DFTD3(PBE())` uses D3(BJ), i.e. D3 with the rational damping of Becke
+# and Johnson[^GEG2011], with the parameters fitted for PBE, the functional of
+# the model.
 
-basis  = PlaneWaveBasis(graphite_model(austrip(3.4u"Å")); Ecut=20, kgrid=[6, 6, 2])
-scfres = self_consistent_field(basis; tol=1e-6)
+basis  = graphite_basis(austrip(3.4u"Å"))
+scfres = self_consistent_field(basis; tol=1e-5)
 scfres.energies
 
-# Since the D3 energy does not affect the SCF, the PBE energy without D3 is the total
-# energy minus the D3 entry, so one SCF per distance gives both curves.
-# We measure the energies per atom relative to well-separated layers (`d` = 7 Å).
+# Since the D3 energy term does not depend on the density, the PBE energy
+# is the total energy minus the D3 entry of `scfres.energies`, so this function
+# computes both:
 
 function energies_per_atom(d)
-    basis  = PlaneWaveBasis(graphite_model(d); Ecut=20, kgrid=[6, 6, 2])
-    scfres = self_consistent_field(basis; tol=1e-6, callback=identity)
-    with_d3 = scfres.energies.total / 4
-    (; with_d3, without_d3=with_d3 - scfres.energies["DFTD3"] / 4)
-end
+    n_atoms = 4
+    scfres  = self_consistent_field(graphite_basis(d); tol=1e-5, callback=identity)
+    with_d3    = scfres.energies.total / n_atoms
+    without_d3 = with_d3 - scfres.energies["DFTD3"] / n_atoms
+    (; with_d3, without_d3)
+end;
 
-distances_Å = [3.0, 3.2, 3.4, 3.6, 4.0, 5.0]
+# We measure the energies per atom relative to well-separated layers (`d` = 7 Å):
+
+distances = [3.0, 3.2, 3.4, 3.6, 4.0, 5.0]u"Å"
 far_apart = energies_per_atom(austrip(7.0u"Å"))
-energies  = energies_per_atom.(austrip.(distances_Å * u"Å"))
+energies  = energies_per_atom.(austrip.(distances))
 
-to_meV(E) = ustrip(auconvert(u"meV", E))
-pbe    = [to_meV(e.without_d3 - far_apart.without_d3) for e in energies]
-pbe_d3 = [to_meV(e.with_d3 - far_apart.with_d3) for e in energies]
+pbe    = [auconvert(u"meV", e.without_d3 - far_apart.without_d3) for e in energies]
+pbe_d3 = [auconvert(u"meV", e.with_d3    - far_apart.with_d3)    for e in energies]
 
-p = plot(distances_Å, [pbe pbe_d3]; label=["PBE" "PBE + D3"], markershape=:circle,
-         xlabel="Distance between layers (Å)", ylabel="Energy per atom (meV)")
-vline!(p, [3.35]; label="Experiment", linestyle=:dash, color=:gray)
+p = plot(distances, [pbe pbe_d3]; label=["PBE" "PBE + D3"], markershape=:circle,
+         xlabel="Distance between layers", ylabel="Energy per atom")
+vline!(p, [3.35u"Å"]; label="Experiment", linestyle=:dash, color=:gray)
 
 # PBE alone barely binds the layers. With D3 the energy has a clear minimum close to the
-# experimental interlayer distance of 3.35 Å. Note that with the small `Ecut` and `kgrid`
-# we use to generate the online documentation the calculation is far from converged,
-# see [Performing a convergence study](@ref).
+# experimental interlayer distance of 3.35 Å. Note that with our `Ecut` and
+# `kgrid` we are not yet fully converged, see [Performing a convergence study](@ref).
 #
-# ## Choosing the parameters
-# Instead of the default, any damping from SimpleDFTD3 can be passed, for example the
-# rational damping including the three-body Axilrod-Teller-Muto term, or the original zero
-# damping. The real-space cutoffs (in Bohr) are set with `cutoffs`:
+# ## Choice of D3 parameters
+# Other dampings can be selected by their identifier, for example the original zero
+# damping, here with the three-body Axilrod-Teller-Muto term.
+# The pair terms can also be
+# switched off smoothly at the real-space cutoff (width in Bohr):
 
-DFTD3(RationalDamping("pbe"; atm=true))
-DFTD3(ZeroDamping("pbe"))
-DFTD3(; cutoffs=(; disp2=80.0, disp3=50.0))
+DFTD3(PBE(); damping="D3(0)", three_body=true)
+DFTD3(PBE(); switching_width_2body=5.0)
 nothing  # hide
 
-# The D3 contribution is included in [`compute_forces_cart`](@ref) and
-# [`compute_stresses_cart`](@ref), and hence also in geometry optimizations
-# (see [Geometry optimization](@ref)).
+# Note that instead of passing a functional as a first argument, you can also
+# pass a string describing the model. These are the model strings supported
+# by simple-dftd3.
+
+DFTD3("pbe"; damping="D3(BJ)")
+nothing  # hide
+
+# Damping parameters can also be given explicitly with a SimpleDFTD3 damping, and a
+# SimpleDFTD3 `DispersionModel` gives full control over the evaluation, e.g. the
+# real-space cutoffs (in Bohr):
+
+DFTD3(RationalDamping(s8=0.7875, a1=0.4289, a2=4.4407))
+dispersion_model = DispersionModel(basis.model.lattice, basis.model.atoms, basis.model.positions)
+set_realspace_cutoff!(dispersion_model; disp2=80.0, disp3=50.0)
+DFTD3(PBE(), dispersion_model)
+nothing  # hide
