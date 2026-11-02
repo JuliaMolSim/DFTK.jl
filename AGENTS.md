@@ -73,7 +73,8 @@ DFTK.jl/
 │   ├── DFTKCUDAExt.jl      # CUDA GPU support
 │   ├── DFTKAMDGPUExt.jl    # AMD GPU support
 │   ├── DFTKJLD2Ext.jl      # JLD2 serialization
-│   ├── DFTKJSON3Ext.jl     # JSON serialization
+│   ├── DFTKJSON3Ext.jl     # JSON serialization (deprecated, use JSON)
+│   ├── DFTKJSONExt.jl      # JSON serialization
 │   ├── DFTKPlotsExt.jl     # Visualization
 │   ├── DFTKWannierExt.jl   # Wannier functions
 │   └── ...                 # Other optional extensions
@@ -334,7 +335,8 @@ code belongs in `ext/`.
 | `DFTKAMDGPUExt` | `AMDGPU` + `MPI` | AMD GPU support |
 | `DFTKGenericLinearAlgebraExt` | `GenericLinearAlgebra` | Arbitrary precision |
 | `DFTKJLD2Ext` | `JLD2` | HDF5-based checkpoint I/O |
-| `DFTKJSON3Ext` | `JSON3` | JSON checkpoint I/O |
+| `DFTKJSON3Ext` | `JSON3` | JSON checkpoint I/O (deprecated, use `JSON`) |
+| `DFTKJSONExt` | `JSON` | JSON checkpoint I/O |
 | `DFTKPlotsExt` | `Plots` | Band/DOS visualization |
 | `DFTKSimpleDFTD3Ext` | `SimpleDFTD3` | DFT-D3 dispersion correction (`DFTD3` term) |
 | `DFTKWannierExt` | `Wannier` | Maximally-localized Wannier functions |

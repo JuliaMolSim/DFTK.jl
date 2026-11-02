@@ -37,6 +37,7 @@ PAGES = [
         "examples/hubbard.jl",
         "examples/dispersion_correction.jl",
         "examples/exact_exchange.jl",
+        "examples/hybrid_bands.jl",
     ],
     "Response and properties" => [
         "examples/elastic_constants.jl",

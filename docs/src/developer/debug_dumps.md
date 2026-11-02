@@ -15,5 +15,5 @@ To activate this mechanism you need to do two things:
    This you need to do exactly once.
 
 2. In every script where you want to make use of debug dumping, make sure to
-   add a `using JSON3` as the `JSON3` package (which is dynamically loaded) is needed
+   add a `using JSON` as the `JSON` package (which is dynamically loaded) is needed
    for the debug dumping feature to work.

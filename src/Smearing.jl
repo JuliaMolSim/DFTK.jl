@@ -10,6 +10,7 @@
 # See also https://www.vasp.at/vasp-workshop/k-points.pdf
 module Smearing
 import ForwardDiff
+import ..divided_difference
 using SpecialFunctions: erf, erfc, factorial
 
 abstract type SmearingFunction end
@@ -43,16 +44,8 @@ function occupation_divided_difference(S::SmearingFunction, x, y, εF, temp)
     else
         f(z) = occupation(S, (z-εF) / temp)
         fder(z) = occupation_derivative(S, (z-εF)/temp) / temp
-        divided_difference(f, fder, x, y)
+        divided_difference(f, x, y; fder)
     end
-end
-function divided_difference(f, fder, x::T, y) where {T}
-    # (f(x) - f(y))/(x - y) is accurate to ε/|x-y|
-    # so for x ~= y we use the approximation (f'(x)+f'(y))/2,
-    # which is accurate to |x-y|^2, and therefore better when |x-y| ≤ cbrt(ε)
-    # The resulting method is accurate to ε^2/3
-    abs(x-y) < cbrt(eps(T)) && return (fder(x) + fder(y))/2
-    (f(x)-f(y)) / (x-y)
 end
 
 """
@@ -69,7 +62,7 @@ entropy(S::None, x) = zero(x)
 
 """Fermi-Dirac smearing"""
 struct FermiDirac <: SmearingFunction end
-function occupation(S::FermiDirac, x::T) where T
+function fermi_dirac(x)
     # Avoids overflow of exp for large positive x by using the identity
     # 1 / (1 + exp(x)) = exp(-x) / (1 + exp(-x))
     if x > 0
@@ -78,6 +71,27 @@ function occupation(S::FermiDirac, x::T) where T
     end
     1 / (1 + exp(x))
 end
+function divided_difference(::typeof(fermi_dirac), x, y)
+    f = fermi_dirac
+    # f'(x) = -f(x)(1 - f(x)), written without cancellation in 1 - f and without overflow
+    fder(z) = -exp(-abs(z)) / (1 + exp(-abs(z)))^2
+    # For a stable computation we use
+    # (fx - fy) = fx fy (exp(y) - exp(x)) = fx fy exp(x) expm1(y-x)
+    # which we symmetrize. This can overflow, in which case the plain formula
+    # is accurate: either |x-y| is large, or fx and fy are exponentially close to 0 or 1.
+    large_float = floatmax(typeof(x)) / 1e4 # conservative
+    will_exp_overflow(z1, z2) = abs(z1-z2) > log(large_float)
+    if x == y
+        (fder(x) + fder(y)) / 2
+    elseif will_exp_overflow(x, y) || will_exp_overflow(x, 0) || will_exp_overflow(y, 0)
+        (f(x)-f(y)) / (x-y)
+    else
+        Δfxy = f(x) * f(y) * exp(x) * expm1(y-x)
+        Δfyx = f(x) * f(y) * exp(y) * expm1(x-y)
+        (Δfxy-Δfyx) / 2 / (x-y)
+    end
+end
+occupation(S::FermiDirac, x) = fermi_dirac(x)
 function xlogx(x)
     iszero(x) ? zero(x) : x * log(x)
 end
@@ -93,21 +107,7 @@ function entropy(S::FermiDirac, x)
 end
 function occupation_divided_difference(S::FermiDirac, x, y, εF, temp)
     temp == 0 && return occupation_divided_difference(None(), x, y, εF, temp)
-    f(z) = occupation(S, (z-εF) / temp)
-    fder(z) = occupation_derivative(S, (z-εF)/temp) / temp
-    # For a stable computation we use
-    # (fx - fy) = fx fy (exp(y) - exp(x)) = fx fy exp(x) expm1(y-x)
-    # which we symmetrize. This can overflow, in which case
-    # we fall back to the standard method
-    large_float = floatmax(typeof(x)) / 1e4 # conservative
-    will_exp_overflow(z1, z2) = abs((z1-z2)/temp) > log(large_float)
-    if x == y || will_exp_overflow(x, y) || will_exp_overflow(x, εF) || will_exp_overflow(y, εF)
-        divided_difference(f, fder, x, y)
-    else
-        Δfxy = f(x) * f(y) * exp((x-εF)/temp) * expm1((y-x)/temp)
-        Δfyx = f(x) * f(y) * exp((y-εF)/temp) * expm1((x-y)/temp)
-        (Δfxy-Δfyx) / 2 / (x-y)
-    end
+    divided_difference(fermi_dirac, (x-εF) / temp, (y-εF) / temp) / temp
 end
 
 """Gaussian Smearing"""

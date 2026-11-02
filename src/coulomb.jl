@@ -362,9 +362,18 @@ J. Chem. Phys. 160, 051101 (2024) (doi.org/10.1063/5.0182729)
 struct VoxelAverage{K <: InteractionKernel} <: InteractionKernel
     inner_kernel::K
     n_quadrature_points::Int
+    function VoxelAverage(inner_kernel::K, n_quadrature_points::Integer) where {K}
+        error_if_kernel_not_available(VoxelAverage, "FastGaussQuadrature")
+        new{K}(inner_kernel, n_quadrature_points)
+    end
 end
 function VoxelAverage(inner_kernel=BareCoulomb(); n_quadrature_points=12)
     VoxelAverage(inner_kernel, n_quadrature_points)
+end
+
+function error_if_kernel_not_available(T::Type{<:InteractionKernel}, package)
+    error("$T is currently not available. " *
+          "A required package ($package) is not yet loaded.")
 end
 
 # For the implementation see DFTKFastGaussQuadratureExt.jl
