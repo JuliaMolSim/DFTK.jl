@@ -22,8 +22,11 @@ system = bulk(:Si)
 # ## SCF calculation
 # We first perform a PBE calculation to get a good starting point. Since we will later Wannierise
 # we make sure to converge 16 orbitals throughout the computational procedure.
-model_PBE = model_DFT(system; pseudopotentials, functionals=PBE(), symmetries=false)
-basis_PBE  = PlaneWaveBasis(model_PBE; Ecut=10, kgrid=[3, 3, 3])  # Not converged !
+# Exact exchange does not yet support symmetry-reduced k-point grids,
+# hence we use the full grid already for PBE.
+model_PBE = model_DFT(system; pseudopotentials, functionals=PBE())
+basis_PBE  = PlaneWaveBasis(model_PBE; Ecut=10, kgrid=[3, 3, 3],  # Not converged !
+                            use_symmetries_for_kpoint_reduction=false)
 
 nbandsalg  = AdaptiveBands(model_PBE; n_bands_converge=16)
 scfres_PBE = self_consistent_field(basis_PBE; tol=1e-4, nbandsalg)
@@ -33,7 +36,8 @@ nothing  # hide
 # First using a more aggressive ACE compression techniques that is more memory efficient and
 # slightly faster (by ignoring all unoccupied orbitals), but that gives the wrong unoccupied bands.
 model  = model_DFT(system; pseudopotentials, functionals=HSE())
-basis  = PlaneWaveBasis(model; basis_PBE.Ecut, basis_PBE.kgrid)
+basis  = PlaneWaveBasis(model; basis_PBE.Ecut, basis_PBE.kgrid,
+                        use_symmetries_for_kpoint_reduction=false)
 
 exxalg = AceExx(; sketch_with_extra_orbitals=false)
 scfres = self_consistent_field(basis; tol=1e-6, scfres_PBE.ρ, scfres_PBE.ψ, scfres_PBE.occupation, exxalg,
