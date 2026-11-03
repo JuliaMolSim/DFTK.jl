@@ -126,23 +126,19 @@ end
 
 # Internal evaluation with ρ and τ given on the basis.fft_grid_xc grid.
 function _xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ρ, τ) where {T}
-    model = basis.model
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
-    density = LibxcDensities(model, basis.fft_grid_xc, max_ρ_derivs, ρ, τ)
-    _check_negative_bonding_indicator_α(density, basis.comm_kpts)
+    density = LibxcDensities(basis, max_ρ_derivs, ρ, τ)
+    _check_negative_bonding_indicator_α(density)
 
+    model = basis.model
     n_spin = model.n_spin_components
     potential_threshold = term.potential_threshold
-    fft_grid     = basis.fft_grid_xc
-    dvol_xc      = model.unit_cell_volume / prod(basis.fft_size_xc)
-    fft_size     = fft_grid.fft_size
-    # TODO: unused?
-    architecture = fft_grid.architecture
 
     # Evaluate terms and energy contribution
     # If the XC functional is not supported for an architecture, terms is on the CPU
     terms = potential_terms(term.functionals, density)
     @assert haskey(terms, :Vρ) && haskey(terms, :e)
+    dvol_xc = model.unit_cell_volume / prod(basis.fft_size_xc)
     E = term.scaling_factor * sum(terms.e) * dvol_xc
 
     # Map from the tuple of spin indices for the contracted density gradient
@@ -153,14 +149,14 @@ function _xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ρ, τ) wher
     # Potential contributions Vρ -2 ∇⋅(Vσ ∇ρ) + ΔVl
     potential = zero(ρ)
     @views for s = 1:n_spin
-        Vρ = reshape(terms.Vρ, n_spin, fft_size...)
+        Vρ = reshape(terms.Vρ, n_spin, basis.fft_size_xc...)
 
         potential[:, :, :, s] .+= Vρ[s, :, :, :]
         if haskey(terms, :Vσ) && any(x -> abs(x) > potential_threshold, terms.Vσ)
             # Need gradient correction
             # TODO Drop do-block syntax here?
-            potential[:, :, :, s] .+= -2divergence_real(fft_grid, model) do α
-                Vσ = reshape(terms.Vσ, :, fft_size...)
+            potential[:, :, :, s] .+= -2divergence_real(basis) do α
+                Vσ = reshape(terms.Vσ, :, basis.fft_size_xc...)
 
                 # Extra factor (1/2) for s != t is needed because libxc only keeps σ_{αβ}
                 # in the energy expression. See comment block below on spin-polarised XC.
@@ -171,10 +167,10 @@ function _xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ρ, τ) wher
         end
         if haskey(terms, :Vl) && any(x -> abs(x) > potential_threshold, terms.Vl)
             @warn "Meta-GGAs with a Δρ term have not yet been thoroughly tested." maxlog=1
-            mG² = .-norm2.(G_vectors_cart(fft_grid, model))
-            Vl  = reshape(terms.Vl, n_spin, fft_size...)
-            Vl_fourier = fft(fft_grid, Vl[s, :, :, :])
-            potential[:, :, :, s] .+= irfft(fft_grid, mG² .* Vl_fourier)  # ΔVl
+            mG² = .-norm2.(G_vectors_cart(basis.fft_grid_xc, model))
+            Vl  = reshape(terms.Vl, n_spin, basis.fft_size_xc...)
+            Vl_fourier = fft(basis.fft_grid_xc, Vl[s, :, :, :])
+            potential[:, :, :, s] .+= irfft(basis.fft_grid_xc, mG² .* Vl_fourier)  # ΔVl
         end
     end
 
@@ -182,7 +178,7 @@ function _xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ρ, τ) wher
     Vτ = nothing
     if haskey(terms, :Vτ) && any(x -> abs(x) > potential_threshold, terms.Vτ)
         # Need meta-GGA non-local operator (Note: -½ part of the definition of DivAgrid)
-        Vτ = reshape(terms.Vτ, n_spin, fft_size...)
+        Vτ = reshape(terms.Vτ, n_spin, basis.fft_size_xc...)
         Vτ = term.scaling_factor * permutedims(Vτ, (2, 3, 4, 1))
     end
 
@@ -228,8 +224,8 @@ end
     end
 
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
-    densities = LibxcDensities(basis.model, basis.fft_grid_xc, max_ρ_derivs, ρ, τ)
-    _check_negative_bonding_indicator_α(densities, basis.comm_kpts)
+    densities = LibxcDensities(basis, max_ρ_derivs, ρ, τ)
+    _check_negative_bonding_indicator_α(densities)
 
     edensity = energy_density(term.functionals, densities)
     dvol_xc  = basis.model.unit_cell_volume / prod(basis.fft_size_xc)
@@ -379,9 +375,8 @@ end
 
 
 # stores the input to libxc in a format it likes
-struct LibxcDensities{FFTtype}
-    fft_grid::FFTtype
-    n_spin::Int
+struct LibxcDensities{T}
+    basis::PlaneWaveBasis{T}
     max_derivative::Int
     ρ_real    # density ρ[iσ, ix, iy, iz]
     ∇ρ_real   # for GGA, density gradient ∇ρ[iσ, ix, iy, iz, iα]
@@ -393,10 +388,9 @@ end
 """
 Compute density in real space and its derivatives starting from ρ
 """
-function LibxcDensities(model::Model{T}, fft_grid::FFTtype, max_derivative::Integer,
-                        ρ, τ) where {T, FFTtype<:FFTGrid}
+function LibxcDensities(basis::PlaneWaveBasis{T}, max_derivative::Integer, ρ, τ) where {T}
+    model = basis.model
     @assert max_derivative in (0, 1, 2)
-    fft_size = fft_grid.fft_size
 
     n_spin    = model.n_spin_components
     σ_real    = nothing
@@ -406,20 +400,20 @@ function LibxcDensities(model::Model{T}, fft_grid::FFTtype, max_derivative::Inte
     # compute ρ_real and possibly ρ_fourier
     ρ_real = permutedims(ρ, (4, 1, 2, 3))  # ρ[x, y, z, σ] -> ρ_real[σ, x, y, z]
     if max_derivative > 0
-        ρf = fft(fft_grid, ρ)
+        ρf = fft(basis.fft_grid_xc, ρ)
         ρ_fourier = permutedims(ρf, (4, 1, 2, 3))  # ρ_fourier[σ, x, y, z]
     end
 
     # compute ∇ρ and σ
     if max_derivative > 0
         n_spin_σ = div((n_spin + 1) * n_spin, 2)
-        ∇ρ_real = similar(ρ_real,   n_spin, fft_size..., 3)
-        σ_real  = similar(ρ_real, n_spin_σ, fft_size...)
+        ∇ρ_real = similar(ρ_real,   n_spin, basis.fft_size_xc..., 3)
+        σ_real  = similar(ρ_real, n_spin_σ, basis.fft_size_xc...)
 
         for α = 1:3
-            iGα = map(G -> im * G[α], G_vectors_cart(fft_grid, model))
+            iGα = map(G -> im * G[α], G_vectors_cart(basis.fft_grid_xc, model))
             for σ = 1:n_spin
-                ∇ρ_real[σ, :, :, :, α] .= irfft(fft_grid, iGα .* @view ρ_fourier[σ, :, :, :])
+                ∇ρ_real[σ, :, :, :, α] .= irfft(basis.fft_grid_xc, iGα .* @view ρ_fourier[σ, :, :, :])
             end
         end
 
@@ -437,21 +431,20 @@ function LibxcDensities(model::Model{T}, fft_grid::FFTtype, max_derivative::Inte
 
     # Compute Δρ
     if max_derivative > 1
-        Δρ_real = similar(ρ_real, n_spin, fft_size...)
-        mG² = .-norm2.(G_vectors_cart(fft_grid, model))
+        Δρ_real = similar(ρ_real, n_spin, basis.fft_size_xc...)
+        mG² = .-norm2.(G_vectors_cart(basis.fft_grid_xc, model))
         for σ = 1:n_spin
-            Δρ_real[σ, :, :, :] .= irfft(fft_grid, mG² .* @view ρ_fourier[σ, :, :, :])
+            Δρ_real[σ, :, :, :] .= irfft(basis.fft_grid_xc, mG² .* @view ρ_fourier[σ, :, :, :])
         end
     end
 
     # τ[x, y, z, σ] -> τ_Libxc[σ, x, y, z]
     τ_Libxc = isnothing(τ) ? nothing : permutedims(τ, (4, 1, 2, 3))
-    LibxcDensities{FFTtype}(fft_grid, n_spin, max_derivative, ρ_real, ∇ρ_real,
-                            σ_real, Δρ_real, τ_Libxc)
+    LibxcDensities{T}(basis, max_derivative, ρ_real, ∇ρ_real, σ_real, Δρ_real, τ_Libxc)
 end
 
-function _check_negative_bonding_indicator_α(densities::LibxcDensities, comm_kpts;
-                                             density_threshold=100eps(eltype(densities.ρ_real)))
+function _check_negative_bonding_indicator_α(densities::LibxcDensities{T};
+                                             density_threshold=100eps(T)) where {T}
     # TODO: The idea here is that libxc cuts components of the XC evaluation anyway if
     #       the density (or contracted density gradient) is below a certain threshold,
     #       so we do the same here for the check to make sure this is not too noisy.
@@ -459,7 +452,8 @@ function _check_negative_bonding_indicator_α(densities::LibxcDensities, comm_kp
         return
     end
 
-    failure_indicator = @views minimum(1:densities.n_spin) do iσ
+    n_spin = densities.basis.model.n_spin_components
+    failure_indicator = @views minimum(1:n_spin) do iσ
         # α = (τ - τ_W) / τ_unif should be positive with τ_W = |∇ρ|² / 8ρ
         # equivalently, check 8ρτ - |∇ρ|² ≥ 0
         ρ = densities.ρ_real[iσ, :, :, :]
@@ -471,8 +465,7 @@ function _check_negative_bonding_indicator_α(densities::LibxcDensities, comm_kp
                                 * (abs(τ) ≥ density_threshold))
         minimum(failure_indicator)
     end
-    if mpi_master(comm_kpts)
-        T = eltype(densities.ρ_real)
+    if mpi_master(densities.basis.comm_kpts)
         if failure_indicator < -eps(T)
             @debug "xc: α failure indicator: $failure_indicator"
         end
@@ -621,12 +614,12 @@ Compute divergence of an operand function, which returns the Cartesian x,y,z
 components in real space when called with the arguments 1 to 3.
 The divergence is also returned as a real-space array.
 """
-function divergence_real(operand, fft_grid::FFTGrid, model::Model)
+function divergence_real(operand, basis)
     gradsum = sum(1:3) do α
-        operand_α = fft(fft_grid, operand(α))
-        map(G_vectors_cart(fft_grid, model), operand_α) do G, operand_αG
+        operand_α = fft(basis.fft_grid_xc, operand(α))
+        map(G_vectors_cart(basis.fft_grid_xc, basis.model), operand_α) do G, operand_αG
             im * G[α] * operand_αG  # ∇_α * operand_α
         end
     end
-    irfft(fft_grid, gradsum)
+    irfft(basis.fft_grid_xc, gradsum)
 end

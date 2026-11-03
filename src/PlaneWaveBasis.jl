@@ -362,8 +362,7 @@ basis = PlaneWaveBasis(model; Ecut=12, fft_size=(48,48,48))
                                 supersampling_xc=nothing, fft_size_xc=nothing,
                                 symmetries_respect_rgrid=isnothing(fft_size),
                                 use_symmetries_for_kpoint_reduction=true,
-                                comm_kpts=MPI.COMM_WORLD, architecture=CPU()
-                                ) where {T <: Real}
+                                comm_kpts=MPI.COMM_WORLD, architecture=CPU()) where {T <: Real}
     if ismissing(Ecut)
         throw(ArgumentError(
             "For this model no recommended kinetic energy cutoff can be determined " *
