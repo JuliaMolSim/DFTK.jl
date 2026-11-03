@@ -2,6 +2,9 @@
 The following publications report research employing DFTK as a core component.
 Feel free to drop us a line if you want your work to be added here.
 
+- C. Barat, A. Levitt, M. Torrent.
+  [*Preconditioning Magnetic Systems in Kohn-Sham Density Functional Theory*](https://hal.science/hal-05658631) (2026).
+
 - X. Gonze, C. Tantardini, A. Levitt.
   [*Low-temperature behavior of density-functional theory for metals based on density-functional perturbation theory and Sommerfeld expansion*](https://doi.org/10.1103/yj83-j9p1) Physical Review B **113**, 035125 (2026). ([Computational script](https://github.com/antoine-levitt/temperature_perturbation_theory))
 

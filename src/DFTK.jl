@@ -13,8 +13,10 @@ using GPUArraysCore
 using Random
 using PrecompileTools
 using PseudoPotentialData
+using LOBPCGEigensolver
+import LOBPCGEigensolver: lobpcg, precondprep!, DefaultLobpcgCallback
 
-@template (FUNCTIONS, METHODS, MACROS) = 
+@template (FUNCTIONS, METHODS, MACROS) =
     """
     $(TYPEDSIGNATURES)
     $(DOCSTRING)
@@ -27,6 +29,8 @@ export mpi_master
 export setup_threading, disable_threading
 include("common/timer.jl")
 include("common/constants.jl")
+include("common/divided_difference.jl")
+include("common/matrix_function.jl")
 include("common/ortho.jl")
 include("common/types.jl")
 include("common/spherical_bessels.jl")
@@ -41,6 +45,7 @@ include("common/versioninfo.jl")
 include("architecture.jl")
 include("common/zeros_like.jl")
 include("common/norm.jl")
+include("common/unique_norms.jl")
 include("common/quadrature.jl")
 include("common/hankel.jl")
 include("common/hydrogenic.jl")
@@ -82,7 +87,6 @@ export irfft
 export ifft!
 export fft
 export fft!
-export kgrid_from_maximal_spacing, kgrid_from_minimal_n_kpoints
 export KgridTotalNumber, KgridSpacing
 include("Smearing.jl")
 include("Model.jl")
@@ -102,11 +106,11 @@ include("supercell.jl")
 export Energies
 include("Energies.jl")
 
-export Coulomb
+export BareCoulomb
 export SphericallyTruncatedCoulomb
 export WignerSeitzTruncatedCoulomb
 export ShortRangeCoulomb, LongRangeCoulomb
-export ProbeCharge, ReplaceSingularity, VoxelAveraged
+export ProbeCharge, ReplaceSingularity, VoxelAverage
 include("coulomb.jl")
 
 export Hamiltonian
@@ -166,7 +170,7 @@ export HybridFunctional, PBE0, HSE
 include("standard_models.jl")
 
 export KerkerMixing, KerkerDosMixing, SimpleMixing, DielectricMixing
-export LdosMixing, HybridMixing, χ0Mixing
+export LdosMixing, LdosDielectricMixing, LdosXcDiagonalMixing, χ0Mixing
 export FixedBands, AdaptiveBands
 export ScfDampingSolver, ScfAndersonDensitySolver, ScfAndersonSolver
 export self_consistent_field, kwargs_scf_checkpoints
@@ -203,13 +207,12 @@ export random_density
 include("density_methods.jl")
 
 export load_psp
-export list_psp
 include("pseudo/load_psp.jl")
-include("pseudo/list_psp.jl")
 include("pseudo/pseudopotential_data.jl")
 
 export atomic_system, periodic_system  # Reexport from AtomsBase
 export run_wannier90
+export DFTD3
 export DFTKCalculator
 include("external/atomsbase.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods
@@ -254,10 +257,10 @@ include("postprocess/refine.jl")
 # Workarounds
 include("workarounds/dummy_inplace_fft.jl")
 include("workarounds/forwarddiff_rules.jl")
+include("workarounds/forwarddiff_gemm.jl")
 
 # Optimized generic GPU functions and GPU workarounds
 include("gpu/linalg.jl")
-include("gpu/gpu_arrays.jl")
 
 # Precompilation block with a basic workflow
 

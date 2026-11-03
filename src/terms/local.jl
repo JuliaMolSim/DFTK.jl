@@ -12,8 +12,9 @@ abstract type TermLocalPotential <: TermLinear end
     potview(data, spin) = ndims(data) == 4 ? (@view data[:, :, :, spin]) : data
     ops = [RealSpaceMultiplication(basis, kpt, potview(term.potential_values, kpt.spin))
            for kpt in basis.kpoints]
-    if :ρ in keys(kwargs)
-        E = sum(total_density(kwargs[:ρ]) .* term.potential_values) * basis.dvol
+    ρ = get(kwargs, :ρ, nothing)
+    if !isnothing(ρ)
+        E = sum(total_density(ρ) .* term.potential_values) * basis.dvol
     else
         E = T(Inf)
     end
@@ -35,7 +36,7 @@ struct ExternalFromValues
 end
 function (external::ExternalFromValues)(basis::PlaneWaveBasis{T}; kwargs...) where {T}
     # TODO Could do interpolation here
-    @assert size(external.potential_values) == basis.fft_size
+    @assert size(external.potential_values)[1:3] == basis.fft_size
     TermExternal(convert_dual.(T, external.potential_values))
 end
 
@@ -64,7 +65,6 @@ function (external::ExternalFromFourier)(basis::PlaneWaveBasis{T}; kwargs...) wh
     pot_fourier = map(G_vectors_cart(basis)) do G
         convert_dual(complex(T), external.potential(G) / sqrt(unit_cell_volume))
     end
-    enforce_real!(pot_fourier, basis)  # Symmetrize Fourier coeffs to have real iFFT
     TermExternal(irfft(basis, pot_fourier))
 end
 
@@ -72,25 +72,17 @@ end
 Returns the form factors at unique values of |G + q| (in Cartesian coordinates).
 Additionally, returns a mapping from any G index to the corresponding entry in the form_factors array.
 """
-function atomic_local_form_factors(basis::PlaneWaveBasis{T}; q=zero(Vec3{T})) where{T}
-    Gqs_cart = [basis.model.recip_lattice * (G + q) for G in to_cpu(G_vectors(basis))]
+function atomic_local_form_factors(basis::PlaneWaveBasis{T}; q=zero(Vec3{T})) where {T}
+    B = basis.model.recip_lattice
+    Gqs_cart = map(G -> B * (G + q), G_vectors(basis))
 
-    iG2ifnorm_cpu = zeros(Int, length(Gqs_cart))
-    norm_indices = IdDict{T, Int}()
-    for (iG, G) in enumerate(Gqs_cart)
-        p = norm(G)
-        iG2ifnorm_cpu[iG] = get!(norm_indices, p, length(norm_indices) + 1)
-    end
-    iG2ifnorm = to_device(basis.architecture, iG2ifnorm_cpu)
+    # For efficiency, get unique norms |G| and the mapping such that norm(G[i]) = unique_ps[iG2ifnorm[i]]
+    unique_ps, iG2ifnorm = unique_norms_and_mapping(Gqs_cart)
 
-    ni_pairs = collect(pairs(norm_indices))
-    ps = to_device(basis.architecture, first.(ni_pairs))
-    indices = to_device(basis.architecture, last.(ni_pairs))
-
-    form_factors = similar(ps, length(norm_indices), length(basis.model.atom_groups))
+    form_factors = similar(unique_ps, length(unique_ps), length(basis.model.atom_groups))
     for (igroup, group) in enumerate(basis.model.atom_groups)
         element = basis.model.atoms[first(group)]
-        @inbounds form_factors[indices, igroup] .= local_potential_fourier(element, ps)
+        @inbounds form_factors[:, igroup] .= local_potential_fourier(element, unique_ps)
     end
 
     (; form_factors, iG2ifnorm)
@@ -130,7 +122,6 @@ function compute_local_potential(basis::PlaneWaveBasis{T}; positions=basis.model
 
     pot_fourier = reshape(pot, basis.fft_size)
     if iszero(q)
-        enforce_real!(pot, basis)  # Symmetrize coeffs to have real iFFT
         return irfft(basis, pot_fourier)
     else
         return ifft(basis, pot_fourier)
@@ -221,5 +212,5 @@ function compute_δHψ_αs(::TermAtomicLocal, basis::PlaneWaveBasis, ψ, α, s, 
     δV_αs .= derivative_wrt_αs(basis.model.positions, α, s) do positions_αs
         compute_local_potential(basis; q, positions=positions_αs)
     end
-    multiply_ψ_by_blochwave(basis, ψ, δV_αs, q)
+    apply_potential_blochwave(basis, ψ, δV_αs, q)
 end

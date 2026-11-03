@@ -80,19 +80,18 @@ save_scfres("iron_afm.vts", scfres; save_ψ=true);
 DFTK.todict(scfres.energies)
 
 # This in turn can be easily written to disk using a JSON library.
-# Currently we integrate most closely with `JSON3`,
+# Currently we integrate most closely with `JSON`,
 # which is thus recommended.
 
-using JSON3
+using JSON
 open("iron_afm_energies.json", "w") do io
-    JSON3.pretty(io, DFTK.todict(scfres.energies))
+    JSON.json(io, DFTK.todict(scfres.energies); pretty=true)
 end
 println(read("iron_afm_energies.json", String))
 
-# Once JSON3 is loaded, additionally a convenience function for saving
+# Once JSON is loaded, additionally a convenience function for saving
 # a summary of `scfres` objects using `save_scfres` is available:
 
-using JSON3
 save_scfres("iron_afm.json", scfres)
 
 # Similarly a summary of the band data (occupations, eigenvalues, εF, etc.)

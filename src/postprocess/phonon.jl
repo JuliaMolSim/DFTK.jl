@@ -99,8 +99,10 @@ in reduced coordinates.
     # to compute δρ from a single Sternheimer equation at +q (instead of one at
     # +q and one at -q) is only valid under TRS. See the discussion in
     # JuliaMolSim/DFTK.jl#1310 and Dal Corso, https://arxiv.org/abs/1906.11673.
-    @assert !any(breaks_time_reversal_symmetry, basis.model.term_types) (
-        "Phonons are currently only implemented in the presence of time-reversal-symmetry.")
+    if breaks_time_reversal_symmetry(basis)
+        error("Phonons are currently only implemented in the presence of time-reversal-symmetry.")
+    end
+
     n_atoms = length(basis.model.positions)
     responses = map(Iterators.product(1:3, 1:n_atoms)) do (α, s)
         δHψs_αs = compute_δHψ_αs(basis, ψ, α, s, q)

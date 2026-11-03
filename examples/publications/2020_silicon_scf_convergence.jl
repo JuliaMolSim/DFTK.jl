@@ -40,7 +40,7 @@ global gaps = []
 global as = (10.26, 11.405)
 for a in as
     lattice = a / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]]
-    model = model_DFT(lattice, atoms, positions, LDA())
+    model = model_DFT(lattice, atoms, positions; functionals=LDA())
     basis = PlaneWaveBasis(model; Ecut, kgrid)
     res = self_consistent_field(basis; opts...)
     gap = res.eigenvalues[1][5] - res.eigenvalues[1][4]

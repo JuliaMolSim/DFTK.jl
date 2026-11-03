@@ -7,6 +7,12 @@ using Preferences
 """TimerOutput object used to store DFTK timings."""
 const timer = TimerOutput()
 
+# `@timing` expands to nothing when timings are disabled, but external packages we hand
+# `timer` to (LOBPCGEigensolver) would still record into it, so switch the object off too.
+@static if @load_preference("timer_enabled", "true") != "true"
+    disable_timer!(timer)
+end
+
 """
 Shortened version of the `@timeit` macro from `TimerOutputs`,
 which writes to the DFTK timer.

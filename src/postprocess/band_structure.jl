@@ -7,8 +7,8 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
 
 - `kgrid`: A custom kgrid to perform the band computation, e.g. a new
   [`MonkhorstPack`](@ref) grid or a [`KgridSpacing`](@ref).
-- `tol` The default tolerance for the eigensolver is substantially lower than
-  for SCF computations. Increase if higher accuracy desired.
+- `tol`: The default tolerance for the eigensolver is substantially looser than
+  for SCF computations. Tighten if higher accuracy desired.
 - `eigensolver`: The diagonalisation method to be employed.
 """
 @timing function compute_bands(basis::PlaneWaveBasis,
@@ -27,7 +27,7 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
         ρ = guess_density(basis)
     end
     if isnothing(τ) && any(needs_τ, basis.terms)
-        error("A term reuqires evaluation of the kinetic energy density τ. Please pass this " *
+        error("A term requires evaluation of the kinetic energy density τ. Please pass this " *
               "quantity to compute_bands as the τ keyword argument or use the " *
               "compute_bands(scfres) function.")
     end
@@ -58,7 +58,7 @@ All kwargs not specified below are passed to [`diagonalize_all_kblocks`](@ref):
     #      AbstractBandData type from which the BandData and ScfResults
     #      types subtype. In a first version the ScfResult could just contain
     #      the currently used named tuple and forward all operations to it.
-    (; basis=bs_basis, ψ=eigres.X, eigenvalues=eigres.λ, ρ, εF, occupation,
+    (; basis=bs_basis, ψ=eigres.X, eigenvalues=eigres.λ, ρ, τ, hubbard_n, εF, occupation,
      diagonalization=[eigres], seed)
 end
 
@@ -88,7 +88,7 @@ ensure these are taken into account when determining the path.
 function compute_bands(basis_or_scfres, kpath::KPath; kline_density=40u"bohr", kwargs...)
     kinter = Brillouin.interpolate(kpath, density=austrip(kline_density))
     res = compute_bands(basis_or_scfres, ExplicitKpoints(kinter); kwargs...)
-    merge(res, (; kinter))
+    merge(res, (; kinter, kpath))
 end
 function compute_bands(scfres::NamedTuple; magnetic_moments=[], kwargs...)
     compute_bands(scfres, irrfbz_path(scfres.basis.model, magnetic_moments); kwargs...)
@@ -320,5 +320,5 @@ end
 
 function save_bands(::Any, filename::AbstractString, ::NamedTuple; kwargs...)
     error("The extension $(last(splitext(filename))) is currently not available. " *
-          "A required package (e.g. JSON3 or JLD2) is not yet loaded.")
+          "A required package (e.g. JSON or JLD2) is not yet loaded.")
 end

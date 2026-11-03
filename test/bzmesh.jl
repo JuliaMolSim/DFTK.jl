@@ -24,9 +24,7 @@
     test_against_spglib([ 9, 11, 13])
 end
 
-# PythonCall does not play nicely with MPI.
-@testitem "MonkhorstPack irreducible_kcoords is correct reduction" #=
-    =#    tags=[:dont_test_mpi] setup=[TestCases] begin
+@testitem "MonkhorstPack irreducible_kcoords is correct reduction" setup=[TestCases] begin
     using AtomsBuilder
     using DFTK
     using Logging
@@ -46,6 +44,9 @@ end
         red_kcoords   = DFTK.reducible_kcoords(kgrid).kcoords
         irred_kcoords = DFTK.irreducible_kcoords(kgrid, sym_preserving_grid).kcoords
         @test length(irred_kcoords) == kirredsize
+        if iszero(kshift)
+            @test iszero(irred_kcoords[1])  # First item in kcoords should be the Gamma point
+        end
 
         # Try to reproduce all kcoords from irred_kcoords
         all_kcoords = Vector{Vec3{Rational{Int}}}()
@@ -65,6 +66,7 @@ end
     test_reduction(silicon, [ 3,  3,  3],   4)
     test_reduction(silicon, [ 2,  3,  4],  14)
     test_reduction(silicon, [ 9, 11, 13], 644)
+    test_reduction(silicon, [ 2,  3,  2],  12, kshift=[0, 0.3, 0.25])
 
     test_reduction(silicon, [ 3,  3,  3], 6, kshift=[1//2, 1//2, 1//2])
     test_reduction(silicon, [ 3,  3,  3], 6, kshift=[1//2, 0, 1//2])
@@ -79,6 +81,59 @@ end
     test_reduction(magnesium, [ 9, 11, 13], 350)
 
     test_reduction(platinum_hcp, [5, 5, 5], 63)
+end
+
+@testitem "MonkhorstPack: equivalent kshifts give identical grids" setup=[TestCases] begin
+    using DFTK
+    using DFTK: normalize_kpoint_coordinate, reducible_kcoords, irreducible_kcoords
+    using DFTK: symmetries_preserving_kgrid, breaks_time_reversal_symmetry
+    silicon = TestCases.silicon
+    model = Model(silicon.lattice, silicon.atoms, silicon.positions)
+    kgrid_size = [3, 3, 3]
+
+    function sorted_kcoords(kgrid)
+        sort(normalize_kpoint_coordinate.(reducible_kcoords(kgrid).kcoords))
+    end
+
+    # Different ways of specifying the same half shift (equal up to integers)
+    half_shift_grids = [MonkhorstPack(kgrid_size; kshift=[0,  1//2,  0]),
+                        MonkhorstPack(kgrid_size; kshift=[0, -1//2,  0]),
+                        MonkhorstPack(kgrid_size; kshift=[0,   0.5,  0]),
+                        MonkhorstPack(kgrid_size; kshift=(0,   1/2,  0)),
+                        MonkhorstPack(kgrid_size; kshift=[1,  3//2, -2]),
+                        MonkhorstPack(kgrid_size, [0, 0.5, 0])]
+    ref = first(half_shift_grids)
+    syms_ref = symmetries_preserving_kgrid(model.symmetries, ref)
+    @assert length(syms_ref) > 1
+
+    for kgrid in half_shift_grids
+        @test kgrid.kgrid_size == ref.kgrid_size
+        @test kgrid.kshift     == ref.kshift
+        @test sorted_kcoords(kgrid) == sorted_kcoords(ref)
+        @test !breaks_time_reversal_symmetry(kgrid)
+
+        # Half shifts keep the symmetry reduction working: this should reduce to 6 points
+        syms = symmetries_preserving_kgrid(model.symmetries, kgrid)
+        @test length(syms) == length(syms_ref)
+        @test length(irreducible_kcoords(kgrid, syms).kcoords) == 6
+    end
+
+    # Equivalent generic shift, which break time-reversal and (since Spglib does not)
+    # support it, we remove all symmetries in symmetries_preserving_kgrid.
+    generic_shift_grids = [MonkhorstPack(kgrid_size; kshift=[ 1//3, 0, 1//4]),
+                           MonkhorstPack(kgrid_size; kshift=[-2//3, 1, 0.25]),
+                           MonkhorstPack(kgrid_size; kshift=( 1/3,  0, 1/4))]
+    ref = first(generic_shift_grids)
+    for kgrid in generic_shift_grids
+        @test kgrid.kshift == ref.kshift
+        @test sorted_kcoords(kgrid) == sorted_kcoords(ref)
+        @test breaks_time_reversal_symmetry(kgrid)
+
+        syms = symmetries_preserving_kgrid(model.symmetries, kgrid)
+        @test length(syms) == 1
+        @test isone(only(syms))
+        @test length(irreducible_kcoords(kgrid, syms).kcoords) == prod(kgrid_size)
+    end
 end
 
 @testitem "standardize_atoms" setup=[TestCases] begin

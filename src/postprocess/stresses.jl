@@ -36,8 +36,9 @@ for details. In Voigt notation one would use the vector
         if any(needs_τ, basis.terms)
             τ = compute_kinetic_energy_density(new_basis, scfres.ψ, scfres.occupation)
         end
+        hubbard_n = compute_hubbard_n(new_basis, scfres.ψ, scfres.occupation)
         (; energies) = energy(new_basis, scfres.ψ, scfres.occupation;
-                              ρ, τ, scfres.eigenvalues, scfres.εF)
+                              ρ, τ, hubbard_n, scfres.eigenvalues, scfres.εF)
         energies.total
     end
     L  = scfres.basis.model.lattice

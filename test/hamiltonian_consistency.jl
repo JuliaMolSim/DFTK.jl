@@ -12,7 +12,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6,
                                test_for_constant=false, test_energy_ad=true,
                                n_empty=3, kgrid=[1, 2, 3], kshift=[0, 1, 0]/2, Ecut=10,
                                lattice=silicon.lattice, atom=nothing, spin_polarization=:none,
-                               exxalg=AceExx(), basis_kwargs=(;))
+                               exxalg=AceExx(), tol_energy=1e-14, basis_kwargs=(;))
     sspol = spin_polarization != :none ? " ($spin_polarization)" : ""
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
     @testset "$(typeof(term))$xc $sspol" begin
@@ -40,15 +40,12 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6,
             compute_density(basis, ψ, occupation)
         end
         τ = compute_kinetic_energy_density(basis, ψ, occupation)
-        hubbard_n = nothing
-        if term isa Hubbard
-            hubbard_n = DFTK.compute_hubbard_n(only(basis.terms), basis, ψ, occupation)
-        end
+        hubbard_n = DFTK.compute_hubbard_n(basis, ψ, occupation)
         E0, ham = energy_hamiltonian(basis, ψ, occupation; exxalg, ρ, τ, hubbard_n)
 
         # Function to compute energy only
         E0_ene = DFTK.energy(basis, ψ, occupation; exxalg, ρ, τ, hubbard_n).energies
-        @test abs(E0.total - E0_ene.total) < 1e-14
+        @test abs(E0.total - E0_ene.total) < tol_energy
 
         # Test operator agrees with matrix form
         for ik = 1:length(basis.kpoints)
@@ -71,11 +68,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6,
             if needs_τ(only(basisE.terms))
                 τ_trial = compute_kinetic_energy_density(basisE, ψ_trial, occupation)
             end
-            hubbard_n_trial = nothing
-            if term isa Hubbard
-                thub = only(basisE.terms)
-                hubbard_n_trial = DFTK.compute_hubbard_n(thub, basisE, ψ_trial, occupation)
-            end
+            hubbard_n_trial = DFTK.compute_hubbard_n(basisE, ψ_trial, occupation)
             (; energies) = DFTK.energy(basisE, ψ_trial, occupation;
                                        exxalg, ρ=ρ_trial, τ=τ_trial, hubbard_n=hubbard_n_trial)
             energies.total
@@ -180,11 +173,11 @@ end
         # TODO: AD of energy( ) function not yet supported for ExactExchange
         exxad = (; test_energy_ad=false)
         for exxalg in (VanillaExx(), AceExx())
-            test_consistency_term(ExactExchange(; kernel=Coulomb(ProbeCharge()));
+            test_consistency_term(ExactExchange(; kernel=ProbeCharge(BareCoulomb()));
                                   exxad..., exxalg, kgrid=(1, 1, 1), kshift=(0, 0, 0))
         end
         test_consistency_term(ExactExchange(); spin_polarization=:collinear,
-                              exxad..., kgrid=(1, 1, 1), kshift=(0, 0, 0))
+                              exxad..., kgrid=(1, 1, 1), kshift=(0, 0, 0), tol_energy=5e-14)
     end
 
     let

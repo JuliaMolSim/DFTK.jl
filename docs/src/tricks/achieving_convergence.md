@@ -18,6 +18,19 @@ basis = PlaneWaveBasis(model; Ecut=15, kgrid=(3, 3, 3))
   can change the physics of your system, so if in doubt perform a second SCF
   with a lower temperature afterwards, starting from the final density of the first.
 
+- If you are modelling a magnetic systems near a phase transition it can be worth
+  switching to the [`LdosXcDiagonalMixing`](@ref) mixing algorithm in your
+  [`self_consistent_field`](@ref) call. This is done by passing this mixer via
+  the `mixing` keyword argument, e.g.
+  ```@example convergence
+  mixing = LdosXcDiagonalMixing()
+  ```
+
+- Even if modelling an insulator, add a temperature to your [`Model`](@ref).
+  Values up to `1e-2` atomic units may be sometimes needed. Note, that this
+  can change the physics of your system, so if in doubt perform a second SCF
+  with a lower temperature afterwards, starting from the final density of the first.
+
 - Increase the history size of the Anderson acceleration
   by passing a custom `solver` to [`self_consistent_field`](@ref), e.g.
   ```@example convergence

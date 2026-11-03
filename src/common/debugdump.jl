@@ -30,6 +30,6 @@ function save_debugdump(::Val, prefix::AbstractString, comm::MPI.Comm,
                         dftkalgorithm::AbstractString, data::AbstractDict)
     if mpi_master(comm)
         @warn("Saving debugdump requested, but not possible since dependent package not " *
-              "loaded. Try 'using JSON3' in your script.")
+              "loaded. Try 'using JSON' in your script.")
     end
 end

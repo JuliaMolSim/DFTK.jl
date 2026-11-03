@@ -29,7 +29,7 @@ end
 
 function test_solve_ΩplusK(scfres, δVext)
     # Compute a reference solution
-    δHψ = DFTK.multiply_ψ_by_blochwave(scfres.basis, scfres.ψ, δVext)
+    δHψ = DFTK.apply_potential_blochwave(scfres.basis, scfres.ψ, δVext)
     ref = DFTK.solve_ΩplusK_split(scfres, δHψ; verbose=true, s=1.0, tol=1e-12,
                                   bandtolalg=1e-6 * DFTK.BandtolGuaranteed(scfres))
     δρ0 = apply_χ0(scfres, δVext, tol=1e-13).δρ

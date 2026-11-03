@@ -37,7 +37,7 @@ function setup_atomic_perturbation(scfres; n_displaced=4)
         DFTK.total_local_potential(Hamiltonian(basisV))
     end
     δV  = ForwardDiff.derivative(displacement, 0.0)
-    δHψ = -DFTK.multiply_ψ_by_blochwave(scfres.basis, scfres.ψ, δV, zeros(3))
+    -DFTK.apply_potential_blochwave(scfres.basis, scfres.ψ, δV, zeros(3))
 end
 
 

@@ -3,12 +3,16 @@
 The following lists the functionality of DFTK achieved in about **10k lines** of code.
 Our code has a performance comparable to standard DFT codes
 and runs out of the box on Linux, Windows and macOS, see [Installation](@ref).
+DFTK agrees very well with standard codes,
+see [the recent verification dataset by Bosoni and others](https://acwf-verification.materialscloud.org/)
+on unary compounds and oxides across the periodic table.
 
 ## Standard methods and models
 - **LDA**, **GGA**, **meta-GGA** DFT functionals; any functional from the 
   [libxc](https://libxc.gitlab.io/) library is supported.
 - [Hubbard correction (DFT+U)](@ref).
-- [Exact exchange and Hybrid DFT](@ref) *(preliminary implementation)*
+- [Dispersion correction (DFT-D3)](@ref).
+- [Exact exchange and Hybrid DFT](@ref)
 - **Norm-conserving pseudopotentials**: Goedecker-type (GTH)
   or numerical (in UPF or PSP8 pseudopotential format),
   see [Pseudopotentials](@ref).

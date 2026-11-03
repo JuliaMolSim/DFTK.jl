@@ -53,16 +53,13 @@ end
 
     # Test grids that have both even and odd sizes.
     @testset "Small -> big -> small is identity" begin
-        basis      = PlaneWaveBasis(model; Ecut, kgrid, fft_size=(15, 30,  1))
+        basis      = PlaneWaveBasis(model; Ecut, kgrid, fft_size=(15, 31,  1))
         basis_big  = PlaneWaveBasis(model; Ecut, kgrid, fft_size=(20, 33, 11))
 
-        # A random density on an even-sized grid has a Fourier component G, where its
-        # counterpart -G is *not* part of the FFT grid, therefore ifft(fft(ρ)) would
-        # not be an identity. To prevent this we use enforce_real! to explicitly set
-        # the non-matched Fourier component to zero.
+        # The small grid is odd on purpose: on an even grid a random density has a Fourier
+        # component G whose counterpart -G is not on the grid, and that one is not recovered
+        # by the round trip (which is what the next testset checks).
         ρ = random_density(basis, 1)
-        ρ_fourier_purified = DFTK.enforce_real!(fft(basis, ρ), basis)
-        ρ = irfft(basis, ρ_fourier_purified)
 
         ρ_b  = transfer_density(ρ,   basis,     basis_big)
         ρ_bb = transfer_density(ρ_b, basis_big, basis    )

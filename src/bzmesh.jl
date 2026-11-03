@@ -24,6 +24,13 @@ structure of the calculation.
 struct MonkhorstPack <: AbstractKgrid
     kgrid_size::Vec3{Int}
     kshift::Vec3{Rational{Int}}
+    function MonkhorstPack(kgrid_size, kshift)
+        # Note: While a convert(Rational{Int}, number) tries to be exact, rationalize
+        # approximates, which gives more reasonable fractions in the end and is
+        # thus preferred. Don't use normalize_kpoint_coordinate here as we want
+        # the shift to be in [0, 1)
+        new(kgrid_size, mod.(rationalize.(Vec3(kshift)), 1))
+    end
 end
 MonkhorstPack(kgrid_size::AbstractVector; kshift=[0, 0, 0]) = MonkhorstPack(kgrid_size, kshift)
 MonkhorstPack(kgrid_size::Tuple; kshift=[0, 0, 0]) = MonkhorstPack(kgrid_size, kshift)
@@ -37,13 +44,20 @@ function Base.show(io::IO, kgrid::MonkhorstPack)
 end
 Base.length(kgrid::MonkhorstPack) = prod(kgrid.kgrid_size)
 
+function breaks_time_reversal_symmetry(kgrid::MonkhorstPack)
+    # In order to have time-reversal symmetry, the k-point grid needs to be closed under
+    # k ↦ -k, which can only be the case if the k-shift is 0 or 0.5.
+    !all(ks -> ks in (0, 1//2), kgrid.kshift)
+end
+
 """Construct the coordinates of the k-points in a (shifted) Monkhorst-Pack grid"""
 function reducible_kcoords(kgrid::MonkhorstPack)
     kgrid_size = kgrid.kgrid_size
-    start   = -floor.(Int, (kgrid_size .- 1) ./ 2)
-    stop    = ceil.(Int, (kgrid_size .- 1) ./ 2)
+    start   = .- cld.(kgrid_size .- 1, 2)
+    stop    = fld.(kgrid_size .- 1, 2)
+    axes    = [[collect(0:stop[i]); collect(start[i]:-1)] for i = 1:3]
     kcoords = [(kgrid.kshift .+ Vec3([i, j, k])) .// kgrid_size
-               for i=start[1]:stop[1], j=start[2]:stop[2], k=start[3]:stop[3]]
+               for i in axes[1], j in axes[2], k in axes[3]]
     (; kcoords=vec(normalize_kpoint_coordinate.(kcoords)))
 end
 
@@ -54,13 +68,24 @@ coordinates and the associated weights.
 function irreducible_kcoords(kgrid::MonkhorstPack, symmetries::AbstractVector{<:SymOp};
                              check_symmetry=SYMMETRY_CHECK)
     if all(isone, kgrid.kgrid_size)
-        return (; kcoords=[Vec3{Float64}(kgrid.kshift)], kweights=[1.0])
+        kshift_norm = normalize_kpoint_coordinate(kgrid.kshift)
+        return (; kcoords=[Vec3{Float64}(kshift_norm)], kweights=[1.0])
+    end
+
+    if length(symmetries) == 1
+        # Disable symmetry detection by Spglib. This is done in particular to
+        # capture cases where Spglib itself cannot determine the symmetry, e.g.
+        # for cases where the k-point grid is shifted randomly
+        kcoords  = reducible_kcoords(kgrid).kcoords
+        kweights = fill(1 / length(kcoords), length(kcoords))
+        iszero(kgrid.kshift) && @assert iszero(kcoords[1])  # DFTK assumes: 1st k-point is Γ
+        return (; kcoords, kweights)
     end
 
     # Give the remaining symmetries to spglib to compute an irreducible k-point mesh
     # TODO implement time-reversal symmetry and turn the flag below to true
     is_shift = map(kgrid.kshift) do ks
-        ks in (0, 1//2) || error("Only kshifts of 0 or 1//2 implemented.")
+        @assert ks in (0, 1//2)
         ks == 1//2
     end
     rotations = [symop.W for symop in symmetries]
@@ -91,6 +116,7 @@ function irreducible_kcoords(kgrid::MonkhorstPack, symmetries::AbstractVector{<:
                                 kirreds, spg_mesh.grid_address)
     end
 
+    iszero(kgrid.kshift) && @assert iszero(kirreds[1])  # DFTK assumes: 1st k-point is Γ
     (; kcoords=kirreds, kweights)
 end
 
@@ -126,6 +152,10 @@ function irreducible_kcoords(kgrid::ExplicitKpoints, ::AbstractVector{<:SymOp})
     (; kgrid.kcoords, kgrid.kweights)
 end
 
+function breaks_time_reversal_symmetry(::ExplicitKpoints)
+    # TODO: Set to "false" if for every k there is a corresponding -k in the mesh
+    true
+end
 
 # A datastructure that should return an AbstractKgrid (usually a MonkhorstPack)
 # when used with `build_kgrid`.
@@ -233,52 +263,6 @@ function build_kgrid(lattice::AbstractMatrix, kgen::KgridTotalNumber)
             return build_kgrid(lattice, KgridSpacing(spacing; kgen.kshift))
         end
     end
-end
-
-
-@doc raw"""
-Build a [`MonkhorstPack`](@ref) grid to ensure kpoints are at most this `spacing`
-apart (in inverse Bohrs). A reasonable spacing is `0.13` inverse Bohrs
-(around ``2π * 0.04 \, \text{Å}^{-1}``). The `kshift` keyword argument allows
-to specify an explicit shift for all ``k``-points.
-
-Note that this function is deprecated. Use [`KgridSpacing`](@ref) instead.
-"""
-function kgrid_from_maximal_spacing(system::AbstractSystem, spacing; kshift=[0, 0, 0])
-    @warn("kgrid_from_maximal_spacing(system, spacing; kshift) is now deprecated. " *
-          "Now you should pass the `KgridSpacing(spacing; kshift)` directly " *
-          "as `PlaneWaveBasis(model; kgrid=KgridSpacing(spacing; kshift), ...)` or " *
-          "use `build_kgrid(lattice, KgridSpacing(spacing; kshift))`")
-    pseudopotentials = fill(nothing, length(system))
-    kgen = KgridSpacing(spacing, kshift)
-    build_kgrid(parse_system(system, pseudopotentials).lattice, kgen)
-end
-function kgrid_from_maximal_spacing(lattice::AbstractMatrix, spacing; kshift=[0, 0, 0])
-    @warn("kgrid_from_maximal_spacing(system, spacing; kshift) is now deprecated. " *
-          "Now you should pass the `KgridSpacing(spacing; kshift)` directly " *
-          "as `PlaneWaveBasis(model; kgrid=KgridSpacing(spacing; kshift), ...)` or " *
-          "use `build_kgrid(lattice, KgridSpacing(spacing; kshift))`")
-    build_kgrid(lattice, KgridSpacing(spacing, kshift))
-end
-
-@doc raw"""
-Selects a [`MonkhorstPack`](@ref) grid size which ensures that at least a
-`n_kpoints` total number of ``k``-points are used. The distribution of
-``k``-points amongst coordinate directions is as uniformly as possible, trying to
-achieve an identical minimal spacing in all directions.
-
-Note that this function is deprecated. Use [`KgridTotalNumber`](@ref) instead.
-"""
-function kgrid_from_minimal_n_kpoints(system::AbstractSystem, n_kpoints::Integer; kshift=[0, 0, 0])
-    @warn("kgrid_from_minimial_n_kpoints(system, n_kpoints; kshift) is now deprecated. " *
-          "Now you should pass the `KgridTotalNumber(n_kpoints; kshift)` directly " *
-          "as `PlaneWaveBasis(model; kgrid=KgridTotalNumber(n_kpoints; kshift), ...)` or " *
-          "use `build_kgrid(lattice, KgridTotalNumber(n_kpoints; kshift))`")
-    pseudopotentials = fill(nothing, length(system))
-    kgrid_from_minimal_n_kpoints(parse_system(system, pseudopotentials).lattice, n_kpoints; kshift)
-end
-function kgrid_from_minimal_n_kpoints(lattice, n_kpoints::Integer; kshift=[0, 0, 0])
-    build_kgrid(lattice, KgridTotalNumber(n_kpoints, kshift))
 end
 
 

@@ -89,21 +89,21 @@ println("C44: ", uconvert(u"GPa", C[4, 4] * u"hartree" / u"bohr"^3))
 # ## Moving to meta-GGA functionals
 #
 # To make the problem a little more interesting we will now compute the elastic
-# constants using the Laplacian-dependent r2SCAN-L functional (a deorbitalized version of r2SCAN,
-# see [^MT2020]), again using AD-DFPT.
+# constants using the r2SCAN functional, again using AD-DFPT.
+# This is enabled by the recent extension of AD-DFPT to meta-GGA functionals[^PSH2026].
 #
-# [^MT2020]:
-#     Mejía-Rodríguez, D., & Trickey, S. B. (2020).
-#     *Meta-GGA performance in solids at almost GGA cost.*
-#     [Physical Review B, 102(12), 121109(R)](https://doi.org/10.1103/PhysRevB.102.121109).
+# [^PSH2026]:
+#     Ploumhans, B., Schmitz, N. F. & Herbst, M. F. (2026).
+#     *Density functional perturbation theory of meta-generalized gradient approximations using algorithmic differentiation.*
+#     [arXiv:2609.35572 [cond-mat.mtrl-sci]](https://doi.org/10.48550/arXiv.2609.35572).
 
-model_r2scanl = model_DFT(bulk(:Si; a=a0_pbe);
-                       pseudopotentials, functionals=[:mgga_x_r2scanl, :mgga_c_r2scanl])
-basis_r2scanl = PlaneWaveBasis(model_r2scanl; Ecut, kgrid)
-scfres_r2scanl = self_consistent_field(basis_r2scanl; tol)
-(; C) = elastic_tensor(scfres_r2scanl)
+model_r2scan = model_DFT(bulk(:Si; a=a0_pbe);
+                         pseudopotentials, functionals=r2SCAN())
+basis_r2scan = PlaneWaveBasis(model_r2scan; Ecut, kgrid)
+scfres_r2scan = self_consistent_field(basis_r2scan; tol)
+(; C) = elastic_tensor(scfres_r2scan)
 
-# The r2SCAN-L elastic constants, which agree well with PBE:
+# The r2SCAN elastic constants, which are slightly stiffer than with PBE:
 println("C11: ", uconvert(u"GPa", C[1, 1] * u"hartree" / u"bohr"^3))
 println("C12: ", uconvert(u"GPa", C[1, 2] * u"hartree" / u"bohr"^3))
 println("C44: ", uconvert(u"GPa", C[4, 4] * u"hartree" / u"bohr"^3))

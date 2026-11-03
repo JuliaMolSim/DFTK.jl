@@ -36,5 +36,6 @@ function apply_kernel(term::TermLocalNonlinearity, basis::AbstractBasis{T},
     S = promote_type(T, Tδρ)
     fp(ρ) = ForwardDiff.derivative(term.f, ρ)
     fpp(ρ) = ForwardDiff.derivative(fp, ρ)
-    to_device(basis.architecture, convert_dual.(S, fpp.(to_cpu(ρ)) .* to_cpu(δρ)))
+    δV = to_device(basis.architecture, convert_dual.(S, fpp.(to_cpu(ρ)) .* to_cpu(δρ)))
+    (; δVρ=δV)
 end

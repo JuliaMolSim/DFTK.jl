@@ -19,18 +19,22 @@ struct GenericHamiltonianBlock <: HamiltonianBlock
 end
 
 """A more optimized HamiltonianBlock for the important case of a DFT Hamiltonian."""
-struct DftHamiltonianBlock <: HamiltonianBlock
-    basis::PlaneWaveBasis
-    kpoint::Kpoint
+struct DftHamiltonianBlock{Tbasis<:PlaneWaveBasis,
+                           Tkpoint<:Kpoint,
+                           Tlocal<:RealSpaceMultiplication,
+                           TdivAgrad<:Union{Nothing,DivAgradOperator},
+                           Tscratch} <: HamiltonianBlock
+    basis::Tbasis
+    kpoint::Tkpoint
     operators::Vector
 
     # Individual operators for easy access
     fourier_op::FourierMultiplication
-    local_op::RealSpaceMultiplication
+    local_op::Tlocal
     nonlocal_op::Union{Nothing,NonlocalOperator}
-    divAgrad_op::Union{Nothing,DivAgradOperator}
+    divAgrad_op::TdivAgrad
 
-    scratch  # Pre-allocated scratch arrays for fast application
+    scratch::Tscratch  # Pre-allocated scratch arrays for fast application
 end
 
 function HamiltonianBlock(basis, kpoint, operators; scratch=nothing)
@@ -104,18 +108,17 @@ end
         T = eltype(H.basis)
         (; Hψ_fourier = similar(Hψ, size(Hψ, 1)),
            ψ_real  = similar(ψ, complex(T), H.basis.fft_size...),
-           Hψ_real = similar(Hψ, complex(T), H.basis.fft_size...))
+           Hψ_real = similar(Hψ, complex(T), H.basis.fft_size...),
+           to = TimerOutput())
     end
-    parallel_loop_over_range(1:size(ψ, 2); allocate_local_storage) do iband, storage
-        to = TimerOutput()  # Thread-local timer output
-
+    storages = parallel_loop_over_range(1:size(ψ, 2); allocate_local_storage) do iband, storage
         # Take ψi, IFFT it to ψ_real, apply each term to Hψ_fourier and Hψ_real, and add it
         # to Hψ.
         storage.Hψ_real .= 0
         storage.Hψ_fourier .= 0
         ifft!(storage.ψ_real, H.basis, H.kpoint, ψ[:, iband])
         for op in H.optimized_operators
-            @timeit to "$(nameof(typeof(op)))" begin
+            @timeit storage.to "$(nameof(typeof(op)))" begin
                 apply!((; fourier=storage.Hψ_fourier, real=storage.Hψ_real),
                        op,
                        (; fourier=ψ[:, iband], real=storage.ψ_real))
@@ -124,11 +127,8 @@ end
         Hψ[:, iband] .= storage.Hψ_fourier
         fft!(storage.Hψ_fourier, H.basis, H.kpoint, storage.Hψ_real)
         Hψ[:, iband] .+= storage.Hψ_fourier
-
-        if Threads.threadid() == 1
-            merge!(DFTK.timer, to; tree_point=[t.name for t in DFTK.timer.timer_stack])
-        end
     end
+    merge!(DFTK.timer, first(storages).to; tree_point=[t.name for t in DFTK.timer.timer_stack])
 
     Hψ
 end
@@ -152,9 +152,13 @@ end
     potential = H.local_op.potential .* H.basis.fft_grid.fft_normalization .*
                 H.basis.fft_grid.ifft_normalization
 
-    parallel_loop_over_range(1:n_bands, H.scratch) do iband, storage
-        to = TimerOutput()  # Thread-local timer output
-        ψ_real = storage.ψ_reals
+    # Give main timer to first thread and a dummy to the others
+    storages = map(enumerate(H.scratch)) do (i, scratch)
+        (scratch, i == 1 ? DFTK.timer : TimerOutput())
+    end
+
+    parallel_loop_over_range(1:n_bands, storages) do iband, (scratch, to)
+        ψ_real = scratch.ψ_reals
 
         @timeit to "local" begin
             ifft!(ψ_real, H.basis, H.kpoint, ψ[:, iband]; normalize=false)
@@ -169,10 +173,6 @@ end
                        (; fourier=ψ[:, iband], real=nothing);
                        ψ_real, G_plus_k) # overwrites ψ_real
             end
-        end
-
-        if Threads.threadid() == 1
-            merge!(DFTK.timer, to; tree_point=[t.name for t in DFTK.timer.timer_stack])
         end
     end
 
