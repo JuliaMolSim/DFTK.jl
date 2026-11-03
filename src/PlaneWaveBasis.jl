@@ -36,6 +36,9 @@ struct PlaneWaveBasis{T,
     # fft_size defines both the G basis on which densities and
     # potentials are expanded, and the real-space grid
     fft_size::Tuple{Int, Int, Int}
+    # Size of the real-space grid on which the XC energy and potentials are evaluated.
+    # At least as large as fft_size, can be made larger to reduce XC integration error.
+    fft_size_xc::Tuple{Int, Int, Int}
     # factor for integrals in real space: sum(ρ) * dvol ~ ∫ρ
     dvol::T  # = model.unit_cell_volume ./ prod(fft_size)
     # Information used to construct the k-point-specific basis
@@ -46,8 +49,7 @@ struct PlaneWaveBasis{T,
 
     # A FFTGrid containing all necessary data for FFT opertations related to this basis
     fft_grid::FFTtype
-    # Grid on which the XC energy and potentials are evaluated.
-    # At least as dense as fft_grid, can be made denser to reduce XC integration error.
+    # FFT grid of size fft_size_xc for XC energy and potential evaluation.
     # Identical (===) to fft_grid if no separate XC grid is requested.
     fft_grid_xc::FFTtype
 
@@ -157,7 +159,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
         )
     end
     for sz in (fft_size, fft_size_xc)
-        if !(all(sz .== next_working_fft_size(sz)))
+        if !(all(sz .== next_working_fft_size(T, sz)))
             next_size = next_working_fft_size(T, sz)
             error("Selected fft_size=$sz will not work for the buggy generic " *
                   "FFT routines; use next_working_fft_size(T, fft_size) = $next_size")
@@ -267,7 +269,7 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
 
     basis = PlaneWaveBasis{T, value_type(T), Arch, typeof(fft_grid),
                            typeof(kpoints[1].G_vectors)}(
-        model, fft_size, dvol,
+        model, fft_size, fft_size_xc, dvol,
         Ecut, variational,
         fft_grid, fft_grid_xc,
         kpoints, kweights, kgrid,
@@ -416,7 +418,7 @@ e.g. a [`MonkhorstPack`](@ref) or a [`ExplicitKpoints`](@ref) grid.
 @timing function PlaneWaveBasis(basis::PlaneWaveBasis, kgrid::Union{AbstractKgrid,AbstractKgridGenerator})
     kgrid_inner = build_kgrid(basis.model.lattice, kgrid)
     PlaneWaveBasis(basis.model, basis.Ecut,
-                   basis.fft_size, basis.fft_grid_xc.fft_size, basis.variational,
+                   basis.fft_size, basis.fft_size_xc, basis.variational,
                    kgrid_inner, basis.symmetries_respect_rgrid,
                    basis.use_symmetries_for_kpoint_reduction,
                    basis.comm_kpts, basis.architecture)
@@ -431,7 +433,7 @@ Creates a new basis identical to `basis`, but with a different [`Model`](@ref)
 """
 @timing function PlaneWaveBasis(basis::PlaneWaveBasis; model::Model)
     PlaneWaveBasis(model, basis.Ecut,
-                   basis.fft_size, basis.fft_grid_xc.fft_size, basis.variational,
+                   basis.fft_size, basis.fft_size_xc, basis.variational,
                    basis.kgrid, basis.symmetries_respect_rgrid,
                    basis.use_symmetries_for_kpoint_reduction,
                    basis.comm_kpts, basis.architecture)

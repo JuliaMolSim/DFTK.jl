@@ -60,9 +60,6 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
         end
     end
 
-    fft_grid = basis.fft_grid_xc
-    dvol = basis.model.unit_cell_volume / prod(fft_grid.fft_size)
-
     functionals = map(xc.functionals) do fun
         # Strip duals from functional parameters if needed
         params = parameters(fun)
@@ -74,7 +71,7 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
     end
     TermXc(convert(Vector{Functional}, functionals),
            convert_dual(T, xc.scaling_factor),
-           T(xc.potential_threshold), ρcore, τcore, fft_grid, dvol)
+           T(xc.potential_threshold), ρcore, τcore)
 end
 
 function hybrid_parameters(xc::Xc)
@@ -82,14 +79,12 @@ function hybrid_parameters(xc::Xc)
     isempty(res) ? nothing : only(res)
 end
 
-struct TermXc{T,CT,TCT,FT} <: TermNonlinear where {T,CT,TCT,FT}
+struct TermXc{T,CT,TCT} <: TermNonlinear where {T,CT,TCT}
     functionals::Vector{Functional}
     scaling_factor::T
     potential_threshold::T
     ρcore::CT
     τcore::TCT
-    fft_grid::FT
-    dvol::T
 end
 DftFunctionals.needs_τ(term::TermXc) = any(needs_τ, term.functionals)
 
@@ -113,39 +108,42 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}; ρ, τ=nothin
     # The denser XC FFT grid is treated only as a fix for the XC energy/potential evaluation,
     # hence the core densities are computed on the coarse grid and transferred along
     # with the valence densities.
-    ρ = transfer_density(ρ, basis.fft_grid, term.fft_grid)
+    ρ = transfer_density(ρ, basis.fft_grid, basis.fft_grid_xc)
     if !isnothing(τ)
-        τ = transfer_density(τ, basis.fft_grid, term.fft_grid)
+        τ = transfer_density(τ, basis.fft_grid, basis.fft_grid_xc)
     end
 
-    E, potential, Vτ = _xc_potential_real(term, basis.model, basis.comm_kpts, ρ, τ)
+    E, potential, Vτ = _xc_potential_real(term, basis, ρ, τ)
 
     # The adjoint of Fourier zero-padding is Fourier truncation
-    potential = transfer_density(potential, term.fft_grid, basis.fft_grid)
+    potential = transfer_density(potential, basis.fft_grid_xc, basis.fft_grid)
     if !isnothing(Vτ)
-        Vτ = transfer_density(Vτ, term.fft_grid, basis.fft_grid)
+        Vτ = transfer_density(Vτ, basis.fft_grid_xc, basis.fft_grid)
     end
 
     (; E, potential, Vτ)
 end
 
-# Internal evaluation on TermXc's own FFT grid.
-function _xc_potential_real(term::TermXc, model::Model{T}, comm_kpts, ρ, τ) where {T}
+# Internal evaluation with ρ and τ given on the basis.fft_grid_xc grid.
+function _xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ρ, τ) where {T}
+    model = basis.model
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
-    density = LibxcDensities(model, term.fft_grid, max_ρ_derivs, ρ, τ)
-    _check_negative_bonding_indicator_α(density, comm_kpts)
+    density = LibxcDensities(model, basis.fft_grid_xc, max_ρ_derivs, ρ, τ)
+    _check_negative_bonding_indicator_α(density, basis.comm_kpts)
 
     n_spin = model.n_spin_components
     potential_threshold = term.potential_threshold
-    fft_grid     = term.fft_grid
+    fft_grid     = basis.fft_grid_xc
+    dvol_xc      = model.unit_cell_volume / prod(basis.fft_size_xc)
     fft_size     = fft_grid.fft_size
+    # TODO: unused?
     architecture = fft_grid.architecture
 
     # Evaluate terms and energy contribution
     # If the XC functional is not supported for an architecture, terms is on the CPU
     terms = potential_terms(term.functionals, density)
     @assert haskey(terms, :Vρ) && haskey(terms, :e)
-    E = term.scaling_factor * sum(terms.e) * term.dvol
+    E = term.scaling_factor * sum(terms.e) * dvol_xc
 
     # Map from the tuple of spin indices for the contracted density gradient
     # (s, t) to the index convention used in DftFunctionals (i.e. packed symmetry-adapted
@@ -224,17 +222,18 @@ end
         τ = τ + term.τcore
     end
 
-    ρ = transfer_density(ρ, basis.fft_grid, term.fft_grid)
+    ρ = transfer_density(ρ, basis.fft_grid, basis.fft_grid_xc)
     if !isnothing(τ)
-        τ = transfer_density(τ, basis.fft_grid, term.fft_grid)
+        τ = transfer_density(τ, basis.fft_grid, basis.fft_grid_xc)
     end
 
     max_ρ_derivs = maximum(max_required_derivative, term.functionals)
-    densities = LibxcDensities(basis.model, term.fft_grid, max_ρ_derivs, ρ, τ)
+    densities = LibxcDensities(basis.model, basis.fft_grid_xc, max_ρ_derivs, ρ, τ)
     _check_negative_bonding_indicator_α(densities, basis.comm_kpts)
 
     edensity = energy_density(term.functionals, densities)
-    term.scaling_factor * sum(edensity) * term.dvol
+    dvol_xc  = basis.model.unit_cell_volume / prod(basis.fft_size_xc)
+    term.scaling_factor * sum(edensity) * dvol_xc
 end
 
 @timing "forces: xc" function compute_forces(term::TermXc, basis::PlaneWaveBasis{T},
@@ -494,7 +493,7 @@ function compute_kernel(term::TermXc, basis::PlaneWaveBasis{T}; ρ, kwargs...) w
     if !all(family(xc) == :lda for xc in term.functionals)
         error("compute_kernel only implemented for LDA")
     end
-    if term.fft_grid.fft_size != basis.fft_size
+    if basis.fft_size_xc != basis.fft_size
         # On a denser XC grid the Fourier interpolation makes the kernel non-diagonal
         error("compute_kernel not implemented for a basis with a separate fft_grid_xc")
     end

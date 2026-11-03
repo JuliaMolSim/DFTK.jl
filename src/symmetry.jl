@@ -448,7 +448,7 @@ function unfold_bz(basis::PlaneWaveBasis)
         #      of the terms wherever possible.
         use_symmetry_for_kpoint_reduction = false
         return PlaneWaveBasis(basis.model, basis.Ecut,
-                              basis.fft_size, basis.fft_grid_xc.fft_size,
+                              basis.fft_size, basis.fft_size_xc,
                               basis.variational, basis.kgrid,
                               basis.symmetries_respect_rgrid,
                               use_symmetry_for_kpoint_reduction,

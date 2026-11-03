@@ -188,7 +188,7 @@ function todict!(dict, basis::PlaneWaveBasis)
     dict["kweights"]     = irreducible_kweights_global(basis)
     dict["n_kpoints"]    = basis.n_irreducible_kpoints
     dict["fft_size"]     = basis.fft_size
-    dict["fft_size_xc"]  = basis.fft_grid_xc.fft_size
+    dict["fft_size_xc"]  = basis.fft_size_xc
     dict["dvol"]         = basis.dvol
     dict["Ecut"]         = basis.Ecut
     dict["variational"]  = basis.variational

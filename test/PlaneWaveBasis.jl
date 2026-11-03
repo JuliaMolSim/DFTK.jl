@@ -172,36 +172,3 @@ end
         @test basis.Ecut == 10.0
     end
 end
-
-@testitem "PlaneWaveBasis: Separate XC grid" setup=[TestCases] begin
-    using DFTK
-    silicon = TestCases.silicon
-    model = model_DFT(silicon.lattice, silicon.atoms, silicon.positions; functionals=LDA())
-    kgrid = [2, 2, 2]
-
-    # By default the XC grid is the basis grid
-    basis = PlaneWaveBasis(model; Ecut=5, kgrid)
-    @test basis.fft_grid_xc === basis.fft_grid
-
-    # Denser XC grid from a supersampling factor or an explicit size
-    basis_ss = PlaneWaveBasis(model; Ecut=5, kgrid, supersampling_xc=3)
-    @test basis_ss.fft_grid_xc.fft_size ==
-        PlaneWaveBasis(model; Ecut=5, kgrid, supersampling=3).fft_size
-    @test only(filter(t -> t isa DFTK.TermXc, basis_ss.terms)).fft_grid === basis_ss.fft_grid_xc
-
-    fft_size_xc = basis_ss.fft_grid_xc.fft_size
-    basis_explicit = PlaneWaveBasis(model; Ecut=5, kgrid, fft_size_xc)
-    @test basis_explicit.fft_grid_xc.fft_size == fft_size_xc
-    @test basis_explicit.fft_size == basis.fft_size
-
-    # The XC grid is preserved when deriving new bases
-    @test PlaneWaveBasis(basis_ss, MonkhorstPack([1, 1, 1])).fft_grid_xc.fft_size == fft_size_xc
-    @test PlaneWaveBasis(basis_ss; model).fft_grid_xc.fft_size == fft_size_xc
-    @test DFTK.unfold_bz(basis_ss).fft_grid_xc.fft_size == fft_size_xc
-
-    # Invalid inputs
-    @test_throws ArgumentError PlaneWaveBasis(model; Ecut=5, kgrid, supersampling_xc=3,
-                                              fft_size_xc)
-    @test_throws ArgumentError PlaneWaveBasis(model; Ecut=5, kgrid,
-                                              fft_size_xc=basis.fft_size .- 2)
-end

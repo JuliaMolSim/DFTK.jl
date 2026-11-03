@@ -33,7 +33,7 @@ function cell_to_supercell(basis::PlaneWaveBasis{T}) where {T}
     supercell_size = basis.kgrid.kgrid_size
     supercell = create_supercell(model.lattice, model.atoms, model.positions, supercell_size)
     supercell_fft_size    = Tuple{Int,Int,Int}(basis.fft_size .* supercell_size)
-    supercell_fft_size_xc = Tuple{Int,Int,Int}(basis.fft_grid_xc.fft_size .* supercell_size)
+    supercell_fft_size_xc = Tuple{Int,Int,Int}(basis.fft_size_xc .* supercell_size)
     if isnothing(model.n_electrons)
         n_electrons_supercell = nothing
     else
