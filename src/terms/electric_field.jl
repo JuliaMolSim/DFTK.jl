@@ -1,6 +1,6 @@
 @doc raw"""
 Uniform electric field. Adds the following total energy contribution,
-thereby turning the total energy into it to the electric enthalpy:
+thereby turning the total energy into the electric enthalpy:
 ```math
 -\Omega \bm{\mathcal E} \cdot \mathbf{P}_\mathrm{tot},
 ```
@@ -64,13 +64,6 @@ end
         dH_dkψ = compute_δHψδk(basis0, ψ0, δk; ρ=ρ0, τ=τ0)
         apply_χ0_4P(ham, ψ0, occupation0, εF0, eigenvalues0, dH_dkψ;
                     occupation_threshold, bandtolalg, lrpol.tol).δψ
-    end
-
-
-    @timing function electronic_polarization_gradient(basis::PlaneWaveBasis{T}, ψ, occupation,
-                                    lrpol::LinearResponsePolarization;
-                                    εF, eigenvalues, occupation_threshold,
-                                    ρ=nothing, τ=nothing) where {Tg,V,T<:Dual{Tg,V}}
     end
 end
 
