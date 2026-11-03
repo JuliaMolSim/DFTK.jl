@@ -20,7 +20,7 @@ where the `kernel` keyword argument is an [`InteractionKernel`](@ref) , typicall
     scaling_factor::Real = 1.0
     kernel = ProbeCharge(BareCoulomb())
 end
-(ex::ExactExchange)(basis; kwargs...) = TermExactExchange(basis, ex.scaling_factor, ex.kernel)
+(ex::ExactExchange)(basis) = TermExactExchange(basis, ex.scaling_factor, ex.kernel)
 
 struct TermExactExchange{T, Tkernel, Tq} <: Term
     scaling_factor::T             # scaling factor, absorbed into interaction_kernels

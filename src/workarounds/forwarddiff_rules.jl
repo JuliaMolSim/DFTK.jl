@@ -228,13 +228,13 @@ function construct_value(basis::PlaneWaveBasis{T}) where {T <: Dual}
     PlaneWaveBasis(construct_value(basis.model),
                    ForwardDiff.value(basis.Ecut),
                    basis.fft_size,
+                   basis.fft_grid_xc.fft_size,
                    basis.variational,
                    basis.kgrid,
                    basis.symmetries_respect_rgrid,
                    basis.use_symmetries_for_kpoint_reduction,
                    basis.comm_kpts,
-                   basis.architecture,
-                   basis.extra_kwargs)
+                   basis.architecture)
 end
 
 

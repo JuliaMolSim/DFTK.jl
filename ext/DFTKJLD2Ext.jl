@@ -36,12 +36,13 @@ function DFTK.save_bands(::Val{:jld2}, file::AbstractString, band_data::NamedTup
     save_jld2(DFTK.band_data_to_dict!, file, band_data; kwargs...)
 end
 
-# TODO: how to save and load the extra_kwargs?
 function load_basis(jld; comm=MPI.COMM_WORLD)
     if mpi_master(comm)
         basis_args = (jld["model"],
                       jld["Ecut"],
                       jld["fft_size"],
+                      # Files written before fft_size_xc existed used the basis grid for XC
+                      haskey(jld, "fft_size_xc") ? jld["fft_size_xc"] : jld["fft_size"],
                       jld["variational"],
                       jld["kgrid"],
                       jld["symmetries_respect_rgrid"],

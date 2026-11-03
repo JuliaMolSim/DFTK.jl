@@ -52,6 +52,7 @@ function test_agreement_bands(band_data, dict; explicit_reshape=false, test_ψ=t
         @test dict["Ecut"]      ≈  basis.Ecut
         @test dict["dvol"]      ≈  basis.dvol atol=1e-12
         @test [dict["fft_size"]...]  == [basis.fft_size...]
+        @test [dict["fft_size_xc"]...]  == [basis.fft_grid_xc.fft_size...]
         @test dict["symmetries_translations"] ≈ translations atol=1e-12
         @test dict["use_symmetries_for_kpoint_reduction"] == basis.use_symmetries_for_kpoint_reduction
         @test dict["symmetries_respect_rgrid"] == basis.symmetries_respect_rgrid

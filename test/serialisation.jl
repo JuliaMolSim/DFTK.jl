@@ -17,6 +17,7 @@ function test_scfres_agreement(tested, ref; test_ψ=true)
     @test tested.basis.Ecut      == ref.basis.Ecut
     @test tested.basis.kweights  == ref.basis.kweights
     @test tested.basis.fft_size  == ref.basis.fft_size
+    @test tested.basis.fft_grid_xc.fft_size == ref.basis.fft_grid_xc.fft_size
     @test tested.basis.kgrid     == ref.basis.kgrid
 
     kcoords_test = getproperty.(tested.basis.kpoints, :coordinate)
@@ -149,4 +150,6 @@ end
     test_serialisation(testcase, "fixed Fermi";
                        modelargs=(; εF=0.5, disable_electrostatics_check=true,
                                   temperature=1e-3))
+    test_serialisation(testcase, "dense XC grid";
+                       basisargs=(; Ecut=5, kgrid=(2, 3, 4), supersampling_xc=3))
 end

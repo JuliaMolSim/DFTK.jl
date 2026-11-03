@@ -8,7 +8,7 @@ struct Magnetic
     Afunction::Function  # A(x,y,z) returns [Ax,Ay,Az]
                          # both [x,y,z] and [Ax,Ay,Az] are in *Cartesian* coordinates
 end
-(M::Magnetic)(basis; kwargs...) = TermMagnetic(basis, M.Afunction)
+(M::Magnetic)(basis) = TermMagnetic(basis, M.Afunction)
 
 struct MagneticFromValues
     # Apotential[α] is an array of size fft_size for α=1:3
