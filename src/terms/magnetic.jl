@@ -14,7 +14,6 @@ struct MagneticFromValues
     # Apotential[α] is an array of size fft_size for α=1:3
     Apotential::Vector{<:AbstractArray}
 end
-# TODO: this looks broken, it should take the basis
 function (M::MagneticFromValues)(Apotential)
     @assert length(Apotential) == 3
     @assert size(Apotential[1]) == basis.fft_size
