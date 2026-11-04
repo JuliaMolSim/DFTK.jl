@@ -1,27 +1,46 @@
 # Berry phase electronic polarization in direction α:
-# Pel_α({uₙₖ}) = -2i/(2π)^3 ∑ₙ ∫ <uₙₖ|∂k_α uₙₖ>
-#             = -i/Ω * Σₙₖ wₖfₙₖ <uₙₖ|∂k_α uₙₖ>.
-# Total polarization (electronic + ionic):
-# Ptot_α({uₙₖ}) = Pel_α({uₙₖ}) + ∑ₛ Zₛ Rₛ_α.
+#   Pel,cart_α({uₙₖ}) = -2i/(2π)^3 ∑ₙ ∫ <uₙₖ|∂kcart_α uₙₖ>
+#                    = -i/Ω * Σₙₖ wₖfₙₖ <uₙₖ|∂kcart_α uₙₖ>,
+# where the derivative ∂kcart_α is computed in Cartesian coordinates.
+# In reduced coordinates, k = 1/2π L^T kcart hence
+#   Pel,cart_α({uₙₖ}) = ∑_β L_αβ / Ω * [ -i/2π Σₙₖ wₖfₙₖ <uₙₖ|∂k_α uₙₖ> ]
+#
+# To gracefully treat the combination of strain and electric fields,
+# we write all internal DFTK calculations in terms of the
+# "fully reduced" polarization discussed in the Appendix of
+# [Wu et al., Phys. Rev. B 72, 035105 (2005)].
+# The reduced electronic polarization is:
+#   Pel_α({uₙₖ}) = -i/2π Σₙₖ wₖfₙₖ <uₙₖ|∂k_α uₙₖ>
+# and the reduced ionic polarization is: (Rₛ in reduced coordinates)
+#   Pion_α = ∑ₛ Zₛ Rₛ_α.
+# The Cartesian polarization is:
+#   Pcart = L/Ω P
+#
 # At nonzero field, the {uₙₖ} minimize the electric enthalpy functional:
-# F({uₙₖ}, E) = Energy({uₙₖ}) - Ω E ⋅ Ptot({uₙₖ}).
+#   F({uₙₖ}, E) = Energy({uₙₖ}) - E ⋅ Ptot({uₙₖ}).
+# The reduced polarization Ptot is defined above and the
+# reduced electric field E is defined such that Ecart = L⁻ᵀ E.
+# It holds that E ⋅ Ptot = Ω Ecart ⋅ Pcart; the latter is the usual
+# literature definition, but the reduced variants are more natural when
+# combining electric fields and strain perturbations.
 #
 # # Analytic k-derivative
 # The k-derivative can be evaluated analytically, which allows perturbations
 # to be computed at zero field.
 # The DFPT rhs for an electric field perturbation in direction α is
-# 1/wₖfₙₖ ∂²F/∂<uₙₖ|∂E_α = -Ω/wₖfₙₖ ∂P_α/∂<uₙₖ| = i ∂k_α uₙₖ.
+# 1/wₖfₙₖ ∂²F/∂<uₙₖ|∂E_α = -1/wₖfₙₖ ∂Pel_α/∂<uₙₖ| = i/2π ∂k_α uₙₖ.
 # So the steps are:
 # 1. Compute ∂k_α|uₙₖ> as response to ∂H/∂k_α (Sternheimer).
-# 2. Compute DFPT response to i ∂k_α uₙₖ.
+# 2. Compute DFPT response to i/2π ∂k_α uₙₖ.
 # 3. Evaluate required derivative of quantity wrt. uₙₖ with AD
 #
-# For the special case of a polarization derivative ∂P_α/∂θ, (3) is replaced by:
-# ∂Pel_α({uₙₖ})/∂θ = -i/Ω * Σₙₖ wₖfₙₖ (<∂θ uₙₖ|∂k_α uₙₖ> + <uₙₖ|∂k_α∂θ uₙₖ>)
+# For the special case of a polarization derivative ∂P_α/∂θ, step 3 is replaced by:
+# Pel_α({uₙₖ}) = -i/2π Σₙₖ wₖfₙₖ <uₙₖ|∂k_α uₙₖ>
+# ∂Pel_α({uₙₖ})/∂θ = -i/2π * Σₙₖ wₖfₙₖ (<∂θ uₙₖ|∂k_α uₙₖ> + <uₙₖ|∂k_α∂θ uₙₖ>)
 #                 (by parts wrt k because the sum approximates an integral over k)
-#                 = -i/Ω * Σₙₖ wₖfₙₖ (<∂θ uₙₖ|∂k_α uₙₖ> - <∂k_α uₙₖ|∂θ uₙₖ>)
-#                 = -i/Ω * Σₙₖ wₖfₙₖ (<∂θ uₙₖ|∂k_α uₙₖ> - conj(<∂ θuₙₖ|∂k_α uₙₖ>))
-#                 =  1/Ω * Σₙₖ wₖfₙₖ 2 Im <∂θ uₙₖ|∂k_α uₙₖ>.
+#                 = -i/2π * Σₙₖ wₖfₙₖ (<∂θ uₙₖ|∂k_α uₙₖ> - <∂k_α uₙₖ|∂θ uₙₖ>)
+#                 = -i/2π * Σₙₖ wₖfₙₖ (<∂θ uₙₖ|∂k_α uₙₖ> - conj(<∂ θuₙₖ|∂k_α uₙₖ>))
+#                 =  1/2π * Σₙₖ wₖfₙₖ 2 Im <∂θ uₙₖ|∂k_α uₙₖ>.
 #
 # # Numerical k-derivative
 # The k-derivative can be evaluated numerically with finite differences,
@@ -74,21 +93,16 @@ end
                     occupation_threshold, bandtolalg, lrpol.tol).δψ
     end
     P = zero(Vec3{V})
-    Ω = basis0.model.unit_cell_volume
     dP = ntuple(ForwardDiff.npartials(T)) do n
         δψ = [ForwardDiff.partials.(Tg, ψk, n) for ψk in ψ]
         δP = Vec3{V}(map(1:3) do α
             δPk = map(occupation0, δψ, dψ_dk[α]) do occk, δψk, dψk_dk
-                2/Ω * sum(occk .* imag.(columnwise_dots(δψk, dψk_dk)))
+                1/V(π) * sum(occk .* imag.(columnwise_dots(δψk, dψk_dk)))
             end
             weighted_ksum(basis0, δPk)
         end)
         # TODO: missing symmetrization
-        # d/dkcart = 1/2π * lattice * d/dkred
-        # TODO: I think we should multiply by 1/2π by not lattice
-        # this will avoid problems with stresses and improper piezoelectric tensors
-        # (for finite E with discretized k-grid)
-        1/2π * basis0.model.lattice * δP
+        δP
     end
     map(P, dP...) do Pα, dPα...
         ForwardDiff.Dual{Tg}(Pα, dPα)
@@ -102,8 +116,8 @@ function electronic_polarization(scfres, method::PolarizationMethod)
 end
 
 function ionic_polarization(model::Model)
-    1/model.unit_cell_volume * sum(zip(model.positions, model.atoms)) do (pos, atom)
-        model.lattice * pos * charge_ionic(atom)
+    sum(zip(model.positions, model.atoms)) do (pos, atom)
+        pos * charge_ionic(atom)
     end
 end
 
@@ -114,6 +128,17 @@ function total_polarization(basis::PlaneWaveBasis, ψ, occupation,
 end
 function total_polarization(scfres, method::PolarizationMethod)
     electronic_polarization(scfres, method) + ionic_polarization(scfres.basis.model)
+end
+
+function total_polarization_cart(basis::PlaneWaveBasis, ψ, occupation,
+                                 method::PolarizationMethod; kwargs...)
+    model = scfres.basis.model
+    1/model.unit_cell_volume * model.lattice * total_polarization(basis, ψ, occupation,
+                                                                  method; kwargs...)
+end
+function total_polarization_cart(scfres, method::PolarizationMethod)
+    model = scfres.basis.model
+    1/model.unit_cell_volume * model.lattice * total_polarization(scfres, method)
 end
 
 @doc raw"""

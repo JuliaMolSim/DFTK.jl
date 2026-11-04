@@ -1,3 +1,5 @@
+include("../postprocess/polarization.jl")
+
 @doc raw"""
 Uniform electric field. Adds the following total energy contribution,
 thereby turning the total energy into the electric enthalpy:
@@ -9,6 +11,7 @@ electric field strength, and $\mathbf{P}_\mathrm{tot}$ is the total
 (electronic + ionic) polarization.
 """
 struct ElectricField
+    # 
     strength_red
     polarization_method::PolarizationMethod
 
@@ -67,8 +70,8 @@ end
     end
 end
 
-function compute_forces(term::TermElectricField, basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...)
+function compute_forces(term::TermElectricField, basis::PlaneWaveBasis{T}, ψ, occupation; kwargs...) where {T}
     map(basis.model.atoms) do atom
-        charge_ionic(atom) * 1/2π * Vec3{T}(term.strength_red)
+        charge_ionic(atom) * Vec3{T}(term.strength_red)
     end
 end

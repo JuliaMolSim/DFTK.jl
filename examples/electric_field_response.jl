@@ -64,12 +64,12 @@ function position_to_ΩP(positions)
     model = model_DFT(convert.(T, lattice), atoms, positions;
                       # TODO: k derivative currently requires symmetries=false, fix this!
                       functionals=PBE(), symmetries=false)
-    # basis = PlaneWaveBasis(model; Ecut=30, kgrid=[2, 2, 2]);
-    basis = PlaneWaveBasis(model; Ecut=30, kgrid=[6, 6, 6]);
+    basis = PlaneWaveBasis(model; Ecut=30, kgrid=[2, 2, 2]);
+    # basis = PlaneWaveBasis(model; Ecut=30, kgrid=[6, 6, 6]);
     scfres = self_consistent_field(basis, tol=1e-6);
 
     # total_polarization_cart(scfres, LinearResponsePolarization())
-    model.unit_cell_volume * DFTK.total_polarization(scfres, DFTK.LinearResponsePolarization())
+    model.lattice * DFTK.total_polarization(scfres, DFTK.LinearResponsePolarization())
 end
 
 dpos = [lattice \ [1, 0, 0],
@@ -77,6 +77,9 @@ dpos = [lattice \ [1, 0, 0],
 
 dP = ForwardDiff.derivative(ε -> position_to_ΩP(positions0 + ε * dpos), 0.0)
 @show dP
+
+# TODO: add comment explaining that [2,2,2] gives completely terrible results
+# and also provide reasonably converged values (will need to run with MPI)
 
 # elres = electric_field_responses(scfres);
 
