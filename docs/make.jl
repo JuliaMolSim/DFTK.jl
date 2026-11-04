@@ -35,7 +35,9 @@ PAGES = [
         "examples/geometry_optimization.jl",
         "examples/energy_cutoff_smearing.jl",
         "examples/hubbard.jl",
+        "examples/dispersion_correction.jl",
         "examples/exact_exchange.jl",
+        "examples/hybrid_bands.jl",
     ],
     "Response and properties" => [
         "examples/elastic_constants.jl",

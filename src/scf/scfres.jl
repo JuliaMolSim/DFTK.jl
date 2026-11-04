@@ -82,5 +82,5 @@ Keyword arguments:
 end
 function save_scfres(::Val, filename::AbstractString, ::NamedTuple; kwargs...)
     error("The extension $(last(splitext(filename))) is currently not available. " *
-          "A required package (e.g. JLD2 or JSON3) is not yet loaded.")
+          "A required package (e.g. JLD2 or JSON) is not yet loaded.")
 end

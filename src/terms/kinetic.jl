@@ -106,6 +106,6 @@ function (blowup::BlowupAbinit)(y::T, Ecut) where {T}
         return one(T)
     else
         x = (Ecut - Ekin) / Ecutsm
-        1/(x^2 * (3 + x - 6x^2 + 3x^2))
+        1/(x^2 * (3 + x - 6x^2 + 3x^3))
     end
 end

@@ -153,12 +153,18 @@ Notes:
     orthonormalized only against the manifold basis. 
     Most applications require the whole projectors basis to be orthonormal instead.
 """
-function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
+function atomic_orbital_projectors(basis::PlaneWaveBasis;
                                    isonmanifold = l -> true,
-                                   positions = basis.model.positions) where {T}
-    
-    G_plus_k_all = [Gplusk_vectors(basis, basis.kpoints[ik])
-                    for ik = 1:length(basis.kpoints)]
+                                   positions = basis.model.positions)
+    (; orbitals, labels) = _atomic_orbitals_nonorthogonal(basis; isonmanifold, positions)
+    (; projectors=ortho_lowdin.(orbitals), labels)
+end
+
+# Non-orthogonalized atomic orbitals, i.e. `atomic_orbital_projectors` before the Löwdin step.
+function _atomic_orbitals_nonorthogonal(basis::PlaneWaveBasis{T};
+                                        isonmanifold=l -> true,
+                                        positions=basis.model.positions) where {T}
+    G_plus_k_all = [Gplusk_vectors(basis, kpt) for kpt in basis.kpoints]
     G_plus_k_all_cart = [map(recip_vector_red_to_cart(basis.model), gpk) 
                          for gpk in G_plus_k_all]
 
@@ -186,9 +192,69 @@ function atomic_orbital_projectors(basis::PlaneWaveBasis{T};
         end
     end
 
-    projectors = ortho_lowdin.(projectors)
+    (; orbitals=projectors, labels)
+end
 
-    return (; projectors, labels)
+"""
+    atomic_orbital_projector_derivatives(basis; [selected, positions])
+    atomic_orbital_projector_derivatives(basis, ψ; [selected, positions])
+
+Derivatives of the projectors returned by [`atomic_orbital_projectors`](@ref) with respect
+to the atomic positions:
+
+    dprojectors[ik][iatom][α] = ∂ projectors[ik] / ∂ r[iatom][α]
+
+where `r[iatom][α]` is the `α`-th reduced coordinate of atom `iatom`. The derivative includes
+the change of the Löwdin orthogonalization, so displacing one atom also changes the
+projectors centered on all other atoms.
+
+If the Bloch waves `ψ` are given, the overlaps `ψ[ik]' * dprojectors[ik][iatom][α]` are
+returned instead. This saves memory and compute by avoiding building the full derivative
+in the plane-wave basis.
+
+## References
+- [I. Timrov et al. Phys. Rev. B **102**, 235159 (2020)](https://journals.aps.org/prb/abstract/10.1103/PhysRevB.102.235159)
+
+Overview of inputs:
+- `selected` (opt): A function of the label selecting the projectors (columns) to differentiate.
+  All atomic orbitals still enter the orthogonalization.
+
+Overview of outputs:
+- `dprojectors`: `dprojectors[ik][iatom][α]` is a matrix of size (number of G vectors, or
+  number of bands if `ψ` is given) × (number of selected projectors)
+- `labels`: labels of the selected projectors, see [`atomic_orbital_projectors`](@ref)
+"""
+function atomic_orbital_projector_derivatives(basis::PlaneWaveBasis; kwargs...)
+    # With ψ[ik] = I, the overlaps ψ[ik]' * dprojectors are the derivatives themselves
+    atomic_orbital_projector_derivatives(basis, [I for _ in basis.kpoints]; kwargs...)
+end
+function atomic_orbital_projector_derivatives(basis::PlaneWaveBasis, ψ;
+                                              selected=l -> true,
+                                              positions=basis.model.positions)
+    (; orbitals, labels) = _atomic_orbitals_nonorthogonal(basis; positions)
+    cols = findall(selected, labels)
+    dprojectors = map(enumerate(basis.kpoints)) do (ik, kpt)
+        Φk = orbitals[ik]
+        O_eigen = eigen(Hermitian(Φk' * Φk))
+        O_invsqrt = matrix_function(invsqrt, O_eigen)
+        ψΦk = ψ[ik]' * Φk
+        G_plus_k = Gplusk_vectors(basis, kpt)
+        map(eachindex(basis.model.atoms)) do iatom
+            atom_orbitals = findall(label -> label.iatom == iatom, labels)
+            map(1:3) do α
+                # The projectors are Φk O^{-1/2} with the overlap O = Φk' * Φk.
+                # Only the orbitals of the displaced atom move:
+                #   ∂/∂r_α e^{-2πi (k+G)·r} = -2πi (k+G)_α e^{-2πi (k+G)·r}
+                dΦ_atom = (-2π * im) .* getindex.(G_plus_k, α) .* Φk[:, atom_orbitals]
+                δO = zero(O_invsqrt)
+                δO[atom_orbitals, :] = dΦ_atom' * Φk
+                δO = δO + δO'
+                dO_invsqrt = matrix_function_derivative(invsqrt, O_eigen, δO)[:, cols]
+                (ψ[ik]' * dΦ_atom) * O_invsqrt[atom_orbitals, cols] + ψΦk * dO_invsqrt
+            end
+        end
+    end
+    (; dprojectors, labels=labels[cols])
 end
 
 """

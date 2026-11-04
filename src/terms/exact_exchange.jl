@@ -21,7 +21,6 @@ where the `kernel` keyword argument is an [`InteractionKernel`](@ref) , typicall
     kernel = ProbeCharge(BareCoulomb())
 end
 (ex::ExactExchange)(basis) = TermExactExchange(basis, ex.scaling_factor, ex.kernel)
-breaks_symmetries(::ExactExchange) = true  # TODO: make ExactExchange fit for symmetries 
 
 struct TermExactExchange{T, Tkernel, Tq} <: Term
     scaling_factor::T             # scaling factor, absorbed into interaction_kernels
@@ -32,8 +31,14 @@ function TermExactExchange(basis::PlaneWaveBasis{T}, scaling_factor, kernel) whe
     if mpi_nprocs(basis.comm_kpts) > 1
         error("ExactExchange currently does not support MPI parallelization over k-points.")
     end
-    if !(basis.kgrid isa MonkhorstPack) || basis.n_irreducible_kpoints != length(basis.kgrid)
-        error("ExactExchange requires a full (non-symmetry-reduced) Monkhorst-Pack grid.")
+    if !(basis.kgrid isa MonkhorstPack)
+        error("ExactExchange requires a Monkhorst-Pack k-point grid.")
+    end
+    if basis.n_irreducible_kpoints != length(basis.kgrid)
+        # TODO: make ExactExchange fit for symmetry-reduced k-point grids
+        error("ExactExchange does not yet support symmetry-reduced k-point grids. " *
+              "Pass `use_symmetries_for_kpoint_reduction=false` when constructing " *
+              "the PlaneWaveBasis to use the full Monkhorst-Pack grid.")
     end
     fac::T = scaling_factor 
 
@@ -83,7 +88,7 @@ Plain vanilla Fock exchange implementation without any tricks.
 struct VanillaExx <: ExxAlgorithm end
 function exx_operator(::VanillaExx, basis::PlaneWaveBasis{T}, interaction_kernels, q_points,
                       ψ, occupation, mask_occ) where {T}
-    occ_occ    = [occupation[ik][mask_occ[ik]] for ik in 1:length(basis.kpoints)]
+    occ_occ    = [to_cpu(occupation[ik][mask_occ[ik]]) for ik in 1:length(basis.kpoints)]
     ψ_occ_real = _orbitals_real(basis, ψ, mask_occ)
 
     E = sum(1:length(basis.kpoints)) do ik
@@ -107,7 +112,7 @@ end
     end
 
     mask_occ   = occupied_empty_masks(occupation, occupation_threshold).mask_occ
-    occ_occ    = [occupation[ik][mask_occ[ik]] for ik in 1:length(basis.kpoints)]
+    occ_occ    = [to_cpu(occupation[ik][mask_occ[ik]]) for ik in 1:length(basis.kpoints)]
     ψ_occ_real = _orbitals_real(basis, ψ, mask_occ)
     sum(1:length(basis.kpoints)) do ik
         basis.kweights[ik] * exx_energy_only(basis, ik, term.interaction_kernels,
@@ -117,7 +122,7 @@ end
 
 # Naive algorithm for computing the exact exchange energy only.
 function exx_energy_only(basis::PlaneWaveBasis{T}, ik, interaction_kernels, q_points,
-                         ψ_occ_real, occ_occ) where {T}
+                         ψ_occ_real, occ_occ::Vector{<:Vector}) where {T}
 
     # get occupied orbitals at k
     kpt = basis.kpoints[ik]
@@ -183,7 +188,7 @@ end
 function exx_operator(ace::AceExx, basis::PlaneWaveBasis{T}, interaction_kernels, q_points,
                       ψ, occupation, mask_occ) where {T}
     mask_sketch = ace.sketch_with_extra_orbitals ? [1:size(ψk, 2) for ψk in ψ] : mask_occ
-    occ_occ = [occupation[ik][mask_occ[ik]] for ik in 1:length(basis.kpoints)]
+    occ_occ     = [to_cpu(occupation[ik][mask_occ[ik]]) for ik in 1:length(basis.kpoints)]
 
     # FFT the sketch orbitals once. They include the occupied orbitals, which are the
     # leading columns (mask_occ[ik] = 1:n_occ), so the latter can be taken as views.
@@ -236,8 +241,8 @@ function compress_exchange(Vxk::ExchangeOperator, ψk::AbstractMatrix,
     # possibly indefinite and nearly singular, so we use its pseudo-inverse. For a Hermitian
     # matrix pinv works via an eigendecomposition and drops eigenvalues below its default
     # tolerance, size(Mk, 1) * eps relative to the largest one.
-    Mk = Hermitian(ψk' * Wk)
-    Mk_pinv = pinv(Mk)
+    Mk = ψk' * Wk
+    Mk_pinv = pinv(Hermitian(Mk))
     opk = NonlocalOperator(basis, kpt, Wk, Mk_pinv)
     (; opk, Mk, Mk_pinv, Wk)
 end

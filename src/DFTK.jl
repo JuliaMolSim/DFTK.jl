@@ -29,6 +29,8 @@ export mpi_master
 export setup_threading, disable_threading
 include("common/timer.jl")
 include("common/constants.jl")
+include("common/divided_difference.jl")
+include("common/matrix_function.jl")
 include("common/ortho.jl")
 include("common/types.jl")
 include("common/spherical_bessels.jl")
@@ -210,6 +212,7 @@ include("pseudo/pseudopotential_data.jl")
 
 export atomic_system, periodic_system  # Reexport from AtomsBase
 export run_wannier90
+export DFTD3
 export DFTKCalculator
 include("external/atomsbase.jl")
 include("external/stubs.jl")  # Function stubs for conditionally defined methods

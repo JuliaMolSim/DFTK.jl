@@ -181,13 +181,13 @@ function apply!(Hψ, op::DivAgradOperator, ψ;
 end
 # TODO Implement  Base.Matrix(op::DivAgradOperator)
 
-struct ExchangeOperator{T <: Real,Tkernel,Tq,Tocc,Tpsi} <: RealFourierOperator
+struct ExchangeOperator{T <: Real,Tkernel,Tq,Tpsi,Tocc <: Vector{<:Vector}} <: RealFourierOperator
     basis::PlaneWaveBasis{T}
     kpoint::Kpoint{T}
     interaction_kernels::Tkernel  # Vector{Array{T,3}}: kernel on the FFT cube, one per q
     q_points::Tq                  # Vector{Vec3{T}}: momentum transfers (reduced coords)
     ψ_occ_real::Tpsi              # Store precomputed real-space orbitals
-    occ_occ::Tocc
+    occ_occ::Tocc                 # occupied occupations (cannot be on the GPU)
 end
 function apply!(Hψ, op::ExchangeOperator, ψ)
     basis = op.basis

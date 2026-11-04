@@ -69,7 +69,7 @@ end
     model = model_HF(silicon.lattice, [Si, Si], silicon.positions;
                      exx_kernel=ProbeCharge(BareCoulomb()),
                      temperature=1e-3, smearing=DFTK.Smearing.Gaussian())
-    basis = PlaneWaveBasis(model; Ecut, kgrid)
+    basis = PlaneWaveBasis(model; Ecut, kgrid, use_symmetries_for_kpoint_reduction=false)
 
     # 1. Unit cell calculation
     scfres = self_consistent_field(basis; is_converged=ScfConvergenceEnergy(1e-10), 
@@ -103,7 +103,7 @@ end
     function make_basis(spin_polarization)
         model = Model(silicon.lattice, [Si, Si], silicon.positions; spin_polarization,
                       terms=[ExactExchange(; kernel=ProbeCharge(BareCoulomb()))])
-        PlaneWaveBasis(model; Ecut, kgrid)
+        PlaneWaveBasis(model; Ecut, kgrid, use_symmetries_for_kpoint_reduction=false)
     end
     basis     = make_basis(:none)
     basis_col = make_basis(:collinear)
@@ -157,8 +157,8 @@ end
                           functionals=PBE())
     model_hf  = model_HF(system; pseudopotentials, magnetic_moments, temperature=0.01,
                          exx_kernel=ProbeCharge(BareCoulomb()))
-    basis_pbe = PlaneWaveBasis(model_pbe; Ecut, kgrid)
-    basis_hf  = PlaneWaveBasis(model_hf;  Ecut, kgrid)
+    basis_pbe = PlaneWaveBasis(model_pbe; Ecut, kgrid, use_symmetries_for_kpoint_reduction=false)
+    basis_hf  = PlaneWaveBasis(model_hf;  Ecut, kgrid, use_symmetries_for_kpoint_reduction=false)
 
     # Start Hartree-Fock from a converged PBE state, such that the unit cell and the
     # supercell calculation converge to the same antiferromagnetic solution.

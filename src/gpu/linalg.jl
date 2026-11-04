@@ -39,5 +39,22 @@ function mul!(Y::AbstractGPUArray{T}, P::PreconditionerTPA, R::AbstractGPUArray{
     Y
 end
 
-# https://github.com/JuliaGPU/CUDA.jl/issues/1565
-LinearAlgebra.dot(x::AbstractGPUArray, D::Diagonal, y::AbstractGPUArray) = x' * (D * y)
+# GPU-aware `svd` for Hermitian matrices backed by GPU arrays.
+# Upstream issue: https://github.com/JuliaGPU/CUDA.jl/issues/3495
+function LinearAlgebra.svd(A::Union{Hermitian{T, <:AbstractGPUArray{T}},
+                                    Hermitian{Complex{T}, <:AbstractGPUArray{Complex{T}}}};
+                           full::Bool=false) where {T<:Real}
+    E = eigen(A)
+    λ, U = E.values, E.vectors
+
+    # Sort the eigenvalues
+    σ = abs.(λ)
+    p = sortperm(σ; rev=true)
+    S = σ[p]
+    Up = U[:, p]
+    signs = sign.(λ[p])  # sign of the eigenvalues (not of σ!)
+
+    # Vt[i, j] = signᵢ * conj(Up[j, i]), i.e. Vt = (Up * Diagonal(signs))†
+    Vt = adjoint(Up) .* permutedims(signs)
+    SVD(Up, S, Vt)
+end

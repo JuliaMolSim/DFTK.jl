@@ -12,16 +12,17 @@
     function test_term_forces(system; ε=1e-5, atol=1e-7,
         functionals=PBE(), Ecut, kgrid, temperature=0, smearing=Smearing.Gaussian(),
         pseudopotentials=PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf"),
-        magnetic_moments=[], symmetries=true, mixing=HybridMixing(), basis_kwargs...)
+        magnetic_moments=[], symmetries=true, mixing=LdosDielectricMixing(),
+        extra_terms=[], test_atom=rand(1:length(system)), basis_kwargs...)
 
         model = model_DFT(system; functionals, pseudopotentials, symmetries,
-                          temperature, smearing, magnetic_moments)
+                          temperature, smearing, magnetic_moments, extra_terms)
         basis = PlaneWaveBasis(model; kgrid, Ecut, basis_kwargs...)
         ρ = guess_density(basis, magnetic_moments)
         scfres = self_consistent_field(basis; ρ, tol=1e-12, mixing)
 
         # must be identical on all processes
-        test_atom = mpi_bcast(rand(1:length(model.atoms)), 0, basis.comm_kpts)
+        test_atom = mpi_bcast(test_atom, 0, basis.comm_kpts)
         test_dir  = mpi_bcast(rand(3), 0, basis.comm_kpts)
         normalize!(test_dir)
 
@@ -29,7 +30,8 @@
             term_type = model.term_types[iterm]
             @testset "$(typeof(term_type))" begin
                 forces_HF = DFTK.compute_forces(basis.terms[iterm], basis,
-                                                scfres.ψ, scfres.occupation; scfres.ρ, scfres.τ)
+                                                scfres.ψ, scfres.occupation;
+                                                scfres.ρ, scfres.τ, scfres.hubbard_n)
                 force_HF  = isnothing(forces_HF) ? 0.0 : dot(test_dir, forces_HF[test_atom])
 
                 function term_energy(ε)
@@ -43,8 +45,10 @@
                                          model.symmetries)
                         PlaneWaveBasis(modmodel; kgrid, Ecut, basis_kwargs...)
                     end
+                    hubbard_n = DFTK.compute_hubbard_n(modbasis, scfres.ψ, scfres.occupation)
                     DFTK.ene_ops(modbasis.terms[iterm], modbasis, scfres.ψ, scfres.occupation;
-                                 scfres.ρ, scfres.εF, scfres.τ, scfres.eigenvalues).E
+                                 scfres.ρ, scfres.εF, scfres.τ, scfres.eigenvalues,
+                                 hubbard_n).E
                 end
 
                 force_ε = -( (term_energy(ε) - term_energy(-ε)) / 2ε )
@@ -58,18 +62,20 @@
             smearing=Smearing.Gaussian(),
             pseudopotentials=PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf"),
             magnetic_moments=[], symmetries=true, ρ=nothing,
-            mixing=LdosDielectricMixing(), basis_kwargs...)
+            mixing=LdosDielectricMixing(), extra_terms=[],
+            occupation_threshold=DFTK.default_occupation_threshold(), basis_kwargs...)
         particles = map(system, position(system, :) + dx) do atom, pos
             Atom(atom; position=pos)
         end
         sysmod = AbstractSystem(system; particles)
 
         model = model_DFT(sysmod; functionals, pseudopotentials, symmetries,
-                          temperature, smearing, magnetic_moments)
+                          temperature, smearing, magnetic_moments, extra_terms)
         basis = PlaneWaveBasis(model; kgrid, Ecut, basis_kwargs...)
 
         ρ = @something ρ guess_density(basis, magnetic_moments)
-        self_consistent_field(basis; ρ, tol=1e-12, mixing)
+        nbandsalg = AdaptiveBands(model; occupation_threshold)
+        self_consistent_field(basis; ρ, tol=1e-12, mixing, nbandsalg)
     end
 
     function test_forces(system; ε=1e-5, atol=1e-8, δx=nothing,
@@ -99,7 +105,7 @@
         end
 
         @test abs(Fε_ref - Fε) < atol
-        (; forces_cart=forces)
+        (; forces_cart=forces, scfres)
     end
 end
 
@@ -254,4 +260,33 @@ end
                 # Even FFT size, so that the NLCC form factors have a Nyquist component:
                 # the XC force is only right if it is treated consistently there (#1370).
                 fft_size=[16, 16, 16], symmetries_respect_rgrid=true)
+end
+
+@testitem "Forces silicon DFT+U" setup=[TestCases,TestForces] tags=[:forces] begin
+    using DFTK
+    using Unitful
+    using UnitfulAtomic
+    silicon = TestCases.silicon
+
+    # DFT+U on Si 3P orbitals. Strained lattice and displaced atoms.
+    lattice = silicon.lattice * [1.0 0.0 0.0; 0.05 1.0 0.0; 0.0 0.0 1.02]
+    p = silicon.positions[1] + [0.02, -0.01, 0.0]
+    system = atomic_system(lattice, silicon.atoms, [p, -p])
+    hubbard = Hubbard(OrbitalManifold(:Si, "3P") => 5u"eV")
+    kwargs = (; functionals=LDA(), pseudopotentials=TestCases.pd_lda_family,
+              temperature=1e-2, Ecut=10, kgrid=[2, 2, 2])
+
+    # We need tighter occupation_threshold to get accurate finite-difference forces
+    (; scfres) = TestForces.test_forces(system; extra_terms=[hubbard], atol=1e-7,
+                                        occupation_threshold=1e-10, kwargs...)
+    @test scfres.energies.Hubbard > 1e-3  # Check Hubbard term is nonzero
+
+    # Term-wise forces on SiC, whose two atoms are not related by symmetry.
+    # Test that the Hubbard forces work on atoms without Hubbard U.
+    system_SiC = atomic_system(lattice, ElementCoulomb.([:Si, :C]), [p, -p])
+    for hubbard in (Hubbard(OrbitalManifold([2], "2P") => 3u"eV",
+                            OrbitalManifold([1], "3P") => 5u"eV"),
+                    Hubbard(OrbitalManifold([1], "3P") => 5u"eV"))
+        TestForces.test_term_forces(system_SiC; extra_terms=[hubbard], test_atom=2, kwargs...)
+    end
 end
