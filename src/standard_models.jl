@@ -61,6 +61,28 @@ end
 
 
 """
+Build an experimental orbital-free DFT model.
+`kinetic_functionals` specifies the kinetic energy; `functionals` specifies XC,
+as in [`model_DFT`](@ref).
+"""
+function model_OFDFT(lattice::AbstractMatrix,
+                     atoms::Vector{<:Element},
+                     positions::Vector{<:AbstractVector};
+                     kinetic_functionals::AbstractVector,
+                     functionals=Symbol[], kwargs...)
+    @assert !(:terms in keys(kwargs))
+    terms = [KineticDensityFunctional(kinetic_functionals),
+             AtomicLocal(),
+             Ewald(),
+             PspCorrection(),
+             Hartree()]
+    xc = functionals isa Xc ? functionals : Xc(functionals)
+    isempty(xc.functionals) || push!(terms, xc)
+    Model(lattice, atoms, positions; model_name="OFDFT", terms, kwargs...)
+end
+
+
+"""
 Build a DFT model from the specified atoms with the specified XC functionals.
 
 The `functionals` keyword argument takes either an [`Xc`](@ref) object,
