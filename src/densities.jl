@@ -67,7 +67,7 @@ end
 
     # Note: This routine assumes the existence of time-reversal symmetry
     #       in the model/discretisation for q!=0, see also the comment in postprocess/phonon.jl.
-    @assert iszero(q) || !breaks_time_reversal_symmetry(basis)
+    @assert iszero(q) || !breaks_conjugation(basis)
 
     # occupation should be on the CPU as we are going to be doing scalar indexing.
     occupation = [to_cpu(oc) for oc in occupation]

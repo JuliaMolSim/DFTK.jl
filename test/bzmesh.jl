@@ -51,7 +51,8 @@ end
         # Try to reproduce all kcoords from irred_kcoords
         all_kcoords = Vector{Vec3{Rational{Int}}}()
         for k in irred_kcoords
-            append!(all_kcoords, [symop.S * k for symop in sym_preserving_grid])
+            append!(all_kcoords,
+                    [transform_kpoint_coordinate(symop, k) for symop in sym_preserving_grid])
         end
 
         # Normalize the obtained k-points and test for equality
@@ -86,7 +87,7 @@ end
 @testitem "MonkhorstPack: equivalent kshifts give identical grids" setup=[TestCases] begin
     using DFTK
     using DFTK: normalize_kpoint_coordinate, reducible_kcoords, irreducible_kcoords
-    using DFTK: symmetries_preserving_kgrid, breaks_time_reversal_symmetry
+    using DFTK: symmetries_preserving_kgrid, breaks_conjugation
     silicon = TestCases.silicon
     model = Model(silicon.lattice, silicon.atoms, silicon.positions)
     kgrid_size = [3, 3, 3]
@@ -110,7 +111,7 @@ end
         @test kgrid.kgrid_size == ref.kgrid_size
         @test kgrid.kshift     == ref.kshift
         @test sorted_kcoords(kgrid) == sorted_kcoords(ref)
-        @test !breaks_time_reversal_symmetry(kgrid)
+        @test !breaks_conjugation(kgrid)
 
         # Half shifts keep the symmetry reduction working: this should reduce to 6 points
         syms = symmetries_preserving_kgrid(model.symmetries, kgrid)
@@ -127,7 +128,7 @@ end
     for kgrid in generic_shift_grids
         @test kgrid.kshift == ref.kshift
         @test sorted_kcoords(kgrid) == sorted_kcoords(ref)
-        @test breaks_time_reversal_symmetry(kgrid)
+        @test breaks_conjugation(kgrid)
 
         syms = symmetries_preserving_kgrid(model.symmetries, kgrid)
         @test length(syms) == 1

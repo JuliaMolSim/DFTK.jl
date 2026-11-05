@@ -653,8 +653,8 @@ function scatter_kpts_block(basis::PlaneWaveBasis, data::Union{Nothing,AbstractA
     end
 end
 
-function breaks_time_reversal_symmetry(basis::PlaneWaveBasis)
-    breaks_time_reversal_symmetry(basis.model) || breaks_time_reversal_symmetry(basis.kgrid)
+function breaks_conjugation(basis::PlaneWaveBasis)
+    breaks_conjugation(basis.model) || breaks_conjugation(basis.kgrid)
 end
 
 """

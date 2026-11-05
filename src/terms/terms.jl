@@ -50,15 +50,18 @@ include("Hamiltonian.jl")
 # is invalid)
 breaks_symmetries(::Any) = false
 
-# breaks_time_reversal_symmetry on a term builder answers true if this term breaks
-# time-reversal symmetry. Phonon computations rely implicitly on TRS
-# to avoid solving Sternheimer equations at both +q and -q (cf.
-# discussion in JuliaMolSim/DFTK.jl#1310).
-breaks_time_reversal_symmetry(::Any) = false
+# breaks_conjugation on a term builder answers true if this term breaks the conjugation
+# (time-reversal) symmetry k → -k. If no term breaks it,
+# antiunitary (θ=-1) symmetry operations are used for k-point reduction. Phonon
+# computations further rely implicitly on TRS to avoid solving Sternheimer equations
+# at both +q and -q (cf. discussion in JuliaMolSim/DFTK.jl#1310).
+breaks_conjugation(::Any) = false
 
 include("kinetic.jl")
 
 include("local.jl")
+# External potentials set breaks_symmetries=true, which short-circuits before
+# breaks_conjugation is consulted in default_symmetries.
 breaks_symmetries(::ExternalFromValues) = true
 breaks_symmetries(::ExternalFromReal) = true
 breaks_symmetries(::ExternalFromFourier) = true
@@ -76,11 +79,11 @@ include("exact_exchange.jl")
 
 include("magnetic.jl")
 breaks_symmetries(::Magnetic) = true
-breaks_time_reversal_symmetry(::Magnetic) = true
+breaks_conjugation(::Magnetic) = true
 
 include("anyonic.jl")
 breaks_symmetries(::Anyonic) = true
-breaks_time_reversal_symmetry(::Anyonic) = true
+breaks_conjugation(::Anyonic) = true
 
 # forces computes either nothing or an array forces[at][α] (by default no forces)
 compute_forces(::Term, ::AbstractBasis, ψ, occupation; kwargs...) = nothing
