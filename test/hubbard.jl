@@ -135,6 +135,30 @@ end
    end
 end
 
+@testitem "Hubbard occupation symmetrization on a three-atom orbit" begin
+    using DFTK
+    using PseudoPotentialData
+
+    # Three O cycled by a C3 axis along z: the orbit has h·a ≠ h⁻¹·a, so a transposed
+    # Wigner matrix in symmetrize_hubbard_n makes the energy depend on the use of symmetries.
+    family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
+    O = ElementPsp(:O, family)
+    lattice = [7.0 -3.5 0; 0 3.5*sqrt(3) 0; 0 0 6.0]
+    positions = [[0.2, 0.05, 0.15], [-0.05, 0.15, 0.15], [-0.15, -0.2, 0.15]]
+    hubbard = Hubbard(OrbitalManifold(:O, "2P") => 0.3)
+    function scf_energy(symmetries)
+        model = model_DFT(lattice, [O, O, O], positions; functionals=LDA(),
+                          extra_terms=[hubbard], temperature=1e-2, symmetries)
+        basis = PlaneWaveBasis(model; Ecut=10, kgrid=[2, 2, 1])
+        scfres = self_consistent_field(basis; tol=1e-6)
+        (; nsym=length(basis.symmetries), scfres.energies.total)
+    end
+    sym   = scf_energy(true)
+    nosym = scf_energy(false)
+    @test sym.nsym == 6
+    @test sym.total ≈ nosym.total atol=5e-6
+end
+
 @testitem "Atomic orbital projector derivatives" setup=[TestCases] begin
     using DFTK
     using LinearAlgebra

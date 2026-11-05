@@ -428,7 +428,8 @@ function symmetrize_hubbard_n(model, manifold::ResolvedOrbitalManifold,
         for σ in 1:nspins, iatom in 1:natoms
             sym_atom = find_symmetry_preimage(positions, positions[iatom], symmetry;
                                               tol_symmetry)
-            ns[σ, iatom, iatom] .+= WigD' * hubbard_n[σ, sym_atom, sym_atom] * WigD
+            # n_{g·b} = D_g n_b D_gᵀ, with b = g⁻¹·a the preimage of a
+            ns[σ, iatom, iatom] .+= WigD * hubbard_n[σ, sym_atom, sym_atom] * WigD'
         end
     end
     ns ./= length(symmetries)
