@@ -139,8 +139,8 @@ end
     using DFTK
     using PseudoPotentialData
 
-    # Three O cycled by a C3 axis along z: the orbit has h·a ≠ h⁻¹·a, so a transposed
-    # Wigner matrix in symmetrize_hubbard_n makes the energy depend on the use of symmetries.
+    # Regression test for wrongly transposed Wigner matrices in symmetrize_hubbard_n.
+    # Three O cycled by a C3 axis along z, so that h·a ≠ h⁻¹·a for some symmetry h.
     family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
     O = ElementPsp(:O, family)
     lattice = [7.0 -3.5 0; 0 3.5*sqrt(3) 0; 0 0 6.0]
@@ -150,7 +150,7 @@ end
         model = model_DFT(lattice, [O, O, O], positions; functionals=LDA(),
                           extra_terms=[hubbard], temperature=1e-2, symmetries)
         basis = PlaneWaveBasis(model; Ecut=10, kgrid=[2, 2, 1])
-        scfres = self_consistent_field(basis; tol=1e-6)
+        scfres = self_consistent_field(basis; is_converged=ScfConvergenceEnergy(1e-6))
         (; nsym=length(basis.symmetries), scfres.energies.total)
     end
     sym   = scf_energy(true)
