@@ -36,6 +36,9 @@ struct PlaneWaveBasis{T,
     # fft_size defines both the G basis on which densities and
     # potentials are expanded, and the real-space grid
     fft_size::Tuple{Int, Int, Int}
+    # Size of the real-space grid on which the XC energy and potentials are evaluated.
+    # At least as large as fft_size, can be made larger to reduce XC integration error.
+    fft_size_xc::Tuple{Int, Int, Int}
     # factor for integrals in real space: sum(ρ) * dvol ~ ∫ρ
     dvol::T  # = model.unit_cell_volume ./ prod(fft_size)
     # Information used to construct the k-point-specific basis
@@ -46,6 +49,9 @@ struct PlaneWaveBasis{T,
 
     # A FFTGrid containing all necessary data for FFT opertations related to this basis
     fft_grid::FFTtype
+    # FFT grid of size fft_size_xc for XC energy and potential evaluation.
+    # Identical (===) to fft_grid if no separate XC grid is requested.
+    fft_grid_xc::FFTtype
 
     ## MPI-local information of the kpoints this processor treats
     # In principle, irreducible kpoints (although some kpoints might be duplicated in parallel runs).
@@ -127,6 +133,7 @@ end
 # All given parameters must be the same on all processors
 # and are stored in PlaneWaveBasis for easy reconstruction.
 function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, Int},
+                        fft_size_xc::Tuple{Int, Int, Int},
                         variational::Bool, kgrid::AbstractKgrid,
                         symmetries_respect_rgrid::Bool,
                         use_symmetries_for_kpoint_reduction::Bool,
@@ -151,10 +158,16 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
             "energy the grid supports ($max_E)"
         )
     end
-    if !(all(fft_size .== next_working_fft_size(T, fft_size)))
-        next_size = next_working_fft_size(T, fft_size)
-        error("Selected fft_size=$fft_size will not work for the buggy generic " *
-              "FFT routines; use next_working_fft_size(T, fft_size) = $next_size")
+    for sz in (fft_size, fft_size_xc)
+        if !(all(sz .== next_working_fft_size(T, sz)))
+            next_size = next_working_fft_size(T, sz)
+            error("Selected fft_size=$sz will not work for the buggy generic " *
+                  "FFT routines; use next_working_fft_size(T, fft_size) = $next_size")
+        end
+    end
+    if !all(fft_size_xc .≥ fft_size)
+        throw(ArgumentError("The fft_size_xc $(fft_size_xc) must be at least as large as " *
+                            "the fft_size $(fft_size) in each direction."))
     end
 
     # Filter out the symmetries that don't preserve the real-space grid
@@ -178,7 +191,20 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
     kweights_global = convert(Vector{T},       kdata.kweights)
 
     # Setup FFT plans
-    fft_grid = FFTGrid(fft_size, model.unit_cell_volume, architecture) 
+    fft_grid = FFTGrid(fft_size, model.unit_cell_volume, architecture)
+    if fft_size_xc == fft_size
+        fft_grid_xc = fft_grid
+    else
+        if symmetries_respect_rgrid
+            broken_symmetries = setdiff(symmetries,
+                                        symmetries_preserving_rgrid(symmetries, fft_size_xc))
+            if !isempty(broken_symmetries)
+                throw(ArgumentError("The fft_size_xc $(fft_size_xc) does not respect " *
+                                    "some basis symmetries: $(broken_symmetries)."))
+            end
+        end
+        fft_grid_xc = FFTGrid(fft_size_xc, model.unit_cell_volume, architecture)
+    end
 
     # Compute k-point information and spread them across processors
     # Right now we split only the kcoords: both spin channels have to be handled
@@ -243,9 +269,9 @@ function PlaneWaveBasis(model::Model{T}, Ecut::Real, fft_size::Tuple{Int, Int, I
 
     basis = PlaneWaveBasis{T, value_type(T), Arch, typeof(fft_grid),
                            typeof(kpoints[1].G_vectors)}(
-        model, fft_size, dvol,
+        model, fft_size, fft_size_xc, dvol,
         Ecut, variational,
-        fft_grid,
+        fft_grid, fft_grid_xc,
         kpoints, kweights, kgrid,
         kcoords_global, kweights_global, n_irreducible_kpoints,
         comm_kpts, krange_thisproc, krange_allprocs, krange_thisproc_allspin,
@@ -295,6 +321,13 @@ If parameters are not given explicitly as a kwarg, the constructor chooses sensi
 - `fft_size::Union{Nothing,Tuple{Int,Int,Int}}` (default: `nothing`): Explicit FFT grid
     size. If `nothing` (recommended), an automatic FFT grid compatible with `Ecut` and `supersampling`
     is computed.
+- `supersampling_xc::Real` (default: `nothing`): If given, the XC
+    energy and potential are evaluated on a denser FFT grid with density cutoff
+    `supersampling_xc^2 * Ecut`. This reduces XC integration error at almost
+    no additional runtime cost.
+- `fft_size_xc::Union{Nothing,Tuple{Int,Int,Int}}` (default: `nothing`): Explicit size of
+    the FFT grid used for the XC evaluation. Must be at least `fft_size` in each direction.
+    By default (if neither this nor `supersampling_xc` is given) the `fft_size` is used.
 - `use_symmetries_for_kpoint_reduction::Bool` (default: `true`): If `true`, symmetry
     operations are used to reduce the explicit k-point set to the irreducible Brillouin
     zone (saves work, recommended).
@@ -326,6 +359,7 @@ basis = PlaneWaveBasis(model; Ecut=12, fft_size=(48,48,48))
                                 supersampling=recommended_cutoff(model).supersampling,  # 2.0 by default
                                 kgrid=KgridSpacing(2π * 0.022),
                                 variational=true, fft_size=nothing,
+                                supersampling_xc=nothing, fft_size_xc=nothing,
                                 symmetries_respect_rgrid=isnothing(fft_size),
                                 use_symmetries_for_kpoint_reduction=true,
                                 comm_kpts=MPI.COMM_WORLD, architecture=CPU()) where {T <: Real}
@@ -336,30 +370,42 @@ basis = PlaneWaveBasis(model; Ecut=12, fft_size=(48,48,48))
             "therefore needs to be provided to the `PlaneWaveBasis` constructor."))
     end
 
+    if !isnothing(supersampling_xc) && !isnothing(fft_size_xc)
+        error("Cannot specify both supersampling_xc and fft_size_xc.")
+    end
+
     kgrid_inner = build_kgrid(model.lattice, kgrid)
+    factors = fft_size_factors(model, symmetries_respect_rgrid)
     if isnothing(fft_size)
         @assert variational
-        # TODO Move this to compute_fft_size ?
-        if symmetries_respect_rgrid
-            # ensure that the FFT grid is compatible with the "reasonable" symmetries
-            # (those with fractional translations with denominators 2, 3, 4, 6,
-            #  this set being more or less arbitrary) by forcing the FFT size to be
-            # a multiple of the denominators.
-            # See https://github.com/JuliaMolSim/DFTK.jl/pull/642 for discussion
-            denominators = [denominator(rationalize(sym.w[i]; tol=SYMMETRY_TOLERANCE))
-                            for sym in model.symmetries for i = 1:3]
-            factors = intersect((2, 3, 4, 6), denominators)
-        else
-            factors = (1, )
-        end
         fft_size = compute_fft_size(model, Ecut, kgrid_inner; supersampling, factors)
     else
         fft_size = Tuple{Int,Int,Int}(fft_size)
     end
 
-    PlaneWaveBasis(model, austrip(Ecut), fft_size, variational, kgrid_inner,
+    if !isnothing(supersampling_xc)
+        fft_size_xc = compute_fft_size(model, Ecut, kgrid_inner;
+                                       supersampling=supersampling_xc, factors)
+    elseif isnothing(fft_size_xc)
+        fft_size_xc = fft_size
+    else
+        fft_size_xc = Tuple{Int,Int,Int}(fft_size_xc)
+    end
+
+    PlaneWaveBasis(model, austrip(Ecut), fft_size, fft_size_xc, variational, kgrid_inner,
                    symmetries_respect_rgrid, use_symmetries_for_kpoint_reduction,
                    comm_kpts, architecture)
+end
+
+# Factors the FFT grid size must contain, such that the grid is compatible with the
+# "reasonable" symmetries (those with fractional translations with denominators 2, 3, 4, 6,
+# this set being more or less arbitrary). See https://github.com/JuliaMolSim/DFTK.jl/pull/642
+# for discussion.
+function fft_size_factors(model::Model, symmetries_respect_rgrid)
+    symmetries_respect_rgrid || return (1, )
+    denominators = [denominator(rationalize(sym.w[i]; tol=SYMMETRY_TOLERANCE))
+                    for sym in model.symmetries for i = 1:3]
+    intersect((2, 3, 4, 6), denominators)
 end
 
 """
@@ -371,7 +417,7 @@ e.g. a [`MonkhorstPack`](@ref) or a [`ExplicitKpoints`](@ref) grid.
 @timing function PlaneWaveBasis(basis::PlaneWaveBasis, kgrid::Union{AbstractKgrid,AbstractKgridGenerator})
     kgrid_inner = build_kgrid(basis.model.lattice, kgrid)
     PlaneWaveBasis(basis.model, basis.Ecut,
-                   basis.fft_size, basis.variational,
+                   basis.fft_size, basis.fft_size_xc, basis.variational,
                    kgrid_inner, basis.symmetries_respect_rgrid,
                    basis.use_symmetries_for_kpoint_reduction,
                    basis.comm_kpts, basis.architecture)
@@ -386,7 +432,7 @@ Creates a new basis identical to `basis`, but with a different [`Model`](@ref)
 """
 @timing function PlaneWaveBasis(basis::PlaneWaveBasis; model::Model)
     PlaneWaveBasis(model, basis.Ecut,
-                   basis.fft_size, basis.variational,
+                   basis.fft_size, basis.fft_size_xc, basis.variational,
                    basis.kgrid, basis.symmetries_respect_rgrid,
                    basis.use_symmetries_for_kpoint_reduction,
                    basis.comm_kpts, basis.architecture)
@@ -400,17 +446,21 @@ end
 The list of wave vectors ``G`` in reduced (integer) coordinates of a `basis`
 or a ``k``-point `kpt`.
 """
-G_vectors(basis::PlaneWaveBasis) = basis.fft_grid.G_vectors
+G_vectors(basis::PlaneWaveBasis) = G_vectors(basis.fft_grid)
 G_vectors(::PlaneWaveBasis, kpt::Kpoint) = kpt.G_vectors
 
 @doc raw"""
+    G_vectors_cart(fft_grid::FFTGrid, model::Model)
     G_vectors_cart(basis::PlaneWaveBasis)
     G_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
 
-The list of ``G`` vectors of a given `basis` or `kpt`, in Cartesian coordinates.
+The list of ``G`` vectors of a given FFT grid, `basis` or `kpt`, in Cartesian coordinates.
 """
+function G_vectors_cart(fft_grid::FFTGrid, model::Model)
+    map(recip_vector_red_to_cart(model), G_vectors(fft_grid))
+end
 function G_vectors_cart(basis::PlaneWaveBasis)
-    map(recip_vector_red_to_cart(basis.model), G_vectors(basis))
+    G_vectors_cart(basis.fft_grid, basis.model)
 end
 function G_vectors_cart(basis::PlaneWaveBasis, kpt::Kpoint)
     recip_vector_red_to_cart.(basis.model, G_vectors(basis, kpt))
