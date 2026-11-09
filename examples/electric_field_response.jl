@@ -30,6 +30,7 @@
 # i.e. the derivative of the polarization in Cartesian direction ``\beta``
 # wrt. displacing atom ``s`` in Cartesian direction ``\alpha``.
 
+using ComponentArrays
 using DFTK
 using ForwardDiff
 using LinearAlgebra
@@ -72,14 +73,91 @@ function position_to_ΩP(positions)
     model.lattice * DFTK.total_polarization(scfres, DFTK.LinearResponsePolarization())
 end
 
-dpos = [lattice \ [1, 0, 0],
-        [0, 0, 0]]
+# dpos = [lattice \ [1, 0, 0],
+#         [0, 0, 0]]
 
-dP = ForwardDiff.derivative(ε -> position_to_ΩP(positions0 + ε * dpos), 0.0)
-@show dP
+# dP = ForwardDiff.derivative(ε -> position_to_ΩP(positions0 + ε * dpos), 0.0)
+# @show dP
 
 # TODO: add comment explaining that [2,2,2] gives completely terrible results
 # and also provide reasonably converged values (will need to run with MPI)
+
+# ## Response to an electric field
+# Thanks to the electric enthalpy formulation, the BECs can equivalently be computed
+# as the derivative of the force wrt. the strength of an applied electric field ``\bm{\mathcal E}``:
+# ```math
+# Z^\ast_{s\alpha \beta} = \frac{\mathrm d F_{s\alpha}}{\mathrm d \mathcal E_\beta}.
+# ```
+# This only requires one response calculation per field direction,
+# and gives the BECs of all atoms at once.
+#
+# Other notable quantities that can be obtained as derivatives wrt. an applied electric field
+# are the (infinite frequency) dielectric constant:
+# ```math
+# \epsilon^\infty_{\alpha\beta} = \delta_{\alpha\beta} + 4\pi \frac{\mathrm d P_\alpha}{\mathrm d \mathcal E_\beta}
+# ```
+# and the (clamped-ion) piezoelectric tensor
+# TODO: cleanup LLM slop below
+# ```math
+# e_{\alpha jk} = \frac{\mathrm d P_\alpha}{\mathrm d \eta_{jk}}
+# ```
+# where ``\eta`` is the strain.
+# Some care is needed here: naively differentiating the Cartesian polarization
+# ``\mathbf P = L \mathbf P_\mathrm{red} / \Omega`` wrt. strain also picks up the change
+# of ``L / \Omega``, which yields the so-called *improper* piezoelectric tensor.
+# The physically meaningful *proper* tensor[^Van00] only differentiates the reduced
+# polarization:
+# ```math
+# e_{\alpha jk} = \frac{1}{\Omega} \sum_\beta L_{\alpha\beta}
+#                  \frac{\mathrm d P_{\mathrm{red},\beta}}{\mathrm d \eta_{jk}}.
+# ```
+# Since DFTK writes the electric enthalpy as
+# ``-\bm{\mathcal E}_\mathrm{red} \cdot \mathbf P_\mathrm{red}`` with the reduced field
+# ``\bm{\mathcal E}_\mathrm{red} = L^T \bm{\mathcal E}`` kept fixed under strain,
+# the field derivative of the stress ``\sigma_{jk} = \frac{1}{\Omega} \frac{\partial F}{\partial \eta_{jk}}``
+# yields exactly the proper tensor:
+# ```math
+# \frac{\mathrm d \sigma_{jk}}{\mathrm d \mathcal E_\alpha}
+# = \sum_\beta L_{\alpha\beta} \frac{\mathrm d \sigma_{jk}}{\mathrm d \mathcal E_{\mathrm{red},\beta}}
+# = -\frac{1}{\Omega} \sum_\beta L_{\alpha\beta} \frac{\mathrm d P_{\mathrm{red},\beta}}{\mathrm d \eta_{jk}}
+# = -e_{\alpha jk}.
+# ```
+#
+# [^Van00]:
+#     Vanderbilt, D. (2000).
+#     *Berry-phase theory of proper piezoelectric response.*
+#     [J. Phys. Chem. Solids **61**, 147](https://doi.org/10.1016/S0022-3697(99)00273-5).
+
+function field_response(E)
+    T = eltype(E)
+    field = DFTK.ElectricField(E, DFTK.LinearResponsePolarization())
+    model = model_DFT(convert.(T, lattice), atoms, positions0;
+                      functionals=PBE(), symmetries=false, extra_terms=[field])
+    basis = PlaneWaveBasis(model; Ecut=30, kgrid=[2, 2, 2]);
+    scfres = self_consistent_field(basis, tol=1e-6);
+
+    # Put all quantities in a component array such that ForwardDiff
+    # will be able to unwrapp all the components at once:
+    ComponentArray(;
+        # forces[α, s] = F_{sα}
+        forces = stack(compute_forces_cart(scfres)),
+        P      = DFTK.total_polarization_cart(scfres, DFTK.LinearResponsePolarization()),
+        stress = compute_stresses_cart(scfres),
+    )
+end
+
+## DFTK natively operates on the reduced electric field:
+dE = lattice' * [1, 0, 0]
+dresponse = ForwardDiff.derivative(ε -> field_response(zeros(3) + ε * dE), 0.0)
+
+@show dresponse.forces[1, 1]
+@show dresponse.P
+ϵ_11 = 1 + 4π * dresponse.P[1]
+@show ϵ_11
+## Proper clamped-ion piezoelectric tensor e_{1jk} = -dσ_jk/dE_1
+e_1 = -dresponse.stress
+@show e_1
+# TODO: would be nice to have in C/m^2, and only the 14 component. Maybe keep voigt notation
 
 # elres = electric_field_responses(scfres);
 
