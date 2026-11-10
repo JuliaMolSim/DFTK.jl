@@ -379,6 +379,7 @@ Shared file writing code for Wannier.jl and Wannier90.
     # TODO None of the routines consider spin at the moment
     @assert scfres.basis.model.spin_polarization in (:none, :spinless)
     @assert length(projections) == n_wannier
+    scfres.basis.kgrid isa MonkhorstPack || error("The basis must be constructed from a MP grid.")
 
     # TODO Use band_data_to_dict to get this easily MPI compatible.
 

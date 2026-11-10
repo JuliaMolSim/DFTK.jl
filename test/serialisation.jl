@@ -84,7 +84,7 @@ end
     using DFTK
     using DFTK: mpi_bcast
     using JLD2
-    using JSON3
+    using JSON
     using Test
     using WriteVTK
     testcase = TestCases.silicon
@@ -124,7 +124,7 @@ end
                 dumpfile = mpi_bcast(joinpath(tmpdir, "scfres.json"), 0, basis.comm_kpts)
                 save_scfres(dumpfile, scfres; save_ρ=true)
                 @test isfile(dumpfile)
-                data = open(JSON3.read, dumpfile)  # Get data back as dict
+                data = JSON.parsefile(dumpfile)  # Get data back as dict
                 DictAgreement.test_agreement_scfres(scfres, data;
                                                     test_ψ=false, explicit_reshape=true)
             end

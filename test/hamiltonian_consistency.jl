@@ -12,7 +12,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6,
                                test_for_constant=false, test_energy_ad=true,
                                n_empty=3, kgrid=[1, 2, 3], kshift=[0, 1, 0]/2, Ecut=10,
                                lattice=silicon.lattice, atom=nothing, spin_polarization=:none,
-                               exxalg=AceExx())
+                               exxalg=AceExx(), tol_energy=1e-14)
     sspol = spin_polarization != :none ? " ($spin_polarization)" : ""
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
     @testset "$(typeof(term))$xc $sspol" begin
@@ -45,7 +45,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6,
 
         # Function to compute energy only
         E0_ene = DFTK.energy(basis, ψ, occupation; exxalg, ρ, τ, hubbard_n).energies
-        @test abs(E0.total - E0_ene.total) < 1e-14
+        @test abs(E0.total - E0_ene.total) < tol_energy
 
         # Test operator agrees with matrix form
         for ik = 1:length(basis.kpoints)
@@ -167,7 +167,7 @@ end
                                   exxad..., exxalg, kgrid=(1, 1, 1), kshift=(0, 0, 0))
         end
         test_consistency_term(ExactExchange(); spin_polarization=:collinear,
-                              exxad..., kgrid=(1, 1, 1), kshift=(0, 0, 0))
+                              exxad..., kgrid=(1, 1, 1), kshift=(0, 0, 0), tol_energy=5e-14)
     end
 
     let

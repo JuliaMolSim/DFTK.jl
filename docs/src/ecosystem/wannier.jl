@@ -44,12 +44,6 @@ plot_bandstructure(bands)
 #
 # Now we use the `Wannier.Model` routine to generate a Wannier.jl model
 # that can be used to perform the wannierization procedure.
-# For now, this model generation produces file in the Wannier90 convention,
-# where all files are named with the same prefix and only differ by
-# their extensions. By default all generated input and output files are stored
-# in the subfolder "wannierjl" under the prefix "wannier" (i.e. "wannierjl/wannier.win",
-# "wannierjl/wannier.wout", etc.). A different file prefix can be given with the
-# keyword argument `fileprefix` as shown below.
 #
 # We now produce a simple Wannier model for 5 MLFWs.
 #
@@ -82,11 +76,10 @@ projections = [
 
 # Wannierize:
 wannier_model = Wannier.Model(scfres;
-    fileprefix="wannier/graphene",
     n_bands=scfres.n_bands_converge,
     n_wannier=5,
     projections,
-    dis_froz_max=ustrip(auconvert(u"eV", scfres.εF))+1) # maximum frozen window, for example 1 eV above Fermi level
+    dis_froz_max=(scfres.εF)u"hartree" + 1u"eV")  # Top of frozen window: 1 eV above Fermi level
 
 # Once we have the `wannier_model`,
 # we can use the functions in the Wannier.jl package:
@@ -105,9 +98,6 @@ interp_model = Wannier.InterpModel(wannier_model; kpath=kpath)
 # And so on...
 # Refer to the Wannier.jl documentation for further examples
 # and [Hybrid DFT band structures](@ref) for an example how to use Wannierization for band structure computation.
-
-# (Delete temporary files when done.)
-rm("wannier", recursive=true)
 
 # ### Custom initial guesses
 #
@@ -129,7 +119,7 @@ function pz_guess(center)
 end
 ## Feed to Wannier via the `projections` as before...
 
-# This example assumes that Wannier.jl version 0.3.2 is used,
+# This example assumes that Wannier.jl version 0.3 is used,
 # and may need to be updated to accommodate for changes in Wannier.jl.
 #
 # Note: Some parameters supported by Wannier90 may have to be passed to Wannier.jl differently,

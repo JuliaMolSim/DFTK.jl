@@ -22,8 +22,11 @@ system = bulk(:Si)
 # ## SCF calculation
 # We first perform a PBE calculation to get a good starting point. Since we will later Wannierise
 # we make sure to converge 16 orbitals throughout the computational procedure.
-model_PBE = model_DFT(system; pseudopotentials, functionals=PBE(), symmetries=false)
-basis_PBE  = PlaneWaveBasis(model_PBE; Ecut=10, kgrid=[3, 3, 3])  # Not converged !
+# Exact exchange does not yet support symmetry-reduced k-point grids,
+# hence we use the full grid already for PBE.
+model_PBE = model_DFT(system; pseudopotentials, functionals=PBE())
+basis_PBE  = PlaneWaveBasis(model_PBE; Ecut=10, kgrid=[3, 3, 3],  # Not converged !
+                            use_symmetries_for_kpoint_reduction=false)
 
 nbandsalg  = AdaptiveBands(model_PBE; n_bands_converge=16)
 scfres_PBE = self_consistent_field(basis_PBE; tol=1e-4, nbandsalg)
@@ -33,7 +36,8 @@ nothing  # hide
 # First using a more aggressive ACE compression techniques that is more memory efficient and
 # slightly faster (by ignoring all unoccupied orbitals), but that gives the wrong unoccupied bands.
 model  = model_DFT(system; pseudopotentials, functionals=HSE())
-basis  = PlaneWaveBasis(model; basis_PBE.Ecut, basis_PBE.kgrid)
+basis  = PlaneWaveBasis(model; basis_PBE.Ecut, basis_PBE.kgrid,
+                        use_symmetries_for_kpoint_reduction=false)
 
 exxalg = AceExx(; sketch_with_extra_orbitals=false)
 scfres = self_consistent_field(basis; tol=1e-6, scfres_PBE.ρ, scfres_PBE.ψ, scfres_PBE.occupation, exxalg,
@@ -66,15 +70,14 @@ projections = [DFTK.wannier_projectors_sp3(model.positions[1]);
                DFTK.wannier_projectors_sp3(model.positions[2])]
 
 ## Set the frozen window size. Since this is an insulator, about 2eV above the Fermi level
-## should be good. Note that Wannier.jl uses eV units for energies:
-dis_froz_max = ustrip(auconvert(u"eV", scfres.εF)) + 2.0
+## should be good.
+dis_froz_max = scfres.εF + austrip(2u"eV")
 
 wannier_model = Wannier.Model(scfres;
                               n_wannier=length(projections),
                               n_bands=12,
                               projections,
-                              dis_froz_max,
-                              fileprefix="wannier/silicon")
+                              dis_froz_max)
 
 ## Run disentanglement, returns a (n_bands, n_wann, n_kpts) array 
 U = disentangle(wannier_model; max_iter=500);
@@ -106,6 +109,3 @@ fig
 
 # ## Further reading
 # For more details on Wannierisation, see also [Wannierization using Wannier.jl or Wannier90](@ref).
-
-# (Delete temporary files when done.)
-rm("wannier", recursive=true)

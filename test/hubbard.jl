@@ -119,6 +119,10 @@ end
         ref_hub = 0.17631957087331435
         @test scfres.energies.Hubbard ≈ ref_hub
    end
+   @testset "Missing hubbard_n is an error" begin
+        @test_throws ArgumentError DFTK.ene_ops(hubbard(basis), basis, scfres.ψ, scfres.occupation)
+        @test_throws ArgumentError energy_hamiltonian(basis, nothing, nothing; scfres.ρ)
+   end
    # The unfolding of the kpoints is not supported with MPI
    if mpi_nprocs(basis.comm_kpts) == 1
         @testset "Test symmetry consistency" begin
@@ -129,6 +133,30 @@ end
              @test n_hub ≈ nhub_nosym
         end
    end
+end
+
+@testitem "Hubbard occupation symmetrization on a three-atom orbit" begin
+    using DFTK
+    using PseudoPotentialData
+
+    # Regression test for wrongly transposed Wigner matrices in symmetrize_hubbard_n.
+    # Three O cycled by a C3 axis along z, so that h·a ≠ h⁻¹·a for some symmetry h.
+    family = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
+    O = ElementPsp(:O, family)
+    lattice = [7.0 -3.5 0; 0 3.5*sqrt(3) 0; 0 0 6.0]
+    positions = [[0.2, 0.05, 0.15], [-0.05, 0.15, 0.15], [-0.15, -0.2, 0.15]]
+    hubbard = Hubbard(OrbitalManifold(:O, "2P") => 0.3)
+    function scf_energy(symmetries)
+        model = model_DFT(lattice, [O, O, O], positions; functionals=LDA(),
+                          extra_terms=[hubbard], temperature=1e-2, symmetries)
+        basis = PlaneWaveBasis(model; Ecut=10, kgrid=[2, 2, 1])
+        scfres = self_consistent_field(basis; is_converged=ScfConvergenceEnergy(1e-6))
+        (; nsym=length(basis.symmetries), scfres.energies.total)
+    end
+    sym   = scf_energy(true)
+    nosym = scf_energy(false)
+    @test sym.nsym == 6
+    @test sym.total ≈ nosym.total atol=5e-6
 end
 
 @testitem "Atomic orbital projector derivatives" setup=[TestCases] begin
