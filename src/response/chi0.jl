@@ -240,10 +240,11 @@ end
 # δεn = <ψn|δH|ψn>
 # 0 = ∑_n fn' (δεn - δεF) determines δεF
 # where fn' = f'((εn-εF)/T)/T.
+# For insulators all fn' vanish and δεF follows from a convention, see compute_δεF.
 
 # Then <ψm|δP|ψn> = (fm-fn)/(εm-εn) <ψm|δH|ψn>,
 # except for the diagonal which is
-# <ψn|δP|ψn> = (fn'-δεF) δεn.
+# <ψn|δP|ψn> = fn' (δεn - δεF).
 
 # We want to represent δP with a tuple (δψ, δf). We do *not* impose that
 # δψ is orthogonal at finite temperature. A formal differentiation yields
@@ -256,7 +257,7 @@ end
 # δfn = fn' (δεn - δεF) ensures the summation to 0 with the definition of δεF as
 # above.
 
-# We therefore need to compute all the δfn: this is done with compute_δocc!.
+# We therefore need to compute all the δfn: this is done with compute_δoccupation.
 # Regarding the δψ, they are computed with compute_δψ! as follows. We refer to
 # the paper https://arxiv.org/abs/2210.04512 for more details.
 
@@ -306,47 +307,52 @@ function is_effective_insulator(basis::PlaneWaveBasis, eigenvalues, εF::T;
 end
 
 """
-Compute the derivatives of the occupations (and of the Fermi level).
-The derivatives of the occupations are in-place stored in δocc.
-The tuple (; δocc, δεF) is returned. It is assumed the passed `δocc`
-are initialised to zero.
+Derivative of the Fermi level obtained by `compute_occupation` for changes
+`δeigenvalues` of the eigenvalues and `δtemperature` of the temperature.
 """
-function compute_δocc!(δocc, basis::PlaneWaveBasis{T}, ψ, εF, ε, δHψ, δtemperature;
-                       temperature=basis.model.temperature,
-                       smearing=basis.model.smearing) where {T}
-    model = basis.model
-    filled_occ = filled_occupation(model)
+function compute_δεF(basis::AbstractBasis{T}, eigenvalues, εF, δeigenvalues;
+                     temperature=basis.model.temperature, smearing=basis.model.smearing,
+                     δtemperature=zero(T)) where {T}
+    isnothing(basis.model.εF) || return zero(T)  # Fermi level fixed by the model
 
-    # compute the derivative of
-    # occ[k][n] = filled_occ*occupation((εnk-εF)/T)
-    δεF = zero(T)
-    if !is_effective_insulator(basis, ε, εF; smearing, temperature)
-        # First compute δocc without self-consistent Fermi δεF.
-        D = zero(T)
-        for ik = 1:length(basis.kpoints), (n, εnk) in enumerate(ε[ik])
-            δεnk = real(dot(ψ[ik][:, n], δHψ[ik][:, n]))
-            εnkred = (εnk - εF) / temperature
-            δεnkred = δεnk/temperature - εnkred*δtemperature/temperature
-            fpnk = filled_occ * Smearing.occupation_derivative(smearing, εnkred)
-            δocc[ik][n] = fpnk * δεnkred
-            D -= fpnk * basis.kweights[ik] / temperature  # while we're at it, accumulate the total DOS D
-        end
-        D = mpi_sum(D, basis.comm_kpts)
-
-        if isnothing(model.εF)  # εF === nothing means that Fermi level is fixed by model
-            # Compute δεF from δ ∑ occ = 0…
-            δocc_tot = mpi_sum(sum(basis.kweights .* sum.(δocc)), basis.comm_kpts)
-            δεF = -δocc_tot / D
-
-            # … and add the corresponding contribution to δocc
-            for ik = 1:length(basis.kpoints), (n, εnk) in enumerate(ε[ik])
-                fpnk = filled_occ * Smearing.occupation_derivative(smearing, (εnk - εF) / temperature)
-                δocc[ik][n] -= fpnk * δεF / temperature
-            end
+    # We differentiate the rule by which compute_fermi_level chose εF.
+    # If the gap is large compared to T (always at T = 0) the electron count
+    # does not determine εF and then the convention is εF = (HOMO + LUMO) / 2.
+    if iszero(temperature) || εF == guess_fermi_level_intocc_(basis, eigenvalues)
+        # this will pick up δεF = (δHOMO + δLUMO) / 2
+        return ForwardDiff.derivative(zero(T)) do t
+            guess_fermi_level_intocc_(basis, eigenvalues + t * δeigenvalues)
         end
     end
 
-    (; δocc, δεF)
+    # Otherwise εF is a root of the electron count ∑_nk w_k f(x_nk) = N with
+    # x_nk = (ε_nk - εF) / T, and implicit differentiation gives
+    #    δεF = ∑_nk w_k f'_nk (δε_nk - x_nk δT) / ∑_nk w_k f'_nk.
+    x  = [(εk .- εF) ./ temperature for εk in eigenvalues]
+    fp = [Smearing.occupation_derivative.(smearing, xk) for xk in x]
+    δN = map(fp, δeigenvalues, x) do fpk, δεk, xk
+        sum(fpk .* (δεk .- xk .* δtemperature))
+    end
+    dos = weighted_ksum(basis, sum.(fp))
+    iszero(dos) && return zero(T)  # The passed bands do not determine εF
+    weighted_ksum(basis, δN) / dos
+end
+
+"""
+Derivative of the occupation computed by `compute_occupation(basis, eigenvalues, εF)`
+for changes `δeigenvalues`, `δεF` and `δtemperature`.
+"""
+function compute_δoccupation(basis::AbstractBasis{T}, eigenvalues, εF, δeigenvalues, δεF;
+                             temperature=basis.model.temperature,
+                             smearing=basis.model.smearing,
+                             δtemperature=zero(T)) where {T}
+    iszero(temperature) && return zero.(eigenvalues)  # Integer occupations do not change
+    filled_occ = filled_occupation(basis.model)
+    map(eigenvalues, δeigenvalues) do εk, δεk
+        x  = (εk .- εF) ./ temperature
+        δx = (δεk .- δεF .- x .* δtemperature) ./ temperature
+        filled_occ .* Smearing.occupation_derivative.(smearing, x) .* δx
+    end
 end
 
 """
@@ -473,26 +479,28 @@ compute_δψ! for additional kwargs.
     bandtol_minus_q_occ = [bandtol_occ[k_to_k_minus_q[ik]] for ik in 1:length(basis.kpoints)]
     @assert bandtolalg.occupation_threshold == occupation_threshold
 
-    # First we compute δoccupation. We only need to do this for the actually occupied
-    # orbitals. So we make a fresh array padded with zeros, but only alter the elements
-    # corresponding to the occupied orbitals. (Note both compute_δocc! and compute_δψ!
-    # assume that the first array argument has already been initialised to zero).
+    # First we compute δεF and δoccupation from the eigenvalue changes δεnk = <ψnk|δH|ψnk>.
+    # All bands are used: for integer occupations εF = (HOMO + LUMO) / 2 needs the LUMO.
     # For phonon calculations when q ≠ 0, we do not use δoccupation, and compute directly
     # the full perturbation δψ.
-    δoccupation = zero.(occupation)
     if iszero(q)
-        δocc_occ = [δoccupation[ik][maskk] for (ik, maskk) in enumerate(mask_occ)]
-        (; δεF) = compute_δocc!(δocc_occ, basis, ψ_occ, εF, ε_occ, δHψ_minus_q_occ, δtemperature;
-                                temperature, smearing)
+        δeigenvalues = map(ψ, δHψ) do ψk, δHψk
+            [real(dot(ψk[:, n], δHψk[:, n])) for n = 1:size(ψk, 2)]
+        end
+        δεF = compute_δεF(basis, eigenvalues, εF, δeigenvalues;
+                          temperature, smearing, δtemperature)
+        δoccupation = compute_δoccupation(basis, eigenvalues, εF, δeigenvalues, δεF;
+                                          temperature, smearing, δtemperature)
     else
         # When δH is not periodic, δH ψnk is a Bloch wave at k+q and ψnk at k,
         # so that δεnk = <ψnk|δH|ψnk> = 0 and there is no occupation shift
         @assert δtemperature == 0 # TODO think about this
         δεF = zero(εF)
+        δoccupation = zero.(occupation)
     end
 
     if compute_orbital_response
-        # Then we compute δψ (again in-place into a zero-padded array) with elements of
+        # Then we compute δψ (in-place into a zero-padded array) with elements of
         # `basis.kpoints` that are equivalent to `k+q`.
         δψ = zero.(δHψ)
         δψ_occ = [δψ[ik][:, maskk] for (ik, maskk) in enumerate(mask_occ[k_to_k_minus_q])]
