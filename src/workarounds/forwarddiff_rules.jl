@@ -31,9 +31,9 @@ for plan in [:plan_fft, :plan_ifft, :plan_bfft]
     end
 end
 
-function LinearAlgebra.mul!(y::AbstractArray{<:Union{Complex{<:Dual}}},
+function LinearAlgebra.mul!(y::AbstractArray{<:Union{Complex{<:Dual{Tg,V}}}},
                             p::AbstractFFTs.Plan,
-                            x::AbstractArray{<:Union{Complex{<:Dual}}})
+                            x::AbstractArray{<:Union{Complex{<:Dual{Tg,V}},Complex{V}}}) where {Tg,V}
     copyto!(y, p*x)
 end
 # Custom rule for FFTs used to overload the Base.:* operator. This is a function
@@ -180,7 +180,7 @@ function construct_value(model::Model{T}) where {T <: Dual}
           model.model_name,
           model.n_electrons,
           magnetic_moments=value_type(T)[],  # Symmetries given explicitly
-          terms=model.term_types,
+          terms=construct_term_value.(model.term_types),
           temperature=ForwardDiff.value(model.temperature),
           model.smearing,
           εF=ForwardDiff.value(model.εF),
@@ -219,6 +219,11 @@ function construct_value(psp::PspLinComb{<: Dual})
                construct_value.(psp.pseudos),
                psp.identifier,
                psp.description)
+end
+
+construct_term_value(term_type) = term_type
+function construct_term_value(e::ElectricField)
+    ElectricField(ForwardDiff.value.(e.strength_red), e.polarization_method)
 end
 
 function construct_value(basis::PlaneWaveBasis{T}) where {T <: Dual}

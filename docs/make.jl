@@ -41,6 +41,7 @@ PAGES = [
     ],
     "Response and properties" => [
         "examples/elastic_constants.jl",
+        "examples/electric_field_response.jl",
         "examples/polarizability.jl",
         "examples/forwarddiff.jl",
         "examples/phonons.jl",
