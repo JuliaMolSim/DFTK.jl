@@ -26,7 +26,7 @@ for details. In Voigt notation one would use the vector
     of the physical model. See also the discussion in [`compute_forces`](@ref).
 """
 @timing function compute_stresses_cart(basis::PlaneWaveBasis{T}, ψ, occupation;
-                                       eigenvalues, εF) where {T}
+                                       eigenvalues=nothing, εF=nothing) where {T}
     Tstress = promote_type(T, real(eltype(ψ[1])))
     # compute the Hellmann-Feynman energy (with fixed ψ/occ/ρ)
     function HF_energy(lattice)

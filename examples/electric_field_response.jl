@@ -24,9 +24,8 @@
 # ## Response of the polarization to an ionic perturbation
 # As a first example, we compute Born effective charges (BECs) for
 # gallium arsenide. The BECs can be defined as
-# TODO problem: two conflicting meanings for "u"
 # ```math
-# Z^\ast_{s\alpha \beta} = \Omega \frac{\mathrm d P_{\mathrm{cart},\beta}}{\mathrm d u_{\mathrm{cart},s\alpha}},
+# Z^\ast_{s\alpha \beta} = \Omega \frac{\mathrm d P_{\mathrm{cart},\beta}}{\mathrm d R_{\mathrm{cart},s\alpha}},
 # ```
 # i.e. the derivative of the polarization in Cartesian direction ``\beta``
 # wrt. displacing atom ``s`` in Cartesian direction ``\alpha``.
@@ -36,7 +35,6 @@
 # Ga atom in Cartesian direction x.
 # We first perform a ground state calculation:
 
-using ComponentArrays
 using DFTK
 using ForwardDiff
 using LinearAlgebra
@@ -53,16 +51,17 @@ As = ElementPsp(:As, pseudofamily)
 atoms     = [Ga, As]
 positions = [zeros(3), ones(3)/4]
 model = model_DFT(lattice, atoms, positions;
-                  ## TODO: k derivative currently requires symmetries=false, fix this!
                   functionals=PBE(), symmetries=false)
-basis = PlaneWaveBasis(model; Ecut=30, kgrid=[2, 2, 2])
+basis = PlaneWaveBasis(model; Ecut=30, kgrid=[2, 2, 2],
+                       ## k derivative does not yet support k-grid reduction
+                       use_symmetries_for_kpoint_reduction=false)
 scfres = self_consistent_field(basis, tol=1e-6);
 
 # Then, we compute the response wrt. moving the first atom by evaluating
 # the Hamiltonian perturbation by AD and then feeding it to the
 # DFPT solver `solve_ΩplusK_split`:
 
-function δHδu_ψ(ε)
+function δHδR_ψ(ε)
     δpos = [lattice \ [1, 0, 0], [0, 0, 0]]
     positions_new = positions + ε * δpos
     ## Note: lattice conversion is required for differentiation
@@ -73,21 +72,21 @@ function δHδu_ψ(ε)
     ham_new * scfres.ψ
 end
 
-δHextψ = ForwardDiff.derivative(δHδu_ψ, 0.0)
+δHextψ = ForwardDiff.derivative(δHδR_ψ, 0.0)
 dfptres = DFTK.solve_ΩplusK_split(scfres, δHextψ; tol=1e-6);
 
 # To evaluate the polarization response, we need another ingredient:
 # the derivatives of the wavefunctions $u_{n\mathbf{k}}$ wrt. the wavevector $\mathbf{k}$.
-# This is done by calling the DFTK function `compute_δψδks`:
-δψδks = DFTK.compute_δψδks(scfres; tol=1e-6);
+# This is done by calling the DFTK function `compute_k_derivatives`:
+δψδks = compute_k_derivatives(scfres; tol=1e-6);
 
 # Finally, evaluate the electronic polarization response, and add the ionic contribution.
 # Note `electronic_polarization_derivative` computes the fully reduced polarization
 # $\mathbf{P}_\mathrm{el}$, from which the Cartesian polarization can be computed with
 # $\mathbf{P}_\mathrm{el,cart} = L / \Omega \mathbf{P}_\mathrm{el}$ where $L$ is the lattice matrix.
-dPel_du = DFTK.electronic_polarization_derivative(basis, scfres.occupation, dfptres.δψ, δψδks)
-ΩdPel_cart_du = lattice * dPel_du
-Zstar_Ga = ΩdPel_cart_du[1] + charge_ionic(atoms[1])
+dPel_dR = electronic_polarization_derivative(basis, scfres.occupation, dfptres.δψ, δψδks)
+ΩdPel_cart_dR = lattice * dPel_dR
+Zstar_Ga = ΩdPel_cart_dR[1] + charge_ionic(atoms[1])
 println("Z*(Ga)_xx = ", Zstar_Ga, " (units of e)")
 
 # TODO: add remark about value being severely underconverged wrt. k,
@@ -117,10 +116,9 @@ println("Z*(Ga)_xx = ", Zstar_Ga, " (units of e)")
 # Note that while care is needed to obtain the so-called proper piezoelectric tensor[^Van00]
 # from the Berry phase polarization (based on numerical k-derivatives), this is not an
 # issue with the linear response formulation (analytical k-derivatives) considered here.
-# with the linear response formalism here this is not an issue.
 #
-# To compute the response to a Cartesian electric field perturbation $\delta \mathcal E_\mathrm{cart}$,
-# the following RHS is passed to the DFPT solver:
+# To compute the response to a Cartesian electric field perturbation
+# $\delta \mathcal E_\mathrm{cart}$, the following RHS is passed to the DFPT solver:
 # ```math
 # \mathrm{rhs}_{n\mathbf{k}} = \frac{i}{2\pi} \sum_\alpha \frac{\mathrm d u_{n\mathbf{k}}}{\mathrm d k_\alpha} \delta \mathcal E_\alpha,
 # ```
@@ -143,25 +141,22 @@ rhs = im/2π * (δψδks[1] * δE[1] + δψδks[2] * δE[2] + δψδks[3] * δE[
 dfptres_elfield = DFTK.solve_ΩplusK_split(scfres, rhs; tol=1e-6)
 
 # Finally, we compute the change in forces, polarization, and stresses:
-# TODO: inconsistency between d and delta
-dF = ForwardDiff.derivative(0.0) do ε
+dF_dE = ForwardDiff.derivative(0.0) do ε
     compute_forces_cart(basis, scfres.ψ + ε * dfptres_elfield.δψ,
                                scfres.occupation + ε * dfptres_elfield.δoccupation;
                                ρ=scfres.ρ + ε * dfptres_elfield.δρ)
 end
-dPel = DFTK.electronic_polarization_derivative(basis, scfres.occupation, dfptres_elfield.δψ, δψδks)
-dPel_cart = lattice / model.unit_cell_volume * dPel
-dstresses = ForwardDiff.derivative(0.0) do ε
+dPel_dE = electronic_polarization_derivative(basis, scfres.occupation, dfptres_elfield.δψ, δψδks)
+dPel_cart_dE = lattice / model.unit_cell_volume * dPel_dE
+dstresses_dE = ForwardDiff.derivative(0.0) do ε
     compute_stresses_cart(basis, scfres.ψ + ε * dfptres_elfield.δψ,
-                                 scfres.occupation + ε * dfptres_elfield.δoccupation;
-                                 # TODO: default these to nothing?
-                                 eigenvalues=nothing, εF=nothing)
+                                 scfres.occupation + ε * dfptres_elfield.δoccupation)
 end
 
-println("Z*(Ga)_xx = ", dF[1][1] + DFTK.charge_ionic(atoms[1]), " (units of e)")
-println("ϵ_xx = ", 1 + 4π * dPel_cart[1], " (units of ϵ₀)")
-println("e_14 = ", -DFTK.full_stress_to_voigt(dstresses)[4], " (a.u.)")
-println("e_14 = ", -DFTK.full_stress_to_voigt(dstresses)[4] / austrip(1u"C/m^2"), " (C/m^2)")
+println("Z*(Ga)_xx = ", dF_dE[1][1] + DFTK.charge_ionic(atoms[1]), " (units of e)")
+println("ϵ_xx = ", 1 + 4π * dPel_cart_dE[1], " (units of ϵ₀)")
+println("e_14 = ", -DFTK.full_stress_to_voigt(dstresses_dE)[4], " (a.u.)")
+println("e_14 = ", -DFTK.full_stress_to_voigt(dstresses_dE)[4] / austrip(1u"C/m^2"), " (C/m^2)")
 
 # TODO: again, severely underconverged
 
