@@ -21,14 +21,20 @@
 #     *Density functional perturbation theory of meta-generalized gradient approximations using algorithmic differentiation.*
 #     [arXiv:2609.35572 [cond-mat.mtrl-sci]](https://doi.org/10.48550/arXiv.2609.35572).
 #
-# ## Response of the electronic polarization
+# ## Response of the polarization to an ionic perturbation
 # As a first example, we compute Born effective charges (BECs) for
 # gallium arsenide. The BECs can be defined as
+# TODO problem: two conflicting meanings for "u"
 # ```math
-# Z^\ast_{s\alpha \beta} = \Omega \frac{\mathrm d P_\beta}{\mathrm d u_{s\alpha}},
+# Z^\ast_{s\alpha \beta} = \Omega \frac{\mathrm d P_{\mathrm{cart},\beta}}{\mathrm d u_{\mathrm{cart},s\alpha}},
 # ```
 # i.e. the derivative of the polarization in Cartesian direction ``\beta``
 # wrt. displacing atom ``s`` in Cartesian direction ``\alpha``.
+#
+# For gallium arsenide, there is only one independent BEC due to symmetries.
+# Let's calculate it by computing the polarization response wrt. moving the first
+# Ga atom in Cartesian direction x.
+# We first perform a ground state calculation:
 
 using ComponentArrays
 using DFTK
@@ -44,49 +50,56 @@ lattice = 5.4286 * [0 1 1.;
 pseudofamily = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
 Ga = ElementPsp(:Ga, pseudofamily)
 As = ElementPsp(:As, pseudofamily)
-atoms      = [Ga, As]
-positions0 = [zeros(3), ones(3)/4]
+atoms     = [Ga, As]
+positions = [zeros(3), ones(3)/4]
+model = model_DFT(lattice, atoms, positions;
+                  ## TODO: k derivative currently requires symmetries=false, fix this!
+                  functionals=PBE(), symmetries=false)
+basis = PlaneWaveBasis(model; Ecut=30, kgrid=[2, 2, 2])
+scfres = self_consistent_field(basis, tol=1e-6);
 
-# Temporary: use ZnO
-# lattice = [6.190456849814106 -3.0952284154584224 -0.0;
-#            0.0 5.361092884478024 0.0;
-#            -0.0 0.0 9.988640102207459]
-# Zn = ElementPsp(:Zn, pseudofamily)
-# O = ElementPsp(:O, pseudofamily)
-# atoms = [Zn, Zn, O, O]
-# positions0 = [[0.3333333323157854, 0.6666666666666667, -0.017092629605625867],
-#               [0.6666666646315706, 0.33333333333333337, 0.4829073694484365],
-#               [0.3333333323157854, 0.6666666666666667, 0.36209286326168183],
-#               [0.6666666646315706, 0.33333333333333337, 0.862092862315744]]
+# Then, we compute the response wrt. moving the first atom by evaluating
+# the Hamiltonian perturbation by AD and then feeding it to the
+# DFPT solver `solve_ΩplusK_split`:
 
-
-function position_to_ΩP(positions)
-    T = eltype(eltype(positions))
-    model = model_DFT(convert.(T, lattice), atoms, positions;
-                      # TODO: k derivative currently requires symmetries=false, fix this!
-                      functionals=PBE(), symmetries=false)
-    basis = PlaneWaveBasis(model; Ecut=30, kgrid=[2, 2, 2]);
-    # basis = PlaneWaveBasis(model; Ecut=30, kgrid=[6, 6, 6]);
-    scfres = self_consistent_field(basis, tol=1e-6);
-
-    # total_polarization_cart(scfres, LinearResponsePolarization())
-    model.lattice * DFTK.total_polarization(scfres, DFTK.LinearResponsePolarization())
+function δHδu_ψ(ε)
+    δpos = [lattice \ [1, 0, 0], [0, 0, 0]]
+    positions_new = positions + ε * δpos
+    ## Note: lattice conversion is required for differentiation
+    model_new = Model(model; lattice=convert.(eltype(ε), lattice),
+                             positions=positions_new)
+    basis_new = PlaneWaveBasis(basis; model=model_new)
+    ham_new = Hamiltonian(basis_new; scfres.ρ)
+    ham_new * scfres.ψ
 end
 
-# dpos = [lattice \ [1, 0, 0],
-#         [0, 0, 0]]
+δHextψ = ForwardDiff.derivative(δHδu_ψ, 0.0)
+dfptres = DFTK.solve_ΩplusK_split(scfres, δHextψ; tol=1e-6);
 
-# dP = ForwardDiff.derivative(ε -> position_to_ΩP(positions0 + ε * dpos), 0.0)
-# @show dP
+# To evaluate the polarization response, we need another ingredient:
+# the derivatives of the wavefunctions $u_{n\mathbf{k}}$ wrt. the wavevector $\mathbf{k}$.
+# This is done by calling the DFTK function `compute_δψδks`:
+δψδks = DFTK.compute_δψδks(scfres; tol=1e-6);
 
+# Finally, evaluate the electronic polarization response, and add the ionic contribution.
+# Note `electronic_polarization_derivative` computes the fully reduced polarization
+# $\mathbf{P}_\mathrm{el}$, from which the Cartesian polarization can be computed with
+# $\mathbf{P}_\mathrm{el,cart} = L / \Omega \mathbf{P}_\mathrm{el}$ where $L$ is the lattice matrix.
+dPel_du = DFTK.electronic_polarization_derivative(basis, scfres.occupation, dfptres.δψ, δψδks)
+ΩdPel_cart_du = lattice * dPel_du
+Zstar_Ga = ΩdPel_cart_du[1] + charge_ionic(atoms[1])
+println("Z*(Ga)_xx = ", Zstar_Ga, " (units of e)")
+
+# TODO: add remark about value being severely underconverged wrt. k,
+# and mention the obtained value for converged Ecut and kgrid
 # TODO: add comment explaining that [2,2,2] gives completely terrible results
 # and also provide reasonably converged values (will need to run with MPI)
 
-# ## Response to an electric field
-# Thanks to the electric enthalpy formulation, the BECs can equivalently be computed
+# ## Electric field responses
+# The BECs can equivalently be computed
 # as the derivative of the force wrt. the strength of an applied electric field ``\bm{\mathcal E}``:
 # ```math
-# Z^\ast_{s\alpha \beta} = \frac{\mathrm d F_{s\alpha}}{\mathrm d \mathcal E_\beta}.
+# Z^\ast_{s\alpha \beta} = \frac{\mathrm d F_{\mathrm{cart},s\alpha}}{\mathrm d \mathcal E_{\mathrm{cart},\beta}}.
 # ```
 # This only requires one response calculation per field direction,
 # and gives the BECs of all atoms at once.
@@ -94,75 +107,61 @@ end
 # Other notable quantities that can be obtained as derivatives wrt. an applied electric field
 # are the (infinite frequency) dielectric constant:
 # ```math
-# \epsilon^\infty_{\alpha\beta} = \delta_{\alpha\beta} + 4\pi \frac{\mathrm d P_\alpha}{\mathrm d \mathcal E_\beta}
+# \epsilon^\infty_{\alpha\beta} = \delta_{\alpha\beta} + 4\pi \frac{\mathrm d P_{\mathrm{cart},\alpha}}{\mathrm d \mathcal E_{\mathrm{cart},\beta}}
 # ```
 # and the (clamped-ion) piezoelectric tensor
-# TODO: cleanup LLM slop below
 # ```math
-# e_{\alpha jk} = \frac{\mathrm d P_\alpha}{\mathrm d \eta_{jk}}
+# e_{\alpha j} = -\frac{\mathrm d \sigma_j}{\mathrm d \mathcal E_{\mathrm{cart},\alpha}}
 # ```
 # where ``\eta`` is the strain.
-# Some care is needed here: naively differentiating the Cartesian polarization
-# ``\mathbf P = L \mathbf P_\mathrm{red} / \Omega`` wrt. strain also picks up the change
-# of ``L / \Omega``, which yields the so-called *improper* piezoelectric tensor.
-# The physically meaningful *proper* tensor[^Van00] only differentiates the reduced
-# polarization:
+# Note that while care is needed to obtain the so-called proper piezoelectric tensor[^Van00]
+# from the Berry phase polarization (based on numerical k-derivatives), this is not an
+# issue with the linear response formulation (analytical k-derivatives) considered here.
+# with the linear response formalism here this is not an issue.
+#
+# To compute the response to a Cartesian electric field perturbation $\delta \mathcal E_\mathrm{cart}$,
+# the following RHS is passed to the DFPT solver:
 # ```math
-# e_{\alpha jk} = \frac{1}{\Omega} \sum_\beta L_{\alpha\beta}
-#                  \frac{\mathrm d P_{\mathrm{red},\beta}}{\mathrm d \eta_{jk}}.
+# \mathrm{rhs}_{n\mathbf{k}} = \frac{i}{2\pi} \sum_\alpha \frac{\mathrm d u_{n\mathbf{k}}}{\mathrm d k_\alpha} \delta \mathcal E_\alpha,
 # ```
-# Since DFTK writes the electric enthalpy as
-# ``-\bm{\mathcal E}_\mathrm{red} \cdot \mathbf P_\mathrm{red}`` with the reduced field
-# ``\bm{\mathcal E}_\mathrm{red} = L^T \bm{\mathcal E}`` kept fixed under strain,
-# the field derivative of the stress ``\sigma_{jk} = \frac{1}{\Omega} \frac{\partial F}{\partial \eta_{jk}}``
-# yields exactly the proper tensor:
-# ```math
-# \frac{\mathrm d \sigma_{jk}}{\mathrm d \mathcal E_\alpha}
-# = \sum_\beta L_{\alpha\beta} \frac{\mathrm d \sigma_{jk}}{\mathrm d \mathcal E_{\mathrm{red},\beta}}
-# = -\frac{1}{\Omega} \sum_\beta L_{\alpha\beta} \frac{\mathrm d P_{\mathrm{red},\beta}}{\mathrm d \eta_{jk}}
-# = -e_{\alpha jk}.
-# ```
+# where the reduced electric field is $E = L^T E_\mathrm{cart}$.
+#
+# Let's compute the response of the gallium arsenide system above to an electric field
+# perturbation along Cartesian direction x. Note that we already computed the
+# $\mathbf{k}$-derivatives. First, we assemble the RHS:
+# TODO: mathbf usage seems rather inconsistent?
 #
 # [^Van00]:
 #     Vanderbilt, D. (2000).
 #     *Berry-phase theory of proper piezoelectric response.*
 #     [J. Phys. Chem. Solids **61**, 147](https://doi.org/10.1016/S0022-3697(99)00273-5).
 
-function field_response(E)
-    T = eltype(E)
-    field = DFTK.ElectricField(E, DFTK.LinearResponsePolarization())
-    model = model_DFT(convert.(T, lattice), atoms, positions0;
-                      functionals=PBE(), symmetries=false, extra_terms=[field])
-    basis = PlaneWaveBasis(model; Ecut=30, kgrid=[2, 2, 2]);
-    scfres = self_consistent_field(basis, tol=1e-6);
+δE = lattice' * [1, 0, 0]
+rhs = im/2π * (δψδks[1] * δE[1] + δψδks[2] * δE[2] + δψδks[3] * δE[3])
 
-    # Put all quantities in a component array such that ForwardDiff
-    # will be able to unwrapp all the components at once:
-    ComponentArray(;
-        # forces[α, s] = F_{sα}
-        forces = stack(compute_forces_cart(scfres)),
-        P      = DFTK.total_polarization_cart(scfres, DFTK.LinearResponsePolarization()),
-        stress = compute_stresses_cart(scfres),
-    )
+# Then call the DFPT solver:
+dfptres_elfield = DFTK.solve_ΩplusK_split(scfres, rhs; tol=1e-6)
+
+# Finally, we compute the change in forces, polarization, and stresses:
+# TODO: inconsistency between d and delta
+dF = ForwardDiff.derivative(0.0) do ε
+    compute_forces_cart(basis, scfres.ψ + ε * dfptres_elfield.δψ,
+                               scfres.occupation + ε * dfptres_elfield.δoccupation;
+                               ρ=scfres.ρ + ε * dfptres_elfield.δρ)
+end
+dPel = DFTK.electronic_polarization_derivative(basis, scfres.occupation, dfptres_elfield.δψ, δψδks)
+dPel_cart = lattice / model.unit_cell_volume * dPel
+dstresses = ForwardDiff.derivative(0.0) do ε
+    compute_stresses_cart(basis, scfres.ψ + ε * dfptres_elfield.δψ,
+                                 scfres.occupation + ε * dfptres_elfield.δoccupation;
+                                 # TODO: default these to nothing?
+                                 eigenvalues=nothing, εF=nothing)
 end
 
-## DFTK natively operates on the reduced electric field:
-dE = lattice' * [1, 0, 0]
-dresponse = ForwardDiff.derivative(ε -> field_response(zeros(3) + ε * dE), 0.0)
+println("Z*(Ga)_xx = ", dF[1][1] + DFTK.charge_ionic(atoms[1]), " (units of e)")
+println("ϵ_xx = ", 1 + 4π * dPel_cart[1], " (units of ϵ₀)")
+println("e_14 = ", -DFTK.full_stress_to_voigt(dstresses)[4], " (a.u.)")
+println("e_14 = ", -DFTK.full_stress_to_voigt(dstresses)[4] / austrip(1u"C/m^2"), " (C/m^2)")
 
-@show dresponse.forces[1, 1]
-@show dresponse.P
-ϵ_11 = 1 + 4π * dresponse.P[1]
-@show ϵ_11
-## Proper clamped-ion piezoelectric tensor e_{1jk} = -dσ_jk/dE_1
-e_1 = -dresponse.stress
-@show e_1
-# TODO: would be nice to have in C/m^2, and only the 14 component. Maybe keep voigt notation
+# TODO: again, severely underconverged
 
-# elres = electric_field_responses(scfres);
-
-# dielectric_tensor = compute_dielectric_cart(scfres; elres...)
-
-# Zstar = compute_Zstar_cart(scfres; elres.electric_field_responses)
-
-nothing

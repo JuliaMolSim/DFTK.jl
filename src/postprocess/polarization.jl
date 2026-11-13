@@ -101,33 +101,6 @@ function _primal_scf_quantities(Tg, basis, ψ, occupation, εF, eigenvalues, ρ,
     (; basis0, ψ0, occupation0, εF0, eigenvalues0, ρ0, τ0)
 end
 
-"""
-Check that all occupations are either full or zero (insulator),
-as required for the polarization and electric field responses.
-"""
-function _check_full_occupations(model, occupation; occupation_threshold)
-    filled_occ = filled_occupation(model)
-    for occk in occupation
-        all(abs.(occk) .<= occupation_threshold .|| abs.(occk .- filled_occ) .<= occupation_threshold) ||
-            error("Only full or zero occupations are supported for polarization, found partial occupation: $occk.")
-    end
-end
-
-"""
-Compute the derivative of the (primal) orbitals `ψ` with respect to `k`
-in the direction `δk` (in reduced coordinates), in the parallel-transport gauge,
-by solving a Sternheimer equation. If `ham` is not passed, it is recomputed.
-"""
-function compute_dψdk(basis::PlaneWaveBasis, ψ, occupation, εF, eigenvalues, δk;
-                      ρ=nothing, τ=nothing, occupation_threshold, tol,
-                      ham=Hamiltonian(basis; ψ, occupation, ρ, τ),
-                      bandtolalg=BandtolBalanced(basis, ψ, occupation; occupation_threshold))
-    _check_full_occupations(basis.model, occupation; occupation_threshold)
-    dH_dkψ = compute_δHψδk(basis, ψ, δk; ρ, τ)
-    apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, dH_dkψ;
-                occupation_threshold, bandtolalg, tol).δψ
-end
-
 @timing function electronic_polarization(basis::PlaneWaveBasis{T}, ψ, occupation,
                                  lrpol::LinearResponsePolarization;
                                  εF, eigenvalues, occupation_threshold,
@@ -224,6 +197,55 @@ function compute_δHψδk(basis::PlaneWaveBasis, ψ, δk; ρ=nothing, τ=nothing
         ham * ψ
     end
     ForwardDiff.derivative(apply_kshift, zero(eltype(basis)))
+end
+
+@doc raw"""
+Compute the derivative of the (periodic part `u` of the) orbitals `ψ` with
+respect to `k` in the direction `δk` in reduced coordinates.
+"""
+function compute_δψδk(ham, ψ, occupation, εF, eigenvalues, δk;
+                      ρ=nothing, τ=nothing, occupation_threshold, tol,
+                      bandtolalg=BandtolBalanced(ham.basis, ψ, occupation; occupation_threshold),
+                      verbose=true)
+    check_full_or_zero_occupation(ham.basis.model, occupation; occupation_threshold)
+    verbose && mpi_master(ham.basis.comm_kpts) && println("Computing dψ/dk in direction $δk")
+    δHψδk = compute_δHψδk(ham.basis, ψ, δk; ρ, τ)
+    apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHψδk;
+                occupation_threshold, bandtolalg, tol).δψ
+end
+
+@doc raw"""
+Compute the derivative of the (periodic part `u` of the) orbitals `ψ` with
+respect to `k` in all 3 reduced directions.
+"""
+function compute_δψδks(ham, ψ, occupation, εF, eigenvalues; kwargs...)
+    map(1:3) do α
+        δk = zeros(eltype(ham.basis), 3)
+        δk[α] = 1
+        compute_δψδk(ham, ψ, occupation, εF, eigenvalues, δk; kwargs...)
+    end
+end
+function compute_δψδks(scfres; tol, verbose=true)
+    compute_δψδks(scfres.ham, scfres.ψ, scfres.occupation, scfres.εF, scfres.eigenvalues;
+                  scfres.ρ, scfres.τ, scfres.occupation_threshold, tol, verbose)
+end
+
+"""
+Compute the response of the electronic polarization to a perturbation `δψ`
+of the orbitals. This also requires the k-derivatives `δψδks`,
+which can be obtained with [`compute_δψδks`](@ref).
+"""
+function electronic_polarization_derivative(basis::PlaneWaveBasis{T}, occupation,
+                                            δψ, δψδks) where {T}
+    length(δψδks) == 3 || error("Expected `δψδks` of length 3, got length $(length(δψδks))")
+    δP = Vec3{T}(map(1:3) do α
+        δPα = map(occupation, δψ, δψδks[α]) do occk, δψk, δψkδkα
+            1/T(π) * sum(occk .* imag.(columnwise_dots(δψk, δψkδkα)))
+        end
+        weighted_ksum(basis, δPα)
+    end)
+    # TODO: missing symmetrization
+    δP
 end
 
 # TODO: probably going away!
