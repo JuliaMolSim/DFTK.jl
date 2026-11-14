@@ -61,9 +61,9 @@ function (xc::Xc)(basis::PlaneWaveBasis{T}) where {T}
         end
         fun
     end
-    TermXc(convert(Vector{Functional}, functionals),
-           convert_dual(T, xc.scaling_factor),
-           T(xc.potential_threshold), ρcore, τcore)
+    TermDensityFunctional(convert(Vector{Functional}, functionals),
+                          convert_dual(T, xc.scaling_factor),
+                          T(xc.potential_threshold), ρcore, τcore)
 end
 
 function hybrid_parameters(xc::Xc)
@@ -71,23 +71,24 @@ function hybrid_parameters(xc::Xc)
     isempty(res) ? nothing : only(res)
 end
 
-struct TermXc{T,CT,TCT} <: TermNonlinear where {T,CT,TCT}
+struct TermDensityFunctional{T,CT,TCT} <: TermNonlinear where {T,CT,TCT}
     functionals::Vector{Functional}
     scaling_factor::T
     potential_threshold::T
     ρcore::CT
     τcore::TCT
 end
-DftFunctionals.needs_τ(term::TermXc) = any(needs_τ, term.functionals)
+DftFunctionals.needs_τ(term::TermDensityFunctional) = any(needs_τ, term.functionals)
 
-function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupation;
-                           ρ, τ=nothing) where {T}
+function xc_potential_real(term::TermDensityFunctional, basis::PlaneWaveBasis{T},
+                           ψ, occupation; ρ, τ=nothing) where {T}
     @assert !isempty(term.functionals)
     @assert all(family(xc) in (:lda, :gga, :mgga, :mggal) for xc in term.functionals)
 
     if isnothing(τ) && needs_τ(term)
-        throw(ArgumentError("TermXc needs the kinetic energy density τ. Please pass a `τ` " *
-                            "keyword argument to your `Hamiltonian` or `energy_hamiltonian` call."))
+        throw(ArgumentError("TermDensityFunctional needs the kinetic energy density τ. " *
+                            "Please pass a `τ` keyword argument to your `Hamiltonian` " *
+                            "or `energy_hamiltonian` call."))
     end
 
     # Add the model core charge density (non-linear core correction)
@@ -158,8 +159,9 @@ function xc_potential_real(term::TermXc, basis::PlaneWaveBasis{T}, ψ, occupatio
     (; E, potential, Vτ)
 end
 
-@views @timing "ene_ops: xc" function ene_ops(term::TermXc, basis::PlaneWaveBasis,
-                                              ψ, occupation; ρ, τ=nothing, kwargs...)
+@views @timing "ene_ops: xc" function ene_ops(term::TermDensityFunctional,
+                                              basis::PlaneWaveBasis, ψ, occupation;
+                                              ρ, τ=nothing, kwargs...)
     E, Vxc, Vτ = xc_potential_real(term, basis, ψ, occupation; ρ, τ)
 
     ops = map(basis.kpoints) do kpt
@@ -173,11 +175,12 @@ end
     (; E, ops)
 end
 
-@views @timing "energy: xc"  function energy(term::TermXc, basis::PlaneWaveBasis{T},
-                                             ψ, occupation; ρ, τ=nothing, kwargs...) where {T}
+@views @timing "energy: xc"  function energy(term::TermDensityFunctional,
+                                             basis::PlaneWaveBasis{T}, ψ, occupation;
+                                             ρ, τ=nothing, kwargs...) where {T}
     if isnothing(τ) && needs_τ(term)
-        throw(ArgumentError("TermXc needs the kinetic energy density τ. Please pass a `τ` " *
-                            "keyword argument to your `energy` call."))
+        throw(ArgumentError("TermDensityFunctional needs the kinetic energy density τ. " *
+                            "Please pass a `τ` keyword argument to your `energy` call."))
     end
 
     # Add the model core charge density (non-linear core correction)
@@ -196,9 +199,9 @@ end
     term.scaling_factor * sum(edensity) * basis.dvol
 end
 
-@timing "forces: xc" function compute_forces(term::TermXc, basis::PlaneWaveBasis{T},
-                                             ψ, occupation; ρ, τ=nothing,
-                                             kwargs...) where {T}
+@timing "forces: xc" function compute_forces(term::TermDensityFunctional,
+                                             basis::PlaneWaveBasis{T}, ψ, occupation;
+                                             ρ, τ=nothing, kwargs...) where {T}
     # The only non-zero force contribution is from the nlcc core charge:
     # early return if nlcc is disabled / no elements have model core charges.
     isnothing(term.ρcore) && isnothing(term.τcore) && return nothing
@@ -444,7 +447,8 @@ function _check_negative_bonding_indicator_α(densities::LibxcDensities{T};
     end
 end
 
-function compute_kernel(term::TermXc, basis::PlaneWaveBasis{T}; ρ, kwargs...) where {T}
+function compute_kernel(term::TermDensityFunctional, basis::PlaneWaveBasis{T};
+                        ρ, kwargs...) where {T}
     n_spin  = basis.model.n_spin_components
     @assert 1 ≤ n_spin ≤ 2
     if !all(family(xc) == :lda for xc in term.functionals)
@@ -478,8 +482,9 @@ function compute_kernel(term::TermXc, basis::PlaneWaveBasis{T}; ρ, kwargs...) w
 end
 
 
-function apply_kernel(term::TermXc, basis::PlaneWaveBasis{T}, δρ::AbstractArray{Tδρ};
-                      ρ, q=zero(Vec3{T}), kwargs...) where {T, Tδρ<:Union{T,Complex{T}}}
+function apply_kernel(term::TermDensityFunctional, basis::PlaneWaveBasis{T},
+                      δρ::AbstractArray{Tδρ}; ρ, q=zero(Vec3{T}),
+                      kwargs...) where {T, Tδρ<:Union{T,Complex{T}}}
     isempty(term.functionals) && return nothing
     @assert (all(family(xc) in (:lda, :gga, :mggal) && !needs_τ(xc) for xc in term.functionals))
 

@@ -22,7 +22,7 @@ function total_energy_from_eigenvalues(energies::Energies, ham::Hamiltonian,
     # Correcting for Hartree double counting and XC energy
     @assert ham.basis.model.n_spin_components == 1
     ρtot = DFTK.total_density(ρ)
-    i_xc = findfirst(t -> t isa DFTK.TermXc, ham.basis.terms)
+    i_xc = findfirst(t -> t isa DFTK.TermDensityFunctional, ham.basis.terms)
     @assert !isnothing(i_xc)
     pot_xc = ham[1].operators[i_xc].potential
     energy_xcpot = sum(pot_xc .* ρtot) * ham.basis.dvol

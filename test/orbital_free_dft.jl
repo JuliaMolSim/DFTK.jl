@@ -6,9 +6,11 @@
     ref_etot = -2.90385354842395
 
     lattice = 7.652 / 2 * [0 1 1; 1 0 1; 1 1 0]
+    # Local BLPS (LDA) pseudopotential, as distributed with DFTpy:
+    # https://dftpy.rutgers.edu/LPP.html
     Al = ElementPsp(:Al, load_psp(joinpath(@__DIR__, "pseudos", "Al_m.upf")))
     model = model_OFDFT(lattice, [Al], [zeros(3)];
-                        kinetic_functionals=[:lda_k_tf, :gga_k_vw],
+                        kinetic_functional=:gga_k_tfvw,
                         functionals=Xc([:lda_x, :lda_c_pz]; use_nlcc=false))
     basis = PlaneWaveBasis(model; Ecut=15, fft_size=(24, 24, 24), kgrid=(1, 1, 1))
     ρ = fill(3 / model.unit_cell_volume, basis.fft_size..., 1)
