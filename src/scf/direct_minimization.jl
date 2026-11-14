@@ -63,20 +63,28 @@ end
 """
 Computes the ground state by direct minimization. `kwargs...` are
 passed to `Optim.Options()` and `optim_method` selects the optim approach
-which is employed.
+which is employed. Orbital-free models are minimized over the density instead.
 """
-function direct_minimization(basis::PlaneWaveBasis{T};
-                             ψ=nothing,
-                             tol=1e-6,
-                             is_converged=ScfConvergenceDensity(tol),
-                             maxiter=1_000,
-                             prec_type=PreconditionerTPA,
-                             callback=ScfDefaultCallback(),
-                             optim_method=Optim.LBFGS,
-                             alphaguess=LineSearches.InitialStatic(),
-                             linesearch=LineSearches.BackTracking(),
-                             seed=nothing,
-                             kwargs...) where {T}
+function direct_minimization(basis::PlaneWaveBasis; kwargs...)
+    if basis.model.model_name == "OFDFT"
+        direct_minimization_density(basis; kwargs...)
+    else
+        direct_minimization_orbitals(basis; kwargs...)
+    end
+end
+
+function direct_minimization_orbitals(basis::PlaneWaveBasis{T};
+                                      ψ=nothing,
+                                      tol=1e-6,
+                                      is_converged=ScfConvergenceDensity(tol),
+                                      maxiter=1_000,
+                                      prec_type=PreconditionerTPA,
+                                      callback=ScfDefaultCallback(),
+                                      optim_method=Optim.LBFGS,
+                                      alphaguess=LineSearches.InitialStatic(),
+                                      linesearch=LineSearches.BackTracking(),
+                                      seed=nothing,
+                                      kwargs...) where {T}
     if mpi_nprocs(basis.comm_kpts) > 1
         # need synchronization in Optim
         error("Direct minimization with MPI is not supported yet")

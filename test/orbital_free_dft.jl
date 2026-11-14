@@ -14,8 +14,7 @@
                         functionals=Xc([:lda_x, :lda_c_pz]; use_nlcc=false))
     basis = PlaneWaveBasis(model; Ecut=15, fft_size=(24, 24, 24), kgrid=(1, 1, 1))
     ρ = fill(3 / model.unit_cell_volume, basis.fft_size..., 1)
-    result = direct_minimization_density(basis; ρ, tol=1e-7, maxiter=500,
-                                         show_trace=false)
+    result = direct_minimization(basis; ρ, tol=1e-7, maxiter=500, show_trace=false)
 
     @test result.converged
     @test sum(result.ρ) * basis.dvol ≈ 3 atol=1e-12

@@ -176,7 +176,6 @@ export ScfConvergenceEnergy, ScfConvergenceDensity, ScfConvergenceForce
 export ScfSaveCheckpoints, ScfDefaultCallback, AdaptiveDiagtol
 export ResponseOptions
 export direct_minimization
-export direct_minimization_density
 export newton
 export load_scfres, save_scfres
 include("scf/chi0models.jl")
