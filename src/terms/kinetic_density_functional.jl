@@ -15,6 +15,5 @@ Base.show(io::IO, kinetic::KineticDensityFunctional) =
     print(io, "KineticDensityFunctional($(kinetic.functional))")
 
 function (kinetic::KineticDensityFunctional)(basis::PlaneWaveBasis{T}) where {T}
-    @assert basis.model.n_spin_components == 1
     TermDensityFunctional(Functional[kinetic.functional], one(T), zero(T), nothing, nothing)
 end

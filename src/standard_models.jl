@@ -65,8 +65,7 @@ Build an experimental orbital-free DFT model.
 `kinetic_functional` specifies the kinetic energy (e.g. `:gga_k_tfvw`);
 `functionals` specifies XC, as in [`model_DFT`](@ref).
 """
-function model_OFDFT(lattice::AbstractMatrix,
-                     atoms::Vector{<:Element},
+function model_OFDFT(lattice::AbstractMatrix, atoms::Vector{<:Element},
                      positions::Vector{<:AbstractVector};
                      kinetic_functional, functionals=Symbol[], kwargs...)
     @assert !(:terms in keys(kwargs))
