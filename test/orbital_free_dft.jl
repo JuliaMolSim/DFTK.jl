@@ -3,12 +3,12 @@
 
     # DFTpy 2.2.0: TF+VW, LDA(PZ), the same UPF pseudopotential and 24³ grid.
     # CG-HS optimization, econv=1e-12, starting from a uniform density.
-    ref_etot = -2.90385354842395
+    ref_etot = -2.11179966686921
 
     lattice = 7.652 / 2 * [0 1 1; 1 0 1; 1 1 0]
     # Local BLPS (LDA) pseudopotential, as distributed with DFTpy:
     # https://dftpy.rutgers.edu/LPP.html
-    Al = ElementPsp(:Al, load_psp(joinpath(@__DIR__, "pseudos", "Al_m.upf")))
+    Al = ElementPsp(:Al, load_psp(joinpath(@__DIR__, "pseudos", "al.blps.lda.upf")))
     model = model_OFDFT(lattice, [Al], [zeros(3)];
                         kinetic_functional=:gga_k_tfvw,
                         functionals=Xc([:lda_x, :lda_c_pz]; use_nlcc=false))
