@@ -66,7 +66,11 @@ passed to `Optim.Options()` and `optim_method` selects the optim approach
 which is employed. Orbital-free models are minimized over the density instead.
 """
 function direct_minimization(basis::PlaneWaveBasis; kwargs...)
-    if basis.model.model_name == "OFDFT"
+    is_density_only_model = all(basis.model.term_types) do term
+        term isa Union{KineticDensityFunctional, AtomicLocal, Ewald,
+                       PspCorrection, Hartree, Xc}
+    end
+    if is_density_only_model
         direct_minimization_density(basis; kwargs...)
     else
         direct_minimization_orbitals(basis; kwargs...)
