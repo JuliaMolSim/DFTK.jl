@@ -75,16 +75,15 @@ The passed δk must be in reduced coordinates!
 Returns the contraction of the k-derivative with the wavefunctions u_{nk}.
 """
 function compute_Hk_derivative(basis::PlaneWaveBasis, ψ, δk; ρ=nothing, τ=nothing)
-    basis.use_symmetries_for_kpoint_reduction && error(
-        "k-derivatives do not yet support symmetry-reduced k-point grids. " *
-        "Pass `use_symmetries_for_kpoint_reduction=false` when constructing " *
-        "the PlaneWaveBasis to use the full grid.")
     function apply_kshift(ε::T) where {T}
         kcoords = map(basis.kcoords_global) do kcoord
             kcoord + ε * δk
         end
-        kgrid_shifted = ExplicitKpoints(kcoords, convert.(T, basis.kweights))
-        model = Model(basis.model; lattice=convert.(T, basis.model.lattice))
+        kgrid_shifted = ExplicitKpoints(kcoords, convert.(T, basis.kweights_global))
+        model = Model(basis.model; lattice=convert.(T, basis.model.lattice),
+                      # Remove symmetries to bypass the checks in the basis construction.
+                      # We are passing the explicit (reduced!) k-points we want already.
+                      symmetries=false)
         basis_shifted = PlaneWaveBasis(model; basis.Ecut, kgrid=kgrid_shifted,
                                        basis.variational, basis.fft_size,
                                        basis.symmetries_respect_rgrid,
@@ -107,7 +106,7 @@ function compute_k_derivative(ham, ψ, occupation, εF, eigenvalues, δk;
                               bandtolalg=BandtolBalanced(ham.basis, ψ, occupation; occupation_threshold),
                               verbose=true)
     check_full_or_zero_occupation(ham.basis.model, occupation; occupation_threshold)
-    verbose && mpi_master(ham.basis.comm_kpts) && println("Computing k-derivative in direction $δk")
+    verbose && mpi_master(ham.basis.comm_kpts) && println("Computing k-derivative with δk = ", δk)
     δHkψ = compute_Hk_derivative(ham.basis, ψ, δk; ρ, τ)
     apply_χ0_4P(ham, ψ, occupation, εF, eigenvalues, δHkψ;
                 occupation_threshold, bandtolalg, tol).δψ
@@ -143,6 +142,5 @@ function electronic_polarization_derivative(basis::PlaneWaveBasis{T}, occupation
         end
         weighted_ksum(basis, δPα)
     end)
-    # TODO: implement symmetrization once we support k-point reduction
-    δP
+    symmetrize_polarization(δP; basis.symmetries)
 end

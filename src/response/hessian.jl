@@ -373,7 +373,7 @@ end
 function solve_ΩplusK_split(scfres::NamedTuple, δHextψ; kwargs...)
     solve_ΩplusK_split(scfres.ham, scfres.ρ, scfres.ψ, scfres.occupation,
                        scfres.εF, scfres.eigenvalues, δHextψ;
-                       scfres.occupation_threshold, scfres.mixing,
+                       scfres.τ, scfres.occupation_threshold, scfres.mixing,
                        bandtolalg=BandtolBalanced(scfres), kwargs...)
 end
 

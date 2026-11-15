@@ -160,9 +160,6 @@ _is_approx_in(x::AbstractArray{T}, X) where {T} = any(y -> isapprox(x, y; atol=s
 Filter out the symmetry operations that don't respect the symmetries of the discrete BZ grid
 """
 function symmetries_preserving_kgrid(symmetries, kgrid::AbstractKgrid)
-    # Trivial optimization, but currently necessary for derivatives wrt. k
-    length(symmetries) == 1 && return symmetries
-
     # First apply symmetries as the provided k-points can be arbitrary
     # (e.g. only along a line or similar)
     all_kcoords = unfold_kcoords(reducible_kcoords(kgrid).kcoords, symmetries)
@@ -436,6 +433,18 @@ function symmetrize_hubbard_n(model, manifold::ResolvedOrbitalManifold,
     end
     ns ./= length(symmetries)
     ns
+end
+
+"""
+Symmetrize the polarization in *reduced coordinates*.
+"""
+function symmetrize_polarization(P; symmetries)
+    symmetrized_P = zero(P)
+    for symop in symmetries
+        # Polarization is just a vector
+        symmetrized_P += symop.W * P
+    end
+    symmetrized_P ./ length(symmetries)
 end
 
 """"
