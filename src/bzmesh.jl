@@ -3,7 +3,8 @@ import Brillouin.KPaths: KPathInterpolant
 
 """Bring ``k``-point coordinates into the range [-0.5, 0.5)"""
 function normalize_kpoint_coordinate(x::Real)
-    x = x - round(Int, x, RoundNearestTiesUp)
+    # Strip Dual: Julia 1.10 lacks the generic round(::Type, x, ::RoundingMode) fallback
+    x = x - round(Int, ForwardDiff.value(x), RoundNearestTiesUp)
     @assert -0.5 ≤ ForwardDiff.value(x) < 0.5
     x
 end

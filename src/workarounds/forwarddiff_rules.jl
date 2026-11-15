@@ -31,9 +31,9 @@ for plan in [:plan_fft, :plan_ifft, :plan_bfft]
     end
 end
 
-function LinearAlgebra.mul!(y::AbstractArray{<:Union{Complex{<:Dual{Tg,V}}}},
+function LinearAlgebra.mul!(y::AbstractArray{<:Union{Complex{<:Dual}}},
                             p::AbstractFFTs.Plan,
-                            x::AbstractArray{<:Union{Complex{<:Dual{Tg,V}},Complex{V}}}) where {Tg,V}
+                            x::AbstractArray{<:Union{Complex{<:Dual}}})
     copyto!(y, p*x)
 end
 # Custom rule for FFTs used to overload the Base.:* operator. This is a function
