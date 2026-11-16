@@ -325,17 +325,18 @@ function compute_δεF(basis::AbstractBasis{T}, eigenvalues, εF, δeigenvalues;
         end
     end
 
-    # Otherwise εF is a root of the electron count ∑_nk w_k f(x_nk) = N with
+    # Otherwise εF is the root of the electron excess ∑_nk w_k f(x_nk) - N with
     # x_nk = (ε_nk - εF) / T, and implicit differentiation gives
     #    δεF = ∑_nk w_k f'_nk (δε_nk - x_nk δT) / ∑_nk w_k f'_nk.
     x  = [(εk .- εF) ./ temperature for εk in eigenvalues]
     fp = [Smearing.occupation_derivative.(smearing, xk) for xk in x]
-    δN = map(fp, δeigenvalues, x) do fpk, δεk, xk
+    # Change of the excess at fixed εF (up to a factor shared with dos)
+    δexcess = map(fp, δeigenvalues, x) do fpk, δεk, xk
         sum(fpk .* (δεk .- xk .* δtemperature))
     end
     dos = weighted_ksum(basis, sum.(fp))
     iszero(dos) && return zero(T)  # The passed bands do not determine εF
-    weighted_ksum(basis, δN) / dos
+    weighted_ksum(basis, δexcess) / dos
 end
 
 """
