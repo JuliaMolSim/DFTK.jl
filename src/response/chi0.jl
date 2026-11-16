@@ -335,7 +335,7 @@ function compute_δεF(basis::AbstractBasis{T}, eigenvalues, εF, δeigenvalues;
         sum(fpk .* (δεk .- xk .* δtemperature))
     end
     dos = weighted_ksum(basis, sum.(fp))
-    iszero(dos) && return zero(T)  # The passed bands do not determine εF
+    iszero(dos) && return zero(T)  # Excess is flat in εF, δεF undetermined: avoid 0/0
     weighted_ksum(basis, δexcess) / dos
 end
 
