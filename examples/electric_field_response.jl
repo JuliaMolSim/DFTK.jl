@@ -23,14 +23,14 @@
 #
 # ## Response of the polarization to an ionic perturbation
 # As a first example, we compute Born effective charges for
-# gallium arsenide. They can be defined as
+# aluminium arsenide. They can be defined as
 # ```math
 # Z^\ast_{s\alpha \beta} = \Omega \frac{\mathrm d P_{\mathrm{cart},\beta}}{\mathrm d R_{\mathrm{cart},s\alpha}},
 # ```
 # i.e. the derivative of the polarization in Cartesian direction ``\beta``
 # wrt. displacing atom ``s`` in Cartesian direction ``\alpha``.
 #
-# For gallium arsenide, there is only one independent Born effective charge due to symmetries.
+# For aluminium arsenide, there is only one independent Born effective charge due to symmetries.
 # Let's calculate it by computing the polarization response wrt. moving the first
 # Ga atom in Cartesian direction x.
 #
@@ -43,13 +43,13 @@ using PseudoPotentialData
 using Unitful
 using UnitfulAtomic
 
-lattice = 5.4286 * [0 1 1.;
+lattice = 5.4156 * [0 1 1.;
                     1 0 1.;
                     1 1 0.]
 pseudofamily = PseudoFamily("dojo.nc.sr.pbe.v0_4_1.standard.upf")
-Ga = ElementPsp(:Ga, pseudofamily)
+Al = ElementPsp(:Al, pseudofamily)
 As = ElementPsp(:As, pseudofamily)
-atoms     = [Ga, As]
+atoms     = [Al, As]
 positions = [zeros(3), ones(3)/4];
 
 # To speed up the calculation, we will make use of symmetries.
@@ -90,7 +90,7 @@ dfptres = DFTK.solve_ΩplusK_split(scfres, δHextψ; tol=1e-6);
 # To evaluate the polarization response, we need another ingredient:
 # the derivatives of the wavefunctions $u_{n\mathbf{k}}$ wrt. the wavevector $\mathbf{k}$.
 # This is done by calling the DFTK function [`compute_k_derivatives`](@ref):
-δψδks = compute_k_derivatives(scfres; tol=1e-6);
+δψδks = compute_k_derivatives(scfres; tol=1e-8);
 
 # Finally, evaluate the electronic polarization response, and add the ionic contribution.
 # Note that [`electronic_polarization_derivative`](@ref) computes the fully reduced polarization
@@ -98,16 +98,16 @@ dfptres = DFTK.solve_ΩplusK_split(scfres, δHextψ; tol=1e-6);
 # $\mathbf{P}_\mathrm{el,cart} = L / \Omega \mathbf{P}_\mathrm{el}$ where $L$ is the lattice matrix.
 dPel_dR = electronic_polarization_derivative(basis, scfres.occupation, dfptres.δψ, δψδks)
 ΩdPel_cart_dR = lattice * dPel_dR
-Zstar_Ga = ΩdPel_cart_dR[1] + charge_ionic(atoms[1])
-println("Z*(Ga)_xx = ", Zstar_Ga, " (units of e)")
+Zstar_Al = ΩdPel_cart_dR[1] + charge_ionic(atoms[1])
+println("Z*(Al)_xx = ", Zstar_Al, " (units of e)")
 
 # We find a Born effective charge of about 70 because of our **very loose** numerical settings,
 # in particular the $\mathbf{k}$-grid which needs to be rather fine for
 # electric properties.
 #
 # Upon running the same calculation with ``E_\mathrm{cut} = 50`` Ha
-# and a $10 \times 10 \times 10$ $\mathbf{k}$-grid, a much more reasonable
-# $Z^* = 42$ (TODO) is obtained.
+# and a converged $12 \times 12 \times 12$ $\mathbf{k}$-grid,
+# the value $Z^* = 2.14$ is obtained.
 
 # ## Electric field responses
 # The Born effective charges can equivalently be computed as the derivative of
@@ -140,7 +140,7 @@ println("Z*(Ga)_xx = ", Zstar_Ga, " (units of e)")
 # ```
 # where the reduced electric field perturbation is $\delta \mathcal E = L^T \delta \mathcal E_\mathrm{cart}$.
 #
-# Let's compute the response of the gallium arsenide system above to an electric field
+# Let's compute the response of the aluminium arsenide system above to an electric field
 # perturbation along Cartesian direction x. Note that we already computed the
 # $\mathbf{k}$-derivatives. First, we assemble the RHS:
 #
@@ -171,7 +171,7 @@ dstresses_dE = ForwardDiff.derivative(0.0) do ε
                                  scfres.occupation + ε * dfptres_elfield.δoccupation)
 end
 
-println("Z*(Ga)_xx = ", dF_dE[1][1] + DFTK.charge_ionic(atoms[1]), " (units of e)")
+println("Z*(Al)_xx = ", dF_dE[1][1] + DFTK.charge_ionic(atoms[1]), " (units of e)")
 println("ϵ_xx = ", 1 + 4π * dPel_cart_dE[1], " (units of ϵ₀)")
 println("e_14 = ", -DFTK.full_stress_to_voigt(dstresses_dE)[4], " (a.u.)")
 println("e_14 = ", -DFTK.full_stress_to_voigt(dstresses_dE)[4] / austrip(1u"C/m^2"), " (C/m^2)")
@@ -180,8 +180,8 @@ println("e_14 = ", -DFTK.full_stress_to_voigt(dstresses_dE)[4] / austrip(1u"C/m^
 # displacing an atom. Note again that the values here are **severely underconverged**.
 #
 # When increasing $E_\mathrm{cut}$ to $50$ Ha and the $\mathbf{k}$-grid
-# to $10 \times 10 \times 10$, the following numbers are obtained:
-# - $Z^* = 42$ TODO
-# - $\epsilon_{xx} = 69$ TODO
-# - $e_{14} = 4.2$ C/m² TODO
+# to $12 \times 12 \times 12$, the following numbers are obtained:
+# - Born effective charge: $Z^* = 2.14$
+# - Dielectric constant: $\epsilon_{xx} = 9.5 \epsilon_0$
+# - Clamped-ion piezoelectric constant: $e_{14} = -0.69$ C/m²
 
