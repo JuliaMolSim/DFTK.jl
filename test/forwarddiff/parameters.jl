@@ -108,7 +108,7 @@ function run_test(; architecture, functionals=LDA(), atol=1e-5)
         # Generic points, avoiding high-symmetry points
         kgrid = ExplicitKpoints([[0.1, 0.2, 0.3], [0.4, -0.1, 0.25]])
         bands = compute_bands(scfres, kgrid; n_bands=6, tol=1e-8)
-        stack(bands.eigenvalues)
+        stack(bands.eigenvalues) .- scfres.εF
     end
 
     derivative_ε = let ε = 1e-4
@@ -342,6 +342,7 @@ end
 @testmodule TemperatureSensitivity begin
 using DFTK
 using Test
+using ComponentArrays
 using LinearAlgebra
 using PseudoPotentialData
 using ..ForwardDiffWrappers: tagged_derivative
@@ -358,14 +359,18 @@ function run_test(; architecture, functionals=LDA())
         model = model_DFT(lattice, atoms, positions; functionals, temperature=T)
         basis = PlaneWaveBasis(model; Ecut=10, kgrid=[1, 1, 1], architecture)
         scfres = self_consistent_field(basis, tol=1e-12)
-        scfres.energies.Entropy
+        ComponentArray(; scfres.energies.Entropy, scfres.εF)
     end
-    T0 = .01
-    derivative_ε = let ε = 1e-5
-        (get(T0+ε) - get(T0-ε)) / 2ε
+    # The gap is about 0.077 Hartree. For the lower temperature (gap / 2T ≈ 25)
+    # the Fermi level is not determined by the electron count, but εF = (HOMO + LUMO) / 2.
+    for T0 in (0.01, 0.0015)
+        derivative_ε = let ε = 1e-5
+            (get(T0+ε) - get(T0-ε)) / 2ε
+        end
+        derivative_fd = tagged_derivative(get, T0)
+        @test abs(derivative_ε.Entropy - derivative_fd.Entropy) < 1e-4
+        @test abs(derivative_ε.εF - derivative_fd.εF) < 1e-4
     end
-    derivative_fd = tagged_derivative(get, T0)
-    @test norm(derivative_ε - derivative_fd) < 1e-4
 end
 end
 

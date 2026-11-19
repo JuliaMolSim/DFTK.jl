@@ -1,5 +1,6 @@
 @testmodule Chi0 begin
 using Test
+using ComponentArrays
 using DFTK
 using DFTK: mpi_mean!
 using LinearAlgebra
@@ -37,7 +38,9 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         nbandsalg = is_εF_fixed ? FixedBands(; n_bands_converge=6) :
                                   FixedBands(model; temperature_factor_converge=2)
         res = DFTK.next_density(ham0, nbandsalg; tol, eigensolver)
-        scfres = (; ham=ham0, res...)
+        scfres = (; basis, ham=ham0, res...)
+
+        bandtolalg = DFTK.BandtolBalanced(scfres)
 
         # create external small perturbation εδV. apply_χ0 (being grounded on a symmetric basis)
         # only resolves perturbations respecting the symmetries, so we make δV symmetric.
@@ -49,24 +52,35 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         δV = δV_sym
 
         fd_basis_kwargs = merge(basis_kwargs, (; basis.fft_size))
-        function compute_ρ_FD(ε)
+        function compute_finite_perturbation(ε)
             model_fd = model_DFT(testcase.lattice, testcase.atoms, testcase.positions;
                                  functionals, model_kwargs...,
                                  extra_terms=[DFTK.ExternalFromValues(ε * δV)])
             basis_fd = PlaneWaveBasis(model_fd; fd_basis_kwargs...)
             @test length(basis_fd.symmetries) == 1  # δV breaks all symmetries
             ham_fd = energy_hamiltonian(basis_fd, nothing, nothing; ρ=ρ0).ham
-            DFTK.next_density(ham_fd, nbandsalg; tol, eigensolver).ρ
+            (; ρ, εF) = DFTK.next_density(ham_fd, nbandsalg; tol, eigensolver)
+            ComponentArray(; ρ, εF)
         end
 
         # middle point finite difference for more precision
-        ρ1 = compute_ρ_FD(-ε)
-        ρ2 = compute_ρ_FD(ε)
-        diff_findiff = (ρ2 - ρ1) / (2ε)
+        res1 = compute_finite_perturbation(-ε)
+        res2 = compute_finite_perturbation(+ε)
+        diff_findiff = (res2 - res1) / (2ε)
 
         # Test apply_χ0 and compare against finite differences
-        diff_applied_χ0 = apply_χ0(scfres, δV).δρ
-        @test norm(diff_findiff - diff_applied_χ0) < atol
+        diff_applied_χ0 = apply_χ0(scfres, δV)
+        @test norm(diff_findiff.ρ - diff_applied_χ0.δρ) < atol
+
+        # Test Fermi-level variation. At zero temperature εF = (HOMO + LUMO) / 2 is not
+        # differentiable here, since δV splits the degenerate HOMO of silicon.
+        if temperature > 0
+            (; ψ, occupation, eigenvalues, εF, occupation_threshold) = scfres
+            δHψ = DFTK.apply_potential_blochwave(basis, ψ, δV)
+            δεF = DFTK.apply_χ0_4P(ham0, ψ, occupation, εF, eigenvalues, δHψ;
+                                   occupation_threshold, bandtolalg).δεF
+            @test abs(δεF - diff_findiff.εF) < atol
+        end
 
         # Test apply_χ0 without extra bands
         ψ_occ, occ_occ = DFTK.select_occupied_orbitals(basis, scfres.ψ, scfres.occupation;
@@ -74,8 +88,8 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
         ε_occ = [scfres.eigenvalues[ik][1:size(ψk, 2)] for (ik, ψk) in enumerate(ψ_occ)]
 
         diff_applied_χ0_noextra = apply_χ0(scfres.ham, ψ_occ, occ_occ, scfres.εF, ε_occ, δV;
-                                           scfres.occupation_threshold).δρ
-        @test norm(diff_applied_χ0_noextra - diff_applied_χ0) < atol
+                                           scfres.occupation_threshold)
+        @test norm(diff_applied_χ0_noextra.δρ - diff_applied_χ0.δρ) < atol
 
         # just to cover it here
         if temperature > 0
@@ -89,7 +103,7 @@ function test_chi0(testcase; symmetries=false, temperature=0, spin_polarization=
             if compute_full_χ0
                 χ0 = compute_χ0(ham0)
                 diff_computed_χ0 = reshape(χ0 * vec(δV), basis.fft_size..., n_spin)
-                @test norm(diff_findiff - diff_computed_χ0) < atol
+                @test norm(diff_findiff.ρ - diff_computed_χ0) < atol
             end
 
             # Test that apply_χ0 is self-adjoint
