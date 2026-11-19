@@ -41,6 +41,8 @@ function load_basis(jld; comm=MPI.COMM_WORLD)
         basis_args = (jld["model"],
                       jld["Ecut"],
                       jld["fft_size"],
+                      # Files written before fft_size_xc existed used the basis grid for XC
+                      haskey(jld, "fft_size_xc") ? jld["fft_size_xc"] : jld["fft_size"],
                       jld["variational"],
                       jld["kgrid"],
                       jld["symmetries_respect_rgrid"],
