@@ -602,6 +602,7 @@ function gather_kpts(basis::PlaneWaveBasis)
         PlaneWaveBasis(basis.model,
                        basis.Ecut,
                        basis.fft_size,
+                       basis.fft_size_xc,
                        basis.variational,
                        basis.kgrid,
                        basis.symmetries_respect_rgrid,
