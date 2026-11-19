@@ -436,6 +436,18 @@ function symmetrize_hubbard_n(model, manifold::ResolvedOrbitalManifold,
     ns
 end
 
+"""
+Symmetrize the polarization in *reduced coordinates*.
+"""
+function symmetrize_polarization(P; symmetries)
+    symmetrized_P = zero(P)
+    for symop in symmetries
+        # Polarization is just a vector
+        symmetrized_P += symop.W * P
+    end
+    symmetrized_P ./ length(symmetries)
+end
+
 """"
 Convert a `basis` into one that doesn't use BZ symmetry.
 This is mainly useful for debug purposes (e.g. in cases we don't want to
@@ -511,7 +523,7 @@ function unfold_bz(scfres; skip_hamiltonian=false)
         energies, ham = nothing, nothing
     else
         energies, ham = energy_hamiltonian(basis_unfolded, ψ, occupation;
-                                           scfres.ρ, scfres.hubbard_n, eigenvalues, scfres.εF)
+                                           scfres.ρ, scfres.τ, scfres.hubbard_n, eigenvalues, scfres.εF)
         @assert energies.total ≈ scfres.energies.total
     end
     new_scfres = (; basis=basis_unfolded, ψ, ham, eigenvalues, occupation)

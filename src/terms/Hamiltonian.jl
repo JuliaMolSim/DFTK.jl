@@ -232,7 +232,8 @@ end
 Faster version than energy_hamiltonian for cases where only the energy is needed.
 """
 @timing function energy(basis::PlaneWaveBasis, ψ, occupation; kwargs...)
-    energy_values = [energy(term, basis, ψ, occupation; kwargs...) for term in basis.terms]
+    Tenergy = promote_type(eltype(basis), real(eltype(ψ[1])))
+    energy_values = Tenergy[energy(term, basis, ψ, occupation; kwargs...) for term in basis.terms]
     term_names = [string(nameof(typeof(term))) for term in basis.model.term_types]
     (; energies=Energies(term_names, energy_values))
 end

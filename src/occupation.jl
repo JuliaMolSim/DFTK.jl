@@ -236,6 +236,14 @@ function check_full_occupation(basis::AbstractBasis, occupation)
     end
 end
 
+function check_full_or_zero_occupation(model, occupation; occupation_threshold)
+    filled_occ = filled_occupation(model)
+    for occ_k in occupation
+        all(abs.(occ_k) .<= occupation_threshold .|| abs.(occ_k .- filled_occ) .<= occupation_threshold) ||
+            error("Only full or zero occupation is supported, found partial occupation: $occ_k.")
+    end
+end
+
 """
 Return ranges of occupied elements based on a given occupation threshold
 """

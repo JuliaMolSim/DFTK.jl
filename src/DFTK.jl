@@ -247,6 +247,9 @@ export compute_current
 include("postprocess/current.jl")
 export elastic_tensor
 include("postprocess/elastic.jl")
+export compute_k_derivatives
+export electronic_polarization_derivative
+include("postprocess/polarization.jl")
 export phonon_modes
 include("postprocess/phonon.jl")
 export refine_scfres
