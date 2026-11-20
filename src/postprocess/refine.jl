@@ -41,45 +41,28 @@ import DifferentiationInterface: AutoForwardDiff, value_and_derivative
 Invert the metric operator M.
 """
 @timing function invert_refinement_metric(basis::PlaneWaveBasis{T}, ψ, res) where {T}
-    # Apply the M_n operator.
-    function apply_M!(ψk, Pk, δψnk, n)
-        proj_tangent_kpt!(δψnk, ψk)
-        δψnk = sqrt.(Pk.mean_kin[n] .+ Pk.kin) .* δψnk
-        proj_tangent_kpt!(δψnk, ψk)
-        δψnk = sqrt.(Pk.mean_kin[n] .+ Pk.kin) .* δψnk
-        proj_tangent_kpt!(δψnk, ψk)
-    end
-
-    # Apply the M_n^{-1} operator.
-    function apply_inv_M(ψk, Pk, resk, n)
+    function apply_inv_M(ψk, Pk, resk)
         resk = proj_tangent_kpt(resk, ψk)
-        op(x) = apply_M!(ψk, Pk, x, n)
-        function f_ldiv!(x, y)
-            x .= proj_tangent_kpt(y, ψk)
-            x ./= (Pk.mean_kin[n] .+ Pk.kin)
-            proj_tangent_kpt!(x, ψk)
+        Pkinv_resk = similar(ψk)
+        Minv_resk = similar(ψk)
+        parallel_loop_over_range(1:size(ψk, 2)) do n
+            Pkinv_resk[:, n] .= resk[:,n] ./ (Pk.mean_kin[n] .+ Pk.kin)
         end
-        J = LinearMap{eltype(ψk)}(op, size(resk, 1))
-        # This CG seems to converge very quickly in practice (often 1 iteration).
-        cginfo = cg(J, resk;
-                    precon=FunctionPreconditioner(f_ldiv!),
-                    tol=100*eps(T), maxiter=20)
-        if !cginfo.converged
-            @warn """CG for `invert_refinement_metric` did not converge, this is unexpected.
-                    Residual norm after $(cginfo.n_iter) iterations is $(cginfo.residual_norm)."""
+        for n = 1:size(resk, 2)
+            Pkninv_ψk = similar(ψk)
+            parallel_loop_over_range(1:size(ψk, 2)) do m
+                Pkninv_ψk[:, m] .= ψk[:,m] ./ (Pk.mean_kin[n] .+ Pk.kin)
+            end
+            Gn = ψk'Pkninv_ψk
+            Minv_resk[:, n] = Pkinv_resk[:, n] - Pkninv_ψk * (Gn \ ψk'Pkinv_resk[:, n])
         end
-        proj_tangent_kpt!(cginfo.x, ψk)
+        return Minv_resk
     end
 
     map(basis.kpoints, ψ, res) do kpt, ψk, resk
-        P = PreconditionerTPA(basis, kpt)
-        precondprep!(P, ψk)
-        δψk = similar(resk)
-        for n = 1:size(resk, 2)
-            # Apply M_n^{-1} to each band.
-            δψk[:, n] = @views apply_inv_M(ψk, P, resk[:, n], n)
-        end
-        δψk
+        Pk = PreconditionerTPA(basis, kpt)
+        precondprep!(Pk, ψk)
+        apply_inv_M(ψk, Pk, resk)
     end
 end
 
