@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Elastic constants · DFTK.jl</title><meta name="title" content="Elastic constants · DFTK.jl"/><meta property="og:title" content="Elastic constants · DFTK.jl"/><meta property="twitter:title" content="Elastic constants · DFTK.jl"/><meta name="description" content="Documentation for DFTK.jl."/><meta property="og:description" content="Documentation for DFTK.jl."/><meta property="twitter:description" content="Documentation for DFTK.jl."/><meta property="og:url" content="https://docs.dftk.org/stable/examples/elastic_constants/"/><meta property="twitter:url" content="https://docs.dftk.org/stable/examples/elastic_constants/"/><link rel="canonical" href="https://docs.dftk.org/stable/examples/elastic_constants/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/><link href="../../assets/custom.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="DFTK.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">DFTK.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../features/">DFTK features</a></li><li><span class="tocitem">Getting started</span><ul><li><a class="tocitem" href="../../guide/installation/">Installation</a></li><li><a class="tocitem" href="../../guide/tutorial/">General Tutorial</a></li><li><a class="tocitem" href="../../guide/tutorialmath/">Mathematical Tutorial</a></li><li><a class="tocitem" href="../../guide/introductory_resources/">Introductory resources</a></li></ul></li><li><span class="tocitem">Basic DFT calculations</span><ul><li><a class="tocitem" href="../metallic_systems/">Temperature and metallic systems</a></li><li><a class="tocitem" href="../collinear_magnetism/">Collinear spin and magnetic systems</a></li><li><a class="tocitem" href="../convergence_study/">Performing a convergence study</a></li><li><a class="tocitem" href="../pseudopotentials/">Pseudopotentials</a></li><li><a class="tocitem" href="../supercells/">Creating and modelling metallic supercells</a></li><li><a class="tocitem" href="../gaas_surface/">Modelling a gallium arsenide surface</a></li><li><a class="tocitem" href="../graphene/">Graphene band structure</a></li><li><a class="tocitem" href="../geometry_optimization/">Geometry optimization</a></li><li><a class="tocitem" href="../energy_cutoff_smearing/">Energy cutoff smearing</a></li><li><a class="tocitem" href="../hubbard/">Hubbard correction (DFT+U)</a></li><li><a class="tocitem" href="../exact_exchange/">Exact exchange and Hybrid DFT</a></li></ul></li><li><span class="tocitem">Response and properties</span><ul><li class="is-active"><a class="tocitem" href>Elastic constants</a><ul class="internal"><li><a class="tocitem" href="#Computing-PBE-elastic-constants"><span>Computing PBE elastic constants</span></a></li><li><a class="tocitem" href="#Moving-to-meta-GGA-functionals"><span>Moving to meta-GGA functionals</span></a></li></ul></li><li><a class="tocitem" href="../polarizability/">Polarizability by linear response</a></li><li><a class="tocitem" href="../forwarddiff/">Polarizability using automatic differentiation</a></li><li><a class="tocitem" href="../phonons/">Phonon computations</a></li></ul></li><li><span class="tocitem">Ecosystem integration</span><ul><li><a class="tocitem" href="../../ecosystem/atomsbase/">AtomsBase integration</a></li><li><a class="tocitem" href="../../ecosystem/atomscalculators/">AtomsCalculators integration</a></li><li><a class="tocitem" href="../../ecosystem/input_output/">Input and output formats</a></li><li><a class="tocitem" href="../../ecosystem/atomistic_simulation_environment/">Atomistic simulation environment (ASE)</a></li><li><a class="tocitem" href="../../ecosystem/wannier/">Wannierization using Wannier.jl or Wannier90</a></li></ul></li><li><span class="tocitem">Tips and tricks</span><ul><li><a class="tocitem" href="../../tricks/achieving_convergence/">Achieving DFT convergence</a></li><li><a class="tocitem" href="../../tricks/parallelization/">Timings and parallelization</a></li><li><a class="tocitem" href="../../tricks/gpu/">Using DFTK on GPUs</a></li><li><a class="tocitem" href="../../tricks/scf_checkpoints/">Saving SCF results on disk and SCF checkpoints</a></li><li><a class="tocitem" href="../../tricks/compute_clusters/">Using DFTK on compute clusters</a></li></ul></li><li><span class="tocitem">Solvers</span><ul><li><a class="tocitem" href="../custom_solvers/">Custom solvers</a></li><li><a class="tocitem" href="../scf_callbacks/">Monitoring self-consistent field calculations</a></li><li><a class="tocitem" href="../compare_solvers/">Comparison of DFT solvers</a></li><li><a class="tocitem" href="../analysing_scf_convergence/">Analysing SCF convergence</a></li></ul></li><li><span class="tocitem">Nonstandard models</span><ul><li><a class="tocitem" href="../gross_pitaevskii/">Gross-Pitaevskii equation in one dimension</a></li><li><a class="tocitem" href="../gross_pitaevskii_2D/">Gross-Pitaevskii equation with external magnetic field</a></li><li><a class="tocitem" href="../custom_potential/">Custom potential</a></li><li><a class="tocitem" href="../cohen_bergstresser/">Cohen-Bergstresser model</a></li><li><a class="tocitem" href="../anyons/">Anyonic models</a></li></ul></li><li><span class="tocitem">Error control</span><ul><li><a class="tocitem" href="../arbitrary_floattype/">Arbitrary floating-point types</a></li><li><a class="tocitem" href="../error_estimates_forces/">Practical error bounds for the forces</a></li></ul></li><li><span class="tocitem">Theoretical Background</span><ul><li><a class="tocitem" href="../../guide/periodic_problems/">Periodic problems and plane-wave discretisations</a></li><li><a class="tocitem" href="../../guide/discretisation/">Comparing discretization techniques</a></li><li><a class="tocitem" href="../../guide/atomic_chains/">Modelling atomic chains</a></li><li><a class="tocitem" href="../../guide/density_functional_theory/">Introduction to density-functional theory</a></li><li><a class="tocitem" href="../../guide/self_consistent_field/">Self-consistent field methods</a></li></ul></li><li><span class="tocitem">Developer resources</span><ul><li><a class="tocitem" href="../../developer/setup/">Developer setup</a></li><li><a class="tocitem" href="../../developer/testsystem/">Unit test system</a></li><li><a class="tocitem" href="../../developer/conventions/">Notation and conventions</a></li><li><a class="tocitem" href="../../developer/style_guide/">Developer&#39;s style guide</a></li><li><a class="tocitem" href="../../developer/data_structures/">Data structures</a></li><li><a class="tocitem" href="../../developer/useful_formulas/">Useful formulas</a></li><li><a class="tocitem" href="../../developer/symmetries/">Crystal symmetries</a></li><li><a class="tocitem" href="../../developer/gpu_computations/">GPU computations</a></li></ul></li><li><a class="tocitem" href="../../api/">API reference</a></li><li><a class="tocitem" href="../../publications/">Publications</a></li><li><a class="tocitem" href="../../research/">Research conducted with DFTK</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Response and properties</a></li><li class="is-active"><a href>Elastic constants</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Elastic constants</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaMolSim/DFTK.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaMolSim/DFTK.jl/blob/master/examples/elastic_constants.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Elastic-constants"><a class="docs-heading-anchor" href="#Elastic-constants">Elastic constants</a><a id="Elastic-constants-1"></a><a class="docs-heading-anchor-permalink" href="#Elastic-constants" title="Permalink"></a></h1><p>We compute <em>clamped-ion</em> elastic constants of a crystal using the algorithmic differentiation density-functional perturbation theory (AD-DFPT) approach as introduced in <sup class="footnote-reference"><a id="citeref-SPH25" href="#footnote-SPH25">[SPH25]</a></sup>.</p><p>We consider a crystal in its equilibrium configuration, where all atomic forces and stresses vanish.  Homogeneous strains <span>$η$</span> are then applied relative to this relaxed structure. The elastic constants are derived from the stress-strain relationship. In <a href="https://en.wikipedia.org/wiki/Voigt_notation">Voigt notation</a>, the stress <span>$\sigma$</span> and strain <span>$\eta$</span> tensors are represented as 6-component vectors. The elastic constants <span>$C$</span> are then given by the Jacobian of the stress with respect to strain, forming a <span>$6 \times 6$</span> matrix</p><p class="math-container">\[  C = \frac{\partial \sigma}{\partial \eta}.\]</p><p>The sparsity pattern of the matrix <span>$C$</span> follows from crystal symmetry and is tabulated in standard references (eg. Table 9 in <sup class="footnote-reference"><a id="citeref-Nye1985" href="#footnote-Nye1985">[Nye1985]</a></sup>). This sparsity can be used a priori to reduce the number of strain patterns that need to be probed to extract all independent components of <span>$C$</span>. For example, cubic crystals have only three independent elastic constants <span>$C_{11}$</span>, <span>$C_{12}$</span> and <span>$C_{44}$</span>, with the pattern</p><p class="math-container">\[C = \begin{pmatrix}
+  C_{11} &amp; C_{12} &amp; C_{12} &amp; 0      &amp; 0      &amp; 0 \\
+  C_{12} &amp; C_{11} &amp; C_{12} &amp; 0      &amp; 0      &amp; 0 \\
+  C_{12} &amp; C_{12} &amp; C_{11} &amp; 0      &amp; 0      &amp; 0 \\
+  0      &amp; 0      &amp; 0      &amp; C_{44} &amp; 0      &amp; 0 \\
+  0      &amp; 0      &amp; 0      &amp; 0      &amp; C_{44} &amp; 0 \\
+  0      &amp; 0      &amp; 0      &amp; 0      &amp; 0      &amp; C_{44} \\
+\end{pmatrix}.\]</p><p>Thus we can just choose a suitable strain pattern <span>$\dot{\eta} = (1, 0, 0, 1, 0, 0)^\top$</span>, such that <span>$C\dot{\eta} = (C_{11}, C_{12}, C_{12}, C_{44}, 0, 0)^\top$</span>. That is, for cubic crystals like diamond silicon we obtain all independent elastic constants from a single Jacobian-vector product on the stress-strain function.</p><p>This example computes the <em>clamped-ion</em> elastic tensor, keeping internal atomic positions fixed under strain.  The <em>relaxed-ion</em> tensor includes additional corrections from internal relaxations, which can be obtained from first-order atomic displacements in DFPT (see <sup class="footnote-reference"><a id="citeref-Wu2005" href="#footnote-Wu2005">[Wu2005]</a></sup>).</p><pre><code class="language-julia hljs">using DFTK
+using PseudoPotentialData
+using LinearAlgebra
+using ForwardDiff
+using DifferentiationInterface
+using AtomsBuilder
+using Unitful
+using UnitfulAtomic</code></pre><h2 id="Computing-PBE-elastic-constants"><a class="docs-heading-anchor" href="#Computing-PBE-elastic-constants">Computing PBE elastic constants</a><a id="Computing-PBE-elastic-constants-1"></a><a class="docs-heading-anchor-permalink" href="#Computing-PBE-elastic-constants" title="Permalink"></a></h2><p>We start with the PBE <sup class="footnote-reference"><a id="citeref-PBE1996" href="#footnote-PBE1996">[PBE1996]</a></sup> functional.</p><pre><code class="language-julia hljs">pseudopotentials = PseudoFamily(&quot;dojo.nc.sr.pbe.v0_4_1.standard.upf&quot;)
+a0_pbe = 10.33u&quot;bohr&quot;  # Equilibrium lattice constant of silicon with PBE
+model0 = model_DFT(bulk(:Si; a=a0_pbe); pseudopotentials, functionals=PBE())
+
+Ecut = recommended_cutoff(model0).Ecut
+kgrid = [4, 4, 4]
+tol = 1e-6
+
+function symmetries_from_strain(model0, voigt_strain)
+    lattice = DFTK.voigt_strain_to_full(voigt_strain) * model0.lattice
+    model = Model(model0; lattice, symmetries=true)
+    model.symmetries
+end
+
+strain_pattern = [1., 0., 0., 1., 0., 0.];  # recovers [c11, c12, c12, c44, 0, 0]</code></pre><p>For elastic constants beyond the bulk modulus, symmetry-breaking strains are required. That is, the symmetry group of the crystal is reduced. Here we simply precompute the relevant subgroup by applying the automatic symmetry detection (spglib) to the finitely perturbed crystal.</p><pre><code class="language-julia hljs">symmetries_strain = symmetries_from_strain(model0, 0.01 * strain_pattern)
+
+
+function stress_from_strain(model0, voigt_strain; symmetries, Ecut, kgrid, tol)
+    lattice = DFTK.voigt_strain_to_full(voigt_strain) * model0.lattice
+    model = Model(model0; lattice, symmetries)
+    basis = PlaneWaveBasis(model; Ecut, kgrid)
+    scfres = self_consistent_field(basis; tol)
+    DFTK.full_stress_to_voigt(compute_stresses_cart(scfres))
+end
+
+stress_fn(voigt_strain) = stress_from_strain(model0, voigt_strain;
+                                             symmetries=symmetries_strain,
+                                             Ecut, kgrid, tol)
+stress, (dstress,) = value_and_pushforward(stress_fn, AutoForwardDiff(),
+                                           zeros(6), (strain_pattern,));</code></pre><pre><code class="nohighlight hljs">n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime 
+---   ---------------   ---------   ---------   ----   ------
+  1   -8.453495592272                   -0.94    5.3    416ms
+  2   -8.455630031252       -2.67       -1.77    1.0    168ms
+  3   -8.455778742205       -3.83       -2.89    1.9    198ms
+  4   -8.455790083248       -4.95       -3.32    2.9    272ms
+  5   -8.455790178610       -7.02       -3.95    1.2    162ms
+  6   -8.455790187034       -8.07       -4.74    1.6    189ms
+  7   -8.455790187698       -9.18       -5.67    2.1    221ms
+  8   -8.455790187713      -10.82       -6.07    2.8    270ms
+Solving response problem
+Iter  Restart  Krydim  log10(res)  avg(CG)  Δtime   Comment
+----  -------  ------  ----------  -------  ------  ---------------
+                                      17.1   7.64s  Non-interacting
+   1        0       1        0.11     12.7   15.7s  
+   2        0       2       -0.70     11.4   826ms  
+   3        0       3       -1.71     10.1   460ms  
+   4        0       4       -2.78      8.1   387ms  
+   5        0       5       -4.04      5.3   303ms  
+   6        0       6       -5.57      1.9   190ms  
+   7        0       7       -7.77      1.0   161ms  
+   8        1       1       -6.38     16.3   923ms  Restart
+                                      15.9   1.92s  Final orbitals
+</code></pre><p>We can inspect the stress to verify it is small (close to equilibrium):</p><pre><code class="language-julia hljs">stress</code></pre><pre><code class="nohighlight hljs">6-element StaticArraysCore.SVector{6, Float64} with indices SOneTo(6):
+ -2.3120131645660768e-5
+ -2.312034974362303e-5
+ -2.3120349743623055e-5
+  7.034973824820316e-10
+  0.0
+  0.0</code></pre><p>The response of the stress to <code>strain_pattern</code> contains the elastic constants in atomic units, with the expected pattern <span>$(c11, c12, c12, c44, 0, 0)$</span>:</p><pre><code class="language-julia hljs">dstress</code></pre><pre><code class="nohighlight hljs">6-element StaticArraysCore.SVector{6, Float64} with indices SOneTo(6):
+ 0.005319939387016797
+ 0.002024899420222948
+ 0.002024899420222948
+ 0.0033519068894872434
+ 0.0
+ 0.0</code></pre><p>Convert to GPa:</p><pre><code class="language-julia hljs">println(&quot;C11: &quot;, uconvert(u&quot;GPa&quot;, dstress[1] * u&quot;hartree&quot; / u&quot;bohr&quot;^3))
+println(&quot;C12: &quot;, uconvert(u&quot;GPa&quot;, dstress[2] * u&quot;hartree&quot; / u&quot;bohr&quot;^3))
+println(&quot;C44: &quot;, uconvert(u&quot;GPa&quot;, dstress[4] * u&quot;hartree&quot; / u&quot;bohr&quot;^3))</code></pre><pre><code class="nohighlight hljs">C11: 156.5180202105481 GPa
+C12: 59.5745976264789 GPa
+C44: 98.61650520925065 GPa
+</code></pre><p>These results can be compared directly to finite differences of the stress_fn:</p><pre><code class="language-julia hljs">h = 1e-3
+dstress_fd = (stress_fn(h * strain_pattern) - stress_fn(-h * strain_pattern)) / 2h
+println(&quot;C11 (FD): &quot;, uconvert(u&quot;GPa&quot;, dstress_fd[1] * u&quot;hartree&quot; / u&quot;bohr&quot;^3))
+println(&quot;C12 (FD): &quot;, uconvert(u&quot;GPa&quot;, dstress_fd[2] * u&quot;hartree&quot; / u&quot;bohr&quot;^3))
+println(&quot;C44 (FD): &quot;, uconvert(u&quot;GPa&quot;, dstress_fd[4] * u&quot;hartree&quot; / u&quot;bohr&quot;^3))</code></pre><pre><code class="nohighlight hljs">n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime 
+---   ---------------   ---------   ---------   ----   ------
+  1   -8.453517556096                   -0.94    5.4    398ms
+  2   -8.455633436047       -2.67       -1.77    1.0    156ms
+  3   -8.455782741165       -3.83       -2.89    2.0    204ms
+  4   -8.455795209965       -4.90       -3.31    2.9    282ms
+  5   -8.455795304904       -7.02       -3.84    1.3    175ms
+  6   -8.455795314288       -8.03       -4.92    1.4    177ms
+  7   -8.455795315190       -9.04       -5.51    2.9    277ms
+  8   -8.455795315197      -11.12       -5.94    1.7    202ms
+  9   -8.455795315198      -12.21       -6.62    1.3    171ms
+n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime 
+---   ---------------   ---------   ---------   ----   ------
+  1   -8.453473298957                   -0.94    5.4    381ms
+  2   -8.455620637872       -2.67       -1.78    1.0    154ms
+  3   -8.455767643459       -3.83       -2.88    1.8    196ms
+  4   -8.455782121422       -4.84       -3.25    2.9    274ms
+  5   -8.455782238180       -6.93       -3.74    1.1    157ms
+  6   -8.455782253233       -7.82       -4.79    1.4    181ms
+  7   -8.455782254356       -8.95       -5.45    2.7    336ms
+  8   -8.455782254370      -10.86       -5.94    1.8    847ms
+  9   -8.455782254371      -12.04       -6.81    1.8    221ms
+C11 (FD): 156.2909842093387 GPa
+C12 (FD): 59.51630198935152 GPa
+C44 (FD): 98.54130855707672 GPa
+</code></pre><p>Here are AD-DFPT results from increasing discretization parameters:</p><table><tr><th style="text-align: right">Ecut</th><th style="text-align: right">kgrid</th><th style="text-align: right">c11</th><th style="text-align: right">c12</th><th style="text-align: right">c44</th></tr><tr><td style="text-align: right">18</td><td style="text-align: right">[4, 4, 4]</td><td style="text-align: right">156.51</td><td style="text-align: right">59.57</td><td style="text-align: right">98.61</td></tr><tr><td style="text-align: right">18</td><td style="text-align: right">[8, 8, 8]</td><td style="text-align: right">153.53</td><td style="text-align: right">56.90</td><td style="text-align: right">100.07</td></tr><tr><td style="text-align: right">24</td><td style="text-align: right">[8, 8, 8]</td><td style="text-align: right">153.26</td><td style="text-align: right">56.82</td><td style="text-align: right">99.97</td></tr><tr><td style="text-align: right">24</td><td style="text-align: right">[14, 14, 14]</td><td style="text-align: right">153.03</td><td style="text-align: right">56.71</td><td style="text-align: right">100.09</td></tr></table><p>For comparison, Materials Project for PBE <em>relaxed-ion</em> elastic constants of silicon <a href="https://next-gen.materialsproject.org/materials/mp-149">mp-149</a>: c11 = 153 GPa, c12 = 57 GPa, c44 = 74 GPa. Note the discrepancy in c44, which is due to us not yet including ionic relaxation in this example.</p><h2 id="Moving-to-meta-GGA-functionals"><a class="docs-heading-anchor" href="#Moving-to-meta-GGA-functionals">Moving to meta-GGA functionals</a><a id="Moving-to-meta-GGA-functionals-1"></a><a class="docs-heading-anchor-permalink" href="#Moving-to-meta-GGA-functionals" title="Permalink"></a></h2><p>To make the problem a little more interesting we will now compute the elastic constants using the Laplacian-dependent r2SCAN-L functional (a deorbitalized version of r2SCAN, see <sup class="footnote-reference"><a id="citeref-MT2020" href="#footnote-MT2020">[MT2020]</a></sup>), again using AD-DFPT.</p><pre><code class="language-julia hljs">model_r2scanl = model_DFT(bulk(:Si; a=a0_pbe);
+                       pseudopotentials, functionals=[:mgga_x_r2scanl, :mgga_c_r2scanl])
+
+stress, (dstress,) = value_and_pushforward(AutoForwardDiff(), zeros(6),
+                                           (strain_pattern,)) do voigt_strain
+    stress_from_strain(model_r2scanl, voigt_strain;
+                       symmetries=symmetries_strain, Ecut, kgrid, tol)
+end;</code></pre><pre><code class="nohighlight hljs">┌ Warning: Meta-GGAs with a Δρ term have not yet been thoroughly tested.
+└ @ DFTK ~/work/DFTK.jl/DFTK.jl/src/terms/xc.jl:121
+n     Energy            log10(ΔE)   log10(Δρ)   Diag   Δtime 
+---   ---------------   ---------   ---------   ----   ------
+  1   -8.490338765098                   -0.92    5.4    2.58s
+  2   -8.493545534233       -2.49       -1.80    1.0    549ms
+  3   -8.493817176106       -3.57       -2.63    2.2    264ms
+  4   -8.493840375441       -4.63       -3.35    2.5    314ms
+  5   -8.493846293412       -5.23       -3.74    2.3    282ms
+  6   -8.493848958024       -5.57       -4.03    2.1    266ms
+  7   -8.493850359820       -5.85       -4.37    2.8    310ms
+  8   -8.493850688130       -6.48       -4.76    2.8    309ms
+  9   -8.493850749962       -7.21       -5.18    3.1    327ms
+ 10   -8.493850753653       -8.43       -5.60    2.1    270ms
+ 11   -8.493850755126       -8.83       -5.91    2.2    284ms
+ 12   -8.493850755533       -9.39       -6.23    2.1    275ms
+Solving response problem
+Iter  Restart  Krydim  log10(res)  avg(CG)  Δtime   Comment
+----  -------  ------  ----------  -------  ------  ---------------
+                                      17.2   631ms  Non-interacting
+   1        0       1        0.11     12.6   2.57s  
+   2        0       2       -0.67     10.6   532ms  
+   3        0       3       -1.30      8.4   459ms  
+   4        0       4       -1.86      6.6   394ms  
+   5        0       5       -2.56      5.0   345ms  
+   6        0       6       -2.89      2.4   264ms  
+   7        0       7       -3.35      2.2   257ms  
+   8        0       8       -3.79      2.0   257ms  
+   9        0       9       -4.26      1.9   249ms  
+  10        0      10       -4.87      1.5   231ms  
+  11        0      11       -7.04      1.0   246ms  
+  12        1       1       -4.61     18.7   1.75s  Restart
+  13        1       2       -4.97      4.6   318ms  
+  14        1       3       -5.23      2.9   330ms  
+  15        1       4       -5.60      3.1   288ms  
+  16        1       5       -6.03      2.0   250ms  
+  17        1       6       -6.43      2.0   251ms  
+                                      16.5   713ms  Final orbitals
+</code></pre><p>Note here that the <code>value_and_pushforward(...) do voigt_strain ... end</code> syntax defines an anonymous function to compute the stress from a given strain, i.e. defining the same kind of function as <code>stress_fn</code> in the above example. See the <a href="https://docs.julialang.org/en/v1/manual/functions/#Do-Block-Syntax-for-Function-Arguments">Julia documentation on the do-block-syntax</a> for details.</p><p>We again inspect the r2SCAN-L stress, which is still small (despite using the PBE lattice constant), so we remain close to the equilibrium:</p><pre><code class="language-julia hljs">stress</code></pre><pre><code class="nohighlight hljs">6-element StaticArraysCore.SVector{6, Float64} with indices SOneTo(6):
+ -1.991259797978997e-5
+ -1.9912619197159416e-5
+ -1.991261919715943e-5
+  1.0278827069688885e-9
+  0.0
+  0.0</code></pre><p>Finally, the r2SCAN-L elastic constants, which agree well with PBE:</p><pre><code class="language-julia hljs">println(&quot;C11: &quot;, uconvert(u&quot;GPa&quot;, dstress[1] * u&quot;hartree&quot; / u&quot;bohr&quot;^3))
+println(&quot;C12: &quot;, uconvert(u&quot;GPa&quot;, dstress[2] * u&quot;hartree&quot; / u&quot;bohr&quot;^3))
+println(&quot;C44: &quot;, uconvert(u&quot;GPa&quot;, dstress[4] * u&quot;hartree&quot; / u&quot;bohr&quot;^3))</code></pre><pre><code class="nohighlight hljs">C11: 155.91235129444064 GPa
+C12: 59.34778650762075 GPa
+C44: 97.94754812053009 GPa
+</code></pre><section class="footnotes is-size-7"><ul><li class="footnote" id="footnote-SPH25"><a class="tag is-link" href="#citeref-SPH25">SPH25</a>Schmitz, N. F., Ploumhans, B., &amp; Herbst, M. F. (2026) <em>Algorithmic differentiation for plane-wave DFT: materials design, error control and learning model parameters.</em> <a href="https://doi.org/10.1038/s41524-025-01880-3">npj Computational Materials <strong>12</strong>, 6 (2026)</a>. (<a href="https://github.com/niklasschmitz/ad-dfpt">Supplementary material and computational scripts</a>).</li><li class="footnote" id="footnote-Nye1985"><a class="tag is-link" href="#citeref-Nye1985">Nye1985</a>Nye, J. F. (1985).  <em>Physical Properties of Crystals</em>. Oxford University Press.  Comment: Since the elastic tensor transforms equivariantly under rotations,  its numerical components depend on the chosen Cartesian coordinate frame.  These tabulated patterns assume a standardized orientation of the structure  with respect to conventional crystallographic axes.</li><li class="footnote" id="footnote-Wu2005"><a class="tag is-link" href="#citeref-Wu2005">Wu2005</a>Wu, X., Vanderbilt, D., &amp; Hamann, D. R. (2005). <em>Systematic treatment of displacements, strains, and electric fields in density-functional perturbation theory.</em> <a href="https://doi.org/10.1103/PhysRevB.72.035105">Physical Review B, 72(3), 035105</a>.</li><li class="footnote" id="footnote-PBE1996"><a class="tag is-link" href="#citeref-PBE1996">PBE1996</a>Perdew, J. P., Burke, K., &amp; Ernzerhof, M. (1996). <em>Generalized Gradient Approximation Made Simple.</em> <a href="https://doi.org/10.1103/PhysRevLett.77.3865">Physical Review Letters, 77(18), 3865-3868</a>.</li><li class="footnote" id="footnote-MT2020"><a class="tag is-link" href="#citeref-MT2020">MT2020</a>Mejía-Rodríguez, D., &amp; Trickey, S. B. (2020). <em>Meta-GGA performance in solids at almost GGA cost.</em> <a href="https://doi.org/10.1103/PhysRevB.102.121109">Physical Review B, 102(12), 121109(R)</a>.</li></ul></section></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../exact_exchange/">« Exact exchange and Hybrid DFT</a><a class="docs-footer-nextpage" href="../polarizability/">Polarizability by linear response »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.8.1 on <span class="colophon-date" title="Monday 20 April 2026 10:39">Monday 20 April 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

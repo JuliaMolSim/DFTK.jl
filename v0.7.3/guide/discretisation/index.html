@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Comparing discretization techniques · DFTK.jl</title><meta name="title" content="Comparing discretization techniques · DFTK.jl"/><meta property="og:title" content="Comparing discretization techniques · DFTK.jl"/><meta property="twitter:title" content="Comparing discretization techniques · DFTK.jl"/><meta name="description" content="Documentation for DFTK.jl."/><meta property="og:description" content="Documentation for DFTK.jl."/><meta property="twitter:description" content="Documentation for DFTK.jl."/><meta property="og:url" content="https://docs.dftk.org/stable/guide/discretisation/"/><meta property="twitter:url" content="https://docs.dftk.org/stable/guide/discretisation/"/><link rel="canonical" href="https://docs.dftk.org/stable/guide/discretisation/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="DFTK.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">DFTK.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../features/">DFTK features</a></li><li><span class="tocitem">Getting started</span><ul><li><a class="tocitem" href="../installation/">Installation</a></li><li><a class="tocitem" href="../tutorial/">Tutorial</a></li></ul></li><li><span class="tocitem">Background</span><ul><li><a class="tocitem" href="../introductory_resources/">Introductory resources</a></li><li><a class="tocitem" href="../periodic_problems/">Periodic problems and plane-wave discretisations</a></li><li class="is-active"><a class="tocitem" href>Comparing discretization techniques</a><ul class="internal"><li><a class="tocitem" href="#Finite-differences"><span>Finite differences</span></a></li><li><a class="tocitem" href="#Plane-waves-method"><span>Plane waves method</span></a></li><li><a class="tocitem" href="#Using-DFTK"><span>Using DFTK</span></a></li><li><a class="tocitem" href="#Plotting"><span>Plotting</span></a></li><li><a class="tocitem" href="#The-DFTK-Hamiltonian"><span>The DFTK Hamiltonian</span></a></li><li><a class="tocitem" href="#Solutions"><span>Solutions</span></a></li></ul></li><li><a class="tocitem" href="../atomic_chains/">Modelling atomic chains</a></li><li><a class="tocitem" href="../density_functional_theory/">Introduction to density-functional theory</a></li><li><a class="tocitem" href="../self_consistent_field/">Self-consistent field methods</a></li><li><a class="tocitem" href="../../school2022/">DFTK School 2022</a></li></ul></li><li><span class="tocitem">Basic DFT calculations</span><ul><li><a class="tocitem" href="../../examples/metallic_systems/">Temperature and metallic systems</a></li><li><a class="tocitem" href="../../examples/collinear_magnetism/">Collinear spin and magnetic systems</a></li><li><a class="tocitem" href="../../examples/convergence_study/">Performing a convergence study</a></li><li><a class="tocitem" href="../../examples/pseudopotentials/">Pseudopotentials</a></li><li><a class="tocitem" href="../../examples/supercells/">Creating and modelling metallic supercells</a></li><li><a class="tocitem" href="../../examples/gaas_surface/">Modelling a gallium arsenide surface</a></li><li><a class="tocitem" href="../../examples/graphene/">Graphene band structure</a></li><li><a class="tocitem" href="../../examples/geometry_optimization/">Geometry optimization</a></li><li><a class="tocitem" href="../../examples/energy_cutoff_smearing/">Energy cutoff smearing</a></li></ul></li><li><span class="tocitem">Response and properties</span><ul><li><a class="tocitem" href="../../examples/polarizability/">Polarizability by linear response</a></li><li><a class="tocitem" href="../../examples/forwarddiff/">Polarizability using automatic differentiation</a></li></ul></li><li><span class="tocitem">Ecosystem integration</span><ul><li><a class="tocitem" href="../../ecosystem/atomsbase/">AtomsBase integration</a></li><li><a class="tocitem" href="../../ecosystem/atomscalculators/">AtomsCalculators integration</a></li><li><a class="tocitem" href="../../ecosystem/input_output/">Input and output formats</a></li><li><a class="tocitem" href="../../ecosystem/atomistic_simulation_environment/">Atomistic simulation environment</a></li><li><a class="tocitem" href="../../ecosystem/wannier/">Wannierization using Wannier.jl or Wannier90</a></li></ul></li><li><span class="tocitem">Tips and tricks</span><ul><li><a class="tocitem" href="../../tricks/parallelization/">Timings and parallelization</a></li><li><a class="tocitem" href="../../tricks/scf_checkpoints/">Saving SCF results on disk and SCF checkpoints</a></li><li><a class="tocitem" href="../../tricks/compute_clusters/">Using DFTK on compute clusters</a></li></ul></li><li><span class="tocitem">Solvers</span><ul><li><a class="tocitem" href="../../examples/custom_solvers/">Custom solvers</a></li><li><a class="tocitem" href="../../examples/scf_callbacks/">Monitoring self-consistent field calculations</a></li><li><a class="tocitem" href="../../examples/compare_solvers/">Comparison of DFT solvers</a></li><li><a class="tocitem" href="../../examples/analysing_scf_convergence/">Analysing SCF convergence</a></li></ul></li><li><span class="tocitem">Nonstandard models</span><ul><li><a class="tocitem" href="../../examples/gross_pitaevskii/">Gross-Pitaevskii equation in one dimension</a></li><li><a class="tocitem" href="../../examples/gross_pitaevskii_2D/">Gross-Pitaevskii equation with external magnetic field</a></li><li><a class="tocitem" href="../../examples/custom_potential/">Custom potential</a></li><li><a class="tocitem" href="../../examples/cohen_bergstresser/">Cohen-Bergstresser model</a></li><li><a class="tocitem" href="../../examples/anyons/">Anyonic models</a></li></ul></li><li><span class="tocitem">Error control</span><ul><li><a class="tocitem" href="../../examples/arbitrary_floattype/">Arbitrary floating-point types</a></li><li><a class="tocitem" href="../../examples/error_estimates_forces/">Practical error bounds for the forces</a></li></ul></li><li><span class="tocitem">Developer resources</span><ul><li><a class="tocitem" href="../../developer/setup/">Developer setup</a></li><li><a class="tocitem" href="../../developer/testsystem/">Unit test system</a></li><li><a class="tocitem" href="../../developer/conventions/">Notation and conventions</a></li><li><a class="tocitem" href="../../developer/style_guide/">Developer&#39;s style guide</a></li><li><a class="tocitem" href="../../developer/data_structures/">Data structures</a></li><li><a class="tocitem" href="../../developer/useful_formulas/">Useful formulas</a></li><li><a class="tocitem" href="../../developer/symmetries/">Crystal symmetries</a></li><li><a class="tocitem" href="../../developer/gpu_computations/">GPU computations</a></li></ul></li><li><a class="tocitem" href="../../api/">API reference</a></li><li><a class="tocitem" href="../../publications/">Publications</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Background</a></li><li class="is-active"><a href>Comparing discretization techniques</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Comparing discretization techniques</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaMolSim/DFTK.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaMolSim/DFTK.jl/blob/master/docs/src/guide/discretisation.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Comparing-discretization-techniques"><a class="docs-heading-anchor" href="#Comparing-discretization-techniques">Comparing discretization techniques</a><a id="Comparing-discretization-techniques-1"></a><a class="docs-heading-anchor-permalink" href="#Comparing-discretization-techniques" title="Permalink"></a></h1><p><a href="https://mybinder.org/v2/gh/JuliaMolSim/DFTK.jl/gh-pages?filepath=v0.7.3/guide/discretisation.ipynb"><img src="https://mybinder.org/badge_logo.svg" alt/></a> <a href="https://nbviewer.jupyter.org/github/JuliaMolSim/DFTK.jl/blob/gh-pages/v0.7.3/guide/discretisation.ipynb"><img src="https://img.shields.io/badge/show-nbviewer-579ACA.svg" alt/></a></p><p>In <a href="../periodic_problems/#periodic-problems">Periodic problems and plane-wave discretizations</a> we saw how simple 1D problems can be modelled using plane-wave basis sets. This example invites you to work out some details on these aspects yourself using a number of exercises. The solutions are given at the bottom of the page.</p><p>For this example we consider the discretization of</p><p class="math-container">\[   H = - \frac12 Δ + V(x) \quad \text{with $V(x) = \cos(x)$}\]</p><p>on <span>$[0, 2π]$</span> with periodic boundary conditions. The <span>$\cos(x)$</span> takes the role of a lattice-periodic potential. We will be interested in the smallest eigenvalues of this discretized Hamiltonian. Of note the boundary condition matters: The spectrum we will get is different from e.g. the spectrum of <span>$H$</span> on <span>$\mathbb{R}$</span>.</p><h2 id="Finite-differences"><a class="docs-heading-anchor" href="#Finite-differences">Finite differences</a><a id="Finite-differences-1"></a><a class="docs-heading-anchor-permalink" href="#Finite-differences" title="Permalink"></a></h2><p>We approximate functions <span>$ψ$</span> on <span>$[0, 2\pi]$</span> by their values at grid points <span>$x_k = 2\pi \frac{k}{N}$</span>, <span>$k=1, \dots, N$</span>. The boundary conditions are imposed by <span>$ψ(x_0) = ψ(x_N), ψ(x_{N+1}) = ψ(x_1)$</span>. We then have</p><p class="math-container">\[   \big(Hψ\big)(x_k) \approx \frac 1 2 \frac{-ψ_{k-1} + 2 ψ_k - ψ_{k+1}}{δx^2}
+   + V(x_k) ψ(x_k)\]</p><p>with <span>$δx = \frac{2π}{N}$</span>.</p><p>This can be put in matrix form in the following way:</p><pre><code class="language-julia hljs"># Finite differences Hamiltonian -1/2 Delta + V on [0, 2pi] with periodic bc.
+# Pass it a function V.
+using LinearAlgebra
+
+function build_finite_differences_matrix(Vfunction, N::Integer)
+    δx = 2π/N
+
+    # Finite-difference approximation to -½Δ
+    T = 1/(2δx^2) * Tridiagonal(-ones(N-1), 2ones(N), -ones(N-1))
+    # The type Tridiagonal is efficient, but to establish the periodic boundary conditions
+    # we need to add elements not on the three diagonals, so convert to dense matrix
+    T = Matrix(T)
+    T[1, N] = T[N, 1] = -1 / (2δx^2)
+
+    # Finite-difference approximation to potential: We collect all coordinates ...
+    x_coords = [k * δx for k=1:N]
+    V = Diagonal(Vfunction.(x_coords))  # ... and evaluate V on each of the x_coords
+
+    T + V
+end;</code></pre><div class="admonition is-success"><header class="admonition-header">Exercise 1</header><div class="admonition-body"><p>Show that the finite-difference approximation of -½Δ is indeed an approximation of the second derivative. Obtain an estimate of the first eigenvalue of <span>$H$</span>. <em>Hint:</em> Take a look at the <code>eigen</code> function from <code>LinearAlgebra</code>.</p></div></div><h2 id="Plane-waves-method"><a class="docs-heading-anchor" href="#Plane-waves-method">Plane waves method</a><a id="Plane-waves-method-1"></a><a class="docs-heading-anchor-permalink" href="#Plane-waves-method" title="Permalink"></a></h2><p>In this method, we expand states on the basis</p><p class="math-container">\[   e_G(x) = \frac{1}{\sqrt{2\pi}} e^{iGx} \qquad \text{for $G=-N,\dots,N$}.\]</p><div class="admonition is-success"><header class="admonition-header">Exercise 2</header><div class="admonition-body"><p>Show that</p><p class="math-container">\[   \langle e_G, e_{G&#39;}\rangle = ∫_0^{2π} e_G^\ast(x) e_{G&#39;}(x) d x = δ_{G, G&#39;}\]</p><p>and (assuming <span>$V(x) = \cos(x)$</span>)</p><p class="math-container">\[   \langle e_G, H e_{G&#39;}\rangle = \frac 1 2 \left(|G|^2 \delta_{G,G&#39;} + \delta_{G, G&#39;+1} + \delta_{G, G&#39;-1}\right).\]</p><p>What happens for a more general <span>$V(x)$</span>?</p></div></div><div class="admonition is-success"><header class="admonition-header">Exercise 3</header><div class="admonition-body"><p>Code this and check the first eigenvalue agrees with the finite-difference case. Compare accuracies at various basis set sizes <span>$N$</span>.</p></div></div><h2 id="Using-DFTK"><a class="docs-heading-anchor" href="#Using-DFTK">Using DFTK</a><a id="Using-DFTK-1"></a><a class="docs-heading-anchor-permalink" href="#Using-DFTK" title="Permalink"></a></h2><p>We now use DFTK to do the same plane-wave discretization in this 1D system. To deal with a 1D case we use a 3D lattice with two lattice vectors set to zero.</p><pre><code class="language-julia hljs">using DFTK
+a = 2π
+lattice = a .* [[1 0 0.]; [0 0 0]; [0 0 0]];</code></pre><p>Define Hamiltonian: Kinetic + Potential</p><pre><code class="language-julia hljs">terms = [Kinetic(),
+         ExternalFromReal(r -&gt; cos(r[1]))]  # r is a vector of size 3
+model = Model(lattice; n_electrons=1, terms, spin_polarization=:spinless);  # One spinless electron</code></pre><p>Ecut defines the number of plane waves by selecting all those <span>$G$</span>, which satisfy the relationship <span>$½ |G|^2 ≤ \text{Ecut}$</span>.</p><pre><code class="language-julia hljs">Ecut = 500
+basis = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">PlaneWaveBasis discretization:
+    architecture         : DFTK.CPU()
+    num. mpi processes   : 1
+    num. julia threads   : 1
+    num. DFTK  threads   : 1
+    num. blas  threads   : 2
+    num. fft   threads   : 1
+
+    Ecut                 : 500.0 Ha
+    fft_size             : (135, 1, 1), 135 total points
+    kgrid                : MonkhorstPack([1, 1, 1])
+    num.   red. kpoints  : 1
+    num. irred. kpoints  : 1
+
+    Discretized Model(custom, 1D):
+        lattice (in Bohr)    : [6.28319   , 0         , 0         ]
+                               [0         , 0         , 0         ]
+                               [0         , 0         , 0         ]
+        unit cell volume     : 6.2832 Bohr
+    
+        num. electrons       : 1
+        spin polarization    : spinless
+        temperature          : 0 Ha
+    
+        terms                : Kinetic()
+                               ExternalFromReal(Main.var&quot;#3#4&quot;())</code></pre><p>We now seek the ground state using the self-consistent field algorithm.</p><pre><code class="language-julia hljs">scfres = self_consistent_field(basis; tol=1e-4)
+scfres.energies</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Energy breakdown (in Ha):
+    Kinetic             0.2090845 
+    ExternalFromReal    -0.7441493
+
+    total               -0.535064852288</code></pre><p>On this simple linear (non-interacting) model, the SCF converges in one step. The ground state energy of is simply the lowest eigenvalue; it should match the smallest eigenvalue of <span>$H$</span> computed above.</p><h2 id="Plotting"><a class="docs-heading-anchor" href="#Plotting">Plotting</a><a id="Plotting-1"></a><a class="docs-heading-anchor-permalink" href="#Plotting" title="Permalink"></a></h2><p>We can also get the first eigenvector (in the plane wave basis) and plot it</p><pre><code class="language-julia hljs">using Plots
+
+ψ_fourier = scfres.ψ[1][:, 1];    # first k-point, all G components, first eigenvector
+# Transform the wave function to real space
+ψ = ifft(basis, basis.kpoints[1], ψ_fourier)[:, 1, 1]
+# Eigenvectors are only defined up to a phase. We fix it by imposing that psi(0) is real
+ψ /= (ψ[1] / abs(ψ[1]))
+plot(real(ψ); label=&quot;&quot;)</code></pre><img src="eb3a36cb.svg" alt="Example block output"/><p>Again this should match with the result above.</p><div class="admonition is-success"><header class="admonition-header">Exercise 4</header><div class="admonition-body"><p>Look at the Fourier coefficients of <code>ψ_fourier</code> and compare with the result above.</p></div></div><h2 id="The-DFTK-Hamiltonian"><a class="docs-heading-anchor" href="#The-DFTK-Hamiltonian">The DFTK Hamiltonian</a><a id="The-DFTK-Hamiltonian-1"></a><a class="docs-heading-anchor-permalink" href="#The-DFTK-Hamiltonian" title="Permalink"></a></h2><p>We can ask DFTK for the Hamiltonian</p><pre><code class="language-julia hljs">E, ham = energy_hamiltonian(basis, scfres.ψ, scfres.occupation; ρ=scfres.ρ)
+H = ham.blocks[1]
+typeof(H)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DFTK.DftHamiltonianBlock</code></pre><p>This is an opaque data structure, which encodes the Hamiltonian. What can we do with it?</p><pre><code class="language-julia hljs">using InteractiveUtils
+methodswith(typeof(H), supertypes=true)</code></pre>9-element Vector{Method}:<ul><li> Array(block::<b>HamiltonianBlock</b>) in DFTK at <a href="https://github.com/JuliaMolSim/DFTK.jl/tree/15b4d41d37204299646ad551d8c6dbd9a98ec85e//src/terms/Hamiltonian.jl#L75" target="_blank">/home/runner/work/DFTK.jl/DFTK.jl/src/terms/Hamiltonian.jl:75</a><li> *(H::<b>HamiltonianBlock</b>, ψ) in DFTK at <a href="https://github.com/JuliaMolSim/DFTK.jl/tree/15b4d41d37204299646ad551d8c6dbd9a98ec85e//src/terms/Hamiltonian.jl#L63" target="_blank">/home/runner/work/DFTK.jl/DFTK.jl/src/terms/Hamiltonian.jl:63</a><li> (Matrix)(block::<b>HamiltonianBlock</b>) in DFTK at <a href="https://github.com/JuliaMolSim/DFTK.jl/tree/15b4d41d37204299646ad551d8c6dbd9a98ec85e//src/terms/Hamiltonian.jl#L76" target="_blank">/home/runner/work/DFTK.jl/DFTK.jl/src/terms/Hamiltonian.jl:76</a><li> eltype(block::<b>HamiltonianBlock</b>) in DFTK at <a href="https://github.com/JuliaMolSim/DFTK.jl/tree/15b4d41d37204299646ad551d8c6dbd9a98ec85e//src/terms/Hamiltonian.jl#L64" target="_blank">/home/runner/work/DFTK.jl/DFTK.jl/src/terms/Hamiltonian.jl:64</a><li> size(block::<b>HamiltonianBlock</b>, i::<b>Integer</b>) in DFTK at <a href="https://github.com/JuliaMolSim/DFTK.jl/tree/15b4d41d37204299646ad551d8c6dbd9a98ec85e//src/terms/Hamiltonian.jl#L65" target="_blank">/home/runner/work/DFTK.jl/DFTK.jl/src/terms/Hamiltonian.jl:65</a><li> size(block::<b>HamiltonianBlock</b>) in DFTK at <a href="https://github.com/JuliaMolSim/DFTK.jl/tree/15b4d41d37204299646ad551d8c6dbd9a98ec85e//src/terms/Hamiltonian.jl#L66" target="_blank">/home/runner/work/DFTK.jl/DFTK.jl/src/terms/Hamiltonian.jl:66</a><li> mul!(Hψ::<b>AbstractArray</b>, H::<b>DFTK.DftHamiltonianBlock</b>, ψ::<b>AbstractArray</b>) in DFTK at <a href="file:///home/runner/.julia/packages/TimerOutputs/6KVfH/src/TimerOutput.jl" target="_blank">/home/runner/.julia/packages/TimerOutputs/6KVfH/src/TimerOutput.jl:230</a><li> PreconditionerNone(::<b>HamiltonianBlock</b>) in DFTK at <a href="https://github.com/JuliaMolSim/DFTK.jl/tree/15b4d41d37204299646ad551d8c6dbd9a98ec85e//src/eigen/preconditioners.jl#L21" target="_blank">/home/runner/work/DFTK.jl/DFTK.jl/src/eigen/preconditioners.jl:21</a><li> PreconditionerTPA(ham::<b>HamiltonianBlock</b>; <i>kwargs...</i>) in DFTK at <a href="https://github.com/JuliaMolSim/DFTK.jl/tree/15b4d41d37204299646ad551d8c6dbd9a98ec85e//src/eigen/preconditioners.jl#L45" target="_blank">/home/runner/work/DFTK.jl/DFTK.jl/src/eigen/preconditioners.jl:45</a></ul><p>This defines a number of methods. For instance, it can be used as a linear operator:</p><pre><code class="language-julia hljs">H * DFTK.random_orbitals(basis, basis.kpoints[1], 1)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">63×1 Matrix{ComplexF64}:
+ -0.0018818970161097403 + 0.1537836101825662im
+  -0.059888748365135386 + 0.09947904786692713im
+     -0.219682531576235 - 0.13153975718265795im
+    0.04859896781372247 + 0.18350300006413367im
+     0.9067808718358162 - 0.6215270557489166im
+    0.02738828862695953 + 0.5246745179204864im
+    -2.0162858212686294 - 0.7625139281088154im
+     0.6132529558637635 + 1.6249018058526437im
+   -0.16455141926826744 + 0.6240805400400539im
+     -6.114717156723573 - 1.8503266850233386im
+                        ⋮
+    -1.0467545048996956 - 2.237244660614419im
+    -3.5624198518246013 + 1.026302984683547im
+     -0.886808523728202 + 1.5568335303278433im
+      3.576324897831735 - 0.32076058887723824im
+     0.9655532920704846 + 0.3270666757050292im
+     0.9002854377923424 + 1.3680738577404563im
+  -0.060731723203137744 - 0.1566380921205052im
+   0.057895733081592904 + 0.12527999525425207im
+   -0.06809447841895021 + 0.14188343746500154im</code></pre><p>We can also get its full matrix representation:</p><pre><code class="language-julia hljs">Array(H)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">63×63 Matrix{ComplexF64}:
+  -3.5247e-17+0.0im          …           0.5-4.87133e-17im
+          0.5-4.87133e-17im      1.93395e-17+1.19856e-17im
+  1.93395e-17+1.19856e-17im     -1.76211e-18+3.43427e-18im
+ -1.76211e-18+3.43427e-18im     -5.27235e-18-1.56473e-17im
+ -5.27235e-18-1.56473e-17im      1.48093e-17-1.93685e-17im
+  1.48093e-17-1.93685e-17im  …   8.85398e-18+4.44201e-18im
+  8.85398e-18+4.44201e-18im     -6.82427e-18+6.26594e-18im
+ -6.82427e-18+6.26594e-18im       6.5791e-18+9.27972e-18im
+   6.5791e-18+9.27972e-18im       1.9934e-18+3.73282e-18im
+   1.9934e-18+3.73282e-18im      2.96007e-18-6.58852e-18im
+             ⋮               ⋱  
+   1.9934e-18-3.73282e-18im      1.84038e-17+2.28001e-19im
+  1.84038e-17+2.28001e-19im  …  -6.82427e-18-6.26594e-18im
+ -6.82427e-18-6.26594e-18im      8.85398e-18-4.44201e-18im
+  8.85398e-18-4.44201e-18im      1.48093e-17+1.93685e-17im
+  1.48093e-17+1.93685e-17im     -5.27235e-18+1.56473e-17im
+ -5.27235e-18+1.56473e-17im     -1.76211e-18-3.43427e-18im
+ -1.76211e-18-3.43427e-18im  …   1.93395e-17-1.19856e-17im
+  1.93395e-17-1.19856e-17im              0.5+6.88035e-17im
+          0.5+6.88035e-17im              0.5+0.0im</code></pre><div class="admonition is-success"><header class="admonition-header">Exercise 5</header><div class="admonition-body"><p>Compare this matrix <code>Array(H)</code> with the one you obtained in Exercise 3, get its eigenvectors and eigenvalues. Try to guess the ordering of <span>$G$</span>-vectors in DFTK.</p></div></div><div class="admonition is-success"><header class="admonition-header">Exercise 6</header><div class="admonition-body"><p>Increase the size of the problem, and compare the time spent by DFTK&#39;s internal diagonalization algorithms to a full diagonalization of <code>Array(H)</code>. <em>Hint:</em> The <code>@belapsed</code> and <code>@benchmark</code> macros (from the <a href="https://github.com/JuliaCI/BenchmarkTools.jl">BenchmarkTools</a> package) are handy for this task. Note that there are some subtleties with global variables (see the BenchmarkTools docs for details). E.g. to use it to benchmark a function like <code>eigen(H)</code> run it as (note the <code>$</code>):</p><pre><code class="language-julia hljs">using BenchmarkTools
+@benchmark eigen($H)</code></pre></div></div><h2 id="Solutions"><a class="docs-heading-anchor" href="#Solutions">Solutions</a><a id="Solutions-1"></a><a class="docs-heading-anchor-permalink" href="#Solutions" title="Permalink"></a></h2><h3 id="Exercise-1"><a class="docs-heading-anchor" href="#Exercise-1">Exercise 1</a><a id="Exercise-1-1"></a><a class="docs-heading-anchor-permalink" href="#Exercise-1" title="Permalink"></a></h3><p>If we consider a function <span>$f : [0, 2π] → \mathbb{R}$</span>, to first order</p><p class="math-container">\[f(x + δx) = f(x) + δx f&#39;(x) + O(δx^2)\]</p><p>therefore after rearrangement</p><p class="math-container">\[f&#39;(x) = \frac{f(x + δx) - f(x)}{δx} + O(δx).\]</p><p>Similarly</p><p class="math-container">\[f&#39;&#39;(x) = \frac{f&#39;(x + δx) - f&#39;(x)}{δx} + O(δx),\]</p><p>such that overall</p><p class="math-container">\[f&#39;&#39;(x) \simeq \frac{f(x + 2δx) - f(x + δx) - f(x + δx) + f(x)}{δx^2}
+       = \frac{f(x + 2δx) - 2f(x + δx) + f(x)}{δx^2}\]</p><p>In finite differences we consider a stick basis of vectors</p><p class="math-container">\[\left\{ e_i = (0, …, 0, \underbrace{δx}_\text{$i$-th position}, 0, …, 0)
+        \middle| i = 1, … N \right\}.\]</p><p>Keeping in mind the periodic boundary conditions (i.e. <span>$e_0 = e_N$</span>) projecting the Hamiltonian <span>$H$</span> onto this basis thus yields the proposed structure.</p><p>We start off with <span>$N = 100$</span> to obtain</p><pre><code class="language-julia hljs">Hfd = build_finite_differences_matrix(cos, 100)
+L, V = eigen(Hfd)
+L[1:5]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">5-element Vector{Float64}:
+ -0.5351640695081414
+  0.3429576842587494
+  0.8532206682511969
+  2.053679933442362
+  2.078512110605267</code></pre><p>This is already pretty accurate (to about 4 digits) as can be estimated looking at the following convergence plot:</p><pre><code class="language-julia hljs">function fconv(N)
+    L, V = eigen(build_finite_differences_matrix(cos, N))
+    first(L)
+end
+Nrange = 10:10:100
+plot(Nrange, abs.(fconv.(Nrange) .- fconv(200));
+     yaxis=:log, legend=false, mark=:x, xlabel=&quot;N&quot;, ylabel=&quot;Absolute error&quot;)</code></pre><img src="051f4f3b.svg" alt="Example block output"/><h3 id="Exercise-2"><a class="docs-heading-anchor" href="#Exercise-2">Exercise 2</a><a id="Exercise-2-1"></a><a class="docs-heading-anchor-permalink" href="#Exercise-2" title="Permalink"></a></h3><ul><li><p>We note that</p><p class="math-container">\[\langle e_G, e_{G&#39;}\rangle = ∫_0^{2π} e_G^\ast(x) e_{G&#39;}(x) d x = 1/2π ∫_0^{2π} e^{i(G&#39;-G)x} d x\]</p><p>Since <span>$e^{iy}$</span> is a periodic function with period <span>$2\pi$</span>, <span>$\int_0^{2\pi} e^{i m y} = \delta_{0,m}$</span>. Therefore if <span>$G≠G&#39;$</span> we have that <span>$\langle e_G, e_{G&#39;}\rangle = 0$</span>, while <span>$G=G&#39;$</span> implies <span>$\langle e_G, e_{G&#39;}\rangle = 1$</span>. In summary:</p><p class="math-container">\[\langle e_G, e_{G&#39;}\rangle = δ_{G, G&#39;}\]</p></li><li><p>Next fo <span>$V(x) = \cos(x)$</span> we obtain</p><p class="math-container">\[\langle e_G, H e_{G&#39;}\rangle = \frac 1 2 ∫_0^{2π} e_G^\ast(x) H e_{G&#39;}(x) d x\]</p><p>We start by applying the Hamiltonian to a plane-wave:</p><p class="math-container">\[H e_{G&#39;}(x) = - \frac 1 2 (-|G|^2) \frac 1 {\sqrt{2π}} e^{iG&#39;x) + cos(x) \frac 1 {\sqrt{2π}} e{iG&#39;x}\]</p><p>Then, using the result of the first part of the exercise and the fact that <span>$cos(x) = \frac 1 2 \left(e{ix} + e{-ix}\right)$</span>, we get:</p><p class="math-container">\[\begin{align*}
+⟨ e_G, H e_{G&#39;}⟩
+&amp;= \frac 1 2 G^2 δ_{G, G&#39;} + \frac 1 {4π} \left(∫_0^{2π} e^{ix ⋅ (G&#39;-G+1)} d x + ∫_0^{2π} e^{ix ⋅ (G&#39;-G-1)} d x \right) \\
+&amp;= \frac 1 2 \left(|G|^2 \delta_{G,G&#39;} + \delta_{G, G&#39;+1} + \delta_{G, G&#39;-1}\right)
+\end{align*}\]</p></li><li><p>In case a more general <span>$V(x)$</span> was employed, this potential still has to be periodic over <span>$[0, 2\pi]$</span> to fit our setting. Assuming sufficient regularity in <span>$V$</span> we can employ a Fourier series:</p><p class="math-container">\[V(x) = \sum_{G=- \infty}^{\infty} \hat{V}_G e_G(x)\]</p><p>where</p><p class="math-container">\[\hat{V}_G = \frac{1}{\sqrt{2π}} ∫_0^{2π} V(x) e^{-iGx} dx = ∫_0^{2π} V(x) e_G^\ast dx .\]</p><p>Note that one can change of this as a change of basis from the position basis to the plane-wave basis.</p><p>Based on this expansion</p><p class="math-container">\[\begin{align*}
+⟨ e_G, V e_{G&#39;} ⟩ &amp;= \left\langle e_G, ∑_{G&#39;&#39;} \hat{V}_{G&#39;&#39;} \, e_{G&#39;+G&#39;&#39;} \right\rangle \\
+&amp;= \sum_{G&#39;&#39;=-\infty}^\infty \hat{V}_{G&#39;&#39;} ⟨ e_G, e_{G&#39;+G&#39;&#39;} ⟩ \\
+&amp;= \sum_{G&#39;&#39;=-\infty}^\infty \hat{V}_{G&#39;&#39;} \, δ_{G-G&#39;, G&#39;&#39;} ⟩ \\
+&amp;= \hat{V}_{G-G&#39;}
+\end{align*}\]</p><p>and therefore</p><p class="math-container">\[⟨ e_G, H e_{G&#39;} ⟩ = \frac 1 2 |G|^2 \delta_{G,G&#39;} + \hat{V}_{G-G&#39;},\]</p><p>i.e. essentially the Fourier transform of <span>$V$</span> determines the contribution to the matrix elements of the Hamiltonian.</p></li></ul><h3 id="Exercise-3"><a class="docs-heading-anchor" href="#Exercise-3">Exercise 3</a><a id="Exercise-3-1"></a><a class="docs-heading-anchor-permalink" href="#Exercise-3" title="Permalink"></a></h3><p>The Hamiltonian matrix for the plane waves method can be found this way:</p><pre><code class="language-julia hljs"># Plane waves Hamiltonian -½Δ + cos on [0, 2pi].
+function build_plane_waves_matrix_cos(N::Integer)
+    # Plane wave approximation to -½Δ
+    Gsq = [float(i)^2 for i in -N:N]
+    # Hamiltonian as derived in Exercise 2:
+    1/2 * Tridiagonal(ones(2N), Gsq, ones(2N))
+end;</code></pre><p>Then we check that the first eigenvalue agrees with the finite-difference case, using <span>$N = 10$</span>:</p><pre><code class="language-julia hljs">Hpw_cos = build_plane_waves_matrix_cos(10)
+L, V = eigen(Hpw_cos)
+L[1:5]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">5-element Vector{Float64}:
+ -0.5350648522878154
+  0.34336012839908336
+  0.8536343543207997
+  2.0565044112660984
+  2.081227363352144</code></pre><p>We look at the convergence plot to compare the accuracy for various numbers of plane-waves <span>$N$</span>:</p><pre><code class="language-julia hljs">function fconv(N)
+    L = eigvals(build_plane_waves_matrix_cos(N))
+    first(L)
+end
+
+Nrange = 2:10
+plot(Nrange, abs.(fconv.(Nrange) .- fconv(200)); yaxis=:log, legend=false,
+     ylims=(1e-16,Inf), ylabel=&quot;Absolute error&quot;, xlabel=&quot;N&quot;, mark=:x)</code></pre><img src="41f46b75.svg" alt="Example block output"/><p>Notice how compared to exercise 1 the considered basis size <span>$N$</span> is much smaller, indicating that plane-wave methods more quickly lead to accurate solutions than finite-difference methods.</p><h3 id="Exercise-4"><a class="docs-heading-anchor" href="#Exercise-4">Exercise 4</a><a id="Exercise-4-1"></a><a class="docs-heading-anchor-permalink" href="#Exercise-4" title="Permalink"></a></h3><p>For efficiency reasons the data in Fourier space is not ordered increasingly with <span>$G$</span>. Therefore to plot the Fourier space representation sensibly, we need to sort by ascending values of the <span>$G$</span> vectors first. For this we extract the Fourier vector of each plane-wave basis function in the index order:</p><pre><code class="language-julia hljs">coords_G_vectors = G_vectors_cart(basis, basis.kpoints[1])  # Get coordinates of first and only k-point
+
+# Only keep first component of each vector (because the others are zero for 1D problems):
+coords_Gx = [G[1] for G in coords_G_vectors]
+
+p = plot(coords_Gx, real(ψ_fourier); label=&quot;real part&quot;, xlims=(-10, 10))
+plot!(p, coords_Gx, imag(ψ_fourier); label=&quot;imaginary part&quot;)</code></pre><img src="c8690eb7.svg" alt="Example block output"/><p>The plot is symmetric about the zero (confirming that the orbitals are real) and only takes peaked values, which corresponds to the expected result for a cosine potential.</p><h3 id="Exercise-5"><a class="docs-heading-anchor" href="#Exercise-5">Exercise 5</a><a id="Exercise-5-1"></a><a class="docs-heading-anchor-permalink" href="#Exercise-5" title="Permalink"></a></h3><p>To figure out the ordering we consider a small basis and build the Hamiltonian:</p><pre><code class="language-julia hljs">basis_small  = PlaneWaveBasis(model; Ecut=5, kgrid=(1, 1, 1))
+ham_small = Hamiltonian(basis_small)
+H_small = Array(ham_small.blocks[1])
+H_small[abs.(H_small) .&lt; 1e-12] .= 0  # Drop numerically zero entries
+H_small</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">7×7 Matrix{ComplexF64}:
+ 0.0+0.0im          0.5+1.00424e-16im  …  0.5-1.00424e-16im
+ 0.5-1.00424e-16im  0.5+0.0im             0.0+0.0im
+ 0.0+0.0im          0.5-1.00424e-16im     0.0+0.0im
+ 0.0+0.0im          0.0+0.0im             0.0+0.0im
+ 0.0+0.0im          0.0+0.0im             0.0+0.0im
+ 0.0+0.0im          0.0+0.0im          …  0.5+1.00424e-16im
+ 0.5+1.00424e-16im  0.0+0.0im             0.5+0.0im</code></pre><p>The equivalent version using the <code>build_plane_waves_matrix_cos</code> function is <code>N=3</code> (both give rice to a 7×7 matrix).</p><pre><code class="language-julia hljs">Hother = build_plane_waves_matrix_cos(3)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">7×7 LinearAlgebra.Tridiagonal{Float64, Vector{Float64}}:
+ 4.5  0.5   ⋅    ⋅    ⋅    ⋅    ⋅ 
+ 0.5  2.0  0.5   ⋅    ⋅    ⋅    ⋅ 
+  ⋅   0.5  0.5  0.5   ⋅    ⋅    ⋅ 
+  ⋅    ⋅   0.5  0.0  0.5   ⋅    ⋅ 
+  ⋅    ⋅    ⋅   0.5  0.5  0.5   ⋅ 
+  ⋅    ⋅    ⋅    ⋅   0.5  2.0  0.5
+  ⋅    ⋅    ⋅    ⋅    ⋅   0.5  4.5</code></pre><p>By comparing the entries we find the ordering is 0,1,2,...,-2,-1, which can also be found by inspecting</p><pre><code class="language-julia hljs">first.(G_vectors(basis_small, basis_small.kpoints[1]))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">7-element Vector{Int64}:
+  0
+  1
+  2
+  3
+ -3
+ -2
+ -1</code></pre><p>Both matrices have the same eigenvalues:</p><pre><code class="language-julia hljs">maximum(abs, eigvals(H_small) - eigvals(Hother))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1.7763568394002505e-15</code></pre><p>and in the eigenvectors we find the same rearrangements in the entries of the eigenvectors of both matrices, matching the DFTK ordering of is 0,1,2,...,-2,-1.</p><pre><code class="language-julia hljs">eigvecs(Hother)[:, 1]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">7-element Vector{Float64}:
+ -0.008461095314567344
+  0.08520425570524764
+ -0.42353481192309905
+  0.7915641575577494
+ -0.42353481192310566
+  0.08520425570524905
+ -0.008461095314567471</code></pre><pre><code class="language-julia hljs">eigvecs(H_small)[:, 1]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">7-element Vector{ComplexF64}:
+  -0.7915641575577493 + 1.5898485476322146e-16im
+  0.42353481192310877 - 1.7013307112974292e-16im
+ -0.08520425570525011 + 5.1339563909648e-17im
+ 0.008461095314567624 - 6.797609502050578e-18im
+ 0.008461095314567069 + 3.3988047510250303e-18im
+ -0.08520425570524359 - 1.711318796988132e-17im
+   0.4235348119230965 + 0.0im</code></pre><p>Notice, that eigenvectors are only defined up to a phase, so the sign may globally be inverted between the two eigenvectors.</p><h3 id="Exercise-6"><a class="docs-heading-anchor" href="#Exercise-6">Exercise 6</a><a id="Exercise-6-1"></a><a class="docs-heading-anchor-permalink" href="#Exercise-6" title="Permalink"></a></h3><p>We benchmark the time needed for a full diagonalization (instantiation of the Array plus call of <code>eigen</code>) versus the time needed for running the SCF (i.e. iterative diagonalization using plane waves).</p><pre><code class="language-julia hljs">using Printf
+
+for Ecut in 200:200:1600
+   basis_time = PlaneWaveBasis(model; Ecut, kgrid=(1, 1, 1))
+   t_eigen = @elapsed eigen(Array(Hamiltonian(basis_time).blocks[1]))
+   t_scf   = @elapsed self_consistent_field(basis_time; tol=1e-6, callback=identity);
+   @printf &quot;%4i  eigen=%8.4fms  scf=%8.4fms\n&quot; Ecut 1000t_eigen 1000t_scf
+end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"> 200  eigen=  2.6294ms  scf=  3.6240ms
+ 400  eigen=  4.7619ms  scf=  3.7367ms
+ 600  eigen=  7.0297ms  scf=  3.8901ms
+ 800  eigen= 11.0171ms  scf=  4.2580ms
+1000  eigen= 13.6375ms  scf=  4.2601ms
+1200  eigen= 16.3735ms  scf=  4.4815ms
+1400  eigen= 19.3444ms  scf=  4.5697ms
+1600  eigen= 22.8671ms  scf=  4.6494ms</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../periodic_problems/">« Periodic problems and plane-wave discretisations</a><a class="docs-footer-nextpage" href="../atomic_chains/">Modelling atomic chains »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.8.0 on <span class="colophon-date" title="Thursday 12 December 2024 20:53">Thursday 12 December 2024</span>. Using Julia version 1.11.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

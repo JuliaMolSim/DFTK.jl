@@ -1,0 +1,5 @@
+  /* Output blocks without language specifier - just reveal the page background
+  underneath */
+  pre:has(> code:not([class*="language-"])) {
+      background-color: transparent;
+  }
