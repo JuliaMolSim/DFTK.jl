@@ -40,6 +40,8 @@ global gaps = []
 global as = (10.26, 11.405)
 for a in as
     lattice = a / 2 .* [[0 1 1.]; [1 0 1.]; [1 1 0.]]
+    # To observe divergence of simple damping one also needs to disable symmetries here
+    # model = model_DFT(lattice, atoms, positions; functionals=LDA(), symmetries=false)
     model = model_DFT(lattice, atoms, positions; functionals=LDA())
     basis = PlaneWaveBasis(model; Ecut, kgrid)
     res = self_consistent_field(basis; opts...)
