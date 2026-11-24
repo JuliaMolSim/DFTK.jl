@@ -173,7 +173,7 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
     mixing=SimpleMixing(),
     is_converged=ScfConvergenceDensity(tol),
     callback=ScfDefaultCallback(),
-    acceleration=AndersonAcceleration(;m=10),
+    acceleration = Acceleration(AndersonType(); m=10),
     accept_step=ScfAcceptStepAll(),
     max_backtracks=3,  # Maximal number of backtracking line searches
     seed=nothing,
@@ -231,7 +231,7 @@ Simple SCF algorithm using potential mixing. Parameters are largely the same as
 
         # Ensure same α on all processors
         α_trial = mpi_bcast(α_trial, 0, basis.comm_kpts)
-        δV = (acceleration(info.Vin, α_trial, info.Pinv_δV) - info.Vin) / α_trial
+        δV = (acceleration(info.Vin, info.Pinv_δV, α_trial) - info.Vin) / α_trial
 
         # Determine damping and take next step
         guess   = info.ψ
