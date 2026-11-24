@@ -200,7 +200,7 @@ function eval_psp_projector_fourier(psp::PspUpf, i, l, ps::AbstractVector{T}) wh
     ircut_proj = min(psp.ircut, length(psp.r2_projs[l+1][i]))
     rgrid = to_device(arch, @view psp.rgrid[1:ircut_proj])
     r2_proj = to_device(arch, @view psp.r2_projs[l+1][i][1:ircut_proj])
-    map(ps) do p
+    parallel_map(promote_type(eltype(rgrid), T), ps) do p
         # GPU kernels with dynamic function calls do not compile,
         # hence the pre-determined explicit integration function
         hankel(quadrature, rgrid, r2_proj, l, p)
@@ -255,7 +255,7 @@ function eval_psp_local_fourier(psp::PspUpf, ps::AbstractVector{T}) where {T<:Re
     rgrid = to_device(arch, @view psp.rgrid[1:psp.ircut])
     vloc  = to_device(arch, @view psp.vloc[1:psp.ircut])
     Zion = psp.Zion
-    map(ps) do p
+    parallel_map(promote_type(eltype(rgrid), T), ps) do p
         # GPU kernels with dynamic function calls do not compile,
         # hence the pre-determined explicit integration function
         _eval_psp_local_fourier(quadrature, rgrid, vloc, Zion, p)
@@ -288,7 +288,7 @@ function eval_psp_core_density_fourier(psp::PspUpf, ps::AbstractVector{T}) where
     arch = architecture(ps)
     rgrid = to_device(arch, @view psp.rgrid[1:psp.ircut])
     r2_ρcore = to_device(arch, @view psp.r2_ρcore[1:psp.ircut])
-    map(ps) do p
+    parallel_map(promote_type(eltype(rgrid), T), ps) do p
         # GPU kernels with dynamic function calls do not compile,
         # hence the pre-determined explicit integration function
         hankel(quadrature, rgrid, r2_ρcore, 0, p)
