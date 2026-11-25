@@ -23,6 +23,7 @@ on unary compounds and oxides across the periodic table.
 - Direct minimisation methods, see [Comparison of DFT solvers](@ref).
 - Various smearing methods, see [Temperature and metallic systems](@ref metallic-systems)
   and [Energy cutoff smearing](@ref).
+- [Dipole corrections](@ref) for asymmetric slabs and surfaces.
 
 ## Parallelisation
 - **MPI-based distributed parallelism** (distribution over ``k``-points)

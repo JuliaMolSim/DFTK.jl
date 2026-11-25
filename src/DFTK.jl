@@ -124,6 +124,7 @@ export ExternalFromReal
 export AtomicLocal
 export LocalNonlinearity
 export Hartree
+export DipoleCorrection
 export Xc
 export AtomicNonlocal
 export Ewald

@@ -290,3 +290,19 @@ end
         TestForces.test_term_forces(system_SiC; extra_terms=[hubbard], test_atom=2, kwargs...)
     end
 end
+
+@testitem "Bengtsson dipole SCF forces" tags=[:forces, :dont_test_mpi] setup=[TestForces] begin
+    using DFTK
+    using Test
+    using PseudoPotentialData
+    using LinearAlgebra
+
+    Li = ElementCoulomb(:Li)
+    lattice = diagm([6.0, 7.0, 24.0])
+    system  = atomic_system(lattice, [Li, Li], [[0.5, 0.5, 0.30], [0.5, 0.5, 0.50]])
+
+    pseudopotentials = PseudoFamily("cp2k.nc.sr.lda.v0_1.largecore.gth")
+    TestForces.test_forces(system; pseudopotentials, functionals=LDA(),
+                           extra_terms=[DipoleCorrection()],
+                           Ecut=8, kgrid=[1, 1, 1], atol=1e-6, symmetries=false)
+end

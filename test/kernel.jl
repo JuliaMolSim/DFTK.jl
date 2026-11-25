@@ -6,7 +6,8 @@
     testcase = TestCases.silicon
 
     function test_kernel(spin_polarization, termtype; ε_fd=1e-6, rtol=1e-5, Ecut=4,
-                         test_compute=false, psp=testcase.psp_gth)
+                         test_compute=false, psp=testcase.psp_gth,
+                         lattice=testcase.lattice, basis_kwargs...)
         kgrid = MonkhorstPack([2, 2, 2]; kshift=ones(3) / 2)
         Si = ElementPsp(TestCases.silicon.atnum, load_psp(psp))
 
@@ -25,10 +26,10 @@
 
         xcsym = (termtype isa Xc) ? join(string.(termtype.functionals), " ") : ""
         @testset "Kernel $(typeof(termtype)) $xcsym ($spin_polarization) $(psp)" begin
-            model = Model(testcase.lattice, [Si, Si], testcase.positions;
+            model = Model(lattice, [Si, Si], testcase.positions;
                           terms=[termtype], magnetic_moments, spin_polarization)
             @test model.n_spin_components == n_spin
-            basis = PlaneWaveBasis(model; Ecut, kgrid)
+            basis = PlaneWaveBasis(model; Ecut, kgrid, basis_kwargs...)
             term  = only(basis.terms)
 
             ρ0 = guess_density(basis, magnetic_moments)
@@ -120,6 +121,11 @@
     test_kernel(:collinear, Xc([:mgga_x_r2scanl, :mgga_c_r2scanl]))
     # TODO: τ-dependent kernels not yet available
     # test_kernel(:collinear, Xc([:mgga_x_r2scanl, :mgga_c_r2scan]))
+    
+    for spin_polarization in (:none, :collinear)
+        test_kernel(spin_polarization, DipoleCorrection(); test_compute=true,
+                    lattice=Matrix(Diagonal([8.0, 9.0, 20.0])), fft_size=(8, 8, 24))
+    end
 
     @testset "Non-linear core correction (NLCC)" begin
         psp = TestCases.silicon.psp_upf  # PseudoDojo v0.4.1 Si includes NLCC
