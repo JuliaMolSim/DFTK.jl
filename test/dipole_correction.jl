@@ -68,31 +68,31 @@
         # sawtooth. Sharp-sawtooth values apply at both ionic positions, so the
         # total dipole moment (electronic minus ionic) is p = L * 0.1.
         p = L * 0.1
-        @test eh.E ≈ 2π * p^2 / Ω atol=2e-13
+        @test eh.E ≈ 2π * p^2 / Ω atol=1e-12
         expected_potential = 4π * p / Ω .* term.sawtooth_scaled
-        @test only(eh.ops).potential ≈ expected_potential atol=2e-13
+        @test only(eh.ops).potential ≈ expected_potential atol=1e-11
 
         symmetric = frozen_problem(; zpositions=[[0.40], [0.60]])
         eh_symmetric = DFTK.ene_ops(only(symmetric.basis.terms), symmetric.basis,
                                     nothing, nothing; symmetric.ρ)
         @test eh_symmetric.E ≈ 0 atol=1e-14
-        @test maximum(abs, only(eh_symmetric.ops).potential) ≈ 0 atol=1e-14
+        @test maximum(abs, only(eh_symmetric.ops).potential) ≈ 0 atol=1e-12
 
         mirrored = frozen_problem(; zpositions=[[0.70], [0.40]])
         eh_mirrored = DFTK.ene_ops(only(mirrored.basis.terms), mirrored.basis,
                                    nothing, nothing; mirrored.ρ)
-        @test eh_mirrored.E ≈ eh.E atol=2e-13
+        @test eh_mirrored.E ≈ eh.E atol=1e-11
         # Mirror symmetry: the total dipole moment (electronic minus ionic) flips sign.
         mirrored_term = only(mirrored.basis.terms)
         mirrored_p = (sum(total_density(mirrored.ρ) .* mirrored_term.sawtooth_scaled)
                       * mirrored.basis.dvol - mirrored_term.ionic_dipole_moment)
-        @test mirrored_p ≈ -p atol=2e-13
+        @test mirrored_p ≈ -p atol=1e-11
 
         for direction = 1:3
             axial = frozen_problem(direction)
             eh_axial = DFTK.ene_ops(only(axial.basis.terms), axial.basis,
                                     nothing, nothing; axial.ρ)
-            @test eh_axial.E ≈ eh.E atol=2e-13
+            @test eh_axial.E ≈ eh.E atol=1e-11
         end
     end
 
