@@ -31,6 +31,7 @@ PAGES = [
         "examples/pseudopotentials.jl",
         "examples/supercells.jl",
         "examples/gaas_surface.jl",
+        "examples/dipole_correction.jl",
         "examples/graphene.jl",
         "examples/geometry_optimization.jl",
         "examples/energy_cutoff_smearing.jl",

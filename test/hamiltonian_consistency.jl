@@ -11,7 +11,8 @@ using ..TestCases: silicon
 function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6,
                                test_for_constant=false, test_energy_ad=true,
                                n_empty=3, kgrid=[1, 2, 3], kshift=[0, 1, 0]/2, Ecut=10,
-                               lattice=silicon.lattice, atom=nothing, spin_polarization=:none,
+                               lattice=silicon.lattice, positions=silicon.positions,
+                               atom=nothing, spin_polarization=:none,
                                exxalg=AceExx(), tol_energy=1e-14)
     sspol = spin_polarization != :none ? " ($spin_polarization)" : ""
     xc    = term isa Xc ? "($(first(term.functionals)))" : ""
@@ -21,7 +22,7 @@ function test_consistency_term(term; rtol=1e-4, atol=1e-8, ε=1e-6,
             atom = n_dim == 3 ? ElementPsp(14, load_psp(silicon.psp_gth)) : ElementCoulomb(:Si)
         end
         atoms = [atom, atom]
-        model = Model(lattice, atoms, silicon.positions; terms=[term], spin_polarization,
+        model = Model(lattice, atoms, positions; terms=[term], spin_polarization,
                       symmetries=true)
         basis = PlaneWaveBasis(model; Ecut, kgrid=MonkhorstPack(kgrid; kshift))
         @assert length(basis.terms) == 1
@@ -118,6 +119,10 @@ end
     test_consistency_term(ExternalFromFourier(X -> abs(norm(X))))
     test_consistency_term(LocalNonlinearity(ρ -> ρ^2))
     test_consistency_term(Hartree())
+    test_consistency_term(DipoleCorrection();
+                          lattice=Matrix(Diagonal([8.0, 9.0, 20.0])),
+                          positions=[silicon.positions[1], [1/4, 1/3, 0.4]],
+                          kgrid=[1, 1, 1], kshift=[0, 0, 0])
 
     let
         Si = ElementPsp(14, load_psp(silicon.psp_upf))
