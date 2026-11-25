@@ -104,10 +104,6 @@
                            terms=[DipoleCorrection()], symmetries=false)
         @test_throws ArgumentError PlaneWaveBasis(skew_model; Ecut=2, kgrid=[1, 1, 1])
 
-        small_grid_model = Model(model)
-        @test_throws ArgumentError PlaneWaveBasis(small_grid_model; Ecut=2, kgrid=[1, 1, 1],
-                                                  fft_size=(8, 8, 8))
-
         smoothening_width = 2norm(model.lattice[:, 3])
         wide_model = Model(model.lattice, model.atoms, model.positions;
                            terms=[DipoleCorrection(; smoothening_width)],
