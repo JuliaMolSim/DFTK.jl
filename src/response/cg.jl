@@ -78,7 +78,7 @@ function cg!(x::AbstractArray{T}, A, b::AbstractArray{T};
     while n_iter < maxiter
         # output
         info = (; A, b=full_b, n_iter, x=full_x, r=full_r, residual_norms=full_residuals,
-                  converged, stage=:iterate)
+                  converged, precon, γ=full_γ, stage=:iterate)
         callback(info)
         n_iter += 1
         converged_cols .= full_residuals .<= tol
