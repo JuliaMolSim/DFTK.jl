@@ -36,9 +36,11 @@ using an optional `occupation_threshold`. By default all occupation numbers are 
         (ik, n) = kn
         kpt = basis.kpoints[ik]
         ifft!(storage.ψnk_real, basis, kpt, ψ[ik][:, n]; normalize=false)
-        storage.ρ[:, :, :, kpt.spin] .+= (occupation[ik][n] .* basis.kweights[ik]
-                                          .* (basis.fft_grid.ifft_normalization)^2
-                                          .* abs2.(storage.ψnk_real))
+        Tρ = eltype(storage.ρ)
+        # Explict type conversion because GPU fails at promoting to Dual type dynamically
+        storage.ρ[:, :, :, kpt.spin] .+= (Tρ(occupation[ik][n]) .* Tρ(basis.kweights[ik])
+                                          .* Tρ((basis.fft_grid.ifft_normalization)^2)
+                                          .* Tρ.(abs2.(storage.ψnk_real)))
 
     end
     ρ = sum(storage -> storage.ρ, storages)
